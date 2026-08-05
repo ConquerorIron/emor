@@ -22,6 +22,9 @@ Route::prefix('v1')->group(function (): void {
         // ERP view'larından ortak seçim listeleri (program genelinde kullanılır)
         Route::get('/secenekler/personeller', [SecenekController::class, 'personeller'])
             ->name('secenekler.personeller');
+        Route::get('/secenekler/tablo-maddesi/{tur}', [SecenekController::class, 'tabloMaddesi'])
+            ->whereNumber('tur')
+            ->name('secenekler.tablo-maddesi');
 
         // Ayarlar → SQL Bağlantıları (Test/Canlı MSSQL tanımları + aktif ortam)
         Route::get('/ayarlar/sql-baglantilari', [SqlBaglantiController::class, 'index'])

@@ -26,4 +26,20 @@ final class SecenekTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('kod', 'DOGRULAMA');
     }
+
+    public function test_tablo_maddesi_sayisal_olmayan_tur_reddedilir(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $this->getJson('/api/v1/secenekler/tablo-maddesi/abc')->assertStatus(404);
+    }
+
+    public function test_tablo_maddesi_aktif_ortam_yoksa_422(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $this->getJson('/api/v1/secenekler/tablo-maddesi/36')
+            ->assertStatus(422)
+            ->assertJsonPath('kod', 'DOGRULAMA');
+    }
 }

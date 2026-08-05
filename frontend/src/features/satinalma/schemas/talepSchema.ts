@@ -26,8 +26,10 @@ export const talepSchema = z.object({
   personel_adi: z.string(),
   no: z.string(),
   tarih: z.string(),
+  // Opsiyonel: anahtar açılmadan seçilemez — proc'ta @OPSIYON_TARIHI
   termin: z.string(),
-  oncelik: z.string(),
+  // Seçili önceliğin TABLO_MADDESI_ID'si — proc'ta @ONCELIK_ID
+  oncelik_id: z.string(),
   aciklama: z.string(),
   ilgi_konusu: z.string(),
   projemiz: z.string(),
@@ -66,7 +68,7 @@ export const BOS_TALEP: TalepGirdisi = {
   // ERP ekranındaki gibi bugünün tarihi ile açılır (ISO — TarihInput sözleşmesi)
   tarih: bugunIso(),
   termin: '',
-  oncelik: '',
+  oncelik_id: '',
   aciklama: '',
   ilgi_konusu: '',
   projemiz: '',

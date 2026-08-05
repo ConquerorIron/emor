@@ -34,6 +34,21 @@ describe('SatinalmaTalebiPage', () => {
     expect(screen.getByLabelText('Satırı sil 1')).toBeDisabled()
   })
 
+  it('termin anahtarı açılmadan tarih girilemez', async () => {
+    render(<SatinalmaTalebiPage />)
+
+    // Varsayılan: boş ve kilitli (ERP Opsiyon tarihi davranışı)
+    const terminGirisi = screen.getByLabelText('Termin', { selector: 'input[type="text"]' })
+    expect(terminGirisi).toBeDisabled()
+    expect(terminGirisi).toHaveValue('')
+
+    // Anahtar açılınca giriş aktifleşir
+    fireEvent.click(screen.getByRole('switch', { name: 'Termin' }))
+    await waitFor(() => {
+      expect(terminGirisi).toBeEnabled()
+    })
+  })
+
   it('satır eklenip silinebilir', async () => {
     render(<SatinalmaTalebiPage />)
 

@@ -11,6 +11,8 @@ interface TarihInputProps {
   /** Tam ve geçerli tarihte ISO, aksi halde boş dizge alır */
   onChange: (iso: string) => void
   disabled?: boolean
+  /** Etiket görsel olarak gizlenir (dış bileşen kendi etiketini basıyorsa); erişilebilirlik korunur */
+  etiketGizli?: boolean
 }
 
 /** i18n ile aynı kaynak (localStorage 'locale'): bileşen bağımlılıksız kalır. */
@@ -31,7 +33,15 @@ const iki = (sayi: number) => String(sayi).padStart(2, '0')
  * Türkçe kullanımda İngilizce aylar görünüyordu): kendi popover'ımız seçili
  * uygulama diliyle çizilir, hafta Pazartesi başlar.
  */
-export function TarihInput({ id, label, hata, value, onChange, disabled }: TarihInputProps) {
+export function TarihInput({
+  id,
+  label,
+  hata,
+  value,
+  onChange,
+  disabled,
+  etiketGizli,
+}: TarihInputProps) {
   const [metin, setMetin] = useState(value ? tarihGoster(value) : '')
   const [takvimAcik, setTakvimAcik] = useState(false)
   const [gorunen, setGorunen] = useState<{ yil: number; ay: number }>(() => bugunkuAy(value))
@@ -138,11 +148,13 @@ export function TarihInput({ id, label, hata, value, onChange, disabled }: Tarih
     <div ref={kokRef} className="relative">
       <label
         htmlFor={id}
-        className="block text-sm font-semibold text-slate-700 dark:text-slate-300"
+        className={
+          etiketGizli ? 'sr-only' : 'block text-sm font-semibold text-slate-700 dark:text-slate-300'
+        }
       >
         {label}
       </label>
-      <div className="relative mt-1">
+      <div className={etiketGizli ? 'relative' : 'relative mt-1'}>
         <input
           id={id}
           type="text"

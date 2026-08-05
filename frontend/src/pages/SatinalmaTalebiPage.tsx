@@ -6,8 +6,10 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/Button'
 import { Input } from '@/components/Input'
+import { OpsiyonelTarihInput } from '@/components/OpsiyonelTarihInput'
 import { TarihInput } from '@/components/TarihInput'
 import { PersonelSecimi } from '@/features/personel/PersonelSecimi'
+import { OncelikSecimi } from '@/features/tabloMaddesi/OncelikSecimi'
 import {
   SATIR_ALANLARI,
   TALEP_ALANLARI,
@@ -138,6 +140,36 @@ export function SatinalmaTalebiPage() {
             label={t('satinalma.alan.tarih')}
             value={field.value}
             onChange={field.onChange}
+          />
+        )}
+      />
+    ),
+    // Varsayılan boş; anahtar açılmadan tarih seçilemez — @OPSIYON_TARIHI
+    termin: (
+      <Controller
+        name="termin"
+        control={control}
+        render={({ field }) => (
+          <OpsiyonelTarihInput
+            id="alan-termin"
+            label={t('satinalma.alan.termin')}
+            value={field.value}
+            onChange={field.onChange}
+          />
+        )}
+      />
+    ),
+    // Görünen değer AD, form değeri TABLO_MADDESI_ID (TUR=36) — @ONCELIK_ID
+    oncelik: (
+      <Controller
+        name="oncelik_id"
+        control={control}
+        render={({ field }) => (
+          <OncelikSecimi
+            id="alan-oncelik"
+            label={t('satinalma.alan.oncelik')}
+            deger={field.value}
+            degisti={(secim) => field.onChange(secim?.kayitId ?? '')}
           />
         )}
       />

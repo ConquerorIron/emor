@@ -18,9 +18,10 @@ export interface TalepAlani {
   saltOkunur?: boolean
   /**
    * Özel giriş tipi — sayfada ozelBilesenler map'i ile eşleşir
-   * (ör. 'personel' → ERP view'ından aramalı react-select, 'tarih' → takvim)
+   * (ör. 'personel' → ERP view'ından aramalı react-select, 'tarih' → takvim,
+   * 'opsiyonelTarih' → anahtarla açılan takvim, 'oncelik' → tablo maddesi)
    */
-  tip?: 'personel' | 'tarih'
+  tip?: 'personel' | 'tarih' | 'opsiyonelTarih' | 'oncelik'
 }
 
 /** Sol blok — talep başlık bilgileri (ERP ekranının sol paneli) */
@@ -28,8 +29,8 @@ export const TALEP_ALANLARI: TalepAlani[] = [
   { ad: 'personel_adi', etiketAnahtari: 'personelAdi', tip: 'personel' },
   { ad: 'no', etiketAnahtari: 'no', saltOkunur: true },
   { ad: 'tarih', etiketAnahtari: 'tarih', tip: 'tarih' },
-  { ad: 'termin', etiketAnahtari: 'termin' },
-  { ad: 'oncelik', etiketAnahtari: 'oncelik' },
+  { ad: 'termin', etiketAnahtari: 'termin', tip: 'opsiyonelTarih' },
+  { ad: 'oncelik', etiketAnahtari: 'oncelik', tip: 'oncelik' },
   { ad: 'aciklama', etiketAnahtari: 'aciklama' },
   { ad: 'ilgi_konusu', etiketAnahtari: 'ilgiKonusu' },
   { ad: 'projemiz', etiketAnahtari: 'projemiz' },
