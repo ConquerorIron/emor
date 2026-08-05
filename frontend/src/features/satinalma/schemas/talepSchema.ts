@@ -17,6 +17,8 @@ export const talepSatiriSchema = z.object({
 })
 
 export const talepSchema = z.object({
+  // Seçilen personelin ERP PERSONEL_ID'si (proc parametresi için; ad ayrı tutulur)
+  personel_id: z.string(),
   personel_adi: z.string(),
   no: z.string(),
   tarih: z.string(),
@@ -52,6 +54,7 @@ export const BOS_SATIR: TalepSatiri = {
 }
 
 export const BOS_TALEP: TalepGirdisi = {
+  personel_id: '',
   personel_adi: '',
   no: '',
   // ERP ekranındaki gibi bugünün tarihi ile açılır

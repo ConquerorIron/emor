@@ -1,8 +1,14 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import '../i18n/i18n'
+import { AppProviders } from '../providers/AppProviders'
 import { SatinalmaTalebiPage } from './SatinalmaTalebiPage'
+
+// Sayfa useQuery (personel seçenekleri) ve SelectField (tema) kullanır
+function render(ui: React.ReactElement) {
+  return rtlRender(<AppProviders>{ui}</AppProviders>)
+}
 
 describe('SatinalmaTalebiPage', () => {
   afterEach(cleanup)

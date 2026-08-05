@@ -1,10 +1,16 @@
 import { standardSchemaResolver } from '@hookform/resolvers/standard-schema'
-import { useFieldArray, useForm, type FieldErrors } from 'react-hook-form'
+import { useQuery } from '@tanstack/react-query'
+import { useMemo, type ReactNode } from 'react'
+import { Controller, useFieldArray, useForm, type FieldErrors } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { apiErrorKey } from '@/api/errors'
+import { queryKeys } from '@/api/queryKeys'
 import { Button } from '@/components/Button'
 import { Input } from '@/components/Input'
+import { SelectField, type SecenekOgesi } from '@/components/SelectField'
+import { personelSecenekleriGetir } from '@/features/satinalma/api'
 import {
   SATIR_ALANLARI,
   TALEP_ALANLARI,
@@ -30,10 +36,13 @@ function AlanBloku({
   baslik,
   alanlar,
   register,
+  ozelBilesenler,
 }: {
   baslik: string
   alanlar: TalepAlani[]
   register: ReturnType<typeof useForm<TalepGirdisi>>['register']
+  /** tip'li alanların özel girişleri (ör. personel → react-select) — sayfa kurar */
+  ozelBilesenler?: Record<string, ReactNode>
 }) {
   const { t } = useTranslation()
 
@@ -42,7 +51,9 @@ function AlanBloku({
       <h3 className="mb-4 text-lg font-bold text-slate-800 dark:text-slate-100">{baslik}</h3>
       <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
         {alanlar.map((alan) =>
-          alan.cokSatir ? (
+          alan.tip && ozelBilesenler?.[alan.ad] ? (
+            <div key={alan.ad}>{ozelBilesenler[alan.ad]}</div>
+          ) : alan.cokSatir ? (
             <div key={alan.ad} className="sm:col-span-2">
               <label
                 htmlFor={`alan-${alan.ad}`}
@@ -79,6 +90,7 @@ export function SatinalmaTalebiPage() {
     register,
     control,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<TalepGirdisi>({
     resolver: standardSchemaResolver(talepSchema),
@@ -86,6 +98,49 @@ export function SatinalmaTalebiPage() {
   })
 
   const satirlar = useFieldArray({ control, name: 'satirlar' })
+
+  // Personel seçenekleri — ERP'nin kendi arama ekranıyla aynı kaynak
+  // (VOHOM_ARAMA_PERSONEL); arama react-select içinde client tarafında yapılır
+  const personeller = useQuery({
+    queryKey: queryKeys.satinalma.personelSecenekleri,
+    queryFn: personelSecenekleriGetir,
+    staleTime: 5 * 60_000,
+  })
+  const personelSecenekleri = useMemo<SecenekOgesi[]>(
+    () =>
+      (personeller.data ?? []).map((p) => ({
+        value: String(p.kayit_id),
+        label: p.unvan,
+      })),
+    [personeller.data],
+  )
+
+  // Alan config'inde tip'i olan girişlerin özel bileşenleri (AlanBloku'na gider).
+  // Kaynak değer personel_id'dir (proc parametresi); görünen ad ayrıca saklanır.
+  const ozelBilesenler: Record<string, ReactNode> = {
+    personel_adi: (
+      <Controller
+        name="personel_id"
+        control={control}
+        render={({ field }) => (
+          <SelectField
+            id="alan-personel_adi"
+            label={t('satinalma.alan.personelAdi')}
+            options={personelSecenekleri}
+            value={personelSecenekleri.find((s) => s.value === field.value) ?? null}
+            onChange={(secim) => {
+              field.onChange(secim?.value ?? '')
+              setValue('personel_adi', secim?.label ?? '')
+            }}
+            placeholder={t('satinalma.personelSec')}
+            isClearable
+            yukleniyor={personeller.isPending}
+            hata={personeller.isError ? t(apiErrorKey(personeller.error)) : undefined}
+          />
+        )}
+      />
+    ),
+  }
 
   const onSubmit = handleSubmit(
     (girdi) => {
@@ -113,6 +168,7 @@ export function SatinalmaTalebiPage() {
           baslik={t('satinalma.talepBilgileri')}
           alanlar={TALEP_ALANLARI}
           register={register}
+          ozelBilesenler={ozelBilesenler}
         />
         <AlanBloku
           baslik={t('satinalma.teslimatBilgileri')}

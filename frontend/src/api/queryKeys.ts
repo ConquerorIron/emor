@@ -9,4 +9,7 @@ export const queryKeys = {
   ayarlar: {
     sqlBaglantilari: ['ayarlar', 'sqlBaglantilari'],
   },
+  satinalma: {
+    personelSecenekleri: ['satinalma', 'personelSecenekleri'],
+  },
 } as const

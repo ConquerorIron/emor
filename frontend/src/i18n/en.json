@@ -41,6 +41,7 @@
     "satirEkle": "Add Line",
     "satirSil": "Remove line",
     "kaydetHenuzYok": "Form data is ready — the ERP save (SOHOM_SIPARIS_KAYDET) will be wired in the next step.",
+    "personelSec": "Select or search personnel…",
     "alan": {
       "personelAdi": "Personnel name",
       "no": "No",
