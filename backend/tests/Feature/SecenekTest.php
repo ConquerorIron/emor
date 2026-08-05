@@ -42,4 +42,23 @@ final class SecenekTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('kod', 'DOGRULAMA');
     }
+
+    public function test_ilgili_tanimsiz_cins_anlasilir_hata_doner(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        // 11/12/13 arama kaynakları henüz tanımlanmadı — MSSQL'e gitmeden 422
+        $this->getJson('/api/v1/secenekler/ilgili/11')
+            ->assertStatus(422)
+            ->assertJsonPath('hatalar.cins.0', 'Bu ilgi konusu için arama kaynağı henüz tanımlanmadı.');
+    }
+
+    public function test_ilgili_desteklenen_cins_aktif_ortam_yoksa_422(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $this->getJson('/api/v1/secenekler/ilgili/7')
+            ->assertStatus(422)
+            ->assertJsonPath('kod', 'DOGRULAMA');
+    }
 }

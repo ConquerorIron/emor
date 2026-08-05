@@ -25,6 +25,9 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/secenekler/tablo-maddesi/{tur}', [SecenekController::class, 'tabloMaddesi'])
             ->whereNumber('tur')
             ->name('secenekler.tablo-maddesi');
+        Route::get('/secenekler/ilgili/{cins}', [SecenekController::class, 'ilgili'])
+            ->whereNumber('cins')
+            ->name('secenekler.ilgili');
 
         // Ayarlar → SQL Bağlantıları (Test/Canlı MSSQL tanımları + aktif ortam)
         Route::get('/ayarlar/sql-baglantilari', [SqlBaglantiController::class, 'index'])

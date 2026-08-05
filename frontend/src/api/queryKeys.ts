@@ -13,5 +13,6 @@ export const queryKeys = {
   secenekler: {
     personeller: ['secenekler', 'personeller'],
     tabloMaddesi: (tur: number) => ['secenekler', 'tabloMaddesi', tur] as const,
+    ilgili: (cins: string) => ['secenekler', 'ilgili', cins] as const,
   },
 } as const

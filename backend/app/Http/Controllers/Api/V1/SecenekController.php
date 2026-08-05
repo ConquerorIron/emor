@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Services\MssqlBaglantiServisi;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 /**
  * ERP seçim listeleri — aktif MSSQL ortamının arama view'larından okunur.
@@ -40,6 +41,58 @@ final class SecenekController extends Controller
                     'kayit_id' => (int) $satir->kayit_id,
                     'kod' => (string) $satir->kod,
                     'unvan' => (string) $satir->unvan,
+                ],
+                $satirlar,
+            ),
+        ]);
+    }
+
+    /**
+     * İlgili kaydı seçenekleri — Satınalma Talebi "İlgi konusu" cinsine göre
+     * farklı ERP arama view'larından okunur (@ILGILI_ID adayları; profiler
+     * kayıtları 2026-08-05). Desteklenen cinsler adım adım genişliyor:
+     *   7  = Projemiz            → VOHOM_ARAMA_PARTI_YAMASI (TUR=17, miyatsız)
+     *   8  = Uygulama Sözleşmesi → VOHOM_ARAMA_SIPARIS (TIP=0, ALT_TUR=3)
+     * Güvenlik filtreleri giriş yapan kullanıcının ERP kimliğiyle uygulanır.
+     */
+    public function ilgili(Request $request, int $cins): JsonResponse
+    {
+        if (! in_array($cins, [7, 8], true)) {
+            throw ValidationException::withMessages([
+                'cins' => __('hata.ilgili_cins_tanimsiz'),
+            ]);
+        }
+
+        $erpKullaniciId = $request->user()?->erp_kullanici_id ?? -1;
+        $baglanti = $this->mssql->baglan();
+
+        $satirlar = $cins === 7
+            ? $baglanti->select(
+                'SELECT PARTI_YAMASI_ID AS kayit_id, RTRIM(KOD) AS kod, AD AS ad, NULL AS ek
+                 FROM VOHOM_ARAMA_PARTI_YAMASI
+                 WHERE TUR = 17 AND MIYAD_TARIHI IS NULL
+                   AND (GUVENLIK_KODU_ID IS NULL OR GRUP_KULLANICISI_ID = ?)
+                 ORDER BY KOD',
+                [$erpKullaniciId],
+            )
+            : $baglanti->select(
+                'SELECT SIPARIS_ID AS kayit_id, RTRIM(SIPARIS_NO) COLLATE Turkish_100_CI_AS AS kod,
+                        UNVAN AS ad, PROJE_ADI AS ek
+                 FROM VOHOM_ARAMA_SIPARIS
+                 WHERE TIP = 0 AND ALT_TUR = 3 AND ISNULL(SAHIP_TURU, 255) <> 1
+                   AND ((GUVENLIK_KODU_ID IS NULL OR GRUP_KULLANICISI_ID = ?)
+                    AND (PROJE_GUVENLIK_KODU_ID IS NULL OR PROJE_GRUP_KULLANICISI_ID = ?))
+                 ORDER BY SIPARIS_NO COLLATE Turkish_100_CI_AS',
+                [$erpKullaniciId, $erpKullaniciId],
+            );
+
+        return response()->json([
+            'data' => array_map(
+                static fn (object $satir): array => [
+                    'kayit_id' => (int) $satir->kayit_id,
+                    'kod' => (string) $satir->kod,
+                    'ad' => (string) ($satir->ad ?? ''),
+                    'ek' => (string) ($satir->ek ?? ''),
                 ],
                 $satirlar,
             ),

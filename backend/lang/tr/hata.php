@@ -17,4 +17,7 @@ return [
     'sql_aktif_ortam_yok' => 'Aktif ortam seçilmemiş. Ayarlar → SQL Bağlantıları ekranından Test veya Canlı ortamı aktif edin.',
     'sql_baglanti_basarisiz' => 'Bağlantı kurulamadı: :detay',
     'sql_baglanti_eksik' => 'Sunucu, veritabanı ve kullanıcı adı alanları zorunludur.',
+
+    // Satınalma
+    'ilgili_cins_tanimsiz' => 'Bu ilgi konusu için arama kaynağı henüz tanımlanmadı.',
 ];

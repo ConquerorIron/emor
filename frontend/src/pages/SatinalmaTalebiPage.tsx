@@ -11,7 +11,13 @@ import { OpsiyonelTarihInput } from '@/components/OpsiyonelTarihInput'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 import { TarihInput } from '@/components/TarihInput'
 import { PersonelSecimi } from '@/features/personel/PersonelSecimi'
-import { ILGI_CINSLERI, VARSAYILAN_ILGI_CINSI } from '@/features/satinalma/ilgiCinsleri'
+import {
+  ARAMALI_ILGI_CINSLERI,
+  ILGI_CINSLERI,
+  VARSAYILAN_ILGI_CINSI,
+  type IlgiCinsi,
+} from '@/features/satinalma/ilgiCinsleri'
+import { IlgiliSecimi } from '@/features/satinalma/IlgiliSecimi'
 import { OncelikSecimi } from '@/features/tabloMaddesi/OncelikSecimi'
 import {
   SATIR_ALANLARI,
@@ -112,9 +118,9 @@ export function SatinalmaTalebiPage() {
     defaultValues: BOS_TALEP,
   })
 
-  // İlgi cinsi seçimi "ilgili" alanının etiketini belirler (Proje / Uygulama
-  // Sözleşmesi / …); cins değişince önceki seçim anlamsızlaşır ve sıfırlanır
-  const ilgiCinsi = watch('ilgi_cinsi') || VARSAYILAN_ILGI_CINSI
+  // İlgi cinsi seçimi "ilgili" alanının etiketini ve arama kaynağını belirler
+  // (Proje / Uygulama Sözleşmesi / …); cins değişince önceki seçim sıfırlanır
+  const ilgiCinsi = (watch('ilgi_cinsi') || VARSAYILAN_ILGI_CINSI) as IlgiCinsi
   const ilgiCinsiSecenekleri: SecenekOgesi[] = ILGI_CINSLERI.map((cins) => ({
     value: cins,
     label: t(`satinalma.ilgiCinsi.${cins}`),
@@ -209,9 +215,23 @@ export function SatinalmaTalebiPage() {
         )}
       />
     ),
-    // Etiketi seçilen ilgi cinsine göre değişir — @ILGILI_ID
-    // (şimdilik serbest metin; cins bazlı view aramaları sonraki adımda)
-    ilgili: (
+    // Etiketi ve arama kaynağı seçilen ilgi cinsine göre değişir — @ILGILI_ID.
+    // Sorgusu tanımlı cinsler aramalı; diğerleri sorgular gelene dek serbest metin
+    ilgili: ARAMALI_ILGI_CINSLERI.includes(ilgiCinsi) ? (
+      <Controller
+        name="ilgili_id"
+        control={control}
+        render={({ field }) => (
+          <IlgiliSecimi
+            cins={ilgiCinsi}
+            id="alan-ilgili"
+            label={t(`satinalma.ilgiliEtiket.${ilgiCinsi}`)}
+            deger={field.value}
+            degisti={field.onChange}
+          />
+        )}
+      />
+    ) : (
       <Input
         id="alan-ilgili"
         label={t(`satinalma.ilgiliEtiket.${ilgiCinsi}`)}
