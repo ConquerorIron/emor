@@ -24,6 +24,12 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <DashboardPage /> },
       {
+        path: 'satinalma/talep',
+        lazy: async () => ({
+          Component: (await import('@/pages/SatinalmaTalebiPage')).SatinalmaTalebiPage,
+        }),
+      },
+      {
         path: 'ayarlar/sql-baglantilari',
         lazy: async () => ({
           Component: (await import('@/pages/SqlBaglantilariPage')).SqlBaglantilariPage,

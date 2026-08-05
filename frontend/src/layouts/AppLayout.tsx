@@ -33,6 +33,10 @@ const NAV_GRUPLARI: NavGrubu[] = [
     ogeler: [{ to: '/', ad: 'anasayfa', end: true }],
   },
   {
+    baslikAnahtari: 'nav.satinalma',
+    ogeler: [{ to: '/satinalma/talep', ad: 'satinalmaTalepleri' }],
+  },
+  {
     baslikAnahtari: 'nav.ayarlar',
     ogeler: [{ to: '/ayarlar/sql-baglantilari', ad: 'sqlBaglantilari' }],
   },

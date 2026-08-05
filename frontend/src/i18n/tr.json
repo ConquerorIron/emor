@@ -27,8 +27,48 @@
   },
   "nav": {
     "anasayfa": "Ana Sayfa",
+    "satinalma": "Satınalma",
+    "satinalmaTalepleri": "Satınalma Talebi",
     "ayarlar": "Ayarlar",
     "sqlBaglantilari": "SQL Bağlantıları"
+  },
+  "satinalma": {
+    "baslik": "Satınalma Talebi",
+    "aciklama": "Talep başlık bilgilerini doldurun, satırları ekleyin ve kaydedin. Kayıt ERP'ye (aktif ortamın veritabanına) yapılır.",
+    "talepBilgileri": "Talep Bilgileri",
+    "teslimatBilgileri": "Teslimat Bilgileri",
+    "satirlar": "Talep Satırları",
+    "satirEkle": "Satır Ekle",
+    "satirSil": "Satırı sil",
+    "kaydetHenuzYok": "Form verisi hazır — ERP kaydı (SOHOM_SIPARIS_KAYDET) bir sonraki adımda bağlanacak.",
+    "alan": {
+      "personelAdi": "Personel adı",
+      "no": "No",
+      "tarih": "Tarih",
+      "termin": "Termin",
+      "oncelik": "Öncelik",
+      "aciklama": "Açıklama",
+      "ilgiKonusu": "İlgi konusu",
+      "projemiz": "Projemiz",
+      "depoAdi": "Depo adı",
+      "teslimatAdresi": "Teslimat adresi",
+      "teslimatBicimi": "Teslimat biçimi",
+      "teslimatSekli": "Teslimat şekli",
+      "teslimatSuresiTarih": "Teslimat süresi (Tarih)",
+      "teslimatSuresiSure": "Teslimat süresi (Süre)",
+      "alimYeri": "Alım yeri",
+      "aktiviteKodu": "Aktivite kodu",
+      "aktiviteAciklamasi": "Aktivite açıklaması",
+      "urunKodu": "Ürün kodu",
+      "urunAdi": "Ürün adı",
+      "urunTarifi": "Ürün tarifi",
+      "miktar": "Miktar",
+      "kullanimAmaci": "Kullanım Amacı"
+    },
+    "dogrulama": {
+      "urunKoduZorunlu": "Ürün kodu zorunludur.",
+      "enAzBirSatir": "En az bir talep satırı girilmelidir."
+    }
   },
   "giris": {
     "altBaslik": "Devam etmek için giriş yapın",

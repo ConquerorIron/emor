@@ -1,0 +1,218 @@
+import { standardSchemaResolver } from '@hookform/resolvers/standard-schema'
+import { useFieldArray, useForm, type FieldErrors } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+
+import { Button } from '@/components/Button'
+import { Input } from '@/components/Input'
+import {
+  SATIR_ALANLARI,
+  TALEP_ALANLARI,
+  TESLIMAT_ALANLARI,
+  type TalepAlani,
+} from '@/features/satinalma/talepAlanlari'
+import {
+  BOS_SATIR,
+  BOS_TALEP,
+  talepSchema,
+  type TalepGirdisi,
+} from '@/features/satinalma/schemas/talepSchema'
+
+/** Grid hücresi girişi — Input bileşeninin kompakt hali (etiketler thead'de) */
+const HUCRE_SINIFI =
+  'block h-9 w-full min-w-28 rounded-lg border bg-white px-2 text-sm text-slate-900 shadow-sm transition-colors outline-none focus:ring-2 dark:bg-slate-950 dark:text-slate-100'
+const HUCRE_NORMAL =
+  'border-slate-300 focus:border-blue-600 focus:ring-blue-200 dark:border-slate-700 dark:focus:ring-blue-900'
+const HUCRE_HATALI =
+  'border-red-500 focus:border-red-500 focus:ring-red-200 dark:focus:ring-red-900'
+
+function AlanBloku({
+  baslik,
+  alanlar,
+  register,
+}: {
+  baslik: string
+  alanlar: TalepAlani[]
+  register: ReturnType<typeof useForm<TalepGirdisi>>['register']
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="rounded-xl border border-slate-200 p-5 dark:border-slate-700">
+      <h3 className="mb-4 text-lg font-bold text-slate-800 dark:text-slate-100">{baslik}</h3>
+      <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+        {alanlar.map((alan) =>
+          alan.cokSatir ? (
+            <div key={alan.ad} className="sm:col-span-2">
+              <label
+                htmlFor={`alan-${alan.ad}`}
+                className="block text-sm font-semibold text-slate-700 dark:text-slate-300"
+              >
+                {t(`satinalma.alan.${alan.etiketAnahtari}`)}
+              </label>
+              <textarea
+                id={`alan-${alan.ad}`}
+                rows={3}
+                className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition-colors outline-none placeholder:text-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-900"
+                {...register(alan.ad as keyof TalepGirdisi)}
+              />
+            </div>
+          ) : (
+            <Input
+              key={alan.ad}
+              id={`alan-${alan.ad}`}
+              label={t(`satinalma.alan.${alan.etiketAnahtari}`)}
+              autoComplete="off"
+              {...register(alan.ad as keyof TalepGirdisi)}
+            />
+          ),
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function SatinalmaTalebiPage() {
+  const { t } = useTranslation()
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<TalepGirdisi>({
+    resolver: standardSchemaResolver(talepSchema),
+    defaultValues: BOS_TALEP,
+  })
+
+  const satirlar = useFieldArray({ control, name: 'satirlar' })
+
+  const onSubmit = handleSubmit(
+    (girdi) => {
+      // SOHOM_SIPARIS_KAYDET bağlantısı bir sonraki adımda; şimdilik veri hazır
+      // eslint-disable-next-line no-console
+      console.log('Satınalma talebi form verisi:', girdi)
+      toast.info(t('satinalma.kaydetHenuzYok'))
+    },
+    (hatalar: FieldErrors<TalepGirdisi>) => {
+      if (hatalar.satirlar?.root?.message ?? hatalar.satirlar?.message) {
+        toast.error(t(hatalar.satirlar.root?.message ?? hatalar.satirlar.message ?? ''))
+      }
+    },
+  )
+
+  return (
+    <form onSubmit={(e) => void onSubmit(e)} noValidate>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-2xl font-bold">{t('satinalma.baslik')}</h2>
+      </div>
+      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{t('satinalma.aciklama')}</p>
+
+      <div className="mt-4 grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
+        <AlanBloku
+          baslik={t('satinalma.talepBilgileri')}
+          alanlar={TALEP_ALANLARI}
+          register={register}
+        />
+        <AlanBloku
+          baslik={t('satinalma.teslimatBilgileri')}
+          alanlar={TESLIMAT_ALANLARI}
+          register={register}
+        />
+      </div>
+
+      <div className="mt-5 rounded-xl border border-slate-200 p-5 dark:border-slate-700">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+            {t('satinalma.satirlar')}
+          </h3>
+          <Button type="button" variant="mor" onClick={() => satirlar.append({ ...BOS_SATIR })}>
+            {t('satinalma.satirEkle')}
+          </Button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full border-separate border-spacing-0">
+            <thead>
+              <tr>
+                <th className="w-10 rounded-tl-lg border-y border-l border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+                  #
+                </th>
+                {SATIR_ALANLARI.map((alan) => (
+                  <th
+                    key={alan.ad}
+                    className="border-y border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                  >
+                    {alan.ad === 'urun_kodu' ? '* ' : ''}
+                    {t(`satinalma.alan.${alan.etiketAnahtari}`)}
+                  </th>
+                ))}
+                <th className="w-12 rounded-tr-lg border-y border-r border-slate-200 bg-slate-50 px-2 py-2 dark:border-slate-700 dark:bg-slate-800" />
+              </tr>
+            </thead>
+            <tbody>
+              {satirlar.fields.map((satir, indeks) => (
+                <tr key={satir.id}>
+                  <td className="border-b border-l border-slate-200 px-2 py-1.5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    {indeks + 1}
+                  </td>
+                  {SATIR_ALANLARI.map((alan) => {
+                    const hata =
+                      errors.satirlar?.[indeks]?.[alan.ad as keyof typeof BOS_SATIR]?.message
+
+                    return (
+                      <td
+                        key={alan.ad}
+                        className="border-b border-slate-200 px-1 py-1.5 dark:border-slate-700"
+                      >
+                        <input
+                          aria-label={`${t(`satinalma.alan.${alan.etiketAnahtari}`)} ${indeks + 1}`}
+                          aria-invalid={hata ? true : undefined}
+                          title={hata ? t(hata) : undefined}
+                          autoComplete="off"
+                          className={`${HUCRE_SINIFI} ${hata ? HUCRE_HATALI : HUCRE_NORMAL}`}
+                          {...register(`satirlar.${indeks}.${alan.ad as keyof typeof BOS_SATIR}`)}
+                        />
+                      </td>
+                    )
+                  })}
+                  <td className="border-r border-b border-slate-200 px-1 py-1.5 text-center dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => satirlar.remove(indeks)}
+                      disabled={satirlar.fields.length === 1}
+                      title={t('satinalma.satirSil')}
+                      aria-label={`${t('satinalma.satirSil')} ${indeks + 1}`}
+                      className="cursor-pointer rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-red-950 dark:hover:text-red-400"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        className="size-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={1.8}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
+                        />
+                      </svg>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="mt-5 flex justify-end">
+        <Button type="submit" yukleniyor={isSubmitting}>
+          {t('ortak.kaydet')}
+        </Button>
+      </div>
+    </form>
+  )
+}
