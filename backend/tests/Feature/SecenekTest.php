@@ -47,8 +47,8 @@ final class SecenekTest extends TestCase
     {
         $this->actingAs(User::factory()->create());
 
-        // 11/12/13 arama kaynakları henüz tanımlanmadı — MSSQL'e gitmeden 422
-        $this->getJson('/api/v1/secenekler/ilgili/11')
+        // Tanımlı cins listesi dışında bir değer — MSSQL'e gitmeden 422
+        $this->getJson('/api/v1/secenekler/ilgili/99')
             ->assertStatus(422)
             ->assertJsonPath('hatalar.cins.0', 'Bu ilgi konusu için arama kaynağı henüz tanımlanmadı.');
     }

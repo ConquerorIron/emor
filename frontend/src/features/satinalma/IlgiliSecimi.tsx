@@ -38,14 +38,17 @@ export function IlgiliSecimi({ cins, id, label, deger, degisti, hata }: IlgiliSe
     () =>
       (kayitlar.data ?? []).map((kayit) => ({
         value: String(kayit.kayit_id),
-        // Projemiz (7): KOD zaten proje adını içerir ("A01 - ZONE 4-5 …") —
-        // yalnız kod gösterilir; diğer cinslerde kod + ünvan (+ proje) birleşir
+        // Cins bazlı gösterim (kullanıcı tanımı 2026-08-05):
+        //   7 Projemiz → yalnız KOD (kod zaten proje adını içerir)
+        //   8 Uygulama Sözleşmesi → SIPARIS_NO — UNVAN
+        //   11 Arızalı Yedek Parça → yalnız ÜRÜN ADI
+        //   12 İş Paketi / 13 Satınalma Sözleşmesi → yalnız SIPARIS_NO
         label:
-          cins === '7'
-            ? kayit.kod
-            : kayit.kod +
-              (kayit.ad && kayit.ad !== kayit.kod ? ` — ${kayit.ad}` : '') +
-              (kayit.ek ? ` (${kayit.ek})` : ''),
+          cins === '8'
+            ? kayit.kod + (kayit.ad ? ` — ${kayit.ad}` : '')
+            : cins === '11'
+              ? kayit.ad
+              : kayit.kod,
       })),
     [kayitlar.data, cins],
   )

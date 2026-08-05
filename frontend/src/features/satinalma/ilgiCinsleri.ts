@@ -11,7 +11,7 @@ export type IlgiCinsi = (typeof ILGI_CINSLERI)[number]
 export const VARSAYILAN_ILGI_CINSI: IlgiCinsi = '7' // Projemiz
 
 /**
- * Arama kaynağı (view sorgusu) tanımlanmış cinsler — diğerleri şimdilik
- * serbest metinle girilir; sorgular geldikçe genişler.
+ * Arama kaynağı (view sorgusu) tanımlanmış cinsler — tanımsız bir cins
+ * eklenirse form serbest metne düşer (İlgiliSecimi yerine Input).
  */
-export const ARAMALI_ILGI_CINSLERI: readonly IlgiCinsi[] = ['7', '8']
+export const ARAMALI_ILGI_CINSLERI: readonly IlgiCinsi[] = ['7', '8', '11', '12', '13']
