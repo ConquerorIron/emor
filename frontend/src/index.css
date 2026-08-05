@@ -1,0 +1,39 @@
+@import 'tailwindcss';
+
+/* Dark mode class stratejisi: <html class="dark"> (ThemeProvider yönetir) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Nunito', ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-100 text-slate-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100;
+  }
+}
+
+@layer components {
+  /* Switch vurgusu (kullanıcı isteği 2026-08-04): 135° blue→indigo gradient + ince
+     iç çerçeve + yumuşak gölge. Switch bileşeninin `vurgulu` prop'u bu kutuyu ekler.
+     Düşük opaklık açık/koyu temada da okunur. */
+  .switch-vurgu {
+    background-image: linear-gradient(135deg, rgb(59 130 246 / 0.2), rgb(99 102 241 / 0.15));
+    box-shadow:
+      inset 0 0 0 1px rgb(59 130 246 / 0.3),
+      0 6px 18px -10px rgb(59 130 246 / 0.5);
+  }
+
+  /* Cetvel proje GRUP satırı (kullanıcı isteği 2026-08-04): düz lacivert yerine
+     dikey degrade — parlak "başlık çubuğu". Beyaz yazı korunur; hücre bazlı
+     uygulandığından dikey degrade satır boyunca tekdüze görünür. */
+  .grup-satiri {
+    background-image: linear-gradient(180deg, #34497f 0%, #253662 55%, #1e2b4e 100%);
+  }
+}

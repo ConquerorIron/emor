@@ -1,0 +1,11 @@
+# Referans proje — repoya girmez (kendi repo'su ayrı: puantaj)
+/ornek/
+
+# Sertifika ve gizli dosyalar — ASLA push'lanmaz
+/SSL/
+*.pfx
+*.pem
+*.key
+
+# Araç çıktıları
+/.ai-review/

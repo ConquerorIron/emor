@@ -1,0 +1,101 @@
+{
+  "ortak": {
+    "uygulamaAdi": "ERP Web",
+    "cikisYap": "Çıkış Yap",
+    "kaydet": "Kaydet",
+    "kaydediliyor": "Kaydediliyor…",
+    "yukleniyor": "Yükleniyor…",
+    "iptal": "İptal",
+    "tekrarDene": "Tekrar Dene",
+    "menuyuAc": "Menüyü genişlet",
+    "menuyuDaralt": "Menüyü daralt",
+    "acikTemayaGec": "Açık temaya geç",
+    "koyuTemayaGec": "Koyu temaya geç",
+    "cevrimdisi": "İnternet bağlantısı yok — değişiklikler kaydedilemez.",
+    "testOrtami": "Test Ortamı",
+    "canliOrtam": "CANLI ORTAM",
+    "ortamSecilmedi": "Ortam Seçilmedi",
+    "kayitBulunamadi": "Kayıt bulunamadı.",
+    "sayfaBoyutu": "Sayfa boyutu",
+    "ilk": "İlk",
+    "onceki": "Önceki",
+    "sonraki": "Sonraki",
+    "son": "Son",
+    "hepsi": "Hepsi",
+    "tumunuSec": "Tümünü seç",
+    "satirSec": "Satırı seç"
+  },
+  "nav": {
+    "anasayfa": "Ana Sayfa",
+    "ayarlar": "Ayarlar",
+    "sqlBaglantilari": "SQL Bağlantıları"
+  },
+  "giris": {
+    "altBaslik": "Devam etmek için giriş yapın",
+    "kullaniciAdi": "Kullanıcı Adı",
+    "sifre": "Şifre",
+    "girisYap": "Giriş Yap",
+    "girisYapiliyor": "Giriş yapılıyor…",
+    "dogrulama": {
+      "kullaniciAdiZorunlu": "Kullanıcı adı zorunludur.",
+      "sifreZorunlu": "Şifre zorunludur."
+    }
+  },
+  "anasayfa": {
+    "hosgeldin": "Hoş geldiniz, {{ad}}",
+    "aciklama": "ERP işlemlerinize sol menüden ulaşabilirsiniz.",
+    "bosDurum": "Satınalma Talebi modülü yakında burada olacak."
+  },
+  "ayarlar": {
+    "sql": {
+      "baslik": "SQL Bağlantıları",
+      "aciklama": "ERP MSSQL sunucusunun Test ve Canlı bağlantı tanımları. Store proc'lar aktif seçilen ortamda çalıştırılır.",
+      "ortam": {
+        "test": "Test",
+        "canli": "Canlı"
+      },
+      "sunucu": "Sunucu",
+      "sunucuOrnek": "ör. 192.168.1.10 veya SUNUCU\\INSTANCE",
+      "port": "Port (boş = varsayılan)",
+      "veritabani": "Veritabanı",
+      "kullaniciAdi": "Kullanıcı Adı",
+      "sifre": "Şifre",
+      "sifreNotu": "Şifreyi değiştirmeyecekseniz boş bırakın; kayıtlı şifre korunur.",
+      "kaydedildi": "{{ortam}} bağlantı tanımı kaydedildi.",
+      "aktifRozet": "Aktif",
+      "sinaButon": "Bağlantıyı Sına",
+      "sinamaBasarili": "Bağlantı başarılı",
+      "aktifOrtamBaslik": "Aktif Ortam",
+      "aktifOrtamAciklama": "Tüm kullanıcılar için geçerlidir: ERP kayıtları (store proc çalıştırmaları) seçilen ortamın veritabanına yapılır.",
+      "testSecimAciklama": "Kayıtlar test veritabanına yapılır — güvenle deneme yapabilirsiniz.",
+      "canliSecimAciklama": "Kayıtlar gerçek ERP veritabanına yapılır.",
+      "onceTanimla": "Önce bağlantı tanımını kaydedin.",
+      "aktifYapildi": "Aktif ortam {{ortam}} olarak değiştirildi.",
+      "canliOnayBaslik": "Canlı ortama geçilsin mi?",
+      "canliOnayMesaj": "Bu işlemden sonra yapılacak TÜM kayıtlar gerçek ERP veritabanına işlenir. Devam etmek istediğinize emin misiniz?",
+      "canliOnayEtiket": "Canlıya Geç",
+      "dogrulama": {
+        "sunucuZorunlu": "Sunucu adı zorunludur.",
+        "sunucuUzun": "Sunucu adı çok uzun.",
+        "portGecersiz": "Port 1–65535 arasında bir sayı olmalıdır.",
+        "veritabaniZorunlu": "Veritabanı adı zorunludur.",
+        "kullaniciZorunlu": "Kullanıcı adı zorunludur.",
+        "sifreZorunlu": "İlk kayıtta şifre zorunludur."
+      }
+    }
+  },
+  "hata": {
+    "AG_HATASI": "Sunucuya ulaşılamadı. Bağlantınızı kontrol edin.",
+    "YETKISIZ": "Oturumunuz sona erdi. Lütfen tekrar giriş yapın.",
+    "ERISIM_ENGELLI": "Bu işlem için yetkiniz yok.",
+    "DOGRULAMA": "Girilen bilgilerde hata var.",
+    "BULUNAMADI": "Kayıt bulunamadı.",
+    "COK_FAZLA_ISTEK": "Çok fazla istek gönderildi; lütfen biraz bekleyin.",
+    "BILINMEYEN": "Beklenmeyen bir hata oluştu.",
+    "HESAP_PASIF": "Hesabınız pasife alındı.",
+    "guncellendiBaslik": "Uygulama güncellendi",
+    "guncellendiOtomatik": "Yeni sürüm yüklendi; sayfa yenilenince geçerli olur.",
+    "guncellendiElle": "Sayfayı yenileyerek yeni sürüme geçebilirsiniz.",
+    "simdiYenile": "Şimdi Yenile"
+  }
+}

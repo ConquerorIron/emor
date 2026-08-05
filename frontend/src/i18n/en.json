@@ -1,0 +1,101 @@
+{
+  "ortak": {
+    "uygulamaAdi": "ERP Web",
+    "cikisYap": "Log Out",
+    "kaydet": "Save",
+    "kaydediliyor": "Saving…",
+    "yukleniyor": "Loading…",
+    "iptal": "Cancel",
+    "tekrarDene": "Retry",
+    "menuyuAc": "Expand menu",
+    "menuyuDaralt": "Collapse menu",
+    "acikTemayaGec": "Switch to light theme",
+    "koyuTemayaGec": "Switch to dark theme",
+    "cevrimdisi": "No internet connection — changes cannot be saved.",
+    "testOrtami": "Test Environment",
+    "canliOrtam": "LIVE ENVIRONMENT",
+    "ortamSecilmedi": "No Environment Selected",
+    "kayitBulunamadi": "No records found.",
+    "sayfaBoyutu": "Page size",
+    "ilk": "First",
+    "onceki": "Previous",
+    "sonraki": "Next",
+    "son": "Last",
+    "hepsi": "All",
+    "tumunuSec": "Select all",
+    "satirSec": "Select row"
+  },
+  "nav": {
+    "anasayfa": "Home",
+    "ayarlar": "Settings",
+    "sqlBaglantilari": "SQL Connections"
+  },
+  "giris": {
+    "altBaslik": "Sign in to continue",
+    "kullaniciAdi": "Username",
+    "sifre": "Password",
+    "girisYap": "Sign In",
+    "girisYapiliyor": "Signing in…",
+    "dogrulama": {
+      "kullaniciAdiZorunlu": "Username is required.",
+      "sifreZorunlu": "Password is required."
+    }
+  },
+  "anasayfa": {
+    "hosgeldin": "Welcome, {{ad}}",
+    "aciklama": "Access your ERP operations from the left menu.",
+    "bosDurum": "The Purchase Request module will be here soon."
+  },
+  "ayarlar": {
+    "sql": {
+      "baslik": "SQL Connections",
+      "aciklama": "Test and Live connection definitions for the ERP MSSQL server. Stored procedures run against the active environment.",
+      "ortam": {
+        "test": "Test",
+        "canli": "Live"
+      },
+      "sunucu": "Server",
+      "sunucuOrnek": "e.g. 192.168.1.10 or SERVER\\INSTANCE",
+      "port": "Port (empty = default)",
+      "veritabani": "Database",
+      "kullaniciAdi": "Username",
+      "sifre": "Password",
+      "sifreNotu": "Leave blank to keep the saved password.",
+      "kaydedildi": "{{ortam}} connection saved.",
+      "aktifRozet": "Active",
+      "sinaButon": "Test Connection",
+      "sinamaBasarili": "Connection successful",
+      "aktifOrtamBaslik": "Active Environment",
+      "aktifOrtamAciklama": "Applies to all users: ERP writes (stored procedure calls) go to the selected environment's database.",
+      "testSecimAciklama": "Writes go to the test database — safe to experiment.",
+      "canliSecimAciklama": "Writes go to the production ERP database.",
+      "onceTanimla": "Save the connection definition first.",
+      "aktifYapildi": "Active environment switched to {{ortam}}.",
+      "canliOnayBaslik": "Switch to the live environment?",
+      "canliOnayMesaj": "From now on ALL writes will go to the production ERP database. Are you sure you want to continue?",
+      "canliOnayEtiket": "Switch to Live",
+      "dogrulama": {
+        "sunucuZorunlu": "Server is required.",
+        "sunucuUzun": "Server name is too long.",
+        "portGecersiz": "Port must be a number between 1 and 65535.",
+        "veritabaniZorunlu": "Database is required.",
+        "kullaniciZorunlu": "Username is required.",
+        "sifreZorunlu": "Password is required on first save."
+      }
+    }
+  },
+  "hata": {
+    "AG_HATASI": "Could not reach the server. Check your connection.",
+    "YETKISIZ": "Your session has expired. Please sign in again.",
+    "ERISIM_ENGELLI": "You are not authorized for this action.",
+    "DOGRULAMA": "There are errors in the submitted data.",
+    "BULUNAMADI": "Record not found.",
+    "COK_FAZLA_ISTEK": "Too many requests; please wait a moment.",
+    "BILINMEYEN": "An unexpected error occurred.",
+    "HESAP_PASIF": "Your account has been deactivated.",
+    "guncellendiBaslik": "Application updated",
+    "guncellendiOtomatik": "A new version has been installed; it takes effect after a refresh.",
+    "guncellendiElle": "Refresh the page to switch to the new version.",
+    "simdiYenile": "Refresh Now"
+  }
+}
