@@ -10,6 +10,7 @@ import { Input } from '@/components/Input'
 import { OpsiyonelTarihInput } from '@/components/OpsiyonelTarihInput'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 import { TarihInput } from '@/components/TarihInput'
+import { DepoSecimi } from '@/features/depo/DepoSecimi'
 import { PersonelSecimi } from '@/features/personel/PersonelSecimi'
 import {
   ARAMALI_ILGI_CINSLERI,
@@ -191,6 +192,21 @@ export function SatinalmaTalebiPage() {
             value={field.value}
             onChange={field.onChange}
             hata={errors.aciklama?.message ? t(errors.aciklama.message) : undefined}
+          />
+        )}
+      />
+    ),
+    // Depo — değer KAYIT_ID; kayıt sırasında satırların DEPOMUZ_ID'sine yazılır
+    depo_adi: (
+      <Controller
+        name="depomuz_id"
+        control={control}
+        render={({ field }) => (
+          <DepoSecimi
+            id="alan-depo_adi"
+            label={t('satinalma.alan.depoAdi')}
+            deger={field.value}
+            degisti={(secim) => field.onChange(secim?.kayitId ?? '')}
           />
         )}
       />

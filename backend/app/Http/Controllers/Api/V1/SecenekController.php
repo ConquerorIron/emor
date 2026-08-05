@@ -48,6 +48,37 @@ final class SecenekController extends Controller
     }
 
     /**
+     * Depo seçenekleri — depolar da parti yaması ağacındadır (TUR=12, miyatsız;
+     * profiler kaydı 2026-08-05). kayit_id, sipariş SATIRLARININ DEPOMUZ_ID
+     * alanına yazılır (TOHOM_SIPARIS_SATIRI — başlık tablosunda depo yoktur;
+     * proc, satırları TOHOM_ISKELE_ALIM_SATIM_SATIRI'ndan kopyalarken taşır).
+     */
+    public function depolar(Request $request): JsonResponse
+    {
+        $erpKullaniciId = $request->user()?->erp_kullanici_id ?? -1;
+
+        $satirlar = $this->mssql->baglan()->select(
+            'SELECT PARTI_YAMASI_ID AS kayit_id, RTRIM(KOD) AS kod, AD COLLATE Turkish_100_CI_AS AS ad
+             FROM VOHOM_ARAMA_PARTI_YAMASI
+             WHERE TUR = 12 AND MIYAD_TARIHI IS NULL
+               AND (GUVENLIK_KODU_ID IS NULL OR GRUP_KULLANICISI_ID = ?)
+             ORDER BY AD COLLATE Turkish_100_CI_AS',
+            [$erpKullaniciId],
+        );
+
+        return response()->json([
+            'data' => array_map(
+                static fn (object $satir): array => [
+                    'kayit_id' => (int) $satir->kayit_id,
+                    'kod' => (string) $satir->kod,
+                    'ad' => (string) $satir->ad,
+                ],
+                $satirlar,
+            ),
+        ]);
+    }
+
+    /**
      * İlgili kaydı seçenekleri — Satınalma Talebi "İlgi konusu" cinsine göre
      * farklı ERP arama view'larından okunur (@ILGILI_ID adayları; profiler
      * kayıtları 2026-08-05):

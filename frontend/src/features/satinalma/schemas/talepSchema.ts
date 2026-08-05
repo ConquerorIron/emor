@@ -40,7 +40,9 @@ export const talepSchema = z.object({
   // (şimdilik serbest metin; cins bazlı view aramaları eklenecek)
   ilgili_id: z.string(),
 
-  depo_adi: z.string(),
+  // Seçili deponun KAYIT_ID'si (parti yaması TUR=12) — sipariş SATIRLARININ
+  // DEPOMUZ_ID alanına yazılır (başlık tablosunda depo yoktur)
+  depomuz_id: z.string(),
   teslimat_adresi: z.string(),
   teslimat_bicimi: z.string(),
   teslimat_sekli: z.string(),
@@ -78,7 +80,7 @@ export const BOS_TALEP: TalepGirdisi = {
   aciklama: '',
   ilgi_cinsi: VARSAYILAN_ILGI_CINSI,
   ilgili_id: '',
-  depo_adi: '',
+  depomuz_id: '',
   teslimat_adresi: '',
   teslimat_bicimi: '',
   teslimat_sekli: '',
