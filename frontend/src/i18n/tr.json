@@ -45,6 +45,20 @@
     "satirEkle": "Satır Ekle",
     "satirSil": "Satırı sil",
     "otomatik": "Kayıtta otomatik üretilir",
+    "ilgiCinsi": {
+      "7": "Projemiz",
+      "8": "Uygulama Sözleşmesi",
+      "11": "Arızalı Yedek Parça",
+      "12": "İş Paketi",
+      "13": "Satınalma Sözleşmesi"
+    },
+    "ilgiliEtiket": {
+      "7": "Proje",
+      "8": "Uygulama Sözleşmesi",
+      "11": "Arızalı Yedek Parça",
+      "12": "İş Paketi",
+      "13": "Satınalma Sözleşmesi"
+    },
     "kaydetHenuzYok": "Form verisi hazır — ERP kaydı (SOHOM_SIPARIS_KAYDET) bir sonraki adımda bağlanacak.",
     "alan": {
       "personelAdi": "Personel adı",

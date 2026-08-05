@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { VARSAYILAN_ILGI_CINSI } from '@/features/satinalma/ilgiCinsleri'
 import { bugunIso } from '@/utils/tarih'
 
 /**
@@ -32,8 +33,12 @@ export const talepSchema = z.object({
   oncelik_id: z.string(),
   // ERP ACIKLAMA200 tipi — proc'ta @ACIKLAMA; giriş bileşeni de kırpar
   aciklama: z.string().max(200, 'satinalma.dogrulama.aciklamaUzun'),
-  ilgi_konusu: z.string(),
-  projemiz: z.string(),
+  // İlgi konusu türü (7=Projemiz, 8=Uygulama Söz., 11=Arızalı Yedek Parça,
+  // 12=İş Paketi, 13=Satınalma Söz.) — proc'ta @ILGI_CINSI
+  ilgi_cinsi: z.string(),
+  // Seçilen ilgi cinsine göre ilişkili kaydın ID'si — proc'ta @ILGILI_ID
+  // (şimdilik serbest metin; cins bazlı view aramaları eklenecek)
+  ilgili_id: z.string(),
 
   depo_adi: z.string(),
   teslimat_adresi: z.string(),
@@ -71,8 +76,8 @@ export const BOS_TALEP: TalepGirdisi = {
   termin: '',
   oncelik_id: '',
   aciklama: '',
-  ilgi_konusu: '',
-  projemiz: '',
+  ilgi_cinsi: VARSAYILAN_ILGI_CINSI,
+  ilgili_id: '',
   depo_adi: '',
   teslimat_adresi: '',
   teslimat_bicimi: '',

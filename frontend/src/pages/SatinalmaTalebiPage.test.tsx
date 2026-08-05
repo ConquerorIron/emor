@@ -34,6 +34,19 @@ describe('SatinalmaTalebiPage', () => {
     expect(screen.getByLabelText('Satırı sil 1')).toBeDisabled()
   })
 
+  it('ilgi konusu varsayılan Projemiz gelir ve bağlı alan etiketi Proje olur', () => {
+    render(<SatinalmaTalebiPage />)
+
+    // Varsayılan @ILGI_CINSI = 7 (Projemiz); react-select seçili değeri metin olarak
+    // basar ("Projemiz" satır kolonunda da geçtiği için select'e daraltılır)
+    expect(
+      screen.getByText('Projemiz', { selector: '.erp-select__single-value' }),
+    ).toBeInTheDocument()
+
+    // Bağlı alanın (@ILGILI_ID) etiketi cinse göre: 7 → "Proje"
+    expect(screen.getByLabelText('Proje')).toBeInTheDocument()
+  })
+
   it('açıklama 200 karakterden fazlasını almaz', () => {
     render(<SatinalmaTalebiPage />)
 

@@ -22,9 +22,10 @@ export interface TalepAlani {
    * Özel giriş tipi — sayfada ozelBilesenler map'i ile eşleşir
    * (ör. 'personel' → ERP view'ından aramalı react-select, 'tarih' → takvim,
    * 'opsiyonelTarih' → anahtarla açılan takvim, 'oncelik' → tablo maddesi,
-   * 'aciklama200' → 200 karakter limitli açıklama)
+   * 'aciklama200' → 200 karakter limitli açıklama, 'ilgiCinsi' → sabit liste,
+   * 'ilgili' → ilgi cinsine göre etiketi değişen bağlı alan)
    */
-  tip?: 'personel' | 'tarih' | 'opsiyonelTarih' | 'oncelik' | 'aciklama200'
+  tip?: 'personel' | 'tarih' | 'opsiyonelTarih' | 'oncelik' | 'aciklama200' | 'ilgiCinsi' | 'ilgili'
 }
 
 /** Sol blok — talep başlık bilgileri (ERP ekranının sol paneli) */
@@ -35,8 +36,9 @@ export const TALEP_ALANLARI: TalepAlani[] = [
   { ad: 'termin', etiketAnahtari: 'termin', tip: 'opsiyonelTarih' },
   { ad: 'oncelik', etiketAnahtari: 'oncelik', tip: 'oncelik' },
   { ad: 'aciklama', etiketAnahtari: 'aciklama', tip: 'aciklama200', tamSatir: true },
-  { ad: 'ilgi_konusu', etiketAnahtari: 'ilgiKonusu' },
-  { ad: 'projemiz', etiketAnahtari: 'projemiz' },
+  { ad: 'ilgi_konusu', etiketAnahtari: 'ilgiKonusu', tip: 'ilgiCinsi' },
+  // Etiketi seçilen ilgi cinsine göre değişir (Proje / Uygulama Sözleşmesi / …)
+  { ad: 'ilgili', etiketAnahtari: 'projemiz', tip: 'ilgili' },
 ]
 
 /** Sağ blok — teslimat bilgileri (ERP ekranının sağ paneli) */

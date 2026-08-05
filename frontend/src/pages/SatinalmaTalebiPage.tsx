@@ -8,8 +8,10 @@ import { Aciklama200Input } from '@/components/Aciklama200Input'
 import { Button } from '@/components/Button'
 import { Input } from '@/components/Input'
 import { OpsiyonelTarihInput } from '@/components/OpsiyonelTarihInput'
+import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 import { TarihInput } from '@/components/TarihInput'
 import { PersonelSecimi } from '@/features/personel/PersonelSecimi'
+import { ILGI_CINSLERI, VARSAYILAN_ILGI_CINSI } from '@/features/satinalma/ilgiCinsleri'
 import { OncelikSecimi } from '@/features/tabloMaddesi/OncelikSecimi'
 import {
   SATIR_ALANLARI,
@@ -103,11 +105,20 @@ export function SatinalmaTalebiPage() {
     control,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<TalepGirdisi>({
     resolver: standardSchemaResolver(talepSchema),
     defaultValues: BOS_TALEP,
   })
+
+  // İlgi cinsi seçimi "ilgili" alanının etiketini belirler (Proje / Uygulama
+  // Sözleşmesi / …); cins değişince önceki seçim anlamsızlaşır ve sıfırlanır
+  const ilgiCinsi = watch('ilgi_cinsi') || VARSAYILAN_ILGI_CINSI
+  const ilgiCinsiSecenekleri: SecenekOgesi[] = ILGI_CINSLERI.map((cins) => ({
+    value: cins,
+    label: t(`satinalma.ilgiCinsi.${cins}`),
+  }))
 
   const satirlar = useFieldArray({ control, name: 'satirlar' })
 
@@ -176,6 +187,36 @@ export function SatinalmaTalebiPage() {
             hata={errors.aciklama?.message ? t(errors.aciklama.message) : undefined}
           />
         )}
+      />
+    ),
+    // Sabit liste (7/8/11/12/13) — @ILGI_CINSI; varsayılan Projemiz (7)
+    ilgi_konusu: (
+      <Controller
+        name="ilgi_cinsi"
+        control={control}
+        render={({ field }) => (
+          <SelectField
+            id="alan-ilgi_konusu"
+            label={t('satinalma.alan.ilgiKonusu')}
+            options={ilgiCinsiSecenekleri}
+            value={ilgiCinsiSecenekleri.find((s) => s.value === field.value) ?? null}
+            onChange={(secim) => {
+              field.onChange(secim?.value ?? VARSAYILAN_ILGI_CINSI)
+              setValue('ilgili_id', '')
+            }}
+            isClearable={false}
+          />
+        )}
+      />
+    ),
+    // Etiketi seçilen ilgi cinsine göre değişir — @ILGILI_ID
+    // (şimdilik serbest metin; cins bazlı view aramaları sonraki adımda)
+    ilgili: (
+      <Input
+        id="alan-ilgili"
+        label={t(`satinalma.ilgiliEtiket.${ilgiCinsi}`)}
+        autoComplete="off"
+        {...register('ilgili_id')}
       />
     ),
     // Görünen değer AD, form değeri TABLO_MADDESI_ID (TUR=36) — @ONCELIK_ID

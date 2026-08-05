@@ -45,6 +45,20 @@
     "satirEkle": "Add Line",
     "satirSil": "Remove line",
     "otomatik": "Generated automatically on save",
+    "ilgiCinsi": {
+      "7": "Our Project",
+      "8": "Application Contract",
+      "11": "Faulty Spare Part",
+      "12": "Work Package",
+      "13": "Purchase Contract"
+    },
+    "ilgiliEtiket": {
+      "7": "Project",
+      "8": "Application Contract",
+      "11": "Faulty Spare Part",
+      "12": "Work Package",
+      "13": "Purchase Contract"
+    },
     "kaydetHenuzYok": "Form data is ready — the ERP save (SOHOM_SIPARIS_KAYDET) will be wired in the next step.",
     "alan": {
       "personelAdi": "Personnel name",
