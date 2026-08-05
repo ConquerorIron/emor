@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/Button'
 import { Input } from '@/components/Input'
+import { TarihInput } from '@/components/TarihInput'
 import { PersonelSecimi } from '@/features/personel/PersonelSecimi'
 import {
   SATIR_ALANLARI,
@@ -49,6 +50,16 @@ function AlanBloku({
         {alanlar.map((alan) =>
           alan.tip && ozelBilesenler?.[alan.ad] ? (
             <div key={alan.ad}>{ozelBilesenler[alan.ad]}</div>
+          ) : alan.saltOkunur ? (
+            <Input
+              key={alan.ad}
+              id={`alan-${alan.ad}`}
+              label={t(`satinalma.alan.${alan.etiketAnahtari}`)}
+              disabled
+              placeholder={t('satinalma.otomatik')}
+              className="disabled:cursor-not-allowed disabled:bg-slate-50 dark:disabled:bg-slate-900"
+              {...register(alan.ad as keyof TalepGirdisi)}
+            />
           ) : alan.cokSatir ? (
             <div key={alan.ad} className="sm:col-span-2">
               <label
@@ -96,28 +107,38 @@ export function SatinalmaTalebiPage() {
   const satirlar = useFieldArray({ control, name: 'satirlar' })
 
   // Alan config'inde tip'i olan girişlerin özel bileşenleri (AlanBloku'na gider).
-  // Personel: görünen değer Ünvan, form değeri KAYIT_ID — SOHOM_SIPARIS_KAYDET
-  // @PARTI_YAMASI_ID parametresine bire bir gider.
   const ozelBilesenler: Record<string, ReactNode> = {
+    // Görünen değer Ünvan, form değeri PERSONEL_ID (proc çağrısında
+    // @PARTI_YAMASI_ID'ye eşlenecek)
     personel_adi: (
       <Controller
-        name="parti_yamasi_id"
+        name="personel_id"
         control={control}
         render={({ field }) => (
-          <>
-            <PersonelSecimi
-              id="alan-personel_adi"
-              label={t('satinalma.alan.personelAdi')}
-              deger={field.value}
-              degisti={(secim) => {
-                field.onChange(secim?.kayitId ?? '')
-                setValue('personel_adi', secim?.unvan ?? '')
-              }}
-            />
-            {/* Seçilen KAYIT_ID DOM'da da izlenebilsin (DevTools denetimi):
-                proc'a giden değer budur — SOHOM_SIPARIS_KAYDET @PARTI_YAMASI_ID */}
-            <input type="hidden" name="parti_yamasi_id" value={field.value} readOnly />
-          </>
+          <PersonelSecimi
+            id="alan-personel_adi"
+            label={t('satinalma.alan.personelAdi')}
+            deger={field.value}
+            degisti={(secim) => {
+              field.onChange(secim?.kayitId ?? '')
+              setValue('personel_adi', secim?.unvan ?? '')
+            }}
+          />
+        )}
+      />
+    ),
+    // GG.AA.YYYY maskeli giriş + takvim popover + Bugün kısayolu; değer ISO
+    tarih: (
+      <Controller
+        name="tarih"
+        control={control}
+        render={({ field }) => (
+          <TarihInput
+            id="alan-tarih"
+            label={t('satinalma.alan.tarih')}
+            value={field.value}
+            onChange={field.onChange}
+          />
         )}
       />
     ),

@@ -43,6 +43,7 @@
     "satirlar": "Request Lines",
     "satirEkle": "Add Line",
     "satirSil": "Remove line",
+    "otomatik": "Generated automatically on save",
     "kaydetHenuzYok": "Form data is ready — the ERP save (SOHOM_SIPARIS_KAYDET) will be wired in the next step.",
     "alan": {
       "personelAdi": "Personnel name",

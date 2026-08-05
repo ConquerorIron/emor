@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { bugunIso } from '@/utils/tarih'
+
 /**
  * Satınalma Talebi doğrulaması — ilk adımda gevşek: yalnız Ürün kodu zorunlu
  * (ERP formunda * ile işaretli tek kolon). SOHOM_SIPARIS_KAYDET parametre
@@ -17,8 +19,10 @@ export const talepSatiriSchema = z.object({
 })
 
 export const talepSchema = z.object({
-  // Seçilen personelin ERP KAYIT_ID'si — SOHOM_SIPARIS_KAYDET @PARTI_YAMASI_ID
-  parti_yamasi_id: z.string(),
+  // Seçilen personelin ERP PERSONEL_ID'si (VOHOM_ARAMA_PERSONEL KAYIT_ID).
+  // Proc çağrısında @PARTI_YAMASI_ID'ye eşlenir — form tarafında adı hep
+  // personel_id kalır (parti_yamasi_id proc'larda genel "taraf" kavramıdır).
+  personel_id: z.string(),
   personel_adi: z.string(),
   no: z.string(),
   tarih: z.string(),
@@ -54,11 +58,13 @@ export const BOS_SATIR: TalepSatiri = {
 }
 
 export const BOS_TALEP: TalepGirdisi = {
-  parti_yamasi_id: '',
+  personel_id: '',
   personel_adi: '',
+  // Talep No'yu kayıt sırasında ERP üretir (SOHOM_NUMERATOR_URET 47 →
+  // @SIPARIS_NO OUTPUT); kullanıcı yazamaz
   no: '',
-  // ERP ekranındaki gibi bugünün tarihi ile açılır
-  tarih: new Date().toLocaleDateString('tr-TR'),
+  // ERP ekranındaki gibi bugünün tarihi ile açılır (ISO — TarihInput sözleşmesi)
+  tarih: bugunIso(),
   termin: '',
   oncelik: '',
   aciklama: '',

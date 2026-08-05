@@ -45,6 +45,14 @@ export function tarihMaskele(girdi: string): string {
   return parcalar.filter((parca) => parca !== '').join('.')
 }
 
+/** Bugünün tarihi ISO (YYYY-MM-DD) — yerel saat diliminde. */
+export function bugunIso(): string {
+  const simdi = new Date()
+  const iki = (sayi: number) => String(sayi).padStart(2, '0')
+
+  return `${simdi.getFullYear()}-${iki(simdi.getMonth() + 1)}-${iki(simdi.getDate())}`
+}
+
 /** GG.AA.YYYY gösterimini ISO'ya çevirir; eksik/geçersiz tarihte '' döner. */
 export function gosterimdenIso(metin: string): string {
   const eslesme = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(metin)

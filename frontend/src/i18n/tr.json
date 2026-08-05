@@ -43,6 +43,7 @@
     "satirlar": "Talep Satırları",
     "satirEkle": "Satır Ekle",
     "satirSil": "Satırı sil",
+    "otomatik": "Kayıtta otomatik üretilir",
     "kaydetHenuzYok": "Form verisi hazır — ERP kaydı (SOHOM_SIPARIS_KAYDET) bir sonraki adımda bağlanacak.",
     "alan": {
       "personelAdi": "Personel adı",

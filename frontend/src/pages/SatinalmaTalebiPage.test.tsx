@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import '../i18n/i18n'
 import { AppProviders } from '../providers/AppProviders'
+import { bugunIso, tarihGoster } from '../utils/tarih'
 import { SatinalmaTalebiPage } from './SatinalmaTalebiPage'
 
 // Sayfa useQuery (personel seçenekleri) ve SelectField (tema) kullanır
@@ -20,9 +21,13 @@ describe('SatinalmaTalebiPage', () => {
     expect(screen.getByText('Talep Bilgileri')).toBeInTheDocument()
     expect(screen.getByText('Teslimat Bilgileri')).toBeInTheDocument()
 
-    // Tarih bugünle dolu gelir (ERP davranışı)
+    // Tarih bugünle dolu gelir (ERP davranışı) — GG.AA.YYYY maskeli gösterim
     const tarih = screen.getByLabelText('Tarih')
-    expect(tarih).toHaveValue(new Date().toLocaleDateString('tr-TR'))
+    expect(tarih).toHaveValue(tarihGoster(bugunIso()))
+
+    // Talep No kullanıcı tarafından yazılamaz; ERP kayıtta üretir
+    // (SOHOM_NUMERATOR_URET 47 → @SIPARIS_NO OUTPUT)
+    expect(screen.getByLabelText('No')).toBeDisabled()
 
     // Grid tek boş satırla başlar; tek satır silinemez
     expect(screen.getByLabelText('Ürün kodu 1')).toBeInTheDocument()

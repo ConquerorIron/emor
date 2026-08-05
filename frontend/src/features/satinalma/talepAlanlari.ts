@@ -14,18 +14,20 @@ export interface TalepAlani {
   etiketAnahtari: string
   /** Çok satırlı metin (ör. teslimat adresi) */
   cokSatir?: boolean
+  /** Kullanıcı yazamaz — program/ERP doldurur (ör. No: SOHOM_NUMERATOR_URET) */
+  saltOkunur?: boolean
   /**
    * Özel giriş tipi — sayfada ozelBilesenler map'i ile eşleşir
-   * (ör. 'personel' → ERP view'ından aramalı react-select)
+   * (ör. 'personel' → ERP view'ından aramalı react-select, 'tarih' → takvim)
    */
-  tip?: 'personel'
+  tip?: 'personel' | 'tarih'
 }
 
 /** Sol blok — talep başlık bilgileri (ERP ekranının sol paneli) */
 export const TALEP_ALANLARI: TalepAlani[] = [
   { ad: 'personel_adi', etiketAnahtari: 'personelAdi', tip: 'personel' },
-  { ad: 'no', etiketAnahtari: 'no' },
-  { ad: 'tarih', etiketAnahtari: 'tarih' },
+  { ad: 'no', etiketAnahtari: 'no', saltOkunur: true },
+  { ad: 'tarih', etiketAnahtari: 'tarih', tip: 'tarih' },
   { ad: 'termin', etiketAnahtari: 'termin' },
   { ad: 'oncelik', etiketAnahtari: 'oncelik' },
   { ad: 'aciklama', etiketAnahtari: 'aciklama' },

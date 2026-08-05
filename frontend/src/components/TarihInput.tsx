@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { gosterimdenIso, tarihGoster, tarihMaskele } from '@/utils/tarih'
+import { bugunIso, gosterimdenIso, tarihGoster, tarihMaskele } from '@/utils/tarih'
 
 interface TarihInputProps {
   id: string
@@ -91,6 +91,13 @@ export function TarihInput({ id, label, hata, value, onChange, disabled }: Tarih
   function gunSecildi(gun: number) {
     const iso = `${gorunen.yil}-${iki(gorunen.ay + 1)}-${iki(gun)}`
     yay(iso, tarihGoster(iso))
+    setTakvimAcik(false)
+  }
+
+  function bugunSecildi() {
+    const iso = bugunIso()
+    yay(iso, tarihGoster(iso))
+    setGorunen(bugunkuAy(iso))
     setTakvimAcik(false)
   }
 
@@ -236,6 +243,15 @@ export function TarihInput({ id, label, hata, value, onChange, disabled }: Tarih
                 </button>
               )
             })}
+          </div>
+          <div className="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={bugunSecildi}
+              className="w-full cursor-pointer rounded-lg px-3 py-1.5 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-slate-800"
+            >
+              {dil === 'tr-TR' ? 'Bugün' : 'Today'}
+            </button>
           </div>
         </div>
       ) : null}
