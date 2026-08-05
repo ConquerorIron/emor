@@ -4,6 +4,7 @@ import { Controller, useFieldArray, useForm, type FieldErrors } from 'react-hook
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { Aciklama200Input } from '@/components/Aciklama200Input'
 import { Button } from '@/components/Button'
 import { Input } from '@/components/Input'
 import { OpsiyonelTarihInput } from '@/components/OpsiyonelTarihInput'
@@ -51,7 +52,9 @@ function AlanBloku({
       <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
         {alanlar.map((alan) =>
           alan.tip && ozelBilesenler?.[alan.ad] ? (
-            <div key={alan.ad}>{ozelBilesenler[alan.ad]}</div>
+            <div key={alan.ad} className={alan.tamSatir ? 'sm:col-span-2' : undefined}>
+              {ozelBilesenler[alan.ad]}
+            </div>
           ) : alan.saltOkunur ? (
             <Input
               key={alan.ad}
@@ -155,6 +158,22 @@ export function SatinalmaTalebiPage() {
             label={t('satinalma.alan.termin')}
             value={field.value}
             onChange={field.onChange}
+          />
+        )}
+      />
+    ),
+    // 200 karakter sert limit + sayaç; tam satır genişlik — @ACIKLAMA (ACIKLAMA200)
+    aciklama: (
+      <Controller
+        name="aciklama"
+        control={control}
+        render={({ field }) => (
+          <Aciklama200Input
+            id="alan-aciklama"
+            label={t('satinalma.alan.aciklama')}
+            value={field.value}
+            onChange={field.onChange}
+            hata={errors.aciklama?.message ? t(errors.aciklama.message) : undefined}
           />
         )}
       />

@@ -34,6 +34,16 @@ describe('SatinalmaTalebiPage', () => {
     expect(screen.getByLabelText('Satırı sil 1')).toBeDisabled()
   })
 
+  it('açıklama 200 karakterden fazlasını almaz', () => {
+    render(<SatinalmaTalebiPage />)
+
+    const aciklama = screen.getByLabelText('Açıklama')
+    fireEvent.change(aciklama, { target: { value: 'a'.repeat(250) } })
+
+    expect(aciklama).toHaveValue('a'.repeat(200))
+    expect(screen.getByText('200/200')).toBeInTheDocument()
+  })
+
   it('termin anahtarı açılmadan tarih girilemez', async () => {
     render(<SatinalmaTalebiPage />)
 

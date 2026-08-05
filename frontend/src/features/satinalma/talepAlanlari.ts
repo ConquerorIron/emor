@@ -16,12 +16,15 @@ export interface TalepAlani {
   cokSatir?: boolean
   /** Kullanıcı yazamaz — program/ERP doldurur (ör. No: SOHOM_NUMERATOR_URET) */
   saltOkunur?: boolean
+  /** Alan grid'de satırı tek başına kaplar (tam genişlik) */
+  tamSatir?: boolean
   /**
    * Özel giriş tipi — sayfada ozelBilesenler map'i ile eşleşir
    * (ör. 'personel' → ERP view'ından aramalı react-select, 'tarih' → takvim,
-   * 'opsiyonelTarih' → anahtarla açılan takvim, 'oncelik' → tablo maddesi)
+   * 'opsiyonelTarih' → anahtarla açılan takvim, 'oncelik' → tablo maddesi,
+   * 'aciklama200' → 200 karakter limitli açıklama)
    */
-  tip?: 'personel' | 'tarih' | 'opsiyonelTarih' | 'oncelik'
+  tip?: 'personel' | 'tarih' | 'opsiyonelTarih' | 'oncelik' | 'aciklama200'
 }
 
 /** Sol blok — talep başlık bilgileri (ERP ekranının sol paneli) */
@@ -31,7 +34,7 @@ export const TALEP_ALANLARI: TalepAlani[] = [
   { ad: 'tarih', etiketAnahtari: 'tarih', tip: 'tarih' },
   { ad: 'termin', etiketAnahtari: 'termin', tip: 'opsiyonelTarih' },
   { ad: 'oncelik', etiketAnahtari: 'oncelik', tip: 'oncelik' },
-  { ad: 'aciklama', etiketAnahtari: 'aciklama' },
+  { ad: 'aciklama', etiketAnahtari: 'aciklama', tip: 'aciklama200', tamSatir: true },
   { ad: 'ilgi_konusu', etiketAnahtari: 'ilgiKonusu' },
   { ad: 'projemiz', etiketAnahtari: 'projemiz' },
 ]

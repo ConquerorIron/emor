@@ -30,7 +30,8 @@ export const talepSchema = z.object({
   termin: z.string(),
   // Seçili önceliğin TABLO_MADDESI_ID'si — proc'ta @ONCELIK_ID
   oncelik_id: z.string(),
-  aciklama: z.string(),
+  // ERP ACIKLAMA200 tipi — proc'ta @ACIKLAMA; giriş bileşeni de kırpar
+  aciklama: z.string().max(200, 'satinalma.dogrulama.aciklamaUzun'),
   ilgi_konusu: z.string(),
   projemiz: z.string(),
 
