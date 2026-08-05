@@ -9,7 +9,8 @@ export const queryKeys = {
   ayarlar: {
     sqlBaglantilari: ['ayarlar', 'sqlBaglantilari'],
   },
-  satinalma: {
-    personelSecenekleri: ['satinalma', 'personelSecenekleri'],
+  // ERP view'larından ortak seçim listeleri (program genelinde kullanılır)
+  secenekler: {
+    personeller: ['secenekler', 'personeller'],
   },
 } as const

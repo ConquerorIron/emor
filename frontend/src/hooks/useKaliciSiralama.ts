@@ -27,7 +27,7 @@ function oku(depoAnahtari: string): TabloSiralamasi | null {
  * whitelist'i zaten bilinmeyen kolonu varsayılan sıralamaya düşürür.
  */
 export function useKaliciSiralama(sayfaAnahtari: string) {
-  const depoAnahtari = `puantaj.siralama.${sayfaAnahtari}`
+  const depoAnahtari = `erp.siralama.${sayfaAnahtari}`
   const [siralama, setSiralama] = useState<TabloSiralamasi | null>(() => oku(depoAnahtari))
 
   const siralamaDegistir = (anahtar: string) => {

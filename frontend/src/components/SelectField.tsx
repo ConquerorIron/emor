@@ -43,7 +43,7 @@ function AlanSarici({
 interface SelectFieldProps extends OrtakProps {
   value: SecenekOgesi | null
   onChange: (deger: SingleValue<SecenekOgesi>) => void
-  /** Sunucu taraflı arama (PUANTAJ-6): girilen metni bildirir; client filtresi kapanır. */
+  /** Sunucu taraflı arama: girilen metni bildirir; client filtresi kapanır. */
   aramaDegisti?: (girdi: string) => void
   yukleniyor?: boolean
 }
@@ -85,7 +85,7 @@ export function SelectField({
         }
         // Sunucu zaten süzdü — client filtresi sonuçları ikinci kez daraltmasın
         filterOption={aramaDegisti ? () => true : undefined}
-        classNamePrefix="puantaj-select"
+        classNamePrefix="erp-select"
         menuPortalTarget={document.body}
         styles={selectStilleri<false>(theme === 'dark')}
       />
@@ -121,7 +121,7 @@ export function MultiSelectField({
         placeholder={placeholder}
         isSearchable={isSearchable}
         closeMenuOnSelect={false}
-        classNamePrefix="puantaj-select"
+        classNamePrefix="erp-select"
         menuPortalTarget={document.body}
         styles={selectStilleri<true>(theme === 'dark')}
       />

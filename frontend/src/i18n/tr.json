@@ -32,6 +32,9 @@
     "ayarlar": "Ayarlar",
     "sqlBaglantilari": "SQL Bağlantıları"
   },
+  "personel": {
+    "sec": "Personel seçin veya arayın…"
+  },
   "satinalma": {
     "baslik": "Satınalma Talebi",
     "aciklama": "Talep başlık bilgilerini doldurun, satırları ekleyin ve kaydedin. Kayıt ERP'ye (aktif ortamın veritabanına) yapılır.",
@@ -41,7 +44,6 @@
     "satirEkle": "Satır Ekle",
     "satirSil": "Satırı sil",
     "kaydetHenuzYok": "Form verisi hazır — ERP kaydı (SOHOM_SIPARIS_KAYDET) bir sonraki adımda bağlanacak.",
-    "personelSec": "Personel seçin veya arayın…",
     "alan": {
       "personelAdi": "Personel adı",
       "no": "No",

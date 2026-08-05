@@ -16,7 +16,7 @@ describe('useKaliciSiralama', () => {
     act(() => result.current.siralamaDegistir('ad'))
 
     expect(result.current.siralama).toEqual({ anahtar: 'ad', yon: 'asc' })
-    expect(JSON.parse(localStorage.getItem('puantaj.siralama.gorevler') ?? '')).toEqual({
+    expect(JSON.parse(localStorage.getItem('erp.siralama.gorevler') ?? '')).toEqual({
       anahtar: 'ad',
       yon: 'asc',
     })
@@ -32,10 +32,7 @@ describe('useKaliciSiralama', () => {
   })
 
   it('yeniden açılışta kayıtlı tercih geri yüklenir (kullanıcı notu)', () => {
-    localStorage.setItem(
-      'puantaj.siralama.projeler',
-      JSON.stringify({ anahtar: 'kod', yon: 'desc' }),
-    )
+    localStorage.setItem('erp.siralama.projeler', JSON.stringify({ anahtar: 'kod', yon: 'desc' }))
 
     const { result } = renderHook(() => useKaliciSiralama('projeler'))
 
@@ -43,11 +40,8 @@ describe('useKaliciSiralama', () => {
   })
 
   it('bozuk/geçersiz kayıt sessizce yok sayılır', () => {
-    localStorage.setItem('puantaj.siralama.firmalar', '{bozuk json')
-    localStorage.setItem(
-      'puantaj.siralama.vardiyalar',
-      JSON.stringify({ anahtar: 5, yon: 'yukari' }),
-    )
+    localStorage.setItem('erp.siralama.firmalar', '{bozuk json')
+    localStorage.setItem('erp.siralama.vardiyalar', JSON.stringify({ anahtar: 5, yon: 'yukari' }))
 
     expect(renderHook(() => useKaliciSiralama('firmalar')).result.current.siralama).toBeNull()
     expect(renderHook(() => useKaliciSiralama('vardiyalar')).result.current.siralama).toBeNull()

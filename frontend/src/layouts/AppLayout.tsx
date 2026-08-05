@@ -45,7 +45,7 @@ const NAV_GRUPLARI: NavGrubu[] = [
 export function AppLayout() {
   const { t } = useTranslation()
   const { user, logout } = useAuth()
-  // Sidebar kapanıp açılabilir; tercih kalıcıdır (puantaj deseni)
+  // Sidebar kapanıp açılabilir; tercih kalıcıdır
   const [dar, setDar] = useState(() => localStorage.getItem(DARALTMA_ANAHTARI) === '1')
 
   // Menü/rota değişiminde içerik en üste kaydırılır; sorgu parametresi

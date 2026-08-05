@@ -9,10 +9,11 @@ use App\Services\MssqlBaglantiServisi;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Satınalma formu seçim listeleri — ERP view'larından (aktif MSSQL ortamı)
- * okunur. Alan bazında endpoint eklenerek genişler (depo, proje, ürün…).
+ * ERP seçim listeleri — aktif MSSQL ortamının arama view'larından okunur.
+ * Program genelinde ortak kullanılır (personel, depo, proje, ürün…);
+ * alan bazında metot eklenerek genişler.
  */
-final class SatinalmaSecenekController extends Controller
+final class SecenekController extends Controller
 {
     public function __construct(
         private readonly MssqlBaglantiServisi $mssql,
@@ -20,8 +21,9 @@ final class SatinalmaSecenekController extends Controller
 
     /**
      * Personel seçenekleri — ERP'nin kendi arama ekranıyla aynı kaynak
-     * (VOHOM_ARAMA_PERSONEL, profiler kaydı 2026-08-05). ~120 kayıt;
-     * tamamı döner, arama react-select'te client tarafında yapılır.
+     * (VOHOM_ARAMA_PERSONEL, profiler kaydı 2026-08-05). kayit_id,
+     * SOHOM_SIPARIS_KAYDET'te @PARTI_YAMASI_ID olarak kullanılır.
+     * ~120 kayıt; tamamı döner, arama react-select'te client tarafında yapılır.
      */
     public function personeller(): JsonResponse
     {

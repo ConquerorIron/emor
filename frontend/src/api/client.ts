@@ -7,7 +7,7 @@ import { sayfaBoyutuOku } from '@/utils/sayfaBoyutu'
 import { apiErrorKey } from './errors'
 
 /** 401 yakalandığında (auth uçları hariç) yayınlanır; AuthProvider dinleyip oturumu düşürür. */
-export const YETKISIZ_EVENT = 'puantaj:yetkisiz'
+export const YETKISIZ_EVENT = 'erp:yetkisiz'
 
 /**
  * Tek axios instance — bileşen içinde axios import etmek yasak (rules.md §2).

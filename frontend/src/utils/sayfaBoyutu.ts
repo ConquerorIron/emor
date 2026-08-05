@@ -4,7 +4,7 @@
  * `page` parametreli isteklere `sayfa_boyutu` olarak ekler (client.ts).
  * 0 = "Hepsi" (backend üst sınırla karşılar).
  */
-const ANAHTAR = 'puantaj.sayfaBoyutu'
+const ANAHTAR = 'erp.sayfaBoyutu'
 
 export const SAYFA_BOYUTLARI = [25, 50, 100, 200, 0] as const
 

@@ -32,6 +32,9 @@
     "ayarlar": "Settings",
     "sqlBaglantilari": "SQL Connections"
   },
+  "personel": {
+    "sec": "Select or search personnel…"
+  },
   "satinalma": {
     "baslik": "Purchase Request",
     "aciklama": "Fill in the request header, add lines and save. The record is written to the ERP (active environment's database).",
@@ -41,7 +44,6 @@
     "satirEkle": "Add Line",
     "satirSil": "Remove line",
     "kaydetHenuzYok": "Form data is ready — the ERP save (SOHOM_SIPARIS_KAYDET) will be wired in the next step.",
-    "personelSec": "Select or search personnel…",
     "alan": {
       "personelAdi": "Personnel name",
       "no": "No",

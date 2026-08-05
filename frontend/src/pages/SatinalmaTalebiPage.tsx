@@ -1,16 +1,12 @@
 import { standardSchemaResolver } from '@hookform/resolvers/standard-schema'
-import { useQuery } from '@tanstack/react-query'
-import { useMemo, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { Controller, useFieldArray, useForm, type FieldErrors } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { apiErrorKey } from '@/api/errors'
-import { queryKeys } from '@/api/queryKeys'
 import { Button } from '@/components/Button'
 import { Input } from '@/components/Input'
-import { SelectField, type SecenekOgesi } from '@/components/SelectField'
-import { personelSecenekleriGetir } from '@/features/satinalma/api'
+import { PersonelSecimi } from '@/features/personel/PersonelSecimi'
 import {
   SATIR_ALANLARI,
   TALEP_ALANLARI,
@@ -99,43 +95,23 @@ export function SatinalmaTalebiPage() {
 
   const satirlar = useFieldArray({ control, name: 'satirlar' })
 
-  // Personel seçenekleri — ERP'nin kendi arama ekranıyla aynı kaynak
-  // (VOHOM_ARAMA_PERSONEL); arama react-select içinde client tarafında yapılır
-  const personeller = useQuery({
-    queryKey: queryKeys.satinalma.personelSecenekleri,
-    queryFn: personelSecenekleriGetir,
-    staleTime: 5 * 60_000,
-  })
-  const personelSecenekleri = useMemo<SecenekOgesi[]>(
-    () =>
-      (personeller.data ?? []).map((p) => ({
-        value: String(p.kayit_id),
-        label: p.unvan,
-      })),
-    [personeller.data],
-  )
-
   // Alan config'inde tip'i olan girişlerin özel bileşenleri (AlanBloku'na gider).
-  // Kaynak değer personel_id'dir (proc parametresi); görünen ad ayrıca saklanır.
+  // Personel: görünen değer Ünvan, form değeri KAYIT_ID — SOHOM_SIPARIS_KAYDET
+  // @PARTI_YAMASI_ID parametresine bire bir gider.
   const ozelBilesenler: Record<string, ReactNode> = {
     personel_adi: (
       <Controller
-        name="personel_id"
+        name="parti_yamasi_id"
         control={control}
         render={({ field }) => (
-          <SelectField
+          <PersonelSecimi
             id="alan-personel_adi"
             label={t('satinalma.alan.personelAdi')}
-            options={personelSecenekleri}
-            value={personelSecenekleri.find((s) => s.value === field.value) ?? null}
-            onChange={(secim) => {
-              field.onChange(secim?.value ?? '')
-              setValue('personel_adi', secim?.label ?? '')
+            deger={field.value}
+            degisti={(secim) => {
+              field.onChange(secim?.kayitId ?? '')
+              setValue('personel_adi', secim?.unvan ?? '')
             }}
-            placeholder={t('satinalma.personelSec')}
-            isClearable
-            yukleniyor={personeller.isPending}
-            hata={personeller.isError ? t(apiErrorKey(personeller.error)) : undefined}
           />
         )}
       />

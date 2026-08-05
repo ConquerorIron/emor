@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AuthController;
-use App\Http\Controllers\Api\V1\SatinalmaSecenekController;
+use App\Http\Controllers\Api\V1\SecenekController;
 use App\Http\Controllers\Api\V1\SqlBaglantiController;
 use Illuminate\Support\Facades\Route;
 
@@ -19,9 +19,9 @@ Route::prefix('v1')->group(function (): void {
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/auth/me', [AuthController::class, 'me'])->name('auth.me');
 
-        // Satınalma — ERP view'larından seçim listeleri
-        Route::get('/satinalma/secenekler/personeller', [SatinalmaSecenekController::class, 'personeller'])
-            ->name('satinalma.secenekler.personeller');
+        // ERP view'larından ortak seçim listeleri (program genelinde kullanılır)
+        Route::get('/secenekler/personeller', [SecenekController::class, 'personeller'])
+            ->name('secenekler.personeller');
 
         // Ayarlar → SQL Bağlantıları (Test/Canlı MSSQL tanımları + aktif ortam)
         Route::get('/ayarlar/sql-baglantilari', [SqlBaglantiController::class, 'index'])

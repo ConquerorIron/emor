@@ -7,7 +7,7 @@ export interface SecenekOgesi {
 
 /**
  * ornek/dashboard react-select stilleri — tema duyarlı. Ayrı dosyada, çünkü
- * hem SelectField sarmalayıcıları hem grid hücre seçicileri (PUANTAJ-7)
+ * hem SelectField sarmalayıcıları hem grid hücre seçicileri
  * kullanır; component dosyasından export etmek Fast Refresh'i bozuyordu.
  */
 export function selectStilleri<IsMulti extends boolean>(

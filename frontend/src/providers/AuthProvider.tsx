@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (girdi: LoginGirdisi): Promise<void> => {
       const kullanici = await loginIstegi(girdi)
       // Önceki kullanıcının cache'i sızmasın — giriş anında kullanıcıya özel
-      // tüm cache boşaltılır (puantaj deseni)
+      // tüm cache boşaltılır
       queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' })
       queryClient.setQueryData(queryKeys.auth.me, kullanici)
     },

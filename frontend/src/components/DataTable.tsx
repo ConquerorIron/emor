@@ -38,7 +38,7 @@ const hizaSiniflari: Record<NonNullable<DataTableKolonu<unknown>['hizala']>, str
 
 /**
  * Yuvarlak seçim düğmesi — native checkbox bilinçli kullanılmıyor (rules.md §2).
- * Export: puantaj giriş grid'inin toplu seçimi de aynı düğmeyi kullanır (PUANTAJ-9).
+ * Export düğmesi liste ekranlarında ortak kullanılır.
  */
 export function SecimDugmesi({
   secili,
