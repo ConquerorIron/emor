@@ -104,15 +104,20 @@ export function SatinalmaTalebiPage() {
         name="parti_yamasi_id"
         control={control}
         render={({ field }) => (
-          <PersonelSecimi
-            id="alan-personel_adi"
-            label={t('satinalma.alan.personelAdi')}
-            deger={field.value}
-            degisti={(secim) => {
-              field.onChange(secim?.kayitId ?? '')
-              setValue('personel_adi', secim?.unvan ?? '')
-            }}
-          />
+          <>
+            <PersonelSecimi
+              id="alan-personel_adi"
+              label={t('satinalma.alan.personelAdi')}
+              deger={field.value}
+              degisti={(secim) => {
+                field.onChange(secim?.kayitId ?? '')
+                setValue('personel_adi', secim?.unvan ?? '')
+              }}
+            />
+            {/* Seçilen KAYIT_ID DOM'da da izlenebilsin (DevTools denetimi):
+                proc'a giden değer budur — SOHOM_SIPARIS_KAYDET @PARTI_YAMASI_ID */}
+            <input type="hidden" name="parti_yamasi_id" value={field.value} readOnly />
+          </>
         )}
       />
     ),
