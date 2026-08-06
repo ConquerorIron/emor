@@ -8,10 +8,13 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    // F2-8 PWA: kurulabilir uygulama + kabuk önbelleği. API/sanctum asla
-    // cache'lenmez (yalnız statik precache + navigasyon fallback'i); offline'da
-    // kabuk açılır, veri istekleri ağ hatasına düşer — CevrimdisiBanner uyarır.
+    // PWA GELİŞTİRME BOYUNCA KAPALI (2026-08-06): service worker her deploy'da
+    // eski kabuğu sunmayı sürdürüyor ve yeni ekranlar görünmüyordu.
+    // selfDestroying, ZATEN KURULU service worker'ları da kendini kaldırmaya ve
+    // önbelleğini temizlemeye zorlar — sadece VitePWA'yı silmek yetmezdi.
+    // Uygulama kararlı hale gelince false'a çekip offline desteği geri açacağız.
     VitePWA({
+      selfDestroying: true,
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
