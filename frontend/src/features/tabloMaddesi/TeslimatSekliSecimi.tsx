@@ -10,6 +10,8 @@ interface TeslimatSekliSecimiProps {
   deger: string
   degisti: (secim: TabloMaddesiSecim | null) => void
   hata?: string
+  /** Salt okunur (ekran tasarımı) — seçim değiştirilemez */
+  disabled?: boolean
 }
 
 /** Teslimat şekli seçimi — başka ekranlarda da aynı bileşen kullanılır. */

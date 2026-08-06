@@ -22,6 +22,8 @@ interface DepoSecimiProps {
   degisti: (secim: DepoSecim | null) => void
   hata?: string
   isClearable?: boolean
+  /** Salt okunur (ekran tasarımı) — seçim değiştirilemez */
+  disabled?: boolean
 }
 
 /**
@@ -35,6 +37,7 @@ export function DepoSecimi({
   degisti,
   hata,
   isClearable = true,
+  disabled = false,
 }: DepoSecimiProps) {
   const { t } = useTranslation()
 
@@ -64,6 +67,7 @@ export function DepoSecimi({
       }}
       placeholder={t('ortak.secVeyaAra')}
       isClearable={isClearable}
+      disabled={disabled}
       yukleniyor={depolar.isPending}
       hata={hata ?? (depolar.isError ? t(apiErrorKey(depolar.error)) : undefined)}
     />

@@ -22,6 +22,8 @@ interface PersonelSecimiProps {
   degisti: (secim: PersonelSecim | null) => void
   hata?: string
   isClearable?: boolean
+  /** Salt okunur (ekran tasarımı) — seçim değiştirilemez */
+  disabled?: boolean
 }
 
 /**
@@ -36,6 +38,7 @@ export function PersonelSecimi({
   degisti,
   hata,
   isClearable = true,
+  disabled = false,
 }: PersonelSecimiProps) {
   const { t } = useTranslation()
 
@@ -65,6 +68,7 @@ export function PersonelSecimi({
       }}
       placeholder={t('personel.sec')}
       isClearable={isClearable}
+      disabled={disabled}
       yukleniyor={personeller.isPending}
       hata={hata ?? (personeller.isError ? t(apiErrorKey(personeller.error)) : undefined)}
     />

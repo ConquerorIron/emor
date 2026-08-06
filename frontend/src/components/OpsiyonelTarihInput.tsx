@@ -10,6 +10,8 @@ interface OpsiyonelTarihInputProps {
   value: string
   onChange: (iso: string) => void
   hata?: string
+  /** Salt okunur (ekran tasarımı) — anahtar da kilitlenir */
+  disabled?: boolean
 }
 
 /**
@@ -23,6 +25,7 @@ export function OpsiyonelTarihInput({
   value,
   onChange,
   hata,
+  disabled = false,
 }: OpsiyonelTarihInputProps) {
   const [aktif, setAktif] = useState(value !== '')
 
@@ -47,6 +50,7 @@ export function OpsiyonelTarihInput({
         label={label}
         checked={aktif}
         onChange={anahtarDegisti}
+        disabled={disabled}
         vurgulu={false}
       />
       <div className="mt-1">
@@ -56,7 +60,7 @@ export function OpsiyonelTarihInput({
           etiketGizli
           value={value}
           onChange={onChange}
-          disabled={!aktif}
+          disabled={disabled || !aktif}
           hata={hata}
         />
       </div>

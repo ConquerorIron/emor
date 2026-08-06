@@ -8,8 +8,11 @@ import { SatinalmaTalebiPage } from './SatinalmaTalebiPage'
 
 // Sayfa artık tasarımı API'den okuyor; testte varsayılan düzeni taklit ediyoruz
 vi.mock('@/features/ekranTasarim/api', () => ({
-  ekranTasariminiGetir: () => Promise.resolve(SAHTE_TASARIM),
+  ekranTasariminiGetir: () => Promise.resolve(tasarimYaniti),
 }))
+
+// Testler tasarımı değiştirebilsin diye (salt okunur senaryosu)
+let tasarimYaniti: typeof SAHTE_TASARIM
 
 const KATALOG = [
   {
@@ -135,6 +138,7 @@ describe('SatinalmaTalebiPage', () => {
   afterEach(cleanup)
   beforeEach(() => {
     localStorage.clear()
+    tasarimYaniti = SAHTE_TASARIM
   })
 
   it('tasarımdaki bölümler ve alanlar çizilir', async () => {
@@ -173,6 +177,42 @@ describe('SatinalmaTalebiPage', () => {
     expect(screen.getByLabelText('Teslimat adresi')).toHaveAttribute('role', 'combobox')
     expect(screen.getByLabelText('Teslimat biçimi')).toHaveAttribute('role', 'combobox')
     expect(screen.getByLabelText('Teslimat şekli')).toHaveAttribute('role', 'combobox')
+  })
+
+  it('salt okunur işaretli alanlar HER giriş tipinde kilitlenir', async () => {
+    // Regresyon: salt_okunur yalnız düz metin alanlarında bağlanmıştı; seçim
+    // alanları tıklanıp değiştirilebiliyordu. Tasarımdaki her alanı salt okunur
+    // yapıp hepsinin gerçekten kilitlendiğini doğruluyoruz.
+    const hepsiSaltOkunur = {
+      ...SAHTE_TASARIM,
+      duzen: {
+        bolumler: SAHTE_TASARIM.duzen.bolumler.map((bolum) => ({
+          ...bolum,
+          alanlar: bolum.alanlar.map((alan) => ({ ...alan, salt_okunur: true })),
+        })),
+      },
+    }
+    tasarimYaniti = hepsiSaltOkunur
+
+    await formuAc()
+
+    for (const etiket of [
+      'Personel adı',
+      'Depo adı',
+      'Teslimat adresi',
+      'Teslimat biçimi',
+      'Teslimat şekli',
+      'Öncelik',
+      'İlgi konusu',
+      'Alım yeri',
+      'Tarih',
+      'Açıklama',
+    ]) {
+      const alan = screen.getByLabelText(etiket)
+      expect(alan, `${etiket} salt okunur olmalı`).toBeDisabled()
+    }
+
+    tasarimYaniti = SAHTE_TASARIM
   })
 
   it('teslimat biçimi varsayılan Tam (0), alım yeri Merkez (0) gelir', async () => {

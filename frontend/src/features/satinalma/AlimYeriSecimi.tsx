@@ -18,10 +18,19 @@ interface AlimYeriSecimiProps {
   deger: string
   degisti: (deger: AlimYeri) => void
   hata?: string
+  /** Salt okunur (ekran tasarımı) — seçim değiştirilemez */
+  disabled?: boolean
 }
 
 /** Alım yeri seçimi — sipariş/talep ekranlarında ortak kullanılır. */
-export function AlimYeriSecimi({ id, label, deger, degisti, hata }: AlimYeriSecimiProps) {
+export function AlimYeriSecimi({
+  id,
+  label,
+  deger,
+  degisti,
+  hata,
+  disabled = false,
+}: AlimYeriSecimiProps) {
   const { t } = useTranslation()
 
   const secenekler: SecenekOgesi[] = ALIM_YERLERI.map((yer) => ({
@@ -37,6 +46,7 @@ export function AlimYeriSecimi({ id, label, deger, degisti, hata }: AlimYeriSeci
       value={secenekler.find((s) => s.value === deger) ?? null}
       onChange={(secim) => degisti((secim?.value as AlimYeri) ?? VARSAYILAN_ALIM_YERI)}
       isClearable={false}
+      disabled={disabled}
       hata={hata}
     />
   )

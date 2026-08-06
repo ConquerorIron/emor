@@ -14,6 +14,8 @@ interface TeslimatSuresiSecimiProps {
   birim: TeslimatSuresiBirimi
   degisti: (sure: string, birim: TeslimatSuresiBirimi) => void
   hata?: string
+  /** Salt okunur (ekran tasarımı) */
+  disabled?: boolean
 }
 
 /**
@@ -28,6 +30,7 @@ export function TeslimatSuresiSecimi({
   birim,
   degisti,
   hata,
+  disabled = false,
 }: TeslimatSuresiSecimiProps) {
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -51,6 +54,7 @@ export function TeslimatSuresiSecimi({
           inputMode="numeric"
           autoComplete="off"
           maxLength={5}
+          disabled={disabled}
           value={sure}
           // Yalnız rakam: negatif/ondalık süre ERP'de yok
           onChange={(olay) => degisti(olay.target.value.replace(/\D/g, ''), birim)}
@@ -70,6 +74,7 @@ export function TeslimatSuresiSecimi({
             options={secenekler}
             isClearable={false}
             isSearchable={false}
+            isDisabled={disabled}
             classNamePrefix="erp-select"
             menuPortalTarget={document.body}
             styles={selectStilleri<false>(theme === 'dark')}

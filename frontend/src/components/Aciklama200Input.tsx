@@ -8,6 +8,8 @@ interface Aciklama200InputProps {
   onChange: (deger: string) => void
   hata?: string
   rows?: number
+  /** Salt okunur (ekran tasarımı) */
+  disabled?: boolean
 }
 
 /**
@@ -23,6 +25,7 @@ export function Aciklama200Input({
   onChange,
   hata,
   rows = 2,
+  disabled = false,
 }: Aciklama200InputProps) {
   const limitte = value.length >= ACIKLAMA200_LIMIT
 
@@ -50,6 +53,7 @@ export function Aciklama200Input({
         rows={rows}
         maxLength={ACIKLAMA200_LIMIT}
         value={value}
+        disabled={disabled}
         onChange={(olay) => onChange(olay.target.value.slice(0, ACIKLAMA200_LIMIT))}
         aria-invalid={hata ? true : undefined}
         className={`mt-1 block w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition-colors outline-none placeholder:text-slate-400 focus:ring-2 dark:bg-slate-950 dark:text-slate-100 ${

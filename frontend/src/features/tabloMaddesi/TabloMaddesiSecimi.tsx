@@ -24,6 +24,8 @@ interface TabloMaddesiSecimiProps {
   degisti: (secim: TabloMaddesiSecim | null) => void
   hata?: string
   isClearable?: boolean
+  /** Salt okunur (ekran tasarımı) — seçim değiştirilemez */
+  disabled?: boolean
   /** ERP sorgusunun sıralaması (tür bazında değişir) */
   siralama?: MaddeSiralamasi
 }
@@ -41,6 +43,7 @@ export function TabloMaddesiSecimi({
   degisti,
   hata,
   isClearable = true,
+  disabled = false,
   siralama = 'ad',
 }: TabloMaddesiSecimiProps) {
   const { t } = useTranslation()
@@ -71,6 +74,7 @@ export function TabloMaddesiSecimi({
       }}
       placeholder={t('ortak.secVeyaAra')}
       isClearable={isClearable}
+      disabled={disabled}
       yukleniyor={maddeler.isPending}
       hata={hata ?? (maddeler.isError ? t(apiErrorKey(maddeler.error)) : undefined)}
     />

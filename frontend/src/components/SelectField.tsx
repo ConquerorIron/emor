@@ -13,6 +13,8 @@ interface OrtakProps {
   placeholder?: string
   isClearable?: boolean
   isSearchable?: boolean
+  /** Salt okunur alanlar (ekran tasarımı) — seçim değiştirilemez */
+  disabled?: boolean
 }
 
 function AlanSarici({
@@ -60,6 +62,7 @@ export function SelectField({
   isSearchable = true,
   aramaDegisti,
   yukleniyor = false,
+  disabled = false,
 }: SelectFieldProps) {
   const { theme } = useTheme()
 
@@ -71,8 +74,9 @@ export function SelectField({
         onChange={onChange}
         options={options}
         placeholder={placeholder}
-        isClearable={isClearable}
-        isSearchable={isSearchable}
+        isClearable={isClearable && !disabled}
+        isSearchable={isSearchable && !disabled}
+        isDisabled={disabled}
         isLoading={yukleniyor}
         onInputChange={
           aramaDegisti

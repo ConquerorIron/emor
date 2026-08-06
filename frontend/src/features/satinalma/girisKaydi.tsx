@@ -77,7 +77,7 @@ function MetinGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
   )
 }
 
-function PersonelGirisi({ katalog, form, etiket }: AlanGirisiProps) {
+function PersonelGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
   return (
     <Controller
       name="personel_id"
@@ -92,13 +92,14 @@ function PersonelGirisi({ katalog, form, etiket }: AlanGirisiProps) {
             form.setValue('personel_adi', secim?.unvan ?? '')
           }}
           hata={fieldState.error?.message}
+          disabled={duzen.salt_okunur === true}
         />
       )}
     />
   )
 }
 
-function TarihGirisi({ katalog, form, etiket }: AlanGirisiProps) {
+function TarihGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
   return (
     <Controller
       name="tarih"
@@ -110,13 +111,14 @@ function TarihGirisi({ katalog, form, etiket }: AlanGirisiProps) {
           value={field.value}
           onChange={field.onChange}
           hata={fieldState.error?.message}
+          disabled={duzen.salt_okunur === true}
         />
       )}
     />
   )
 }
 
-function OpsiyonelTarihGirisi({ katalog, form, etiket }: AlanGirisiProps) {
+function OpsiyonelTarihGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
   return (
     <Controller
       name="termin"
@@ -128,13 +130,14 @@ function OpsiyonelTarihGirisi({ katalog, form, etiket }: AlanGirisiProps) {
           value={field.value}
           onChange={field.onChange}
           hata={fieldState.error?.message}
+          disabled={duzen.salt_okunur === true}
         />
       )}
     />
   )
 }
 
-function OncelikGirisi({ katalog, form, etiket }: AlanGirisiProps) {
+function OncelikGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
   return (
     <Controller
       name="oncelik_id"
@@ -146,6 +149,7 @@ function OncelikGirisi({ katalog, form, etiket }: AlanGirisiProps) {
           deger={field.value}
           degisti={(secim) => field.onChange(secim?.kayitId ?? '')}
           hata={fieldState.error?.message}
+          disabled={duzen.salt_okunur === true}
         />
       )}
     />
@@ -165,13 +169,14 @@ function Aciklama200Girisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
           onChange={field.onChange}
           rows={duzen.satir ?? 2}
           hata={fieldState.error?.message}
+          disabled={duzen.salt_okunur === true}
         />
       )}
     />
   )
 }
 
-function IlgiCinsiGirisi({ katalog, form, etiket }: AlanGirisiProps) {
+function IlgiCinsiGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
   const { t } = useTranslation()
   const secenekler: SecenekOgesi[] = ILGI_CINSLERI.map((cins) => ({
     value: cins,
@@ -194,6 +199,7 @@ function IlgiCinsiGirisi({ katalog, form, etiket }: AlanGirisiProps) {
             form.setValue('ilgili_id', '')
           }}
           isClearable={false}
+          disabled={duzen.salt_okunur === true}
         />
       )}
     />
@@ -201,7 +207,7 @@ function IlgiCinsiGirisi({ katalog, form, etiket }: AlanGirisiProps) {
 }
 
 /** Etiketi ve arama kaynağı seçili ilgi cinsine göre değişen bağlı alan. */
-function IlgiliGirisi({ katalog, form }: AlanGirisiProps) {
+function IlgiliGirisi({ katalog, duzen, form }: AlanGirisiProps) {
   const { t } = useTranslation()
   const cins = (form.watch('ilgi_cinsi') || VARSAYILAN_ILGI_CINSI) as IlgiCinsi
   const etiket = t(`satinalma.ilgiliEtiket.${cins}`)
@@ -219,6 +225,7 @@ function IlgiliGirisi({ katalog, form }: AlanGirisiProps) {
             deger={field.value}
             degisti={field.onChange}
             hata={fieldState.error?.message}
+            disabled={duzen.salt_okunur === true}
           />
         ) : (
           <Input
@@ -228,6 +235,7 @@ function IlgiliGirisi({ katalog, form }: AlanGirisiProps) {
             value={field.value}
             onChange={field.onChange}
             hata={fieldState.error?.message}
+            disabled={duzen.salt_okunur === true}
           />
         )
       }
@@ -235,7 +243,7 @@ function IlgiliGirisi({ katalog, form }: AlanGirisiProps) {
   )
 }
 
-function DepoGirisi({ katalog, form, etiket }: AlanGirisiProps) {
+function DepoGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
   return (
     <Controller
       name="depomuz_id"
@@ -247,13 +255,14 @@ function DepoGirisi({ katalog, form, etiket }: AlanGirisiProps) {
           deger={field.value}
           degisti={(secim) => field.onChange(secim?.kayitId ?? '')}
           hata={fieldState.error?.message}
+          disabled={duzen.salt_okunur === true}
         />
       )}
     />
   )
 }
 
-function TeslimatAdresiGirisi({ katalog, form, etiket }: AlanGirisiProps) {
+function TeslimatAdresiGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
   return (
     <Controller
       name="teslimat_adresi_id"
@@ -269,13 +278,14 @@ function TeslimatAdresiGirisi({ katalog, form, etiket }: AlanGirisiProps) {
           }}
           tekSeceneginiSec
           hata={fieldState.error?.message}
+          disabled={duzen.salt_okunur === true}
         />
       )}
     />
   )
 }
 
-function TeslimatBicimiGirisi({ katalog, form, etiket }: AlanGirisiProps) {
+function TeslimatBicimiGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
   return (
     <Controller
       name="teslimat_bicimi"
@@ -286,13 +296,14 @@ function TeslimatBicimiGirisi({ katalog, form, etiket }: AlanGirisiProps) {
           label={etiket}
           deger={field.value}
           degisti={field.onChange}
+          disabled={duzen.salt_okunur === true}
         />
       )}
     />
   )
 }
 
-function TeslimatSekliGirisi({ katalog, form, etiket }: AlanGirisiProps) {
+function TeslimatSekliGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
   return (
     <Controller
       name="teslimat_sekli_id"
@@ -304,6 +315,7 @@ function TeslimatSekliGirisi({ katalog, form, etiket }: AlanGirisiProps) {
           deger={field.value}
           degisti={(secim) => field.onChange(secim?.kayitId ?? '')}
           hata={fieldState.error?.message}
+          disabled={duzen.salt_okunur === true}
         />
       )}
     />
@@ -311,7 +323,7 @@ function TeslimatSekliGirisi({ katalog, form, etiket }: AlanGirisiProps) {
 }
 
 /** Süre alanının tarih yüzü — seçilen tarih süre+birime geri çevrilir. */
-function TeslimatSuresiTarihGirisi({ katalog, form, etiket }: AlanGirisiProps) {
+function TeslimatSuresiTarihGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
   const temel = form.watch('tarih')
   const sure = form.watch('teslimat_suresi')
   const birim = form.watch('teslimat_suresi_birimi') as TeslimatSuresiBirimi
@@ -326,11 +338,12 @@ function TeslimatSuresiTarihGirisi({ katalog, form, etiket }: AlanGirisiProps) {
         form.setValue('teslimat_suresi', cevrim.sure)
         form.setValue('teslimat_suresi_birimi', cevrim.birim)
       }}
+      disabled={duzen.salt_okunur === true}
     />
   )
 }
 
-function TeslimatSuresiGirisi({ katalog, form, etiket }: AlanGirisiProps) {
+function TeslimatSuresiGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
   const sure = form.watch('teslimat_suresi')
   const birim = form.watch('teslimat_suresi_birimi') as TeslimatSuresiBirimi
 
@@ -345,11 +358,12 @@ function TeslimatSuresiGirisi({ katalog, form, etiket }: AlanGirisiProps) {
         form.setValue('teslimat_suresi_birimi', yeniBirim)
       }}
       hata={form.formState.errors.teslimat_suresi?.message}
+      disabled={duzen.salt_okunur === true}
     />
   )
 }
 
-function AlimYeriGirisi({ katalog, form, etiket }: AlanGirisiProps) {
+function AlimYeriGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
   return (
     <Controller
       name="alim_yeri"
@@ -360,6 +374,7 @@ function AlimYeriGirisi({ katalog, form, etiket }: AlanGirisiProps) {
           label={etiket}
           deger={field.value}
           degisti={field.onChange}
+          disabled={duzen.salt_okunur === true}
         />
       )}
     />

@@ -20,7 +20,16 @@ export function selectStilleri<IsMulti extends boolean>(
       borderRadius: 12,
       boxShadow: 'none',
       borderColor: state.isFocused ? '#3b82f6' : isDark ? '#334155' : '#cbd5e1',
-      backgroundColor: isDark ? '#020617' : '#ffffff',
+      // Salt okunur alan: metin girişlerindeki disabled görünümüyle aynı dil
+      backgroundColor: state.isDisabled
+        ? isDark
+          ? '#0f172a'
+          : '#f8fafc'
+        : isDark
+          ? '#020617'
+          : '#ffffff',
+      opacity: state.isDisabled ? 0.6 : 1,
+      cursor: state.isDisabled ? 'not-allowed' : 'default',
       ':hover': {
         borderColor: state.isFocused ? '#3b82f6' : isDark ? '#475569' : '#94a3b8',
       },

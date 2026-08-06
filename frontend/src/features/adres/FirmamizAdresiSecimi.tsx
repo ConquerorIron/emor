@@ -22,6 +22,8 @@ interface FirmamizAdresiSecimiProps {
   deger: string
   degisti: (secim: AdresSecim | null) => void
   hata?: string
+  /** Salt okunur (ekran tasarımı) — seçim değiştirilemez */
+  disabled?: boolean
   /** Tek seçenek varsa açılışta otomatik seçilir (ERP formu adresi dolu açar) */
   tekSeceneginiSec?: boolean
 }
@@ -36,6 +38,7 @@ export function FirmamizAdresiSecimi({
   deger,
   degisti,
   hata,
+  disabled = false,
   tekSeceneginiSec = false,
 }: FirmamizAdresiSecimiProps) {
   const { t } = useTranslation()
@@ -74,6 +77,7 @@ export function FirmamizAdresiSecimi({
       }}
       placeholder={t('ortak.secVeyaAra')}
       isClearable
+      disabled={disabled}
       yukleniyor={adresler.isPending}
       hata={hata ?? (adresler.isError ? t(apiErrorKey(adresler.error)) : undefined)}
     />

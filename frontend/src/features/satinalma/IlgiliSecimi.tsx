@@ -18,6 +18,8 @@ interface IlgiliSecimiProps {
   deger: string
   degisti: (kayitId: string) => void
   hata?: string
+  /** Salt okunur (ekran tasarımı) — seçim değiştirilemez */
+  disabled?: boolean
 }
 
 /**
@@ -25,7 +27,15 @@ interface IlgiliSecimiProps {
  * liste; etiket "KOD — AD (EK)" biçimindedir. Seçenekler cins başına 5 dk
  * önbelleklenir.
  */
-export function IlgiliSecimi({ cins, id, label, deger, degisti, hata }: IlgiliSecimiProps) {
+export function IlgiliSecimi({
+  cins,
+  id,
+  label,
+  deger,
+  degisti,
+  hata,
+  disabled = false,
+}: IlgiliSecimiProps) {
   const { t } = useTranslation()
 
   const kayitlar = useQuery({
@@ -62,6 +72,7 @@ export function IlgiliSecimi({ cins, id, label, deger, degisti, hata }: IlgiliSe
       onChange={(secim) => degisti(secim?.value ?? '')}
       placeholder={t('ortak.secVeyaAra')}
       isClearable
+      disabled={disabled}
       yukleniyor={kayitlar.isPending}
       hata={hata ?? (kayitlar.isError ? t(apiErrorKey(kayitlar.error)) : undefined)}
     />

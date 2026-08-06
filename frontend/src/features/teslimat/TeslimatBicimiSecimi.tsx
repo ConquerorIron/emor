@@ -18,6 +18,8 @@ interface TeslimatBicimiSecimiProps {
   deger: string
   degisti: (deger: TeslimatBicimi) => void
   hata?: string
+  /** Salt okunur (ekran tasarımı) — seçim değiştirilemez */
+  disabled?: boolean
 }
 
 /** Teslimat biçimi seçimi — sipariş/talep ekranlarında ortak kullanılır. */
@@ -26,6 +28,7 @@ export function TeslimatBicimiSecimi({
   label,
   deger,
   degisti,
+  disabled = false,
   hata,
 }: TeslimatBicimiSecimiProps) {
   const { t } = useTranslation()
@@ -43,6 +46,7 @@ export function TeslimatBicimiSecimi({
       value={secenekler.find((s) => s.value === deger) ?? null}
       onChange={(secim) => degisti((secim?.value as TeslimatBicimi) ?? VARSAYILAN_TESLIMAT_BICIMI)}
       isClearable={false}
+      disabled={disabled}
       hata={hata}
     />
   )
