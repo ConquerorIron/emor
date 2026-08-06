@@ -1,14 +1,15 @@
 import { Controller, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import type { ComponentType } from 'react'
+import type { ReactNode } from 'react'
 
-import { SinirliMetinInput } from '@/components/SinirliMetinInput'
 import { Input } from '@/components/Input'
 import { OpsiyonelTarihInput } from '@/components/OpsiyonelTarihInput'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
+import { SinirliMetinInput } from '@/components/SinirliMetinInput'
 import { TarihInput } from '@/components/TarihInput'
 import { FirmamizAdresiSecimi } from '@/features/adres/FirmamizAdresiSecimi'
 import { DepoSecimi } from '@/features/depo/DepoSecimi'
+import { zorunluEtiket, type DuzenAlani, type KatalogAlani } from '@/features/ekranTasarim/types'
 import { PersonelSecimi } from '@/features/personel/PersonelSecimi'
 import { AlimYeriSecimi } from '@/features/satinalma/AlimYeriSecimi'
 import { IlgiliSecimi } from '@/features/satinalma/IlgiliSecimi'
@@ -28,169 +29,260 @@ import {
   type TeslimatSuresiBirimi,
 } from '@/features/teslimat/teslimatSuresi'
 import { TeslimatSuresiSecimi } from '@/features/teslimat/TeslimatSuresiSecimi'
-import { zorunluEtiket, type DuzenAlani, type KatalogAlani } from '@/features/ekranTasarim/types'
 
-/** Her giriş bileşeninin aldığı standart sözleşme. */
-export interface AlanGirisiProps {
+type FormAnahtari = keyof TalepGirdisi
+
+/**
+ * Tasarımdan gelen kuralların ürettiği ORTAK props. Motor hazırlar; giriş
+ * tanımları bunu olduğu gibi (`{...ortak}`) bileşene geçirir.
+ *
+ * Bu tip tasarımın çekirdeğidir: etiket (zorunluluk yıldızı dahil), çevrilmiş
+ * hata mesajı ve salt okunur kilidi TEK yerde hesaplanır. Yeni bir giriş tipi
+ * eklerken bunları tekrar bağlamak gerekmez — dolayısıyla unutulamaz.
+ */
+export interface OrtakGirisProps {
+  id: string
+  label: string
+  hata?: string
+  disabled: boolean
+}
+
+/** Giriş tanımının çizim sırasında eline geçen her şey. */
+export interface GirisBaglami {
+  ortak: OrtakGirisProps
   katalog: KatalogAlani
   duzen: DuzenAlani
   form: UseFormReturn<TalepGirdisi>
-  /** Katalogdaki i18n anahtarından çözülmüş etiket (zorunluysa * eklenmiş) */
-  etiket: string
+  /** Controller'a bağlı ana alanın anlık değeri */
+  deger: string
+  /** Ana alanı günceller (yan alanlar için form.setValue kullanılır) */
+  degistir: (deger: string) => void
 }
 
-/** Doğrulama mesajları i18n anahtarı taşır; gösterimden önce çevrilir. */
-function hataMetni(t: (anahtar: string) => string, anahtar?: string): string | undefined {
-  return anahtar ? t(anahtar) : undefined
+/**
+ * Bir giriş tipinin YALNIZ kendine özgü kısmı. Ortak kurallar motorda.
+ */
+interface GirisTanimi {
+  /** Controller'ın bağlanacağı form anahtarı; varsayılan katalogun ilk veri anahtarı */
+  anahtar?: (katalog: KatalogAlani) => FormAnahtari
+  /**
+   * Etiketi alanın kendisi üretiyorsa (ör. ilgi cinsine göre "Proje"/"İş Paketi").
+   * Zorunluluk yıldızını yine MOTOR ekler — burada ham metin döndürülür.
+   */
+  etiket?: (form: UseFormReturn<TalepGirdisi>, t: (anahtar: string) => string) => string
+  ciz: (baglam: GirisBaglami) => ReactNode
 }
 
-function MetinGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
-  const { t } = useTranslation()
-  const anahtar = katalog.veri_anahtarlari[0] as keyof TalepGirdisi
-  const saltOkunur = duzen.salt_okunur === true
-
-  if (duzen.gorunum === 'textarea') {
-    return (
-      <div>
-        <label
-          htmlFor={`alan-${katalog.anahtar}`}
-          className="block text-sm font-semibold text-slate-700 dark:text-slate-300"
-        >
-          {etiket}
-        </label>
-        <textarea
-          id={`alan-${katalog.anahtar}`}
-          rows={duzen.satir ?? 2}
-          disabled={saltOkunur}
-          className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition-colors outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-900"
-          {...form.register(anahtar)}
+const GIRIS_TANIMLARI: Record<string, GirisTanimi> = {
+  metin: {
+    ciz: ({ ortak, duzen, deger, degistir }) =>
+      duzen.gorunum === 'textarea' ? (
+        <div>
+          <label
+            htmlFor={ortak.id}
+            className="block text-sm font-semibold text-slate-700 dark:text-slate-300"
+          >
+            {ortak.label}
+          </label>
+          <textarea
+            id={ortak.id}
+            rows={duzen.satir ?? 2}
+            disabled={ortak.disabled}
+            value={deger}
+            onChange={(olay) => degistir(olay.target.value)}
+            className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition-colors outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:disabled:bg-slate-900 dark:focus:ring-blue-900"
+          />
+        </div>
+      ) : (
+        <Input
+          {...ortak}
+          autoComplete="off"
+          value={deger}
+          onChange={(olay) => degistir(olay.target.value)}
         />
-      </div>
-    )
-  }
+      ),
+  },
 
-  return (
-    <Input
-      id={`alan-${katalog.anahtar}`}
-      label={etiket}
-      autoComplete="off"
-      disabled={saltOkunur}
-      placeholder={saltOkunur ? t('satinalma.otomatik') : undefined}
-      className={saltOkunur ? 'disabled:bg-slate-50 dark:disabled:bg-slate-900' : undefined}
-      {...form.register(anahtar)}
-    />
-  )
-}
+  sinirliMetin: {
+    ciz: ({ ortak, katalog, duzen, deger, degistir }) => (
+      <SinirliMetinInput
+        {...ortak}
+        value={deger}
+        onChange={degistir}
+        limit={katalog.metin_limiti || 200}
+        rows={duzen.satir ?? 2}
+      />
+    ),
+  },
 
-function PersonelGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
-  const { t } = useTranslation()
-  return (
-    <Controller
-      name="personel_id"
-      control={form.control}
-      render={({ field, fieldState }) => (
-        <PersonelSecimi
-          id={`alan-${katalog.anahtar}`}
-          label={etiket}
-          deger={field.value}
-          degisti={(secim) => {
-            field.onChange(secim?.kayitId ?? '')
-            form.setValue('personel_adi', secim?.unvan ?? '')
-          }}
-          hata={hataMetni(t, fieldState.error?.message)}
-          disabled={duzen.salt_okunur === true}
+  personel: {
+    anahtar: () => 'personel_id',
+    ciz: ({ ortak, deger, degistir, form }) => (
+      <PersonelSecimi
+        {...ortak}
+        deger={deger}
+        degisti={(secim) => {
+          degistir(secim?.kayitId ?? '')
+          form.setValue('personel_adi', secim?.unvan ?? '')
+        }}
+      />
+    ),
+  },
+
+  tarih: {
+    anahtar: () => 'tarih',
+    ciz: ({ ortak, deger, degistir }) => (
+      <TarihInput {...ortak} value={deger} onChange={degistir} />
+    ),
+  },
+
+  opsiyonelTarih: {
+    anahtar: () => 'termin',
+    ciz: ({ ortak, deger, degistir }) => (
+      <OpsiyonelTarihInput {...ortak} value={deger} onChange={degistir} />
+    ),
+  },
+
+  oncelik: {
+    anahtar: () => 'oncelik_id',
+    ciz: ({ ortak, deger, degistir }) => (
+      <OncelikSecimi {...ortak} deger={deger} degisti={(secim) => degistir(secim?.kayitId ?? '')} />
+    ),
+  },
+
+  ilgiCinsi: {
+    anahtar: () => 'ilgi_cinsi',
+    ciz: ({ ortak, deger, degistir, form }) => (
+      <IlgiCinsiSecimi
+        ortak={ortak}
+        deger={deger}
+        degisti={(yeni) => {
+          degistir(yeni)
+          // Cins değişince önceki ilgili seçimi anlamsızlaşır
+          form.setValue('ilgili_id', '')
+        }}
+      />
+    ),
+  },
+
+  ilgili: {
+    anahtar: () => 'ilgili_id',
+    // Etiket seçili cinse göre değişir; yıldızı motor ekler
+    etiket: (form, t) =>
+      t(
+        `satinalma.ilgiliEtiket.${(form.watch('ilgi_cinsi') || VARSAYILAN_ILGI_CINSI) as IlgiCinsi}`,
+      ),
+    ciz: ({ ortak, deger, degistir, form }) => {
+      const cins = (form.watch('ilgi_cinsi') || VARSAYILAN_ILGI_CINSI) as IlgiCinsi
+
+      return ARAMALI_ILGI_CINSLERI.includes(cins) ? (
+        <IlgiliSecimi {...ortak} cins={cins} deger={deger} degisti={degistir} />
+      ) : (
+        <Input
+          {...ortak}
+          autoComplete="off"
+          value={deger}
+          onChange={(olay) => degistir(olay.target.value)}
         />
-      )}
-    />
-  )
-}
+      )
+    },
+  },
 
-function TarihGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
-  const { t } = useTranslation()
-  return (
-    <Controller
-      name="tarih"
-      control={form.control}
-      render={({ field, fieldState }) => (
+  depo: {
+    anahtar: () => 'depomuz_id',
+    ciz: ({ ortak, deger, degistir }) => (
+      <DepoSecimi {...ortak} deger={deger} degisti={(secim) => degistir(secim?.kayitId ?? '')} />
+    ),
+  },
+
+  teslimatAdresi: {
+    anahtar: () => 'teslimat_adresi_id',
+    ciz: ({ ortak, deger, degistir, form }) => (
+      <FirmamizAdresiSecimi
+        {...ortak}
+        deger={deger}
+        degisti={(secim) => {
+          degistir(secim?.kayitId ?? '')
+          form.setValue('teslimat_adresi', secim?.adres ?? '')
+        }}
+        tekSeceneginiSec
+      />
+    ),
+  },
+
+  teslimatBicimi: {
+    anahtar: () => 'teslimat_bicimi',
+    ciz: ({ ortak, deger, degistir }) => (
+      <TeslimatBicimiSecimi {...ortak} deger={deger} degisti={degistir} />
+    ),
+  },
+
+  teslimatSekli: {
+    anahtar: () => 'teslimat_sekli_id',
+    ciz: ({ ortak, deger, degistir }) => (
+      <TeslimatSekliSecimi
+        {...ortak}
+        deger={deger}
+        degisti={(secim) => degistir(secim?.kayitId ?? '')}
+      />
+    ),
+  },
+
+  // Süre alanının tarih yüzü: aynı veriyi (süre+birim) tarihten türetir
+  teslimatSuresiTarih: {
+    anahtar: () => 'teslimat_suresi',
+    ciz: ({ ortak, form }) => {
+      const temel = form.watch('tarih')
+      const sure = form.watch('teslimat_suresi')
+      const birim = form.watch('teslimat_suresi_birimi') as TeslimatSuresiBirimi
+
+      return (
         <TarihInput
-          id={`alan-${katalog.anahtar}`}
-          label={etiket}
-          value={field.value}
-          onChange={field.onChange}
-          hata={hataMetni(t, fieldState.error?.message)}
-          disabled={duzen.salt_okunur === true}
+          {...ortak}
+          value={sureyiTariheCevir(temel, sure, birim)}
+          onChange={(iso) => {
+            const cevrim = tarihiSureyeCevir(temel, iso, birim)
+            form.setValue('teslimat_suresi', cevrim.sure)
+            form.setValue('teslimat_suresi_birimi', cevrim.birim)
+          }}
         />
-      )}
-    />
-  )
+      )
+    },
+  },
+
+  teslimatSuresi: {
+    anahtar: () => 'teslimat_suresi',
+    ciz: ({ ortak, form }) => (
+      <TeslimatSuresiSecimi
+        {...ortak}
+        sure={form.watch('teslimat_suresi')}
+        birim={form.watch('teslimat_suresi_birimi') as TeslimatSuresiBirimi}
+        degisti={(sure, birim) => {
+          form.setValue('teslimat_suresi', sure)
+          form.setValue('teslimat_suresi_birimi', birim)
+        }}
+      />
+    ),
+  },
+
+  alimYeri: {
+    anahtar: () => 'alim_yeri',
+    ciz: ({ ortak, deger, degistir }) => (
+      <AlimYeriSecimi {...ortak} deger={deger} degisti={degistir} />
+    ),
+  },
 }
 
-function OpsiyonelTarihGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
-  const { t } = useTranslation()
-  return (
-    <Controller
-      name="termin"
-      control={form.control}
-      render={({ field, fieldState }) => (
-        <OpsiyonelTarihInput
-          id={`alan-${katalog.anahtar}`}
-          label={etiket}
-          value={field.value}
-          onChange={field.onChange}
-          hata={hataMetni(t, fieldState.error?.message)}
-          disabled={duzen.salt_okunur === true}
-        />
-      )}
-    />
-  )
-}
-
-function OncelikGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
-  const { t } = useTranslation()
-  return (
-    <Controller
-      name="oncelik_id"
-      control={form.control}
-      render={({ field, fieldState }) => (
-        <OncelikSecimi
-          id={`alan-${katalog.anahtar}`}
-          label={etiket}
-          deger={field.value}
-          degisti={(secim) => field.onChange(secim?.kayitId ?? '')}
-          hata={hataMetni(t, fieldState.error?.message)}
-          disabled={duzen.salt_okunur === true}
-        />
-      )}
-    />
-  )
-}
-
-/** Karakter sınırlı metin (Açıklama 200, Hakkında 3072…) — sınır katalogdan gelir. */
-function SinirliMetinGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
-  const { t } = useTranslation()
-  const anahtar = katalog.veri_anahtarlari[0] as keyof TalepGirdisi
-
-  return (
-    <Controller
-      name={anahtar}
-      control={form.control}
-      render={({ field, fieldState }) => (
-        <SinirliMetinInput
-          id={`alan-${katalog.anahtar}`}
-          label={etiket}
-          value={typeof field.value === 'string' ? field.value : ''}
-          onChange={field.onChange}
-          limit={katalog.metin_limiti || 200}
-          rows={duzen.satir ?? 2}
-          hata={hataMetni(t, fieldState.error?.message)}
-          disabled={duzen.salt_okunur === true}
-        />
-      )}
-    />
-  )
-}
-
-function IlgiCinsiGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
+/** İlgi cinsi sabit listesi — seçenekler çeviriden üretildiği için ayrı bileşen. */
+function IlgiCinsiSecimi({
+  ortak,
+  deger,
+  degisti,
+}: {
+  ortak: OrtakGirisProps
+  deger: string
+  degisti: (deger: string) => void
+}) {
   const { t } = useTranslation()
   const secenekler: SecenekOgesi[] = ILGI_CINSLERI.map((cins) => ({
     value: cins,
@@ -198,227 +290,70 @@ function IlgiCinsiGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
   }))
 
   return (
-    <Controller
-      name="ilgi_cinsi"
-      control={form.control}
-      render={({ field }) => (
-        <SelectField
-          id={`alan-${katalog.anahtar}`}
-          label={etiket}
-          options={secenekler}
-          value={secenekler.find((s) => s.value === field.value) ?? null}
-          onChange={(secim) => {
-            field.onChange(secim?.value ?? VARSAYILAN_ILGI_CINSI)
-            // Cins değişince önceki seçim anlamsızlaşır
-            form.setValue('ilgili_id', '')
-          }}
-          isClearable={false}
-          disabled={duzen.salt_okunur === true}
-        />
-      )}
+    <SelectField
+      {...ortak}
+      options={secenekler}
+      value={secenekler.find((s) => s.value === deger) ?? null}
+      onChange={(secim) => degisti(secim?.value ?? VARSAYILAN_ILGI_CINSI)}
+      isClearable={false}
     />
   )
 }
 
-/** Etiketi ve arama kaynağı seçili ilgi cinsine göre değişen bağlı alan. */
-function IlgiliGirisi({ katalog, duzen, form }: AlanGirisiProps) {
-  const { t } = useTranslation()
-  const cins = (form.watch('ilgi_cinsi') || VARSAYILAN_ILGI_CINSI) as IlgiCinsi
-  // Etiket cinsten üretildiği için zorunluluk yıldızı burada eklenir
-  const etiket = zorunluEtiket(t(`satinalma.ilgiliEtiket.${cins}`), duzen)
-
-  return (
-    <Controller
-      name="ilgili_id"
-      control={form.control}
-      render={({ field, fieldState }) =>
-        ARAMALI_ILGI_CINSLERI.includes(cins) ? (
-          <IlgiliSecimi
-            cins={cins}
-            id={`alan-${katalog.anahtar}`}
-            label={etiket}
-            deger={field.value}
-            degisti={field.onChange}
-            hata={hataMetni(t, fieldState.error?.message)}
-            disabled={duzen.salt_okunur === true}
-          />
-        ) : (
-          <Input
-            id={`alan-${katalog.anahtar}`}
-            label={etiket}
-            autoComplete="off"
-            value={field.value}
-            onChange={field.onChange}
-            hata={hataMetni(t, fieldState.error?.message)}
-            disabled={duzen.salt_okunur === true}
-          />
-        )
-      }
-    />
-  )
-}
-
-function DepoGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
-  const { t } = useTranslation()
-  return (
-    <Controller
-      name="depomuz_id"
-      control={form.control}
-      render={({ field, fieldState }) => (
-        <DepoSecimi
-          id={`alan-${katalog.anahtar}`}
-          label={etiket}
-          deger={field.value}
-          degisti={(secim) => field.onChange(secim?.kayitId ?? '')}
-          hata={hataMetni(t, fieldState.error?.message)}
-          disabled={duzen.salt_okunur === true}
-        />
-      )}
-    />
-  )
-}
-
-function TeslimatAdresiGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
-  const { t } = useTranslation()
-  return (
-    <Controller
-      name="teslimat_adresi_id"
-      control={form.control}
-      render={({ field, fieldState }) => (
-        <FirmamizAdresiSecimi
-          id={`alan-${katalog.anahtar}`}
-          label={etiket}
-          deger={field.value}
-          degisti={(secim) => {
-            field.onChange(secim?.kayitId ?? '')
-            form.setValue('teslimat_adresi', secim?.adres ?? '')
-          }}
-          tekSeceneginiSec
-          hata={hataMetni(t, fieldState.error?.message)}
-          disabled={duzen.salt_okunur === true}
-        />
-      )}
-    />
-  )
-}
-
-function TeslimatBicimiGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
-  return (
-    <Controller
-      name="teslimat_bicimi"
-      control={form.control}
-      render={({ field }) => (
-        <TeslimatBicimiSecimi
-          id={`alan-${katalog.anahtar}`}
-          label={etiket}
-          deger={field.value}
-          degisti={field.onChange}
-          disabled={duzen.salt_okunur === true}
-        />
-      )}
-    />
-  )
-}
-
-function TeslimatSekliGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
-  const { t } = useTranslation()
-  return (
-    <Controller
-      name="teslimat_sekli_id"
-      control={form.control}
-      render={({ field, fieldState }) => (
-        <TeslimatSekliSecimi
-          id={`alan-${katalog.anahtar}`}
-          label={etiket}
-          deger={field.value}
-          degisti={(secim) => field.onChange(secim?.kayitId ?? '')}
-          hata={hataMetni(t, fieldState.error?.message)}
-          disabled={duzen.salt_okunur === true}
-        />
-      )}
-    />
-  )
-}
-
-/** Süre alanının tarih yüzü — seçilen tarih süre+birime geri çevrilir. */
-function TeslimatSuresiTarihGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
-  const temel = form.watch('tarih')
-  const sure = form.watch('teslimat_suresi')
-  const birim = form.watch('teslimat_suresi_birimi') as TeslimatSuresiBirimi
-
-  return (
-    <TarihInput
-      id={`alan-${katalog.anahtar}`}
-      label={etiket}
-      value={sureyiTariheCevir(temel, sure, birim)}
-      onChange={(iso) => {
-        const cevrim = tarihiSureyeCevir(temel, iso, birim)
-        form.setValue('teslimat_suresi', cevrim.sure)
-        form.setValue('teslimat_suresi_birimi', cevrim.birim)
-      }}
-      disabled={duzen.salt_okunur === true}
-    />
-  )
-}
-
-function TeslimatSuresiGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
-  const { t } = useTranslation()
-  const sure = form.watch('teslimat_suresi')
-  const birim = form.watch('teslimat_suresi_birimi') as TeslimatSuresiBirimi
-
-  return (
-    <TeslimatSuresiSecimi
-      id={`alan-${katalog.anahtar}`}
-      label={etiket}
-      sure={sure}
-      birim={birim}
-      degisti={(yeniSure, yeniBirim) => {
-        form.setValue('teslimat_suresi', yeniSure)
-        form.setValue('teslimat_suresi_birimi', yeniBirim)
-      }}
-      hata={hataMetni(t, form.formState.errors.teslimat_suresi?.message)}
-      disabled={duzen.salt_okunur === true}
-    />
-  )
-}
-
-function AlimYeriGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
-  return (
-    <Controller
-      name="alim_yeri"
-      control={form.control}
-      render={({ field }) => (
-        <AlimYeriSecimi
-          id={`alan-${katalog.anahtar}`}
-          label={etiket}
-          deger={field.value}
-          degisti={field.onChange}
-          disabled={duzen.salt_okunur === true}
-        />
-      )}
-    />
-  )
+export function girisTipiTanimliMi(girisTipi: string): boolean {
+  return girisTipi in GIRIS_TANIMLARI
 }
 
 /**
- * Giriş tipi → bileşen kayıt defteri. Katalog (backend) bir alanın giris_tipi'ni
- * söyler, burası onu çizecek bileşeni verir. Yeni giriş tipi eklemek = buraya
- * bir satır + katalogda kullanmak.
+ * Tasarımdaki bir alanı çizen TEK giriş noktası. Tasarım kurallarını burada
+ * uygular ve giriş tipine özgü kısmı kayıt defterinden çağırır:
+ *
+ *   • etiket + zorunluluk yıldızı
+ *   • doğrulama mesajının çevirisi
+ *   • salt okunur kilidi
+ *
+ * Yeni bir alan tipi eklemek = GIRIS_TANIMLARI'na bir kayıt. Ortak kuralları
+ * tekrar bağlamak gerekmediği için atlanamaz.
  */
-export const GIRIS_KAYDI: Record<string, ComponentType<AlanGirisiProps>> = {
-  metin: MetinGirisi,
-  personel: PersonelGirisi,
-  tarih: TarihGirisi,
-  opsiyonelTarih: OpsiyonelTarihGirisi,
-  oncelik: OncelikGirisi,
-  sinirliMetin: SinirliMetinGirisi,
-  ilgiCinsi: IlgiCinsiGirisi,
-  ilgili: IlgiliGirisi,
-  depo: DepoGirisi,
-  teslimatAdresi: TeslimatAdresiGirisi,
-  teslimatBicimi: TeslimatBicimiGirisi,
-  teslimatSekli: TeslimatSekliGirisi,
-  teslimatSuresiTarih: TeslimatSuresiTarihGirisi,
-  teslimatSuresi: TeslimatSuresiGirisi,
-  alimYeri: AlimYeriGirisi,
+export function AlanGirisi({
+  katalog,
+  duzen,
+  form,
+}: {
+  katalog: KatalogAlani
+  duzen: DuzenAlani
+  form: UseFormReturn<TalepGirdisi>
+}) {
+  const { t } = useTranslation()
+  const tanim = GIRIS_TANIMLARI[katalog.giris_tipi]
+
+  if (!tanim) {
+    return null
+  }
+
+  const anahtar = tanim.anahtar?.(katalog) ?? (katalog.veri_anahtarlari[0] as FormAnahtari)
+  const hamEtiket = tanim.etiket?.(form, t) ?? t(katalog.etiket_anahtari)
+
+  return (
+    <Controller
+      name={anahtar}
+      control={form.control}
+      render={({ field, fieldState }) =>
+        tanim.ciz({
+          ortak: {
+            id: `alan-${katalog.anahtar}`,
+            label: zorunluEtiket(hamEtiket, duzen),
+            // Doğrulama mesajları i18n anahtarı taşır
+            hata: fieldState.error?.message ? t(fieldState.error.message) : undefined,
+            disabled: duzen.salt_okunur === true,
+          },
+          katalog,
+          duzen,
+          form,
+          deger: typeof field.value === 'string' ? field.value : '',
+          degistir: field.onChange,
+        }) as React.ReactElement
+      }
+    />
+  )
 }

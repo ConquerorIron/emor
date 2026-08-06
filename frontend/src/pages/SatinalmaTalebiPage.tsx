@@ -13,12 +13,11 @@ import { ekranTasariminiGetir } from '@/features/ekranTasarim/api'
 import {
   bolumGenisligiSinifi,
   genislikSinifi,
-  zorunluEtiket,
   type DuzenBolumu,
   type EkranTasarimi,
   type KatalogAlani,
 } from '@/features/ekranTasarim/types'
-import { GIRIS_KAYDI } from '@/features/satinalma/girisKaydi'
+import { AlanGirisi, girisTipiTanimliMi } from '@/features/satinalma/girisKaydi'
 import { SATIR_ALANLARI } from '@/features/satinalma/talepAlanlari'
 import {
   BOS_SATIR,
@@ -53,8 +52,6 @@ function TasarimBolumu({
   katalogHaritasi: Map<string, KatalogAlani>
   form: UseFormReturn<TalepGirdisi>
 }) {
-  const { t } = useTranslation()
-
   return (
     <div className="rounded-xl border border-slate-200 p-5 dark:border-slate-700">
       {baslik !== '' ? (
@@ -63,7 +60,6 @@ function TasarimBolumu({
       <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-12">
         {bolum.alanlar.map((duzenAlani) => {
           const katalog = katalogHaritasi.get(duzenAlani.alan)
-          const Giris = katalog ? GIRIS_KAYDI[katalog.giris_tipi] : undefined
 
           // Gizli alan çizilmez; değeri form varsayılanı olarak zaten yüklendi
           if (duzenAlani.gizli) {
@@ -72,15 +68,14 @@ function TasarimBolumu({
 
           // Katalogda olmayan ya da bileşeni tanımsız alan sessizce atlanır
           // (kod geri alındığında eski tasarım ekranı kırmayı sürdürmesin)
-          if (!katalog || !Giris) {
+          if (!katalog || !girisTipiTanimliMi(katalog.giris_tipi)) {
             return null
           }
 
-          const etiket = zorunluEtiket(t(katalog.etiket_anahtari), duzenAlani)
-
           return (
             <div key={duzenAlani.alan} className={genislikSinifi(duzenAlani.genislik)}>
-              <Giris katalog={katalog} duzen={duzenAlani} form={form} etiket={etiket} />
+              {/* Etiket/yıldız/hata/salt-okunur kuralları AlanGirisi içinde uygulanır */}
+              <AlanGirisi katalog={katalog} duzen={duzenAlani} form={form} />
             </div>
           )
         })}

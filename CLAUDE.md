@@ -69,10 +69,18 @@ Akış: ekran başına tek `taslak` + tek `yayinda` sürüm (kısmi unique indek
 yayınlanan eskiler `arsiv` olur ve geri alınabilir. Yayında sürüm yoksa katalogun
 `varsayilanDuzen()`'i kullanılır — motor devreye girdiğinde ekran bugünkü haliyle açılır.
 
-Frontend: `features/ekranTasarim/` (tipler + API), `features/satinalma/girisKaydi.tsx`
-(giris_tipi → bileşen kayıt defteri), sayfa tasarımdan çizer. Zod şeması zorunlu
-alanlar tasarımdan geldiği için çalışma zamanında üretilir (`talepSemasiUret`);
-backend kayıt sırasında aynı tasarımla tekrar doğrular.
+Frontend: `features/ekranTasarim/` (tipler + API), `features/satinalma/girisKaydi.tsx`,
+sayfa tasarımdan çizer. Zod şeması zorunlu alanlar tasarımdan geldiği için çalışma
+zamanında üretilir (`talepSemasiUret`); backend kayıt sırasında aynı tasarımla
+tekrar doğrular.
+
+**Alan çizim sözleşmesi (ÖNEMLİ).** Tasarım kuralları TEK yerde uygulanır:
+`AlanGirisi` sarmalayıcısı etiketi (+ zorunluluk yıldızı), doğrulama mesajının
+ÇEVİRİSİNİ ve salt-okunur kilidini hesaplayıp `ortak` nesnesinde verir.
+`GIRIS_TANIMLARI` kayıtları yalnız kendine özgü kısmı yazar ve `{...ortak}`
+olarak geçer — bu yüzden yeni bir giriş tipinde ortak kuralları bağlamak
+unutulamaz. (Daha önce her tip bunları tek tek bağlıyordu ve düzenli olarak
+atlanıyordu.) Sözleşme `girisKaydi.test.tsx` ile her tip için doğrulanır.
 
 Yetki: `users.sistem_yoneticisi` (ERP `TOHOM_KULLANICI.SISTEM_YONETICISI`
 yansıması, her girişte tazelenir) — tasarım düzenleme uçlarını bu bayrak açar.
