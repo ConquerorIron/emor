@@ -82,6 +82,14 @@ const KATALOG = [
   zorunlu_secilebilir: true,
   metin_alani: a.anahtar === 'aciklama',
   metin_limiti: a.anahtar === 'aciklama' ? 200 : 0,
+  bagli_veri_anahtari:
+    a.anahtar === 'ilgili'
+      ? 'ilgi_cinsi'
+      : a.anahtar === 'ilgi_konusu'
+        ? 'ilgili_id'
+        : a.anahtar === 'teslimat_suresi_tarih'
+          ? 'tarih'
+          : '',
 }))
 
 const SAHTE_TASARIM = {

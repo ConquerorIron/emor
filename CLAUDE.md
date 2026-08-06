@@ -56,10 +56,25 @@ npm run build
 
 - `components/` — ERP bilmeyen genel arayüz parçaları (Button, Input, TarihInput,
   SinirliMetinInput, SelectField…)
-- `secimler/` — **ERP seçim bileşenleri** (PersonelSecimi, DepoSecimi, OncelikSecimi,
-  TeslimatSekliSecimi…) ve hepsinin beslendiği tek `api.ts` (`/api/v1/secenekler/*`).
-  Bunlar feature DEĞİL, her ekranda tekrar kullanılan ortak bileşenlerdir — yeni bir
-  dürbün alanı eklerken buraya konur, ayrı klasör açılmaz.
+- `formAlanlari/` — **ERP form alanları**: her ERP domain tipi için bir bileşen +
+  `giris_tipi → bileşen` kayıt defteri (`girisKaydi.tsx`) + seçenek uçları (`api.ts`).
+  Tekrar kullanılan birim alan ADI değil ERP TİPİdir; "Açıklama" ve "Hakkında"
+  ayrı bileşen değil, ikisi de `sinirliMetin` (limit katalogdan gelir):
+
+  | ERP tipi | giris_tipi | Bileşen |
+  |---|---|---|
+  | ACIKLAMA200/512/1024/3072 | `sinirliMetin` | SinirliMetinInput |
+  | TARIH | `tarih` / `opsiyonelTarih` | TarihInput / OpsiyonelTarihInput |
+  | MIKTAR | `sayi` | SayiAlani |
+  | ORAN | `oran` | SayiAlani (yüzde) |
+  | BOOL | `evetHayir` | EvetHayirAlani |
+  | SURE | `teslimatSuresi` | TeslimatSuresiSecimi |
+  | KAYIT_ID | `personel`, `depo`, `teslimatAdresi`, `ilgili` | ilgili seçici |
+  | MADDE | `oncelik`, `teslimatSekli` | TabloMaddesiSecimi türevi |
+  | TUR | `teslimatBicimi`, `alimYeri`, `ilgiCinsi` | sabit listeler |
+
+  Yeni ekran (Sipariş, Fatura, Teklif) aynı tipleri kullandığı için burada
+  kod yazmadan çalışır — yalnız backend katalogda alan tanımlanır.
 - `pages/<Ekran>/` — her ekran kendi klasöründe: sayfa, testi ve YALNIZ o sayfanın
   kullandığı parçalar (ör. `SatinalmaTalebi/girisKaydi.tsx`,
   `EkranTasarimAyarlari/TasarimTuvali.tsx`). Sayfalar birbirinden import etmez;

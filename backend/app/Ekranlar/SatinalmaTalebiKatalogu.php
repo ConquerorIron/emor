@@ -104,6 +104,8 @@ final class SatinalmaTalebiKatalogu implements EkranKatalogu
                 girisTipi: 'ilgiCinsi',
                 veriAnahtarlari: ['ilgi_cinsi'],
                 procParametresi: 'ILGI_CINSI',
+                // Cins değişince bu alan sıfırlanır
+                bagliVeriAnahtari: 'ilgili_id',
             ),
             new KatalogAlani(
                 anahtar: 'ilgili',
@@ -111,6 +113,8 @@ final class SatinalmaTalebiKatalogu implements EkranKatalogu
                 girisTipi: 'ilgili',
                 veriAnahtarlari: ['ilgili_id'],
                 procParametresi: 'ILGILI_ID',
+                // Arama kaynağı bu alandaki cinse göre belirlenir
+                bagliVeriAnahtari: 'ilgi_cinsi',
             ),
             new KatalogAlani(
                 anahtar: 'depo_adi',
@@ -149,6 +153,8 @@ final class SatinalmaTalebiKatalogu implements EkranKatalogu
                 veriAnahtarlari: ['teslimat_suresi', 'teslimat_suresi_birimi'],
                 procParametresi: 'TESLIMAT_SURESI (gösterim)',
                 zorunluSecilebilir: false,
+                // Süre bu tarihin üzerine eklenerek gösterilir
+                bagliVeriAnahtari: 'tarih',
             ),
             new KatalogAlani(
                 anahtar: 'teslimat_suresi_sure',

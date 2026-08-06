@@ -26,6 +26,9 @@ final class KatalogAlani
      * @param  bool  $zorunluSecilebilir  Tasarımcı "zorunlu" işaretleyebilir mi
      * @param  bool  $metinAlani  Serbest metin mi (textarea seçeneği yalnız bunlarda)
      * @param  int  $metinLimiti  ERP domain tipinin karakter sınırı (ACIKLAMA200 → 200); 0 = sınırsız
+     * @param  string  $bagliVeriAnahtari  Bu alanın OKUDUĞU/SIFIRLADIĞI diğer alanın veri anahtarı.
+     *                                     Giriş bileşenleri ekrandan bağımsız kalsın diye bağlantı
+     *                                     kodda değil katalogda tanımlanır (ör. ilgi cinsi → ilgili_id).
      */
     public function __construct(
         public readonly string $anahtar,
@@ -39,6 +42,7 @@ final class KatalogAlani
         public readonly bool $zorunluSecilebilir = true,
         public readonly bool $metinAlani = false,
         public readonly int $metinLimiti = 0,
+        public readonly string $bagliVeriAnahtari = '',
     ) {}
 
     /**
@@ -58,6 +62,7 @@ final class KatalogAlani
             'zorunlu_secilebilir' => $this->zorunluSecilebilir,
             'metin_alani' => $this->metinAlani,
             'metin_limiti' => $this->metinLimiti,
+            'bagli_veri_anahtari' => $this->bagliVeriAnahtari,
         ];
     }
 }

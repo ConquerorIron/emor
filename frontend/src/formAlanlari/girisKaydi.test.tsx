@@ -6,7 +6,7 @@ import '@/i18n/i18n'
 import { AppProviders } from '@/providers/AppProviders'
 import type { KatalogAlani } from '@/features/ekranTasarim/types'
 import { AlanGirisi, girisTipiTanimliMi } from './girisKaydi'
-import { BOS_TALEP, type TalepGirdisi } from './talepSchema'
+import { BOS_TALEP, type TalepGirdisi } from '@/pages/SatinalmaTalebi/talepSchema'
 
 /**
  * Motorun sözleşmesi: tasarım kuralları (etiket + yıldız, hata çevirisi,
@@ -30,6 +30,9 @@ const TIPLER: { tip: string; anahtar: string; veri: string[]; limit?: number }[]
   { tip: 'teslimatSekli', anahtar: 'teslimat_sekli', veri: ['teslimat_sekli_id'] },
   { tip: 'teslimatSuresi', anahtar: 'teslimat_suresi_sure', veri: ['teslimat_suresi'] },
   { tip: 'alimYeri', anahtar: 'alim_yeri', veri: ['alim_yeri'] },
+  { tip: 'sayi', anahtar: 'miktar', veri: ['miktar'] },
+  { tip: 'oran', anahtar: 'oran', veri: ['oran'] },
+  { tip: 'evetHayir', anahtar: 'bool', veri: ['bool'] },
 ]
 
 function katalogYap(tip: string, anahtar: string, veri: string[], limit = 0): KatalogAlani {
@@ -45,6 +48,7 @@ function katalogYap(tip: string, anahtar: string, veri: string[], limit = 0): Ka
     zorunlu_secilebilir: true,
     metin_alani: limit > 0,
     metin_limiti: limit,
+    bagli_veri_anahtari: '',
   }
 }
 
@@ -79,8 +83,10 @@ describe('AlanGirisi — ortak kural sözleşmesi', () => {
       const etiketler = screen.getAllByText(/\*$/)
       expect(etiketler.length, `${tip} için zorunluluk yıldızı basılmalı`).toBeGreaterThan(0)
 
-      // Ana giriş öğesi kilitli
-      const girisler = document.querySelectorAll('input:not([type="hidden"]), textarea')
+      // Ana giriş öğesi kilitli (anahtar tipli alanlar input değil, role=switch basar)
+      const girisler = document.querySelectorAll(
+        'input:not([type="hidden"]), textarea, [role="switch"]',
+      )
       expect(girisler.length, `${tip} bir giriş öğesi çizmeli`).toBeGreaterThan(0)
       expect(girisler[0], `${tip} salt okunur olmalı`).toBeDisabled()
     },

@@ -30,6 +30,7 @@ function katalogAlani(anahtar: string, ekstra: Record<string, unknown> = {}) {
     zorunlu_secilebilir: true,
     metin_alani: false,
     metin_limiti: 0,
+    bagli_veri_anahtari: '',
     ...ekstra,
   }
 }

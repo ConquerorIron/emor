@@ -22,6 +22,7 @@ const KATALOG: KatalogAlani[] = ['a', 'b', 'c', 'd'].map((anahtar) => ({
   zorunlu_secilebilir: true,
   metin_alani: true,
   metin_limiti: 200,
+  bagli_veri_anahtari: '',
 }))
 
 function duzen(): EkranDuzeni {

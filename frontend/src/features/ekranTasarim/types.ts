@@ -22,6 +22,12 @@ export interface KatalogAlani {
   metin_alani: boolean
   /** ERP domain tipinin karakter sınırı (ACIKLAMA200 → 200); 0 = sınırsız */
   metin_limiti: number
+  /**
+   * Bu alanın OKUDUĞU/SIFIRLADIĞI diğer alanın veri anahtarı. Giriş bileşenleri
+   * ekrandan bağımsız kalsın diye bağlantı kodda değil katalogda tanımlıdır
+   * (ör. ilgi cinsi → ilgili_id, teslimat süresi tarihi → tarih).
+   */
+  bagli_veri_anahtari: string
 }
 
 /** Alanın NASIL göründüğü — tasarımcı belirler */
