@@ -11,9 +11,16 @@ export interface TabloMaddesiSecenegi {
   ad: string
 }
 
-export async function tabloMaddesiSecenekleriGetir(tur: number): Promise<TabloMaddesiSecenegi[]> {
+/** ERP sorgusu türe göre farklı sıralar (Öncelik → ad, Teslimat şekli → kayıt id) */
+export type MaddeSiralamasi = 'ad' | 'kayit_id'
+
+export async function tabloMaddesiSecenekleriGetir(
+  tur: number,
+  sirala: MaddeSiralamasi = 'ad',
+): Promise<TabloMaddesiSecenegi[]> {
   const yanit = await api.get<{ data: TabloMaddesiSecenegi[] }>(
     `/api/v1/secenekler/tablo-maddesi/${tur}`,
+    { params: { sirala } },
   )
 
   return yanit.data.data

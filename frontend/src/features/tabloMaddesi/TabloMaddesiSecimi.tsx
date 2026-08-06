@@ -6,7 +6,7 @@ import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 
-import { tabloMaddesiSecenekleriGetir } from './api'
+import { tabloMaddesiSecenekleriGetir, type MaddeSiralamasi } from './api'
 
 export interface TabloMaddesiSecim {
   /** ERP TABLO_MADDESI_ID — proc parametrelerine set edilecek değer */
@@ -24,6 +24,8 @@ interface TabloMaddesiSecimiProps {
   degisti: (secim: TabloMaddesiSecim | null) => void
   hata?: string
   isClearable?: boolean
+  /** ERP sorgusunun sıralaması (tür bazında değişir) */
+  siralama?: MaddeSiralamasi
 }
 
 /**
@@ -39,12 +41,13 @@ export function TabloMaddesiSecimi({
   degisti,
   hata,
   isClearable = true,
+  siralama = 'ad',
 }: TabloMaddesiSecimiProps) {
   const { t } = useTranslation()
 
   const maddeler = useQuery({
-    queryKey: queryKeys.secenekler.tabloMaddesi(tur),
-    queryFn: () => tabloMaddesiSecenekleriGetir(tur),
+    queryKey: queryKeys.secenekler.tabloMaddesi(tur, siralama),
+    queryFn: () => tabloMaddesiSecenekleriGetir(tur, siralama),
     staleTime: 5 * 60_000,
   })
 

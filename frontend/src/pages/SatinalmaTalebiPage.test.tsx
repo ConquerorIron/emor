@@ -54,6 +54,14 @@ describe('SatinalmaTalebiPage', () => {
 
     expect(screen.getByLabelText('Depo adı')).toHaveAttribute('role', 'combobox')
     expect(screen.getByLabelText('Teslimat adresi')).toHaveAttribute('role', 'combobox')
+    expect(screen.getByLabelText('Teslimat biçimi')).toHaveAttribute('role', 'combobox')
+    expect(screen.getByLabelText('Teslimat şekli')).toHaveAttribute('role', 'combobox')
+  })
+
+  it('teslimat biçimi varsayılan Tam (0) gelir', () => {
+    render(<SatinalmaTalebiPage />)
+
+    expect(screen.getByText('Tam', { selector: '.erp-select__single-value' })).toBeInTheDocument()
   })
 
   it('açıklama 200 karakterden fazlasını almaz', () => {

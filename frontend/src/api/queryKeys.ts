@@ -12,7 +12,8 @@ export const queryKeys = {
   // ERP view'larından ortak seçim listeleri (program genelinde kullanılır)
   secenekler: {
     personeller: ['secenekler', 'personeller'],
-    tabloMaddesi: (tur: number) => ['secenekler', 'tabloMaddesi', tur] as const,
+    tabloMaddesi: (tur: number, sirala: string) =>
+      ['secenekler', 'tabloMaddesi', tur, sirala] as const,
     ilgili: (cins: string) => ['secenekler', 'ilgili', cins] as const,
     depolar: ['secenekler', 'depolar'],
     firmamizAdresleri: ['secenekler', 'firmamizAdresleri'],

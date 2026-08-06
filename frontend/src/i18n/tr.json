@@ -36,6 +36,12 @@
   "personel": {
     "sec": "Personel seçin veya arayın…"
   },
+  "teslimat": {
+    "bicim": {
+      "0": "Tam",
+      "1": "Parçalı"
+    }
+  },
   "satinalma": {
     "baslik": "Satınalma Talebi",
     "aciklama": "Talep başlık bilgilerini doldurun, satırları ekleyin ve kaydedin. Kayıt ERP'ye (aktif ortamın veritabanına) yapılır.",

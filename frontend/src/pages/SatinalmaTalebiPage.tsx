@@ -21,6 +21,8 @@ import {
 } from '@/features/satinalma/ilgiCinsleri'
 import { IlgiliSecimi } from '@/features/satinalma/IlgiliSecimi'
 import { OncelikSecimi } from '@/features/tabloMaddesi/OncelikSecimi'
+import { TeslimatSekliSecimi } from '@/features/tabloMaddesi/TeslimatSekliSecimi'
+import { TeslimatBicimiSecimi } from '@/features/teslimat/TeslimatBicimiSecimi'
 import {
   SATIR_ALANLARI,
   TALEP_ALANLARI,
@@ -228,6 +230,36 @@ export function SatinalmaTalebiPage() {
               setValue('teslimat_adresi', secim?.adres ?? '')
             }}
             tekSeceneginiSec
+          />
+        )}
+      />
+    ),
+    // Sabit değerler: Tam=0, Parçalı=1 — @TESLIMAT_BICIMI
+    teslimat_bicimi: (
+      <Controller
+        name="teslimat_bicimi"
+        control={control}
+        render={({ field }) => (
+          <TeslimatBicimiSecimi
+            id="alan-teslimat_bicimi"
+            label={t('satinalma.alan.teslimatBicimi')}
+            deger={field.value}
+            degisti={field.onChange}
+          />
+        )}
+      />
+    ),
+    // Tablo maddesi TUR=53 — @TESLIMAT_SEKLI_ID
+    teslimat_sekli: (
+      <Controller
+        name="teslimat_sekli_id"
+        control={control}
+        render={({ field }) => (
+          <TeslimatSekliSecimi
+            id="alan-teslimat_sekli"
+            label={t('satinalma.alan.teslimatSekli')}
+            deger={field.value}
+            degisti={(secim) => field.onChange(secim?.kayitId ?? '')}
           />
         )}
       />

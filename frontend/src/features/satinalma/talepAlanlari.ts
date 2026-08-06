@@ -24,7 +24,8 @@ export interface TalepAlani {
    * 'opsiyonelTarih' → anahtarla açılan takvim, 'oncelik' → tablo maddesi,
    * 'aciklama200' → 200 karakter limitli açıklama, 'ilgiCinsi' → sabit liste,
    * 'ilgili' → ilgi cinsine göre etiketi değişen bağlı alan, 'depo' → depo seçimi,
-   * 'teslimatAdresi' → firmamız adresleri seçimi)
+   * 'teslimatAdresi' → firmamız adresleri seçimi, 'teslimatBicimi' → sabit
+   * liste (Tam/Parçalı), 'teslimatSekli' → tablo maddesi TUR=53)
    */
   tip?:
     | 'personel'
@@ -36,6 +37,8 @@ export interface TalepAlani {
     | 'ilgili'
     | 'depo'
     | 'teslimatAdresi'
+    | 'teslimatBicimi'
+    | 'teslimatSekli'
 }
 
 /** Sol blok — talep başlık bilgileri (ERP ekranının sol paneli) */
@@ -60,8 +63,8 @@ export const TESLIMAT_ALANLARI: TalepAlani[] = [
     tip: 'teslimatAdresi',
     tamSatir: true,
   },
-  { ad: 'teslimat_bicimi', etiketAnahtari: 'teslimatBicimi' },
-  { ad: 'teslimat_sekli', etiketAnahtari: 'teslimatSekli' },
+  { ad: 'teslimat_bicimi', etiketAnahtari: 'teslimatBicimi', tip: 'teslimatBicimi' },
+  { ad: 'teslimat_sekli', etiketAnahtari: 'teslimatSekli', tip: 'teslimatSekli' },
   { ad: 'teslimat_suresi_tarih', etiketAnahtari: 'teslimatSuresiTarih' },
   { ad: 'teslimat_suresi_sure', etiketAnahtari: 'teslimatSuresiSure' },
   { ad: 'alim_yeri', etiketAnahtari: 'alimYeri' },

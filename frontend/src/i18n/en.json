@@ -36,6 +36,12 @@
   "personel": {
     "sec": "Select or search personnel…"
   },
+  "teslimat": {
+    "bicim": {
+      "0": "Full",
+      "1": "Partial"
+    }
+  },
   "satinalma": {
     "baslik": "Purchase Request",
     "aciklama": "Fill in the request header, add lines and save. The record is written to the ERP (active environment's database).",

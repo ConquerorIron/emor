@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { VARSAYILAN_ILGI_CINSI } from '@/features/satinalma/ilgiCinsleri'
+import { VARSAYILAN_TESLIMAT_BICIMI } from '@/features/teslimat/TeslimatBicimiSecimi'
 import { bugunIso } from '@/utils/tarih'
 
 /**
@@ -47,8 +48,10 @@ export const talepSchema = z.object({
   teslimat_adresi_id: z.string(),
   // Adres metni (seçimle dolar) — proc'ta @TESLIMAT_ADRESI (ACIKLAMA200)
   teslimat_adresi: z.string().max(200, 'satinalma.dogrulama.adresUzun'),
+  // Sabit değer: 0=Tam, 1=Parçalı — proc'ta @TESLIMAT_BICIMI
   teslimat_bicimi: z.string(),
-  teslimat_sekli: z.string(),
+  // Seçili şeklin TABLO_MADDESI_ID'si (TUR=53) — proc'ta @TESLIMAT_SEKLI_ID
+  teslimat_sekli_id: z.string(),
   teslimat_suresi_tarih: z.string(),
   teslimat_suresi_sure: z.string(),
   alim_yeri: z.string(),
@@ -86,8 +89,9 @@ export const BOS_TALEP: TalepGirdisi = {
   depomuz_id: '',
   teslimat_adresi_id: '',
   teslimat_adresi: '',
-  teslimat_bicimi: '',
-  teslimat_sekli: '',
+  // ERP formu "Tam" ile açılır
+  teslimat_bicimi: VARSAYILAN_TESLIMAT_BICIMI,
+  teslimat_sekli_id: '',
   teslimat_suresi_tarih: '',
   teslimat_suresi_sure: '',
   alim_yeri: '',

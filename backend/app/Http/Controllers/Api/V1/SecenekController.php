@@ -200,11 +200,17 @@ final class SecenekController extends Controller
         // Lokal (ERP'siz) kullanıcıda -1: yalnız güvenlik kodu olmayan maddeler
         $erpKullaniciId = $request->user()?->erp_kullanici_id ?? -1;
 
+        // ERP sorgusu türe göre farklı sıralar (ör. Öncelik AD, Teslimat şekli
+        // KAYIT_ID). Beyaz liste — sıralama ifadesi istekten gelmez.
+        $siralama = $request->string('sirala')->value() === 'kayit_id'
+            ? 'TABLO_MADDESI_ID'
+            : 'AD COLLATE Turkish_100_CI_AS';
+
         $satirlar = $this->mssql->baglan()->select(
             'SELECT TABLO_MADDESI_ID AS kayit_id, UST_ID AS ust_id, AD COLLATE Turkish_100_CI_AS AS ad
              FROM VOHOM_TABLO_MADDESI
              WHERE TUR = ? AND (GUVENLIK_KODU_ID IS NULL OR GRUP_KULLANICISI_ID = ?)
-             ORDER BY AD COLLATE Turkish_100_CI_AS',
+             ORDER BY '.$siralama,
             [$tur, $erpKullaniciId],
         );
 
