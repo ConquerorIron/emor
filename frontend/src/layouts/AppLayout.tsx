@@ -20,6 +20,8 @@ interface NavOgesi {
   /** i18n anahtarı (nav.*) — ikon adı olarak da kullanılır */
   ad: string
   end?: boolean
+  /** Yalnız ERP sistem yöneticilerine görünür */
+  yoneticiye?: boolean
 }
 
 interface NavGrubu {
@@ -38,7 +40,10 @@ const NAV_GRUPLARI: NavGrubu[] = [
   },
   {
     baslikAnahtari: 'nav.ayarlar',
-    ogeler: [{ to: '/ayarlar/sql-baglantilari', ad: 'sqlBaglantilari' }],
+    ogeler: [
+      { to: '/ayarlar/sql-baglantilari', ad: 'sqlBaglantilari' },
+      { to: '/ayarlar/ekran-tasarimi', ad: 'ekranTasarimi', yoneticiye: true },
+    ],
   },
 ]
 
@@ -135,18 +140,20 @@ export function AppLayout() {
               {grup.baslikAnahtari && dar ? (
                 <div className="mx-2 mb-1 border-t border-slate-200 dark:border-slate-700" />
               ) : null}
-              {grup.ogeler.map((oge) => (
-                <NavLink
-                  key={oge.to}
-                  to={oge.to}
-                  end={oge.end}
-                  className={navLinkSinifi}
-                  title={dar ? t(`nav.${oge.ad}`) : undefined}
-                >
-                  <NavIkon ad={oge.ad} />
-                  {dar ? null : <span className="truncate">{t(`nav.${oge.ad}`)}</span>}
-                </NavLink>
-              ))}
+              {grup.ogeler
+                .filter((oge) => !oge.yoneticiye || user?.sistem_yoneticisi === true)
+                .map((oge) => (
+                  <NavLink
+                    key={oge.to}
+                    to={oge.to}
+                    end={oge.end}
+                    className={navLinkSinifi}
+                    title={dar ? t(`nav.${oge.ad}`) : undefined}
+                  >
+                    <NavIkon ad={oge.ad} />
+                    {dar ? null : <span className="truncate">{t(`nav.${oge.ad}`)}</span>}
+                  </NavLink>
+                ))}
             </div>
           ))}
         </nav>

@@ -30,6 +30,12 @@ export const router = createBrowserRouter([
         }),
       },
       {
+        path: 'ayarlar/ekran-tasarimi',
+        lazy: async () => ({
+          Component: (await import('@/pages/EkranTasarimAyarlariPage')).EkranTasarimAyarlariPage,
+        }),
+      },
+      {
         path: 'ayarlar/sql-baglantilari',
         lazy: async () => ({
           Component: (await import('@/pages/SqlBaglantilariPage')).SqlBaglantilariPage,
