@@ -105,6 +105,21 @@ describe('EkranTasarimAyarlariPage', () => {
     })
   })
 
+  it('gizlenen alanda zorunluluk anahtarı kalkar, açıklama görünür', async () => {
+    render()
+    await screen.findByText('Talep Bilgileri')
+
+    fireEvent.click(screen.getByText('Tarih'))
+    expect(await screen.findByRole('switch', { name: 'Zorunlu alan' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Formda gizle' }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('switch', { name: 'Zorunlu alan' })).not.toBeInTheDocument()
+    })
+    expect(screen.getByText(/varsayılan değer kayda gönderilir/)).toBeInTheDocument()
+  })
+
   it('kaldırılamaz alanda çıkarma düğmesi yerine uyarı gösterilir', async () => {
     render()
     await screen.findByText('Talep Bilgileri')

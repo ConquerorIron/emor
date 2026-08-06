@@ -4,6 +4,7 @@ import { Input } from '@/components/Input'
 import { Switch } from '@/components/Switch'
 
 import type { DuzenAlani, KatalogAlani } from './types'
+import { VarsayilanDegerSecici } from './VarsayilanDegerSecici'
 
 interface AlanAyarPaneliProps {
   katalog: KatalogAlani
@@ -120,12 +121,11 @@ export function AlanAyarPaneli({ katalog, duzen, degisti, kaldir }: AlanAyarPane
           </>
         ) : null}
 
-        <Input
-          id={`ayar-varsayilan-${katalog.anahtar}`}
-          label={t('tasarim.varsayilan')}
-          autoComplete="off"
-          value={duzen.varsayilan ?? ''}
-          onChange={(olay) => degisti({ varsayilan: olay.target.value })}
+        {/* Varsayılan, alanın kendi giriş bileşeniyle seçilir — ERP kodu ezberlenmez */}
+        <VarsayilanDegerSecici
+          katalog={katalog}
+          deger={duzen.varsayilan ?? ''}
+          degisti={(deger) => degisti({ varsayilan: deger })}
         />
 
         {katalog.kaldirilamaz ? (
