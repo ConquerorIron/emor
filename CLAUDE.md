@@ -56,8 +56,25 @@ npm run build
 
 - `components/` — ERP bilmeyen genel arayüz parçaları (Button, Input, TarihInput,
   SinirliMetinInput, SelectField…)
-- `formAlanlari/` — **ERP form alanları**: her ERP domain tipi için bir bileşen +
-  `giris_tipi → bileşen` kayıt defteri (`girisKaydi.tsx`) + seçenek uçları (`api.ts`).
+- `formAlanlari/` — **ERP form alanları modülü.** Dışarıdan yalnız `@/formAlanlari`
+  (barrel) üzerinden import edilir; iç klasörlere doğrudan erişilmez.
+
+  ```
+  formAlanlari/
+    index.ts          modülün dış yüzü
+    AlanGirisi.tsx    motor: tasarım kurallarını uygular (etiket+yıldız, hata
+                      çevirisi, salt okunur) — TEK yer
+    girisKaydi.tsx    giris_tipi → bileşen eşlemesi
+    ortakTipler.ts    motor ↔ bileşen sözleşmesi
+    bilesenler/       ERP BİLEN alan bileşenleri (.tsx)
+    veri/             ERP uçları (secenekApi), sabit değer tabloları (sabitler),
+                      saf mantık (sureCevrimi) — hepsi .ts
+  ```
+
+  Ayrım ölçütü: **UI mi, veri mi?** `.tsx` bilesenler/'de, `.ts` veri/'de.
+  ERP'nin sabit değerleri (TUR tipli listeler) bileşenlerin içinde değil
+  `veri/sabitler.ts`'te durur — form varsayılanları da aynı kaynağı kullanır.
+
   Tekrar kullanılan birim alan ADI değil ERP TİPİdir; "Açıklama" ve "Hakkında"
   ayrı bileşen değil, ikisi de `sinirliMetin` (limit katalogdan gelir):
 

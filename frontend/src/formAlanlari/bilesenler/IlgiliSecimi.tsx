@@ -6,8 +6,8 @@ import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 
-import type { IlgiCinsi } from './ilgiCinsleri'
-import { ilgiliSecenekleriGetir } from './api'
+import type { IlgiCinsi } from '../veri/sabitler'
+import { ilgiliSecenekleriGetir } from '../veri/secenekApi'
 
 interface IlgiliSecimiProps {
   /** İlgi cinsi — seçenek kaynağını belirler (7=Proje, 8=Uygulama Sözleşmesi…) */

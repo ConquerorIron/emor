@@ -2,15 +2,11 @@ import { useTranslation } from 'react-i18next'
 
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 
-/**
- * Teslimat biçimi — ERP'de sabit değerli alan (view sorgusu yoktur):
- * Tam = 0, Parçalı = 1. SOHOM_SIPARIS_KAYDET @TESLIMAT_BICIMI (TUR tipi).
- */
-export const TESLIMAT_BICIMLERI = ['0', '1'] as const
-
-export type TeslimatBicimi = (typeof TESLIMAT_BICIMLERI)[number]
-
-export const VARSAYILAN_TESLIMAT_BICIMI: TeslimatBicimi = '0' // Tam
+import {
+  TESLIMAT_BICIMLERI,
+  VARSAYILAN_TESLIMAT_BICIMI,
+  type TeslimatBicimi,
+} from '../veri/sabitler'
 
 interface TeslimatBicimiSecimiProps {
   id: string

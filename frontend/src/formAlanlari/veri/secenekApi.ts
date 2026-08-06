@@ -1,6 +1,6 @@
 import { api } from '@/api/client'
 
-import type { IlgiCinsi } from './ilgiCinsleri'
+import type { IlgiCinsi } from './sabitler'
 
 /**
  * ERP seçim listeleri — hepsi backend'deki tek SecenekController'a

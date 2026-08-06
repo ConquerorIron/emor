@@ -4,7 +4,7 @@ import { selectStilleri, type SecenekOgesi } from '@/components/selectStilleri'
 import { useTheme } from '@/hooks/useTheme'
 import Select from 'react-select'
 
-import { TESLIMAT_SURESI_BIRIMLERI, type TeslimatSuresiBirimi } from './teslimatSuresi'
+import { TESLIMAT_SURESI_BIRIMLERI, type TeslimatSuresiBirimi } from '../veri/sabitler'
 
 interface TeslimatSuresiSecimiProps {
   id: string

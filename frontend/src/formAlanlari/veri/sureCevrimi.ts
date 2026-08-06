@@ -1,18 +1,9 @@
+/**
+ * Teslimat süresi ↔ tarih dönüşümü (saf mantık, UI bağımsız).
+ */
 import { ayEkle, gunEkle, gunFarki } from '@/utils/tarih'
 
-/**
- * Teslimat süresi birimi — SOHOM_SIPARIS_KAYDET @TESLIMAT_SURESI_BIRIMI
- * (ERP sabit değerleri, kullanıcı tanımı 2026-08-06).
- */
-export const TESLIMAT_SURESI_BIRIMLERI = ['3', '4', '5'] as const
-
-export type TeslimatSuresiBirimi = (typeof TESLIMAT_SURESI_BIRIMLERI)[number]
-
-export const BIRIM_GUN: TeslimatSuresiBirimi = '3'
-export const BIRIM_HAFTA: TeslimatSuresiBirimi = '4'
-export const BIRIM_AY: TeslimatSuresiBirimi = '5'
-
-export const VARSAYILAN_BIRIM = BIRIM_GUN
+import { BIRIM_AY, BIRIM_GUN, BIRIM_HAFTA, type TeslimatSuresiBirimi } from './sabitler'
 
 /**
  * Süre + birimi tarihe çevirir (temel tarih = talebin Tarih alanı).

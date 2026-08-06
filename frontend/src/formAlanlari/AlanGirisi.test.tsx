@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import '@/i18n/i18n'
 import { AppProviders } from '@/providers/AppProviders'
 import type { KatalogAlani } from '@/features/ekranTasarim/types'
-import { AlanGirisi, girisTipiTanimliMi } from './girisKaydi'
+import { AlanGirisi, girisTipiTanimliMi } from './AlanGirisi'
 import { BOS_TALEP, type TalepGirdisi } from '@/pages/SatinalmaTalebi/talepSchema'
 
 /**

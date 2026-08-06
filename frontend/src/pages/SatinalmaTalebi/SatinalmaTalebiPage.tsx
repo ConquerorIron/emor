@@ -18,7 +18,7 @@ import {
   type EkranTasarimi,
   type KatalogAlani,
 } from '@/features/ekranTasarim/types'
-import { AlanGirisi, girisTipiTanimliMi } from '@/formAlanlari/girisKaydi'
+import { AlanGirisi, girisTipiTanimliMi } from '@/formAlanlari'
 import { SATIR_ALANLARI } from './talepAlanlari'
 import { BOS_SATIR, BOS_TALEP, talepSemasiUret, type TalepGirdisi } from './talepSchema'
 

@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
-import { VARSAYILAN_ALIM_YERI } from '@/formAlanlari/AlimYeriSecimi'
-import { VARSAYILAN_ILGI_CINSI } from '@/formAlanlari/ilgiCinsleri'
-import { VARSAYILAN_TESLIMAT_BICIMI } from '@/formAlanlari/TeslimatBicimiSecimi'
-import { VARSAYILAN_BIRIM } from '@/formAlanlari/teslimatSuresi'
+import { VARSAYILAN_ALIM_YERI } from '@/formAlanlari'
+import { VARSAYILAN_ILGI_CINSI } from '@/formAlanlari'
+import { VARSAYILAN_TESLIMAT_BICIMI } from '@/formAlanlari'
+import { VARSAYILAN_BIRIM } from '@/formAlanlari'
 import { bugunIso } from '@/utils/tarih'
 
 /**

@@ -6,7 +6,7 @@ import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 
-import { personelSecenekleriGetir } from './api'
+import { personelSecenekleriGetir } from '../veri/secenekApi'
 
 export interface PersonelSecim {
   /** ERP KAYIT_ID (= PERSONEL_ID) — proc'larda parti/personel kimliği */

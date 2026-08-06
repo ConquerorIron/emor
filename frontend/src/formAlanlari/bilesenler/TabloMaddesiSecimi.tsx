@@ -6,7 +6,7 @@ import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 
-import { tabloMaddesiSecenekleriGetir, type MaddeSiralamasi } from './api'
+import { tabloMaddesiSecenekleriGetir, type MaddeSiralamasi } from '../veri/secenekApi'
 
 export interface TabloMaddesiSecim {
   /** ERP TABLO_MADDESI_ID — proc parametrelerine set edilecek değer */

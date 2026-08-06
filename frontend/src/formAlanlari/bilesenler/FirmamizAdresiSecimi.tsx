@@ -6,7 +6,7 @@ import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 
-import { firmamizAdresleriGetir } from './api'
+import { firmamizAdresleriGetir } from '../veri/secenekApi'
 
 export interface AdresSecim {
   /** ERP ADRES_ID — proc'ta @TESLIMAT_ADRESI_ID */

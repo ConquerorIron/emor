@@ -6,7 +6,7 @@ import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 
-import { depoSecenekleriGetir } from './api'
+import { depoSecenekleriGetir } from '../veri/secenekApi'
 
 export interface DepoSecim {
   /** ERP KAYIT_ID (= PARTI_YAMASI_ID) — sipariş satırlarında DEPOMUZ_ID */

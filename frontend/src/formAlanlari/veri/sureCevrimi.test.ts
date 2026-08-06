@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  BIRIM_AY,
-  BIRIM_GUN,
-  BIRIM_HAFTA,
-  sureyiTariheCevir,
-  tarihiSureyeCevir,
-} from './teslimatSuresi'
+import { BIRIM_AY, BIRIM_GUN, BIRIM_HAFTA } from './sabitler'
+import { sureyiTariheCevir, tarihiSureyeCevir } from './sureCevrimi'
 
 describe('sureyiTariheCevir', () => {
   it('gün ekler (ERP ekranı: 05.08.2026 + 21 gün = 26.08.2026)', () => {
