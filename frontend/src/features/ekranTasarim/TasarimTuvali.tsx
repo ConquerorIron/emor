@@ -178,10 +178,11 @@ function AlanKarti({
         secili
           ? 'border-blue-600 bg-blue-50 dark:bg-blue-950'
           : 'border-slate-200 bg-slate-50 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800'
-      }`}
+      } ${alan.gizli ? 'opacity-60' : ''}`}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-sm font-semibold text-slate-700 dark:text-slate-200">
+          {alan.gizli ? '👁️‍🗨️ ' : ''}
           {katalog ? t(katalog.etiket_anahtari) : alan.alan}
           {alan.zorunlu ? <span className="text-red-600 dark:text-red-400"> *</span> : null}
         </span>
@@ -190,6 +191,7 @@ function AlanKarti({
         </span>
       </div>
       <div className="mt-0.5 flex gap-2 text-xs text-slate-400 dark:text-slate-500">
+        {alan.gizli ? <span>{t('tasarim.rozetGizli')}</span> : null}
         {alan.salt_okunur ? <span>{t('tasarim.rozetSaltOkunur')}</span> : null}
         {alan.gorunum === 'textarea' ? <span>{t('tasarim.rozetTextarea')}</span> : null}
         {alan.varsayilan ? <span>{t('tasarim.rozetVarsayilan')}</span> : null}

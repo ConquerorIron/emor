@@ -102,6 +102,12 @@ export function alanGuncelle(
   const guncel: DuzenAlani = { ...mevcut, ...degisiklik }
 
   // Kapatılan seçenekler JSON'da iz bırakmasın
+  if (guncel.gizli !== true) {
+    delete guncel.gizli
+  } else {
+    // Gizli alanı kullanıcı dolduramaz; zorunluluk anlamsızlaşır
+    delete guncel.zorunlu
+  }
   if (guncel.zorunlu !== true) {
     delete guncel.zorunlu
   }

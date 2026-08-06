@@ -28,6 +28,11 @@ export interface DuzenAlani {
   genislik: number
   zorunlu?: boolean
   salt_okunur?: boolean
+  /**
+   * Formda ÇİZİLMEZ ama değeri (varsayilan) kayda gider — ERP'deki
+   * "alanı göstermiyoruz, hep şu değer seçili" davranışı.
+   */
+  gizli?: boolean
   gorunum?: 'textarea'
   satir?: number
   varsayilan?: string

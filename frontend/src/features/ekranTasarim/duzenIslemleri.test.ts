@@ -114,6 +114,19 @@ describe('alanGuncelle', () => {
     expect(kapali.bolumler[0].alanlar[0]).toEqual({ alan: 'a', genislik: 6 })
   })
 
+  it('gizli işaretlenince zorunluluk düşer (kullanıcı dolduramaz)', () => {
+    const zorunlu = alanGuncelle(duzen(), 'a', { zorunlu: true })
+    expect(zorunlu.bolumler[0].alanlar[0].zorunlu).toBe(true)
+
+    const gizli = alanGuncelle(zorunlu, 'a', { gizli: true, varsayilan: '7' })
+    expect(gizli.bolumler[0].alanlar[0]).toEqual({
+      alan: 'a',
+      genislik: 6,
+      gizli: true,
+      varsayilan: '7',
+    })
+  })
+
   it('textarea kapanınca satır sayısı da düşer', () => {
     const acik = alanGuncelle(duzen(), 'a', { gorunum: 'textarea', satir: 5 })
     expect(acik.bolumler[0].alanlar[0].satir).toBe(5)

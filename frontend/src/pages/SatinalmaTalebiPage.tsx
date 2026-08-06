@@ -61,6 +61,11 @@ function TasarimBolumu({
           const katalog = katalogHaritasi.get(duzenAlani.alan)
           const Giris = katalog ? GIRIS_KAYDI[katalog.giris_tipi] : undefined
 
+          // Gizli alan çizilmez; değeri form varsayılanı olarak zaten yüklendi
+          if (duzenAlani.gizli) {
+            return null
+          }
+
           // Katalogda olmayan ya da bileşeni tanımsız alan sessizce atlanır
           // (kod geri alındığında eski tasarım ekranı kırmayı sürdürmesin)
           if (!katalog || !Giris) {
@@ -135,7 +140,8 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
     const anahtarlar: string[] = []
     for (const bolum of tasarim.duzen.bolumler) {
       for (const alan of bolum.alanlar) {
-        if (!alan.zorunlu) {
+        // Gizli alan kullanıcı tarafından doldurulamaz — zorunlu sayılmaz
+        if (!alan.zorunlu || alan.gizli) {
           continue
         }
         const katalog = katalogHaritasi.get(alan.alan)

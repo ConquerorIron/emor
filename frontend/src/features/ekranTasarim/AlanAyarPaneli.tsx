@@ -59,7 +59,20 @@ export function AlanAyarPaneli({ katalog, duzen, degisti, kaldir }: AlanAyarPane
           </p>
         </div>
 
-        {katalog.zorunlu_secilebilir ? (
+        <Switch
+          id={`ayar-gizli-${katalog.anahtar}`}
+          label={t('tasarim.gizli')}
+          checked={duzen.gizli === true}
+          onChange={(acik) => degisti({ gizli: acik })}
+          vurgulu={false}
+        />
+        {duzen.gizli ? (
+          <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:bg-blue-950 dark:text-blue-200">
+            {t('tasarim.gizliAciklama')}
+          </p>
+        ) : null}
+
+        {katalog.zorunlu_secilebilir && !duzen.gizli ? (
           <Switch
             id={`ayar-zorunlu-${katalog.anahtar}`}
             label={t('tasarim.zorunlu')}

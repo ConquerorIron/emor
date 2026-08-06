@@ -167,6 +167,28 @@ final class EkranTasarimTest extends TestCase
             ->assertJsonPath('data.duzen.bolumler.0.alanlar.2.salt_okunur', true);
     }
 
+    public function test_gizli_alan_varsayilanini_korur_zorunlulugu_dusurur(): void
+    {
+        $this->yonetici();
+
+        // ERP deseni: alan formda görünmez ama değeri sabit gider
+        $duzen = ['bolumler' => [[
+            'anahtar' => 'talep',
+            'alanlar' => [
+                ['alan' => 'personel_adi'],
+                ['alan' => 'tarih'],
+                ['alan' => 'ilgi_konusu', 'gizli' => true, 'zorunlu' => true, 'varsayilan' => '7'],
+            ],
+        ]]];
+
+        $this->putJson('/api/v1/ekranlar/'.self::EKRAN.'/taslak', ['duzen' => $duzen])
+            ->assertOk()
+            ->assertJsonPath('data.duzen.bolumler.0.alanlar.2.gizli', true)
+            ->assertJsonPath('data.duzen.bolumler.0.alanlar.2.varsayilan', '7')
+            // Gizli alan doldurulamayacağı için zorunluluk düşürülür
+            ->assertJsonMissingPath('data.duzen.bolumler.0.alanlar.2.zorunlu');
+    }
+
     public function test_yayinlama_akisi_ve_geri_alma(): void
     {
         $this->yonetici();

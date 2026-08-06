@@ -203,7 +203,15 @@ final class EkranTasarimServisi
                     $temiz['salt_okunur'] = true;
                 }
 
-                if ($alan->zorunluSecilebilir && (bool) ($satir['zorunlu'] ?? false)) {
+                // Gizli alan: formda ÇİZİLMEZ ama değeri (varsayılanı) kayda gider.
+                // ERP'de "bu alanı göstermiyoruz ama hep Projemiz seçili" davranışı.
+                $gizli = (bool) ($satir['gizli'] ?? false);
+                if ($gizli) {
+                    $temiz['gizli'] = true;
+                }
+
+                // Gizli alanda zorunluluk anlamsız — kullanıcı dolduramaz
+                if (! $gizli && $alan->zorunluSecilebilir && (bool) ($satir['zorunlu'] ?? false)) {
                     $temiz['zorunlu'] = true;
                 }
 
