@@ -19,6 +19,7 @@ import {
   alanKaldir,
   alanKonumu,
   alanYerlestir,
+  bolumBasligiDegistir,
   bolumGenisligiDegistir,
   kullanilmayanAlanlar,
 } from '@/features/ekranTasarim/duzenIslemleri'
@@ -206,6 +207,9 @@ export function EkranTasarimAyarlariPage() {
               }}
               bolumGenisligiDegisti={(bolumAnahtari, genislik) =>
                 setDuzen(bolumGenisligiDegistir(duzen, bolumAnahtari, genislik))
+              }
+              bolumBasligiDegisti={(bolumAnahtari, baslik) =>
+                setDuzen(bolumBasligiDegistir(duzen, bolumAnahtari, baslik))
               }
             />
           </div>

@@ -28,7 +28,7 @@ const KATALOG = [
   {
     anahtar: 'aciklama',
     etiket: 'satinalma.alan.aciklama',
-    tip: 'aciklama200',
+    tip: 'sinirliMetin',
     veri: ['aciklama'],
   },
   {
@@ -81,6 +81,7 @@ const KATALOG = [
   salt_okunur_sabit: a.anahtar === 'no',
   zorunlu_secilebilir: true,
   metin_alani: a.anahtar === 'aciklama',
+  metin_limiti: a.anahtar === 'aciklama' ? 200 : 0,
 }))
 
 const SAHTE_TASARIM = {

@@ -21,6 +21,7 @@ interface TasarimTuvaliProps {
   /** hedefIndeks null → bölümün sonuna */
   birakildi: (alan: string, bolumAnahtari: string, hedefIndeks: number | null) => void
   bolumGenisligiDegisti: (bolumAnahtari: string, genislik: number) => void
+  bolumBasligiDegisti: (bolumAnahtari: string, baslik: string) => void
 }
 
 const BOLUM_GENISLIKLERI = [3, 4, 6, 8, 9, 12]
@@ -33,6 +34,7 @@ export function TasarimTuvali({
   alanSecildi,
   birakildi,
   bolumGenisligiDegisti,
+  bolumBasligiDegisti,
 }: TasarimTuvaliProps) {
   const { t } = useTranslation()
   // Bırakma göstergesi: hangi bölümün kaçıncı sırasına düşecek
@@ -73,9 +75,16 @@ export function TasarimTuvali({
           onDrop={(olay) => birakmayiIsle(olay, bolum.anahtar, null)}
         >
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2 dark:border-slate-700">
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-              {t(baslikAnahtari(bolum.anahtar))}
-            </h3>
+            {/* Başlık doğrudan tuvalde düzenlenir; boş bırakılırsa gösterilmez */}
+            <input
+              type="text"
+              aria-label={`${t('tasarim.bolumBasligi')} — ${t(baslikAnahtari(bolum.anahtar))}`}
+              value={bolum.baslik ?? t(baslikAnahtari(bolum.anahtar))}
+              placeholder={t('tasarim.baslikBos')}
+              maxLength={120}
+              onChange={(olay) => bolumBasligiDegisti(bolum.anahtar, olay.target.value)}
+              className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm font-bold text-slate-800 transition-colors outline-none hover:border-slate-300 focus:border-blue-600 focus:bg-white dark:text-slate-100 dark:hover:border-slate-600 dark:focus:bg-slate-950"
+            />
             <div className="flex items-center gap-1">
               <span className="text-xs text-slate-400 dark:text-slate-500">
                 {t('tasarim.bolumGenisligi')}

@@ -47,6 +47,7 @@ function TasarimBolumu({
   form,
 }: {
   bolum: DuzenBolumu
+  /** Boş dizge = başlık gösterme (tasarımcı bilerek sildi) */
   baslik: string
   katalogHaritasi: Map<string, KatalogAlani>
   form: UseFormReturn<TalepGirdisi>
@@ -55,7 +56,9 @@ function TasarimBolumu({
 
   return (
     <div className="rounded-xl border border-slate-200 p-5 dark:border-slate-700">
-      <h3 className="mb-4 text-lg font-bold text-slate-800 dark:text-slate-100">{baslik}</h3>
+      {baslik !== '' ? (
+        <h3 className="mb-4 text-lg font-bold text-slate-800 dark:text-slate-100">{baslik}</h3>
+      ) : null}
       <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-12">
         {bolum.alanlar.map((duzenAlani) => {
           const katalog = katalogHaritasi.get(duzenAlani.alan)
@@ -204,7 +207,8 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
           <div key={bolum.anahtar} className={bolumGenisligiSinifi(bolum.genislik)}>
             <TasarimBolumu
               bolum={bolum}
-              baslik={t(bolumBasliklari.get(bolum.anahtar) ?? bolum.anahtar)}
+              // Tasarımda başlık yazılmışsa o; yoksa katalogun i18n başlığı
+              baslik={bolum.baslik ?? t(bolumBasliklari.get(bolum.anahtar) ?? bolum.anahtar)}
               katalogHaritasi={katalogHaritasi}
               form={form}
             />

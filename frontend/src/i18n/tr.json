@@ -43,6 +43,8 @@
     "burayaBirak": "Alanı buraya bırakın",
     "bolumGenisligi": "Bölüm:",
     "bolumGenisligiEtiketi": "Bölüm genişliği",
+    "bolumBasligi": "Bölüm başlığı",
+    "baslikBos": "(başlık gösterilmesin)",
     "alanSecin": "Ayarlarını görmek için tuvalden bir alan seçin.",
     "genislik": "Genişlik",
     "genislikAciklama": "12 = tam satır, 6 = yarım satır",
@@ -120,6 +122,7 @@
       "termin": "Termin",
       "oncelik": "Öncelik",
       "aciklama": "Açıklama",
+      "hakkinda": "Hakkında",
       "ilgiKonusu": "İlgi konusu",
       "ilgili": "İlgili kayıt",
       "projemiz": "Projemiz",
@@ -143,6 +146,7 @@
       "enAzBirSatir": "En az bir talep satırı girilmelidir.",
       "alanZorunlu": "Bu alan zorunludur.",
       "aciklamaUzun": "Açıklama en fazla 200 karakter olabilir.",
+      "hakkindaUzun": "Hakkında en fazla 3072 karakter olabilir.",
       "adresUzun": "Teslimat adresi en fazla 200 karakter olabilir."
     }
   },

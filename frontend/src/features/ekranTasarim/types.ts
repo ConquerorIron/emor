@@ -20,6 +20,8 @@ export interface KatalogAlani {
   zorunlu_secilebilir: boolean
   /** Serbest metin mi (textarea seçeneği yalnız bunlarda) */
   metin_alani: boolean
+  /** ERP domain tipinin karakter sınırı (ACIKLAMA200 → 200); 0 = sınırsız */
+  metin_limiti: number
 }
 
 /** Alanın NASIL göründüğü — tasarımcı belirler */
@@ -41,6 +43,11 @@ export interface DuzenAlani {
 export interface DuzenBolumu {
   anahtar: string
   genislik: number
+  /**
+   * Tasarımcının yazdığı başlık. Alan YOKSA katalogun i18n başlığı kullanılır
+   * (çeviri korunur); boş dizge ise "başlık gösterme" demektir.
+   */
+  baslik?: string
   alanlar: DuzenAlani[]
 }
 

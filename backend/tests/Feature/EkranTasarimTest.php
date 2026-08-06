@@ -189,6 +189,40 @@ final class EkranTasarimTest extends TestCase
             ->assertJsonMissingPath('data.duzen.bolumler.0.alanlar.2.zorunlu');
     }
 
+    public function test_bolum_basligi_duzenlenebilir_ve_bos_birakilabilir(): void
+    {
+        $this->yonetici();
+
+        $zorunlular = [['alan' => 'personel_adi'], ['alan' => 'tarih']];
+
+        // Özel başlık
+        $this->putJson('/api/v1/ekranlar/'.self::EKRAN.'/taslak', [
+            'duzen' => ['bolumler' => [
+                ['anahtar' => 'talep', 'baslik' => '  Genel Bilgiler  ', 'alanlar' => $zorunlular],
+            ]],
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.duzen.bolumler.0.baslik', 'Genel Bilgiler');
+
+        // Boş başlık = başlık gösterme (anahtar korunur, i18n'e düşmez)
+        $this->putJson('/api/v1/ekranlar/'.self::EKRAN.'/taslak', [
+            'duzen' => ['bolumler' => [
+                ['anahtar' => 'talep', 'baslik' => '', 'alanlar' => $zorunlular],
+            ]],
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.duzen.bolumler.0.baslik', '');
+
+        // Anahtar hiç yoksa katalogun i18n başlığı kullanılsın diye alan yazılmaz
+        $this->putJson('/api/v1/ekranlar/'.self::EKRAN.'/taslak', [
+            'duzen' => ['bolumler' => [
+                ['anahtar' => 'talep', 'alanlar' => $zorunlular],
+            ]],
+        ])
+            ->assertOk()
+            ->assertJsonMissingPath('data.duzen.bolumler.0.baslik');
+    }
+
     public function test_yayinlama_akisi_ve_geri_alma(): void
     {
         $this->yonetici();

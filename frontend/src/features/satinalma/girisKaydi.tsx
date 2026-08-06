@@ -2,7 +2,7 @@ import { Controller, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { ComponentType } from 'react'
 
-import { Aciklama200Input } from '@/components/Aciklama200Input'
+import { SinirliMetinInput } from '@/components/SinirliMetinInput'
 import { Input } from '@/components/Input'
 import { OpsiyonelTarihInput } from '@/components/OpsiyonelTarihInput'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
@@ -156,17 +156,21 @@ function OncelikGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
   )
 }
 
-function Aciklama200Girisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
+/** Karakter sınırlı metin (Açıklama 200, Hakkında 3072…) — sınır katalogdan gelir. */
+function SinirliMetinGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
+  const anahtar = katalog.veri_anahtarlari[0] as keyof TalepGirdisi
+
   return (
     <Controller
-      name="aciklama"
+      name={anahtar}
       control={form.control}
       render={({ field, fieldState }) => (
-        <Aciklama200Input
+        <SinirliMetinInput
           id={`alan-${katalog.anahtar}`}
           label={etiket}
-          value={field.value}
+          value={typeof field.value === 'string' ? field.value : ''}
           onChange={field.onChange}
+          limit={katalog.metin_limiti || 200}
           rows={duzen.satir ?? 2}
           hata={fieldState.error?.message}
           disabled={duzen.salt_okunur === true}
@@ -392,7 +396,7 @@ export const GIRIS_KAYDI: Record<string, ComponentType<AlanGirisiProps>> = {
   tarih: TarihGirisi,
   opsiyonelTarih: OpsiyonelTarihGirisi,
   oncelik: OncelikGirisi,
-  aciklama200: Aciklama200Girisi,
+  sinirliMetin: SinirliMetinGirisi,
   ilgiCinsi: IlgiCinsiGirisi,
   ilgili: IlgiliGirisi,
   depo: DepoGirisi,

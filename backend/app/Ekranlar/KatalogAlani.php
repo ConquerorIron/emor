@@ -25,6 +25,7 @@ final class KatalogAlani
      * @param  bool  $saltOkunurSabit  Değerini program üretir; düzenlenebilir yapılamaz (ör. No)
      * @param  bool  $zorunluSecilebilir  Tasarımcı "zorunlu" işaretleyebilir mi
      * @param  bool  $metinAlani  Serbest metin mi (textarea seçeneği yalnız bunlarda)
+     * @param  int  $metinLimiti  ERP domain tipinin karakter sınırı (ACIKLAMA200 → 200); 0 = sınırsız
      */
     public function __construct(
         public readonly string $anahtar,
@@ -37,6 +38,7 @@ final class KatalogAlani
         public readonly bool $saltOkunurSabit = false,
         public readonly bool $zorunluSecilebilir = true,
         public readonly bool $metinAlani = false,
+        public readonly int $metinLimiti = 0,
     ) {}
 
     /**
@@ -55,6 +57,7 @@ final class KatalogAlani
             'salt_okunur_sabit' => $this->saltOkunurSabit,
             'zorunlu_secilebilir' => $this->zorunluSecilebilir,
             'metin_alani' => $this->metinAlani,
+            'metin_limiti' => $this->metinLimiti,
         ];
     }
 }

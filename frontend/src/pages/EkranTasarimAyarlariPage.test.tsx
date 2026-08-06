@@ -29,6 +29,7 @@ function katalogAlani(anahtar: string, ekstra: Record<string, unknown> = {}) {
     salt_okunur_sabit: false,
     zorunlu_secilebilir: true,
     metin_alani: false,
+    metin_limiti: 0,
     ...ekstra,
   }
 }
@@ -76,7 +77,7 @@ describe('EkranTasarimAyarlariPage', () => {
   it('tuval ve kullanılmayan alan paleti yüklenir', async () => {
     render()
 
-    expect(await screen.findByText('Talep Bilgileri')).toBeInTheDocument()
+    expect(await screen.findByDisplayValue('Talep Bilgileri')).toBeInTheDocument()
     expect(screen.getByText('Yayında: sürüm 2')).toBeInTheDocument()
 
     // Tasarımda yeri olmayan alan palette
@@ -86,7 +87,7 @@ describe('EkranTasarimAyarlariPage', () => {
 
   it('alan seçilince ayar paneli açılır ve genişlik değiştirilir', async () => {
     render()
-    await screen.findByText('Talep Bilgileri')
+    await screen.findByDisplayValue('Talep Bilgileri')
 
     fireEvent.click(screen.getByText('Tarih'))
 
@@ -107,7 +108,7 @@ describe('EkranTasarimAyarlariPage', () => {
 
   it('gizlenen alanda zorunluluk anahtarı kalkar, açıklama görünür', async () => {
     render()
-    await screen.findByText('Talep Bilgileri')
+    await screen.findByDisplayValue('Talep Bilgileri')
 
     fireEvent.click(screen.getByText('Tarih'))
     expect(await screen.findByRole('switch', { name: 'Zorunlu alan' })).toBeInTheDocument()
@@ -122,7 +123,7 @@ describe('EkranTasarimAyarlariPage', () => {
 
   it('kaldırılamaz alanda çıkarma düğmesi yerine uyarı gösterilir', async () => {
     render()
-    await screen.findByText('Talep Bilgileri')
+    await screen.findByDisplayValue('Talep Bilgileri')
 
     fireEvent.click(screen.getByText('Personel adı'))
 
@@ -132,9 +133,25 @@ describe('EkranTasarimAyarlariPage', () => {
     expect(screen.queryByRole('button', { name: 'Alanı formdan çıkar' })).not.toBeInTheDocument()
   })
 
+  it('bölüm başlığı düzenlenebilir ve boş bırakılabilir', async () => {
+    render()
+    const baslik = await screen.findByDisplayValue('Talep Bilgileri')
+
+    fireEvent.change(baslik, { target: { value: 'Genel' } })
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Genel')).toBeInTheDocument()
+    })
+
+    // Boşaltmak "başlık gösterme" demek; alan kaybolmaz
+    fireEvent.change(screen.getByDisplayValue('Genel'), { target: { value: '' } })
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Bölüm başlığı/)).toHaveValue('')
+    })
+  })
+
   it('taslak kaydedilir', async () => {
     render()
-    await screen.findByText('Talep Bilgileri')
+    await screen.findByDisplayValue('Talep Bilgileri')
 
     fireEvent.click(screen.getByRole('button', { name: 'Taslağı Kaydet' }))
 

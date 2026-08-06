@@ -81,11 +81,22 @@ final class SatinalmaTalebiKatalogu implements EkranKatalogu
             new KatalogAlani(
                 anahtar: 'aciklama',
                 etiketAnahtari: 'satinalma.alan.aciklama',
-                girisTipi: 'aciklama200',
+                girisTipi: 'sinirliMetin',
                 veriAnahtarlari: ['aciklama'],
-                procParametresi: 'ACIKLAMA',
+                procParametresi: 'ACIKLAMA (ACIKLAMA200)',
                 varsayilanGenislik: 12,
                 metinAlani: true,
+                metinLimiti: 200,
+            ),
+            new KatalogAlani(
+                anahtar: 'hakkinda',
+                etiketAnahtari: 'satinalma.alan.hakkinda',
+                girisTipi: 'sinirliMetin',
+                veriAnahtarlari: ['hakkinda'],
+                procParametresi: 'HAKKINDA (ACIKLAMA3072)',
+                varsayilanGenislik: 12,
+                metinAlani: true,
+                metinLimiti: 3072,
             ),
             new KatalogAlani(
                 anahtar: 'ilgi_konusu',
@@ -176,6 +187,7 @@ final class SatinalmaTalebiKatalogu implements EkranKatalogu
                         ['alan' => 'aciklama', 'genislik' => 12, 'gorunum' => 'textarea', 'satir' => 2],
                         ['alan' => 'ilgi_konusu', 'genislik' => 6],
                         ['alan' => 'ilgili', 'genislik' => 6],
+                        ['alan' => 'hakkinda', 'genislik' => 12, 'gorunum' => 'textarea', 'satir' => 3],
                     ],
                 ],
                 [

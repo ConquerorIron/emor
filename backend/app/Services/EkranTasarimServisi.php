@@ -234,11 +234,23 @@ final class EkranTasarimServisi
                 ]);
             }
 
-            $temizBolumler[] = [
+            $temizBolum = [
                 'anahtar' => $bolum['anahtar'],
                 'genislik' => $bolumGenisligi,
                 'alanlar' => $temizAlanlar,
             ];
+
+            // Bölüm başlığı: anahtar YOKSA katalogun i18n varsayılanı kullanılır
+            // (çeviri korunur). Anahtar VARSA — boş dahil — o kullanılır; boş
+            // başlık "bu bölümde başlık gösterme" demektir.
+            // Not: Laravel boş dizgeyi null'a çevirir (ConvertEmptyStringsToNull),
+            // bu yüzden null da "boş başlık" sayılır.
+            if (array_key_exists('baslik', $bolum)) {
+                $ham = $bolum['baslik'];
+                $temizBolum['baslik'] = is_string($ham) ? mb_substr(trim($ham), 0, 120) : '';
+            }
+
+            $temizBolumler[] = $temizBolum;
         }
 
         // Proc'un onsuz çalışmadığı alanlar tasarımdan çıkarılamaz — aksi halde

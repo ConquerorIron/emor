@@ -36,6 +36,8 @@ export const talepSchema = z.object({
   oncelik_id: z.string(),
   // ERP ACIKLAMA200 tipi — proc'ta @ACIKLAMA; giriş bileşeni de kırpar
   aciklama: z.string().max(200, 'satinalma.dogrulama.aciklamaUzun'),
+  // ERP ACIKLAMA3072 tipi — proc'ta @HAKKINDA
+  hakkinda: z.string().max(3072, 'satinalma.dogrulama.hakkindaUzun'),
   // İlgi konusu türü (7=Projemiz, 8=Uygulama Söz., 11=Arızalı Yedek Parça,
   // 12=İş Paketi, 13=Satınalma Söz.) — proc'ta @ILGI_CINSI
   ilgi_cinsi: z.string(),
@@ -116,6 +118,7 @@ export const BOS_TALEP: TalepGirdisi = {
   termin: '',
   oncelik_id: '',
   aciklama: '',
+  hakkinda: '',
   ilgi_cinsi: VARSAYILAN_ILGI_CINSI,
   ilgili_id: '',
   depomuz_id: '',

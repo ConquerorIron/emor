@@ -138,3 +138,16 @@ export function bolumGenisligiDegistir(
     ),
   }
 }
+
+/** Bölüm başlığını değiştirir; boş bırakılabilir (başlık gösterilmez). */
+export function bolumBasligiDegistir(
+  duzen: EkranDuzeni,
+  bolumAnahtari: string,
+  baslik: string,
+): EkranDuzeni {
+  return {
+    bolumler: duzen.bolumler.map((bolum) =>
+      bolum.anahtar === bolumAnahtari ? { ...bolum, baslik } : bolum,
+    ),
+  }
+}
