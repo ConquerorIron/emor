@@ -1,9 +1,9 @@
 import { cleanup, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import '../i18n/i18n'
-import { AppProviders } from '../providers/AppProviders'
-import { bugunIso, gunEkle, tarihGoster } from '../utils/tarih'
+import '@/i18n/i18n'
+import { AppProviders } from '@/providers/AppProviders'
+import { bugunIso, gunEkle, tarihGoster } from '@/utils/tarih'
 import { SatinalmaTalebiPage } from './SatinalmaTalebiPage'
 
 // Sayfa artık tasarımı API'den okuyor; testte varsayılan düzeni taklit ediyoruz

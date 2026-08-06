@@ -2,11 +2,11 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { useForm } from 'react-hook-form'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import '../../i18n/i18n'
-import { AppProviders } from '../../providers/AppProviders'
-import type { KatalogAlani } from '../ekranTasarim/types'
+import '@/i18n/i18n'
+import { AppProviders } from '@/providers/AppProviders'
+import type { KatalogAlani } from '@/features/ekranTasarim/types'
 import { AlanGirisi, girisTipiTanimliMi } from './girisKaydi'
-import { BOS_TALEP, type TalepGirdisi } from './schemas/talepSchema'
+import { BOS_TALEP, type TalepGirdisi } from './talepSchema'
 
 /**
  * Motorun sözleşmesi: tasarım kuralları (etiket + yıldız, hata çevirisi,

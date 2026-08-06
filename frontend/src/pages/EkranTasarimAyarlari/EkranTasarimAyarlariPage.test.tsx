@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import '../i18n/i18n'
-import { AppProviders } from '../providers/AppProviders'
+import '@/i18n/i18n'
+import { AppProviders } from '@/providers/AppProviders'
 import { EkranTasarimAyarlariPage } from './EkranTasarimAyarlariPage'
 
 const kaydedilen = vi.fn()

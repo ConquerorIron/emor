@@ -13,7 +13,7 @@ import {
   ekranTaslaginiKaydet,
   ekranTasariminiYayinla,
 } from '@/features/ekranTasarim/api'
-import { AlanAyarPaneli } from '@/features/ekranTasarim/AlanAyarPaneli'
+import { AlanAyarPaneli } from './AlanAyarPaneli'
 import {
   alanGuncelle,
   alanKaldir,
@@ -23,17 +23,14 @@ import {
   bolumGenisligiDegistir,
   kullanilmayanAlanlar,
 } from '@/features/ekranTasarim/duzenIslemleri'
-import { SURUKLE_TURU, TasarimTuvali } from '@/features/ekranTasarim/TasarimTuvali'
+import { SURUKLE_TURU, TasarimTuvali } from './TasarimTuvali'
 import type { EkranDuzeni, KatalogAlani } from '@/features/ekranTasarim/types'
-import { SATINALMA_TALEP_EKRANI } from '@/pages/SatinalmaTalebiPage'
-
-/** Şimdilik tek tasarlanabilir ekran; katalog eklendikçe listeye eklenecek. */
-const EKRANLAR = [{ anahtar: SATINALMA_TALEP_EKRANI, etiketAnahtari: 'satinalma.baslik' }]
+import { TASARLANABILIR_EKRANLAR } from '@/features/ekranTasarim/ekranlar'
 
 export function EkranTasarimAyarlariPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [ekran] = useState(EKRANLAR[0].anahtar)
+  const [ekran] = useState<string>(TASARLANABILIR_EKRANLAR[0].anahtar)
   const [duzen, setDuzen] = useState<EkranDuzeni | null>(null)
   const [seciliAlan, setSeciliAlan] = useState<string | null>(null)
   const [yayinOnayi, setYayinOnayi] = useState(false)

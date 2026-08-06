@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Switch } from '@/components/Switch'
 
-import type { DuzenAlani, KatalogAlani } from './types'
+import type { DuzenAlani, KatalogAlani } from '@/features/ekranTasarim/types'
 import { VarsayilanDegerSecici } from './VarsayilanDegerSecici'
 
 /** Artır/azalt düğmeli sayı girişi — sınır dışına çıkılamaz. */

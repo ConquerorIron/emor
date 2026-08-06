@@ -1,8 +1,13 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { bolumGenisligiSinifi, genislikSinifi } from './types'
-import type { BolumTanimi, DuzenAlani, EkranDuzeni, KatalogAlani } from './types'
+import { bolumGenisligiSinifi, genislikSinifi } from '@/features/ekranTasarim/types'
+import type {
+  BolumTanimi,
+  DuzenAlani,
+  EkranDuzeni,
+  KatalogAlani,
+} from '@/features/ekranTasarim/types'
 
 /** Sürüklenen öğe — palete mi tuvale mi ait olduğu bırakma anında gerekir. */
 export interface SurukleVerisi {

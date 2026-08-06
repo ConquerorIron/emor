@@ -3,8 +3,8 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { KorumaliAlan } from '@/components/KorumaliAlan'
 import { UygulamaHatasi } from '@/components/UygulamaHatasi'
 import { AuthLayout } from '@/layouts/AuthLayout'
-import { DashboardPage } from '@/pages/DashboardPage'
-import { LoginPage } from '@/pages/LoginPage'
+import { DashboardPage } from '@/pages/Dashboard/DashboardPage'
+import { LoginPage } from '@/pages/Login/LoginPage'
 
 /*
  * Route bazlı code splitting: sayfalar route.lazy ile ayrı chunk'lara bölünür.
@@ -26,19 +26,22 @@ export const router = createBrowserRouter([
       {
         path: 'satinalma/talep',
         lazy: async () => ({
-          Component: (await import('@/pages/SatinalmaTalebiPage')).SatinalmaTalebiPage,
+          Component: (await import('@/pages/SatinalmaTalebi/SatinalmaTalebiPage'))
+            .SatinalmaTalebiPage,
         }),
       },
       {
         path: 'ayarlar/ekran-tasarimi',
         lazy: async () => ({
-          Component: (await import('@/pages/EkranTasarimAyarlariPage')).EkranTasarimAyarlariPage,
+          Component: (await import('@/pages/EkranTasarimAyarlari/EkranTasarimAyarlariPage'))
+            .EkranTasarimAyarlariPage,
         }),
       },
       {
         path: 'ayarlar/sql-baglantilari',
         lazy: async () => ({
-          Component: (await import('@/pages/SqlBaglantilariPage')).SqlBaglantilariPage,
+          Component: (await import('@/pages/SqlBaglantilari/SqlBaglantilariPage'))
+            .SqlBaglantilariPage,
         }),
       },
     ],

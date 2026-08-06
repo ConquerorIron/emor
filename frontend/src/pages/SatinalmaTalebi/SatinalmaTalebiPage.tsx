@@ -10,6 +10,7 @@ import { queryKeys } from '@/api/queryKeys'
 import { Button } from '@/components/Button'
 import { ErrorState } from '@/components/ErrorState'
 import { ekranTasariminiGetir } from '@/features/ekranTasarim/api'
+import { SATINALMA_TALEP_EKRANI } from '@/features/ekranTasarim/ekranlar'
 import {
   bolumGenisligiSinifi,
   genislikSinifi,
@@ -17,16 +18,9 @@ import {
   type EkranTasarimi,
   type KatalogAlani,
 } from '@/features/ekranTasarim/types'
-import { AlanGirisi, girisTipiTanimliMi } from '@/features/satinalma/girisKaydi'
-import { SATIR_ALANLARI } from '@/features/satinalma/talepAlanlari'
-import {
-  BOS_SATIR,
-  BOS_TALEP,
-  talepSemasiUret,
-  type TalepGirdisi,
-} from '@/features/satinalma/schemas/talepSchema'
-
-export const SATINALMA_TALEP_EKRANI = 'satinalma.talep'
+import { AlanGirisi, girisTipiTanimliMi } from './girisKaydi'
+import { SATIR_ALANLARI } from './talepAlanlari'
+import { BOS_SATIR, BOS_TALEP, talepSemasiUret, type TalepGirdisi } from './talepSchema'
 
 /** Grid hücresi girişi — Input bileşeninin kompakt hali (etiketler thead'de) */
 const HUCRE_SINIFI =

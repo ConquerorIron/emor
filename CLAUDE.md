@@ -60,9 +60,17 @@ npm run build
   TeslimatSekliSecimi…) ve hepsinin beslendiği tek `api.ts` (`/api/v1/secenekler/*`).
   Bunlar feature DEĞİL, her ekranda tekrar kullanılan ortak bileşenlerdir — yeni bir
   dürbün alanı eklerken buraya konur, ayrı klasör açılmaz.
-- `features/` — gerçek ekran/alan modülleri: `auth`, `ayarlar`, `ekranTasarim`
-  (tasarım motoru), `satinalma` (talep formuna özgü katalog bağlantısı + şema)
-- `pages/`, `layouts/`, `hooks/`, `utils/`, `api/` — alışıldık roller
+- `pages/<Ekran>/` — her ekran kendi klasöründe: sayfa, testi ve YALNIZ o sayfanın
+  kullandığı parçalar (ör. `SatinalmaTalebi/girisKaydi.tsx`,
+  `EkranTasarimAyarlari/TasarimTuvali.tsx`). Sayfalar birbirinden import etmez;
+  ortak bir şey gerekiyorsa `features/`'a çıkar.
+- `features/` — birden fazla ekranın paylaştığı modüller: `auth`, `ayarlar`,
+  `ekranTasarim` (tasarım motorunun tipleri/API'si/işlemleri)
+- `layouts/`, `hooks/`, `utils/`, `api/` — alışıldık roller
+
+Yerleştirme kuralı: **ERP'yi bilmiyor mu?** → `components/`. **Biliyor ama her
+ekranda kullanılıyor mu?** → `secimler/`. **Tek ekrana mı özgü?** →
+`pages/<Ekran>/`. **Birkaç ekranın ortak altyapısı mı?** → `features/`.
 
 ## Ekran tasarım motoru (form düzenleri veriyle sürülür)
 

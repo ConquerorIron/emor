@@ -19,7 +19,7 @@ import {
   VARSAYILAN_ILGI_CINSI,
   type IlgiCinsi,
 } from '@/secimler/ilgiCinsleri'
-import type { TalepGirdisi } from '@/features/satinalma/schemas/talepSchema'
+import type { TalepGirdisi } from './talepSchema'
 import { OncelikSecimi } from '@/secimler/OncelikSecimi'
 import { TeslimatSekliSecimi } from '@/secimler/TeslimatSekliSecimi'
 import { TeslimatBicimiSecimi } from '@/secimler/TeslimatBicimiSecimi'

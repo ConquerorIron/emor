@@ -12,7 +12,7 @@ import { OncelikSecimi } from '@/secimler/OncelikSecimi'
 import { TeslimatSekliSecimi } from '@/secimler/TeslimatSekliSecimi'
 import { TeslimatBicimiSecimi } from '@/secimler/TeslimatBicimiSecimi'
 
-import type { KatalogAlani } from './types'
+import type { KatalogAlani } from '@/features/ekranTasarim/types'
 
 interface VarsayilanDegerSeciciProps {
   katalog: KatalogAlani
