@@ -88,7 +88,6 @@
   },
   "satinalma": {
     "baslik": "Satınalma Talebi",
-    "aciklama": "Talep başlık bilgilerini doldurun, satırları ekleyin ve kaydedin. Kayıt ERP'ye (aktif ortamın veritabanına) yapılır.",
     "talepBilgileri": "Talep Bilgileri",
     "teslimatBilgileri": "Teslimat Bilgileri",
     "satirlar": "Talep Satırları",

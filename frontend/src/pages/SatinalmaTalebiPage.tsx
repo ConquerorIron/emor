@@ -98,7 +98,6 @@ export function SatinalmaTalebiPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-2xl font-bold">{t('satinalma.baslik')}</h2>
       </div>
-      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{t('satinalma.aciklama')}</p>
 
       {tasarim.isError ? (
         <div className="mt-4">

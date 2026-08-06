@@ -88,7 +88,6 @@
   },
   "satinalma": {
     "baslik": "Purchase Request",
-    "aciklama": "Fill in the request header, add lines and save. The record is written to the ERP (active environment's database).",
     "talepBilgileri": "Request Details",
     "teslimatBilgileri": "Delivery Details",
     "satirlar": "Request Lines",
