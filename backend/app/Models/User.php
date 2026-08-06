@@ -22,10 +22,11 @@ use Illuminate\Notifications\Notifiable;
  * @property string|null $email
  * @property string $kaynak
  * @property int|null $erp_kullanici_id
+ * @property bool $sistem_yoneticisi
  * @property string|null $password
  * @property bool $aktif_mi
  */
-#[Fillable(['ad', 'kullanici_adi', 'email', 'kaynak', 'erp_kullanici_id', 'password', 'aktif_mi'])]
+#[Fillable(['ad', 'kullanici_adi', 'email', 'kaynak', 'erp_kullanici_id', 'sistem_yoneticisi', 'password', 'aktif_mi'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -44,6 +45,7 @@ class User extends Authenticatable
         return [
             'password' => 'hashed',
             'aktif_mi' => 'boolean',
+            'sistem_yoneticisi' => 'boolean',
         ];
     }
 }

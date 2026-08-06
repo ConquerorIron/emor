@@ -1,47 +1,32 @@
 import { standardSchemaResolver } from '@hookform/resolvers/standard-schema'
-import { type ReactNode } from 'react'
-import { Controller, useFieldArray, useForm, type FieldErrors } from 'react-hook-form'
+import { useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
+import { useFieldArray, useForm, type FieldErrors, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { Aciklama200Input } from '@/components/Aciklama200Input'
+import { apiErrorKey } from '@/api/errors'
+import { queryKeys } from '@/api/queryKeys'
 import { Button } from '@/components/Button'
-import { Input } from '@/components/Input'
-import { OpsiyonelTarihInput } from '@/components/OpsiyonelTarihInput'
-import { SelectField, type SecenekOgesi } from '@/components/SelectField'
-import { TarihInput } from '@/components/TarihInput'
-import { FirmamizAdresiSecimi } from '@/features/adres/FirmamizAdresiSecimi'
-import { DepoSecimi } from '@/features/depo/DepoSecimi'
-import { PersonelSecimi } from '@/features/personel/PersonelSecimi'
-import { AlimYeriSecimi } from '@/features/satinalma/AlimYeriSecimi'
+import { ErrorState } from '@/components/ErrorState'
+import { ekranTasariminiGetir } from '@/features/ekranTasarim/api'
 import {
-  ARAMALI_ILGI_CINSLERI,
-  ILGI_CINSLERI,
-  VARSAYILAN_ILGI_CINSI,
-  type IlgiCinsi,
-} from '@/features/satinalma/ilgiCinsleri'
-import { IlgiliSecimi } from '@/features/satinalma/IlgiliSecimi'
-import { OncelikSecimi } from '@/features/tabloMaddesi/OncelikSecimi'
-import { TeslimatSekliSecimi } from '@/features/tabloMaddesi/TeslimatSekliSecimi'
-import { TeslimatBicimiSecimi } from '@/features/teslimat/TeslimatBicimiSecimi'
-import {
-  sureyiTariheCevir,
-  tarihiSureyeCevir,
-  type TeslimatSuresiBirimi,
-} from '@/features/teslimat/teslimatSuresi'
-import { TeslimatSuresiSecimi } from '@/features/teslimat/TeslimatSuresiSecimi'
-import {
-  SATIR_ALANLARI,
-  TALEP_ALANLARI,
-  TESLIMAT_ALANLARI,
-  type TalepAlani,
-} from '@/features/satinalma/talepAlanlari'
+  bolumGenisligiSinifi,
+  genislikSinifi,
+  type DuzenBolumu,
+  type EkranTasarimi,
+  type KatalogAlani,
+} from '@/features/ekranTasarim/types'
+import { GIRIS_KAYDI } from '@/features/satinalma/girisKaydi'
+import { SATIR_ALANLARI } from '@/features/satinalma/talepAlanlari'
 import {
   BOS_SATIR,
   BOS_TALEP,
-  talepSchema,
+  talepSemasiUret,
   type TalepGirdisi,
 } from '@/features/satinalma/schemas/talepSchema'
+
+export const SATINALMA_TALEP_EKRANI = 'satinalma.talep'
 
 /** Grid hücresi girişi — Input bileşeninin kompakt hali (etiketler thead'de) */
 const HUCRE_SINIFI =
@@ -51,64 +36,45 @@ const HUCRE_NORMAL =
 const HUCRE_HATALI =
   'border-red-500 focus:border-red-500 focus:ring-red-200 dark:focus:ring-red-900'
 
-function AlanBloku({
+/**
+ * Tasarımdaki bir bölümü çizer: alanları kayıt defterindeki bileşenlere
+ * yönlendirir, genişlikleri 12'lik ızgaraya oturtur.
+ */
+function TasarimBolumu({
+  bolum,
   baslik,
-  alanlar,
-  register,
-  ozelBilesenler,
+  katalogHaritasi,
+  form,
 }: {
+  bolum: DuzenBolumu
   baslik: string
-  alanlar: TalepAlani[]
-  register: ReturnType<typeof useForm<TalepGirdisi>>['register']
-  /** tip'li alanların özel girişleri (ör. personel → react-select) — sayfa kurar */
-  ozelBilesenler?: Record<string, ReactNode>
+  katalogHaritasi: Map<string, KatalogAlani>
+  form: UseFormReturn<TalepGirdisi>
 }) {
   const { t } = useTranslation()
 
   return (
     <div className="rounded-xl border border-slate-200 p-5 dark:border-slate-700">
       <h3 className="mb-4 text-lg font-bold text-slate-800 dark:text-slate-100">{baslik}</h3>
-      <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
-        {alanlar.map((alan) =>
-          alan.tip && ozelBilesenler?.[alan.ad] ? (
-            <div key={alan.ad} className={alan.tamSatir ? 'sm:col-span-2' : undefined}>
-              {ozelBilesenler[alan.ad]}
+      <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-12">
+        {bolum.alanlar.map((duzenAlani) => {
+          const katalog = katalogHaritasi.get(duzenAlani.alan)
+          const Giris = katalog ? GIRIS_KAYDI[katalog.giris_tipi] : undefined
+
+          // Katalogda olmayan ya da bileşeni tanımsız alan sessizce atlanır
+          // (kod geri alındığında eski tasarım ekranı kırmayı sürdürmesin)
+          if (!katalog || !Giris) {
+            return null
+          }
+
+          const etiket = t(katalog.etiket_anahtari) + (duzenAlani.zorunlu ? ' *' : '')
+
+          return (
+            <div key={duzenAlani.alan} className={genislikSinifi(duzenAlani.genislik)}>
+              <Giris katalog={katalog} duzen={duzenAlani} form={form} etiket={etiket} />
             </div>
-          ) : alan.saltOkunur ? (
-            <Input
-              key={alan.ad}
-              id={`alan-${alan.ad}`}
-              label={t(`satinalma.alan.${alan.etiketAnahtari}`)}
-              disabled
-              placeholder={t('satinalma.otomatik')}
-              className="disabled:cursor-not-allowed disabled:bg-slate-50 dark:disabled:bg-slate-900"
-              {...register(alan.ad as keyof TalepGirdisi)}
-            />
-          ) : alan.cokSatir ? (
-            <div key={alan.ad} className="sm:col-span-2">
-              <label
-                htmlFor={`alan-${alan.ad}`}
-                className="block text-sm font-semibold text-slate-700 dark:text-slate-300"
-              >
-                {t(`satinalma.alan.${alan.etiketAnahtari}`)}
-              </label>
-              <textarea
-                id={`alan-${alan.ad}`}
-                rows={3}
-                className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition-colors outline-none placeholder:text-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-900"
-                {...register(alan.ad as keyof TalepGirdisi)}
-              />
-            </div>
-          ) : (
-            <Input
-              key={alan.ad}
-              id={`alan-${alan.ad}`}
-              label={t(`satinalma.alan.${alan.etiketAnahtari}`)}
-              autoComplete="off"
-              {...register(alan.ad as keyof TalepGirdisi)}
-            />
-          ),
-        )}
+          )
+        })}
       </div>
     </div>
   )
@@ -117,268 +83,98 @@ function AlanBloku({
 export function SatinalmaTalebiPage() {
   const { t } = useTranslation()
 
+  const tasarim = useQuery({
+    queryKey: queryKeys.ekranTasarimi(SATINALMA_TALEP_EKRANI),
+    queryFn: () => ekranTasariminiGetir(SATINALMA_TALEP_EKRANI),
+    staleTime: 5 * 60_000,
+  })
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-2xl font-bold">{t('satinalma.baslik')}</h2>
+      </div>
+      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{t('satinalma.aciklama')}</p>
+
+      {tasarim.isError ? (
+        <div className="mt-4">
+          <ErrorState
+            mesaj={t(apiErrorKey(tasarim.error))}
+            tekrarDene={() => void tasarim.refetch()}
+          />
+        </div>
+      ) : null}
+
+      {tasarim.isPending ? (
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">{t('ortak.yukleniyor')}</p>
+      ) : null}
+
+      {tasarim.isSuccess ? <TalepFormu tasarim={tasarim.data} /> : null}
+    </>
+  )
+}
+
+/**
+ * Form, tasarım geldikten SONRA kurulur: zorunlu alanlar tasarımdan geldiği
+ * için doğrulama şeması da o anda üretilir.
+ */
+function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
+  const { t } = useTranslation()
+
+  const katalogHaritasi = useMemo(
+    () => new Map(tasarim.katalog.map((alan) => [alan.anahtar, alan])),
+    [tasarim.katalog],
+  )
+  const bolumBasliklari = useMemo(
+    () => new Map(tasarim.bolumler.map((bolum) => [bolum.anahtar, bolum.baslik_anahtari])),
+    [tasarim.bolumler],
+  )
+
+  // Tasarımda "zorunlu" işaretli alanların yazdığı form anahtarları
+  const zorunluAnahtarlar = useMemo(() => {
+    const anahtarlar: string[] = []
+    for (const bolum of tasarim.duzen.bolumler) {
+      for (const alan of bolum.alanlar) {
+        if (!alan.zorunlu) {
+          continue
+        }
+        const katalog = katalogHaritasi.get(alan.alan)
+        // Çok anahtarlı alanlarda ilki kimliktir (ör. personel_id)
+        if (katalog?.veri_anahtarlari[0]) {
+          anahtarlar.push(katalog.veri_anahtarlari[0])
+        }
+      }
+    }
+
+    return anahtarlar
+  }, [tasarim.duzen, katalogHaritasi])
+
+  const varsayilanlar = useMemo(() => {
+    const deger: Record<string, string> = {}
+    for (const bolum of tasarim.duzen.bolumler) {
+      for (const alan of bolum.alanlar) {
+        const katalog = katalogHaritasi.get(alan.alan)
+        if (alan.varsayilan && katalog?.veri_anahtarlari[0]) {
+          deger[katalog.veri_anahtarlari[0]] = alan.varsayilan
+        }
+      }
+    }
+
+    return { ...BOS_TALEP, ...deger }
+  }, [tasarim.duzen, katalogHaritasi])
+
+  const form = useForm<TalepGirdisi>({
+    resolver: standardSchemaResolver(talepSemasiUret(zorunluAnahtarlar)),
+    defaultValues: varsayilanlar,
+  })
+
   const {
     register,
     control,
     handleSubmit,
-    setValue,
-    watch,
     formState: { errors, isSubmitting },
-  } = useForm<TalepGirdisi>({
-    resolver: standardSchemaResolver(talepSchema),
-    defaultValues: BOS_TALEP,
-  })
-
-  // İlgi cinsi seçimi "ilgili" alanının etiketini ve arama kaynağını belirler
-  // (Proje / Uygulama Sözleşmesi / …); cins değişince önceki seçim sıfırlanır
-  const ilgiCinsi = (watch('ilgi_cinsi') || VARSAYILAN_ILGI_CINSI) as IlgiCinsi
-
-  // Teslimat süresi: veri süre+birim olarak tutulur; tarih bunlardan hesaplanan
-  // gösterimdir (temel = talebin Tarih alanı). İki alan da diğerini günceller.
-  const talepTarihi = watch('tarih')
-  const teslimatSuresi = watch('teslimat_suresi')
-  const teslimatSuresiBirimi = watch('teslimat_suresi_birimi') as TeslimatSuresiBirimi
-  const teslimatSuresiTarihi = sureyiTariheCevir(talepTarihi, teslimatSuresi, teslimatSuresiBirimi)
-  const ilgiCinsiSecenekleri: SecenekOgesi[] = ILGI_CINSLERI.map((cins) => ({
-    value: cins,
-    label: t(`satinalma.ilgiCinsi.${cins}`),
-  }))
-
+  } = form
   const satirlar = useFieldArray({ control, name: 'satirlar' })
-
-  // Alan config'inde tip'i olan girişlerin özel bileşenleri (AlanBloku'na gider).
-  const ozelBilesenler: Record<string, ReactNode> = {
-    // Görünen değer Ünvan, form değeri PERSONEL_ID (proc çağrısında
-    // @PARTI_YAMASI_ID'ye eşlenecek)
-    personel_adi: (
-      <Controller
-        name="personel_id"
-        control={control}
-        render={({ field }) => (
-          <PersonelSecimi
-            id="alan-personel_adi"
-            label={t('satinalma.alan.personelAdi')}
-            deger={field.value}
-            degisti={(secim) => {
-              field.onChange(secim?.kayitId ?? '')
-              setValue('personel_adi', secim?.unvan ?? '')
-            }}
-          />
-        )}
-      />
-    ),
-    // GG.AA.YYYY maskeli giriş + takvim popover + Bugün kısayolu; değer ISO
-    tarih: (
-      <Controller
-        name="tarih"
-        control={control}
-        render={({ field }) => (
-          <TarihInput
-            id="alan-tarih"
-            label={t('satinalma.alan.tarih')}
-            value={field.value}
-            onChange={field.onChange}
-          />
-        )}
-      />
-    ),
-    // Varsayılan boş; anahtar açılmadan tarih seçilemez — @OPSIYON_TARIHI
-    termin: (
-      <Controller
-        name="termin"
-        control={control}
-        render={({ field }) => (
-          <OpsiyonelTarihInput
-            id="alan-termin"
-            label={t('satinalma.alan.termin')}
-            value={field.value}
-            onChange={field.onChange}
-          />
-        )}
-      />
-    ),
-    // 200 karakter sert limit + sayaç; tam satır genişlik — @ACIKLAMA (ACIKLAMA200)
-    aciklama: (
-      <Controller
-        name="aciklama"
-        control={control}
-        render={({ field }) => (
-          <Aciklama200Input
-            id="alan-aciklama"
-            label={t('satinalma.alan.aciklama')}
-            value={field.value}
-            onChange={field.onChange}
-            hata={errors.aciklama?.message ? t(errors.aciklama.message) : undefined}
-          />
-        )}
-      />
-    ),
-    // Depo — değer KAYIT_ID; kayıt sırasında satırların DEPOMUZ_ID'sine yazılır
-    depo_adi: (
-      <Controller
-        name="depomuz_id"
-        control={control}
-        render={({ field }) => (
-          <DepoSecimi
-            id="alan-depo_adi"
-            label={t('satinalma.alan.depoAdi')}
-            deger={field.value}
-            degisti={(secim) => field.onChange(secim?.kayitId ?? '')}
-          />
-        )}
-      />
-    ),
-    // Firmamız adresleri — seçim İKİ alanı doldurur: ID (@TESLIMAT_ADRESI_ID)
-    // ve adres metni (@TESLIMAT_ADRESI). Tek adres varsa ERP gibi dolu açılır.
-    teslimat_adresi: (
-      <Controller
-        name="teslimat_adresi_id"
-        control={control}
-        render={({ field }) => (
-          <FirmamizAdresiSecimi
-            id="alan-teslimat_adresi"
-            label={t('satinalma.alan.teslimatAdresi')}
-            deger={field.value}
-            degisti={(secim) => {
-              field.onChange(secim?.kayitId ?? '')
-              setValue('teslimat_adresi', secim?.adres ?? '')
-            }}
-            tekSeceneginiSec
-          />
-        )}
-      />
-    ),
-    // Sabit değerler: Tam=0, Parçalı=1 — @TESLIMAT_BICIMI
-    teslimat_bicimi: (
-      <Controller
-        name="teslimat_bicimi"
-        control={control}
-        render={({ field }) => (
-          <TeslimatBicimiSecimi
-            id="alan-teslimat_bicimi"
-            label={t('satinalma.alan.teslimatBicimi')}
-            deger={field.value}
-            degisti={field.onChange}
-          />
-        )}
-      />
-    ),
-    // Tablo maddesi TUR=53 — @TESLIMAT_SEKLI_ID
-    teslimat_sekli: (
-      <Controller
-        name="teslimat_sekli_id"
-        control={control}
-        render={({ field }) => (
-          <TeslimatSekliSecimi
-            id="alan-teslimat_sekli"
-            label={t('satinalma.alan.teslimatSekli')}
-            deger={field.value}
-            degisti={(secim) => field.onChange(secim?.kayitId ?? '')}
-          />
-        )}
-      />
-    ),
-    // Süre alanının tarih yüzü: seçilen tarih süre+birime geri çevrilir
-    teslimat_suresi_tarih: (
-      <TarihInput
-        id="alan-teslimat_suresi_tarih"
-        label={t('satinalma.alan.teslimatSuresiTarih')}
-        value={teslimatSuresiTarihi}
-        onChange={(iso) => {
-          const { sure, birim } = tarihiSureyeCevir(talepTarihi, iso, teslimatSuresiBirimi)
-          setValue('teslimat_suresi', sure)
-          setValue('teslimat_suresi_birimi', birim)
-        }}
-      />
-    ),
-    // Miktar + birim (gün/hf/ay) — @TESLIMAT_SURESI, @TESLIMAT_SURESI_BIRIMI
-    teslimat_suresi_sure: (
-      <TeslimatSuresiSecimi
-        id="alan-teslimat_suresi"
-        label={t('satinalma.alan.teslimatSuresiSure')}
-        sure={teslimatSuresi}
-        birim={teslimatSuresiBirimi}
-        degisti={(sure, birim) => {
-          setValue('teslimat_suresi', sure)
-          setValue('teslimat_suresi_birimi', birim)
-        }}
-      />
-    ),
-    // Sabit değerler: Merkez=0, Yerel=1, İthalat=2 — @ALIM_YERI
-    alim_yeri: (
-      <Controller
-        name="alim_yeri"
-        control={control}
-        render={({ field }) => (
-          <AlimYeriSecimi
-            id="alan-alim_yeri"
-            label={t('satinalma.alan.alimYeri')}
-            deger={field.value}
-            degisti={field.onChange}
-          />
-        )}
-      />
-    ),
-    // Sabit liste (7/8/11/12/13) — @ILGI_CINSI; varsayılan Projemiz (7)
-    ilgi_konusu: (
-      <Controller
-        name="ilgi_cinsi"
-        control={control}
-        render={({ field }) => (
-          <SelectField
-            id="alan-ilgi_konusu"
-            label={t('satinalma.alan.ilgiKonusu')}
-            options={ilgiCinsiSecenekleri}
-            value={ilgiCinsiSecenekleri.find((s) => s.value === field.value) ?? null}
-            onChange={(secim) => {
-              field.onChange(secim?.value ?? VARSAYILAN_ILGI_CINSI)
-              setValue('ilgili_id', '')
-            }}
-            isClearable={false}
-          />
-        )}
-      />
-    ),
-    // Etiketi ve arama kaynağı seçilen ilgi cinsine göre değişir — @ILGILI_ID.
-    // Sorgusu tanımlı cinsler aramalı; diğerleri sorgular gelene dek serbest metin
-    ilgili: ARAMALI_ILGI_CINSLERI.includes(ilgiCinsi) ? (
-      <Controller
-        name="ilgili_id"
-        control={control}
-        render={({ field }) => (
-          <IlgiliSecimi
-            cins={ilgiCinsi}
-            id="alan-ilgili"
-            label={t(`satinalma.ilgiliEtiket.${ilgiCinsi}`)}
-            deger={field.value}
-            degisti={field.onChange}
-          />
-        )}
-      />
-    ) : (
-      <Input
-        id="alan-ilgili"
-        label={t(`satinalma.ilgiliEtiket.${ilgiCinsi}`)}
-        autoComplete="off"
-        {...register('ilgili_id')}
-      />
-    ),
-    // Görünen değer AD, form değeri TABLO_MADDESI_ID (TUR=36) — @ONCELIK_ID
-    oncelik: (
-      <Controller
-        name="oncelik_id"
-        control={control}
-        render={({ field }) => (
-          <OncelikSecimi
-            id="alan-oncelik"
-            label={t('satinalma.alan.oncelik')}
-            deger={field.value}
-            degisti={(secim) => field.onChange(secim?.kayitId ?? '')}
-          />
-        )}
-      />
-    ),
-  }
 
   const onSubmit = handleSubmit(
     (girdi) => {
@@ -388,32 +184,26 @@ export function SatinalmaTalebiPage() {
       toast.info(t('satinalma.kaydetHenuzYok'))
     },
     (hatalar: FieldErrors<TalepGirdisi>) => {
-      if (hatalar.satirlar?.root?.message ?? hatalar.satirlar?.message) {
-        toast.error(t(hatalar.satirlar.root?.message ?? hatalar.satirlar.message ?? ''))
+      const satirHatasi = hatalar.satirlar?.root?.message ?? hatalar.satirlar?.message
+      if (satirHatasi) {
+        toast.error(t(satirHatasi))
       }
     },
   )
 
   return (
     <form onSubmit={(e) => void onSubmit(e)} noValidate>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-bold">{t('satinalma.baslik')}</h2>
-      </div>
-      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{t('satinalma.aciklama')}</p>
-
-      <div className="mt-4 grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
-        <AlanBloku
-          baslik={t('satinalma.talepBilgileri')}
-          alanlar={TALEP_ALANLARI}
-          register={register}
-          ozelBilesenler={ozelBilesenler}
-        />
-        <AlanBloku
-          baslik={t('satinalma.teslimatBilgileri')}
-          alanlar={TESLIMAT_ALANLARI}
-          register={register}
-          ozelBilesenler={ozelBilesenler}
-        />
+      <div className="mt-4 grid grid-cols-1 items-start gap-5 xl:grid-cols-12">
+        {tasarim.duzen.bolumler.map((bolum) => (
+          <div key={bolum.anahtar} className={bolumGenisligiSinifi(bolum.genislik)}>
+            <TasarimBolumu
+              bolum={bolum}
+              baslik={t(bolumBasliklari.get(bolum.anahtar) ?? bolum.anahtar)}
+              katalogHaritasi={katalogHaritasi}
+              form={form}
+            />
+          </div>
+        ))}
       </div>
 
       <div className="mt-5 rounded-xl border border-slate-200 p-5 dark:border-slate-700">

@@ -15,14 +15,14 @@ final class ErpLoginTest extends TestCase
     use RefreshDatabase;
 
     /**
-     * @param  array{ad: string, kullanici_adi: string, erp_kullanici_id: int}|null  $sonuc
+     * @param  array{ad: string, kullanici_adi: string, erp_kullanici_id: int, sistem_yoneticisi: bool}|null  $sonuc
      */
     private function sahteDogrulayici(?array $sonuc, bool $yapilandirildi = true): void
     {
         $this->app->instance(ErpKimlikDogrulayici::class, new class($sonuc, $yapilandirildi) implements ErpKimlikDogrulayici
         {
             /**
-             * @param  array{ad: string, kullanici_adi: string, erp_kullanici_id: int}|null  $sonuc
+             * @param  array{ad: string, kullanici_adi: string, erp_kullanici_id: int, sistem_yoneticisi: bool}|null  $sonuc
              */
             public function __construct(
                 private readonly ?array $sonuc,
@@ -47,6 +47,7 @@ final class ErpLoginTest extends TestCase
             'ad' => 'Fatih DEMİR',
             'kullanici_adi' => 'fatih.demir',
             'erp_kullanici_id' => 33819,
+            'sistem_yoneticisi' => false,
         ]);
 
         $yanit = $this->postJson('/api/v1/auth/login', [
@@ -62,6 +63,7 @@ final class ErpLoginTest extends TestCase
             'kullanici_adi' => 'fatih.demir',
             'kaynak' => 'erp',
             'erp_kullanici_id' => 33819,
+            'sistem_yoneticisi' => false,
         ]);
     }
 
@@ -71,12 +73,14 @@ final class ErpLoginTest extends TestCase
             'ad' => 'Fatih DEMİR (Yeni Unvan)',
             'kullanici_adi' => 'fatih.demir',
             'erp_kullanici_id' => 33819,
+            'sistem_yoneticisi' => false,
         ]);
 
         User::factory()->erp()->create([
             'kullanici_adi' => 'fatih.demir',
             'ad' => 'Fatih DEMİR',
             'erp_kullanici_id' => 33819,
+            'sistem_yoneticisi' => false,
         ]);
 
         $this->postJson('/api/v1/auth/login', [
@@ -88,6 +92,32 @@ final class ErpLoginTest extends TestCase
         $this->assertSame(
             'Fatih DEMİR (Yeni Unvan)',
             User::query()->where('kullanici_adi', 'fatih.demir')->first()?->ad,
+        );
+    }
+
+    public function test_erp_sistem_yoneticisi_bayragi_her_giriste_tazelenir(): void
+    {
+        // ERP'de yönetici yapılmış kullanıcı; yerel kayıt eski (yönetici değil)
+        $this->sahteDogrulayici([
+            'ad' => 'Fatih DEMİR',
+            'kullanici_adi' => 'fatih.demir',
+            'erp_kullanici_id' => 33819,
+            'sistem_yoneticisi' => true,
+        ]);
+
+        User::factory()->erp()->create([
+            'kullanici_adi' => 'fatih.demir',
+            'erp_kullanici_id' => 33819,
+            'sistem_yoneticisi' => false,
+        ]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'kullanici_adi' => 'fatih.demir',
+            'sifre' => 'dogru-sifre',
+        ])->assertOk()->assertJsonPath('data.sistem_yoneticisi', true);
+
+        $this->assertTrue(
+            User::query()->where('kullanici_adi', 'fatih.demir')->first()?->sistem_yoneticisi,
         );
     }
 
@@ -110,11 +140,13 @@ final class ErpLoginTest extends TestCase
             'ad' => 'Fatih DEMİR',
             'kullanici_adi' => 'fatih.demir',
             'erp_kullanici_id' => 33819,
+            'sistem_yoneticisi' => false,
         ]);
 
         User::factory()->erp()->pasif()->create([
             'kullanici_adi' => 'fatih.demir',
             'erp_kullanici_id' => 33819,
+            'sistem_yoneticisi' => false,
         ]);
 
         $this->postJson('/api/v1/auth/login', [

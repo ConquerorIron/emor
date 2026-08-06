@@ -52,6 +52,31 @@ npm run test                 # vitest
 npm run build
 ```
 
+## Ekran tasarım motoru (form düzenleri veriyle sürülür)
+
+Form ekranları koda gömülü DEĞİL; iki katman var:
+
+- **Katalog (kod)** — `backend/app/Ekranlar/*Katalogu.php`: alanın NE olduğu (giriş
+  tipi, veri anahtarları, proc parametresi, kaldırılamaz/salt-okunur kilitleri).
+  Tek doğruluk kaynağı; frontend API'den okur.
+- **Tasarım (veri)** — `ekran_tasarimlari` tablosu (JSONB `duzen`): alanın NASIL
+  göründüğü (bölüm, sıra, 12'lik ızgarada genişlik, zorunlu, textarea, varsayılan).
+
+Bir "alan" tek form anahtarı değildir (personel → `personel_id` + `personel_adi`);
+katalogdaki `veri_anahtarlari` bunu tanımlar.
+
+Akış: ekran başına tek `taslak` + tek `yayinda` sürüm (kısmi unique indeks),
+yayınlanan eskiler `arsiv` olur ve geri alınabilir. Yayında sürüm yoksa katalogun
+`varsayilanDuzen()`'i kullanılır — motor devreye girdiğinde ekran bugünkü haliyle açılır.
+
+Frontend: `features/ekranTasarim/` (tipler + API), `features/satinalma/girisKaydi.tsx`
+(giris_tipi → bileşen kayıt defteri), sayfa tasarımdan çizer. Zod şeması zorunlu
+alanlar tasarımdan geldiği için çalışma zamanında üretilir (`talepSemasiUret`);
+backend kayıt sırasında aynı tasarımla tekrar doğrular.
+
+Yetki: `users.sistem_yoneticisi` (ERP `TOHOM_KULLANICI.SISTEM_YONETICISI`
+yansıması, her girişte tazelenir) — tasarım düzenleme uçlarını bu bayrak açar.
+
 ## Yayınlama (production)
 
 - **Repo**: git@github.com:ConquerorIron/emor.git (ornek'teki puantaj repo'suna ASLA dokunma)

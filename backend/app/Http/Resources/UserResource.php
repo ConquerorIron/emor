@@ -24,6 +24,8 @@ final class UserResource extends JsonResource
             'kullanici_adi' => $this->kullanici_adi,
             'email' => $this->email,
             'kaynak' => $this->kaynak,
+            // Yönetim ekranlarını (ör. Ekran Tasarım Ayarları) açan bayrak
+            'sistem_yoneticisi' => $this->sistem_yoneticisi,
         ];
     }
 }

@@ -9,6 +9,9 @@ export const queryKeys = {
   ayarlar: {
     sqlBaglantilari: ['ayarlar', 'sqlBaglantilari'],
   },
+  /** Ekran tasarım motoru — formu çizen yayındaki düzen */
+  ekranTasarimi: (ekran: string) => ['ekranTasarimi', ekran] as const,
+  ekranTaslagi: (ekran: string) => ['ekranTaslagi', ekran] as const,
   // ERP view'larından ortak seçim listeleri (program genelinde kullanılır)
   secenekler: {
     personeller: ['secenekler', 'personeller'],

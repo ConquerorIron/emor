@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\EkranTasarimController;
 use App\Http\Controllers\Api\V1\SecenekController;
 use App\Http\Controllers\Api\V1\SqlBaglantiController;
 use Illuminate\Support\Facades\Route;
@@ -32,6 +33,21 @@ Route::prefix('v1')->group(function (): void {
             ->name('secenekler.depolar');
         Route::get('/secenekler/firmamiz-adresleri', [SecenekController::class, 'firmamizAdresleri'])
             ->name('secenekler.firmamiz-adresleri');
+
+        // Ekran tasarım motoru — okuma herkese (form çizimi), düzenleme yöneticiye
+        Route::get('/ekranlar/{ekran}/tasarim', [EkranTasarimController::class, 'goster'])
+            ->name('ekranlar.tasarim');
+        Route::get('/ekranlar/{ekran}/taslak', [EkranTasarimController::class, 'taslak'])
+            ->name('ekranlar.taslak');
+        Route::put('/ekranlar/{ekran}/taslak', [EkranTasarimController::class, 'taslagiKaydet'])
+            ->name('ekranlar.taslak.kaydet');
+        Route::post('/ekranlar/{ekran}/yayinla', [EkranTasarimController::class, 'yayinla'])
+            ->name('ekranlar.yayinla');
+        Route::get('/ekranlar/{ekran}/surumler', [EkranTasarimController::class, 'surumler'])
+            ->name('ekranlar.surumler');
+        Route::post('/ekranlar/{ekran}/surumler/{surum}/geri-al', [EkranTasarimController::class, 'geriAl'])
+            ->whereNumber('surum')
+            ->name('ekranlar.surumler.geri-al');
 
         // Ayarlar → SQL Bağlantıları (Test/Canlı MSSQL tanımları + aktif ortam)
         Route::get('/ayarlar/sql-baglantilari', [SqlBaglantiController::class, 'index'])

@@ -67,6 +67,33 @@ export const talepSchema = z.object({
 export type TalepSatiri = z.infer<typeof talepSatiriSchema>
 export type TalepGirdisi = z.infer<typeof talepSchema>
 
+/**
+ * Tasarımdaki "zorunlu" işaretlerini şemaya uygular. Temel tipler kodda
+ * (yukarıdaki talepSchema), zorunluluk ise kullanıcının tasarımından gelir —
+ * bu yüzden şema çalışma zamanında üretilir. Backend kayıt sırasında aynı
+ * tasarımı okuyup tekrar doğrular (tarayıcı atlatılabilir).
+ */
+export function talepSemasiUret(zorunluAnahtarlar: string[]): typeof talepSchema {
+  if (zorunluAnahtarlar.length === 0) {
+    return talepSchema
+  }
+
+  const zorunlu = new Set(zorunluAnahtarlar)
+
+  return talepSchema.superRefine((veri, ctx) => {
+    for (const anahtar of zorunlu) {
+      const deger = veri[anahtar as keyof TalepGirdisi]
+      if (typeof deger === 'string' && deger.trim() === '') {
+        ctx.addIssue({
+          code: 'custom',
+          path: [anahtar],
+          message: 'satinalma.dogrulama.alanZorunlu',
+        })
+      }
+    }
+  }) as unknown as typeof talepSchema
+}
+
 export const BOS_SATIR: TalepSatiri = {
   projemiz: '',
   aktivite_kodu: '',

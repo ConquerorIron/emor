@@ -44,6 +44,13 @@ class UserFactory extends Factory
         ]);
     }
 
+    public function yonetici(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'sistem_yoneticisi' => true,
+        ]);
+    }
+
     public function pasif(): static
     {
         return $this->state(fn (array $attributes) => [

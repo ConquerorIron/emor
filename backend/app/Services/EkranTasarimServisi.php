@@ -1,0 +1,255 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services;
+
+use App\Ekranlar\EkranKataloglari;
+use App\Ekranlar\EkranKatalogu;
+use App\Ekranlar\KatalogAlani;
+use App\Models\EkranTasarimi;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
+/**
+ * Ekran tasarım motoru: düzen doğrulama + taslak/yayın/sürüm akışı.
+ *
+ * Düzen KULLANICI verisidir; katalog KOD tarafındadır. Bu servis ikisinin
+ * tutarlı kalmasını garanti eder — bilinmeyen alan, geçersiz genişlik veya
+ * kaldırılamaz alanın silinmesi kaydedilemez.
+ */
+final class EkranTasarimServisi
+{
+    /** Yayında sürüm yoksa katalogun varsayılan düzeni kullanılır. */
+    public function yayindakiDuzen(string $ekranAnahtari): array
+    {
+        $katalog = EkranKataloglari::bul($ekranAnahtari);
+
+        $tasarim = EkranTasarimi::query()
+            ->where('ekran_anahtari', $ekranAnahtari)
+            ->where('durum', EkranTasarimi::DURUM_YAYINDA)
+            ->first();
+
+        return $tasarim?->duzen ?? $katalog->varsayilanDuzen();
+    }
+
+    /** Taslak yoksa yayındakinden (o da yoksa varsayılandan) kopyalanarak açılır. */
+    public function taslakGetirVeyaAc(string $ekranAnahtari, int $kullaniciId): EkranTasarimi
+    {
+        $mevcut = EkranTasarimi::query()
+            ->where('ekran_anahtari', $ekranAnahtari)
+            ->where('durum', EkranTasarimi::DURUM_TASLAK)
+            ->first();
+
+        if ($mevcut !== null) {
+            return $mevcut;
+        }
+
+        return EkranTasarimi::query()->create([
+            'ekran_anahtari' => $ekranAnahtari,
+            'surum' => $this->sonrakiSurum($ekranAnahtari),
+            'durum' => EkranTasarimi::DURUM_TASLAK,
+            'duzen' => $this->yayindakiDuzen($ekranAnahtari),
+            'olusturan_id' => $kullaniciId,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $duzen
+     */
+    public function taslagiKaydet(string $ekranAnahtari, array $duzen, int $kullaniciId): EkranTasarimi
+    {
+        $katalog = EkranKataloglari::bul($ekranAnahtari);
+        $temiz = $this->duzeniDogrula($katalog, $duzen);
+
+        $taslak = $this->taslakGetirVeyaAc($ekranAnahtari, $kullaniciId);
+        $taslak->duzen = $temiz;
+        $taslak->save();
+
+        return $taslak;
+    }
+
+    /** Taslağı canlıya alır; önceki yayın arşive düşer (geri alınabilir). */
+    public function yayinla(string $ekranAnahtari, int $kullaniciId): EkranTasarimi
+    {
+        return DB::transaction(function () use ($ekranAnahtari, $kullaniciId): EkranTasarimi {
+            $taslak = EkranTasarimi::query()
+                ->where('ekran_anahtari', $ekranAnahtari)
+                ->where('durum', EkranTasarimi::DURUM_TASLAK)
+                ->lockForUpdate()
+                ->first();
+
+            if ($taslak === null) {
+                throw ValidationException::withMessages([
+                    'ekran' => __('hata.tasarim_taslak_yok'),
+                ]);
+            }
+
+            // Yayınlanmadan önce son bir kez doğrula (katalog kod değişmiş olabilir)
+            $taslak->duzen = $this->duzeniDogrula(EkranKataloglari::bul($ekranAnahtari), $taslak->duzen);
+
+            EkranTasarimi::query()
+                ->where('ekran_anahtari', $ekranAnahtari)
+                ->where('durum', EkranTasarimi::DURUM_YAYINDA)
+                ->update(['durum' => EkranTasarimi::DURUM_ARSIV]);
+
+            $taslak->durum = EkranTasarimi::DURUM_YAYINDA;
+            $taslak->yayinlayan_id = $kullaniciId;
+            $taslak->yayin_zamani = now();
+            $taslak->save();
+
+            return $taslak;
+        });
+    }
+
+    /** Arşivdeki bir sürümü yeni taslak olarak geri getirir. */
+    public function surumuGeriAl(string $ekranAnahtari, int $surum, int $kullaniciId): EkranTasarimi
+    {
+        return DB::transaction(function () use ($ekranAnahtari, $surum, $kullaniciId): EkranTasarimi {
+            $kaynak = EkranTasarimi::query()
+                ->where('ekran_anahtari', $ekranAnahtari)
+                ->where('surum', $surum)
+                ->first();
+
+            if ($kaynak === null) {
+                throw ValidationException::withMessages([
+                    'surum' => __('hata.tasarim_surum_yok'),
+                ]);
+            }
+
+            // Açık taslak varsa üzerine yazılır (tek taslak kuralı)
+            EkranTasarimi::query()
+                ->where('ekran_anahtari', $ekranAnahtari)
+                ->where('durum', EkranTasarimi::DURUM_TASLAK)
+                ->delete();
+
+            return EkranTasarimi::query()->create([
+                'ekran_anahtari' => $ekranAnahtari,
+                'surum' => $this->sonrakiSurum($ekranAnahtari),
+                'durum' => EkranTasarimi::DURUM_TASLAK,
+                'duzen' => $kaynak->duzen,
+                'notlar' => __('tasarim.geri_alindi', ['surum' => $surum]),
+                'olusturan_id' => $kullaniciId,
+            ]);
+        });
+    }
+
+    /**
+     * Düzeni katalogla karşılaştırıp temizlenmiş halini döner. Bilinmeyen alan,
+     * geçersiz genişlik, tekrar eden alan ve kaldırılamaz alanın eksikliği hata.
+     *
+     * @param  array<string, mixed>  $duzen
+     * @return array{bolumler: list<array<string, mixed>>}
+     */
+    public function duzeniDogrula(EkranKatalogu $katalog, array $duzen): array
+    {
+        /** @var array<string, KatalogAlani> $katalogAlanlari */
+        $katalogAlanlari = [];
+        foreach ($katalog->alanlar() as $alan) {
+            $katalogAlanlari[$alan->anahtar] = $alan;
+        }
+        $gecerliBolumler = array_column($katalog->bolumler(), 'anahtar');
+
+        $bolumler = $duzen['bolumler'] ?? null;
+        if (! is_array($bolumler) || $bolumler === []) {
+            throw ValidationException::withMessages([
+                'duzen' => __('hata.tasarim_bolum_yok'),
+            ]);
+        }
+
+        $gorulenAlanlar = [];
+        $temizBolumler = [];
+
+        foreach ($bolumler as $bolum) {
+            if (! is_array($bolum) || ! in_array($bolum['anahtar'] ?? null, $gecerliBolumler, true)) {
+                throw ValidationException::withMessages([
+                    'duzen' => __('hata.tasarim_bolum_gecersiz'),
+                ]);
+            }
+
+            $temizAlanlar = [];
+            foreach ($bolum['alanlar'] ?? [] as $satir) {
+                $alanAnahtari = is_array($satir) ? ($satir['alan'] ?? null) : null;
+                $alan = is_string($alanAnahtari) ? ($katalogAlanlari[$alanAnahtari] ?? null) : null;
+
+                if ($alan === null) {
+                    throw ValidationException::withMessages([
+                        'duzen' => __('hata.tasarim_alan_gecersiz', ['alan' => (string) $alanAnahtari]),
+                    ]);
+                }
+
+                if (isset($gorulenAlanlar[$alan->anahtar])) {
+                    throw ValidationException::withMessages([
+                        'duzen' => __('hata.tasarim_alan_tekrar', ['alan' => $alan->anahtar]),
+                    ]);
+                }
+                $gorulenAlanlar[$alan->anahtar] = true;
+
+                $genislik = (int) ($satir['genislik'] ?? $alan->varsayilanGenislik);
+                if ($genislik < 1 || $genislik > 12) {
+                    throw ValidationException::withMessages([
+                        'duzen' => __('hata.tasarim_genislik_gecersiz', ['alan' => $alan->anahtar]),
+                    ]);
+                }
+
+                $temiz = [
+                    'alan' => $alan->anahtar,
+                    'genislik' => $genislik,
+                ];
+
+                // Kilitli alanlar tasarımdan gevşetilemez
+                $saltOkunur = $alan->saltOkunurSabit || (bool) ($satir['salt_okunur'] ?? false);
+                if ($saltOkunur) {
+                    $temiz['salt_okunur'] = true;
+                }
+
+                if ($alan->zorunluSecilebilir && (bool) ($satir['zorunlu'] ?? false)) {
+                    $temiz['zorunlu'] = true;
+                }
+
+                if ($alan->metinAlani && ($satir['gorunum'] ?? '') === 'textarea') {
+                    $temiz['gorunum'] = 'textarea';
+                    $temiz['satir'] = max(1, min(10, (int) ($satir['satir'] ?? 2)));
+                }
+
+                if (isset($satir['varsayilan']) && is_string($satir['varsayilan']) && $satir['varsayilan'] !== '') {
+                    $temiz['varsayilan'] = $satir['varsayilan'];
+                }
+
+                $temizAlanlar[] = $temiz;
+            }
+
+            $bolumGenisligi = (int) ($bolum['genislik'] ?? 12);
+            if ($bolumGenisligi < 1 || $bolumGenisligi > 12) {
+                throw ValidationException::withMessages([
+                    'duzen' => __('hata.tasarim_genislik_gecersiz', ['alan' => (string) $bolum['anahtar']]),
+                ]);
+            }
+
+            $temizBolumler[] = [
+                'anahtar' => $bolum['anahtar'],
+                'genislik' => $bolumGenisligi,
+                'alanlar' => $temizAlanlar,
+            ];
+        }
+
+        // Proc'un onsuz çalışmadığı alanlar tasarımdan çıkarılamaz — aksi halde
+        // kaydedilemeyen bir form tasarlanmış olurdu
+        foreach ($katalogAlanlari as $alan) {
+            if ($alan->kaldirilamaz && ! isset($gorulenAlanlar[$alan->anahtar])) {
+                throw ValidationException::withMessages([
+                    'duzen' => __('hata.tasarim_alan_zorunlu', ['alan' => $alan->anahtar]),
+                ]);
+            }
+        }
+
+        return ['bolumler' => $temizBolumler];
+    }
+
+    private function sonrakiSurum(string $ekranAnahtari): int
+    {
+        return (int) EkranTasarimi::query()
+            ->where('ekran_anahtari', $ekranAnahtari)
+            ->max('surum') + 1;
+    }
+}

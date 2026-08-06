@@ -20,4 +20,15 @@ return [
 
     // Satınalma
     'ilgili_cins_tanimsiz' => 'Bu ilgi konusu için arama kaynağı henüz tanımlanmadı.',
+
+    // Ekran tasarım motoru
+    'ekran_tanimsiz' => 'Böyle bir tasarlanabilir ekran yok.',
+    'tasarim_taslak_yok' => 'Yayınlanacak taslak bulunamadı.',
+    'tasarim_surum_yok' => 'Bu sürüm bulunamadı.',
+    'tasarim_bolum_yok' => 'Tasarımda en az bir bölüm olmalı.',
+    'tasarim_bolum_gecersiz' => 'Tanımsız bölüm.',
+    'tasarim_alan_gecersiz' => 'Tanımsız alan: :alan',
+    'tasarim_alan_tekrar' => 'Aynı alan birden fazla kez yerleştirilemez: :alan',
+    'tasarim_genislik_gecersiz' => 'Genişlik 1–12 arasında olmalı: :alan',
+    'tasarim_alan_zorunlu' => 'Bu alan tasarımdan çıkarılamaz: :alan',
 ];

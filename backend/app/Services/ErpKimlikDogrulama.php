@@ -28,13 +28,18 @@ final class ErpKimlikDogrulama implements ErpKimlikDogrulayici
      * Başarıda ERP kullanıcı bilgisi, eşleşmezse null döner.
      * Aktif ortam seçilmemişse ValidationException fırlar (baglan).
      *
-     * @return array{ad: string, kullanici_adi: string, erp_kullanici_id: int}|null
+     * @return array{ad: string, kullanici_adi: string, erp_kullanici_id: int, sistem_yoneticisi: bool}|null
      */
     public function dogrula(string $kullaniciAdi, string $sifre): ?array
     {
-        /** @var object{KULLANICI_ID: int, UNVAN: string|null, KULLANICI_ADI: string, SIFRE: string|null}|null $satir */
+        // SISTEM_YONETICISI ana kullanıcı tablosunda; LEFT JOIN — o satır
+        // bulunmasa da giriş engellenmez, yalnız yönetici yetkisi kapalı kalır
+        /** @var object{KULLANICI_ID: int, UNVAN: string|null, KULLANICI_ADI: string, SIFRE: string|null, SISTEM_YONETICISI: int|bool|null}|null $satir */
         $satir = $this->mssql->baglan()->selectOne(
-            'SELECT KULLANICI_ID, UNVAN, KULLANICI_ADI, SIFRE FROM VOHOM_ARAMA_KULLANICI WHERE KULLANICI_ADI = ?',
+            'SELECT K.KULLANICI_ID, K.UNVAN, K.KULLANICI_ADI, K.SIFRE, TK.SISTEM_YONETICISI
+             FROM VOHOM_ARAMA_KULLANICI K
+                  LEFT JOIN TOHOM_KULLANICI TK ON TK.KULLANICI_ID = K.KULLANICI_ID
+             WHERE K.KULLANICI_ADI = ?',
             [$kullaniciAdi],
         );
 
@@ -54,6 +59,7 @@ final class ErpKimlikDogrulama implements ErpKimlikDogrulayici
             'ad' => trim((string) $satir->UNVAN) !== '' ? trim((string) $satir->UNVAN) : $satir->KULLANICI_ADI,
             'kullanici_adi' => $satir->KULLANICI_ADI,
             'erp_kullanici_id' => (int) $satir->KULLANICI_ID,
+            'sistem_yoneticisi' => (bool) ($satir->SISTEM_YONETICISI ?? false),
         ];
     }
 }

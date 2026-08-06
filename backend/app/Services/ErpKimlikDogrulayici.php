@@ -16,7 +16,7 @@ interface ErpKimlikDogrulayici
     /**
      * Başarıda ERP kullanıcı bilgisi, eşleşmezse null döner.
      *
-     * @return array{ad: string, kullanici_adi: string, erp_kullanici_id: int}|null
+     * @return array{ad: string, kullanici_adi: string, erp_kullanici_id: int, sistem_yoneticisi: bool}|null
      */
     public function dogrula(string $kullaniciAdi, string $sifre): ?array;
 }

@@ -67,6 +67,8 @@ final class LoginRequest extends FormRequest
             [
                 'ad' => $erpKullanici['ad'],
                 'erp_kullanici_id' => $erpKullanici['erp_kullanici_id'],
+                // ERP'deki yetki her girişte tazelenir
+                'sistem_yoneticisi' => $erpKullanici['sistem_yoneticisi'],
             ],
         );
 

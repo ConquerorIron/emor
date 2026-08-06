@@ -85,6 +85,7 @@
       "oncelik": "Öncelik",
       "aciklama": "Açıklama",
       "ilgiKonusu": "İlgi konusu",
+      "ilgili": "İlgili kayıt",
       "projemiz": "Projemiz",
       "depoAdi": "Depo adı",
       "teslimatAdresi": "Teslimat adresi",
@@ -104,6 +105,7 @@
     "dogrulama": {
       "urunKoduZorunlu": "Ürün kodu zorunludur.",
       "enAzBirSatir": "En az bir talep satırı girilmelidir.",
+      "alanZorunlu": "Bu alan zorunludur.",
       "aciklamaUzun": "Açıklama en fazla 200 karakter olabilir.",
       "adresUzun": "Teslimat adresi en fazla 200 karakter olabilir."
     }
