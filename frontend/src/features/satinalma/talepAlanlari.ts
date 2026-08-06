@@ -23,7 +23,8 @@ export interface TalepAlani {
    * (ör. 'personel' → ERP view'ından aramalı react-select, 'tarih' → takvim,
    * 'opsiyonelTarih' → anahtarla açılan takvim, 'oncelik' → tablo maddesi,
    * 'aciklama200' → 200 karakter limitli açıklama, 'ilgiCinsi' → sabit liste,
-   * 'ilgili' → ilgi cinsine göre etiketi değişen bağlı alan, 'depo' → depo seçimi)
+   * 'ilgili' → ilgi cinsine göre etiketi değişen bağlı alan, 'depo' → depo seçimi,
+   * 'teslimatAdresi' → firmamız adresleri seçimi)
    */
   tip?:
     | 'personel'
@@ -34,6 +35,7 @@ export interface TalepAlani {
     | 'ilgiCinsi'
     | 'ilgili'
     | 'depo'
+    | 'teslimatAdresi'
 }
 
 /** Sol blok — talep başlık bilgileri (ERP ekranının sol paneli) */
@@ -52,7 +54,12 @@ export const TALEP_ALANLARI: TalepAlani[] = [
 /** Sağ blok — teslimat bilgileri (ERP ekranının sağ paneli) */
 export const TESLIMAT_ALANLARI: TalepAlani[] = [
   { ad: 'depo_adi', etiketAnahtari: 'depoAdi', tip: 'depo' },
-  { ad: 'teslimat_adresi', etiketAnahtari: 'teslimatAdresi', cokSatir: true },
+  {
+    ad: 'teslimat_adresi',
+    etiketAnahtari: 'teslimatAdresi',
+    tip: 'teslimatAdresi',
+    tamSatir: true,
+  },
   { ad: 'teslimat_bicimi', etiketAnahtari: 'teslimatBicimi' },
   { ad: 'teslimat_sekli', etiketAnahtari: 'teslimatSekli' },
   { ad: 'teslimat_suresi_tarih', etiketAnahtari: 'teslimatSuresiTarih' },

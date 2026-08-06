@@ -30,6 +30,8 @@ Route::prefix('v1')->group(function (): void {
             ->name('secenekler.ilgili');
         Route::get('/secenekler/depolar', [SecenekController::class, 'depolar'])
             ->name('secenekler.depolar');
+        Route::get('/secenekler/firmamiz-adresleri', [SecenekController::class, 'firmamizAdresleri'])
+            ->name('secenekler.firmamiz-adresleri');
 
         // Ayarlar → SQL Bağlantıları (Test/Canlı MSSQL tanımları + aktif ortam)
         Route::get('/ayarlar/sql-baglantilari', [SqlBaglantiController::class, 'index'])

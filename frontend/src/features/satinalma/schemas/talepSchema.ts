@@ -43,7 +43,10 @@ export const talepSchema = z.object({
   // Seçili deponun KAYIT_ID'si (parti yaması TUR=12) — sipariş SATIRLARININ
   // DEPOMUZ_ID alanına yazılır (başlık tablosunda depo yoktur)
   depomuz_id: z.string(),
-  teslimat_adresi: z.string(),
+  // Seçili adresin ADRES_ID'si — proc'ta @TESLIMAT_ADRESI_ID
+  teslimat_adresi_id: z.string(),
+  // Adres metni (seçimle dolar) — proc'ta @TESLIMAT_ADRESI (ACIKLAMA200)
+  teslimat_adresi: z.string().max(200, 'satinalma.dogrulama.adresUzun'),
   teslimat_bicimi: z.string(),
   teslimat_sekli: z.string(),
   teslimat_suresi_tarih: z.string(),
@@ -81,6 +84,7 @@ export const BOS_TALEP: TalepGirdisi = {
   ilgi_cinsi: VARSAYILAN_ILGI_CINSI,
   ilgili_id: '',
   depomuz_id: '',
+  teslimat_adresi_id: '',
   teslimat_adresi: '',
   teslimat_bicimi: '',
   teslimat_sekli: '',

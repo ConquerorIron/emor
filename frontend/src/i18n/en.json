@@ -87,7 +87,8 @@
     "dogrulama": {
       "urunKoduZorunlu": "Product code is required.",
       "enAzBirSatir": "At least one request line is required.",
-      "aciklamaUzun": "Description may be at most 200 characters."
+      "aciklamaUzun": "Description may be at most 200 characters.",
+      "adresUzun": "Delivery address may be at most 200 characters."
     }
   },
   "giris": {

@@ -47,6 +47,15 @@ describe('SatinalmaTalebiPage', () => {
     expect(screen.getByLabelText('Proje')).toBeInTheDocument()
   })
 
+  it('teslimat bloğundaki seçim alanları react-select olarak basılır', () => {
+    // Regresyon: ozelBilesenler yalnız talep bloğuna geçilmişti; teslimat
+    // alanları sessizce düz input'a düşüyordu (react-select girişi combobox'tır)
+    render(<SatinalmaTalebiPage />)
+
+    expect(screen.getByLabelText('Depo adı')).toHaveAttribute('role', 'combobox')
+    expect(screen.getByLabelText('Teslimat adresi')).toHaveAttribute('role', 'combobox')
+  })
+
   it('açıklama 200 karakterden fazlasını almaz', () => {
     render(<SatinalmaTalebiPage />)
 

@@ -87,7 +87,8 @@
     "dogrulama": {
       "urunKoduZorunlu": "Ürün kodu zorunludur.",
       "enAzBirSatir": "En az bir talep satırı girilmelidir.",
-      "aciklamaUzun": "Açıklama en fazla 200 karakter olabilir."
+      "aciklamaUzun": "Açıklama en fazla 200 karakter olabilir.",
+      "adresUzun": "Teslimat adresi en fazla 200 karakter olabilir."
     }
   },
   "giris": {

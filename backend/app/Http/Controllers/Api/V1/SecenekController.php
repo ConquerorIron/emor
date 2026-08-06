@@ -79,6 +79,36 @@ final class SecenekController extends Controller
     }
 
     /**
+     * Firmamızın adresleri (VOHOM_ARAMA_FIRMAMIZ_ADRESI; profiler kaydı
+     * 2026-08-06). Seçimde İKİ değer birden kullanılır: kayit_id proc'un
+     * TESLIMAT_ADRESI_ID parametresine, adres metni ise TESLIMAT_ADRESI
+     * (ACIKLAMA200) parametresine gider.
+     */
+    public function firmamizAdresleri(): JsonResponse
+    {
+        $satirlar = $this->mssql->baglan()->select(
+            'SELECT ADRES_ID AS kayit_id, ADRES_TIPI_ID AS adres_tipi_id,
+                    AD COLLATE Turkish_100_CI_AS AS ad, ADRES AS adres,
+                    SEMT AS semt, SEHIR AS sehir
+             FROM VOHOM_ARAMA_FIRMAMIZ_ADRESI
+             ORDER BY AD COLLATE Turkish_100_CI_AS',
+        );
+
+        return response()->json([
+            'data' => array_map(
+                static fn (object $satir): array => [
+                    'kayit_id' => (int) $satir->kayit_id,
+                    'ad' => (string) ($satir->ad ?? ''),
+                    'adres' => trim((string) ($satir->adres ?? '')),
+                    'semt' => trim((string) ($satir->semt ?? '')),
+                    'sehir' => trim((string) ($satir->sehir ?? '')),
+                ],
+                $satirlar,
+            ),
+        ]);
+    }
+
+    /**
      * İlgili kaydı seçenekleri — Satınalma Talebi "İlgi konusu" cinsine göre
      * farklı ERP arama view'larından okunur (@ILGILI_ID adayları; profiler
      * kayıtları 2026-08-05):

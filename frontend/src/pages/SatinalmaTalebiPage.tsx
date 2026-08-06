@@ -10,6 +10,7 @@ import { Input } from '@/components/Input'
 import { OpsiyonelTarihInput } from '@/components/OpsiyonelTarihInput'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 import { TarihInput } from '@/components/TarihInput'
+import { FirmamizAdresiSecimi } from '@/features/adres/FirmamizAdresiSecimi'
 import { DepoSecimi } from '@/features/depo/DepoSecimi'
 import { PersonelSecimi } from '@/features/personel/PersonelSecimi'
 import {
@@ -211,6 +212,26 @@ export function SatinalmaTalebiPage() {
         )}
       />
     ),
+    // Firmamız adresleri — seçim İKİ alanı doldurur: ID (@TESLIMAT_ADRESI_ID)
+    // ve adres metni (@TESLIMAT_ADRESI). Tek adres varsa ERP gibi dolu açılır.
+    teslimat_adresi: (
+      <Controller
+        name="teslimat_adresi_id"
+        control={control}
+        render={({ field }) => (
+          <FirmamizAdresiSecimi
+            id="alan-teslimat_adresi"
+            label={t('satinalma.alan.teslimatAdresi')}
+            deger={field.value}
+            degisti={(secim) => {
+              field.onChange(secim?.kayitId ?? '')
+              setValue('teslimat_adresi', secim?.adres ?? '')
+            }}
+            tekSeceneginiSec
+          />
+        )}
+      />
+    ),
     // Sabit liste (7/8/11/12/13) — @ILGI_CINSI; varsayılan Projemiz (7)
     ilgi_konusu: (
       <Controller
@@ -304,6 +325,7 @@ export function SatinalmaTalebiPage() {
           baslik={t('satinalma.teslimatBilgileri')}
           alanlar={TESLIMAT_ALANLARI}
           register={register}
+          ozelBilesenler={ozelBilesenler}
         />
       </div>
 
