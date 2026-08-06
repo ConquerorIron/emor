@@ -7,7 +7,7 @@ import { queryKeys } from '@/api/queryKeys'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 
 import type { IlgiCinsi } from './ilgiCinsleri'
-import { ilgiliSecenekleriGetir } from './ilgiliApi'
+import { ilgiliSecenekleriGetir } from './api'
 
 interface IlgiliSecimiProps {
   /** İlgi cinsi — seçenek kaynağını belirler (7=Proje, 8=Uygulama Sözleşmesi…) */

@@ -52,6 +52,18 @@ npm run test                 # vitest
 npm run build
 ```
 
+## Frontend klasör düzeni
+
+- `components/` — ERP bilmeyen genel arayüz parçaları (Button, Input, TarihInput,
+  SinirliMetinInput, SelectField…)
+- `secimler/` — **ERP seçim bileşenleri** (PersonelSecimi, DepoSecimi, OncelikSecimi,
+  TeslimatSekliSecimi…) ve hepsinin beslendiği tek `api.ts` (`/api/v1/secenekler/*`).
+  Bunlar feature DEĞİL, her ekranda tekrar kullanılan ortak bileşenlerdir — yeni bir
+  dürbün alanı eklerken buraya konur, ayrı klasör açılmaz.
+- `features/` — gerçek ekran/alan modülleri: `auth`, `ayarlar`, `ekranTasarim`
+  (tasarım motoru), `satinalma` (talep formuna özgü katalog bağlantısı + şema)
+- `pages/`, `layouts/`, `hooks/`, `utils/`, `api/` — alışıldık roller
+
 ## Ekran tasarım motoru (form düzenleri veriyle sürülür)
 
 Form ekranları koda gömülü DEĞİL; iki katman var:

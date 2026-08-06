@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
-import { VARSAYILAN_ALIM_YERI } from '@/features/satinalma/AlimYeriSecimi'
-import { VARSAYILAN_ILGI_CINSI } from '@/features/satinalma/ilgiCinsleri'
-import { VARSAYILAN_TESLIMAT_BICIMI } from '@/features/teslimat/TeslimatBicimiSecimi'
-import { VARSAYILAN_BIRIM } from '@/features/teslimat/teslimatSuresi'
+import { VARSAYILAN_ALIM_YERI } from '@/secimler/AlimYeriSecimi'
+import { VARSAYILAN_ILGI_CINSI } from '@/secimler/ilgiCinsleri'
+import { VARSAYILAN_TESLIMAT_BICIMI } from '@/secimler/TeslimatBicimiSecimi'
+import { VARSAYILAN_BIRIM } from '@/secimler/teslimatSuresi'
 import { bugunIso } from '@/utils/tarih'
 
 /**

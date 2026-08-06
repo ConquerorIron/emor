@@ -7,28 +7,28 @@ import { OpsiyonelTarihInput } from '@/components/OpsiyonelTarihInput'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 import { SinirliMetinInput } from '@/components/SinirliMetinInput'
 import { TarihInput } from '@/components/TarihInput'
-import { FirmamizAdresiSecimi } from '@/features/adres/FirmamizAdresiSecimi'
-import { DepoSecimi } from '@/features/depo/DepoSecimi'
+import { FirmamizAdresiSecimi } from '@/secimler/FirmamizAdresiSecimi'
+import { DepoSecimi } from '@/secimler/DepoSecimi'
 import { zorunluEtiket, type DuzenAlani, type KatalogAlani } from '@/features/ekranTasarim/types'
-import { PersonelSecimi } from '@/features/personel/PersonelSecimi'
-import { AlimYeriSecimi } from '@/features/satinalma/AlimYeriSecimi'
-import { IlgiliSecimi } from '@/features/satinalma/IlgiliSecimi'
+import { PersonelSecimi } from '@/secimler/PersonelSecimi'
+import { AlimYeriSecimi } from '@/secimler/AlimYeriSecimi'
+import { IlgiliSecimi } from '@/secimler/IlgiliSecimi'
 import {
   ARAMALI_ILGI_CINSLERI,
   ILGI_CINSLERI,
   VARSAYILAN_ILGI_CINSI,
   type IlgiCinsi,
-} from '@/features/satinalma/ilgiCinsleri'
+} from '@/secimler/ilgiCinsleri'
 import type { TalepGirdisi } from '@/features/satinalma/schemas/talepSchema'
-import { OncelikSecimi } from '@/features/tabloMaddesi/OncelikSecimi'
-import { TeslimatSekliSecimi } from '@/features/tabloMaddesi/TeslimatSekliSecimi'
-import { TeslimatBicimiSecimi } from '@/features/teslimat/TeslimatBicimiSecimi'
+import { OncelikSecimi } from '@/secimler/OncelikSecimi'
+import { TeslimatSekliSecimi } from '@/secimler/TeslimatSekliSecimi'
+import { TeslimatBicimiSecimi } from '@/secimler/TeslimatBicimiSecimi'
 import {
   sureyiTariheCevir,
   tarihiSureyeCevir,
   type TeslimatSuresiBirimi,
-} from '@/features/teslimat/teslimatSuresi'
-import { TeslimatSuresiSecimi } from '@/features/teslimat/TeslimatSuresiSecimi'
+} from '@/secimler/teslimatSuresi'
+import { TeslimatSuresiSecimi } from '@/secimler/TeslimatSuresiSecimi'
 
 type FormAnahtari = keyof TalepGirdisi
 
