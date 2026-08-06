@@ -45,6 +45,7 @@ const SAHTE_TASLAK = {
     katalogAlani('tarih'),
     // Tasarımda yeri yok → palette görünmeli
     katalogAlani('oncelik'),
+    katalogAlani('aciklama', { metin_alani: true, metin_limiti: 200 }),
   ],
   duzen: {
     bolumler: [
@@ -54,6 +55,7 @@ const SAHTE_TASLAK = {
         alanlar: [
           { alan: 'personelAdi', genislik: 6 },
           { alan: 'tarih', genislik: 6 },
+          { alan: 'aciklama', genislik: 12 },
         ],
       },
     ],
@@ -147,6 +149,28 @@ describe('EkranTasarimAyarlariPage', () => {
     await waitFor(() => {
       expect(screen.getByLabelText(/Bölüm başlığı/)).toHaveValue('')
     })
+  })
+
+  it('satır sayısı artır/azalt düğmeleriyle değişir ve sınırda durur', async () => {
+    render()
+    await screen.findByDisplayValue('Talep Bilgileri')
+
+    fireEvent.click(screen.getByText('Açıklama'))
+    fireEvent.click(await screen.findByRole('switch', { name: 'Çok satırlı (textarea)' }))
+
+    const artir = await screen.findByRole('button', { name: 'Satır sayısı artır' })
+    const azalt = screen.getByRole('button', { name: 'Satır sayısı azalt' })
+    const kutu = screen.getByLabelText('Satır sayısı')
+
+    expect(kutu).toHaveValue('2')
+    fireEvent.click(artir)
+    await waitFor(() => expect(kutu).toHaveValue('3'))
+
+    fireEvent.click(azalt)
+    fireEvent.click(azalt)
+    await waitFor(() => expect(kutu).toHaveValue('1'))
+    // Alt sınırda azaltma kapanır
+    expect(azalt).toBeDisabled()
   })
 
   it('taslak kaydedilir', async () => {

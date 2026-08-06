@@ -28,7 +28,7 @@ import {
   type TeslimatSuresiBirimi,
 } from '@/features/teslimat/teslimatSuresi'
 import { TeslimatSuresiSecimi } from '@/features/teslimat/TeslimatSuresiSecimi'
-import type { DuzenAlani, KatalogAlani } from '@/features/ekranTasarim/types'
+import { zorunluEtiket, type DuzenAlani, type KatalogAlani } from '@/features/ekranTasarim/types'
 
 /** Her giriş bileşeninin aldığı standart sözleşme. */
 export interface AlanGirisiProps {
@@ -37,6 +37,11 @@ export interface AlanGirisiProps {
   form: UseFormReturn<TalepGirdisi>
   /** Katalogdaki i18n anahtarından çözülmüş etiket (zorunluysa * eklenmiş) */
   etiket: string
+}
+
+/** Doğrulama mesajları i18n anahtarı taşır; gösterimden önce çevrilir. */
+function hataMetni(t: (anahtar: string) => string, anahtar?: string): string | undefined {
+  return anahtar ? t(anahtar) : undefined
 }
 
 function MetinGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
@@ -78,6 +83,7 @@ function MetinGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
 }
 
 function PersonelGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
+  const { t } = useTranslation()
   return (
     <Controller
       name="personel_id"
@@ -91,7 +97,7 @@ function PersonelGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
             field.onChange(secim?.kayitId ?? '')
             form.setValue('personel_adi', secim?.unvan ?? '')
           }}
-          hata={fieldState.error?.message}
+          hata={hataMetni(t, fieldState.error?.message)}
           disabled={duzen.salt_okunur === true}
         />
       )}
@@ -100,6 +106,7 @@ function PersonelGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
 }
 
 function TarihGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
+  const { t } = useTranslation()
   return (
     <Controller
       name="tarih"
@@ -110,7 +117,7 @@ function TarihGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
           label={etiket}
           value={field.value}
           onChange={field.onChange}
-          hata={fieldState.error?.message}
+          hata={hataMetni(t, fieldState.error?.message)}
           disabled={duzen.salt_okunur === true}
         />
       )}
@@ -119,6 +126,7 @@ function TarihGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
 }
 
 function OpsiyonelTarihGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
+  const { t } = useTranslation()
   return (
     <Controller
       name="termin"
@@ -129,7 +137,7 @@ function OpsiyonelTarihGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps)
           label={etiket}
           value={field.value}
           onChange={field.onChange}
-          hata={fieldState.error?.message}
+          hata={hataMetni(t, fieldState.error?.message)}
           disabled={duzen.salt_okunur === true}
         />
       )}
@@ -138,6 +146,7 @@ function OpsiyonelTarihGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps)
 }
 
 function OncelikGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
+  const { t } = useTranslation()
   return (
     <Controller
       name="oncelik_id"
@@ -148,7 +157,7 @@ function OncelikGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
           label={etiket}
           deger={field.value}
           degisti={(secim) => field.onChange(secim?.kayitId ?? '')}
-          hata={fieldState.error?.message}
+          hata={hataMetni(t, fieldState.error?.message)}
           disabled={duzen.salt_okunur === true}
         />
       )}
@@ -158,6 +167,7 @@ function OncelikGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
 
 /** Karakter sınırlı metin (Açıklama 200, Hakkında 3072…) — sınır katalogdan gelir. */
 function SinirliMetinGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
+  const { t } = useTranslation()
   const anahtar = katalog.veri_anahtarlari[0] as keyof TalepGirdisi
 
   return (
@@ -172,7 +182,7 @@ function SinirliMetinGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
           onChange={field.onChange}
           limit={katalog.metin_limiti || 200}
           rows={duzen.satir ?? 2}
-          hata={fieldState.error?.message}
+          hata={hataMetni(t, fieldState.error?.message)}
           disabled={duzen.salt_okunur === true}
         />
       )}
@@ -214,7 +224,8 @@ function IlgiCinsiGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
 function IlgiliGirisi({ katalog, duzen, form }: AlanGirisiProps) {
   const { t } = useTranslation()
   const cins = (form.watch('ilgi_cinsi') || VARSAYILAN_ILGI_CINSI) as IlgiCinsi
-  const etiket = t(`satinalma.ilgiliEtiket.${cins}`)
+  // Etiket cinsten üretildiği için zorunluluk yıldızı burada eklenir
+  const etiket = zorunluEtiket(t(`satinalma.ilgiliEtiket.${cins}`), duzen)
 
   return (
     <Controller
@@ -228,7 +239,7 @@ function IlgiliGirisi({ katalog, duzen, form }: AlanGirisiProps) {
             label={etiket}
             deger={field.value}
             degisti={field.onChange}
-            hata={fieldState.error?.message}
+            hata={hataMetni(t, fieldState.error?.message)}
             disabled={duzen.salt_okunur === true}
           />
         ) : (
@@ -238,7 +249,7 @@ function IlgiliGirisi({ katalog, duzen, form }: AlanGirisiProps) {
             autoComplete="off"
             value={field.value}
             onChange={field.onChange}
-            hata={fieldState.error?.message}
+            hata={hataMetni(t, fieldState.error?.message)}
             disabled={duzen.salt_okunur === true}
           />
         )
@@ -248,6 +259,7 @@ function IlgiliGirisi({ katalog, duzen, form }: AlanGirisiProps) {
 }
 
 function DepoGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
+  const { t } = useTranslation()
   return (
     <Controller
       name="depomuz_id"
@@ -258,7 +270,7 @@ function DepoGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
           label={etiket}
           deger={field.value}
           degisti={(secim) => field.onChange(secim?.kayitId ?? '')}
-          hata={fieldState.error?.message}
+          hata={hataMetni(t, fieldState.error?.message)}
           disabled={duzen.salt_okunur === true}
         />
       )}
@@ -267,6 +279,7 @@ function DepoGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
 }
 
 function TeslimatAdresiGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
+  const { t } = useTranslation()
   return (
     <Controller
       name="teslimat_adresi_id"
@@ -281,7 +294,7 @@ function TeslimatAdresiGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps)
             form.setValue('teslimat_adresi', secim?.adres ?? '')
           }}
           tekSeceneginiSec
-          hata={fieldState.error?.message}
+          hata={hataMetni(t, fieldState.error?.message)}
           disabled={duzen.salt_okunur === true}
         />
       )}
@@ -308,6 +321,7 @@ function TeslimatBicimiGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps)
 }
 
 function TeslimatSekliGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
+  const { t } = useTranslation()
   return (
     <Controller
       name="teslimat_sekli_id"
@@ -318,7 +332,7 @@ function TeslimatSekliGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) 
           label={etiket}
           deger={field.value}
           degisti={(secim) => field.onChange(secim?.kayitId ?? '')}
-          hata={fieldState.error?.message}
+          hata={hataMetni(t, fieldState.error?.message)}
           disabled={duzen.salt_okunur === true}
         />
       )}
@@ -348,6 +362,7 @@ function TeslimatSuresiTarihGirisi({ katalog, duzen, form, etiket }: AlanGirisiP
 }
 
 function TeslimatSuresiGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps) {
+  const { t } = useTranslation()
   const sure = form.watch('teslimat_suresi')
   const birim = form.watch('teslimat_suresi_birimi') as TeslimatSuresiBirimi
 
@@ -361,7 +376,7 @@ function TeslimatSuresiGirisi({ katalog, duzen, form, etiket }: AlanGirisiProps)
         form.setValue('teslimat_suresi', yeniSure)
         form.setValue('teslimat_suresi_birimi', yeniBirim)
       }}
-      hata={form.formState.errors.teslimat_suresi?.message}
+      hata={hataMetni(t, form.formState.errors.teslimat_suresi?.message)}
       disabled={duzen.salt_okunur === true}
     />
   )

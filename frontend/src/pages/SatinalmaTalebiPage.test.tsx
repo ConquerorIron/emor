@@ -216,6 +216,35 @@ describe('SatinalmaTalebiPage', () => {
     tasarimYaniti = SAHTE_TASARIM
   })
 
+  it('zorunlu işaretli alanlar yıldızla gösterilir ve kaydı engeller', async () => {
+    // Regresyon: etiketini kendi üreten alanlarda (ilgili kayıt) yıldız
+    // kayboluyordu — cinse göre "Proje"/"İş Paketi" olarak değiştiği için
+    tasarimYaniti = {
+      ...SAHTE_TASARIM,
+      duzen: {
+        bolumler: SAHTE_TASARIM.duzen.bolumler.map((bolum) => ({
+          ...bolum,
+          alanlar: bolum.alanlar.map((alan) =>
+            alan.alan === 'ilgili' || alan.alan === 'depo_adi' ? { ...alan, zorunlu: true } : alan,
+          ),
+        })),
+      },
+    }
+
+    await formuAc()
+
+    // Etiketi katalogdan gelen alan
+    expect(screen.getByLabelText('Depo adı *')).toBeInTheDocument()
+    // Etiketi ilgi cinsinden üretilen alan (varsayılan cins 7 → "Proje")
+    expect(screen.getByLabelText('Proje *')).toBeInTheDocument()
+
+    // Boşken kaydet: doğrulama da gerçekten çalışıyor
+    fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
+    await waitFor(() => {
+      expect(screen.getAllByText('Bu alan zorunludur.').length).toBeGreaterThan(0)
+    })
+  })
+
   it('teslimat biçimi varsayılan Tam (0), alım yeri Merkez (0) gelir', async () => {
     await formuAc()
 

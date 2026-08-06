@@ -13,6 +13,7 @@ import { ekranTasariminiGetir } from '@/features/ekranTasarim/api'
 import {
   bolumGenisligiSinifi,
   genislikSinifi,
+  zorunluEtiket,
   type DuzenBolumu,
   type EkranTasarimi,
   type KatalogAlani,
@@ -75,7 +76,7 @@ function TasarimBolumu({
             return null
           }
 
-          const etiket = t(katalog.etiket_anahtari) + (duzenAlani.zorunlu ? ' *' : '')
+          const etiket = zorunluEtiket(t(katalog.etiket_anahtari), duzenAlani)
 
           return (
             <div key={duzenAlani.alan} className={genislikSinifi(duzenAlani.genislik)}>

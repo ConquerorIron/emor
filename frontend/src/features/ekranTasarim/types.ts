@@ -107,6 +107,15 @@ const BOLUM_SINIFLARI: Record<number, string> = {
   12: 'xl:col-span-12',
 }
 
+/**
+ * Zorunlu alanların etiketine yıldız ekler. Etiketini kendi üreten girişler de
+ * (ör. ilgi cinsine göre adı değişen bağlı alan) bunu kullanmalı — yoksa
+ * zorunluluk işareti sessizce kaybolur.
+ */
+export function zorunluEtiket(metin: string, duzen: DuzenAlani): string {
+  return duzen.zorunlu === true ? `${metin} *` : metin
+}
+
 export function genislikSinifi(genislik: number): string {
   return ALAN_SINIFLARI[genislik] ?? ALAN_SINIFLARI[6]
 }

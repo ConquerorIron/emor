@@ -1,10 +1,71 @@
 import { useTranslation } from 'react-i18next'
 
-import { Input } from '@/components/Input'
 import { Switch } from '@/components/Switch'
 
 import type { DuzenAlani, KatalogAlani } from './types'
 import { VarsayilanDegerSecici } from './VarsayilanDegerSecici'
+
+/** Artır/azalt düğmeli sayı girişi — sınır dışına çıkılamaz. */
+function SayiAyari({
+  id,
+  label,
+  deger,
+  enAz,
+  enCok,
+  degisti,
+}: {
+  id: string
+  label: string
+  deger: number
+  enAz: number
+  enCok: number
+  degisti: (deger: number) => void
+}) {
+  const sinirla = (sayi: number) => Math.max(enAz, Math.min(enCok, sayi))
+  const dugmeSinifi =
+    'flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-slate-300 text-lg font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800'
+
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        className="block text-sm font-semibold text-slate-700 dark:text-slate-300"
+      >
+        {label}
+      </label>
+      <div className="mt-1 flex items-center gap-2">
+        <button
+          type="button"
+          aria-label={`${label} azalt`}
+          disabled={deger <= enAz}
+          onClick={() => degisti(sinirla(deger - 1))}
+          className={dugmeSinifi}
+        >
+          −
+        </button>
+        <input
+          id={id}
+          inputMode="numeric"
+          maxLength={2}
+          value={String(deger)}
+          onChange={(olay) =>
+            degisti(sinirla(Number(olay.target.value.replace(/\D/g, '')) || enAz))
+          }
+          className="h-9 w-14 rounded-lg border border-slate-300 bg-white text-center text-sm text-slate-900 shadow-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-900"
+        />
+        <button
+          type="button"
+          aria-label={`${label} artır`}
+          disabled={deger >= enCok}
+          onClick={() => degisti(sinirla(deger + 1))}
+          className={dugmeSinifi}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  )
+}
 
 interface AlanAyarPaneliProps {
   katalog: KatalogAlani
@@ -107,15 +168,13 @@ export function AlanAyarPaneli({ katalog, duzen, degisti, kaldir }: AlanAyarPane
               vurgulu={false}
             />
             {duzen.gorunum === 'textarea' ? (
-              <Input
+              <SayiAyari
                 id={`ayar-satir-${katalog.anahtar}`}
                 label={t('tasarim.satirSayisi')}
-                inputMode="numeric"
-                maxLength={2}
-                value={String(duzen.satir ?? 2)}
-                onChange={(olay) =>
-                  degisti({ satir: Math.max(1, Math.min(10, Number(olay.target.value) || 1)) })
-                }
+                deger={duzen.satir ?? 2}
+                enAz={1}
+                enCok={10}
+                degisti={(satir) => degisti({ satir })}
               />
             ) : null}
           </>
