@@ -25,7 +25,9 @@ export interface TalepAlani {
    * 'aciklama200' → 200 karakter limitli açıklama, 'ilgiCinsi' → sabit liste,
    * 'ilgili' → ilgi cinsine göre etiketi değişen bağlı alan, 'depo' → depo seçimi,
    * 'teslimatAdresi' → firmamız adresleri seçimi, 'teslimatBicimi' → sabit
-   * liste (Tam/Parçalı), 'teslimatSekli' → tablo maddesi TUR=53)
+   * liste (Tam/Parçalı), 'teslimatSekli' → tablo maddesi TUR=53,
+   * 'teslimatSuresiTarih'/'teslimatSuresi' → birbirine bağlı süre alanları,
+   * 'alimYeri' → sabit liste)
    */
   tip?:
     | 'personel'
@@ -39,6 +41,9 @@ export interface TalepAlani {
     | 'teslimatAdresi'
     | 'teslimatBicimi'
     | 'teslimatSekli'
+    | 'teslimatSuresiTarih'
+    | 'teslimatSuresi'
+    | 'alimYeri'
 }
 
 /** Sol blok — talep başlık bilgileri (ERP ekranının sol paneli) */
@@ -65,9 +70,14 @@ export const TESLIMAT_ALANLARI: TalepAlani[] = [
   },
   { ad: 'teslimat_bicimi', etiketAnahtari: 'teslimatBicimi', tip: 'teslimatBicimi' },
   { ad: 'teslimat_sekli', etiketAnahtari: 'teslimatSekli', tip: 'teslimatSekli' },
-  { ad: 'teslimat_suresi_tarih', etiketAnahtari: 'teslimatSuresiTarih' },
-  { ad: 'teslimat_suresi_sure', etiketAnahtari: 'teslimatSuresiSure' },
-  { ad: 'alim_yeri', etiketAnahtari: 'alimYeri' },
+  // Bu ikisi senkron çalışır: aynı veriyi (süre+birim) iki farklı biçimde girer
+  {
+    ad: 'teslimat_suresi_tarih',
+    etiketAnahtari: 'teslimatSuresiTarih',
+    tip: 'teslimatSuresiTarih',
+  },
+  { ad: 'teslimat_suresi_sure', etiketAnahtari: 'teslimatSuresiSure', tip: 'teslimatSuresi' },
+  { ad: 'alim_yeri', etiketAnahtari: 'alimYeri', tip: 'alimYeri' },
 ]
 
 /** Satır grid kolonları (# ve sil kolonu hariç) */

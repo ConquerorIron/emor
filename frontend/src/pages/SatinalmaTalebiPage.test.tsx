@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import '../i18n/i18n'
 import { AppProviders } from '../providers/AppProviders'
-import { bugunIso, tarihGoster } from '../utils/tarih'
+import { bugunIso, gunEkle, tarihGoster } from '../utils/tarih'
 import { SatinalmaTalebiPage } from './SatinalmaTalebiPage'
 
 // Sayfa useQuery (personel seçenekleri) ve SelectField (tema) kullanır
@@ -58,10 +58,27 @@ describe('SatinalmaTalebiPage', () => {
     expect(screen.getByLabelText('Teslimat şekli')).toHaveAttribute('role', 'combobox')
   })
 
-  it('teslimat biçimi varsayılan Tam (0) gelir', () => {
+  it('teslimat biçimi varsayılan Tam (0), alım yeri Merkez (0) gelir', () => {
     render(<SatinalmaTalebiPage />)
 
     expect(screen.getByText('Tam', { selector: '.erp-select__single-value' })).toBeInTheDocument()
+    expect(
+      screen.getByText('Merkez', { selector: '.erp-select__single-value' }),
+    ).toBeInTheDocument()
+  })
+
+  it('teslimat süresi girilince tarih alanı senkron dolar', async () => {
+    render(<SatinalmaTalebiPage />)
+
+    const tarihAlani = screen.getByLabelText('Teslimat süresi (Tarih)')
+    expect(tarihAlani).toHaveValue('')
+
+    // Varsayılan birim gün: talep tarihi (bugün) + 21 gün
+    fireEvent.change(screen.getByLabelText('Teslimat süresi (Süre)'), { target: { value: '21' } })
+
+    await waitFor(() => {
+      expect(tarihAlani).toHaveValue(tarihGoster(gunEkle(bugunIso(), 21)))
+    })
   })
 
   it('açıklama 200 karakterden fazlasını almaz', () => {

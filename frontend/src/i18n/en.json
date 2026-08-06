@@ -40,7 +40,13 @@
     "bicim": {
       "0": "Full",
       "1": "Partial"
-    }
+    },
+    "sureBirimi": {
+      "3": "days",
+      "4": "weeks",
+      "5": "months"
+    },
+    "sureBirimiEtiketi": "Duration unit"
   },
   "satinalma": {
     "baslik": "Purchase Request",
@@ -51,6 +57,11 @@
     "satirEkle": "Add Line",
     "satirSil": "Remove line",
     "otomatik": "Generated automatically on save",
+    "alimYeri": {
+      "0": "Central",
+      "1": "Local",
+      "2": "Import"
+    },
     "ilgiCinsi": {
       "7": "Our Project",
       "8": "Application Contract",

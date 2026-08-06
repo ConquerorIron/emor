@@ -40,7 +40,13 @@
     "bicim": {
       "0": "Tam",
       "1": "Parçalı"
-    }
+    },
+    "sureBirimi": {
+      "3": "gün",
+      "4": "hafta",
+      "5": "ay"
+    },
+    "sureBirimiEtiketi": "Süre birimi"
   },
   "satinalma": {
     "baslik": "Satınalma Talebi",
@@ -51,6 +57,11 @@
     "satirEkle": "Satır Ekle",
     "satirSil": "Satırı sil",
     "otomatik": "Kayıtta otomatik üretilir",
+    "alimYeri": {
+      "0": "Merkez",
+      "1": "Yerel",
+      "2": "İthalat"
+    },
     "ilgiCinsi": {
       "7": "Projemiz",
       "8": "Uygulama Sözleşmesi",

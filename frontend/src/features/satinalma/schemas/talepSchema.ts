@@ -1,7 +1,9 @@
 import { z } from 'zod'
 
+import { VARSAYILAN_ALIM_YERI } from '@/features/satinalma/AlimYeriSecimi'
 import { VARSAYILAN_ILGI_CINSI } from '@/features/satinalma/ilgiCinsleri'
 import { VARSAYILAN_TESLIMAT_BICIMI } from '@/features/teslimat/TeslimatBicimiSecimi'
+import { VARSAYILAN_BIRIM } from '@/features/teslimat/teslimatSuresi'
 import { bugunIso } from '@/utils/tarih'
 
 /**
@@ -52,8 +54,11 @@ export const talepSchema = z.object({
   teslimat_bicimi: z.string(),
   // Seçili şeklin TABLO_MADDESI_ID'si (TUR=53) — proc'ta @TESLIMAT_SEKLI_ID
   teslimat_sekli_id: z.string(),
-  teslimat_suresi_tarih: z.string(),
-  teslimat_suresi_sure: z.string(),
+  // Süre + birim birlikte saklanır; ekrandaki tarih bunlardan hesaplanan
+  // gösterimdir — proc'ta @TESLIMAT_SURESI ve @TESLIMAT_SURESI_BIRIMI
+  teslimat_suresi: z.string(),
+  teslimat_suresi_birimi: z.string(),
+  // Sabit değer: 0=Merkez, 1=Yerel, 2=İthalat — proc'ta @ALIM_YERI
   alim_yeri: z.string(),
 
   satirlar: z.array(talepSatiriSchema).min(1, 'satinalma.dogrulama.enAzBirSatir'),
@@ -92,8 +97,9 @@ export const BOS_TALEP: TalepGirdisi = {
   // ERP formu "Tam" ile açılır
   teslimat_bicimi: VARSAYILAN_TESLIMAT_BICIMI,
   teslimat_sekli_id: '',
-  teslimat_suresi_tarih: '',
-  teslimat_suresi_sure: '',
-  alim_yeri: '',
+  teslimat_suresi: '',
+  teslimat_suresi_birimi: VARSAYILAN_BIRIM,
+  // ERP formu "Merkez" ile açılır
+  alim_yeri: VARSAYILAN_ALIM_YERI,
   satirlar: [{ ...BOS_SATIR }],
 }

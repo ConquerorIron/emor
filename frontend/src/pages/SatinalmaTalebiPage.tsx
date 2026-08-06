@@ -13,6 +13,7 @@ import { TarihInput } from '@/components/TarihInput'
 import { FirmamizAdresiSecimi } from '@/features/adres/FirmamizAdresiSecimi'
 import { DepoSecimi } from '@/features/depo/DepoSecimi'
 import { PersonelSecimi } from '@/features/personel/PersonelSecimi'
+import { AlimYeriSecimi } from '@/features/satinalma/AlimYeriSecimi'
 import {
   ARAMALI_ILGI_CINSLERI,
   ILGI_CINSLERI,
@@ -23,6 +24,12 @@ import { IlgiliSecimi } from '@/features/satinalma/IlgiliSecimi'
 import { OncelikSecimi } from '@/features/tabloMaddesi/OncelikSecimi'
 import { TeslimatSekliSecimi } from '@/features/tabloMaddesi/TeslimatSekliSecimi'
 import { TeslimatBicimiSecimi } from '@/features/teslimat/TeslimatBicimiSecimi'
+import {
+  sureyiTariheCevir,
+  tarihiSureyeCevir,
+  type TeslimatSuresiBirimi,
+} from '@/features/teslimat/teslimatSuresi'
+import { TeslimatSuresiSecimi } from '@/features/teslimat/TeslimatSuresiSecimi'
 import {
   SATIR_ALANLARI,
   TALEP_ALANLARI,
@@ -125,6 +132,13 @@ export function SatinalmaTalebiPage() {
   // İlgi cinsi seçimi "ilgili" alanının etiketini ve arama kaynağını belirler
   // (Proje / Uygulama Sözleşmesi / …); cins değişince önceki seçim sıfırlanır
   const ilgiCinsi = (watch('ilgi_cinsi') || VARSAYILAN_ILGI_CINSI) as IlgiCinsi
+
+  // Teslimat süresi: veri süre+birim olarak tutulur; tarih bunlardan hesaplanan
+  // gösterimdir (temel = talebin Tarih alanı). İki alan da diğerini günceller.
+  const talepTarihi = watch('tarih')
+  const teslimatSuresi = watch('teslimat_suresi')
+  const teslimatSuresiBirimi = watch('teslimat_suresi_birimi') as TeslimatSuresiBirimi
+  const teslimatSuresiTarihi = sureyiTariheCevir(talepTarihi, teslimatSuresi, teslimatSuresiBirimi)
   const ilgiCinsiSecenekleri: SecenekOgesi[] = ILGI_CINSLERI.map((cins) => ({
     value: cins,
     label: t(`satinalma.ilgiCinsi.${cins}`),
@@ -260,6 +274,47 @@ export function SatinalmaTalebiPage() {
             label={t('satinalma.alan.teslimatSekli')}
             deger={field.value}
             degisti={(secim) => field.onChange(secim?.kayitId ?? '')}
+          />
+        )}
+      />
+    ),
+    // Süre alanının tarih yüzü: seçilen tarih süre+birime geri çevrilir
+    teslimat_suresi_tarih: (
+      <TarihInput
+        id="alan-teslimat_suresi_tarih"
+        label={t('satinalma.alan.teslimatSuresiTarih')}
+        value={teslimatSuresiTarihi}
+        onChange={(iso) => {
+          const { sure, birim } = tarihiSureyeCevir(talepTarihi, iso, teslimatSuresiBirimi)
+          setValue('teslimat_suresi', sure)
+          setValue('teslimat_suresi_birimi', birim)
+        }}
+      />
+    ),
+    // Miktar + birim (gün/hf/ay) — @TESLIMAT_SURESI, @TESLIMAT_SURESI_BIRIMI
+    teslimat_suresi_sure: (
+      <TeslimatSuresiSecimi
+        id="alan-teslimat_suresi"
+        label={t('satinalma.alan.teslimatSuresiSure')}
+        sure={teslimatSuresi}
+        birim={teslimatSuresiBirimi}
+        degisti={(sure, birim) => {
+          setValue('teslimat_suresi', sure)
+          setValue('teslimat_suresi_birimi', birim)
+        }}
+      />
+    ),
+    // Sabit değerler: Merkez=0, Yerel=1, İthalat=2 — @ALIM_YERI
+    alim_yeri: (
+      <Controller
+        name="alim_yeri"
+        control={control}
+        render={({ field }) => (
+          <AlimYeriSecimi
+            id="alan-alim_yeri"
+            label={t('satinalma.alan.alimYeri')}
+            deger={field.value}
+            degisti={field.onChange}
           />
         )}
       />
