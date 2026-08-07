@@ -27,6 +27,10 @@ export const talepSatiriSchema = z.object({
   urun_kodu: z.string(),
   barkod: z.string(),
   urun_adi: z.string(),
+  // Ürünün ölçü sistemi: adı ve Miktar alanının ondalık basamak sayısı.
+  // Ekranda sütunu yok; seçimle birlikte satıra taşınır.
+  urun_birimi: z.string(),
+  urun_basamak_sayisi: z.string(),
 
   // ——— Aşağıdakiler henüz tarif edilmedi: kolonlar açık, hücreler serbest
   // metin. Her biri tarif edildikçe kendi ERP tipine (seçim/sayı/tarih/bool)
@@ -44,7 +48,9 @@ export const talepSatiriSchema = z.object({
   personel_id: z.string(),
   personel_adi: z.string(),
   urun_tarifi: z.string(),
-  ambalaj: z.string(),
+  ambalaj_id: z.string(),
+  ambalaj_adi: z.string(),
+  ambalaj_basamak_sayisi: z.string(),
   ambalaj_miktari: z.string(),
   darali_miktar: z.string(),
   miktar: z.string(),
@@ -158,6 +164,8 @@ export const BOS_SATIR: TalepSatiri = {
   urun_kodu: '',
   barkod: '',
   urun_adi: '',
+  urun_birimi: '',
+  urun_basamak_sayisi: '',
   ekipman_id: '',
   ekipman_adi: '',
   butce_kalemi_id: '',
@@ -169,7 +177,9 @@ export const BOS_SATIR: TalepSatiri = {
   personel_id: '',
   personel_adi: '',
   urun_tarifi: '',
-  ambalaj: '',
+  ambalaj_id: '',
+  ambalaj_adi: '',
+  ambalaj_basamak_sayisi: '',
   ambalaj_miktari: '',
   darali_miktar: '',
   miktar: '',

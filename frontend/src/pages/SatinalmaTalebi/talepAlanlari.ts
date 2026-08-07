@@ -14,6 +14,12 @@ import type { TalepSatiri } from './talepSchema'
 export type SatirHucreTanimi =
   /** Serbest metin — değeri satırda kendi anahtarında durur */
   | { tip: 'metin'; ad: keyof TalepSatiri }
+  /**
+   * Sayısal giriş. Ondalık basamak sayısı ERP'de sabit değildir: seçilen
+   * kaydın ölçü sisteminden gelir ve `basamakAnahtari` ile satırdan okunur
+   * (ör. Miktar → ürünün birimi, Amb. miktarı → kabın kapasite birimi).
+   */
+  | { tip: 'sayi'; ad: keyof TalepSatiri; basamakAnahtari: keyof TalepSatiri }
   /** Kullanıcı giremez; değer başlıktan türer (satırda saklanmaz) */
   | { tip: 'yansima' }
   /**
@@ -71,10 +77,16 @@ export const SATIR_ALANLARI: TalepAlani[] = [
   { etiketAnahtari: 'duranVarlik', hucre: { tip: 'secim', kaynak: 'duranVarlik', goster: 'ad' } },
   { etiketAnahtari: 'personelAdi', hucre: { tip: 'secim', kaynak: 'personel', goster: 'ad' } },
   { etiketAnahtari: 'urunTarifi', hucre: { tip: 'metin', ad: 'urun_tarifi' } },
-  { etiketAnahtari: 'ambalaj', hucre: { tip: 'metin', ad: 'ambalaj' } },
-  { etiketAnahtari: 'ambalajMiktari', hucre: { tip: 'metin', ad: 'ambalaj_miktari' } },
+  { etiketAnahtari: 'ambalaj', hucre: { tip: 'secim', kaynak: 'ambalaj', goster: 'ad' } },
+  {
+    etiketAnahtari: 'ambalajMiktari',
+    hucre: { tip: 'sayi', ad: 'ambalaj_miktari', basamakAnahtari: 'ambalaj_basamak_sayisi' },
+  },
   { etiketAnahtari: 'daraliMiktar', hucre: { tip: 'metin', ad: 'darali_miktar' } },
-  { etiketAnahtari: 'miktar', hucre: { tip: 'metin', ad: 'miktar' } },
+  {
+    etiketAnahtari: 'miktar',
+    hucre: { tip: 'sayi', ad: 'miktar', basamakAnahtari: 'urun_basamak_sayisi' },
+  },
   { etiketAnahtari: 'birimFiyati', hucre: { tip: 'metin', ad: 'birim_fiyati' } },
   { etiketAnahtari: 'birimFiyatiKuru', hucre: { tip: 'metin', ad: 'birim_fiyati_kuru' } },
   { etiketAnahtari: 'tutar', hucre: { tip: 'metin', ad: 'tutar' } },

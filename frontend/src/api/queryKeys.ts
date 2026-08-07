@@ -29,6 +29,7 @@ export const queryKeys = {
     ekipmanlar: ['secenekler', 'ekipmanlar'],
     butceKalemleri: (projemizId: string) => ['secenekler', 'butceKalemleri', projemizId] as const,
     duranVarliklar: ['secenekler', 'duranVarliklar'],
+    ambalajlar: ['secenekler', 'ambalajlar'],
     // Satırdaki personel — başlıktaki 'personeller' listesinden farklı kaynak
     partiYamasiPersonelleri: ['secenekler', 'partiYamasiPersonelleri'],
   },

@@ -50,6 +50,8 @@ Route::prefix('v1')->group(function (): void {
             ->name('secenekler.butce-kalemleri');
         Route::get('/secenekler/duran-varliklar', [SecenekController::class, 'duranVarliklar'])
             ->name('secenekler.duran-varliklar');
+        Route::get('/secenekler/ambalajlar', [SecenekController::class, 'ambalajlar'])
+            ->name('secenekler.ambalajlar');
         // Satırdaki personel: parti yaması ağacından (başlıktaki İK kartı değil)
         Route::get('/secenekler/parti-yamasi-personelleri', [SecenekController::class, 'partiYamasiPersonelleri'])
             ->name('secenekler.parti-yamasi-personelleri');

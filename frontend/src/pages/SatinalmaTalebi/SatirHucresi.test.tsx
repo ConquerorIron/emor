@@ -15,8 +15,23 @@ const AKTIVITELER = [
 ]
 
 const URUNLER = [
-  { kayit_id: 3707, kod: '01.01.01.0001', ad: 'CURUF VOLKANİK', barkod: '8690000000017' },
-  { kayit_id: 3710, kod: '01.01.01.0002', ad: 'ÇİMENTO CEM I 42.5', barkod: '8690000000024' },
+  {
+    kayit_id: 3707,
+    kod: '01.01.01.0001',
+    ad: 'CURUF VOLKANİK',
+    barkod: '8690000000017',
+    birim: 'Ad',
+    basamak: 6,
+  },
+  {
+    kayit_id: 3710,
+    kod: '01.01.01.0002',
+    ad: 'ÇİMENTO CEM I 42.5',
+    barkod: '8690000000024',
+    // m3 ölçü sistemi: iki basamak
+    birim: 'm3',
+    basamak: 2,
+  },
 ]
 
 const EKIPMANLAR = [
@@ -165,6 +180,29 @@ describe('SatirHucresi — çift yüzlü seçim', () => {
     await waitFor(() => {
       expect(screen.getByTestId('secili-id')).toHaveTextContent('42')
     })
+  })
+
+  it('miktarın ondalık hassasiyeti seçilen ürünün ölçü sisteminden gelir', async () => {
+    render(
+      <AppProviders>
+        <Yuzler etiketler={['urunKodu', 'miktar']} izlenen="satirlar.0.urun_basamak_sayisi" />
+      </AppProviders>,
+    )
+
+    const miktar = screen.getByLabelText('Miktar 1')
+
+    // Ürün seçilmeden varsayılan hassasiyet (2 basamak) uygulanır
+    fireEvent.change(miktar, { target: { value: '1,23456' } })
+    expect(miktar).toHaveValue('1,23')
+
+    // m3 ürünü de 2 basamak; "Ad" ürünü 6 basamağa izin verir
+    await secenegiSec(screen.getByLabelText('Ürün kodu 1'), '01.01.01.0001')
+    await waitFor(() => {
+      expect(screen.getByTestId('secili-id')).toHaveTextContent('6')
+    })
+
+    fireEvent.change(miktar, { target: { value: '1,23456' } })
+    expect(miktar).toHaveValue('1,23456')
   })
 
   it('proje seçilmeden aktivite seçilemez', async () => {

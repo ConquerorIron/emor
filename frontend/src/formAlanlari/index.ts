@@ -18,6 +18,7 @@ export type { GirisBaglami, GirisTanimi, OrtakGirisProps } from './ortakTipler'
 // editöründeki "varsayılan değer" seçicisi aynı bileşenleri gösterir)
 export { AktiviteSecimi } from './bilesenler/AktiviteSecimi'
 export { AlimYeriSecimi } from './bilesenler/AlimYeriSecimi'
+export { AmbalajSecimi } from './bilesenler/AmbalajSecimi'
 export { ButceBolumuSecimi } from './bilesenler/ButceBolumuSecimi'
 export { ButceKalemiSecimi } from './bilesenler/ButceKalemiSecimi'
 export { CokYuzluSecim, type KayitSecimProps, type KayitYuzleri } from './bilesenler/CokYuzluSecim'

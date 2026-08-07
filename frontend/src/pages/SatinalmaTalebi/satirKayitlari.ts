@@ -25,10 +25,22 @@ export const SATIR_KAYITLARI = {
     idAnahtari: 'masraf_merkezi_id',
     yuzler: { kod: 'masraf_merkezi_kodu', ad: 'masraf_merkezi_adi' },
   },
-  // TOHOM_SIPARIS_SATIRI.URUN_YAMASI_ID — üç yüzden biri seçilmesi yeterli
+  // TOHOM_SIPARIS_SATIRI.URUN_YAMASI_ID — üç yüzden biri seçilmesi yeterli.
+  // `basamak` ekranda sütunu olmayan bir yüzdür: Miktar alanının ondalık
+  // hassasiyetini ürünün ölçü sisteminden taşır.
   urun: {
     idAnahtari: 'urun_yamasi_id',
-    yuzler: { kod: 'urun_kodu', barkod: 'barkod', ad: 'urun_adi' },
+    yuzler: {
+      kod: 'urun_kodu',
+      barkod: 'barkod',
+      ad: 'urun_adi',
+      birim: 'urun_birimi',
+      basamak: 'urun_basamak_sayisi',
+    },
+  },
+  ambalaj: {
+    idAnahtari: 'ambalaj_id',
+    yuzler: { ad: 'ambalaj_adi', basamak: 'ambalaj_basamak_sayisi' },
   },
   // Aşağıdakiler tek yüzlü: ekranda yalnız AD görünür, ERP'ye KAYIT_ID gider
   ekipman: { idAnahtari: 'ekipman_id', yuzler: { ad: 'ekipman_adi' } },

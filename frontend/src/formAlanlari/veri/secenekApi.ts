@@ -108,6 +108,10 @@ export type UrunSecenegi = {
   kod: string
   ad: string
   barkod: string
+  /** Ürünün ölçü sistemi adı (Ad, m3, Kg…) */
+  birim: string
+  /** Miktar alanının ondalık basamak sayısı — ölçü sisteminden gelir */
+  basamak: number
 }
 
 export async function urunSecenekleriGetir(ara: string): Promise<UrunSecenegi[]> {
@@ -154,6 +158,21 @@ export async function butceKalemiSecenekleriGetir(
   const yanit = await api.get<{ data: ButceKalemiSecenegi[] }>(
     `/api/v1/secenekler/butce-kalemleri/${projemizId}`,
   )
+
+  return yanit.data.data
+}
+
+/** VOHOM_ARAMA_KAP — kayit_id = KAP_ID; basamak, kabın kapasite ölçü sisteminden */
+export type AmbalajSecenegi = {
+  kayit_id: number
+  kod: string
+  ad: string
+  barkod: string
+  basamak: number
+}
+
+export async function ambalajSecenekleriGetir(): Promise<AmbalajSecenegi[]> {
+  const yanit = await api.get<{ data: AmbalajSecenegi[] }>('/api/v1/secenekler/ambalajlar')
 
   return yanit.data.data
 }

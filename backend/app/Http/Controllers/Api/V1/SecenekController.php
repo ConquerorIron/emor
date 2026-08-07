@@ -366,6 +366,9 @@ final class SecenekController extends Controller
     /** Ürün listesi büyük olduğu için tek istekte dönen azami kayıt */
     private const URUN_AZAMI = 50;
 
+    /** Ölçü sistemi tanımsızsa miktar alanının ondalık basamak sayısı */
+    private const VARSAYILAN_BASAMAK = 2;
+
     /**
      * Ürün seçenekleri — VOHOM_ARAMA_URUN_YAMASI (TUR=6, profiler kaydı
      * 2026-08-07). kayit_id = URUN_YAMASI_ID →
@@ -388,19 +391,23 @@ final class SecenekController extends Controller
             // LIKE joker karakterleri düz metin sayılır ('%' arayan kullanıcı
             // tüm listeyi getirmesin)
             $desen = '%'.str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $ara).'%';
-            $aramaKosulu = 'AND (KOD COLLATE Turkish_100_CI_AS LIKE ?
-                             OR AD COLLATE Turkish_100_CI_AS LIKE ?
-                             OR BARKOD COLLATE Turkish_100_CI_AS LIKE ?)';
+            $aramaKosulu = 'AND (U.KOD COLLATE Turkish_100_CI_AS LIKE ?
+                             OR U.AD COLLATE Turkish_100_CI_AS LIKE ?
+                             OR U.BARKOD COLLATE Turkish_100_CI_AS LIKE ?)';
             array_push($parametreler, $desen, $desen, $desen);
         }
 
+        // Miktar alanının ondalık hassasiyeti ürünün ölçü sisteminden gelir
+        // (ör. "Ad" → 6 basamak, "m3" → 4); satır seçimle birlikte taşır
         $satirlar = $this->mssql->baglan()->select(
-            'SELECT TOP '.self::URUN_AZAMI.' URUN_YAMASI_ID AS kayit_id,
-                    KOD COLLATE Turkish_100_CI_AS AS kod, AD AS ad, BARKOD AS barkod
-             FROM VOHOM_ARAMA_URUN_YAMASI
-             WHERE TUR = 6 AND (GUVENLIK_KODU_ID IS NULL OR GRUP_KULLANICISI_ID = ?)
+            'SELECT TOP '.self::URUN_AZAMI.' U.URUN_YAMASI_ID AS kayit_id,
+                    U.KOD COLLATE Turkish_100_CI_AS AS kod, U.AD AS ad, U.BARKOD AS barkod,
+                    U.OLCU_SISTEMI AS birim, O.MIKTAR_BASAMAK_SAYISI AS basamak
+             FROM VOHOM_ARAMA_URUN_YAMASI U
+                LEFT OUTER JOIN TOHOM_OLCU_SISTEMI O ON O.OLCU_SISTEMI_ID = U.OLCU_SISTEMI_ID
+             WHERE U.TUR = 6 AND (U.GUVENLIK_KODU_ID IS NULL OR U.GRUP_KULLANICISI_ID = ?)
              '.$aramaKosulu.'
-             ORDER BY KOD COLLATE Turkish_100_CI_AS',
+             ORDER BY U.KOD COLLATE Turkish_100_CI_AS',
             $parametreler,
         );
 
@@ -411,6 +418,39 @@ final class SecenekController extends Controller
                     'kod' => rtrim((string) $satir->kod),
                     'ad' => (string) ($satir->ad ?? ''),
                     'barkod' => rtrim((string) ($satir->barkod ?? '')),
+                    'birim' => (string) ($satir->birim ?? ''),
+                    'basamak' => (int) ($satir->basamak ?? self::VARSAYILAN_BASAMAK),
+                ],
+                $satirlar,
+            ),
+        ]);
+    }
+
+    /**
+     * Ambalaj (kap) seçenekleri — VOHOM_ARAMA_KAP (profiler kaydı 2026-08-07).
+     * Ekranda kabın ADI görünür; kayit_id = KAP_ID. Ambalaj miktarının ondalık
+     * hassasiyeti kabın kapasite ölçü sisteminden gelir.
+     */
+    public function ambalajlar(): JsonResponse
+    {
+        $satirlar = $this->mssql->baglan()->select(
+            'SELECT K.KAP_ID AS kayit_id, K.KOD AS kod, K.AD COLLATE Turkish_100_CI_AS AS ad,
+                    K.BARKOD AS barkod, O.MIKTAR_BASAMAK_SAYISI AS basamak
+             FROM VOHOM_ARAMA_KAP K
+                LEFT OUTER JOIN TOHOM_OLCU_SISTEMI O
+                    ON O.OLCU_SISTEMI_ID = K.KAPASITE_OLCU_SISTEMI_ID
+             WHERE ISNULL(K.KAPASITE_OLCU_SISTEMI_ID, 1) = 1
+             ORDER BY K.AD COLLATE Turkish_100_CI_AS',
+        );
+
+        return response()->json([
+            'data' => array_map(
+                static fn (object $satir): array => [
+                    'kayit_id' => (int) $satir->kayit_id,
+                    'kod' => rtrim((string) ($satir->kod ?? '')),
+                    'ad' => (string) ($satir->ad ?? ''),
+                    'barkod' => rtrim((string) ($satir->barkod ?? '')),
+                    'basamak' => (int) ($satir->basamak ?? self::VARSAYILAN_BASAMAK),
                 ],
                 $satirlar,
             ),

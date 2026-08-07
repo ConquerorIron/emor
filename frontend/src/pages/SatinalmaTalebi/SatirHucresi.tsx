@@ -2,8 +2,10 @@ import { Controller, type Path, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { ALAN_GORUNUMU, ALAN_KUTUSU, alanCercevesi } from '@/components/alanStilleri'
+import { SayiAlani } from '@/components/SayiAlani'
 import {
   AktiviteSecimi,
+  AmbalajSecimi,
   ButceBolumuSecimi,
   ButceKalemiSecimi,
   DuranVarlikSecimi,
@@ -33,7 +35,11 @@ const SECIM_BILESENLERI: Record<SatirKaynagi, (props: KayitSecimProps) => React.
   butceBolumu: ButceBolumuSecimi,
   duranVarlik: DuranVarlikSecimi,
   personel: PartiYamasiPersonelSecimi,
+  ambalaj: AmbalajSecimi,
 }
+
+/** Kayıt seçilmemişken (ölçü sistemi bilinmiyorken) sayı alanının hassasiyeti */
+const VARSAYILAN_BASAMAK = 2
 
 /**
  * Bir satır hücresini çizer. Kolon tipini `talepAlanlari` belirler; ERP seçim
@@ -73,6 +79,31 @@ export function SatirHucresi({
       >
         {projeKodu === '' ? '—' : projeKodu}
       </span>
+    )
+  }
+
+  // Ondalık hassasiyet ERP'de sabit değil: seçilen kaydın ölçü sisteminden
+  // gelip satıra yazılmıştı, hücre onu okuyor
+  if (alan.hucre.tip === 'sayi') {
+    const { ad, basamakAnahtari } = alan.hucre
+    const basamak = Number(form.watch(anahtar(basamakAnahtari)))
+
+    return (
+      <Controller
+        control={form.control}
+        name={anahtar(ad)}
+        render={({ field }) => (
+          <SayiAlani
+            id={id}
+            label={erisimEtiketi}
+            etiketGizli
+            value={typeof field.value === 'string' ? field.value : ''}
+            onChange={field.onChange}
+            ondalik={Number.isFinite(basamak) && basamak > 0 ? basamak : VARSAYILAN_BASAMAK}
+            hata={hataMetni(ad)}
+          />
+        )}
+      />
     )
   }
 

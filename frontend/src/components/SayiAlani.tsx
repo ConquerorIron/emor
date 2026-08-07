@@ -18,6 +18,8 @@ interface SayiAlaniProps {
   yuzde?: boolean
   /** İzin verilen ondalık basamak (MIKTAR 4, ORAN 2) */
   ondalik?: number
+  /** Izgara hücrelerinde etiket thead'de durur; erişilebilirlik için DOM'da kalır */
+  etiketGizli?: boolean
 }
 
 /** Kullanıcı virgül yazar, veri nokta tutar. */
@@ -50,10 +52,11 @@ export function SayiAlani({
   disabled = false,
   yuzde = false,
   ondalik = 4,
+  etiketGizli = false,
 }: SayiAlaniProps) {
   return (
     <div>
-      <label htmlFor={id} className={ALAN_ETIKETI}>
+      <label htmlFor={id} className={etiketGizli ? 'sr-only' : ALAN_ETIKETI}>
         {label}
       </label>
       <div className="relative mt-1">
@@ -73,7 +76,9 @@ export function SayiAlani({
           </span>
         ) : null}
       </div>
-      {hata ? <p className="mt-1 text-sm text-red-600 dark:text-red-400">{hata}</p> : null}
+      {hata && !etiketGizli ? (
+        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{hata}</p>
+      ) : null}
     </div>
   )
 }
