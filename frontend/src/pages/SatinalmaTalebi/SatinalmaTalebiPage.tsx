@@ -23,6 +23,20 @@ import { SatirHucresi } from './SatirHucresi'
 import { SATIR_ALANLARI } from './talepAlanlari'
 import { BOS_SATIR, BOS_TALEP, talepSemasiUret, type TalepGirdisi } from './talepSchema'
 
+/**
+ * Izgaranın iki ucundaki sabit sütunlar. 30'dan fazla kolon var; satır no ve
+ * sil düğmesi yatay kaydırmada kaybolursa ızgara kullanılamaz hale geliyor.
+ * Arka plan sayfanınkiyle aynı olmalı ki altındaki hücreler sızmasın.
+ */
+const SABIT_SOL =
+  'sticky left-0 z-20 border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800'
+const SABIT_SAG =
+  'sticky right-0 z-20 border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800'
+const SABIT_SOL_GOVDE =
+  'sticky left-0 z-10 border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-950'
+const SABIT_SAG_GOVDE =
+  'sticky right-0 z-10 border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-950'
+
 /** Proje değişince temizlenmesi gereken satır anahtarları */
 const PROJEYE_BAGLI_SATIR_ANAHTARLARI = [
   'aktivite_id',
@@ -241,7 +255,11 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
           <table className="w-full border-separate border-spacing-0">
             <thead>
               <tr>
-                <th className="w-10 rounded-tl-lg border-y border-l border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+                {/* Izgara çok geniş: satır no ve sil düğmesi yatay kaydırmada
+                    kaybolmasın diye iki uçta sabit kalır */}
+                <th
+                  className={`w-10 rounded-tl-lg border-y border-l px-2 py-2 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase ${SABIT_SOL} dark:text-slate-400`}
+                >
                   #
                 </th>
                 {SATIR_ALANLARI.map((alan) => (
@@ -253,13 +271,15 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                     {t(`satinalma.alan.${alan.etiketAnahtari}`)}
                   </th>
                 ))}
-                <th className="w-12 rounded-tr-lg border-y border-r border-slate-200 bg-slate-50 px-2 py-2 dark:border-slate-700 dark:bg-slate-800" />
+                <th className={`w-12 rounded-tr-lg border-y border-r px-2 py-2 ${SABIT_SAG}`} />
               </tr>
             </thead>
             <tbody>
               {satirlar.fields.map((satir, indeks) => (
                 <tr key={satir.id}>
-                  <td className="border-b border-l border-slate-200 px-2 py-1.5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  <td
+                    className={`border-b border-l px-2 py-1.5 text-sm text-slate-500 ${SABIT_SOL_GOVDE} dark:text-slate-400`}
+                  >
                     {indeks + 1}
                   </td>
                   {SATIR_ALANLARI.map((alan) => (
@@ -276,7 +296,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                       />
                     </td>
                   ))}
-                  <td className="border-r border-b border-slate-200 px-1 py-1.5 text-center dark:border-slate-700">
+                  <td className={`border-r border-b px-1 py-1.5 text-center ${SABIT_SAG_GOVDE}`}>
                     <button
                       type="button"
                       onClick={() => satirlar.remove(indeks)}
