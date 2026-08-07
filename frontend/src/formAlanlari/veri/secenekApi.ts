@@ -197,14 +197,15 @@ export async function paraSecenekleriGetir(): Promise<ParaSecenegi[]> {
 
 /**
  * Bir para biriminin belge tarihindeki kuru (VOHOMR_KUR.RAPOR_KURU).
- * Kur bulunamazsa '' döner — kullanıcı elle girebilir.
+ * O güne kur girilmemişse '0' döner — önceki günün kuru kullanılmaz; kullanıcı
+ * gerekirse elle yazar.
  */
 export async function kurGetir(paraId: string, tarihIso: string): Promise<string> {
   const yanit = await api.get<{ data: { kur: string | null } }>(
     `/api/v1/secenekler/kur/${paraId}/${tarihIso}`,
   )
 
-  return yanit.data.data.kur ?? ''
+  return yanit.data.data.kur ?? '0'
 }
 
 /** VOHOM_PERSONEL_UZERINDEKI_ZIMMETLER — kayit_id = DURAN_VARLIK_ID */

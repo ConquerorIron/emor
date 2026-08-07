@@ -382,14 +382,16 @@ final class SecenekController extends Controller
     /**
      * Bir para biriminin belirli tarihteki kuru — VOHOMR_KUR.RAPOR_KURU
      * (kullanıcı kararı 2026-08-07: alış değil RAPOR kuru, belge tarihi baz).
-     * Tam tarihte kayıt yoksa o tarihten önceki EN SON kur kullanılır.
+     * Kaynak TOHOM_KAPANIS_KURU'dur.
+     *
+     * TAM TARİH aranır: o güne kur girilmemişse önceki günün kuru KULLANILMAZ
+     * (kullanıcı bildirimi 2026-08-07 — eski kur sessizce kullanılınca yanlış
+     * tutar hesaplanıyordu). Kur yoksa null döner, alan sıfır gösterir.
      */
     public function kur(int $paraId, string $tarih): JsonResponse
     {
         $kur = $this->mssql->baglan()->scalar(
-            'SELECT TOP 1 RAPOR_KURU FROM VOHOMR_KUR
-             WHERE PARA_ID = ? AND TARIH <= ?
-             ORDER BY TARIH DESC',
+            'SELECT TOP 1 RAPOR_KURU FROM VOHOMR_KUR WHERE PARA_ID = ? AND TARIH = ?',
             [$paraId, str_replace('-', '', $tarih)],
         );
 

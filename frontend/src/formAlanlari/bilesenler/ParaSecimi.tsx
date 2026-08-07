@@ -43,10 +43,30 @@ export function ParaSecimi({
     [paralar.data],
   )
 
+  /**
+   * Para kodları benzersiz harflerle başlar; kullanıcı U'ya basınca USD,
+   * E'ye basınca EUR seçilir (kullanıcı isteği 2026-08-07) — listeyi açıp
+   * aramaya gerek kalmaz.
+   */
+  const harfeGoreSec = (olay: React.KeyboardEvent<HTMLDivElement>) => {
+    if (olay.key.length !== 1 || olay.ctrlKey || olay.metaKey || olay.altKey) {
+      return
+    }
+    const harf = olay.key.toLocaleUpperCase('tr-TR')
+    const bulunan = (paralar.data ?? []).find((para) =>
+      para.kod.toLocaleUpperCase('tr-TR').startsWith(harf),
+    )
+    if (bulunan) {
+      olay.preventDefault()
+      degisti(bulunan)
+    }
+  }
+
   return (
     <SelectField
       id={id}
       label={label}
+      tusaBasildi={harfeGoreSec}
       etiketGizli={etiketGizli}
       options={secenekler}
       value={secenekler.find((oge) => oge.value === deger) ?? null}

@@ -307,6 +307,25 @@ describe('SatirHucresi — çift yüzlü seçim', () => {
     expect(screen.getByLabelText('Tutar 1').tagName).toBe('OUTPUT')
   })
 
+  it('para birimi ilk harfe basılarak seçilir', async () => {
+    // Kullanıcı isteği 2026-08-07: U → USD, E → EUR; listeyi açmaya gerek yok
+    render(
+      <AppProviders>
+        <Yuzler etiketler={['birimFiyati']} izlenen="satirlar.0.birim_fiyati_para_id" />
+      </AppProviders>,
+    )
+
+    // Satır TL ile açılır; liste gelene kadar bekle
+    await screen.findByText('TL', { selector: '.erp-select__single-value' })
+    expect(screen.getByTestId('secili-id')).toHaveTextContent('1')
+
+    fireEvent.keyDown(screen.getByLabelText('Birim fiyatı 1 — para birimi'), { key: 'u' })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('secili-id')).toHaveTextContent('2')
+    })
+  })
+
   it('proje seçilmeden aktivite seçilemez', async () => {
     render(
       <AppProviders>

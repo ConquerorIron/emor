@@ -56,6 +56,8 @@ interface SelectFieldProps extends OrtakProps {
   /** Sunucu taraflı arama: girilen metni bildirir; client filtresi kapanır. */
   aramaDegisti?: (girdi: string) => void
   yukleniyor?: boolean
+  /** Kısa listelerde ilk harfle seçim gibi özel klavye davranışları için */
+  tusaBasildi?: (olay: React.KeyboardEvent<HTMLDivElement>) => void
 }
 
 export function SelectField({
@@ -72,6 +74,7 @@ export function SelectField({
   yukleniyor = false,
   disabled = false,
   etiketGizli = false,
+  tusaBasildi,
 }: SelectFieldProps) {
   const { theme } = useTheme()
 
@@ -82,6 +85,7 @@ export function SelectField({
         aria-invalid={hata ? true : undefined}
         value={value}
         onChange={onChange}
+        onKeyDown={tusaBasildi}
         options={options}
         placeholder={placeholder}
         isClearable={isClearable && !disabled}

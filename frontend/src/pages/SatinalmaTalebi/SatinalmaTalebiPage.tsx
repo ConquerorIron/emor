@@ -1,5 +1,5 @@
 import { standardSchemaResolver } from '@hookform/resolvers/standard-schema'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef } from 'react'
 import { useFieldArray, useForm, type FieldErrors, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -18,7 +18,8 @@ import {
   type EkranTasarimi,
   type KatalogAlani,
 } from '@/features/ekranTasarim/types'
-import { AlanGirisi, girisTipiTanimliMi, ILGI_CINSI_PROJEMIZ } from '@/formAlanlari'
+import { AlanGirisi, girisTipiTanimliMi, ILGI_CINSI_PROJEMIZ, kurGetir } from '@/formAlanlari'
+import { FIYAT_GRUPLARI } from './fiyatGruplari'
 import { SatirHucresi } from './SatirHucresi'
 import { SATIR_ALANLARI, sutunGenisligi } from './talepAlanlari'
 import { BOS_SATIR, BOS_TALEP, talepSemasiUret, type TalepGirdisi } from './talepSchema'
@@ -189,6 +190,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
     formState: { isSubmitting },
   } = form
   const satirlar = useFieldArray({ control, name: 'satirlar' })
+  const istemci = useQueryClient()
 
   // Satır listeleri (aktivite, masraf merkezi) başlıktaki projeye bağlıdır;
   // proje yalnız "İlgi konusu = Projemiz" iken anlamlıdır
@@ -209,6 +211,36 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
       }
     })
   }, [projemizId, form])
+
+  // Kur belge tarihine bağlıdır: tarih değişince satırlardaki kurlar (ve
+  // onlardan hesaplanan tutarlar) yenilenir — kullanıcı bildirimi 2026-08-07
+  const tarih = form.watch('tarih')
+  const oncekiTarih = useRef(tarih)
+  useEffect(() => {
+    if (oncekiTarih.current === tarih) {
+      return
+    }
+    oncekiTarih.current = tarih
+
+    void (async () => {
+      const mevcut = form.getValues('satirlar')
+      for (const [indeks, satir] of mevcut.entries()) {
+        for (const grup of Object.values(FIYAT_GRUPLARI)) {
+          const paraId = satir[grup.para]
+          if (paraId === '') {
+            continue
+          }
+          // Aynı para+tarih için tek istek atılır (önbellek anahtarı ortak)
+          const kur = await istemci.fetchQuery({
+            queryKey: queryKeys.secenekler.kur(paraId, tarih),
+            queryFn: () => kurGetir(paraId, tarih),
+            staleTime: 60 * 60_000,
+          })
+          form.setValue(`satirlar.${indeks}.${grup.kur}`, kur)
+        }
+      }
+    })()
+  }, [tarih, form, istemci])
 
   const onSubmit = handleSubmit(
     (girdi) => {
@@ -295,7 +327,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                         form={form}
                         projemizId={projemizId}
                         projeKodu={projeKodu}
-                        tarih={form.watch('tarih')}
+                        tarih={tarih}
                       />
                     </td>
                   ))}
