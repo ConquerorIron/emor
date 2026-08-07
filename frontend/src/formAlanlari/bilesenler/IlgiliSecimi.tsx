@@ -9,14 +9,21 @@ import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 import type { IlgiCinsi } from '../veri/sabitler'
 import { ilgiliSecenekleriGetir } from '../veri/secenekApi'
 
+export interface IlgiliSecim {
+  /** ERP KAYIT_ID — SOHOM_SIPARIS_KAYDET @ILGILI_ID */
+  kayitId: string
+  /** Kaydın kodu (Projemiz'de proje kodu) — satır ızgarasında gösterilir */
+  kod: string
+}
+
 interface IlgiliSecimiProps {
   /** İlgi cinsi — seçenek kaynağını belirler (7=Proje, 8=Uygulama Sözleşmesi…) */
   cins: IlgiCinsi
   id: string
   label: string
-  /** Seçili kaydın ERP KAYIT_ID'si — SOHOM_SIPARIS_KAYDET @ILGILI_ID */
+  /** Seçili kaydın ERP KAYIT_ID'si */
   deger: string
-  degisti: (kayitId: string) => void
+  degisti: (secim: IlgiliSecim | null) => void
   hata?: string
   /** Salt okunur (ekran tasarımı) — seçim değiştirilemez */
   disabled?: boolean
@@ -44,6 +51,11 @@ export function IlgiliSecimi({
     staleTime: 5 * 60_000,
   })
 
+  const kodlar = useMemo(
+    () => new Map((kayitlar.data ?? []).map((kayit) => [String(kayit.kayit_id), kayit.kod])),
+    [kayitlar.data],
+  )
+
   const secenekler = useMemo<SecenekOgesi[]>(
     () =>
       (kayitlar.data ?? []).map((kayit) => ({
@@ -69,7 +81,9 @@ export function IlgiliSecimi({
       label={label}
       options={secenekler}
       value={secenekler.find((s) => s.value === deger) ?? null}
-      onChange={(secim) => degisti(secim?.value ?? '')}
+      onChange={(secim) =>
+        degisti(secim ? { kayitId: secim.value, kod: kodlar.get(secim.value) ?? '' } : null)
+      }
       placeholder={t('ortak.secVeyaAra')}
       isClearable
       disabled={disabled}

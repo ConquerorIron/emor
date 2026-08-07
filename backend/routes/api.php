@@ -33,6 +33,13 @@ Route::prefix('v1')->group(function (): void {
             ->name('secenekler.depolar');
         Route::get('/secenekler/firmamiz-adresleri', [SecenekController::class, 'firmamizAdresleri'])
             ->name('secenekler.firmamiz-adresleri');
+        // Talep satırı listeleri — seçili projeye göre süzülür
+        Route::get('/secenekler/aktiviteler/{projemizId}', [SecenekController::class, 'aktiviteler'])
+            ->whereNumber('projemizId')
+            ->name('secenekler.aktiviteler');
+        Route::get('/secenekler/masraf-merkezleri/{projemizId}', [SecenekController::class, 'masrafMerkezleri'])
+            ->whereNumber('projemizId')
+            ->name('secenekler.masraf-merkezleri');
 
         // Ekran tasarım motoru — okuma herkese (form çizimi), düzenleme yöneticiye
         Route::get('/ekranlar/{ekran}/tasarim', [EkranTasarimController::class, 'goster'])

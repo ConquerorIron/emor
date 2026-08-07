@@ -12,9 +12,15 @@ import { bugunIso } from '@/utils/tarih'
  * eşlemesi netleşince kurallar sıkılaşacak (tarih/sayı biçimleri vb.).
  */
 export const talepSatiriSchema = z.object({
-  projemiz: z.string(),
+  // Aktivite: tek kayıt, iki sütun. Kod ve açıklama gösterimdir; ERP'ye giden
+  // değer AKTIVITE_ID'dir (hangi sütundan seçilirse seçilsin aynı kayıt)
+  aktivite_id: z.string(),
   aktivite_kodu: z.string(),
   aktivite_aciklamasi: z.string(),
+  // Masraf merkezi de aynı desende — satırda MASRAF_MERKEZI_ID saklanır
+  masraf_merkezi_id: z.string(),
+  masraf_merkezi_kodu: z.string(),
+  masraf_merkezi_adi: z.string(),
   urun_kodu: z.string().min(1, 'satinalma.dogrulama.urunKoduZorunlu'),
   urun_adi: z.string(),
   urun_tarifi: z.string(),
@@ -44,6 +50,8 @@ export const talepSchema = z.object({
   // Seçilen ilgi cinsine göre ilişkili kaydın ID'si — proc'ta @ILGILI_ID
   // (şimdilik serbest metin; cins bazlı view aramaları eklenecek)
   ilgili_id: z.string(),
+  // Seçili kaydın kodu (gösterim) — satır ızgarasındaki Projemiz sütunu buradan
+  ilgili_kodu: z.string(),
 
   // Seçili deponun KAYIT_ID'si (parti yaması TUR=12) — sipariş SATIRLARININ
   // DEPOMUZ_ID alanına yazılır (başlık tablosunda depo yoktur)
@@ -97,9 +105,12 @@ export function talepSemasiUret(zorunluAnahtarlar: string[]): typeof talepSchema
 }
 
 export const BOS_SATIR: TalepSatiri = {
-  projemiz: '',
+  aktivite_id: '',
   aktivite_kodu: '',
   aktivite_aciklamasi: '',
+  masraf_merkezi_id: '',
+  masraf_merkezi_kodu: '',
+  masraf_merkezi_adi: '',
   urun_kodu: '',
   urun_adi: '',
   urun_tarifi: '',
@@ -121,6 +132,7 @@ export const BOS_TALEP: TalepGirdisi = {
   hakkinda: '',
   ilgi_cinsi: VARSAYILAN_ILGI_CINSI,
   ilgili_id: '',
+  ilgili_kodu: '',
   depomuz_id: '',
   teslimat_adresi_id: '',
   teslimat_adresi: '',

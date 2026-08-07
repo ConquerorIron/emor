@@ -16,22 +16,29 @@ interface OrtakProps {
   isSearchable?: boolean
   /** Salt okunur alanlar (ekran tasarımı) — seçim değiştirilemez */
   disabled?: boolean
+  /**
+   * Etiket görsel olarak gizlenir (ızgara hücrelerinde başlık thead'de durur);
+   * erişilebilirlik için etiket DOM'da kalır.
+   */
+  etiketGizli?: boolean
 }
 
 function AlanSarici({
   id,
   label,
   hata,
+  etiketGizli = false,
   children,
 }: {
   id: string
   label: string
   hata?: string
+  etiketGizli?: boolean
   children: React.ReactNode
 }) {
   return (
     <div>
-      <label htmlFor={id} className={`mb-1 ${ALAN_ETIKETI}`}>
+      <label htmlFor={id} className={etiketGizli ? 'sr-only' : `mb-1 ${ALAN_ETIKETI}`}>
         {label}
       </label>
       {children}
@@ -61,11 +68,12 @@ export function SelectField({
   aramaDegisti,
   yukleniyor = false,
   disabled = false,
+  etiketGizli = false,
 }: SelectFieldProps) {
   const { theme } = useTheme()
 
   return (
-    <AlanSarici id={id} label={label} hata={hata}>
+    <AlanSarici id={id} label={label} hata={hata} etiketGizli={etiketGizli}>
       <Select<SecenekOgesi, false>
         inputId={id}
         value={value}

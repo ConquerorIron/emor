@@ -111,7 +111,8 @@ final class SatinalmaTalebiKatalogu implements EkranKatalogu
                 anahtar: 'ilgili',
                 etiketAnahtari: 'satinalma.alan.ilgili',
                 girisTipi: 'ilgili',
-                veriAnahtarlari: ['ilgili_id'],
+                // Kod da saklanır: satır ızgarası seçili projeyi kodla gösterir
+                veriAnahtarlari: ['ilgili_id', 'ilgili_kodu'],
                 procParametresi: 'ILGILI_ID',
                 // Arama kaynağı bu alandaki cinse göre belirlenir
                 bagliVeriAnahtari: 'ilgi_cinsi',

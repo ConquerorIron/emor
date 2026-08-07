@@ -189,12 +189,16 @@ export const GIRIS_TANIMLARI: Record<string, GirisTanimi> = {
   ilgili: {
     etiket: ({ bagliOku, t }) =>
       t(`satinalma.ilgiliEtiket.${(bagliOku() || VARSAYILAN_ILGI_CINSI) as IlgiCinsi}`),
-    ciz: ({ ortak, deger, degistir, bagliOku }) => (
+    ciz: ({ ortak, deger, degistir, yanDegistir, bagliOku }) => (
       <IlgiliSecimi
         {...ortak}
         cins={(bagliOku() || VARSAYILAN_ILGI_CINSI) as IlgiCinsi}
         deger={deger}
-        degisti={degistir}
+        degisti={(secim) => {
+          degistir(secim?.kayitId ?? '')
+          // Kod ikinci veri anahtarına yazılır (satır ızgarası buradan okur)
+          yanDegistir(1, secim?.kod ?? '')
+        }}
       />
     ),
   },

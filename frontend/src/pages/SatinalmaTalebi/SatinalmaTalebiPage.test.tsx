@@ -37,7 +37,12 @@ const KATALOG = [
     tip: 'ilgiCinsi',
     veri: ['ilgi_cinsi'],
   },
-  { anahtar: 'ilgili', etiket: 'satinalma.alan.ilgili', tip: 'ilgili', veri: ['ilgili_id'] },
+  {
+    anahtar: 'ilgili',
+    etiket: 'satinalma.alan.ilgili',
+    tip: 'ilgili',
+    veri: ['ilgili_id', 'ilgili_kodu'],
+  },
   { anahtar: 'depo_adi', etiket: 'satinalma.alan.depoAdi', tip: 'depo', veri: ['depomuz_id'] },
   {
     anahtar: 'teslimat_adresi',

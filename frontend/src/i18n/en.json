@@ -134,6 +134,8 @@
       "alimYeri": "Purchasing location",
       "aktiviteKodu": "Activity code",
       "aktiviteAciklamasi": "Activity description",
+      "masrafMerkeziKodu": "Cost centre code",
+      "masrafMerkeziAdi": "Cost centre name",
       "urunKodu": "Product code",
       "urunAdi": "Product name",
       "urunTarifi": "Product specification",

@@ -25,7 +25,9 @@ export const VARSAYILAN_BIRIM = BIRIM_GUN
 /** İlgi cinsi — @ILGI_CINSI */
 export const ILGI_CINSLERI = ['7', '8', '11', '12', '13'] as const
 export type IlgiCinsi = (typeof ILGI_CINSLERI)[number]
-export const VARSAYILAN_ILGI_CINSI: IlgiCinsi = '7' // Projemiz
+/** Satır listeleri (aktivite, masraf merkezi) yalnız bu cinste projeye bağlanır */
+export const ILGI_CINSI_PROJEMIZ: IlgiCinsi = '7'
+export const VARSAYILAN_ILGI_CINSI: IlgiCinsi = ILGI_CINSI_PROJEMIZ
 
 /**
  * Arama kaynağı (view sorgusu) tanımlanmış cinsler — diğerleri serbest metne

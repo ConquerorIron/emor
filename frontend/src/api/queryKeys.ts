@@ -20,5 +20,9 @@ export const queryKeys = {
     ilgili: (cins: string) => ['secenekler', 'ilgili', cins] as const,
     depolar: ['secenekler', 'depolar'],
     firmamizAdresleri: ['secenekler', 'firmamizAdresleri'],
+    // Satır listeleri seçili projeye bağlıdır — proje başına önbelleklenir
+    aktiviteler: (projemizId: string) => ['secenekler', 'aktiviteler', projemizId] as const,
+    masrafMerkezleri: (projemizId: string) =>
+      ['secenekler', 'masrafMerkezleri', projemizId] as const,
   },
 } as const

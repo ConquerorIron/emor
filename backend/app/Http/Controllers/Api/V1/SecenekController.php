@@ -225,4 +225,79 @@ final class SecenekController extends Controller
             ),
         ]);
     }
+
+    /**
+     * Talep SATIRLARININ aktivite seçenekleri — proje bazlıdır (profiler kaydı
+     * 2026-08-07). ERP iki adımda çözer, istemciyi bununla uğraştırmıyoruz:
+     * seçili projenin iş programı (VOHOM_PROJEMIZ.IS_PROGRAMI_ID) bulunur,
+     * aktiviteler o iş emrine göre süzülür. kayit_id = AKTIVITE_ID.
+     *
+     * Aktivite kodu ve açıklaması aynı kaydın iki yüzüdür (kullanıcı hangisinden
+     * seçerse diğeri dolar), bu yüzden tek listede ikisi de döner.
+     */
+    public function aktiviteler(int $projemizId): JsonResponse
+    {
+        $baglanti = $this->mssql->baglan();
+
+        // PROJEMIZ_ID = PARTI_YAMASI_ID (projenin arama view'ındaki KAYIT_ID)
+        $isProgramiId = $baglanti->scalar(
+            'SELECT IS_PROGRAMI_ID FROM VOHOM_PROJEMIZ WHERE PROJEMIZ_ID = ?',
+            [$projemizId],
+        );
+
+        // İş programı tanımsız projede aktivite yoktur — hata değil, boş liste
+        $satirlar = $isProgramiId === null ? [] : $baglanti->select(
+            'SELECT AKTIVITE_ID AS kayit_id, KOD COLLATE Turkish_100_CI_AS AS kod,
+                    ACIKLAMA AS aciklama, POZ_NO AS poz_no
+             FROM VOHOM_ARAMA_AKTIVITE
+             WHERE IS_EMRI_ID = ? AND TIP IN (0) AND ISNULL(KAPANDI, 0) = 0
+             ORDER BY KOD COLLATE Turkish_100_CI_AS',
+            [$isProgramiId],
+        );
+
+        return response()->json([
+            'data' => array_map(
+                static fn (object $satir): array => [
+                    'kayit_id' => (int) $satir->kayit_id,
+                    'kod' => rtrim((string) $satir->kod),
+                    'aciklama' => (string) ($satir->aciklama ?? ''),
+                    'poz_no' => (string) ($satir->poz_no ?? ''),
+                ],
+                $satirlar,
+            ),
+        ]);
+    }
+
+    /**
+     * Talep SATIRLARININ masraf merkezi seçenekleri (profiler kaydı 2026-08-07).
+     * Liste hem projeye hem kullanıcıya göre süzülür: projesiz (genel) merkezler
+     * her projede görünür. kayit_id = MASRAF_MERKEZI_ID —
+     * TOHOM_SIPARIS_SATIRI.MASRAF_MERKEZI_ID alanına yazılır.
+     * Kod ve ad aynı kaydın iki yüzüdür (biri seçilince diğeri dolar).
+     */
+    public function masrafMerkezleri(Request $request, int $projemizId): JsonResponse
+    {
+        $erpKullaniciId = $request->user()?->erp_kullanici_id ?? -1;
+
+        $satirlar = $this->mssql->baglan()->select(
+            'SELECT MASRAF_MERKEZI_ID AS kayit_id, KOD COLLATE Turkish_100_CI_AS AS kod, AD AS ad
+             FROM VOHOM_ARAMA_MASRAF_MERKEZI
+             WHERE TIP = 0
+               AND (PROJEMIZ_ID IS NULL OR PROJEMIZ_ID = ?)
+               AND (GUVENLIK_KODU_ID IS NULL OR GRUP_KULLANICISI_ID = ?)
+             ORDER BY KOD COLLATE Turkish_100_CI_AS',
+            [$projemizId, $erpKullaniciId],
+        );
+
+        return response()->json([
+            'data' => array_map(
+                static fn (object $satir): array => [
+                    'kayit_id' => (int) $satir->kayit_id,
+                    'kod' => rtrim((string) $satir->kod),
+                    'ad' => (string) ($satir->ad ?? ''),
+                ],
+                $satirlar,
+            ),
+        ]);
+    }
 }

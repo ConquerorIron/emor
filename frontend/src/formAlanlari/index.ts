@@ -16,8 +16,11 @@ export type { GirisBaglami, GirisTanimi, OrtakGirisProps } from './ortakTipler'
 
 // ERP alan bileşenleri — motor dışında da kullanılabilir (ör. tasarım
 // editöründeki "varsayılan değer" seçicisi aynı bileşenleri gösterir)
+export { AktiviteSecimi } from './bilesenler/AktiviteSecimi'
 export { AlimYeriSecimi } from './bilesenler/AlimYeriSecimi'
 export { DepoSecimi } from './bilesenler/DepoSecimi'
+export { KodAdSecimi, type KodAdSecenegi, type KodAdSecim } from './bilesenler/KodAdSecimi'
+export { MasrafMerkeziSecimi } from './bilesenler/MasrafMerkeziSecimi'
 export { FirmamizAdresiSecimi } from './bilesenler/FirmamizAdresiSecimi'
 export { IlgiliSecimi } from './bilesenler/IlgiliSecimi'
 export { OncelikSecimi } from './bilesenler/OncelikSecimi'
@@ -30,6 +33,7 @@ export { TeslimatSuresiSecimi } from './bilesenler/TeslimatSuresiSecimi'
 // ERP sabit değerleri — form varsayılanlarında da kullanılır
 export {
   ALIM_YERLERI,
+  ILGI_CINSI_PROJEMIZ,
   ILGI_CINSLERI,
   TESLIMAT_BICIMLERI,
   TESLIMAT_SURESI_BIRIMLERI,

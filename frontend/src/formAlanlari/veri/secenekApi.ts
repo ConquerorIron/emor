@@ -70,6 +70,44 @@ export async function tabloMaddesiSecenekleriGetir(
   return yanit.data.data
 }
 
+/**
+ * VOHOM_ARAMA_AKTIVITE — seçili projenin iş programındaki aktiviteler.
+ * Backend, projeden iş programını (VOHOM_PROJEMIZ.IS_PROGRAMI_ID) kendisi
+ * çözer; istemci yalnız projeyi bilir.
+ */
+export interface AktiviteSecenegi {
+  kayit_id: number
+  kod: string
+  aciklama: string
+  /** Aktivitenin poz numarası — satırdaki Poz No sütununun kaynağı olabilir */
+  poz_no: string
+}
+
+export async function aktiviteSecenekleriGetir(projemizId: string): Promise<AktiviteSecenegi[]> {
+  const yanit = await api.get<{ data: AktiviteSecenegi[] }>(
+    `/api/v1/secenekler/aktiviteler/${projemizId}`,
+  )
+
+  return yanit.data.data
+}
+
+/** VOHOM_ARAMA_MASRAF_MERKEZI — projesiz (genel) merkezler her projede görünür */
+export interface MasrafMerkeziSecenegi {
+  kayit_id: number
+  kod: string
+  ad: string
+}
+
+export async function masrafMerkeziSecenekleriGetir(
+  projemizId: string,
+): Promise<MasrafMerkeziSecenegi[]> {
+  const yanit = await api.get<{ data: MasrafMerkeziSecenegi[] }>(
+    `/api/v1/secenekler/masraf-merkezleri/${projemizId}`,
+  )
+
+  return yanit.data.data
+}
+
 /** İlgi cinsine göre ilişkili kayıt adayı — kaynak view cinse göre değişir */
 export interface IlgiliSecenegi {
   kayit_id: number

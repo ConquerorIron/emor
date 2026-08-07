@@ -1,6 +1,6 @@
 import { standardSchemaResolver } from '@hookform/resolvers/standard-schema'
 import { useQuery } from '@tanstack/react-query'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFieldArray, useForm, type FieldErrors, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -18,17 +18,20 @@ import {
   type EkranTasarimi,
   type KatalogAlani,
 } from '@/features/ekranTasarim/types'
-import { AlanGirisi, girisTipiTanimliMi } from '@/formAlanlari'
+import { AlanGirisi, girisTipiTanimliMi, ILGI_CINSI_PROJEMIZ } from '@/formAlanlari'
+import { SatirHucresi } from './SatirHucresi'
 import { SATIR_ALANLARI } from './talepAlanlari'
 import { BOS_SATIR, BOS_TALEP, talepSemasiUret, type TalepGirdisi } from './talepSchema'
 
-/** Grid hücresi girişi — Input bileşeninin kompakt hali (etiketler thead'de) */
-const HUCRE_SINIFI =
-  'block h-9 w-full min-w-28 rounded-lg border bg-white px-2 text-sm text-slate-900 shadow-sm transition-colors outline-none focus:ring-2 dark:bg-slate-950 dark:text-slate-100'
-const HUCRE_NORMAL =
-  'border-slate-300 focus:border-blue-600 focus:ring-blue-200 dark:border-slate-700 dark:focus:ring-blue-900'
-const HUCRE_HATALI =
-  'border-red-500 focus:border-red-500 focus:ring-red-200 dark:focus:ring-red-900'
+/** Proje değişince temizlenmesi gereken satır anahtarları */
+const PROJEYE_BAGLI_SATIR_ANAHTARLARI = [
+  'aktivite_id',
+  'aktivite_kodu',
+  'aktivite_aciklamasi',
+  'masraf_merkezi_id',
+  'masraf_merkezi_kodu',
+  'masraf_merkezi_adi',
+] as const
 
 /**
  * Tasarımdaki bir bölümü çizer: alanları kayıt defterindeki bileşenlere
@@ -167,12 +170,31 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
   })
 
   const {
-    register,
     control,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = form
   const satirlar = useFieldArray({ control, name: 'satirlar' })
+
+  // Satır listeleri (aktivite, masraf merkezi) başlıktaki projeye bağlıdır;
+  // proje yalnız "İlgi konusu = Projemiz" iken anlamlıdır
+  const projeliMi = form.watch('ilgi_cinsi') === ILGI_CINSI_PROJEMIZ
+  const projemizId = projeliMi ? form.watch('ilgili_id') : ''
+  const projeKodu = projeliMi ? form.watch('ilgili_kodu') : ''
+
+  // Proje değişince eski projenin aktivite/masraf merkezi seçimleri geçersizdir
+  const oncekiProje = useRef(projemizId)
+  useEffect(() => {
+    if (oncekiProje.current === projemizId) {
+      return
+    }
+    oncekiProje.current = projemizId
+    form.getValues('satirlar').forEach((_, indeks) => {
+      for (const anahtar of PROJEYE_BAGLI_SATIR_ANAHTARLARI) {
+        form.setValue(`satirlar.${indeks}.${anahtar}`, '')
+      }
+    })
+  }, [projemizId, form])
 
   const onSubmit = handleSubmit(
     (girdi) => {
@@ -224,10 +246,10 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                 </th>
                 {SATIR_ALANLARI.map((alan) => (
                   <th
-                    key={alan.ad}
+                    key={alan.etiketAnahtari}
                     className="border-y border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
                   >
-                    {alan.ad === 'urun_kodu' ? '* ' : ''}
+                    {alan.zorunlu ? '* ' : ''}
                     {t(`satinalma.alan.${alan.etiketAnahtari}`)}
                   </th>
                 ))}
@@ -240,26 +262,21 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                   <td className="border-b border-l border-slate-200 px-2 py-1.5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
                     {indeks + 1}
                   </td>
-                  {SATIR_ALANLARI.map((alan) => {
-                    const hata =
-                      errors.satirlar?.[indeks]?.[alan.ad as keyof typeof BOS_SATIR]?.message
-
-                    return (
-                      <td
-                        key={alan.ad}
-                        className="border-b border-slate-200 px-1 py-1.5 dark:border-slate-700"
-                      >
-                        <input
-                          aria-label={`${t(`satinalma.alan.${alan.etiketAnahtari}`)} ${indeks + 1}`}
-                          aria-invalid={hata ? true : undefined}
-                          title={hata ? t(hata) : undefined}
-                          autoComplete="off"
-                          className={`${HUCRE_SINIFI} ${hata ? HUCRE_HATALI : HUCRE_NORMAL}`}
-                          {...register(`satirlar.${indeks}.${alan.ad as keyof typeof BOS_SATIR}`)}
-                        />
-                      </td>
-                    )
-                  })}
+                  {SATIR_ALANLARI.map((alan) => (
+                    <td
+                      key={alan.etiketAnahtari}
+                      className="border-b border-slate-200 px-1 py-1.5 dark:border-slate-700"
+                    >
+                      <SatirHucresi
+                        alan={alan}
+                        indeks={indeks}
+                        form={form}
+                        projemizId={projemizId}
+                        projeKodu={projeKodu}
+                        hata={alan.ad ? errors.satirlar?.[indeks]?.[alan.ad]?.message : undefined}
+                      />
+                    </td>
+                  ))}
                   <td className="border-r border-b border-slate-200 px-1 py-1.5 text-center dark:border-slate-700">
                     <button
                       type="button"
