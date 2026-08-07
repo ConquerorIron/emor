@@ -181,6 +181,9 @@ final class SatinalmaTalebiKatalogu implements EkranKatalogu
     public function varsayilanDuzen(): array
     {
         return [
+            // Onay rolü tasarım ekranından seçilir; seçilmeden talep onaya
+            // sunulamaz (ERP'de VOHOM_ARAMA_ONAY_ROLU)
+            'onay_rol_id' => null,
             'bolumler' => [
                 [
                     'anahtar' => self::BOLUM_TALEP,

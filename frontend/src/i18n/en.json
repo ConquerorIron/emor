@@ -39,6 +39,8 @@
     "aciklama": "Drag and drop fields to arrange the form. Changes stay in the draft; users are unaffected until you publish.",
     "kullanilmayanAlanlar": "Unused Fields",
     "paletAciklama": "Drag onto the canvas to add. Drag a field back here to remove it.",
+    "onayRolu": "Approval role",
+    "onayRoluAciklama": "Used as the ERP approval role when a request is submitted. Published together with the design.",
     "tumAlanlarKullanimda": "All fields are in use.",
     "burayaBirak": "Drop field here",
     "bolumGenisligi": "Section:",

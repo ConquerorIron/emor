@@ -210,6 +210,19 @@ export async function kurGetir(paraId: string, tarihIso: string): Promise<string
   return yanit.data.data.kur ?? '0'
 }
 
+/** VOHOM_ARAMA_ONAY_ROLU — ekran tasarımında seçilen onay rolü (ROL_ID) */
+export type OnayRolu = {
+  kayit_id: number
+  kod: string
+  ad: string
+}
+
+export async function onayRolleriGetir(): Promise<OnayRolu[]> {
+  const yanit = await api.get<{ data: OnayRolu[] }>('/api/v1/secenekler/onay-rolleri')
+
+  return yanit.data.data
+}
+
 /** VOHOM_PERSONEL_UZERINDEKI_ZIMMETLER — kayit_id = DURAN_VARLIK_ID */
 export type DuranVarlikSecenegi = {
   kayit_id: number

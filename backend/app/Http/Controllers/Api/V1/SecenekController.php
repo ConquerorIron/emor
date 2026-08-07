@@ -400,6 +400,21 @@ final class SecenekController extends Controller
         ]);
     }
 
+    /**
+     * Onay rolleri — VOHOM_ARAMA_ONAY_ROLU. Ekran tasarımında seçilir; talep
+     * onaya sunulurken bu ROL_ID kullanılır.
+     */
+    public function onayRolleri(): JsonResponse
+    {
+        $satirlar = $this->mssql->baglan()->select(
+            'SELECT ROL_ID AS kayit_id, KOD AS kod, AD COLLATE Turkish_100_CI_AS AS ad
+             FROM VOHOM_ARAMA_ONAY_ROLU
+             ORDER BY AD COLLATE Turkish_100_CI_AS',
+        );
+
+        return response()->json(['data' => $this->kodAdListesi($satirlar)]);
+    }
+
     /** kayit_id + kod + ad döndüren listeler için ortak dönüşüm */
     private function kodAdListesi(array $satirlar): array
     {

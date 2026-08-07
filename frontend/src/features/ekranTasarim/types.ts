@@ -59,6 +59,11 @@ export interface DuzenBolumu {
 
 export interface EkranDuzeni {
   bolumler: DuzenBolumu[]
+  /**
+   * Talep onaya sunulurken kullanılacak ERP onay rolü (ROL_ID).
+   * Alan değil, ekranın ayarıdır — tasarımla birlikte sürümlenir.
+   */
+  onay_rol_id?: number | null
 }
 
 export interface BolumTanimi {

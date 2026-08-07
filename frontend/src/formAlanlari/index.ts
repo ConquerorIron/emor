@@ -27,7 +27,13 @@ export { DuranVarlikSecimi } from './bilesenler/DuranVarlikSecimi'
 export { EkipmanSecimi } from './bilesenler/EkipmanSecimi'
 export { ParaSecimi } from './bilesenler/ParaSecimi'
 export { PartiYamasiPersonelSecimi } from './bilesenler/PartiYamasiPersonelSecimi'
-export { kurGetir, paraSecenekleriGetir, type ParaSecenegi } from './veri/secenekApi'
+export {
+  kurGetir,
+  onayRolleriGetir,
+  paraSecenekleriGetir,
+  type OnayRolu,
+  type ParaSecenegi,
+} from './veri/secenekApi'
 // Süre ↔ tarih çevrimi: aynı veri iki yüzle gösterilir (başlıkta da, satırda da)
 export { sureyiTariheCevir, tarihiSureyeCevir } from './veri/sureCevrimi'
 export { MasrafMerkeziSecimi } from './bilesenler/MasrafMerkeziSecimi'

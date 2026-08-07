@@ -31,6 +31,7 @@ export const queryKeys = {
     duranVarliklar: ['secenekler', 'duranVarliklar'],
     ambalajlar: ['secenekler', 'ambalajlar'],
     paralar: ['secenekler', 'paralar'],
+    onayRolleri: ['secenekler', 'onayRolleri'],
     // Kur para + belge tarihi ikilisine bağlıdır
     kur: (paraId: string, tarih: string) => ['secenekler', 'kur', paraId, tarih] as const,
     // Satırdaki personel — başlıktaki 'personeller' listesinden farklı kaynak

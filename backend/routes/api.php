@@ -55,6 +55,8 @@ Route::prefix('v1')->group(function (): void {
             ->name('secenekler.ambalajlar');
         Route::get('/secenekler/paralar', [SecenekController::class, 'paralar'])
             ->name('secenekler.paralar');
+        Route::get('/secenekler/onay-rolleri', [SecenekController::class, 'onayRolleri'])
+            ->name('secenekler.onay-rolleri');
         // Kur, belge tarihine göre okunur (ISO tarih)
         Route::get('/secenekler/kur/{paraId}/{tarih}', [SecenekController::class, 'kur'])
             ->whereNumber('paraId')

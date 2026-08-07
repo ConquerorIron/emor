@@ -75,6 +75,8 @@ final class EkranTasarimController extends Controller
         $veri = $request->validate([
             'duzen' => ['required', 'array'],
             'duzen.bolumler' => ['required', 'array', 'min:1'],
+            // Ekranın onay rolü (ERP ROL_ID) — alan değil, ekran ayarı
+            'duzen.onay_rol_id' => ['nullable', 'integer'],
         ]);
 
         $taslak = $this->servis->taslagiKaydet($ekran, $veri['duzen'], (int) $request->user()->id);

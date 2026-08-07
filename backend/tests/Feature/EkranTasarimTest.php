@@ -87,6 +87,38 @@ final class EkranTasarimTest extends TestCase
             ->assertJsonPath('data.duzen.bolumler.0.alanlar.1.genislik', 4);
     }
 
+    public function test_onay_rolu_tasarimla_birlikte_saklanir(): void
+    {
+        $this->yonetici();
+        $this->getJson('/api/v1/ekranlar/'.self::EKRAN.'/taslak')->assertOk();
+
+        $duzen = [
+            // Onay rolü ekranın ayarıdır; alanlarla birlikte sürümlenir
+            'onay_rol_id' => 49,
+            'bolumler' => [
+                [
+                    'anahtar' => 'talep',
+                    'genislik' => 12,
+                    'alanlar' => [
+                        ['alan' => 'personel_adi', 'genislik' => 12],
+                        ['alan' => 'tarih', 'genislik' => 4],
+                    ],
+                ],
+            ],
+        ];
+
+        $this->putJson('/api/v1/ekranlar/'.self::EKRAN.'/taslak', ['duzen' => $duzen])
+            ->assertOk()
+            ->assertJsonPath('data.duzen.onay_rol_id', 49);
+
+        // Seçim kaldırılabilir olmalı (rol zorunlu değil)
+        $this->putJson('/api/v1/ekranlar/'.self::EKRAN.'/taslak', [
+            'duzen' => [...$duzen, 'onay_rol_id' => null],
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.duzen.onay_rol_id', null);
+    }
+
     public function test_bilinmeyen_alan_reddedilir(): void
     {
         $this->yonetici();

@@ -139,7 +139,7 @@ final class EkranTasarimServisi
      * geçersiz genişlik, tekrar eden alan ve kaldırılamaz alanın eksikliği hata.
      *
      * @param  array<string, mixed>  $duzen
-     * @return array{bolumler: list<array<string, mixed>>}
+     * @return array{bolumler: list<array<string, mixed>>, onay_rol_id: int|null}
      */
     public function duzeniDogrula(EkranKatalogu $katalog, array $duzen): array
     {
@@ -263,7 +263,14 @@ final class EkranTasarimServisi
             }
         }
 
-        return ['bolumler' => $temizBolumler];
+        // Onay rolü ekranın bir ayarıdır, alan değil: talep onaya sunulurken
+        // hangi ROL_ID kullanılacağını belirler (ERP'de VOHOM_ARAMA_ONAY_ROLU)
+        $onayRolId = $duzen['onay_rol_id'] ?? null;
+
+        return [
+            'bolumler' => $temizBolumler,
+            'onay_rol_id' => is_numeric($onayRolId) ? (int) $onayRolId : null,
+        ];
     }
 
     private function sonrakiSurum(string $ekranAnahtari): int

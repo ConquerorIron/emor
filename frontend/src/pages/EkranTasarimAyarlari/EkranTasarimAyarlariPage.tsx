@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { apiErrorKey, dogrulamaMesaji } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
 import { Button } from '@/components/Button'
+import { OnayRoluSecimi } from './OnayRoluSecimi'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ErrorState } from '@/components/ErrorState'
 import {
@@ -180,6 +181,11 @@ export function EkranTasarimAyarlariPage() {
                 </div>
               ))}
             </div>
+
+            <OnayRoluSecimi
+              deger={duzen.onay_rol_id ?? null}
+              degisti={(rolId) => setDuzen({ ...duzen, onay_rol_id: rolId })}
+            />
           </aside>
 
           <div className="min-w-0 flex-1">
