@@ -154,6 +154,11 @@ export const SATIR_ALANLARI: TalepAlani[] = [
     etiketAnahtari: 'daraliMiktar',
     hucre: { tip: 'sayi', ad: 'darali_miktar', basamakAnahtari: 'ambalaj_basamak_sayisi' },
   },
+  // ERP ekranında Daralı miktar ile Miktar arasında durur
+  {
+    etiketAnahtari: 'dara',
+    hucre: { tip: 'sayi', ad: 'dara', basamakAnahtari: 'ambalaj_basamak_sayisi' },
+  },
   {
     etiketAnahtari: 'miktar',
     hucre: {

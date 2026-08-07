@@ -53,6 +53,8 @@ export const talepSatiriSchema = z.object({
   ambalaj_basamak_sayisi: z.string(),
   ambalaj_miktari: z.string(),
   darali_miktar: z.string(),
+  // ERP satırında DARA (+ DARA_BIRIMI_ID); şimdilik düz miktar girişi
+  dara: z.string(),
   miktar: z.string(),
   // Üç fiyat grubu: fiyat + para + kur. Tutarlar SAKLANMAZ, hesaplanır
   // (fiyatGruplari.ts) — aynı sayıyı iki yerde tutmuyoruz.
@@ -194,6 +196,7 @@ export const BOS_SATIR: TalepSatiri = {
   // dolayısıyla kur 1'dir — döviz seçilince kur ERP'den okunur
   ambalaj_miktari: SIFIR,
   darali_miktar: SIFIR,
+  dara: SIFIR,
   miktar: SIFIR,
   birim_fiyati: SIFIR,
   birim_fiyati_para_id: VARSAYILAN_PARA_ID,
