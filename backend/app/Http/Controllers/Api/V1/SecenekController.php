@@ -350,6 +350,54 @@ final class SecenekController extends Controller
         return response()->json(['data' => $this->kodAdListesi($satirlar)]);
     }
 
+    /**
+     * Para birimleri — TOHOM_PARA. Basamak sayıları ERP'de para başına tanımlı:
+     * fiyat alanları FIYAT_KURUS_BASAMAK_SAYISI (6), tutar alanları
+     * KURUS_BASAMAK_SAYISI (2) kadar ondalık gösterir.
+     */
+    public function paralar(): JsonResponse
+    {
+        $satirlar = $this->mssql->baglan()->select(
+            'SELECT PARA_ID AS kayit_id, KOD AS kod, AD COLLATE Turkish_100_CI_AS AS ad,
+                    FIYAT_KURUS_BASAMAK_SAYISI AS fiyat_basamak,
+                    KURUS_BASAMAK_SAYISI AS tutar_basamak
+             FROM TOHOM_PARA
+             ORDER BY PARA_ID',
+        );
+
+        return response()->json([
+            'data' => array_map(
+                static fn (object $satir): array => [
+                    'kayit_id' => (int) $satir->kayit_id,
+                    'kod' => rtrim((string) $satir->kod),
+                    'ad' => (string) ($satir->ad ?? ''),
+                    'fiyat_basamak' => (int) ($satir->fiyat_basamak ?? self::VARSAYILAN_BASAMAK),
+                    'tutar_basamak' => (int) ($satir->tutar_basamak ?? self::VARSAYILAN_BASAMAK),
+                ],
+                $satirlar,
+            ),
+        ]);
+    }
+
+    /**
+     * Bir para biriminin belirli tarihteki kuru — VOHOMR_KUR.RAPOR_KURU
+     * (kullanıcı kararı 2026-08-07: alış değil RAPOR kuru, belge tarihi baz).
+     * Tam tarihte kayıt yoksa o tarihten önceki EN SON kur kullanılır.
+     */
+    public function kur(int $paraId, string $tarih): JsonResponse
+    {
+        $kur = $this->mssql->baglan()->scalar(
+            'SELECT TOP 1 RAPOR_KURU FROM VOHOMR_KUR
+             WHERE PARA_ID = ? AND TARIH <= ?
+             ORDER BY TARIH DESC',
+            [$paraId, str_replace('-', '', $tarih)],
+        );
+
+        return response()->json([
+            'data' => ['kur' => $kur === null ? null : (string) round((float) $kur, 6)],
+        ]);
+    }
+
     /** kayit_id + kod + ad döndüren listeler için ortak dönüşüm */
     private function kodAdListesi(array $satirlar): array
     {

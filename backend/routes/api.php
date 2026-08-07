@@ -52,6 +52,13 @@ Route::prefix('v1')->group(function (): void {
             ->name('secenekler.duran-varliklar');
         Route::get('/secenekler/ambalajlar', [SecenekController::class, 'ambalajlar'])
             ->name('secenekler.ambalajlar');
+        Route::get('/secenekler/paralar', [SecenekController::class, 'paralar'])
+            ->name('secenekler.paralar');
+        // Kur, belge tarihine göre okunur (ISO tarih)
+        Route::get('/secenekler/kur/{paraId}/{tarih}', [SecenekController::class, 'kur'])
+            ->whereNumber('paraId')
+            ->where('tarih', '\d{4}-\d{2}-\d{2}')
+            ->name('secenekler.kur');
         // Satırdaki personel: parti yaması ağacından (başlıktaki İK kartı değil)
         Route::get('/secenekler/parti-yamasi-personelleri', [SecenekController::class, 'partiYamasiPersonelleri'])
             ->name('secenekler.parti-yamasi-personelleri');

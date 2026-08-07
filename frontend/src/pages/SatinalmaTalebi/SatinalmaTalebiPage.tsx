@@ -293,6 +293,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                         form={form}
                         projemizId={projemizId}
                         projeKodu={projeKodu}
+                        tarih={form.watch('tarih')}
                       />
                     </td>
                   ))}

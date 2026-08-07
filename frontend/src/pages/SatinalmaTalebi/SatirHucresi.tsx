@@ -17,7 +17,10 @@ import {
   type KayitYuzleri,
 } from '@/formAlanlari'
 
+import { FIYAT_GRUPLARI } from './fiyatGruplari'
+import { FiyatHucresi } from './FiyatHucresi'
 import { SATIR_KAYITLARI, type SatirKaydi, type SatirKaynagi } from './satirKayitlari'
+import { TutarHucresi } from './TutarHucresi'
 import type { TalepAlani } from './talepAlanlari'
 import type { TalepGirdisi, TalepSatiri } from './talepSchema'
 
@@ -52,6 +55,7 @@ export function SatirHucresi({
   form,
   projemizId,
   projeKodu,
+  tarih,
 }: {
   alan: TalepAlani
   indeks: number
@@ -60,6 +64,8 @@ export function SatirHucresi({
   projemizId: string
   /** Aynı projenin kodu — yansıma kolonunda gösterilir */
   projeKodu: string
+  /** Başlıktaki talep tarihi (ISO) — kur bu tarihe göre okunur */
+  tarih: string
 }) {
   const { t } = useTranslation()
 
@@ -84,9 +90,37 @@ export function SatirHucresi({
 
   // Ondalık hassasiyet ERP'de sabit değil: seçilen kaydın ölçü sisteminden
   // gelip satıra yazılmıştı, hücre onu okuyor
+  if (alan.hucre.tip === 'fiyat') {
+    return (
+      <FiyatHucresi
+        grup={FIYAT_GRUPLARI[alan.hucre.grup]}
+        indeks={indeks}
+        form={form}
+        id={id}
+        etiket={erisimEtiketi}
+        tarih={tarih}
+        hata={hataMetni(FIYAT_GRUPLARI[alan.hucre.grup].fiyat)}
+      />
+    )
+  }
+
+  if (alan.hucre.tip === 'tutar') {
+    return (
+      <TutarHucresi
+        grup={FIYAT_GRUPLARI[alan.hucre.grup]}
+        indeks={indeks}
+        form={form}
+        etiket={etiket}
+        kurUygula={alan.hucre.kurUygula}
+      />
+    )
+  }
+
   if (alan.hucre.tip === 'sayi') {
-    const { ad, basamakAnahtari, sonEkAnahtari } = alan.hucre
-    const basamak = Number(form.watch(anahtar(basamakAnahtari)))
+    const { ad, basamakAnahtari, sabitBasamak, sonEkAnahtari } = alan.hucre
+    const basamak = basamakAnahtari
+      ? Number(form.watch(anahtar(basamakAnahtari)))
+      : (sabitBasamak ?? VARSAYILAN_BASAMAK)
     const sonEk = sonEkAnahtari ? String(form.watch(anahtar(sonEkAnahtari)) ?? '') : ''
 
     return (

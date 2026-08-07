@@ -1,3 +1,4 @@
+import type { FiyatGrubuAdi } from './fiyatGruplari'
 import type { SATIR_KAYITLARI, SatirKaynagi } from './satirKayitlari'
 import type { TalepSatiri } from './talepSchema'
 
@@ -22,10 +23,17 @@ export type SatirHucreTanimi =
   | {
       tip: 'sayi'
       ad: keyof TalepSatiri
-      basamakAnahtari: keyof TalepSatiri
+      /** Basamak sayısı satırdaki bir değerden okunur (ölçü sistemi) */
+      basamakAnahtari?: keyof TalepSatiri
+      /** …ya da sabittir (ör. kur alanları 6 basamak) */
+      sabitBasamak?: number
       /** Sayının sağında gösterilecek birim (ERP'deki "1,000000 Ad") */
       sonEkAnahtari?: keyof TalepSatiri
     }
+  /** Fiyat + para birimi birlikte; para seçimi kuru da doldurur */
+  | { tip: 'fiyat'; grup: FiyatGrubuAdi }
+  /** Hesaplanan, salt okunur tutar; `kurUygula=false` yabancı para tutarıdır */
+  | { tip: 'tutar'; grup: FiyatGrubuAdi; kurUygula: boolean }
   /** Kullanıcı giremez; değer başlıktan türer (satırda saklanmaz) */
   | { tip: 'yansima' }
   /**
@@ -98,19 +106,23 @@ export const SATIR_ALANLARI: TalepAlani[] = [
       sonEkAnahtari: 'urun_birimi',
     },
   },
-  { etiketAnahtari: 'birimFiyati', hucre: { tip: 'metin', ad: 'birim_fiyati' } },
-  { etiketAnahtari: 'birimFiyatiKuru', hucre: { tip: 'metin', ad: 'birim_fiyati_kuru' } },
-  { etiketAnahtari: 'tutar', hucre: { tip: 'metin', ad: 'tutar' } },
-  { etiketAnahtari: 'tutarYp', hucre: { tip: 'metin', ad: 'tutar_yp' } },
-  { etiketAnahtari: 'teklifBirimFiyati', hucre: { tip: 'metin', ad: 'teklif_birim_fiyati' } },
-  { etiketAnahtari: 'teklifKuru', hucre: { tip: 'metin', ad: 'teklif_kuru' } },
-  { etiketAnahtari: 'teklifTutari', hucre: { tip: 'metin', ad: 'teklif_tutari' } },
-  { etiketAnahtari: 'butceBirimFiyati', hucre: { tip: 'metin', ad: 'butce_birim_fiyati' } },
+  // Üç fiyat grubu da aynı desende: fiyat+para, kur (6 basamak), hesaplanan tutar
+  { etiketAnahtari: 'birimFiyati', hucre: { tip: 'fiyat', grup: 'birim' } },
+  {
+    etiketAnahtari: 'birimFiyatiKuru',
+    hucre: { tip: 'sayi', ad: 'birim_fiyati_kuru', sabitBasamak: 6 },
+  },
+  { etiketAnahtari: 'tutar', hucre: { tip: 'tutar', grup: 'birim', kurUygula: true } },
+  { etiketAnahtari: 'tutarYp', hucre: { tip: 'tutar', grup: 'birim', kurUygula: false } },
+  { etiketAnahtari: 'teklifBirimFiyati', hucre: { tip: 'fiyat', grup: 'teklif' } },
+  { etiketAnahtari: 'teklifKuru', hucre: { tip: 'sayi', ad: 'teklif_kuru', sabitBasamak: 6 } },
+  { etiketAnahtari: 'teklifTutari', hucre: { tip: 'tutar', grup: 'teklif', kurUygula: true } },
+  { etiketAnahtari: 'butceBirimFiyati', hucre: { tip: 'fiyat', grup: 'butce' } },
   {
     etiketAnahtari: 'butceBirimFiyatiKuru',
-    hucre: { tip: 'metin', ad: 'butce_birim_fiyati_kuru' },
+    hucre: { tip: 'sayi', ad: 'butce_birim_fiyati_kuru', sabitBasamak: 6 },
   },
-  { etiketAnahtari: 'butceBirimTutari', hucre: { tip: 'metin', ad: 'butce_birim_tutari' } },
+  { etiketAnahtari: 'butceBirimTutari', hucre: { tip: 'tutar', grup: 'butce', kurUygula: true } },
   { etiketAnahtari: 'teslimTarihi', hucre: { tip: 'metin', ad: 'teslim_tarihi' } },
   { etiketAnahtari: 'teslimSuresi', hucre: { tip: 'metin', ad: 'teslim_suresi' } },
   { etiketAnahtari: 'pozNo', hucre: { tip: 'metin', ad: 'poz_no' } },

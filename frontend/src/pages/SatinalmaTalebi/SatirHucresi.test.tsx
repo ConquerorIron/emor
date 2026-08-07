@@ -39,11 +39,21 @@ const EKIPMANLAR = [
   { kayit_id: 42, kod: 'EKP-02', ad: 'Kule vinç' },
 ]
 
+const PARALAR = [
+  { kayit_id: 1, kod: 'TL', ad: 'Türk lirası', fiyat_basamak: 6, tutar_basamak: 2 },
+  { kayit_id: 2, kod: 'USD', ad: 'Amerikan Doları', fiyat_basamak: 6, tutar_basamak: 2 },
+]
+
+/** ERP'deki gerçek değer: 8.07.2026 USD rapor kuru */
+const USD_KURU = '46.7525'
+
 vi.mock('@/formAlanlari/veri/secenekApi', async (asliniAl) => ({
   ...(await asliniAl<typeof import('@/formAlanlari/veri/secenekApi')>()),
   aktiviteSecenekleriGetir: () => Promise.resolve(AKTIVITELER),
   urunSecenekleriGetir: () => Promise.resolve(URUNLER),
   ekipmanSecenekleriGetir: () => Promise.resolve(EKIPMANLAR),
+  paraSecenekleriGetir: () => Promise.resolve(PARALAR),
+  kurGetir: (paraId: string) => Promise.resolve(paraId === '2' ? USD_KURU : '1'),
 }))
 
 function alanBul(etiketAnahtari: string): TalepAlani {
@@ -77,6 +87,7 @@ function Yuzler({
           form={form}
           projemizId={projemizId}
           projeKodu="PRJ-1"
+          tarih="2026-07-08"
         />
       ))}
       <output data-testid="secili-id">{String(form.watch(izlenen) ?? '')}</output>
@@ -227,6 +238,32 @@ describe('SatirHucresi — çift yüzlü seçim', () => {
     })
     // Birim, değerin sağında ayrı bir etiket olarak durur (değere karışmaz)
     expect(miktar.parentElement?.querySelector('span')).toHaveTextContent('Ad')
+  })
+
+  it('para seçilince kur gelir, tutar hesaplanır ve yazılamaz', async () => {
+    // ERP ekranındaki satırın aynısı: 1 × 10 USD × 46,7525 = 467,53
+    render(
+      <AppProviders>
+        <Yuzler
+          etiketler={['miktar', 'birimFiyati', 'birimFiyatiKuru', 'tutar', 'tutarYp']}
+          izlenen="satirlar.0.birim_fiyati_kuru"
+        />
+      </AppProviders>,
+    )
+
+    fireEvent.change(screen.getByLabelText('Miktar 1'), { target: { value: '1' } })
+    fireEvent.change(screen.getByLabelText('Birim fiyatı 1'), { target: { value: '10' } })
+    await secenegiSec(screen.getByLabelText('Birim fiyatı 1 — para birimi'), 'USD')
+
+    // Kur belge tarihine göre kendiliğinden dolar
+    await waitFor(() => {
+      expect(screen.getByTestId('secili-id')).toHaveTextContent(USD_KURU)
+    })
+
+    expect(screen.getByLabelText('Tutar 1')).toHaveTextContent('467,53')
+    expect(screen.getByLabelText('Tutar (YP) 1')).toHaveTextContent('10,00 USD')
+    // Tutar hesaplanan bir değerdir; giriş öğesi değildir
+    expect(screen.getByLabelText('Tutar 1').tagName).toBe('OUTPUT')
   })
 
   it('proje seçilmeden aktivite seçilemez', async () => {

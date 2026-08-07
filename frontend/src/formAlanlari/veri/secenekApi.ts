@@ -177,6 +177,36 @@ export async function ambalajSecenekleriGetir(): Promise<AmbalajSecenegi[]> {
   return yanit.data.data
 }
 
+/**
+ * TOHOM_PARA — para birimleri. Ondalık basamak sayısı ERP'de para başına
+ * tanımlıdır: fiyat alanları `fiyat_basamak`, tutar alanları `tutar_basamak`.
+ */
+export type ParaSecenegi = {
+  kayit_id: number
+  kod: string
+  ad: string
+  fiyat_basamak: number
+  tutar_basamak: number
+}
+
+export async function paraSecenekleriGetir(): Promise<ParaSecenegi[]> {
+  const yanit = await api.get<{ data: ParaSecenegi[] }>('/api/v1/secenekler/paralar')
+
+  return yanit.data.data
+}
+
+/**
+ * Bir para biriminin belge tarihindeki kuru (VOHOMR_KUR.RAPOR_KURU).
+ * Kur bulunamazsa '' döner — kullanıcı elle girebilir.
+ */
+export async function kurGetir(paraId: string, tarihIso: string): Promise<string> {
+  const yanit = await api.get<{ data: { kur: string | null } }>(
+    `/api/v1/secenekler/kur/${paraId}/${tarihIso}`,
+  )
+
+  return yanit.data.data.kur ?? ''
+}
+
 /** VOHOM_PERSONEL_UZERINDEKI_ZIMMETLER — kayit_id = DURAN_VARLIK_ID */
 export type DuranVarlikSecenegi = {
   kayit_id: number
