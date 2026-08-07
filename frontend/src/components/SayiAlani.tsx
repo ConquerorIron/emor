@@ -4,6 +4,8 @@
  * SQL'e dönüştürmeden gidebilsin.
  */
 
+import { ALAN_ETIKETI, ALAN_GORUNUMU, ALAN_KUTUSU, alanCercevesi } from '@/components/alanStilleri'
+
 interface SayiAlaniProps {
   id: string
   label: string
@@ -51,10 +53,7 @@ export function SayiAlani({
 }: SayiAlaniProps) {
   return (
     <div>
-      <label
-        htmlFor={id}
-        className="block text-sm font-semibold text-slate-700 dark:text-slate-300"
-      >
+      <label htmlFor={id} className={ALAN_ETIKETI}>
         {label}
       </label>
       <div className="relative mt-1">
@@ -66,13 +65,7 @@ export function SayiAlani({
           value={gosterime(value)}
           onChange={(olay) => onChange(veriye(olay.target.value, ondalik))}
           aria-invalid={hata ? true : undefined}
-          className={`block h-[42px] w-full rounded-xl border bg-white py-2 pl-3 text-right text-sm text-slate-900 shadow-sm transition-colors outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60 dark:bg-slate-950 dark:text-slate-100 dark:disabled:bg-slate-900 ${
-            yuzde ? 'pr-8' : 'pr-3'
-          } ${
-            hata
-              ? 'border-red-500 focus:border-red-500 focus:ring-red-200 dark:focus:ring-red-900'
-              : 'border-slate-300 focus:border-blue-600 focus:ring-blue-200 dark:border-slate-700 dark:focus:ring-blue-900'
-          }`}
+          className={`block w-full py-2 pl-3 text-right ${yuzde ? 'pr-8' : 'pr-3'} ${ALAN_GORUNUMU} ${ALAN_KUTUSU} ${alanCercevesi(hata)}`}
         />
         {yuzde ? (
           <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-400 dark:text-slate-500">

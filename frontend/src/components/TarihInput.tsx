@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { ALAN_ETIKETI, ALAN_GORUNUMU, ALAN_KUTUSU, alanCercevesi } from '@/components/alanStilleri'
 import { bugunIso, gosterimdenIso, tarihGoster, tarihMaskele } from '@/utils/tarih'
 
 interface TarihInputProps {
@@ -146,12 +147,7 @@ export function TarihInput({
 
   return (
     <div ref={kokRef} className="relative">
-      <label
-        htmlFor={id}
-        className={
-          etiketGizli ? 'sr-only' : 'block text-sm font-semibold text-slate-700 dark:text-slate-300'
-        }
-      >
+      <label htmlFor={id} className={etiketGizli ? 'sr-only' : ALAN_ETIKETI}>
         {label}
       </label>
       <div className={etiketGizli ? 'relative' : 'relative mt-1'}>
@@ -166,11 +162,7 @@ export function TarihInput({
           value={metin}
           onChange={(olay) => elleYazildi(olay.target.value)}
           aria-invalid={hata ? true : undefined}
-          className={`block h-[42px] w-full rounded-xl border bg-white py-2 pr-10 pl-3 text-sm text-slate-900 shadow-sm transition-colors outline-none placeholder:text-slate-400 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-950 dark:text-slate-100 ${
-            hata
-              ? 'border-red-500 focus:border-red-500 focus:ring-red-200 dark:focus:ring-red-900'
-              : 'border-slate-300 focus:border-blue-600 focus:ring-blue-200 dark:border-slate-700 dark:focus:ring-blue-900'
-          }`}
+          className={`block w-full py-2 pr-10 pl-3 ${ALAN_GORUNUMU} ${ALAN_KUTUSU} ${alanCercevesi(hata)}`}
         />
         <button
           type="button"

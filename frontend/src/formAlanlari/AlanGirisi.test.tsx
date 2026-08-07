@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import '@/i18n/i18n'
+import { ALAN_GORUNUMU, ALAN_KUTUSU, ALAN_KUTUSU_ESNEK } from '@/components/alanStilleri'
 import { AppProviders } from '@/providers/AppProviders'
 import type { KatalogAlani } from '@/features/ekranTasarim/types'
 import { AlanGirisi, girisTipiTanimliMi } from './AlanGirisi'
@@ -89,6 +90,36 @@ describe('AlanGirisi — ortak kural sözleşmesi', () => {
       )
       expect(girisler.length, `${tip} bir giriş öğesi çizmeli`).toBeGreaterThan(0)
       expect(girisler[0], `${tip} salt okunur olmalı`).toBeDisabled()
+    },
+  )
+
+  it.each(TIPLER)(
+    '$tip: kutusu ortak yükseklik ölçüsüne bağlı (satırlar hizada kalır)',
+    ({ tip, anahtar, veri, limit }) => {
+      render(
+        <AppProviders>
+          <Sarici katalog={katalogYap(tip, anahtar, veri, limit)} zorunlu={false} />
+        </AppProviders>,
+      )
+
+      // Ortak görünümü kullanan her kutu ortak yüksekliği de kullanmalı;
+      // aksi halde 1 satırlık textarea input'tan 4px kısa kalıyordu
+      // Kutu her zaman input/textarea değil: Evet/Hayır alanı anahtarı
+      // aynı ölçüdeki bir <div> kutunun içine alır
+      const kutular = [...document.querySelectorAll('input, textarea, div')].filter((oge) =>
+        oge.className.includes(ALAN_GORUNUMU),
+      )
+
+      for (const kutu of kutular) {
+        expect(
+          kutu.className.includes(ALAN_KUTUSU) || kutu.className.includes(ALAN_KUTUSU_ESNEK),
+          `${tip} kutusu ortak yükseklik sınıfını taşımalı`,
+        ).toBe(true)
+      }
+
+      // Seçici tipler react-select çizer (yüksekliği selectStilleri'nden gelir)
+      const seciciVar = document.querySelector('.erp-select__control') !== null
+      expect(kutular.length > 0 || seciciVar, `${tip} bir alan kutusu çizmeli`).toBe(true)
     },
   )
 

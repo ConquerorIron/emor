@@ -1,5 +1,11 @@
 import { useTranslation } from 'react-i18next'
 
+import {
+  ALAN_ETIKETI,
+  ALAN_GORUNUMU,
+  ALAN_KUTUSU_ESNEK,
+  alanCercevesi,
+} from '@/components/alanStilleri'
 import { EvetHayirAlani } from '@/components/EvetHayirAlani'
 import { Input } from '@/components/Input'
 import { OpsiyonelTarihInput } from '@/components/OpsiyonelTarihInput'
@@ -38,10 +44,7 @@ export const GIRIS_TANIMLARI: Record<string, GirisTanimi> = {
     ciz: ({ ortak, duzen, deger, degistir }) =>
       duzen.gorunum === 'textarea' ? (
         <div>
-          <label
-            htmlFor={ortak.id}
-            className="block text-sm font-semibold text-slate-700 dark:text-slate-300"
-          >
+          <label htmlFor={ortak.id} className={ALAN_ETIKETI}>
             {ortak.label}
           </label>
           <textarea
@@ -50,7 +53,7 @@ export const GIRIS_TANIMLARI: Record<string, GirisTanimi> = {
             disabled={ortak.disabled}
             value={deger}
             onChange={(olay) => degistir(olay.target.value)}
-            className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition-colors outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:disabled:bg-slate-900 dark:focus:ring-blue-900"
+            className={`mt-1 block w-full px-3 py-2 ${ALAN_GORUNUMU} ${ALAN_KUTUSU_ESNEK} ${alanCercevesi(ortak.hata)}`}
           />
         </div>
       ) : (

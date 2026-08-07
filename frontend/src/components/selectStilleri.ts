@@ -1,5 +1,7 @@
 import type { StylesConfig } from 'react-select'
 
+import { ALAN_YUKSEKLIGI } from '@/components/alanStilleri'
+
 export interface SecenekOgesi {
   value: string
   label: string
@@ -16,7 +18,11 @@ export function selectStilleri<IsMulti extends boolean>(
   return {
     control: (base, state) => ({
       ...base,
-      minHeight: 42,
+      minHeight: ALAN_YUKSEKLIGI,
+      // Metin girişleriyle aynı punto (Tailwind text-sm) — react-select
+      // varsayılanı gövdeden 16px miras alıyor ve yan yana duran alanlarda
+      // seçicinin yazısı inputlardan iri görünüyordu
+      fontSize: 14,
       borderRadius: 12,
       boxShadow: 'none',
       borderColor: state.isFocused ? '#3b82f6' : isDark ? '#334155' : '#cbd5e1',
@@ -36,6 +42,7 @@ export function selectStilleri<IsMulti extends boolean>(
     }),
     menu: (base) => ({
       ...base,
+      fontSize: 14,
       borderRadius: 12,
       overflow: 'hidden',
       backgroundColor: isDark ? '#0f172a' : '#ffffff',

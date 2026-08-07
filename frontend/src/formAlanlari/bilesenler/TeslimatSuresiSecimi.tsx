@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
+import { ALAN_ETIKETI, ALAN_GORUNUMU, ALAN_KUTUSU, alanCercevesi } from '@/components/alanStilleri'
 import { selectStilleri, type SecenekOgesi } from '@/components/selectStilleri'
 import { useTheme } from '@/hooks/useTheme'
 import Select from 'react-select'
@@ -42,10 +43,7 @@ export function TeslimatSuresiSecimi({
 
   return (
     <div>
-      <label
-        htmlFor={id}
-        className="block text-sm font-semibold text-slate-700 dark:text-slate-300"
-      >
+      <label htmlFor={id} className={ALAN_ETIKETI}>
         {label}
       </label>
       <div className="mt-1 flex items-start gap-2">
@@ -59,11 +57,7 @@ export function TeslimatSuresiSecimi({
           // Yalnız rakam: negatif/ondalık süre ERP'de yok
           onChange={(olay) => degisti(olay.target.value.replace(/\D/g, ''), birim)}
           aria-invalid={hata ? true : undefined}
-          className={`block h-[42px] w-24 shrink-0 rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition-colors outline-none focus:ring-2 dark:bg-slate-950 dark:text-slate-100 ${
-            hata
-              ? 'border-red-500 focus:border-red-500 focus:ring-red-200 dark:focus:ring-red-900'
-              : 'border-slate-300 focus:border-blue-600 focus:ring-blue-200 dark:border-slate-700 dark:focus:ring-blue-900'
-          }`}
+          className={`block w-24 shrink-0 px-3 py-2 ${ALAN_GORUNUMU} ${ALAN_KUTUSU} ${alanCercevesi(hata)}`}
         />
         <div className="min-w-0 flex-1">
           <Select<SecenekOgesi, false>

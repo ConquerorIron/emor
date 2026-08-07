@@ -1,5 +1,6 @@
 import Select, { type MultiValue, type SingleValue } from 'react-select'
 
+import { ALAN_ETIKETI } from '@/components/alanStilleri'
 import { selectStilleri, type SecenekOgesi } from '@/components/selectStilleri'
 import { useTheme } from '@/hooks/useTheme'
 
@@ -30,10 +31,7 @@ function AlanSarici({
 }) {
   return (
     <div>
-      <label
-        htmlFor={id}
-        className="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300"
-      >
+      <label htmlFor={id} className={`mb-1 ${ALAN_ETIKETI}`}>
         {label}
       </label>
       {children}

@@ -1,5 +1,7 @@
 import { Switch as HeadlessSwitch } from '@headlessui/react'
 
+import { ALAN_ETIKET_SATIRI } from '@/components/alanStilleri'
+
 interface SwitchProps {
   id?: string
   label: string
@@ -13,6 +15,11 @@ interface SwitchProps {
    * için standart görünüm — varsayılan AÇIK; sade istenen özel bir yerde `false`.
    */
   vurgulu?: boolean
+  /**
+   * Etiketi dış bileşen basıyorsa (ör. EvetHayirAlani kendi alan etiketini
+   * yazar) yalnız anahtar çizilir; erişilebilir ad aria-label ile korunur.
+   */
+  etiketGizli?: boolean
 }
 
 /** Boolean girişlerin standart bileşeni — checkbox kullanılmaz (rules.md §2). */
@@ -23,21 +30,33 @@ export function Switch({
   onChange,
   disabled = false,
   vurgulu = true,
+  etiketGizli = false,
 }: SwitchProps) {
+  const dugme = (
+    <HeadlessSwitch
+      id={id}
+      checked={checked}
+      onChange={onChange}
+      disabled={disabled}
+      aria-label={etiketGizli ? label : undefined}
+      className="group inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full bg-slate-300 transition-colors data-checked:bg-blue-600 data-disabled:cursor-not-allowed data-disabled:opacity-50 dark:bg-slate-600 dark:data-checked:bg-blue-500"
+    >
+      <span className="size-4 translate-x-1 rounded-full bg-white transition-transform group-data-checked:translate-x-6" />
+    </HeadlessSwitch>
+  )
+
+  if (etiketGizli) {
+    return dugme
+  }
+
   const icerik = (
-    <div className="flex items-center justify-between gap-3">
+    // Etiket satırı yüksekliği ortak: switch etiketli bir alan (Termin) düz
+    // etiketli komşusuyla aynı hizada başlamalı
+    <div className={`${ALAN_ETIKET_SATIRI} justify-between gap-3`}>
       <label htmlFor={id} className="text-sm font-semibold text-slate-700 dark:text-slate-300">
         {label}
       </label>
-      <HeadlessSwitch
-        id={id}
-        checked={checked}
-        onChange={onChange}
-        disabled={disabled}
-        className="group inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full bg-slate-300 transition-colors data-checked:bg-blue-600 data-disabled:cursor-not-allowed data-disabled:opacity-50 dark:bg-slate-600 dark:data-checked:bg-blue-500"
-      >
-        <span className="size-4 translate-x-1 rounded-full bg-white transition-transform group-data-checked:translate-x-6" />
-      </HeadlessSwitch>
+      {dugme}
     </div>
   )
 
