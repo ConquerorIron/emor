@@ -34,6 +34,9 @@ export const SATIR_KAYITLARI = {
   ekipman: { idAnahtari: 'ekipman_id', yuzler: { ad: 'ekipman_adi' } },
   butceKalemi: { idAnahtari: 'butce_kalemi_id', yuzler: { ad: 'butce_kalemi_adi' } },
   butceBolumu: { idAnahtari: 'butce_bolumu_id', yuzler: { ad: 'butce_bolumu_adi' } },
+  duranVarlik: { idAnahtari: 'duran_varlik_id', yuzler: { ad: 'duran_varlik_adi' } },
+  // Satırdaki personel parti yaması ağacından gelir (başlıktaki İK kartı değil)
+  personel: { idAnahtari: 'personel_id', yuzler: { ad: 'personel_adi' } },
 } as const satisfies Record<string, SatirKaydi>
 
 export type SatirKaynagi = keyof typeof SATIR_KAYITLARI

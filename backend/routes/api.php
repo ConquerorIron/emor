@@ -48,6 +48,11 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/secenekler/butce-kalemleri/{projemizId}', [SecenekController::class, 'butceKalemleri'])
             ->whereNumber('projemizId')
             ->name('secenekler.butce-kalemleri');
+        Route::get('/secenekler/duran-varliklar', [SecenekController::class, 'duranVarliklar'])
+            ->name('secenekler.duran-varliklar');
+        // Satırdaki personel: parti yaması ağacından (başlıktaki İK kartı değil)
+        Route::get('/secenekler/parti-yamasi-personelleri', [SecenekController::class, 'partiYamasiPersonelleri'])
+            ->name('secenekler.parti-yamasi-personelleri');
 
         // Ekran tasarım motoru — okuma herkese (form çizimi), düzenleme yöneticiye
         Route::get('/ekranlar/{ekran}/tasarim', [EkranTasarimController::class, 'goster'])

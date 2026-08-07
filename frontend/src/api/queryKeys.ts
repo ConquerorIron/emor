@@ -28,5 +28,8 @@ export const queryKeys = {
     urunler: (ara: string) => ['secenekler', 'urunler', ara] as const,
     ekipmanlar: ['secenekler', 'ekipmanlar'],
     butceKalemleri: (projemizId: string) => ['secenekler', 'butceKalemleri', projemizId] as const,
+    duranVarliklar: ['secenekler', 'duranVarliklar'],
+    // Satırdaki personel — başlıktaki 'personeller' listesinden farklı kaynak
+    partiYamasiPersonelleri: ['secenekler', 'partiYamasiPersonelleri'],
   },
 } as const

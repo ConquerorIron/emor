@@ -311,6 +311,45 @@ final class SecenekController extends Controller
         return response()->json(['data' => $this->kodAdListesi($satirlar)]);
     }
 
+    /**
+     * Duran varlık seçenekleri — VOHOM_PERSONEL_UZERINDEKI_ZIMMETLER (profiler
+     * kaydı 2026-08-07). Liste personele zimmetli varlıklardan oluşur; ekranda
+     * varlığın ADI görünür. kayit_id = DURAN_VARLIK_ID.
+     */
+    public function duranVarliklar(): JsonResponse
+    {
+        $satirlar = $this->mssql->baglan()->select(
+            'SELECT DURAN_VARLIK_ID AS kayit_id, DURAN_VARLIK_KODU AS kod,
+                    DURAN_VARLIK_ADI COLLATE Turkish_100_CI_AS AS ad
+             FROM VOHOM_PERSONEL_UZERINDEKI_ZIMMETLER
+             ORDER BY DURAN_VARLIK_ADI COLLATE Turkish_100_CI_AS',
+        );
+
+        return response()->json(['data' => $this->kodAdListesi($satirlar)]);
+    }
+
+    /**
+     * Talep SATIRLARININ personel seçenekleri (profiler kaydı 2026-08-07).
+     * DİKKAT: başlıktaki "Personel adı" ile AYNI KAYNAK DEĞİLDİR — başlık İK
+     * kartlarını (VOHOM_ARAMA_PERSONEL, PERSONEL_ID) kullanır, satır ise parti
+     * yaması ağacındaki personel tarafını (TUR=2, PARTI_YAMASI_ID).
+     */
+    public function partiYamasiPersonelleri(Request $request): JsonResponse
+    {
+        $erpKullaniciId = $request->user()?->erp_kullanici_id ?? -1;
+
+        $satirlar = $this->mssql->baglan()->select(
+            'SELECT PARTI_YAMASI_ID AS kayit_id, KOD AS kod, AD COLLATE Turkish_100_CI_AS AS ad
+             FROM VOHOM_ARAMA_PARTI_YAMASI_PERSONEL
+             WHERE TUR = 2 AND MIYAD_TARIHI IS NULL
+               AND (GUVENLIK_KODU_ID IS NULL OR GRUP_KULLANICISI_ID = ?)
+             ORDER BY AD COLLATE Turkish_100_CI_AS',
+            [$erpKullaniciId],
+        );
+
+        return response()->json(['data' => $this->kodAdListesi($satirlar)]);
+    }
+
     /** kayit_id + kod + ad döndüren listeler için ortak dönüşüm */
     private function kodAdListesi(array $satirlar): array
     {

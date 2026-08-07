@@ -6,8 +6,10 @@ import {
   AktiviteSecimi,
   ButceBolumuSecimi,
   ButceKalemiSecimi,
+  DuranVarlikSecimi,
   EkipmanSecimi,
   MasrafMerkeziSecimi,
+  PartiYamasiPersonelSecimi,
   UrunSecimi,
   type KayitSecimProps,
   type KayitYuzleri,
@@ -29,6 +31,8 @@ const SECIM_BILESENLERI: Record<SatirKaynagi, (props: KayitSecimProps) => React.
   ekipman: EkipmanSecimi,
   butceKalemi: ButceKalemiSecimi,
   butceBolumu: ButceBolumuSecimi,
+  duranVarlik: DuranVarlikSecimi,
+  personel: PartiYamasiPersonelSecimi,
 }
 
 /**

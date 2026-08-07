@@ -158,6 +158,38 @@ export async function butceKalemiSecenekleriGetir(
   return yanit.data.data
 }
 
+/** VOHOM_PERSONEL_UZERINDEKI_ZIMMETLER — kayit_id = DURAN_VARLIK_ID */
+export type DuranVarlikSecenegi = {
+  kayit_id: number
+  kod: string
+  ad: string
+}
+
+export async function duranVarlikSecenekleriGetir(): Promise<DuranVarlikSecenegi[]> {
+  const yanit = await api.get<{ data: DuranVarlikSecenegi[] }>('/api/v1/secenekler/duran-varliklar')
+
+  return yanit.data.data
+}
+
+/**
+ * VOHOM_ARAMA_PARTI_YAMASI_PERSONEL (TUR=2) — kayit_id = PARTI_YAMASI_ID.
+ * Başlıktaki personel listesiyle AYNI DEĞİL: orası İK kartlarını
+ * (VOHOM_ARAMA_PERSONEL / PERSONEL_ID) kullanır.
+ */
+export type PartiYamasiPersoneli = {
+  kayit_id: number
+  kod: string
+  ad: string
+}
+
+export async function partiYamasiPersonelleriGetir(): Promise<PartiYamasiPersoneli[]> {
+  const yanit = await api.get<{ data: PartiYamasiPersoneli[] }>(
+    '/api/v1/secenekler/parti-yamasi-personelleri',
+  )
+
+  return yanit.data.data
+}
+
 /** İlgi cinsine göre ilişkili kayıt adayı — kaynak view cinse göre değişir */
 export interface IlgiliSecenegi {
   kayit_id: number
