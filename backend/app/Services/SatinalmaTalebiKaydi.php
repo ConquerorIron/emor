@@ -27,13 +27,19 @@ final class SatinalmaTalebiKaydi
     private const TIP = 2;
 
     /**
-     * @DENETIM_ISLEMI = 0 → ERP'nin "Kaydet" davranışı: rol kurallarını
-     * denetle, sorun yoksa onaylı kaydet.
+     * ERP'nin Kaydet akışı (profiler kaydı 2026-08-07) tek parametrede ayrışır:
      *
-     * 1 denetimi tamamen ATLAR ve kaydı onaylı yazar (yorumu "onaysız kaydet"
-     * dese de kod öyle davranmıyor) — bu yüzden kullanılmıyor.
+     *   0 → DENETLE. Rol kuralları çalışır; kısıtlama varsa proc hiçbir şey
+     *       kaydetmeden 2 döner ve kısıtlamalar #TOHOM_ISKELE_SINIRLAMA'da kalır.
+     *       ERP bu noktada "Denetim mesajları" penceresini açar.
+     *   1 → Pencerede "Onaya sun" İŞARETSİZ Kaydet.
+     *   2 → Pencerede "Onaya sun" İŞARETLİ Kaydet.
      */
-    private const DENETIM_ISLEMI = 0;
+    public const DENETIM_DENETLE = 0;
+
+    public const DENETIM_ONAYA_SUNMADAN = 1;
+
+    public const DENETIM_ONAYA_SUN = 2;
 
     /** Proc dönüşü: 0 = kaydedildi, 2 = kısıtlama/onay gerekli (kayıt yok) */
     private const DONUS_ONAY_GEREKLI = 2;
@@ -49,8 +55,11 @@ final class SatinalmaTalebiKaydi
      * @param  array<string, mixed>  $talep  Form verisi (başlık + satirlar)
      * @return array{durum: string, siparis_id: int, talep_no: string, onay_durumu: int, sinirlamalar: list<array<string, mixed>>}
      */
-    public function kaydet(array $talep, int $erpKullaniciId): array
-    {
+    public function kaydet(
+        array $talep,
+        int $erpKullaniciId,
+        int $denetimIslemi = self::DENETIM_DENETLE,
+    ): array {
         $baglanti = $this->iskele->kur();
         $guid = strtoupper((string) Str::uuid());
 
@@ -58,7 +67,7 @@ final class SatinalmaTalebiKaydi
 
         try {
             $this->satirlariYaz($baglanti, $guid, $talep);
-            $sonuc = $this->procCagir($baglanti, $guid, $talep, $erpKullaniciId);
+            $sonuc = $this->procCagir($baglanti, $guid, $talep, $erpKullaniciId, $denetimIslemi);
 
             // Kullanıcının rol kuralları kaydı engelliyorsa proc HİÇBİR ŞEY
             // kaydetmeden 2 ile döner; talebin onaya sunulması gerekir
@@ -228,6 +237,7 @@ final class SatinalmaTalebiKaydi
         string $guid,
         array $talep,
         int $erpKullaniciId,
+        int $denetimIslemi,
     ): array {
         $evrakKonusuId = $this->evrakKonusuId($baglanti);
         $tarih = (string) ($talep['tarih'] ?? '');
@@ -276,7 +286,7 @@ final class SatinalmaTalebiKaydi
             'ALIM_YERI' => $this->kimlik($talep['alim_yeri'] ?? null),
             'KULLANICI_ID' => $erpKullaniciId,
             'GUID' => $guid,
-            'DENETIM_ISLEMI' => self::DENETIM_ISLEMI,
+            'DENETIM_ISLEMI' => $denetimIslemi,
         ];
 
         // OUTPUT parametreleri PDO ile bağlamak yerine SQL yerel değişkenlerine

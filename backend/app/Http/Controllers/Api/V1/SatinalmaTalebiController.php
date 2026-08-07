@@ -41,6 +41,14 @@ final class SatinalmaTalebiController extends Controller
             'teslimat_suresi_birimi' => ['nullable', 'integer'],
             'alim_yeri' => ['nullable', 'integer'],
 
+            /*
+             * Denetim penceresinden gelen karar (ERP akışının aynısı):
+             *   yok            → önce denetle; kısıtlama varsa pencere açılır
+             *   onaya_sun      → onaya sun ve onaysız kaydet
+             *   onaya_sunmadan → kısıtlamalara rağmen onaya sunmadan kaydet
+             */
+            'karar' => ['nullable', 'in:onaya_sun,onaya_sunmadan'],
+
             'satirlar' => ['required', 'array', 'min:1'],
             // Ürün satırın kimliğidir; ERP'ye giden değer URUN_YAMASI_ID'dir
             'satirlar.*.urun_yamasi_id' => ['required', 'integer'],
@@ -60,6 +68,11 @@ final class SatinalmaTalebiController extends Controller
             $sonuc = $this->kayit->kaydet(
                 [...$veri, 'satirlar' => $request->input('satirlar', [])],
                 (int) $erpKullaniciId,
+                match ($veri['karar'] ?? null) {
+                    'onaya_sun' => SatinalmaTalebiKaydi::DENETIM_ONAYA_SUN,
+                    'onaya_sunmadan' => SatinalmaTalebiKaydi::DENETIM_ONAYA_SUNMADAN,
+                    default => SatinalmaTalebiKaydi::DENETIM_DENETLE,
+                },
             );
         } catch (\Throwable $hata) {
             report($hata);
