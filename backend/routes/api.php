@@ -43,6 +43,11 @@ Route::prefix('v1')->group(function (): void {
         // Ürün listesi büyük: arama sunucuda (?ara=), ilk 50 kayıt döner
         Route::get('/secenekler/urunler', [SecenekController::class, 'urunler'])
             ->name('secenekler.urunler');
+        Route::get('/secenekler/ekipmanlar', [SecenekController::class, 'ekipmanlar'])
+            ->name('secenekler.ekipmanlar');
+        Route::get('/secenekler/butce-kalemleri/{projemizId}', [SecenekController::class, 'butceKalemleri'])
+            ->whereNumber('projemizId')
+            ->name('secenekler.butce-kalemleri');
 
         // Ekran tasarım motoru — okuma herkese (form çizimi), düzenleme yöneticiye
         Route::get('/ekranlar/{ekran}/tasarim', [EkranTasarimController::class, 'goster'])

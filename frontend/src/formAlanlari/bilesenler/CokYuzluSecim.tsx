@@ -6,6 +6,29 @@ import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 /** ERP'de birden çok sütunda görünen tek kayıt (kod, ad, barkod…) */
 export type KayitYuzleri = { kayit_id: number } & Record<string, unknown>
 
+/**
+ * Izgara seçim bileşenlerinin ORTAK sözleşmesi. Hepsi aynı imzayı taşır ki
+ * hücre çizimi kaynağa göre dallanmasın — kaynak → bileşen eşlemesi tek bir
+ * kayıt defterinde durur. Bir bileşen kendisine uymayan alanı yok sayar
+ * (ör. ekipman listesi projeye bağlı değildir).
+ */
+export interface KayitSecimProps {
+  id: string
+  label: string
+  /** Seçili kaydın ERP KAYIT_ID'si */
+  deger: string
+  degisti: (secim: KayitYuzleri | null) => void
+  /** Kaydın hangi yüzü (alanı) bu sütunda gösteriliyor */
+  goster: string
+  /** Projeye bağlı listelerin kaynağı; '' = proje seçilmedi */
+  projemizId: string
+  /** Sunucu aramalı listelerde satırda saklı gösterim */
+  seciliEtiket?: string
+  hata?: string
+  disabled?: boolean
+  etiketGizli?: boolean
+}
+
 interface CokYuzluSecimProps<T extends KayitYuzleri> {
   id: string
   label: string
@@ -13,8 +36,12 @@ interface CokYuzluSecimProps<T extends KayitYuzleri> {
   deger: string
   degisti: (secim: T | null) => void
   secenekler: T[]
-  /** Kaydın hangi yüzü (alanı) bu sütunda gösteriliyor */
-  goster: keyof T & string
+  /**
+   * Kaydın hangi yüzü (alanı) bu sütunda gösteriliyor. ERP kaydındaki alan
+   * adıyla birebir aynı olmalı — eşleşme `satirKayitlari` tablosunda tanımlı
+   * ve seçim testleriyle doğrulanır.
+   */
+  goster: string
   /**
    * Seçili kaydın gösterimi. Liste sunucuda süzülüyorsa (ürün) seçili kayıt
    * o anki listede olmayabilir; etiket kaybolmasın diye dışarıdan verilir.

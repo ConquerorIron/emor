@@ -1,4 +1,4 @@
-import type { SatirKaynagi } from './satirKayitlari'
+import type { SATIR_KAYITLARI, SatirKaynagi } from './satirKayitlari'
 import type { TalepSatiri } from './talepSchema'
 
 /**
@@ -16,8 +16,17 @@ export type SatirHucreTanimi =
   | { tip: 'metin'; ad: keyof TalepSatiri }
   /** Kullanıcı giremez; değer başlıktan türer (satırda saklanmaz) */
   | { tip: 'yansima' }
-  /** ERP kaydının bir yüzü — seçim tüm yüzleri birden doldurur */
-  | { tip: 'secim'; kaynak: SatirKaynagi; goster: string }
+  /**
+   * ERP kaydının bir yüzü — seçim tüm yüzleri birden doldurur. `goster`
+   * yalnız o kaydın tanımlı yüzlerinden biri olabilir (satirKayitlari).
+   */
+  | {
+      [K in SatirKaynagi]: {
+        tip: 'secim'
+        kaynak: K
+        goster: keyof (typeof SATIR_KAYITLARI)[K]['yuzler'] & string
+      }
+    }[SatirKaynagi]
 
 export interface TalepAlani {
   /** i18n etiketi (satinalma.alan.*) */
@@ -56,9 +65,9 @@ export const SATIR_ALANLARI: TalepAlani[] = [
   // ——— Henüz tarif edilmemiş kolonlar: serbest metin olarak duruyorlar.
   // Her biri tarif edildikçe kendi ERP tipine bağlanacak (seçim listesi, sayı,
   // tarih, evet/hayır); sıra ERP ekranındaki sırayla birebir.
-  { etiketAnahtari: 'ekipmanAdi', hucre: { tip: 'metin', ad: 'ekipman_adi' } },
-  { etiketAnahtari: 'butceKalemi', hucre: { tip: 'metin', ad: 'butce_kalemi' } },
-  { etiketAnahtari: 'butceBolumu', hucre: { tip: 'metin', ad: 'butce_bolumu' } },
+  { etiketAnahtari: 'ekipmanAdi', hucre: { tip: 'secim', kaynak: 'ekipman', goster: 'ad' } },
+  { etiketAnahtari: 'butceKalemi', hucre: { tip: 'secim', kaynak: 'butceKalemi', goster: 'ad' } },
+  { etiketAnahtari: 'butceBolumu', hucre: { tip: 'secim', kaynak: 'butceBolumu', goster: 'ad' } },
   { etiketAnahtari: 'duranVarlik', hucre: { tip: 'metin', ad: 'duran_varlik' } },
   { etiketAnahtari: 'personelAdi', hucre: { tip: 'metin', ad: 'personel_adi' } },
   { etiketAnahtari: 'urunTarifi', hucre: { tip: 'metin', ad: 'urun_tarifi' } },

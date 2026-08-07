@@ -30,6 +30,10 @@ export const SATIR_KAYITLARI = {
     idAnahtari: 'urun_yamasi_id',
     yuzler: { kod: 'urun_kodu', barkod: 'barkod', ad: 'urun_adi' },
   },
+  // Aşağıdakiler tek yüzlü: ekranda yalnız AD görünür, ERP'ye KAYIT_ID gider
+  ekipman: { idAnahtari: 'ekipman_id', yuzler: { ad: 'ekipman_adi' } },
+  butceKalemi: { idAnahtari: 'butce_kalemi_id', yuzler: { ad: 'butce_kalemi_adi' } },
+  butceBolumu: { idAnahtari: 'butce_bolumu_id', yuzler: { ad: 'butce_bolumu_adi' } },
 } as const satisfies Record<string, SatirKaydi>
 
 export type SatirKaynagi = keyof typeof SATIR_KAYITLARI

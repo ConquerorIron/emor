@@ -49,7 +49,7 @@ export async function firmamizAdresleriGetir(): Promise<FirmamizAdresi[]> {
 }
 
 /** VOHOM_TABLO_MADDESI — TUR'a göre farklı listeler (36=Öncelik, 53=Teslimat şekli…) */
-export interface TabloMaddesiSecenegi {
+export type TabloMaddesiSecenegi = {
   kayit_id: number
   ust_id: number | null
   ad: string
@@ -123,6 +123,36 @@ export async function masrafMerkeziSecenekleriGetir(
 ): Promise<MasrafMerkeziSecenegi[]> {
   const yanit = await api.get<{ data: MasrafMerkeziSecenegi[] }>(
     `/api/v1/secenekler/masraf-merkezleri/${projemizId}`,
+  )
+
+  return yanit.data.data
+}
+
+/** VOHOM_ARAMA_EKIPMAN — kiralama hizmetine bağlı kayıtlar listelenmez */
+export type EkipmanSecenegi = {
+  kayit_id: number
+  kod: string
+  ad: string
+}
+
+export async function ekipmanSecenekleriGetir(): Promise<EkipmanSecenegi[]> {
+  const yanit = await api.get<{ data: EkipmanSecenegi[] }>('/api/v1/secenekler/ekipmanlar')
+
+  return yanit.data.data
+}
+
+/** VOHOM_ARAMA_PROJEMIZ_BUTCE_KALEMI — proje bazlı; kayit_id = HARCAMA_KALEMI_ID */
+export type ButceKalemiSecenegi = {
+  kayit_id: number
+  kod: string
+  ad: string
+}
+
+export async function butceKalemiSecenekleriGetir(
+  projemizId: string,
+): Promise<ButceKalemiSecenegi[]> {
+  const yanit = await api.get<{ data: ButceKalemiSecenegi[] }>(
+    `/api/v1/secenekler/butce-kalemleri/${projemizId}`,
   )
 
   return yanit.data.data

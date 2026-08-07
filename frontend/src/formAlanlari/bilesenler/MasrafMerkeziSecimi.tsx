@@ -4,40 +4,21 @@ import { useTranslation } from 'react-i18next'
 import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
 
-import { masrafMerkeziSecenekleriGetir, type MasrafMerkeziSecenegi } from '../veri/secenekApi'
-import { CokYuzluSecim } from './CokYuzluSecim'
-
-interface MasrafMerkeziSecimiProps {
-  id: string
-  label: string
-  /** Merkezlerin süzüleceği proje; projesiz (genel) merkezler her zaman gelir */
-  projemizId: string
-  /** Seçili merkezin ERP MASRAF_MERKEZI_ID'si — satırda MASRAF_MERKEZI_ID */
-  deger: string
-  degisti: (secim: MasrafMerkeziSecenegi | null) => void
-  /** Hangi yüz çiziliyor: kod sütunu mu, ad sütunu mu */
-  goster: 'kod' | 'ad'
-  hata?: string
-  disabled?: boolean
-  etiketGizli?: boolean
-}
+import { masrafMerkeziSecenekleriGetir } from '../veri/secenekApi'
+import { CokYuzluSecim, type KayitSecimProps } from './CokYuzluSecim'
 
 /**
  * Talep satırının masraf merkezi seçimi. Kod ve ad sütunları bu kaydın iki
  * yüzüdür — kullanıcı ister koddan ister addan seçer, tek MASRAF_MERKEZI_ID
- * saklanır.
+ * saklanır. Projesiz (genel) merkezler her projede listelenir.
  */
 export function MasrafMerkeziSecimi({
-  id,
-  label,
   projemizId,
-  deger,
-  degisti,
   goster,
   hata,
   disabled = false,
-  etiketGizli = false,
-}: MasrafMerkeziSecimiProps) {
+  ...ortak
+}: KayitSecimProps) {
   const { t } = useTranslation()
 
   const merkezler = useQuery({
@@ -49,11 +30,7 @@ export function MasrafMerkeziSecimi({
 
   return (
     <CokYuzluSecim
-      id={id}
-      label={label}
-      etiketGizli={etiketGizli}
-      deger={deger}
-      degisti={degisti}
+      {...ortak}
       secenekler={merkezler.data ?? []}
       goster={goster}
       disabled={disabled || projemizId === ''}

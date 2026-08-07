@@ -2,11 +2,34 @@ import { Controller, type Path, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { ALAN_GORUNUMU, ALAN_KUTUSU, alanCercevesi } from '@/components/alanStilleri'
-import { AktiviteSecimi, MasrafMerkeziSecimi, UrunSecimi, type KayitYuzleri } from '@/formAlanlari'
+import {
+  AktiviteSecimi,
+  ButceBolumuSecimi,
+  ButceKalemiSecimi,
+  EkipmanSecimi,
+  MasrafMerkeziSecimi,
+  UrunSecimi,
+  type KayitSecimProps,
+  type KayitYuzleri,
+} from '@/formAlanlari'
 
-import { SATIR_KAYITLARI, type SatirKaydi } from './satirKayitlari'
+import { SATIR_KAYITLARI, type SatirKaydi, type SatirKaynagi } from './satirKayitlari'
 import type { TalepAlani } from './talepAlanlari'
 import type { TalepGirdisi, TalepSatiri } from './talepSchema'
+
+/**
+ * Kaynak → bileşen kayıt defteri. Hepsi aynı sözleşmeyi (KayitSecimProps)
+ * taşıdığı için hücre çizimi kaynağa göre DALLANMAZ; yeni bir seçim kaynağı
+ * eklemek buraya bir satır yazmaktır.
+ */
+const SECIM_BILESENLERI: Record<SatirKaynagi, (props: KayitSecimProps) => React.ReactElement> = {
+  aktivite: AktiviteSecimi,
+  masrafMerkezi: MasrafMerkeziSecimi,
+  urun: UrunSecimi,
+  ekipman: EkipmanSecimi,
+  butceKalemi: ButceKalemiSecimi,
+  butceBolumu: ButceBolumuSecimi,
+}
 
 /**
  * Bir satır hücresini çizer. Kolon tipini `talepAlanlari` belirler; ERP seçim
@@ -78,49 +101,29 @@ export function SatirHucresi({
     }
   }
 
+  const Secim = SECIM_BILESENLERI[kaynak]
+  const seciliYuz = kayit.yuzler[goster]
+
   return (
     <div className="min-w-48" title={hata ? t(hata) : undefined}>
       <Controller
         control={form.control}
         name={idAnahtari}
-        render={({ field }) => {
-          const ortak = {
-            id,
-            label: erisimEtiketi,
-            etiketGizli: true,
-            deger: typeof field.value === 'string' ? field.value : '',
-            degisti: yaz,
-            hata: hata ? t(hata) : undefined,
-          }
-
-          if (kaynak === 'urun') {
-            const seciliYuz = kayit.yuzler[goster]
-
-            return (
-              <UrunSecimi
-                {...ortak}
-                goster={goster as 'kod' | 'ad' | 'barkod'}
-                // Liste sunucuda süzülüyor: seçili ürün o anki sonuçta
-                // olmayabilir, gösterimi satırdan okuyoruz
-                seciliEtiket={seciliYuz ? String(form.watch(anahtar(seciliYuz)) ?? '') : ''}
-              />
-            )
-          }
-
-          return kaynak === 'aktivite' ? (
-            <AktiviteSecimi
-              {...ortak}
-              projemizId={projemizId}
-              goster={goster as 'kod' | 'aciklama'}
-            />
-          ) : (
-            <MasrafMerkeziSecimi
-              {...ortak}
-              projemizId={projemizId}
-              goster={goster as 'kod' | 'ad'}
-            />
-          )
-        }}
+        render={({ field }) => (
+          <Secim
+            id={id}
+            label={erisimEtiketi}
+            etiketGizli
+            deger={typeof field.value === 'string' ? field.value : ''}
+            degisti={yaz}
+            goster={goster}
+            projemizId={projemizId}
+            // Listesi sunucuda süzülen kaynaklarda (ürün) seçili kayıt o anki
+            // sonuçta olmayabilir; gösterimi satırdan okuyoruz
+            seciliEtiket={seciliYuz ? String(form.watch(anahtar(seciliYuz)) ?? '') : ''}
+            hata={hata ? t(hata) : undefined}
+          />
+        )}
       />
     </div>
   )

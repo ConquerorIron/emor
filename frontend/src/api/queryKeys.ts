@@ -26,5 +26,7 @@ export const queryKeys = {
       ['secenekler', 'masrafMerkezleri', projemizId] as const,
     // Ürün araması sunucuda: her arama metni ayrı önbellek girdisidir
     urunler: (ara: string) => ['secenekler', 'urunler', ara] as const,
+    ekipmanlar: ['secenekler', 'ekipmanlar'],
+    butceKalemleri: (projemizId: string) => ['secenekler', 'butceKalemleri', projemizId] as const,
   },
 } as const

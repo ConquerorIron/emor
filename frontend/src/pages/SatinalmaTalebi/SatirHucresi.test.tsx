@@ -19,10 +19,16 @@ const URUNLER = [
   { kayit_id: 3710, kod: '01.01.01.0002', ad: 'ÇİMENTO CEM I 42.5', barkod: '8690000000024' },
 ]
 
+const EKIPMANLAR = [
+  { kayit_id: 41, kod: 'EKP-01', ad: 'Forklift 3 ton' },
+  { kayit_id: 42, kod: 'EKP-02', ad: 'Kule vinç' },
+]
+
 vi.mock('@/formAlanlari/veri/secenekApi', async (asliniAl) => ({
   ...(await asliniAl<typeof import('@/formAlanlari/veri/secenekApi')>()),
   aktiviteSecenekleriGetir: () => Promise.resolve(AKTIVITELER),
   urunSecenekleriGetir: () => Promise.resolve(URUNLER),
+  ekipmanSecenekleriGetir: () => Promise.resolve(EKIPMANLAR),
 }))
 
 function alanBul(etiketAnahtari: string): TalepAlani {
@@ -143,6 +149,22 @@ describe('SatirHucresi — çift yüzlü seçim', () => {
     expect(
       screen.getByText('ÇİMENTO CEM I 42.5', { selector: '.erp-select__single-value' }),
     ).toBeInTheDocument()
+  })
+
+  it('tek yüzlü seçimde ad görünür, kimlik saklanır', async () => {
+    // Ekipman gibi tek yüzlü kayıtlarda yüz adı ERP kaydındaki alanla
+    // eşleşmezse hücre sessizce boş kalırdı — bu test onu yakalar
+    render(
+      <AppProviders>
+        <Yuzler etiketler={['ekipmanAdi']} izlenen="satirlar.0.ekipman_id" />
+      </AppProviders>,
+    )
+
+    await secenegiSec(screen.getByLabelText('Ekipman adı 1'), 'Kule vinç')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('secili-id')).toHaveTextContent('42')
+    })
   })
 
   it('proje seçilmeden aktivite seçilemez', async () => {

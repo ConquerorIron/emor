@@ -31,9 +31,13 @@ export const talepSatiriSchema = z.object({
   // ——— Aşağıdakiler henüz tarif edilmedi: kolonlar açık, hücreler serbest
   // metin. Her biri tarif edildikçe kendi ERP tipine (seçim/sayı/tarih/bool)
   // bağlanacak ve buradaki tipi de sıkışacak.
+  // Tek yüzlü seçimler: ekranda ad görünür, ERP'ye KAYIT_ID gider
+  ekipman_id: z.string(),
   ekipman_adi: z.string(),
-  butce_kalemi: z.string(),
-  butce_bolumu: z.string(),
+  butce_kalemi_id: z.string(),
+  butce_kalemi_adi: z.string(),
+  butce_bolumu_id: z.string(),
+  butce_bolumu_adi: z.string(),
   duran_varlik: z.string(),
   personel_adi: z.string(),
   urun_tarifi: z.string(),
@@ -151,9 +155,12 @@ export const BOS_SATIR: TalepSatiri = {
   urun_kodu: '',
   barkod: '',
   urun_adi: '',
+  ekipman_id: '',
   ekipman_adi: '',
-  butce_kalemi: '',
-  butce_bolumu: '',
+  butce_kalemi_id: '',
+  butce_kalemi_adi: '',
+  butce_bolumu_id: '',
+  butce_bolumu_adi: '',
   duran_varlik: '',
   personel_adi: '',
   urun_tarifi: '',

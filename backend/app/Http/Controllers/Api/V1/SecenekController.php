@@ -268,6 +268,62 @@ final class SecenekController extends Controller
         ]);
     }
 
+    /**
+     * Ekipman seçenekleri — VOHOM_ARAMA_EKIPMAN (profiler kaydı 2026-08-07).
+     * Kiralama hizmetine bağlı kayıtlar listelenmez (KIRA_HIZMETI_ID dolu
+     * olanlar ekipman değil, kiralama kalemidir). kayit_id = EKIPMAN_ID.
+     */
+    public function ekipmanlar(Request $request): JsonResponse
+    {
+        $erpKullaniciId = $request->user()?->erp_kullanici_id ?? -1;
+
+        $satirlar = $this->mssql->baglan()->select(
+            'SELECT EKIPMAN_ID AS kayit_id, KOD AS kod, AD COLLATE Turkish_100_CI_AS AS ad
+             FROM VOHOM_ARAMA_EKIPMAN
+             WHERE KIRA_HIZMETI_ID IS NULL
+               AND (GUVENLIK_KODU_ID IS NULL OR GRUP_KULLANICISI_ID = ?)
+             ORDER BY AD COLLATE Turkish_100_CI_AS',
+            [$erpKullaniciId],
+        );
+
+        return response()->json(['data' => $this->kodAdListesi($satirlar)]);
+    }
+
+    /**
+     * Bütçe kalemi seçenekleri — VOHOM_ARAMA_PROJEMIZ_BUTCE_KALEMI (profiler
+     * kaydı 2026-08-07). Proje bazlıdır; yalnız bütçede ya da nakit akışında
+     * kullanılan kalemler listelenir. kayit_id = HARCAMA_KALEMI_ID.
+     */
+    public function butceKalemleri(Request $request, int $projemizId): JsonResponse
+    {
+        $erpKullaniciId = $request->user()?->erp_kullanici_id ?? -1;
+
+        $satirlar = $this->mssql->baglan()->select(
+            'SELECT HARCAMA_KALEMI_ID AS kayit_id, KOD AS kod, AD COLLATE Turkish_100_CI_AS AS ad
+             FROM VOHOM_ARAMA_PROJEMIZ_BUTCE_KALEMI
+             WHERE (GUVENLIK_KODU_ID IS NULL OR GRUP_KULLANICISI_ID = ?)
+               AND TUR = 2 AND TIP = 0 AND PROJEMIZ_ID = ?
+               AND (BUTCEDE_KULLANILIR = 1 OR NAKIT_AKISTA_KULLANILIR = 1)
+             ORDER BY AD COLLATE Turkish_100_CI_AS',
+            [$erpKullaniciId, $projemizId],
+        );
+
+        return response()->json(['data' => $this->kodAdListesi($satirlar)]);
+    }
+
+    /** kayit_id + kod + ad döndüren listeler için ortak dönüşüm */
+    private function kodAdListesi(array $satirlar): array
+    {
+        return array_map(
+            static fn (object $satir): array => [
+                'kayit_id' => (int) $satir->kayit_id,
+                'kod' => rtrim((string) ($satir->kod ?? '')),
+                'ad' => (string) ($satir->ad ?? ''),
+            ],
+            $satirlar,
+        );
+    }
+
     /** Ürün listesi büyük olduğu için tek istekte dönen azami kayıt */
     private const URUN_AZAMI = 50;
 
