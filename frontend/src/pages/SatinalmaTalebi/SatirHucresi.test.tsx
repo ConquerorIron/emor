@@ -11,7 +11,12 @@ import { SATIR_ALANLARI, type TalepAlani } from './talepAlanlari'
 import { BOS_TALEP, type TalepGirdisi } from './talepSchema'
 
 const AKTIVITELER = [
-  { kayit_id: 15804, kod: 'A.01.01.01', aciklama: 'Mimari Proje Tasarım Giderleri', poz_no: '' },
+  {
+    kayit_id: 15804,
+    kod: 'A.01.01.01',
+    aciklama: 'Mimari Proje Tasarım Giderleri',
+    poz_no: 'POZ-14',
+  },
   { kayit_id: 15805, kod: 'A.01.01.02', aciklama: 'Statik Proje Tasarım Giderleri', poz_no: '' },
 ]
 
@@ -391,6 +396,27 @@ describe('SatirHucresi — çift yüzlü seçim', () => {
     fireEvent.click(anahtar)
     await waitFor(() => {
       expect(screen.getByTestId('secili-id')).toHaveTextContent('1')
+    })
+  })
+
+  it('aktivite seçilince poz no dolar ama düzenlenebilir kalır', async () => {
+    render(
+      <AppProviders>
+        <Yuzler etiketler={['aktiviteKodu', 'pozNo']} izlenen="satirlar.0.poz_no" />
+      </AppProviders>,
+    )
+
+    await secenegiSec(screen.getByLabelText('Aktivite kodu 1'), 'A.01.01.01')
+
+    const pozNo = screen.getByLabelText('Poz no 1')
+    await waitFor(() => {
+      expect(pozNo).toHaveValue('POZ-14')
+    })
+
+    // Kullanıcı gerekirse üzerine yazabilir
+    fireEvent.change(pozNo, { target: { value: 'POZ-99' } })
+    await waitFor(() => {
+      expect(screen.getByTestId('secili-id')).toHaveTextContent('POZ-99')
     })
   })
 

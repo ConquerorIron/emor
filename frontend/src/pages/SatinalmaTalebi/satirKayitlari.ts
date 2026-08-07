@@ -17,9 +17,11 @@ export interface SatirKaydi {
 }
 
 export const SATIR_KAYITLARI = {
+  // Poz no'nun ekranda kendi sütunu var ama seçimle birlikte dolar; kullanıcı
+  // gerekirse üzerine yazabilir (kullanıcı kararı 2026-08-07)
   aktivite: {
     idAnahtari: 'aktivite_id',
-    yuzler: { kod: 'aktivite_kodu', aciklama: 'aktivite_aciklamasi' },
+    yuzler: { kod: 'aktivite_kodu', aciklama: 'aktivite_aciklamasi', poz_no: 'poz_no' },
   },
   masrafMerkezi: {
     idAnahtari: 'masraf_merkezi_id',
