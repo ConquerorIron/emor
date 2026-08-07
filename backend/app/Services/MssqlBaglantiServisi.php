@@ -108,8 +108,18 @@ final class MssqlBaglantiServisi
     }
 
     /**
+     * Aynı istekte hangi tanımla bağlanıldığı — bağlantıyı gereksiz yere
+     * yenilememek için.
+     */
+    private ?string $uygulananTanim = null;
+
+    /**
      * Aktif ortamın MSSQL bağlantısını döner — store proc exec'leri için
      * tek giriş noktası.
+     *
+     * Tanım değişmediyse bağlantı KORUNUR. Her çağrıda purge etmek, aynı
+     * istekte açılmış oturumluk `#TOHOM_ISKELE_*` tablolarını sessizce yok
+     * ediyordu (geçici tablolar bağlantıya bağlıdır); kayıt akışı buna dayanır.
      */
     public function baglan(?SqlBaglanti $tanim = null): Connection
     {
@@ -121,8 +131,16 @@ final class MssqlBaglantiServisi
             ]);
         }
 
-        Config::set('database.connections.'.self::BAGLANTI_ADI, $this->baglantiConfig($tanim));
+        $ayarlar = $this->baglantiConfig($tanim);
+        $imza = md5(serialize($ayarlar));
+
+        if ($this->uygulananTanim === $imza) {
+            return DB::connection(self::BAGLANTI_ADI);
+        }
+
+        Config::set('database.connections.'.self::BAGLANTI_ADI, $ayarlar);
         DB::purge(self::BAGLANTI_ADI);
+        $this->uygulananTanim = $imza;
 
         return DB::connection(self::BAGLANTI_ADI);
     }

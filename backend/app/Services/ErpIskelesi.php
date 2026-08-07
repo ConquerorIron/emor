@@ -22,8 +22,13 @@ use RuntimeException;
  */
 final class ErpIskelesi
 {
-    /** Aynı istek içinde ikinci kez kurmaya gerek yok */
-    private bool $kuruldu = false;
+    /**
+     * Kurulumun yapılıp yapılmadığı BAYRAKLA takip edilemez: bağlantı
+     * koparsa (proc hata verip PDO oturumu düşürebiliyor) Laravel yeniden
+     * bağlanır ve geçici tablolar yok olur — bayrak ise hâlâ "kurulu" der.
+     * Bu yüzden her seferinde tablonun gerçekten orada olduğuna bakılır.
+     */
+    private const TANIK_TABLO = 'tempdb..#TOHOM_ISKELE_SINIRLAMA';
 
     public function __construct(
         private readonly MssqlBaglantiServisi $mssql,
@@ -33,14 +38,13 @@ final class ErpIskelesi
     {
         $baglanti = $this->mssql->baglan();
 
-        if ($this->kuruldu) {
+        if ($baglanti->scalar('SELECT OBJECT_ID(?)', [self::TANIK_TABLO]) !== null) {
             return $baglanti;
         }
 
         foreach ($this->topluIsler() as $toplu) {
             $baglanti->unprepared($toplu);
         }
-        $this->kuruldu = true;
 
         return $baglanti;
     }

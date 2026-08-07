@@ -184,15 +184,19 @@ final class SatinalmaTalebiKaydi
                 ...$this->fiyatGrubu($satir, $miktar, 'butce_birim_fiyati', 'butce_para_id', 'butce_birim_fiyati_kuru', '3'),
             ]);
 
-            // Satırın teslim süresi ayrı iskele tablosunda (proc EVRAK_TURU=3
-            // olarak TOHOM_EVRAK_DETAYI'ye kopyalar)
+            // Satırın teslim süresi ve HAKKINDA'sı ayrı iskele tablosunda; proc
+            // bunları EVRAK_TURU=3 ile TOHOM_EVRAK_DETAYI'ye kopyalar (başlığın
+            // aynısı EVRAK_TURU=2 olarak proc parametrelerinden yazılır)
             $sure = $this->sayi($satir['teslim_suresi'] ?? null);
-            if ($sure !== null) {
+            $hakkinda = trim((string) ($satir['hakkinda'] ?? ''));
+
+            if ($sure !== null || $hakkinda !== '') {
                 $baglanti->table('TOHOM_ISKELE_EVRAK_DETAYI')->insert([
                     'GUID' => $guid,
                     'SATIR_NO' => $indeks,
                     'TESLIMAT_SURESI' => $sure,
                     'TESLIMAT_SURESI_BIRIMI' => $this->kimlik($satir['teslim_suresi_birimi'] ?? null),
+                    'HAKKINDA' => $hakkinda === '' ? null : $hakkinda,
                 ]);
             }
         }
