@@ -16,6 +16,11 @@ interface SayiAlaniProps {
   disabled?: boolean
   /** Yüzde alanları için sonda % gösterilir (ERP ORAN tipi) */
   yuzde?: boolean
+  /**
+   * Sayının sağında gösterilen birim (ERP ızgarasındaki "1,000000 Ad" gibi).
+   * Yalnız gösterimdir, değere karışmaz.
+   */
+  sonEk?: string
   /** İzin verilen ondalık basamak (MIKTAR 4, ORAN 2) */
   ondalik?: number
   /** Izgara hücrelerinde etiket thead'de durur; erişilebilirlik için DOM'da kalır */
@@ -43,6 +48,20 @@ function veriye(metin: string, ondalik: number): string {
   return temiz
 }
 
+/**
+ * Alandan çıkıldığında ERP'deki gibi tam basamağa tamamlar: 6 basamaklı bir
+ * ölçü sisteminde "1" → "1.000000". Yazarken tamamlanmaz, yoksa imleç kullanıcı
+ * yazdıkça sıfırların arasında kalırdı.
+ */
+function basamagaTamamla(deger: string, ondalik: number): string {
+  if (deger === '' || deger === '-') {
+    return deger
+  }
+  const sayi = Number(deger)
+
+  return Number.isFinite(sayi) ? sayi.toFixed(ondalik) : deger
+}
+
 export function SayiAlani({
   id,
   label,
@@ -51,9 +70,12 @@ export function SayiAlani({
   hata,
   disabled = false,
   yuzde = false,
+  sonEk,
   ondalik = 4,
   etiketGizli = false,
 }: SayiAlaniProps) {
+  const ek = yuzde ? '%' : (sonEk ?? '')
+
   return (
     <div>
       <label htmlFor={id} className={etiketGizli ? 'sr-only' : ALAN_ETIKETI}>
@@ -67,14 +89,17 @@ export function SayiAlani({
           disabled={disabled}
           value={gosterime(value)}
           onChange={(olay) => onChange(veriye(olay.target.value, ondalik))}
+          onBlur={() => onChange(basamagaTamamla(value, ondalik))}
           aria-invalid={hata ? true : undefined}
-          className={`block w-full py-2 pl-3 text-right ${yuzde ? 'pr-8' : 'pr-3'} ${ALAN_GORUNUMU} ${ALAN_KUTUSU} ${alanCercevesi(hata)}`}
+          // Birim metni sayının üstüne binmesin diye sağ boşluk uzunluğa göre
+          style={ek === '' ? undefined : { paddingRight: `${ek.length + 1.5}ch` }}
+          className={`block w-full py-2 pl-3 text-right ${ek === '' ? 'pr-3' : ''} ${ALAN_GORUNUMU} ${ALAN_KUTUSU} ${alanCercevesi(hata)}`}
         />
-        {yuzde ? (
-          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-400 dark:text-slate-500">
-            %
+        {ek === '' ? null : (
+          <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-sm text-slate-400 dark:text-slate-500">
+            {ek}
           </span>
-        ) : null}
+        )}
       </div>
       {hata && !etiketGizli ? (
         <p className="mt-1 text-sm text-red-600 dark:text-red-400">{hata}</p>

@@ -85,8 +85,9 @@ export function SatirHucresi({
   // Ondalık hassasiyet ERP'de sabit değil: seçilen kaydın ölçü sisteminden
   // gelip satıra yazılmıştı, hücre onu okuyor
   if (alan.hucre.tip === 'sayi') {
-    const { ad, basamakAnahtari } = alan.hucre
+    const { ad, basamakAnahtari, sonEkAnahtari } = alan.hucre
     const basamak = Number(form.watch(anahtar(basamakAnahtari)))
+    const sonEk = sonEkAnahtari ? String(form.watch(anahtar(sonEkAnahtari)) ?? '') : ''
 
     return (
       <Controller
@@ -100,6 +101,7 @@ export function SatirHucresi({
             value={typeof field.value === 'string' ? field.value : ''}
             onChange={field.onChange}
             ondalik={Number.isFinite(basamak) && basamak > 0 ? basamak : VARSAYILAN_BASAMAK}
+            sonEk={sonEk}
             hata={hataMetni(ad)}
           />
         )}

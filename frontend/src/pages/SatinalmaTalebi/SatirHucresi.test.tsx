@@ -205,6 +205,30 @@ describe('SatirHucresi — çift yüzlü seçim', () => {
     expect(miktar).toHaveValue('1,23456')
   })
 
+  it('miktar alandan çıkınca tam basamağa tamamlanır ve birim gösterilir', async () => {
+    // ERP ızgarasındaki görünüm: "1,000000 Ad"
+    render(
+      <AppProviders>
+        <Yuzler etiketler={['urunKodu', 'miktar']} izlenen="satirlar.0.urun_birimi" />
+      </AppProviders>,
+    )
+
+    await secenegiSec(screen.getByLabelText('Ürün kodu 1'), '01.01.01.0001')
+    await waitFor(() => {
+      expect(screen.getByTestId('secili-id')).toHaveTextContent('Ad')
+    })
+
+    const miktar = screen.getByLabelText('Miktar 1')
+    fireEvent.change(miktar, { target: { value: '1' } })
+    fireEvent.blur(miktar)
+
+    await waitFor(() => {
+      expect(miktar).toHaveValue('1,000000')
+    })
+    // Birim, değerin sağında ayrı bir etiket olarak durur (değere karışmaz)
+    expect(miktar.parentElement?.querySelector('span')).toHaveTextContent('Ad')
+  })
+
   it('proje seçilmeden aktivite seçilemez', async () => {
     render(
       <AppProviders>

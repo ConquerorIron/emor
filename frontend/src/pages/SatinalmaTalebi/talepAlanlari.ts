@@ -19,7 +19,13 @@ export type SatirHucreTanimi =
    * kaydın ölçü sisteminden gelir ve `basamakAnahtari` ile satırdan okunur
    * (ör. Miktar → ürünün birimi, Amb. miktarı → kabın kapasite birimi).
    */
-  | { tip: 'sayi'; ad: keyof TalepSatiri; basamakAnahtari: keyof TalepSatiri }
+  | {
+      tip: 'sayi'
+      ad: keyof TalepSatiri
+      basamakAnahtari: keyof TalepSatiri
+      /** Sayının sağında gösterilecek birim (ERP'deki "1,000000 Ad") */
+      sonEkAnahtari?: keyof TalepSatiri
+    }
   /** Kullanıcı giremez; değer başlıktan türer (satırda saklanmaz) */
   | { tip: 'yansima' }
   /**
@@ -85,7 +91,12 @@ export const SATIR_ALANLARI: TalepAlani[] = [
   { etiketAnahtari: 'daraliMiktar', hucre: { tip: 'metin', ad: 'darali_miktar' } },
   {
     etiketAnahtari: 'miktar',
-    hucre: { tip: 'sayi', ad: 'miktar', basamakAnahtari: 'urun_basamak_sayisi' },
+    hucre: {
+      tip: 'sayi',
+      ad: 'miktar',
+      basamakAnahtari: 'urun_basamak_sayisi',
+      sonEkAnahtari: 'urun_birimi',
+    },
   },
   { etiketAnahtari: 'birimFiyati', hucre: { tip: 'metin', ad: 'birim_fiyati' } },
   { etiketAnahtari: 'birimFiyatiKuru', hucre: { tip: 'metin', ad: 'birim_fiyati_kuru' } },
