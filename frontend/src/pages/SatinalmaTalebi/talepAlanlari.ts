@@ -124,7 +124,11 @@ export const SATIR_ALANLARI: TalepAlani[] = [
     etiketAnahtari: 'ambalajMiktari',
     hucre: { tip: 'sayi', ad: 'ambalaj_miktari', basamakAnahtari: 'ambalaj_basamak_sayisi' },
   },
-  { etiketAnahtari: 'daraliMiktar', hucre: { tip: 'metin', ad: 'darali_miktar' } },
+  // Amb. miktarı ile aynı desen: hassasiyeti seçilen ambalajın ölçü sisteminden
+  {
+    etiketAnahtari: 'daraliMiktar',
+    hucre: { tip: 'sayi', ad: 'darali_miktar', basamakAnahtari: 'ambalaj_basamak_sayisi' },
+  },
   {
     etiketAnahtari: 'miktar',
     hucre: {
