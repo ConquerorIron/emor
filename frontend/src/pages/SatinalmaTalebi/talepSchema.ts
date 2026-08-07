@@ -154,6 +154,13 @@ export function talepSemasiUret(zorunluAnahtarlar: string[]): typeof talepSchema
   }) as unknown as typeof talepSchema
 }
 
+/** Sayı alanlarının açılış değeri — ERP boş değil sıfır gösterir */
+const SIFIR = '0'
+/** TOHOM_PARA'da yerel para (TL) — ERP satırı bununla açılır */
+const VARSAYILAN_PARA_ID = '1'
+/** Yerel parada kur birimdir */
+const BIRIM_KUR = '1'
+
 export const BOS_SATIR: TalepSatiri = {
   aktivite_id: '',
   aktivite_kodu: '',
@@ -181,18 +188,20 @@ export const BOS_SATIR: TalepSatiri = {
   ambalaj_id: '',
   ambalaj_adi: '',
   ambalaj_basamak_sayisi: '',
-  ambalaj_miktari: '',
-  darali_miktar: '',
-  miktar: '',
-  birim_fiyati: '',
-  birim_fiyati_para_id: '',
-  birim_fiyati_kuru: '',
-  teklif_birim_fiyati: '',
-  teklif_para_id: '',
-  teklif_kuru: '',
-  butce_birim_fiyati: '',
-  butce_para_id: '',
-  butce_birim_fiyati_kuru: '',
+  // ERP satırı sayı alanlarını sıfırla açar (0,000000); para birimi TL,
+  // dolayısıyla kur 1'dir — döviz seçilince kur ERP'den okunur
+  ambalaj_miktari: SIFIR,
+  darali_miktar: SIFIR,
+  miktar: SIFIR,
+  birim_fiyati: SIFIR,
+  birim_fiyati_para_id: VARSAYILAN_PARA_ID,
+  birim_fiyati_kuru: BIRIM_KUR,
+  teklif_birim_fiyati: SIFIR,
+  teklif_para_id: VARSAYILAN_PARA_ID,
+  teklif_kuru: BIRIM_KUR,
+  butce_birim_fiyati: SIFIR,
+  butce_para_id: VARSAYILAN_PARA_ID,
+  butce_birim_fiyati_kuru: BIRIM_KUR,
   teslim_tarihi: '',
   teslim_suresi: '',
   poz_no: '',

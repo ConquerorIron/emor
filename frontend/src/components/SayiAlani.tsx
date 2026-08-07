@@ -4,6 +4,8 @@
  * SQL'e dönüştürmeden gidebilsin.
  */
 
+import { useState } from 'react'
+
 import { ALAN_ETIKETI, ALAN_GORUNUMU, ALAN_KUTUSU, alanCercevesi } from '@/components/alanStilleri'
 
 interface SayiAlaniProps {
@@ -49,9 +51,11 @@ function veriye(metin: string, ondalik: number): string {
 }
 
 /**
- * Alandan çıkıldığında ERP'deki gibi tam basamağa tamamlar: 6 basamaklı bir
- * ölçü sisteminde "1" → "1.000000". Yazarken tamamlanmaz, yoksa imleç kullanıcı
- * yazdıkça sıfırların arasında kalırdı.
+ * ERP'deki gibi tam basamağa tamamlar: 6 basamaklı bir ölçü sisteminde
+ * "0" → "0.000000". YALNIZ GÖSTERİMDE uygulanır — alan odaktayken ham değer
+ * gösterilir, yoksa kullanıcı yazdıkça imleç sıfırların arasında kalırdı.
+ * Saklanan değer kullanıcının yazdığıdır; basamak sayısı sonradan değişirse
+ * (ürün seçilince) gösterim kendiliğinden düzelir.
  */
 function basamagaTamamla(deger: string, ondalik: number): string {
   if (deger === '' || deger === '-') {
@@ -74,6 +78,7 @@ export function SayiAlani({
   ondalik = 4,
   etiketGizli = false,
 }: SayiAlaniProps) {
+  const [odakta, setOdakta] = useState(false)
   const ek = yuzde ? '%' : (sonEk ?? '')
 
   return (
@@ -81,15 +86,18 @@ export function SayiAlani({
       <label htmlFor={id} className={etiketGizli ? 'sr-only' : ALAN_ETIKETI}>
         {label}
       </label>
-      <div className="relative mt-1">
+      {/* Etiket gizliyken üst boşluk da olmamalı; ızgarada komşu hücrelerle
+          aynı hizada başlar */}
+      <div className={etiketGizli ? 'relative' : 'relative mt-1'}>
         <input
           id={id}
           inputMode="decimal"
           autoComplete="off"
           disabled={disabled}
-          value={gosterime(value)}
+          value={gosterime(odakta ? value : basamagaTamamla(value, ondalik))}
           onChange={(olay) => onChange(veriye(olay.target.value, ondalik))}
-          onBlur={() => onChange(basamagaTamamla(value, ondalik))}
+          onFocus={() => setOdakta(true)}
+          onBlur={() => setOdakta(false)}
           aria-invalid={hata ? true : undefined}
           // Birim metni sayının üstüne binmesin diye sağ boşluk uzunluğa göre
           style={ek === '' ? undefined : { paddingRight: `${ek.length + 1.5}ch` }}

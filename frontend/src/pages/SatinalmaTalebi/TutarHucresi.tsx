@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { Path, UseFormReturn } from 'react-hook-form'
 
 import { queryKeys } from '@/api/queryKeys'
+import { ALAN_KUTUSU } from '@/components/alanStilleri'
 import { paraSecenekleriGetir } from '@/formAlanlari'
 
 import { tutarHesapla, type FiyatGrubu } from './fiyatGruplari'
@@ -42,20 +43,19 @@ export function TutarHucresi({
   const basamak = para?.tutar_basamak ?? 2
 
   const tutar = tutarHesapla(oku('miktar'), oku(grup.fiyat), oku(grup.kur), kurUygula)
-  const dolu = oku(grup.fiyat) !== '' && oku('miktar') !== ''
 
   return (
     <output
       aria-label={`${etiket} ${indeks + 1}`}
-      className="block truncate px-2 py-2 text-right text-sm tabular-nums text-slate-600 dark:text-slate-300"
+      // Komşu giriş hücreleriyle aynı yükseklik: satırda tavan/taban kaymaz
+      className={`flex items-center justify-end truncate px-2 text-sm tabular-nums text-slate-600 ${ALAN_KUTUSU} dark:text-slate-300`}
     >
-      {dolu
-        ? // Binlik ayracıyla, paranın kendi basamak sayısında
-          tutar.toLocaleString('tr-TR', {
-            minimumFractionDigits: basamak,
-            maximumFractionDigits: basamak,
-          }) + (kurUygula ? '' : ` ${para?.kod ?? ''}`)
-        : '—'}
+      {/* Binlik ayracıyla, paranın kendi basamak sayısında */}
+      {tutar.toLocaleString('tr-TR', {
+        minimumFractionDigits: basamak,
+        maximumFractionDigits: basamak,
+      })}
+      {kurUygula ? '' : ` ${para?.kod ?? ''}`}
     </output>
   )
 }

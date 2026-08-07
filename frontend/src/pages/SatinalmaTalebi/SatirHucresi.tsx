@@ -81,7 +81,8 @@ export function SatirHucresi({
     return (
       <span
         title={projeKodu}
-        className="block truncate px-2 py-2 text-sm text-slate-600 dark:text-slate-300"
+        // Giriş hücreleriyle aynı yükseklik (satır hizası bozulmasın)
+        className={`flex items-center truncate px-2 text-sm text-slate-600 ${ALAN_KUTUSU} dark:text-slate-300`}
       >
         {projeKodu === '' ? '—' : projeKodu}
       </span>

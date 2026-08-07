@@ -202,16 +202,21 @@ describe('SatirHucresi — çift yüzlü seçim', () => {
 
     const miktar = screen.getByLabelText('Miktar 1')
 
-    // Ürün seçilmeden varsayılan hassasiyet (2 basamak) uygulanır
+    // Alan sıfırla açılır ve varsayılan hassasiyette (2 basamak) gösterilir
+    expect(miktar).toHaveValue('0,00')
+
+    // Ürün seçilmeden yazılan fazla basamak kırpılır (odaktayken ham gösterilir)
+    fireEvent.focus(miktar)
     fireEvent.change(miktar, { target: { value: '1,23456' } })
     expect(miktar).toHaveValue('1,23')
 
-    // m3 ürünü de 2 basamak; "Ad" ürünü 6 basamağa izin verir
+    // "Ad" ölçü sistemi 6 basamağa izin verir
     await secenegiSec(screen.getByLabelText('Ürün kodu 1'), '01.01.01.0001')
     await waitFor(() => {
       expect(screen.getByTestId('secili-id')).toHaveTextContent('6')
     })
 
+    fireEvent.focus(miktar)
     fireEvent.change(miktar, { target: { value: '1,23456' } })
     expect(miktar).toHaveValue('1,23456')
   })
@@ -230,6 +235,7 @@ describe('SatirHucresi — çift yüzlü seçim', () => {
     })
 
     const miktar = screen.getByLabelText('Miktar 1')
+    fireEvent.focus(miktar)
     fireEvent.change(miktar, { target: { value: '1' } })
     fireEvent.blur(miktar)
 
