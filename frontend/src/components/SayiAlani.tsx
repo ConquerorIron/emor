@@ -2,9 +2,14 @@
  * ERP MIKTAR / ORAN tipleri için sayı girişi. Türkçe biçim: ondalık ayracı
  * virgül. Değer forma NOKTALI (makine okunur) biçimde yazılır ki proc'a ve
  * SQL'e dönüştürmeden gidebilsin.
+ *
+ * Alan MASKELİDİR: ondalık basamaklar her zaman görünür (ERP ızgarasındaki
+ * "0,000000" gibi) ve hiç kaybolmaz. Tam kısma yazmak rakam ekler, ondalık
+ * kısma yazmak üzerine yazar — basamak sayısı sabit kaldığı için. Kullanıcı
+ * ondalık haneye sağ ok ya da virgül tuşuyla geçer.
  */
 
-import { useState } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 
 import { ALAN_ETIKETI, ALAN_GORUNUMU, ALAN_KUTUSU, alanCercevesi } from '@/components/alanStilleri'
 
@@ -29,41 +34,17 @@ interface SayiAlaniProps {
   etiketGizli?: boolean
 }
 
-/** Kullanıcı virgül yazar, veri nokta tutar. */
-function gosterime(deger: string): string {
-  return deger.replace('.', ',')
-}
-
-function veriye(metin: string, ondalik: number): string {
-  // Yalnız rakam, virgül/nokta ve baştaki eksi
-  let temiz = metin.replace(/[^\d,.-]/g, '').replace(/(?!^)-/g, '')
-  temiz = temiz.replace(/,/g, '.')
-
-  // Birden fazla ondalık ayracı olmasın
-  const ilk = temiz.indexOf('.')
-  if (ilk !== -1) {
-    temiz = temiz.slice(0, ilk + 1) + temiz.slice(ilk + 1).replace(/\./g, '')
-    const [tam, kesir = ''] = temiz.split('.')
-    temiz = ondalik === 0 ? tam : `${tam}.${kesir.slice(0, ondalik)}`
-  }
-
-  return temiz
-}
-
-/**
- * ERP'deki gibi tam basamağa tamamlar: 6 basamaklı bir ölçü sisteminde
- * "0" → "0.000000". YALNIZ GÖSTERİMDE uygulanır — alan odaktayken ham değer
- * gösterilir, yoksa kullanıcı yazdıkça imleç sıfırların arasında kalırdı.
- * Saklanan değer kullanıcının yazdığıdır; basamak sayısı sonradan değişirse
- * (ürün seçilince) gösterim kendiliğinden düzelir.
- */
-function basamagaTamamla(deger: string, ondalik: number): string {
-  if (deger === '' || deger === '-') {
-    return deger
-  }
+/** Saklanan değeri maskeye çevirir: "1.5" + 4 basamak → "1,5000" */
+function maskele(deger: string, ondalik: number): string {
   const sayi = Number(deger)
+  const temel = deger === '' || !Number.isFinite(sayi) ? 0 : sayi
 
-  return Number.isFinite(sayi) ? sayi.toFixed(ondalik) : deger
+  return temel.toFixed(ondalik).replace('.', ',')
+}
+
+/** Maskeyi saklanan biçime çevirir: "1,5000" → "1.5000" */
+function maskeden(gosterim: string): string {
+  return gosterim.replace(',', '.')
 }
 
 export function SayiAlani({
@@ -78,8 +59,108 @@ export function SayiAlani({
   ondalik = 4,
   etiketGizli = false,
 }: SayiAlaniProps) {
-  const [odakta, setOdakta] = useState(false)
+  const girdiRef = useRef<HTMLInputElement>(null)
+  // Değer forma yazılıp geri geldiğinde imleç yerinde kalmalı
+  const imlecRef = useRef<number | null>(null)
+
+  useLayoutEffect(() => {
+    if (imlecRef.current !== null && girdiRef.current) {
+      girdiRef.current.setSelectionRange(imlecRef.current, imlecRef.current)
+      imlecRef.current = null
+    }
+  })
+
   const ek = yuzde ? '%' : (sonEk ?? '')
+  const gosterim = maskele(value, ondalik)
+  const virgul = gosterim.indexOf(',')
+
+  const uygula = (yeniGosterim: string, imlec: number) => {
+    // Değer değişmediyse yeniden çizim olmaz; imleci doğrudan taşırız
+    if (yeniGosterim === gosterim) {
+      girdiRef.current?.setSelectionRange(imlec, imlec)
+
+      return
+    }
+    imlecRef.current = imlec
+    onChange(maskeden(yeniGosterim))
+  }
+
+  /**
+   * Tuşları elle işliyoruz: maske korunacaksa tarayıcının serbest metin
+   * düzenlemesine bırakılamaz (ondalık hane silinip kayardı).
+   */
+  const tusaBasildi = (olay: React.KeyboardEvent<HTMLInputElement>) => {
+    if (olay.ctrlKey || olay.metaKey || olay.altKey) {
+      return
+    }
+
+    const bas = olay.currentTarget.selectionStart ?? 0
+    const son = olay.currentTarget.selectionEnd ?? bas
+    const tumuSecili = bas === 0 && son === gosterim.length
+    const tamKisim = virgul === -1 ? gosterim : gosterim.slice(0, virgul)
+    const kesirKisim = virgul === -1 ? '' : gosterim.slice(virgul)
+
+    if (/^[0-9]$/.test(olay.key)) {
+      olay.preventDefault()
+
+      // Tamamı seçiliyken yazmak baştan yazmaktır
+      if (tumuSecili) {
+        uygula(olay.key + kesirKisim.replace(/\d/g, '0'), 1)
+
+        return
+      }
+
+      // Tam kısım: rakam araya girer; tek başına "0" ise yerini bırakır
+      if (virgul === -1 || bas <= virgul) {
+        const yeniTam =
+          tamKisim === '0' ? olay.key : tamKisim.slice(0, bas) + olay.key + tamKisim.slice(son)
+        uygula(yeniTam + kesirKisim, tamKisim === '0' ? 1 : bas + 1)
+
+        return
+      }
+
+      // Ondalık kısım: basamak sayısı sabit, üzerine yazılır
+      if (bas < gosterim.length) {
+        uygula(gosterim.slice(0, bas) + olay.key + gosterim.slice(bas + 1), bas + 1)
+      }
+
+      return
+    }
+
+    // Virgül/nokta imleci ondalık haneye taşır (ERP'deki alışkanlık)
+    if (olay.key === ',' || olay.key === '.') {
+      olay.preventDefault()
+      if (virgul !== -1) {
+        olay.currentTarget.setSelectionRange(virgul + 1, virgul + 1)
+      }
+
+      return
+    }
+
+    if (olay.key === 'Backspace') {
+      olay.preventDefault()
+
+      if (tumuSecili) {
+        uygula(maskele('0', ondalik), 1)
+
+        return
+      }
+
+      // Ondalık hanede silmek basamağı sıfırlar (hane kaybolmaz)
+      if (virgul !== -1 && bas > virgul + 1) {
+        uygula(gosterim.slice(0, bas - 1) + '0' + gosterim.slice(bas), bas - 1)
+
+        return
+      }
+
+      if (bas > 0 && bas <= virgul) {
+        const yeniTam = tamKisim.slice(0, bas - 1) + tamKisim.slice(son)
+        uygula((yeniTam === '' ? '0' : yeniTam) + kesirKisim, Math.max(bas - 1, 1))
+      }
+
+      return
+    }
+  }
 
   return (
     <div>
@@ -91,13 +172,20 @@ export function SayiAlani({
       <div className={etiketGizli ? 'relative' : 'relative mt-1'}>
         <input
           id={id}
+          ref={girdiRef}
           inputMode="decimal"
           autoComplete="off"
           disabled={disabled}
-          value={gosterime(odakta ? value : basamagaTamamla(value, ondalik))}
-          onChange={(olay) => onChange(veriye(olay.target.value, ondalik))}
-          onFocus={() => setOdakta(true)}
-          onBlur={() => setOdakta(false)}
+          value={gosterim}
+          onKeyDown={tusaBasildi}
+          // Yapıştırma gibi doğrudan değişimler: maskeye geri oturtulur
+          onChange={(olay) => onChange(maskeden(maskele(maskeden(olay.target.value), ondalik)))}
+          // Alana girildiğinde imleç tam kısmın sonunda durur: yazılan rakam
+          // ondalık haneye değil, virgülün soluna gider
+          onFocus={(olay) => {
+            const yer = virgul === -1 ? gosterim.length : virgul
+            olay.currentTarget.setSelectionRange(yer, yer)
+          }}
           aria-invalid={hata ? true : undefined}
           // Birim metni sayının üstüne binmesin diye sağ boşluk uzunluğa göre
           style={ek === '' ? undefined : { paddingRight: `${ek.length + 1.5}ch` }}

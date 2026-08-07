@@ -105,6 +105,14 @@ function IkiYuz({ projemizId }: { projemizId?: string }) {
   )
 }
 
+/** Maskeli sayı alanına gerçek kullanımdaki gibi tuşlarla yazar */
+function tusla(alan: HTMLElement, ...tuslar: string[]) {
+  fireEvent.focus(alan)
+  for (const tus of tuslar) {
+    fireEvent.keyDown(alan, { key: tus })
+  }
+}
+
 /** react-select: aşağı ok menüyü açar, seçenek tıklanır */
 async function secenegiSec(combobox: HTMLElement, metin: string) {
   fireEvent.keyDown(combobox, { key: 'ArrowDown' })
@@ -205,20 +213,49 @@ describe('SatirHucresi — çift yüzlü seçim', () => {
     // Alan sıfırla açılır ve varsayılan hassasiyette (2 basamak) gösterilir
     expect(miktar).toHaveValue('0,00')
 
-    // Ürün seçilmeden yazılan fazla basamak kırpılır (odaktayken ham gösterilir)
-    fireEvent.focus(miktar)
-    fireEvent.change(miktar, { target: { value: '1,23456' } })
-    expect(miktar).toHaveValue('1,23')
-
-    // "Ad" ölçü sistemi 6 basamağa izin verir
+    // "Ad" ölçü sistemi 6 basamağa izin verir — gösterim kendiliğinden düzelir
     await secenegiSec(screen.getByLabelText('Ürün kodu 1'), '01.01.01.0001')
     await waitFor(() => {
       expect(screen.getByTestId('secili-id')).toHaveTextContent('6')
     })
 
-    fireEvent.focus(miktar)
-    fireEvent.change(miktar, { target: { value: '1,23456' } })
-    expect(miktar).toHaveValue('1,23456')
+    expect(screen.getByLabelText('Miktar 1')).toHaveValue('0,000000')
+  })
+
+  it('maskeli giriş: rakam tam kısma yazılır, ondalık haneler kaybolmaz', async () => {
+    // Kullanıcı bildirimi 2026-08-07: tıklayınca imleç sıfırın soluna düşüyor,
+    // "1" yazınca "10" oluyor ve virgülden sonrası siliniyordu
+    render(
+      <AppProviders>
+        <Yuzler etiketler={['miktar']} izlenen="satirlar.0.miktar" />
+      </AppProviders>,
+    )
+
+    const miktar = screen.getByLabelText('Miktar 1')
+
+    // Tek başına duran sıfırın yerine yazılır, "10" olmaz
+    tusla(miktar, '1')
+    await waitFor(() => {
+      expect(miktar).toHaveValue('1,00')
+    })
+
+    // Sonraki rakam tam kısma eklenir
+    tusla(miktar, '2')
+    await waitFor(() => {
+      expect(miktar).toHaveValue('12,00')
+    })
+
+    // Virgül tuşu ondalık haneye geçirir; oradaki basamak üzerine yazılır
+    tusla(miktar, ',', '5')
+    await waitFor(() => {
+      expect(miktar).toHaveValue('12,50')
+    })
+
+    // Ondalık hanede silmek basamağı sıfırlar, haneyi kaldırmaz
+    fireEvent.keyDown(miktar, { key: 'Backspace' })
+    await waitFor(() => {
+      expect(miktar).toHaveValue('12,00')
+    })
   })
 
   it('miktar alandan çıkınca tam basamağa tamamlanır ve birim gösterilir', async () => {
@@ -235,9 +272,7 @@ describe('SatirHucresi — çift yüzlü seçim', () => {
     })
 
     const miktar = screen.getByLabelText('Miktar 1')
-    fireEvent.focus(miktar)
-    fireEvent.change(miktar, { target: { value: '1' } })
-    fireEvent.blur(miktar)
+    tusla(miktar, '1')
 
     await waitFor(() => {
       expect(miktar).toHaveValue('1,000000')
