@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\EkranTasarimController;
+use App\Http\Controllers\Api\V1\SatinalmaTalebiController;
 use App\Http\Controllers\Api\V1\SecenekController;
 use App\Http\Controllers\Api\V1\SqlBaglantiController;
 use Illuminate\Support\Facades\Route;
@@ -62,6 +63,10 @@ Route::prefix('v1')->group(function (): void {
         // Satırdaki personel: parti yaması ağacından (başlıktaki İK kartı değil)
         Route::get('/secenekler/parti-yamasi-personelleri', [SecenekController::class, 'partiYamasiPersonelleri'])
             ->name('secenekler.parti-yamasi-personelleri');
+
+        // Satınalma Talebi — kayıt doğrudan ERP'ye (SOHOM_SIPARIS_KAYDET)
+        Route::post('/satinalma/talepler', [SatinalmaTalebiController::class, 'kaydet'])
+            ->name('satinalma.talepler.kaydet');
 
         // Ekran tasarım motoru — okuma herkese (form çizimi), düzenleme yöneticiye
         Route::get('/ekranlar/{ekran}/tasarim', [EkranTasarimController::class, 'goster'])

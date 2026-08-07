@@ -110,6 +110,8 @@ export type UrunSecenegi = {
   barkod: string
   /** Ürünün ölçü sistemi adı (Ad, m3, Kg…) */
   birim: string
+  /** Ölçü sisteminin kimliği — satırın BIRIM_ID'si olarak ERP'ye gider */
+  birim_id: string
   /** Miktar alanının ondalık basamak sayısı — ölçü sisteminden gelir */
   basamak: number
 }

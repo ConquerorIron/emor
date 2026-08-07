@@ -113,7 +113,7 @@
       "12": "İş Paketi",
       "13": "Satınalma Sözleşmesi"
     },
-    "kaydetHenuzYok": "Form verisi hazır — ERP kaydı (SOHOM_SIPARIS_KAYDET) bir sonraki adımda bağlanacak.",
+    "kaydedildi": "Talep kaydedildi: {{no}}",
     "alan": {
       "personelAdi": "Personel adı",
       "no": "No",

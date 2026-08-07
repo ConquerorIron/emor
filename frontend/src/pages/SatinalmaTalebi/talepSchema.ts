@@ -30,6 +30,7 @@ export const talepSatiriSchema = z.object({
   // Ürünün ölçü sistemi: adı ve Miktar alanının ondalık basamak sayısı.
   // Ekranda sütunu yok; seçimle birlikte satıra taşınır.
   urun_birimi: z.string(),
+  urun_birim_id: z.string(),
   urun_basamak_sayisi: z.string(),
 
   // ——— Aşağıdakiler henüz tarif edilmedi: kolonlar açık, hücreler serbest
@@ -177,6 +178,7 @@ export const BOS_SATIR: TalepSatiri = {
   barkod: '',
   urun_adi: '',
   urun_birimi: '',
+  urun_birim_id: '',
   urun_basamak_sayisi: '',
   ekipman_id: '',
   ekipman_adi: '',

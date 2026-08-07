@@ -37,6 +37,7 @@ export const SATIR_KAYITLARI = {
       barkod: 'barkod',
       ad: 'urun_adi',
       birim: 'urun_birimi',
+      birim_id: 'urun_birim_id',
       basamak: 'urun_basamak_sayisi',
     },
   },

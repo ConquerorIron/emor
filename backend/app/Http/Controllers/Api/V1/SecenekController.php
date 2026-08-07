@@ -452,7 +452,8 @@ final class SecenekController extends Controller
         $satirlar = $this->mssql->baglan()->select(
             'SELECT TOP '.self::URUN_AZAMI.' U.URUN_YAMASI_ID AS kayit_id,
                     U.KOD COLLATE Turkish_100_CI_AS AS kod, U.AD AS ad, U.BARKOD AS barkod,
-                    U.OLCU_SISTEMI AS birim, O.MIKTAR_BASAMAK_SAYISI AS basamak
+                    U.OLCU_SISTEMI AS birim, U.OLCU_SISTEMI_ID AS birim_id,
+                    O.MIKTAR_BASAMAK_SAYISI AS basamak
              FROM VOHOM_ARAMA_URUN_YAMASI U
                 LEFT OUTER JOIN TOHOM_OLCU_SISTEMI O ON O.OLCU_SISTEMI_ID = U.OLCU_SISTEMI_ID
              WHERE U.TUR = 6 AND (U.GUVENLIK_KODU_ID IS NULL OR U.GRUP_KULLANICISI_ID = ?)
@@ -469,6 +470,8 @@ final class SecenekController extends Controller
                     'ad' => (string) ($satir->ad ?? ''),
                     'barkod' => rtrim((string) ($satir->barkod ?? '')),
                     'birim' => (string) ($satir->birim ?? ''),
+                    // Satırın BIRIM_ID'si — kayıtta ERP'ye bu gider
+                    'birim_id' => (string) ($satir->birim_id ?? ''),
                     'basamak' => (int) ($satir->basamak ?? self::VARSAYILAN_BASAMAK),
                 ],
                 $satirlar,

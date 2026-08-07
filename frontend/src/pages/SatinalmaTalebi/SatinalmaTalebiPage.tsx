@@ -1,5 +1,5 @@
 import { standardSchemaResolver } from '@hookform/resolvers/standard-schema'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef } from 'react'
 import { useFieldArray, useForm, type FieldErrors, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -21,6 +21,7 @@ import {
 import { AlanGirisi, girisTipiTanimliMi, ILGI_CINSI_PROJEMIZ, kurGetir } from '@/formAlanlari'
 import { FIYAT_GRUPLARI } from './fiyatGruplari'
 import { SatirHucresi } from './SatirHucresi'
+import { talepKaydet } from './talepApi'
 import { SATIR_ALANLARI, sutunGenisligi } from './talepAlanlari'
 import { BOS_SATIR, BOS_TALEP, talepSemasiUret, type TalepGirdisi } from './talepSchema'
 
@@ -242,12 +243,19 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
     })()
   }, [tarih, form, istemci])
 
+  // Kayıt doğrudan ERP'ye gider (SOHOM_SIPARIS_KAYDET); talep numarasını ERP üretir
+  const kayit = useMutation({
+    mutationFn: talepKaydet,
+    onSuccess: (sonuc) => {
+      toast.success(t('satinalma.kaydedildi', { no: sonuc.talep_no }))
+      form.reset(varsayilanlar)
+    },
+    onError: (hata) => toast.error(t(apiErrorKey(hata))),
+  })
+
   const onSubmit = handleSubmit(
     (girdi) => {
-      // SOHOM_SIPARIS_KAYDET bağlantısı bir sonraki adımda; şimdilik veri hazır
-      // eslint-disable-next-line no-console
-      console.log('Satınalma talebi form verisi:', girdi)
-      toast.info(t('satinalma.kaydetHenuzYok'))
+      kayit.mutate(girdi)
     },
     (hatalar: FieldErrors<TalepGirdisi>) => {
       const satirHatasi = hatalar.satirlar?.root?.message ?? hatalar.satirlar?.message
@@ -364,7 +372,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
       </div>
 
       <div className="mt-5 flex justify-end">
-        <Button type="submit" yukleniyor={isSubmitting}>
+        <Button type="submit" yukleniyor={isSubmitting || kayit.isPending}>
           {t('ortak.kaydet')}
         </Button>
       </div>
