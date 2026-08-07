@@ -20,7 +20,7 @@ import {
 } from '@/features/ekranTasarim/types'
 import { AlanGirisi, girisTipiTanimliMi, ILGI_CINSI_PROJEMIZ } from '@/formAlanlari'
 import { SatirHucresi } from './SatirHucresi'
-import { SATIR_ALANLARI } from './talepAlanlari'
+import { SATIR_ALANLARI, sutunGenisligi } from './talepAlanlari'
 import { BOS_SATIR, BOS_TALEP, talepSemasiUret, type TalepGirdisi } from './talepSchema'
 
 /**
@@ -251,8 +251,10 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
           </Button>
         </div>
 
+        {/* Sütunlar doğal genişliklerini alsın diye tablo içeriğe göre büyür
+            (w-full olsaydı 38 sütun ekrana sıkıştırılır, hücreler ezilirdi) */}
         <div className="overflow-x-auto">
-          <table className="w-full border-separate border-spacing-0">
+          <table className="w-max min-w-full border-separate border-spacing-0">
             <thead>
               <tr>
                 {/* Izgara çok geniş: satır no ve sil düğmesi yatay kaydırmada
@@ -265,7 +267,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                 {SATIR_ALANLARI.map((alan) => (
                   <th
                     key={alan.etiketAnahtari}
-                    className="border-y border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                    className={`border-y border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold tracking-wide whitespace-nowrap text-slate-500 uppercase dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 ${sutunGenisligi(alan.hucre)}`}
                   >
                     {alan.zorunlu ? '* ' : ''}
                     {t(`satinalma.alan.${alan.etiketAnahtari}`)}
@@ -285,7 +287,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                   {SATIR_ALANLARI.map((alan) => (
                     <td
                       key={alan.etiketAnahtari}
-                      className="border-b border-slate-200 px-1 py-1.5 dark:border-slate-700"
+                      className={`border-b border-slate-200 px-1 py-1.5 align-top dark:border-slate-700 ${sutunGenisligi(alan.hucre)}`}
                     >
                       <SatirHucresi
                         alan={alan}

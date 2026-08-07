@@ -56,6 +56,34 @@ export interface TalepAlani {
   zorunlu?: boolean
 }
 
+/**
+ * Sütunun asgari genişliği — hücre tipine göre. TEK yerde durur ve hem başlığa
+ * hem hücreye uygulanır; ikisi ayrı yazıldığında başlık ile hücre kayıyor.
+ *
+ * Izgara ekrana sığmaz, yatay kaydırılır: sütunlar birbirini ezmesin diye
+ * içeriğin gerçekten girilebileceği genişlik verilir (ör. kur alanı
+ * "46,752500" yazacak kadar geniş olmalı). Genişlikler ekran tasarım motoruna
+ * taşınınca kullanıcı bunları kendisi ayarlayacak.
+ */
+export function sutunGenisligi(hucre: SatirHucreTanimi): string {
+  switch (hucre.tip) {
+    case 'yansima':
+      return 'min-w-28'
+    case 'secim':
+      return 'min-w-52'
+    // Fiyat hücresinde sayının yanında bir de para birimi seçici var
+    case 'fiyat':
+      return 'min-w-60'
+    // Birim gösterilen sayılarda ("1,000000 Ad") sayıya kalan yer daralır
+    case 'sayi':
+      return hucre.sonEkAnahtari ? 'min-w-40' : 'min-w-32'
+    case 'tutar':
+      return 'min-w-36'
+    default:
+      return 'min-w-36'
+  }
+}
+
 /** Satır grid kolonları (# ve sil kolonu hariç) */
 export const SATIR_ALANLARI: TalepAlani[] = [
   // Proje başlıktan gelir ve satırda kilitlidir (kullanıcı kararı 2026-08-07)

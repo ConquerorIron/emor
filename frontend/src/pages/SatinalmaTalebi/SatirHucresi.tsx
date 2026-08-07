@@ -152,7 +152,7 @@ export function SatirHucresi({
         aria-invalid={hata ? true : undefined}
         title={hata ? t(hata) : undefined}
         autoComplete="off"
-        className={`block w-full min-w-28 px-2 ${ALAN_GORUNUMU} ${ALAN_KUTUSU} ${alanCercevesi(hata)}`}
+        className={`block w-full px-2 ${ALAN_GORUNUMU} ${ALAN_KUTUSU} ${alanCercevesi(hata)}`}
         {...form.register(`satirlar.${indeks}.${alan.hucre.ad}`)}
       />
     )
@@ -176,7 +176,7 @@ export function SatirHucresi({
   const seciliYuz = kayit.yuzler[goster]
 
   return (
-    <div className="min-w-48" title={hata ? t(hata) : undefined}>
+    <div title={hata ? t(hata) : undefined}>
       <Controller
         control={form.control}
         name={idAnahtari}

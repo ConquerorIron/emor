@@ -66,7 +66,7 @@ export function FiyatHucresi({
   }
 
   return (
-    <div className="flex min-w-56 items-start gap-1">
+    <div className="flex items-start gap-1">
       <div className="min-w-0 flex-1">
         <Controller
           control={form.control}
@@ -84,7 +84,7 @@ export function FiyatHucresi({
           )}
         />
       </div>
-      <div className="w-24 shrink-0">
+      <div className="w-[6.5rem] shrink-0">
         <ParaSecimi
           id={`${id}-para`}
           label={`${etiket} — para birimi`}
