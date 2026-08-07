@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import '@/i18n/i18n'
 import { AppProviders } from '@/providers/AppProviders'
+import { gunEkle, tarihGoster } from '@/utils/tarih'
 
 import { SatirHucresi } from './SatirHucresi'
 import { SATIR_ALANLARI, type TalepAlani } from './talepAlanlari'
@@ -323,6 +324,31 @@ describe('SatirHucresi — çift yüzlü seçim', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('secili-id')).toHaveTextContent('2')
+    })
+  })
+
+  it('teslim süresi ile teslim tarihi birbirini günceller', async () => {
+    // Başlıktaki desenin aynısı: satırda da aynı verinin iki yüzü
+    render(
+      <AppProviders>
+        <Yuzler etiketler={['teslimTarihi', 'teslimSuresi']} izlenen="satirlar.0.teslim_suresi" />
+      </AppProviders>,
+    )
+
+    // Süreye 7 gün yazınca tarih talep tarihinden (08.07.2026) türer
+    fireEvent.change(screen.getByLabelText('Teslim süresi 1'), { target: { value: '7' } })
+    await waitFor(() => {
+      expect(screen.getByLabelText('Teslim tarihi 1')).toHaveValue(
+        tarihGoster(gunEkle('2026-07-08', 7)),
+      )
+    })
+
+    // Tarihten girince süre geri hesaplanır
+    fireEvent.change(screen.getByLabelText('Teslim tarihi 1'), {
+      target: { value: tarihGoster(gunEkle('2026-07-08', 21)) },
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('secili-id')).toHaveTextContent('21')
     })
   })
 

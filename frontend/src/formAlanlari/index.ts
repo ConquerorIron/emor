@@ -28,6 +28,8 @@ export { EkipmanSecimi } from './bilesenler/EkipmanSecimi'
 export { ParaSecimi } from './bilesenler/ParaSecimi'
 export { PartiYamasiPersonelSecimi } from './bilesenler/PartiYamasiPersonelSecimi'
 export { kurGetir, paraSecenekleriGetir, type ParaSecenegi } from './veri/secenekApi'
+// Süre ↔ tarih çevrimi: aynı veri iki yüzle gösterilir (başlıkta da, satırda da)
+export { sureyiTariheCevir, tarihiSureyeCevir } from './veri/sureCevrimi'
 export { MasrafMerkeziSecimi } from './bilesenler/MasrafMerkeziSecimi'
 export { UrunSecimi } from './bilesenler/UrunSecimi'
 export { FirmamizAdresiSecimi } from './bilesenler/FirmamizAdresiSecimi'

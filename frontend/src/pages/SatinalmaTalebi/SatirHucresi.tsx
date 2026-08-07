@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { ALAN_GORUNUMU, ALAN_KUTUSU, alanCercevesi } from '@/components/alanStilleri'
 import { SayiAlani } from '@/components/SayiAlani'
+import { TarihInput } from '@/components/TarihInput'
 import {
   AktiviteSecimi,
   AmbalajSecimi,
@@ -12,9 +13,14 @@ import {
   EkipmanSecimi,
   MasrafMerkeziSecimi,
   PartiYamasiPersonelSecimi,
+  sureyiTariheCevir,
+  tarihiSureyeCevir,
+  TeslimatSuresiSecimi,
   UrunSecimi,
+  VARSAYILAN_BIRIM,
   type KayitSecimProps,
   type KayitYuzleri,
+  type TeslimatSuresiBirimi,
 } from '@/formAlanlari'
 
 import { FIYAT_GRUPLARI } from './fiyatGruplari'
@@ -91,6 +97,53 @@ export function SatirHucresi({
 
   // Ondalık hassasiyet ERP'de sabit değil: seçilen kaydın ölçü sisteminden
   // gelip satıra yazılmıştı, hücre onu okuyor
+  // Teslim süresi ve teslim tarihi aynı verinin iki yüzü: hangisi girilirse
+  // diğeri türer (başlıktaki desenin aynısı, temel tarih = talep tarihi)
+  if (alan.hucre.tip === 'sure' || alan.hucre.tip === 'sureTarih') {
+    const { ad, birimAnahtari } = alan.hucre
+    const birim = (String(form.watch(anahtar(birimAnahtari)) ?? '') ||
+      VARSAYILAN_BIRIM) as TeslimatSuresiBirimi
+    const tarihYuzu = alan.hucre.tip === 'sureTarih'
+
+    return (
+      <Controller
+        control={form.control}
+        name={anahtar(ad)}
+        render={({ field }) => {
+          const sure = typeof field.value === 'string' ? field.value : ''
+          const yaz = (yeniSure: string, yeniBirim: string) => {
+            field.onChange(yeniSure)
+            form.setValue(anahtar(birimAnahtari), yeniBirim)
+          }
+
+          return tarihYuzu ? (
+            <TarihInput
+              id={id}
+              label={erisimEtiketi}
+              etiketGizli
+              value={sureyiTariheCevir(tarih, sure, birim)}
+              onChange={(iso) => {
+                const cevrim = tarihiSureyeCevir(tarih, iso, birim)
+                yaz(cevrim.sure, cevrim.birim)
+              }}
+              hata={hataMetni(ad)}
+            />
+          ) : (
+            <TeslimatSuresiSecimi
+              id={id}
+              label={erisimEtiketi}
+              etiketGizli
+              sure={sure}
+              birim={birim}
+              degisti={yaz}
+              hata={hataMetni(ad)}
+            />
+          )
+        }}
+      />
+    )
+  }
+
   if (alan.hucre.tip === 'fiyat') {
     return (
       <FiyatHucresi

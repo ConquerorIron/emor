@@ -17,6 +17,8 @@ interface TeslimatSuresiSecimiProps {
   hata?: string
   /** Salt okunur (ekran tasarımı) */
   disabled?: boolean
+  /** Izgara hücrelerinde etiket thead'de durur */
+  etiketGizli?: boolean
 }
 
 /**
@@ -32,6 +34,7 @@ export function TeslimatSuresiSecimi({
   degisti,
   hata,
   disabled = false,
+  etiketGizli = false,
 }: TeslimatSuresiSecimiProps) {
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -43,10 +46,10 @@ export function TeslimatSuresiSecimi({
 
   return (
     <div>
-      <label htmlFor={id} className={ALAN_ETIKETI}>
+      <label htmlFor={id} className={etiketGizli ? 'sr-only' : ALAN_ETIKETI}>
         {label}
       </label>
-      <div className="mt-1 flex items-start gap-2">
+      <div className={`flex items-start gap-2 ${etiketGizli ? '' : 'mt-1'}`}>
         <input
           id={id}
           inputMode="numeric"
@@ -75,7 +78,9 @@ export function TeslimatSuresiSecimi({
           />
         </div>
       </div>
-      {hata ? <p className="mt-1 text-sm text-red-600 dark:text-red-400">{hata}</p> : null}
+      {hata && !etiketGizli ? (
+        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{hata}</p>
+      ) : null}
     </div>
   )
 }

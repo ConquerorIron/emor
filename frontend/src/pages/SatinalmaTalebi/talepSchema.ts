@@ -65,8 +65,10 @@ export const talepSatiriSchema = z.object({
   butce_birim_fiyati: z.string(),
   butce_para_id: z.string(),
   butce_birim_fiyati_kuru: z.string(),
-  teslim_tarihi: z.string(),
+  // Teslim süresi + birimi; ekrandaki "Teslim tarihi" bunlardan hesaplanan
+  // gösterimdir (ERP satırında da tarih kolonu yoktur)
   teslim_suresi: z.string(),
+  teslim_suresi_birimi: z.string(),
   poz_no: z.string(),
   ozel_no: z.string(),
   hakkinda: z.string(),
@@ -202,8 +204,8 @@ export const BOS_SATIR: TalepSatiri = {
   butce_birim_fiyati: SIFIR,
   butce_para_id: VARSAYILAN_PARA_ID,
   butce_birim_fiyati_kuru: BIRIM_KUR,
-  teslim_tarihi: '',
   teslim_suresi: '',
+  teslim_suresi_birimi: VARSAYILAN_BIRIM,
   poz_no: '',
   ozel_no: '',
   hakkinda: '',

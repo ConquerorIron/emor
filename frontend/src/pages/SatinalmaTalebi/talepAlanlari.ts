@@ -30,6 +30,14 @@ export type SatirHucreTanimi =
       /** Sayının sağında gösterilecek birim (ERP'deki "1,000000 Ad") */
       sonEkAnahtari?: keyof TalepSatiri
     }
+  /**
+   * Teslim süresi ve teslim tarihi AYNI VERİNİN iki yüzü (başlıktaki desenin
+   * satır karşılığı): süre + birim saklanır, tarih talep tarihinden türer.
+   * ERP'de de öyle — satır tablosunda teslim tarihi kolonu yoktur
+   * (TOHOM_ISKELE_EVRAK_DETAYI: TESLIMAT_SURESI + TESLIMAT_SURESI_BIRIMI).
+   */
+  | { tip: 'sure'; ad: keyof TalepSatiri; birimAnahtari: keyof TalepSatiri }
+  | { tip: 'sureTarih'; ad: keyof TalepSatiri; birimAnahtari: keyof TalepSatiri }
   /** Fiyat + para birimi birlikte; para seçimi kuru da doldurur */
   | { tip: 'fiyat'; grup: FiyatGrubuAdi }
   /** Hesaplanan, salt okunur tutar; `kurUygula=false` yabancı para tutarıdır */
@@ -71,6 +79,11 @@ export function sutunGenisligi(hucre: SatirHucreTanimi): string {
       return 'min-w-28'
     case 'secim':
       return 'min-w-52'
+    // Sayı + birim seçici yan yana
+    case 'sure':
+      return 'min-w-52'
+    case 'sureTarih':
+      return 'min-w-40'
     // Fiyat hücresinde sayının yanında bir de para birimi seçici var
     case 'fiyat':
       return 'min-w-60'
@@ -155,8 +168,14 @@ export const SATIR_ALANLARI: TalepAlani[] = [
     hucre: { tip: 'sayi', ad: 'butce_birim_fiyati_kuru', sabitBasamak: 6 },
   },
   { etiketAnahtari: 'butceBirimTutari', hucre: { tip: 'tutar', grup: 'butce', kurUygula: true } },
-  { etiketAnahtari: 'teslimTarihi', hucre: { tip: 'metin', ad: 'teslim_tarihi' } },
-  { etiketAnahtari: 'teslimSuresi', hucre: { tip: 'metin', ad: 'teslim_suresi' } },
+  {
+    etiketAnahtari: 'teslimTarihi',
+    hucre: { tip: 'sureTarih', ad: 'teslim_suresi', birimAnahtari: 'teslim_suresi_birimi' },
+  },
+  {
+    etiketAnahtari: 'teslimSuresi',
+    hucre: { tip: 'sure', ad: 'teslim_suresi', birimAnahtari: 'teslim_suresi_birimi' },
+  },
   { etiketAnahtari: 'pozNo', hucre: { tip: 'metin', ad: 'poz_no' } },
   { etiketAnahtari: 'ozelNo', hucre: { tip: 'metin', ad: 'ozel_no' } },
   { etiketAnahtari: 'satirHakkinda', hucre: { tip: 'metin', ad: 'hakkinda' } },
