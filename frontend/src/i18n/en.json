@@ -136,6 +136,7 @@
       "aktiviteAciklamasi": "Activity description",
       "masrafMerkeziKodu": "Cost centre code",
       "masrafMerkeziAdi": "Cost centre name",
+      "barkod": "Barcode",
       "urunKodu": "Product code",
       "urunAdi": "Product name",
       "urunTarifi": "Product specification",

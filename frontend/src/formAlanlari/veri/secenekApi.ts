@@ -75,7 +75,7 @@ export async function tabloMaddesiSecenekleriGetir(
  * Backend, projeden iş programını (VOHOM_PROJEMIZ.IS_PROGRAMI_ID) kendisi
  * çözer; istemci yalnız projeyi bilir.
  */
-export interface AktiviteSecenegi {
+export type AktiviteSecenegi = {
   kayit_id: number
   kod: string
   aciklama: string
@@ -92,10 +92,30 @@ export async function aktiviteSecenekleriGetir(projemizId: string): Promise<Akti
 }
 
 /** VOHOM_ARAMA_MASRAF_MERKEZI — projesiz (genel) merkezler her projede görünür */
-export interface MasrafMerkeziSecenegi {
+export type MasrafMerkeziSecenegi = {
   kayit_id: number
   kod: string
   ad: string
+}
+
+/**
+ * VOHOM_ARAMA_URUN_YAMASI (TUR=6) — kayit_id = URUN_YAMASI_ID.
+ * Liste on binlerce kayıt olabildiği için tamamı çekilmez: arama sunucuda
+ * yapılır (kod, ad ve barkodun üçünde birden) ve ilk 50 kayıt döner.
+ */
+export type UrunSecenegi = {
+  kayit_id: number
+  kod: string
+  ad: string
+  barkod: string
+}
+
+export async function urunSecenekleriGetir(ara: string): Promise<UrunSecenegi[]> {
+  const yanit = await api.get<{ data: UrunSecenegi[] }>('/api/v1/secenekler/urunler', {
+    params: { ara },
+  })
+
+  return yanit.data.data
 }
 
 export async function masrafMerkeziSecenekleriGetir(

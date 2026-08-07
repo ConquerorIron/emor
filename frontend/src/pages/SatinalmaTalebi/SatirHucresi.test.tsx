@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useForm } from 'react-hook-form'
+import { useForm, type FieldPath } from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import '@/i18n/i18n'
@@ -14,42 +14,62 @@ const AKTIVITELER = [
   { kayit_id: 15805, kod: 'A.01.01.02', aciklama: 'Statik Proje Tasarım Giderleri', poz_no: '' },
 ]
 
+const URUNLER = [
+  { kayit_id: 3707, kod: '01.01.01.0001', ad: 'CURUF VOLKANİK', barkod: '8690000000017' },
+  { kayit_id: 3710, kod: '01.01.01.0002', ad: 'ÇİMENTO CEM I 42.5', barkod: '8690000000024' },
+]
+
 vi.mock('@/formAlanlari/veri/secenekApi', async (asliniAl) => ({
   ...(await asliniAl<typeof import('@/formAlanlari/veri/secenekApi')>()),
   aktiviteSecenekleriGetir: () => Promise.resolve(AKTIVITELER),
+  urunSecenekleriGetir: () => Promise.resolve(URUNLER),
 }))
 
-function alanBul(hucre: TalepAlani['hucre']): TalepAlani {
-  const alan = SATIR_ALANLARI.find((a) => a.hucre === hucre)
+function alanBul(etiketAnahtari: string): TalepAlani {
+  const alan = SATIR_ALANLARI.find((a) => a.etiketAnahtari === etiketAnahtari)
   if (!alan) {
-    throw new Error(`${hucre} kolonu tanımlı değil`)
+    throw new Error(`${etiketAnahtari} kolonu tanımlı değil`)
   }
 
   return alan
 }
 
-/** Aynı forma bağlı iki yüz — gerçek ızgaradaki gibi tek satırı paylaşırlar */
-function IkiYuz({ projemizId = '34924' }: { projemizId?: string }) {
+/** Aynı forma bağlı yüzler — gerçek ızgaradaki gibi tek satırı paylaşırlar */
+function Yuzler({
+  etiketler,
+  izlenen,
+  projemizId = '34924',
+}: {
+  etiketler: string[]
+  izlenen: FieldPath<TalepGirdisi>
+  projemizId?: string
+}) {
   const form = useForm<TalepGirdisi>({ defaultValues: BOS_TALEP })
 
   return (
     <>
-      <SatirHucresi
-        alan={alanBul('aktiviteKodu')}
-        indeks={0}
-        form={form}
-        projemizId={projemizId}
-        projeKodu="PRJ-1"
-      />
-      <SatirHucresi
-        alan={alanBul('aktiviteAciklamasi')}
-        indeks={0}
-        form={form}
-        projemizId={projemizId}
-        projeKodu="PRJ-1"
-      />
-      <output data-testid="aktivite-id">{form.watch('satirlar.0.aktivite_id')}</output>
+      {etiketler.map((etiket) => (
+        <SatirHucresi
+          key={etiket}
+          alan={alanBul(etiket)}
+          indeks={0}
+          form={form}
+          projemizId={projemizId}
+          projeKodu="PRJ-1"
+        />
+      ))}
+      <output data-testid="secili-id">{String(form.watch(izlenen) ?? '')}</output>
     </>
+  )
+}
+
+function IkiYuz({ projemizId }: { projemizId?: string }) {
+  return (
+    <Yuzler
+      etiketler={['aktiviteKodu', 'aktiviteAciklamasi']}
+      izlenen="satirlar.0.aktivite_id"
+      projemizId={projemizId}
+    />
   )
 }
 
@@ -78,7 +98,7 @@ describe('SatirHucresi — çift yüzlü seçim', () => {
     await secenegiSec(screen.getByLabelText('Aktivite kodu 1'), 'A.01.01.02')
 
     await waitFor(() => {
-      expect(screen.getByTestId('aktivite-id')).toHaveTextContent('15805')
+      expect(screen.getByTestId('secili-id')).toHaveTextContent('15805')
     })
     expect(
       screen.getByText('Statik Proje Tasarım Giderleri', { selector: '.erp-select__single-value' }),
@@ -98,10 +118,30 @@ describe('SatirHucresi — çift yüzlü seçim', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByTestId('aktivite-id')).toHaveTextContent('15804')
+      expect(screen.getByTestId('secili-id')).toHaveTextContent('15804')
     })
     expect(
       screen.getByText('A.01.01.01', { selector: '.erp-select__single-value' }),
+    ).toBeInTheDocument()
+  })
+
+  it('ürün barkoddan seçilince kod ve ad da dolar (üç yüz)', async () => {
+    render(
+      <AppProviders>
+        <Yuzler etiketler={['urunKodu', 'barkod', 'urunAdi']} izlenen="satirlar.0.urun_yamasi_id" />
+      </AppProviders>,
+    )
+
+    await secenegiSec(screen.getByLabelText('Barkod 1'), '8690000000024')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('secili-id')).toHaveTextContent('3710')
+    })
+    expect(
+      screen.getByText('01.01.01.0002', { selector: '.erp-select__single-value' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('ÇİMENTO CEM I 42.5', { selector: '.erp-select__single-value' }),
     ).toBeInTheDocument()
   })
 

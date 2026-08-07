@@ -268,6 +268,60 @@ final class SecenekController extends Controller
         ]);
     }
 
+    /** Ürün listesi büyük olduğu için tek istekte dönen azami kayıt */
+    private const URUN_AZAMI = 50;
+
+    /**
+     * Ürün seçenekleri — VOHOM_ARAMA_URUN_YAMASI (TUR=6, profiler kaydı
+     * 2026-08-07). kayit_id = URUN_YAMASI_ID →
+     * TOHOM_SIPARIS_SATIRI.URUN_YAMASI_ID.
+     *
+     * Diğer listelerden farklı olarak TAMAMI dönmez (test ortamında 12.000+
+     * kayıt): arama sunucuda yapılır, ilk 50 kayıt döner. Arama kod, ad ve
+     * barkodun üçünde birden çalışır — kullanıcı hangi sütunda olursa olsun
+     * bildiği değeri yazabilsin.
+     */
+    public function urunler(Request $request): JsonResponse
+    {
+        $erpKullaniciId = $request->user()?->erp_kullanici_id ?? -1;
+        $ara = trim($request->string('ara')->value());
+
+        $parametreler = [$erpKullaniciId];
+        $aramaKosulu = '';
+
+        if ($ara !== '') {
+            // LIKE joker karakterleri düz metin sayılır ('%' arayan kullanıcı
+            // tüm listeyi getirmesin)
+            $desen = '%'.str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $ara).'%';
+            $aramaKosulu = 'AND (KOD COLLATE Turkish_100_CI_AS LIKE ?
+                             OR AD COLLATE Turkish_100_CI_AS LIKE ?
+                             OR BARKOD COLLATE Turkish_100_CI_AS LIKE ?)';
+            array_push($parametreler, $desen, $desen, $desen);
+        }
+
+        $satirlar = $this->mssql->baglan()->select(
+            'SELECT TOP '.self::URUN_AZAMI.' URUN_YAMASI_ID AS kayit_id,
+                    KOD COLLATE Turkish_100_CI_AS AS kod, AD AS ad, BARKOD AS barkod
+             FROM VOHOM_ARAMA_URUN_YAMASI
+             WHERE TUR = 6 AND (GUVENLIK_KODU_ID IS NULL OR GRUP_KULLANICISI_ID = ?)
+             '.$aramaKosulu.'
+             ORDER BY KOD COLLATE Turkish_100_CI_AS',
+            $parametreler,
+        );
+
+        return response()->json([
+            'data' => array_map(
+                static fn (object $satir): array => [
+                    'kayit_id' => (int) $satir->kayit_id,
+                    'kod' => rtrim((string) $satir->kod),
+                    'ad' => (string) ($satir->ad ?? ''),
+                    'barkod' => rtrim((string) ($satir->barkod ?? '')),
+                ],
+                $satirlar,
+            ),
+        ]);
+    }
+
     /**
      * Talep SATIRLARININ masraf merkezi seçenekleri (profiler kaydı 2026-08-07).
      * Liste hem projeye hem kullanıcıya göre süzülür: projesiz (genel) merkezler

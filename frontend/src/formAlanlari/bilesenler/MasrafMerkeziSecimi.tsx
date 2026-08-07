@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
 
-import { masrafMerkeziSecenekleriGetir } from '../veri/secenekApi'
-import { KodAdSecimi, type KodAdSecim } from './KodAdSecimi'
+import { masrafMerkeziSecenekleriGetir, type MasrafMerkeziSecenegi } from '../veri/secenekApi'
+import { CokYuzluSecim } from './CokYuzluSecim'
 
 interface MasrafMerkeziSecimiProps {
   id: string
@@ -14,8 +14,8 @@ interface MasrafMerkeziSecimiProps {
   projemizId: string
   /** Seçili merkezin ERP MASRAF_MERKEZI_ID'si — satırda MASRAF_MERKEZI_ID */
   deger: string
-  degisti: (secim: KodAdSecim | null) => void
-  /** Kod yüzü mü ad yüzü mü çiziliyor */
+  degisti: (secim: MasrafMerkeziSecenegi | null) => void
+  /** Hangi yüz çiziliyor: kod sütunu mu, ad sütunu mu */
   goster: 'kod' | 'ad'
   hata?: string
   disabled?: boolean
@@ -23,9 +23,9 @@ interface MasrafMerkeziSecimiProps {
 }
 
 /**
- * Talep satırının masraf merkezi seçimi. Kod ve ad sütunları bu bileşenin iki
- * yüzüdür — kullanıcı ister koddan ister addan seçer, diğeri kendiliğinden
- * dolar ve tek MASRAF_MERKEZI_ID saklanır.
+ * Talep satırının masraf merkezi seçimi. Kod ve ad sütunları bu kaydın iki
+ * yüzüdür — kullanıcı ister koddan ister addan seçer, tek MASRAF_MERKEZI_ID
+ * saklanır.
  */
 export function MasrafMerkeziSecimi({
   id,
@@ -48,7 +48,7 @@ export function MasrafMerkeziSecimi({
   })
 
   return (
-    <KodAdSecimi
+    <CokYuzluSecim
       id={id}
       label={label}
       etiketGizli={etiketGizli}

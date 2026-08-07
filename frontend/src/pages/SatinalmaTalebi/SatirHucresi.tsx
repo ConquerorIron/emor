@@ -2,10 +2,11 @@ import { Controller, type Path, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { ALAN_GORUNUMU, ALAN_KUTUSU, alanCercevesi } from '@/components/alanStilleri'
-import { AktiviteSecimi, MasrafMerkeziSecimi, type KodAdSecim } from '@/formAlanlari'
+import { AktiviteSecimi, MasrafMerkeziSecimi, UrunSecimi, type KayitYuzleri } from '@/formAlanlari'
 
+import { SATIR_KAYITLARI, type SatirKaydi } from './satirKayitlari'
 import type { TalepAlani } from './talepAlanlari'
-import type { TalepGirdisi } from './talepSchema'
+import type { TalepGirdisi, TalepSatiri } from './talepSchema'
 
 /**
  * Bir satır hücresini çizer. Kolon tipini `talepAlanlari` belirler; ERP seçim
@@ -18,7 +19,6 @@ export function SatirHucresi({
   form,
   projemizId,
   projeKodu,
-  hata,
 }: {
   alan: TalepAlani
   indeks: number
@@ -27,16 +27,18 @@ export function SatirHucresi({
   projemizId: string
   /** Aynı projenin kodu — yansıma kolonunda gösterilir */
   projeKodu: string
-  hata?: string
 }) {
   const { t } = useTranslation()
 
   const etiket = t(`satinalma.alan.${alan.etiketAnahtari}`)
   const erisimEtiketi = `${etiket} ${indeks + 1}`
   const id = `satir-${indeks}-${alan.etiketAnahtari}`
+  const anahtar = (son: string) => `satirlar.${indeks}.${son}` as Path<TalepGirdisi>
+  const hataMetni = (formAnahtari: keyof TalepSatiri): string | undefined =>
+    form.formState.errors.satirlar?.[indeks]?.[formAnahtari]?.message
 
   // Başlıktan türeyen, satırda saklanmayan değer
-  if (alan.hucre === 'yansima') {
+  if (alan.hucre.tip === 'yansima') {
     return (
       <span
         title={projeKodu}
@@ -47,7 +49,9 @@ export function SatirHucresi({
     )
   }
 
-  if (alan.hucre === 'metin' && alan.ad) {
+  if (alan.hucre.tip === 'metin') {
+    const hata = hataMetni(alan.hucre.ad)
+
     return (
       <input
         aria-label={erisimEtiketi}
@@ -55,30 +59,27 @@ export function SatirHucresi({
         title={hata ? t(hata) : undefined}
         autoComplete="off"
         className={`block w-full min-w-28 px-2 ${ALAN_GORUNUMU} ${ALAN_KUTUSU} ${alanCercevesi(hata)}`}
-        {...form.register(`satirlar.${indeks}.${alan.ad}`)}
+        {...form.register(`satirlar.${indeks}.${alan.hucre.ad}`)}
       />
     )
   }
 
-  // Çift yüzlü seçimler: kod ve ad sütunları TEK kaydı işaret eder, hangisinden
-  // seçilirse seçilsin üç anahtar birlikte yazılır (id + kod + ad)
-  const aktiviteMi = alan.hucre === 'aktiviteKodu' || alan.hucre === 'aktiviteAciklamasi'
-  const goster = alan.hucre === 'aktiviteKodu' || alan.hucre === 'masrafMerkeziKodu' ? 'kod' : 'ad'
+  // Çok yüzlü seçim: sütun kaydın bir yüzüdür, seçim TÜM yüzleri doldurur
+  const { kaynak, goster } = alan.hucre
+  const kayit: SatirKaydi = SATIR_KAYITLARI[kaynak]
+  const idAnahtari = anahtar(kayit.idAnahtari)
+  // Hata kaydın kimliğinde tutulur; kaydın her yüzü aynı hatayı gösterir
+  const hata = hataMetni(kayit.idAnahtari)
 
-  const anahtar = (son: string) => `satirlar.${indeks}.${son}` as Path<TalepGirdisi>
-  const idAnahtari = anahtar(aktiviteMi ? 'aktivite_id' : 'masraf_merkezi_id')
-
-  const yaz = (secim: KodAdSecim | null) => {
-    form.setValue(idAnahtari, secim?.kayitId ?? '')
-    form.setValue(anahtar(aktiviteMi ? 'aktivite_kodu' : 'masraf_merkezi_kodu'), secim?.kod ?? '')
-    form.setValue(
-      anahtar(aktiviteMi ? 'aktivite_aciklamasi' : 'masraf_merkezi_adi'),
-      secim?.ad ?? '',
-    )
+  const yaz = (secilen: KayitYuzleri | null) => {
+    form.setValue(idAnahtari, secilen ? String(secilen.kayit_id) : '')
+    for (const [yuz, formAnahtari] of Object.entries(kayit.yuzler)) {
+      form.setValue(anahtar(formAnahtari), secilen ? String(secilen[yuz] ?? '') : '')
+    }
   }
 
   return (
-    <div className="min-w-48">
+    <div className="min-w-48" title={hata ? t(hata) : undefined}>
       <Controller
         control={form.control}
         name={idAnahtari}
@@ -87,14 +88,38 @@ export function SatirHucresi({
             id,
             label: erisimEtiketi,
             etiketGizli: true,
-            projemizId,
             deger: typeof field.value === 'string' ? field.value : '',
             degisti: yaz,
-            goster,
-            hata,
-          } as const
+            hata: hata ? t(hata) : undefined,
+          }
 
-          return aktiviteMi ? <AktiviteSecimi {...ortak} /> : <MasrafMerkeziSecimi {...ortak} />
+          if (kaynak === 'urun') {
+            const seciliYuz = kayit.yuzler[goster]
+
+            return (
+              <UrunSecimi
+                {...ortak}
+                goster={goster as 'kod' | 'ad' | 'barkod'}
+                // Liste sunucuda süzülüyor: seçili ürün o anki sonuçta
+                // olmayabilir, gösterimi satırdan okuyoruz
+                seciliEtiket={seciliYuz ? String(form.watch(anahtar(seciliYuz)) ?? '') : ''}
+              />
+            )
+          }
+
+          return kaynak === 'aktivite' ? (
+            <AktiviteSecimi
+              {...ortak}
+              projemizId={projemizId}
+              goster={goster as 'kod' | 'aciklama'}
+            />
+          ) : (
+            <MasrafMerkeziSecimi
+              {...ortak}
+              projemizId={projemizId}
+              goster={goster as 'kod' | 'ad'}
+            />
+          )
         }}
       />
     </div>

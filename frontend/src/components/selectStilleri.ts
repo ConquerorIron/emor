@@ -14,6 +14,8 @@ export interface SecenekOgesi {
  */
 export function selectStilleri<IsMulti extends boolean>(
   isDark: boolean,
+  /** Doğrulama hatası — metin girişlerindeki kırmızı çerçevenin karşılığı */
+  hataliMi = false,
 ): StylesConfig<SecenekOgesi, IsMulti> {
   return {
     control: (base, state) => ({
@@ -25,7 +27,13 @@ export function selectStilleri<IsMulti extends boolean>(
       fontSize: 14,
       borderRadius: 12,
       boxShadow: 'none',
-      borderColor: state.isFocused ? '#3b82f6' : isDark ? '#334155' : '#cbd5e1',
+      borderColor: hataliMi
+        ? '#ef4444'
+        : state.isFocused
+          ? '#3b82f6'
+          : isDark
+            ? '#334155'
+            : '#cbd5e1',
       // Salt okunur alan: metin girişlerindeki disabled görünümüyle aynı dil
       backgroundColor: state.isDisabled
         ? isDark
@@ -37,7 +45,13 @@ export function selectStilleri<IsMulti extends boolean>(
       opacity: state.isDisabled ? 0.6 : 1,
       cursor: state.isDisabled ? 'not-allowed' : 'default',
       ':hover': {
-        borderColor: state.isFocused ? '#3b82f6' : isDark ? '#475569' : '#94a3b8',
+        borderColor: hataliMi
+          ? '#ef4444'
+          : state.isFocused
+            ? '#3b82f6'
+            : isDark
+              ? '#475569'
+              : '#94a3b8',
       },
     }),
     menu: (base) => ({

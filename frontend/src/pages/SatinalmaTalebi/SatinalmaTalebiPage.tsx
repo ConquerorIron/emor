@@ -172,7 +172,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
   const {
     control,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { isSubmitting },
   } = form
   const satirlar = useFieldArray({ control, name: 'satirlar' })
 
@@ -273,7 +273,6 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                         form={form}
                         projemizId={projemizId}
                         projeKodu={projeKodu}
-                        hata={alan.ad ? errors.satirlar?.[indeks]?.[alan.ad]?.message : undefined}
                       />
                     </td>
                   ))}

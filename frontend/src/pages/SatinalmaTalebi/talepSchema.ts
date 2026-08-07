@@ -21,7 +21,11 @@ export const talepSatiriSchema = z.object({
   masraf_merkezi_id: z.string(),
   masraf_merkezi_kodu: z.string(),
   masraf_merkezi_adi: z.string(),
-  urun_kodu: z.string().min(1, 'satinalma.dogrulama.urunKoduZorunlu'),
+  // Ürün: kod / barkod / ad aynı kaydın üç yüzü — hangisinden seçilirse
+  // seçilsin ERP'ye URUN_YAMASI_ID gider, zorunluluk da onda tutulur
+  urun_yamasi_id: z.string().min(1, 'satinalma.dogrulama.urunKoduZorunlu'),
+  urun_kodu: z.string(),
+  barkod: z.string(),
   urun_adi: z.string(),
   urun_tarifi: z.string(),
   miktar: z.string(),
@@ -111,7 +115,9 @@ export const BOS_SATIR: TalepSatiri = {
   masraf_merkezi_id: '',
   masraf_merkezi_kodu: '',
   masraf_merkezi_adi: '',
+  urun_yamasi_id: '',
   urun_kodu: '',
+  barkod: '',
   urun_adi: '',
   urun_tarifi: '',
   miktar: '',

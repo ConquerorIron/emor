@@ -1,3 +1,4 @@
+import type { SatirKaynagi } from './satirKayitlari'
 import type { TalepSatiri } from './talepSchema'
 
 /**
@@ -9,27 +10,19 @@ import type { TalepSatiri } from './talepSchema'
  * katalogundan gelecek, hücre çizimi ise burada kaldığı gibi kalacak.
  */
 
-/**
- * Hücrenin nasıl çizildiği. `metin` dışındakiler ERP seçim listeleridir;
- * `yansima` kullanıcı giremediği, başlıktan türeyen değerdir.
- */
-export type SatirHucreTipi =
-  | 'metin'
-  | 'yansima'
-  | 'aktiviteKodu'
-  | 'aktiviteAciklamasi'
-  | 'masrafMerkeziKodu'
-  | 'masrafMerkeziAdi'
+/** Hücrenin nasıl çizildiği */
+export type SatirHucreTanimi =
+  /** Serbest metin — değeri satırda kendi anahtarında durur */
+  | { tip: 'metin'; ad: keyof TalepSatiri }
+  /** Kullanıcı giremez; değer başlıktan türer (satırda saklanmaz) */
+  | { tip: 'yansima' }
+  /** ERP kaydının bir yüzü — seçim tüm yüzleri birden doldurur */
+  | { tip: 'secim'; kaynak: SatirKaynagi; goster: string }
 
 export interface TalepAlani {
-  /**
-   * Form verisindeki anahtar. Yansıma kolonlarında yoktur — değer satırda
-   * saklanmaz, başlıktan okunur (aynı veriyi iki yerde tutmamak için).
-   */
-  ad?: keyof TalepSatiri
   /** i18n etiketi (satinalma.alan.*) */
   etiketAnahtari: string
-  hucre: SatirHucreTipi
+  hucre: SatirHucreTanimi
   /** Zorunlu kolonlar başlıkta * ile işaretlenir */
   zorunlu?: boolean
 }
@@ -37,14 +30,29 @@ export interface TalepAlani {
 /** Satır grid kolonları (# ve sil kolonu hariç) */
 export const SATIR_ALANLARI: TalepAlani[] = [
   // Proje başlıktan gelir ve satırda kilitlidir (kullanıcı kararı 2026-08-07)
-  { etiketAnahtari: 'projemiz', hucre: 'yansima' },
-  { ad: 'aktivite_kodu', etiketAnahtari: 'aktiviteKodu', hucre: 'aktiviteKodu' },
-  { ad: 'aktivite_aciklamasi', etiketAnahtari: 'aktiviteAciklamasi', hucre: 'aktiviteAciklamasi' },
-  { ad: 'masraf_merkezi_kodu', etiketAnahtari: 'masrafMerkeziKodu', hucre: 'masrafMerkeziKodu' },
-  { ad: 'masraf_merkezi_adi', etiketAnahtari: 'masrafMerkeziAdi', hucre: 'masrafMerkeziAdi' },
-  { ad: 'urun_kodu', etiketAnahtari: 'urunKodu', hucre: 'metin', zorunlu: true },
-  { ad: 'urun_adi', etiketAnahtari: 'urunAdi', hucre: 'metin' },
-  { ad: 'urun_tarifi', etiketAnahtari: 'urunTarifi', hucre: 'metin' },
-  { ad: 'miktar', etiketAnahtari: 'miktar', hucre: 'metin' },
-  { ad: 'kullanim_amaci', etiketAnahtari: 'kullanimAmaci', hucre: 'metin' },
+  { etiketAnahtari: 'projemiz', hucre: { tip: 'yansima' } },
+  { etiketAnahtari: 'aktiviteKodu', hucre: { tip: 'secim', kaynak: 'aktivite', goster: 'kod' } },
+  {
+    etiketAnahtari: 'aktiviteAciklamasi',
+    hucre: { tip: 'secim', kaynak: 'aktivite', goster: 'aciklama' },
+  },
+  {
+    etiketAnahtari: 'masrafMerkeziKodu',
+    hucre: { tip: 'secim', kaynak: 'masrafMerkezi', goster: 'kod' },
+  },
+  {
+    etiketAnahtari: 'masrafMerkeziAdi',
+    hucre: { tip: 'secim', kaynak: 'masrafMerkezi', goster: 'ad' },
+  },
+  // Ürünün üç yüzü: birinden seçmek yeterli, diğer ikisi dolar
+  {
+    etiketAnahtari: 'urunKodu',
+    hucre: { tip: 'secim', kaynak: 'urun', goster: 'kod' },
+    zorunlu: true,
+  },
+  { etiketAnahtari: 'barkod', hucre: { tip: 'secim', kaynak: 'urun', goster: 'barkod' } },
+  { etiketAnahtari: 'urunAdi', hucre: { tip: 'secim', kaynak: 'urun', goster: 'ad' } },
+  { etiketAnahtari: 'urunTarifi', hucre: { tip: 'metin', ad: 'urun_tarifi' } },
+  { etiketAnahtari: 'miktar', hucre: { tip: 'metin', ad: 'miktar' } },
+  { etiketAnahtari: 'kullanimAmaci', hucre: { tip: 'metin', ad: 'kullanim_amaci' } },
 ]

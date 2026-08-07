@@ -42,7 +42,10 @@ function AlanSarici({
         {label}
       </label>
       {children}
-      {hata ? <p className="mt-1 text-sm text-red-600 dark:text-red-400">{hata}</p> : null}
+      {/* Izgara hücresinde mesaja yer yok; hata kırmızı çerçeve ve title ile bildirilir */}
+      {hata && !etiketGizli ? (
+        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{hata}</p>
+      ) : null}
     </div>
   )
 }
@@ -76,6 +79,7 @@ export function SelectField({
     <AlanSarici id={id} label={label} hata={hata} etiketGizli={etiketGizli}>
       <Select<SecenekOgesi, false>
         inputId={id}
+        aria-invalid={hata ? true : undefined}
         value={value}
         onChange={onChange}
         options={options}
@@ -97,7 +101,7 @@ export function SelectField({
         filterOption={aramaDegisti ? () => true : undefined}
         classNamePrefix="erp-select"
         menuPortalTarget={document.body}
-        styles={selectStilleri<false>(theme === 'dark')}
+        styles={selectStilleri<false>(theme === 'dark', hata !== undefined)}
       />
     </AlanSarici>
   )
