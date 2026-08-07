@@ -27,10 +27,16 @@ final class SatinalmaTalebiKaydi
     private const TIP = 2;
 
     /**
-     * @DENETIM_ISLEMI = 1 → onaya sunmadan onaysız kaydet.
-     * "Onaya sunma" ayrı bir ekran olarak sonra gelecek.
+     * @DENETIM_ISLEMI = 0 → ERP'nin "Kaydet" davranışı: rol kurallarını
+     * denetle, sorun yoksa onaylı kaydet.
+     *
+     * 1 denetimi tamamen ATLAR ve kaydı onaylı yazar (yorumu "onaysız kaydet"
+     * dese de kod öyle davranmıyor) — bu yüzden kullanılmıyor.
      */
-    private const DENETIM_ISLEMI = 1;
+    private const DENETIM_ISLEMI = 0;
+
+    /** Proc dönüşü: 0 = kaydedildi, 2 = kısıtlama/onay gerekli (kayıt yok) */
+    private const DONUS_ONAY_GEREKLI = 2;
 
     /** Belge para birimi TL; satır bazlı dövizler satırda taşınır */
     private const YEREL_PARA_ID = 1;
@@ -41,7 +47,7 @@ final class SatinalmaTalebiKaydi
 
     /**
      * @param  array<string, mixed>  $talep  Form verisi (başlık + satirlar)
-     * @return array{siparis_id: int, talep_no: string, onay_durumu: int}
+     * @return array{durum: string, siparis_id: int, talep_no: string, onay_durumu: int, sinirlamalar: list<array<string, mixed>>}
      */
     public function kaydet(array $talep, int $erpKullaniciId): array
     {
@@ -53,15 +59,64 @@ final class SatinalmaTalebiKaydi
         try {
             $this->satirlariYaz($baglanti, $guid, $talep);
             $sonuc = $this->procCagir($baglanti, $guid, $talep, $erpKullaniciId);
+
+            // Kullanıcının rol kuralları kaydı engelliyorsa proc HİÇBİR ŞEY
+            // kaydetmeden 2 ile döner; talebin onaya sunulması gerekir
+            if ($sonuc['donus_kodu'] === self::DONUS_ONAY_GEREKLI) {
+                // Kısıtlamalar geçici tabloda; geri alma onları da sileceği
+                // için önce okunur
+                $sinirlamalar = $this->sinirlamalar($baglanti);
+                $baglanti->rollBack();
+
+                return [
+                    'durum' => 'onay_gerekli',
+                    'siparis_id' => 0,
+                    'talep_no' => '',
+                    'onay_durumu' => $sonuc['onay_durumu'],
+                    'sinirlamalar' => $sinirlamalar,
+                ];
+            }
+
             $baglanti->commit();
 
-            return $sonuc;
+            return [
+                'durum' => 'kaydedildi',
+                'siparis_id' => $sonuc['siparis_id'],
+                'talep_no' => $sonuc['talep_no'],
+                'onay_durumu' => $sonuc['onay_durumu'],
+                'sinirlamalar' => [],
+            ];
         } catch (\Throwable $hata) {
             $baglanti->rollBack();
             $this->iskeleyiTemizle($baglanti, $guid);
 
             throw $hata;
         }
+    }
+
+    /**
+     * Rol denetiminin bıraktığı kısıtlamalar — "onaya sun" penceresinin
+     * içeriği buradan gelecek (onaylayacak kişi, mesaj…).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function sinirlamalar(Connection $baglanti): array
+    {
+        $satirlar = $baglanti->select(
+            'SELECT ROL_SINIRLAMASI_ID, SINIRLAMA_TURU, MESAJ, ONAYLAYAN_ID, ACIKLAMA,
+                    VEKIL_ID, ONERILEN_FIRMA_ID
+             FROM #TOHOM_ISKELE_SINIRLAMA',
+        );
+
+        return array_map(
+            static fn (object $satir): array => [
+                'sinirlama_turu' => (int) ($satir->SINIRLAMA_TURU ?? 0),
+                'mesaj' => trim((string) ($satir->MESAJ ?? '')),
+                'onaylayan_id' => $satir->ONAYLAYAN_ID === null ? null : (int) $satir->ONAYLAYAN_ID,
+                'aciklama' => trim((string) ($satir->ACIKLAMA ?? '')),
+            ],
+            $satirlar,
+        );
     }
 
     /**
@@ -166,7 +221,7 @@ final class SatinalmaTalebiKaydi
 
     /**
      * @param  array<string, mixed>  $talep
-     * @return array{siparis_id: int, talep_no: string, onay_durumu: int}
+     * @return array{donus_kodu: int, siparis_id: int, talep_no: string, onay_durumu: int}
      */
     private function procCagir(
         Connection $baglanti,
@@ -242,18 +297,22 @@ final class SatinalmaTalebiKaydi
         // SET NOCOUNT ON şart: proc içindeki INSERT/UPDATE'lerin "N rows
         // affected" sayaçları sürücüye boş sonuç kümesi gibi görünüyor ve
         // asıl SELECT'e sıra gelmiyor
+        // Proc'un DÖNÜŞ KODU da okunur: 2 = kısıtlama var, kayıt yapılmadı.
+        // Bu okunmazsa "onaya sunulmalı" durumu başarı gibi görünür.
         $sonuc = $baglanti->select(
             'SET NOCOUNT ON;
-             DECLARE @SIPARIS_ID INT, @SIPARIS_NO VARCHAR(50), @ONAY_DURUMU TINYINT = 0;
-             EXEC SOHOM_SIPARIS_KAYDET '.implode(', ', $bagimsizlar).';
-             SELECT @SIPARIS_ID AS siparis_id, @SIPARIS_NO AS talep_no,
-                    @ONAY_DURUMU AS onay_durumu;',
+             DECLARE @SIPARIS_ID INT, @SIPARIS_NO VARCHAR(50),
+                     @ONAY_DURUMU TINYINT = 0, @DONUS INT;
+             EXEC @DONUS = SOHOM_SIPARIS_KAYDET '.implode(', ', $bagimsizlar).';
+             SELECT @DONUS AS donus_kodu, @SIPARIS_ID AS siparis_id,
+                    @SIPARIS_NO AS talep_no, @ONAY_DURUMU AS onay_durumu;',
             $degerler,
         );
 
         $ilk = (array) ($sonuc[0] ?? []);
 
         return [
+            'donus_kodu' => (int) ($ilk['donus_kodu'] ?? 0),
             'siparis_id' => (int) ($ilk['siparis_id'] ?? 0),
             'talep_no' => trim((string) ($ilk['talep_no'] ?? '')),
             'onay_durumu' => (int) ($ilk['onay_durumu'] ?? 0),
