@@ -209,7 +209,8 @@ export const BOS_SATIR: TalepSatiri = {
   poz_no: '',
   ozel_no: '',
   hakkinda: '',
-  kapandi: '',
+  // ERP BOOL sözleşmesi: '0' kapalı, '1' açık
+  kapandi: '0',
   butce_tutari: '',
   gerceklesen_maliyet: '',
   gerceklesme_kuru: '',

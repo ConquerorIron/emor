@@ -352,6 +352,48 @@ describe('SatirHucresi — çift yüzlü seçim', () => {
     })
   })
 
+  it('ERP nin doldurduğu alanlar giriş değil, gösterimdir', async () => {
+    // Kullanıcı kararı 2026-08-07: bu dört alana kullanıcı veri girmez
+    render(
+      <AppProviders>
+        <Yuzler
+          etiketler={['butceTutari', 'gerceklesenMaliyet', 'gerceklesmeKuru', 'gerceklesmeOrani']}
+          izlenen="satirlar.0.butce_tutari"
+        />
+      </AppProviders>,
+    )
+
+    for (const etiket of [
+      'Bütçe tutarı 1',
+      'Gerçekleşen maliyet 1',
+      'Gerçekleşme kuru 1',
+      'Gerçekleşme % 1',
+    ]) {
+      expect(screen.getByLabelText(etiket).tagName).toBe('OUTPUT')
+    }
+
+    // Tutar alanları paranın basamağında, kur altı basamakta gösterilir
+    expect(screen.getByLabelText('Bütçe tutarı 1')).toHaveTextContent('0,00')
+    expect(screen.getByLabelText('Gerçekleşme kuru 1')).toHaveTextContent('0,000000')
+    expect(screen.getByLabelText('Gerçekleşme % 1')).toHaveTextContent('0,00 %')
+  })
+
+  it('kapandı alanı anahtardır', async () => {
+    render(
+      <AppProviders>
+        <Yuzler etiketler={['kapandi']} izlenen="satirlar.0.kapandi" />
+      </AppProviders>,
+    )
+
+    const anahtar = screen.getByLabelText('Kapandı 1')
+    expect(anahtar).toHaveAttribute('role', 'switch')
+
+    fireEvent.click(anahtar)
+    await waitFor(() => {
+      expect(screen.getByTestId('secili-id')).toHaveTextContent('1')
+    })
+  })
+
   it('proje seçilmeden aktivite seçilemez', async () => {
     render(
       <AppProviders>

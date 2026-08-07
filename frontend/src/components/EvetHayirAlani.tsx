@@ -16,6 +16,8 @@ interface EvetHayirAlaniProps {
   onChange: (deger: string) => void
   hata?: string
   disabled?: boolean
+  /** Izgara hücrelerinde etiket thead'de durur */
+  etiketGizli?: boolean
 }
 
 export function EvetHayirAlani({
@@ -25,14 +27,15 @@ export function EvetHayirAlani({
   onChange,
   hata,
   disabled = false,
+  etiketGizli = false,
 }: EvetHayirAlaniProps) {
   return (
     <div>
-      <label htmlFor={id} className={ALAN_ETIKETI}>
+      <label htmlFor={id} className={etiketGizli ? 'sr-only' : ALAN_ETIKETI}>
         {label}
       </label>
       <div
-        className={`mt-1 flex w-full items-center px-3 ${ALAN_GORUNUMU} ${ALAN_KUTUSU} ${alanCercevesi(hata)} ${
+        className={`flex w-full items-center px-3 ${etiketGizli ? '' : 'mt-1'} ${ALAN_GORUNUMU} ${ALAN_KUTUSU} ${alanCercevesi(hata)} ${
           // Kutu bir <div>; disabled: varyantları işlemediği için pasif
           // görünüm elle verilir
           disabled ? 'cursor-not-allowed bg-slate-50 opacity-60 dark:bg-slate-900' : ''
@@ -47,7 +50,9 @@ export function EvetHayirAlani({
           disabled={disabled}
         />
       </div>
-      {hata ? <p className="mt-1 text-sm text-red-600 dark:text-red-400">{hata}</p> : null}
+      {hata && !etiketGizli ? (
+        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{hata}</p>
+      ) : null}
     </div>
   )
 }

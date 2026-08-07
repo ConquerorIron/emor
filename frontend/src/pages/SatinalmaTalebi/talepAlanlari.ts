@@ -44,6 +44,14 @@ export type SatirHucreTanimi =
   | { tip: 'tutar'; grup: FiyatGrubuAdi; kurUygula: boolean }
   /** Kullanıcı giremez; değer başlıktan türer (satırda saklanmaz) */
   | { tip: 'yansima' }
+  /** ERP BOOL — anahtar */
+  | { tip: 'evetHayir'; ad: keyof TalepSatiri }
+  /**
+   * ERP'nin doldurduğu, kullanıcının giremeyeceği sayısal alan (bütçe tutarı,
+   * gerçekleşen maliyet…). Hesaplanan `tutar`dan farkı: değer satırda saklanır,
+   * biz yalnız gösteririz.
+   */
+  | { tip: 'saltOkunurSayi'; ad: keyof TalepSatiri; basamak: number; yuzde?: boolean }
   /**
    * ERP kaydının bir yüzü — seçim tüm yüzleri birden doldurur. `goster`
    * yalnız o kaydın tanımlı yüzlerinden biri olabilir (satirKayitlari).
@@ -92,6 +100,10 @@ export function sutunGenisligi(hucre: SatirHucreTanimi): string {
       return hucre.sonEkAnahtari ? 'min-w-40' : 'min-w-32'
     case 'tutar':
       return 'min-w-36'
+    case 'saltOkunurSayi':
+      return 'min-w-36'
+    case 'evetHayir':
+      return 'min-w-28'
     default:
       return 'min-w-36'
   }
@@ -179,10 +191,23 @@ export const SATIR_ALANLARI: TalepAlani[] = [
   { etiketAnahtari: 'pozNo', hucre: { tip: 'metin', ad: 'poz_no' } },
   { etiketAnahtari: 'ozelNo', hucre: { tip: 'metin', ad: 'ozel_no' } },
   { etiketAnahtari: 'satirHakkinda', hucre: { tip: 'metin', ad: 'hakkinda' } },
-  { etiketAnahtari: 'kapandi', hucre: { tip: 'metin', ad: 'kapandi' } },
-  { etiketAnahtari: 'butceTutari', hucre: { tip: 'metin', ad: 'butce_tutari' } },
-  { etiketAnahtari: 'gerceklesenMaliyet', hucre: { tip: 'metin', ad: 'gerceklesen_maliyet' } },
-  { etiketAnahtari: 'gerceklesmeKuru', hucre: { tip: 'metin', ad: 'gerceklesme_kuru' } },
-  { etiketAnahtari: 'gerceklesmeOrani', hucre: { tip: 'metin', ad: 'gerceklesme_orani' } },
+  { etiketAnahtari: 'kapandi', hucre: { tip: 'evetHayir', ad: 'kapandi' } },
+  // Aşağıdaki dördünü ERP doldurur; kullanıcı giremez (kullanıcı kararı 2026-08-07)
+  {
+    etiketAnahtari: 'butceTutari',
+    hucre: { tip: 'saltOkunurSayi', ad: 'butce_tutari', basamak: 2 },
+  },
+  {
+    etiketAnahtari: 'gerceklesenMaliyet',
+    hucre: { tip: 'saltOkunurSayi', ad: 'gerceklesen_maliyet', basamak: 2 },
+  },
+  {
+    etiketAnahtari: 'gerceklesmeKuru',
+    hucre: { tip: 'saltOkunurSayi', ad: 'gerceklesme_kuru', basamak: 6 },
+  },
+  {
+    etiketAnahtari: 'gerceklesmeOrani',
+    hucre: { tip: 'saltOkunurSayi', ad: 'gerceklesme_orani', basamak: 2, yuzde: true },
+  },
   { etiketAnahtari: 'kullanimAmaci', hucre: { tip: 'metin', ad: 'kullanim_amaci' } },
 ]

@@ -2,6 +2,7 @@ import { Controller, type Path, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { ALAN_GORUNUMU, ALAN_KUTUSU, alanCercevesi } from '@/components/alanStilleri'
+import { EvetHayirAlani } from '@/components/EvetHayirAlani'
 import { SayiAlani } from '@/components/SayiAlani'
 import { TarihInput } from '@/components/TarihInput'
 import {
@@ -194,6 +195,46 @@ export function SatirHucresi({
           />
         )}
       />
+    )
+  }
+
+  if (alan.hucre.tip === 'evetHayir') {
+    const { ad } = alan.hucre
+
+    return (
+      <Controller
+        control={form.control}
+        name={anahtar(ad)}
+        render={({ field }) => (
+          <EvetHayirAlani
+            id={id}
+            label={erisimEtiketi}
+            etiketGizli
+            value={typeof field.value === 'string' ? field.value : ''}
+            onChange={field.onChange}
+            hata={hataMetni(ad)}
+          />
+        )}
+      />
+    )
+  }
+
+  // ERP'nin doldurduğu alanlar: gösterilir, girilmez
+  if (alan.hucre.tip === 'saltOkunurSayi') {
+    const { ad, basamak, yuzde } = alan.hucre
+    const sayi = Number(form.watch(anahtar(ad)))
+
+    return (
+      <output
+        aria-label={erisimEtiketi}
+        className={`flex items-center justify-end truncate px-2 text-sm tabular-nums text-slate-600 ${ALAN_KUTUSU} dark:text-slate-300`}
+      >
+        {(Number.isFinite(sayi) ? sayi : 0).toLocaleString('tr-TR', {
+          minimumFractionDigits: basamak,
+          maximumFractionDigits: basamak,
+        })}
+        {yuzde ? ' %' : ''}
+      </output>
     )
   }
 
