@@ -420,6 +420,24 @@ describe('SatirHucresi — çift yüzlü seçim', () => {
     })
   })
 
+  it('ızgaradaki takvim yatay kaydırma kutusuna takılmaz', async () => {
+    // Kullanıcı bildirimi 2026-08-10: takvim hücrenin içinde çizilince
+    // overflow-x kutusu onu kırpıyor ve görünmüyordu
+    render(
+      <AppProviders>
+        <div className="overflow-x-auto">
+          <Yuzler etiketler={['teslimTarihi']} izlenen="satirlar.0.teslim_suresi" />
+        </div>
+      </AppProviders>,
+    )
+
+    fireEvent.click(screen.getByLabelText('Teslim tarihi 1 — takvim'))
+
+    const takvim = await screen.findByTestId('satir-0-teslimTarihi-takvim')
+    // Takvim body'ye taşınır; kaydırma kutusunun içinde kalmaz
+    expect(takvim.closest('.overflow-x-auto')).toBeNull()
+  })
+
   it('proje seçilmeden aktivite seçilemez', async () => {
     render(
       <AppProviders>

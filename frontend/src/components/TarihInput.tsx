@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import { ALAN_ETIKETI, ALAN_GORUNUMU, ALAN_KUTUSU, alanCercevesi } from '@/components/alanStilleri'
 import { bugunIso, gosterimdenIso, tarihGoster, tarihMaskele } from '@/utils/tarih'
@@ -48,6 +49,9 @@ export function TarihInput({
   const [gorunen, setGorunen] = useState<{ yil: number; ay: number }>(() => bugunkuAy(value))
   const sonYayilan = useRef(value)
   const kokRef = useRef<HTMLDivElement>(null)
+  const takvimRef = useRef<HTMLDivElement>(null)
+  // Takvim body'ye taşındığı için konumu elle hesaplanır
+  const [konum, setKonum] = useState<{ ust: number; sag: number } | null>(null)
 
   function bugunkuAy(iso: string): { yil: number; ay: number } {
     const kaynak = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00:00`) : new Date()
@@ -70,7 +74,13 @@ export function TarihInput({
       return
     }
     const disariTiklama = (olay: MouseEvent) => {
-      if (kokRef.current && !kokRef.current.contains(olay.target as Node)) {
+      const hedef = olay.target as Node
+      // Takvim portalda çizildiği için kök ağacın dışında kalır
+      if (
+        kokRef.current &&
+        !kokRef.current.contains(hedef) &&
+        !takvimRef.current?.contains(hedef)
+      ) {
         setTakvimAcik(false)
       }
     }
@@ -115,6 +125,10 @@ export function TarihInput({
   function takvimiAcKapat() {
     if (!takvimAcik) {
       setGorunen(bugunkuAy(value))
+      const kutu = kokRef.current?.getBoundingClientRect()
+      if (kutu) {
+        setKonum({ ust: kutu.bottom + 4, sag: window.innerWidth - kutu.right })
+      }
     }
     setTakvimAcik((onceki) => !onceki)
   }
@@ -189,76 +203,83 @@ export function TarihInput({
         </button>
       </div>
 
-      {takvimAcik ? (
-        <div
-          data-testid={`${id}-takvim`}
-          className="absolute right-0 z-30 mt-1 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-lg dark:border-slate-700 dark:bg-slate-900"
-        >
-          <div className="mb-2 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => ayKaydir(-1)}
-              aria-label={dil === 'tr-TR' ? 'Önceki ay' : 'Previous month'}
-              className="flex size-7 cursor-pointer items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+      {/* Takvim body'ye taşınır: ızgara hücresinde yatay kaydırma kutusu onu
+          kırpıyor ve görünmez oluyordu (kullanıcı bildirimi 2026-08-10) */}
+      {takvimAcik
+        ? createPortal(
+            <div
+              ref={takvimRef}
+              data-testid={`${id}-takvim`}
+              style={{ top: konum?.ust ?? 0, right: konum?.sag ?? 0 }}
+              className="fixed z-50 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-lg dark:border-slate-700 dark:bg-slate-900"
             >
-              ‹
-            </button>
-            <span className="text-sm font-semibold text-slate-700 capitalize dark:text-slate-200">
-              {ayEtiketi}
-            </span>
-            <button
-              type="button"
-              onClick={() => ayKaydir(1)}
-              aria-label={dil === 'tr-TR' ? 'Sonraki ay' : 'Next month'}
-              className="flex size-7 cursor-pointer items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-            >
-              ›
-            </button>
-          </div>
-          <div className="grid grid-cols-7 gap-0.5 text-center">
-            {haftaGunleri.map((gunAdi) => (
-              <span
-                key={gunAdi}
-                className="py-1 text-[10px] font-semibold text-slate-400 uppercase dark:text-slate-500"
-              >
-                {gunAdi}
-              </span>
-            ))}
-            {Array.from({ length: ilkGunOfseti }, (_, i) => (
-              <span key={`bos-${i}`} />
-            ))}
-            {Array.from({ length: gunSayisi }, (_, i) => {
-              const gun = i + 1
-
-              return (
+              <div className="mb-2 flex items-center justify-between">
                 <button
-                  key={gun}
                   type="button"
-                  onClick={() => gunSecildi(gun)}
-                  className={`flex size-8 cursor-pointer items-center justify-center rounded-lg text-sm transition-colors ${
-                    seciliMi(gun)
-                      ? 'bg-blue-600 font-semibold text-white'
-                      : bugunMu(gun)
-                        ? 'font-semibold text-blue-600 ring-1 ring-blue-300 hover:bg-blue-50 dark:text-blue-400 dark:ring-blue-800 dark:hover:bg-slate-800'
-                        : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
-                  }`}
+                  onClick={() => ayKaydir(-1)}
+                  aria-label={dil === 'tr-TR' ? 'Önceki ay' : 'Previous month'}
+                  className="flex size-7 cursor-pointer items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                 >
-                  {gun}
+                  ‹
                 </button>
-              )
-            })}
-          </div>
-          <div className="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700">
-            <button
-              type="button"
-              onClick={bugunSecildi}
-              className="w-full cursor-pointer rounded-lg px-3 py-1.5 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-slate-800"
-            >
-              {dil === 'tr-TR' ? 'Bugün' : 'Today'}
-            </button>
-          </div>
-        </div>
-      ) : null}
+                <span className="text-sm font-semibold text-slate-700 capitalize dark:text-slate-200">
+                  {ayEtiketi}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => ayKaydir(1)}
+                  aria-label={dil === 'tr-TR' ? 'Sonraki ay' : 'Next month'}
+                  className="flex size-7 cursor-pointer items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                >
+                  ›
+                </button>
+              </div>
+              <div className="grid grid-cols-7 gap-0.5 text-center">
+                {haftaGunleri.map((gunAdi) => (
+                  <span
+                    key={gunAdi}
+                    className="py-1 text-[10px] font-semibold text-slate-400 uppercase dark:text-slate-500"
+                  >
+                    {gunAdi}
+                  </span>
+                ))}
+                {Array.from({ length: ilkGunOfseti }, (_, i) => (
+                  <span key={`bos-${i}`} />
+                ))}
+                {Array.from({ length: gunSayisi }, (_, i) => {
+                  const gun = i + 1
+
+                  return (
+                    <button
+                      key={gun}
+                      type="button"
+                      onClick={() => gunSecildi(gun)}
+                      className={`flex size-8 cursor-pointer items-center justify-center rounded-lg text-sm transition-colors ${
+                        seciliMi(gun)
+                          ? 'bg-blue-600 font-semibold text-white'
+                          : bugunMu(gun)
+                            ? 'font-semibold text-blue-600 ring-1 ring-blue-300 hover:bg-blue-50 dark:text-blue-400 dark:ring-blue-800 dark:hover:bg-slate-800'
+                            : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      {gun}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={bugunSecildi}
+                  className="w-full cursor-pointer rounded-lg px-3 py-1.5 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-slate-800"
+                >
+                  {dil === 'tr-TR' ? 'Bugün' : 'Today'}
+                </button>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }
