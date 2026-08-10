@@ -57,8 +57,17 @@ export interface DuzenBolumu {
   alanlar: DuzenAlani[]
 }
 
+/** Satır ızgarasının bir kolonu — genişlik PİKSEL (yatay kaydırmalı ızgara) */
+export interface DuzenSatirKolonu {
+  alan: string
+  genislik: number
+  gizli?: boolean
+}
+
 export interface EkranDuzeni {
   bolumler: DuzenBolumu[]
+  /** Satır ızgarası düzeni: sıra + görünürlük + piksel genişlik */
+  satirlar?: DuzenSatirKolonu[]
   /**
    * Talep onaya sunulurken kullanılacak ERP onay rolü (ROL_ID).
    * Alan değil, ekranın ayarıdır — tasarımla birlikte sürümlenir.
