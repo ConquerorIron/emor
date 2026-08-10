@@ -76,14 +76,32 @@ export function selectStilleri<IsMulti extends boolean>(
       color: isDark ? '#e2e8f0' : '#0f172a',
       cursor: 'pointer',
     }),
-    singleValue: (base) => ({ ...base, color: isDark ? '#e2e8f0' : '#0f172a' }),
+    /**
+     * Dar kolonlarda metin ALT SATIRA KAYMAZ, kırpılır. Sarmak satır
+     * yüksekliğini değiştirip ızgarayı bozuyordu (kullanıcı bildirimi
+     * 2026-08-10: 75px'lik Ürün kodu hücresinde placeholder aşağı kayıyordu).
+     */
+    valueContainer: (base) => ({ ...base, flexWrap: 'nowrap', overflow: 'hidden' }),
+    singleValue: (base) => ({
+      ...base,
+      color: isDark ? '#e2e8f0' : '#0f172a',
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+    }),
     multiValue: (base) => ({
       ...base,
       borderRadius: 8,
       backgroundColor: isDark ? '#1e293b' : '#e2e8f0',
     }),
     multiValueLabel: (base) => ({ ...base, color: isDark ? '#e2e8f0' : '#0f172a' }),
-    placeholder: (base) => ({ ...base, color: isDark ? '#94a3b8' : '#64748b' }),
+    placeholder: (base) => ({
+      ...base,
+      color: isDark ? '#94a3b8' : '#64748b',
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+    }),
     input: (base) => ({ ...base, color: isDark ? '#e2e8f0' : '#0f172a' }),
   }
 }
