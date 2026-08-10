@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Ekranlar\EkranKataloglari;
 use App\Ekranlar\EkranKatalogu;
 use App\Ekranlar\KatalogAlani;
+use App\Ekranlar\SatinalmaTalebiSatirKatalogu;
 use App\Models\EkranTasarimi;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -141,6 +142,65 @@ final class EkranTasarimServisi
      * @param  array<string, mixed>  $duzen
      * @return array{bolumler: list<array<string, mixed>>, onay_rol_id: int|null}
      */
+    /**
+     * Satır ızgarasının düzeni: sıra, görünürlük ve PİKSEL genişlik.
+     *
+     * Başlıktaki 12'lik ızgara burada işe yaramaz — satırlar yatay kaydırılır,
+     * kolon içeriği kadar yer kaplamalıdır. Katalogda olmayan kolon atılır,
+     * kaldırılamaz kolon (Ürün kodu) gizlenemez, ERP'nin doldurduğu kolonlar
+     * salt okunur kalır.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function satirDuzeniniDogrula(mixed $satirlar): array
+    {
+        $katalogAlanlari = [];
+        foreach (SatinalmaTalebiSatirKatalogu::alanlar() as $alan) {
+            $katalogAlanlari[$alan['anahtar']] = $alan;
+        }
+
+        if (! is_array($satirlar) || $satirlar === []) {
+            return SatinalmaTalebiSatirKatalogu::varsayilanDuzen();
+        }
+
+        $temiz = [];
+        $gorulen = [];
+        foreach ($satirlar as $kolon) {
+            $anahtar = is_array($kolon) ? ($kolon['alan'] ?? null) : null;
+            if (! is_string($anahtar) || ! isset($katalogAlanlari[$anahtar]) || isset($gorulen[$anahtar])) {
+                continue;
+            }
+            $gorulen[$anahtar] = true;
+            $katalogAlani = $katalogAlanlari[$anahtar];
+            $genislik = $kolon['genislik'] ?? null;
+
+            $temiz[] = [
+                'alan' => $anahtar,
+                // Aşırı dar/geniş değerler ızgarayı kullanılamaz hale getirir
+                'genislik' => is_numeric($genislik)
+                    ? max(64, min(640, (int) $genislik))
+                    : $katalogAlani['varsayilan_genislik'],
+                'gizli' => ($katalogAlani['kaldirilamaz'] ?? false)
+                    ? false
+                    : (bool) ($kolon['gizli'] ?? false),
+            ];
+        }
+
+        // Katalogda olup düzende bulunmayan kolonlar sona eklenir: yeni kolon
+        // geldiğinde eski tasarım onu sessizce yutmasın
+        foreach ($katalogAlanlari as $anahtar => $alan) {
+            if (! isset($gorulen[$anahtar])) {
+                $temiz[] = [
+                    'alan' => $anahtar,
+                    'genislik' => $alan['varsayilan_genislik'],
+                    'gizli' => false,
+                ];
+            }
+        }
+
+        return $temiz;
+    }
+
     public function duzeniDogrula(EkranKatalogu $katalog, array $duzen): array
     {
         /** @var array<string, KatalogAlani> $katalogAlanlari */
@@ -270,6 +330,7 @@ final class EkranTasarimServisi
         return [
             'bolumler' => $temizBolumler,
             'onay_rol_id' => is_numeric($onayRolId) ? (int) $onayRolId : null,
+            'satirlar' => $this->satirDuzeniniDogrula($duzen['satirlar'] ?? null),
         ];
     }
 

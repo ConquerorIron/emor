@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Ekranlar\SatinalmaTalebiKatalogu;
+use App\Ekranlar\SatinalmaTalebiSatirKatalogu;
 use App\Models\EkranTasarimi;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -85,6 +86,45 @@ final class EkranTasarimTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.duzen.bolumler.0.alanlar.0.zorunlu', true)
             ->assertJsonPath('data.duzen.bolumler.0.alanlar.1.genislik', 4);
+    }
+
+    public function test_satir_duzeni_katalogla_tamamlanir_ve_kilitlere_uyar(): void
+    {
+        $this->yonetici();
+        $this->getJson('/api/v1/ekranlar/'.self::EKRAN.'/taslak')->assertOk();
+
+        // Yalnız iki kolon gönderiliyor; kalanlar katalogdan tamamlanmalı
+        $yanit = $this->putJson('/api/v1/ekranlar/'.self::EKRAN.'/taslak', [
+            'duzen' => [
+                'bolumler' => [
+                    [
+                        'anahtar' => 'talep',
+                        'genislik' => 12,
+                        'alanlar' => [
+                            ['alan' => 'personel_adi', 'genislik' => 12],
+                            ['alan' => 'tarih', 'genislik' => 6],
+                        ],
+                    ],
+                ],
+                'satirlar' => [
+                    ['alan' => 'miktar', 'genislik' => 9999],
+                    // Ürün kodu kaldırılamaz: gizlenemez
+                    ['alan' => 'urun_kodu', 'gizli' => true],
+                ],
+            ],
+        ])->assertOk();
+
+        $satirlar = $yanit->json('data.duzen.satirlar');
+
+        $this->assertSame('miktar', $satirlar[0]['alan']);
+        // Aşırı genişlik sınırlanır
+        $this->assertSame(640, $satirlar[0]['genislik']);
+        $this->assertFalse($satirlar[1]['gizli']);
+        // Katalogdaki tüm kolonlar düzende bulunur (yenisi sessizce kaybolmaz)
+        $this->assertEqualsCanonicalizing(
+            array_column(SatinalmaTalebiSatirKatalogu::alanlar(), 'anahtar'),
+            array_column($satirlar, 'alan'),
+        );
     }
 
     public function test_onay_rolu_tasarimla_birlikte_saklanir(): void

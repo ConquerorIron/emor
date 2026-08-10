@@ -184,6 +184,8 @@ final class SatinalmaTalebiKatalogu implements EkranKatalogu
             // Onay rolü tasarım ekranından seçilir; seçilmeden talep onaya
             // sunulamaz (ERP'de VOHOM_ARAMA_ONAY_ROLU)
             'onay_rol_id' => null,
+            // Satır ızgarası da tasarlanır: sıra, görünürlük ve piksel genişlik
+            'satirlar' => SatinalmaTalebiSatirKatalogu::varsayilanDuzen(),
             'bolumler' => [
                 [
                     'anahtar' => self::BOLUM_TALEP,

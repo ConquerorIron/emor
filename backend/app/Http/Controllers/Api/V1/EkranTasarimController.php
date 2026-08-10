@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Ekranlar\EkranKataloglari;
+use App\Ekranlar\SatinalmaTalebiSatirKatalogu;
 use App\Http\Controllers\Controller;
 use App\Models\EkranTasarimi;
 use App\Services\EkranTasarimServisi;
@@ -36,6 +37,9 @@ final class EkranTasarimController extends Controller
                     static fn ($alan): array => $alan->diziye(),
                     $katalog->alanlar(),
                 ),
+                // Satır ızgarasının kolonları — hücrenin nasıl çizildiği kodda,
+                // hangi kolonların olduğu ve kilitleri burada
+                'satir_katalogu' => SatinalmaTalebiSatirKatalogu::alanlar(),
                 'duzen' => $this->servis->yayindakiDuzen($ekran),
             ],
         ]);
@@ -57,6 +61,9 @@ final class EkranTasarimController extends Controller
                     static fn ($alan): array => $alan->diziye(),
                     $katalog->alanlar(),
                 ),
+                // Satır ızgarasının kolonları — hücrenin nasıl çizildiği kodda,
+                // hangi kolonların olduğu ve kilitleri burada
+                'satir_katalogu' => SatinalmaTalebiSatirKatalogu::alanlar(),
                 'duzen' => $taslak->duzen,
                 'surum' => $taslak->surum,
                 'yayinda_surum' => EkranTasarimi::query()
@@ -77,6 +84,8 @@ final class EkranTasarimController extends Controller
             'duzen.bolumler' => ['required', 'array', 'min:1'],
             // Ekranın onay rolü (ERP ROL_ID) — alan değil, ekran ayarı
             'duzen.onay_rol_id' => ['nullable', 'integer'],
+            // Satır ızgarası düzeni (sıra + piksel genişlik + görünürlük)
+            'duzen.satirlar' => ['nullable', 'array'],
         ]);
 
         $taslak = $this->servis->taslagiKaydet($ekran, $veri['duzen'], (int) $request->user()->id);
