@@ -106,6 +106,8 @@ const SAHTE_TASARIM = {
   ],
   katalog: KATALOG,
   duzen: {
+    // Satır düzeni boş: ekran katalog sırasıyla çizilir (motor öncesi davranış)
+    satirlar: [] as { alan: string; genislik: number; gizli: boolean }[],
     bolumler: [
       {
         anahtar: 'talep',
@@ -200,6 +202,7 @@ describe('SatinalmaTalebiPage', () => {
     const hepsiSaltOkunur = {
       ...SAHTE_TASARIM,
       duzen: {
+        satirlar: SAHTE_TASARIM.duzen.satirlar,
         bolumler: SAHTE_TASARIM.duzen.bolumler.map((bolum) => ({
           ...bolum,
           alanlar: bolum.alanlar.map((alan) => ({ ...alan, salt_okunur: true })),
@@ -235,6 +238,7 @@ describe('SatinalmaTalebiPage', () => {
     tasarimYaniti = {
       ...SAHTE_TASARIM,
       duzen: {
+        satirlar: SAHTE_TASARIM.duzen.satirlar,
         bolumler: SAHTE_TASARIM.duzen.bolumler.map((bolum) => ({
           ...bolum,
           alanlar: bolum.alanlar.map((alan) =>
@@ -312,6 +316,29 @@ describe('SatinalmaTalebiPage', () => {
     await waitFor(() => {
       expect(screen.queryByLabelText('Ürün kodu 2')).not.toBeInTheDocument()
     })
+  })
+
+  it('satır kolonları tasarımdaki sıra, genişlik ve görünürlüğe uyar', async () => {
+    tasarimYaniti = {
+      ...SAHTE_TASARIM,
+      duzen: {
+        ...SAHTE_TASARIM.duzen,
+        satirlar: [
+          // Miktar ürün kodundan ÖNCE; barkod gizli
+          { alan: 'miktar', genislik: 200, gizli: false },
+          { alan: 'urunKodu', genislik: 150, gizli: false },
+          { alan: 'barkod', genislik: 150, gizli: true },
+        ],
+      },
+    }
+
+    await formuAc()
+
+    const basliklar = [...document.querySelectorAll('thead th')].map((h) => h.textContent?.trim())
+    expect(basliklar).toEqual(['#', 'Miktar', '* Ürün kodu', ''])
+
+    // Gizli kolon hiç çizilmez
+    expect(screen.queryByLabelText('Barkod 1')).not.toBeInTheDocument()
   })
 
   it('ürün kodu boşken kaydet hücre hatası üretir', async () => {

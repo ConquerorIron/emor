@@ -193,6 +193,27 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
   const satirlar = useFieldArray({ control, name: 'satirlar' })
   const istemci = useQueryClient()
 
+  /**
+   * Izgara kolonları tasarımdan gelir: sıra, görünürlük ve piksel genişlik.
+   * Tasarımda satır düzeni yoksa katalog sırası kullanılır — ekran bugünkü
+   * haliyle açılır, motor devreye girmeden önceki davranış korunur.
+   */
+  const kolonlar = useMemo(() => {
+    const tanimlar = new Map(SATIR_ALANLARI.map((alan) => [alan.etiketAnahtari, alan]))
+    const duzen = tasarim.duzen.satirlar ?? []
+
+    if (duzen.length === 0) {
+      return SATIR_ALANLARI.map((alan) => ({ alan, genislik: 0 }))
+    }
+
+    return duzen.flatMap((kolon) => {
+      const alan = tanimlar.get(kolon.alan)
+
+      // Gizlenen ya da henüz çizimi tanımlanmamış kolon atlanır
+      return alan && kolon.gizli !== true ? [{ alan, genislik: kolon.genislik }] : []
+    })
+  }, [tasarim.duzen.satirlar])
+
   // Satır listeleri (aktivite, masraf merkezi) başlıktaki projeye bağlıdır;
   // proje yalnız "İlgi konusu = Projemiz" iken anlamlıdır
   const projeliMi = form.watch('ilgi_cinsi') === ILGI_CINSI_PROJEMIZ
@@ -304,10 +325,12 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                 >
                   #
                 </th>
-                {SATIR_ALANLARI.map((alan) => (
+                {kolonlar.map(({ alan, genislik }) => (
                   <th
                     key={alan.etiketAnahtari}
-                    className={`border-y border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold tracking-wide whitespace-nowrap text-slate-500 uppercase dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 ${sutunGenisligi(alan.hucre)}`}
+                    // Tasarımda genişlik verilmişse piksel, yoksa katalog sınıfı
+                    style={genislik > 0 ? { width: genislik, minWidth: genislik } : undefined}
+                    className={`border-y border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold tracking-wide whitespace-nowrap text-slate-500 uppercase dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 ${genislik > 0 ? '' : sutunGenisligi(alan.hucre)}`}
                   >
                     {alan.zorunlu ? '* ' : ''}
                     {t(`satinalma.alan.${alan.etiketAnahtari}`)}
@@ -324,10 +347,11 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                   >
                     {indeks + 1}
                   </td>
-                  {SATIR_ALANLARI.map((alan) => (
+                  {kolonlar.map(({ alan, genislik }) => (
                     <td
                       key={alan.etiketAnahtari}
-                      className={`border-b border-slate-200 px-1 py-1.5 align-top dark:border-slate-700 ${sutunGenisligi(alan.hucre)}`}
+                      style={genislik > 0 ? { width: genislik, minWidth: genislik } : undefined}
+                      className={`border-b border-slate-200 px-1 py-1.5 align-top dark:border-slate-700 ${genislik > 0 ? '' : sutunGenisligi(alan.hucre)}`}
                     >
                       <SatirHucresi
                         alan={alan}
