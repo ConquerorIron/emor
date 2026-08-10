@@ -81,8 +81,18 @@ export interface BolumTanimi {
   baslik_anahtari: string
 }
 
+/** Satır ızgarası kolonunun katalog tanımı (backend SatinalmaTalebiSatirKatalogu) */
+export interface SatirKatalogAlani {
+  anahtar: string
+  etiket_anahtari: string
+  varsayilan_genislik: number
+  kaldirilamaz: boolean
+  salt_okunur_sabit: boolean
+}
+
 export interface EkranTasarimi {
   ekran: string
+  satir_katalogu?: SatirKatalogAlani[]
   baslik_anahtari: string
   bolumler: BolumTanimi[]
   katalog: KatalogAlani[]

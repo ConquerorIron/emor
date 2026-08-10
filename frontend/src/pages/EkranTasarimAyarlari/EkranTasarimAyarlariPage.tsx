@@ -9,6 +9,7 @@ import { Button } from '@/components/Button'
 import { OnayRoluSecimi } from './OnayRoluSecimi'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EkranListesi } from './EkranListesi'
+import { SatirTasarimi } from './SatirTasarimi'
 import { ErrorState } from '@/components/ErrorState'
 import {
   ekranTaslaginiGetir,
@@ -36,6 +37,7 @@ export function EkranTasarimAyarlariPage() {
   const [ekran, setEkran] = useState<string | null>(null)
   const [duzen, setDuzen] = useState<EkranDuzeni | null>(null)
   const [seciliAlan, setSeciliAlan] = useState<string | null>(null)
+  const [sekme, setSekme] = useState<'baslik' | 'satirlar'>('baslik')
   const [yayinOnayi, setYayinOnayi] = useState(false)
 
   const taslak = useQuery({
@@ -164,7 +166,35 @@ export function EkranTasarimAyarlariPage() {
         <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">{t('ortak.yukleniyor')}</p>
       ) : null}
 
+      {/* Başlık ve satır ızgarası ayrı tasarlanır */}
       {duzen && taslak.data ? (
+        <div className="mt-4 flex gap-2 border-b border-slate-200 dark:border-slate-700">
+          {(['baslik', 'satirlar'] as const).map((ad) => (
+            <button
+              key={ad}
+              type="button"
+              onClick={() => setSekme(ad)}
+              className={`cursor-pointer px-4 py-2 text-sm font-semibold transition-colors ${
+                sekme === ad
+                  ? 'border-b-2 border-blue-600 text-blue-700 dark:text-blue-400'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
+            >
+              {t(`tasarim.sekme.${ad}`)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {duzen && taslak.data && sekme === 'satirlar' ? (
+        <SatirTasarimi
+          katalog={taslak.data.satir_katalogu ?? []}
+          satirlar={duzen.satirlar ?? []}
+          degisti={(yeni) => setDuzen({ ...duzen, satirlar: yeni })}
+        />
+      ) : null}
+
+      {duzen && taslak.data && sekme === 'baslik' ? (
         <div className="mt-4 flex flex-col gap-4 xl:flex-row">
           {/* Palet: tasarımda yeri olmayan alanlar */}
           <aside

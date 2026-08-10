@@ -48,7 +48,28 @@ const SAHTE_TASLAK = {
     katalogAlani('oncelik'),
     katalogAlani('aciklama', { metin_alani: true, metin_limiti: 200 }),
   ],
+  // Satır ızgarası kolonları (backend SatinalmaTalebiSatirKatalogu)
+  satir_katalogu: [
+    {
+      anahtar: 'urunKodu',
+      etiket_anahtari: 'satinalma.alan.urunKodu',
+      varsayilan_genislik: 208,
+      kaldirilamaz: true,
+      salt_okunur_sabit: false,
+    },
+    {
+      anahtar: 'miktar',
+      etiket_anahtari: 'satinalma.alan.miktar',
+      varsayilan_genislik: 160,
+      kaldirilamaz: false,
+      salt_okunur_sabit: false,
+    },
+  ],
   duzen: {
+    satirlar: [
+      { alan: 'urunKodu', genislik: 208, gizli: false },
+      { alan: 'miktar', genislik: 160, gizli: false },
+    ],
     bolumler: [
       {
         anahtar: 'talep',
@@ -82,6 +103,24 @@ describe('EkranTasarimAyarlariPage', () => {
   afterEach(() => {
     cleanup()
     kaydedilen.mockClear()
+  })
+
+  it('satırlar sekmesinde kolon sırası ve genişliği değiştirilir', async () => {
+    render()
+    await screen.findByDisplayValue('Talep Bilgileri')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Satırlar' }))
+
+    // Kolonlar tasarımdaki sırayla listelenir
+    const genislik = screen.getByLabelText('Miktar — Genişlik (px)')
+    expect(genislik).toHaveValue(160)
+
+    fireEvent.change(genislik, { target: { value: '200' } })
+    expect(screen.getByLabelText('Miktar — Genişlik (px)')).toHaveValue(200)
+
+    // Ürün kodu satırın kimliği: görünürlük anahtarı kilitli, miktarınki değil
+    expect(document.getElementById('gorunur-urunKodu')).toBeDisabled()
+    expect(document.getElementById('gorunur-miktar')).toBeEnabled()
   })
 
   it('tuval ve kullanılmayan alan paleti yüklenir', async () => {
