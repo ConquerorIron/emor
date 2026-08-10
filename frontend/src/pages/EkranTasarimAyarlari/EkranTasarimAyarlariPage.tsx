@@ -8,6 +8,7 @@ import { queryKeys } from '@/api/queryKeys'
 import { Button } from '@/components/Button'
 import { OnayRoluSecimi } from './OnayRoluSecimi'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { EkranListesi } from './EkranListesi'
 import { ErrorState } from '@/components/ErrorState'
 import {
   ekranTaslaginiGetir,
@@ -31,15 +32,19 @@ import { TASARLANABILIR_EKRANLAR } from '@/features/ekranTasarim/ekranlar'
 export function EkranTasarimAyarlariPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [ekran] = useState<string>(TASARLANABILIR_EKRANLAR[0].anahtar)
+  // null = ekran listesi; bir ekran seçilince editör açılır
+  const [ekran, setEkran] = useState<string | null>(null)
   const [duzen, setDuzen] = useState<EkranDuzeni | null>(null)
   const [seciliAlan, setSeciliAlan] = useState<string | null>(null)
   const [yayinOnayi, setYayinOnayi] = useState(false)
 
   const taslak = useQuery({
-    queryKey: queryKeys.ekranTaslagi(ekran),
-    queryFn: () => ekranTaslaginiGetir(ekran),
+    queryKey: queryKeys.ekranTaslagi(ekran ?? ''),
+    queryFn: () => ekranTaslaginiGetir(ekran ?? ''),
+    enabled: ekran !== null,
   })
+
+  const ekranAdi = TASARLANABILIR_EKRANLAR.find((e) => e.anahtar === ekran)?.etiketAnahtari
 
   // Sunucudan gelen taslak yerel düzenleme durumuna alınır
   useEffect(() => {
@@ -59,7 +64,7 @@ export function EkranTasarimAyarlariPage() {
   )
 
   const kaydet = useMutation({
-    mutationFn: (yeni: EkranDuzeni) => ekranTaslaginiKaydet(ekran, yeni),
+    mutationFn: (yeni: EkranDuzeni) => ekranTaslaginiKaydet(ekran ?? '', yeni),
     onSuccess: (kaydedilen) => {
       // Sunucu düzeni temizleyip döner (kilitli kurallar uygulanmış hali)
       setDuzen(kaydedilen)
@@ -69,10 +74,10 @@ export function EkranTasarimAyarlariPage() {
   })
 
   const yayinla = useMutation({
-    mutationFn: () => ekranTasariminiYayinla(ekran),
+    mutationFn: () => ekranTasariminiYayinla(ekran ?? ''),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.ekranTasarimi(ekran) })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.ekranTaslagi(ekran) })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.ekranTasarimi(ekran ?? '') })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.ekranTaslagi(ekran ?? '') })
       toast.success(t('tasarim.yayinlandi'))
     },
     onError: (hata: unknown) => toast.error(dogrulamaMesaji(hata) ?? t(apiErrorKey(hata))),
@@ -89,10 +94,37 @@ export function EkranTasarimAyarlariPage() {
         })()
       : undefined
 
+  // Hangi ekranın tasarlandığı seçilmeden editör açılmaz
+  if (ekran === null) {
+    return (
+      <>
+        <h2 className="text-2xl font-bold">{t('tasarim.baslik')}</h2>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          {t('tasarim.ekranSecAciklama')}
+        </p>
+        <EkranListesi sec={setEkran} />
+      </>
+    )
+  }
+
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-bold">{t('tasarim.baslik')}</h2>
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              setEkran(null)
+              setDuzen(null)
+              setSeciliAlan(null)
+            }}
+            className="cursor-pointer text-sm font-semibold text-blue-600 hover:underline dark:text-blue-400"
+          >
+            ‹ {t('tasarim.baslik')}
+          </button>
+          {/* Hangi ekranı düzenlediğimiz her an görünür olmalı */}
+          <h2 className="text-2xl font-bold">{ekranAdi ? t(ekranAdi) : ekran}</h2>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           {taslak.data?.yayinda_surum ? (
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">

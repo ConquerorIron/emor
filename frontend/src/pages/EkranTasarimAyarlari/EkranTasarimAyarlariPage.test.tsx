@@ -63,12 +63,19 @@ const SAHTE_TASLAK = {
   },
 }
 
+/**
+ * Editöre doğrudan girilmez: önce hangi ekranın tasarlandığı listeden seçilir
+ * (birden çok tasarlanabilir ekran olacağı için).
+ */
 function render() {
-  return rtlRender(
+  const sonuc = rtlRender(
     <AppProviders>
       <EkranTasarimAyarlariPage />
     </AppProviders>,
   )
+  fireEvent.click(screen.getByRole('button', { name: 'Tasarla' }))
+
+  return sonuc
 }
 
 describe('EkranTasarimAyarlariPage', () => {
