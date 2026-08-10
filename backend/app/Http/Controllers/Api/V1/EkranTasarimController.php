@@ -86,6 +86,7 @@ final class EkranTasarimController extends Controller
             'duzen.onay_rol_id' => ['nullable', 'integer'],
             // Satır ızgarası düzeni (sıra + piksel genişlik + görünürlük)
             'duzen.satirlar' => ['nullable', 'array'],
+            'duzen.satir_genislik_birimi' => ['nullable', 'in:px,yuzde'],
         ]);
 
         $taslak = $this->servis->taslagiKaydet($ekran, $veri['duzen'], (int) $request->user()->id);

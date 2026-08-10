@@ -68,8 +68,13 @@ export interface DuzenSatirKolonu {
 
 export interface EkranDuzeni {
   bolumler: DuzenBolumu[]
-  /** Satır ızgarası düzeni: sıra + görünürlük + piksel genişlik */
+  /** Satır ızgarası düzeni: sıra + görünürlük + genişlik */
   satirlar?: DuzenSatirKolonu[]
+  /**
+   * px → ızgara içeriğe göre genişler, yatay kaydırılır.
+   * yuzde → ızgara ekranı doldurur; ancak kolonlar ekrana sığdığında anlamlı.
+   */
+  satir_genislik_birimi?: 'px' | 'yuzde'
   /**
    * Talep onaya sunulurken kullanılacak ERP onay rolü (ROL_ID).
    * Alan değil, ekranın ayarıdır — tasarımla birlikte sürümlenir.

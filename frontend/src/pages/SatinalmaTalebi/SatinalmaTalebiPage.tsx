@@ -39,6 +39,15 @@ const SABIT_SOL_GOVDE =
 const SABIT_SAG_GOVDE =
   'sticky right-0 z-10 border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-950'
 
+/** Kolon genişliği: birime göre piksel ya da ekranın yüzdesi */
+function kolonGenisligi(genislik: number, yuzdeMi: boolean): React.CSSProperties | undefined {
+  if (genislik <= 0) {
+    return undefined
+  }
+
+  return yuzdeMi ? { width: `${genislik}%` } : { width: genislik, minWidth: genislik }
+}
+
 /** Proje değişince temizlenmesi gereken satır anahtarları */
 const PROJEYE_BAGLI_SATIR_ANAHTARLARI = [
   'aktivite_id',
@@ -218,6 +227,8 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
    * Tasarımda satır düzeni yoksa katalog sırası kullanılır — ekran bugünkü
    * haliyle açılır, motor devreye girmeden önceki davranış korunur.
    */
+  const yuzdeMi = tasarim.duzen.satir_genislik_birimi === 'yuzde'
+
   const kolonlar = useMemo(() => {
     const tanimlar = new Map(SATIR_ALANLARI.map((alan) => [alan.etiketAnahtari, alan]))
     const duzen = tasarim.duzen.satirlar ?? []
@@ -339,8 +350,13 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
               tarayıcı kolonları içeriğe/başlık metnine göre esnetiyor ve
               verilen px değeri tutmuyor (kullanıcı bildirimi 2026-08-10) */}
           <table
-            className={`w-max border-separate border-spacing-0 ${
-              kolonlar.some((k) => k.genislik > 0) ? 'table-fixed' : 'min-w-full'
+            className={`border-separate border-spacing-0 ${
+              yuzdeMi
+                ? // Yüzde ekranın payıdır: tablo ekranı doldurur, kaydırma olmaz
+                  'w-full table-fixed'
+                : kolonlar.some((k) => k.genislik > 0)
+                  ? 'w-max table-fixed'
+                  : 'w-max min-w-full'
             }`}
           >
             <thead>
@@ -356,7 +372,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                   <th
                     key={alan.etiketAnahtari}
                     // Tasarımda genişlik verilmişse piksel, yoksa katalog sınıfı
-                    style={genislik > 0 ? { width: genislik, minWidth: genislik } : undefined}
+                    style={kolonGenisligi(genislik, yuzdeMi)}
                     // Başlık metni nowrap olursa kolonu kendi uzunluğu kadar
                     // zorluyor; verilen genişlikte kırpılmalı
                     className={`overflow-hidden border-y border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold tracking-wide text-ellipsis text-slate-500 uppercase dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 ${genislik > 0 ? 'whitespace-nowrap' : `whitespace-nowrap ${sutunGenisligi(alan.hucre)}`}`}
@@ -379,7 +395,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                   {kolonlar.map(({ alan, genislik }) => (
                     <td
                       key={alan.etiketAnahtari}
-                      style={genislik > 0 ? { width: genislik, minWidth: genislik } : undefined}
+                      style={kolonGenisligi(genislik, yuzdeMi)}
                       className={`border-b border-slate-200 px-1 py-1.5 align-top dark:border-slate-700 ${genislik > 0 ? '' : sutunGenisligi(alan.hucre)}`}
                     >
                       <SatirHucresi

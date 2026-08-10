@@ -162,8 +162,10 @@ final class EkranTasarimServisi
      *
      * @return list<array<string, mixed>>
      */
-    private function satirDuzeniniDogrula(mixed $satirlar): array
+    private function satirDuzeniniDogrula(mixed $satirlar, string $birim = 'px'): array
     {
+        // Yüzde 1-100, piksel 64-640 aralığında anlamlı
+        [$enAz, $enCok] = $birim === 'yuzde' ? [1, 100] : [64, 640];
         $katalogAlanlari = [];
         foreach (SatinalmaTalebiSatirKatalogu::alanlar() as $alan) {
             $katalogAlanlari[$alan['anahtar']] = $alan;
@@ -188,7 +190,7 @@ final class EkranTasarimServisi
                 'alan' => $anahtar,
                 // Aşırı dar/geniş değerler ızgarayı kullanılamaz hale getirir
                 'genislik' => is_numeric($genislik)
-                    ? max(64, min(640, (int) $genislik))
+                    ? max($enAz, min($enCok, (int) $genislik))
                     : $katalogAlani['varsayilan_genislik'],
                 'gizli' => ($katalogAlani['kaldirilamaz'] ?? false)
                     ? false
@@ -342,11 +344,15 @@ final class EkranTasarimServisi
         // Onay rolü ekranın bir ayarıdır, alan değil: talep onaya sunulurken
         // hangi ROL_ID kullanılacağını belirler (ERP'de VOHOM_ARAMA_ONAY_ROLU)
         $onayRolId = $duzen['onay_rol_id'] ?? null;
+        $birim = ($duzen['satir_genislik_birimi'] ?? '') === 'yuzde' ? 'yuzde' : 'px';
 
         return [
             'bolumler' => $temizBolumler,
             'onay_rol_id' => is_numeric($onayRolId) ? (int) $onayRolId : null,
-            'satirlar' => $this->satirDuzeniniDogrula($duzen['satirlar'] ?? null),
+            // px: ızgara içeriğe göre genişler, yatay kaydırılır.
+            // yuzde: ızgara ekranı doldurur, kolonlar payları kadar yer alır.
+            'satir_genislik_birimi' => $birim,
+            'satirlar' => $this->satirDuzeniniDogrula($duzen['satirlar'] ?? null, $birim),
         ];
     }
 

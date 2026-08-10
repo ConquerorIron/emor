@@ -190,7 +190,9 @@ export function EkranTasarimAyarlariPage() {
         <SatirTasarimi
           katalog={taslak.data.satir_katalogu ?? []}
           satirlar={duzen.satirlar ?? []}
+          birim={duzen.satir_genislik_birimi ?? 'px'}
           degisti={(yeni) => setDuzen({ ...duzen, satirlar: yeni })}
+          birimDegisti={(birim) => setDuzen({ ...duzen, satir_genislik_birimi: birim })}
         />
       ) : null}
 
