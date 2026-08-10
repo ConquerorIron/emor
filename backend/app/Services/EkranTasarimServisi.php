@@ -193,6 +193,11 @@ final class EkranTasarimServisi
                 'gizli' => ($katalogAlani['kaldirilamaz'] ?? false)
                     ? false
                     : (bool) ($kolon['gizli'] ?? false),
+                // Gizlenen kolon da ERP'ye değer göndermeli (ör. birim fiyatı
+                // ekranda yok ama satıra 0 yazılmalı)
+                'varsayilan' => is_scalar($kolon['varsayilan'] ?? null)
+                    ? trim((string) $kolon['varsayilan'])
+                    : '',
             ];
         }
 
@@ -204,6 +209,7 @@ final class EkranTasarimServisi
                     'alan' => $anahtar,
                     'genislik' => $alan['varsayilan_genislik'],
                     'gizli' => false,
+                    'varsayilan' => '',
                 ];
             }
         }

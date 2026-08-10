@@ -1,5 +1,5 @@
-import type { FiyatGrubuAdi } from './fiyatGruplari'
-import type { SATIR_KAYITLARI, SatirKaynagi } from './satirKayitlari'
+import { FIYAT_GRUPLARI, type FiyatGrubuAdi } from './fiyatGruplari'
+import { SATIR_KAYITLARI, type SatirKaynagi } from './satirKayitlari'
 import type { TalepSatiri } from './talepSchema'
 
 /**
@@ -81,6 +81,32 @@ export interface TalepAlani {
  * "46,752500" yazacak kadar geniş olmalı). Genişlikler ekran tasarım motoruna
  * taşınınca kullanıcı bunları kendisi ayarlayacak.
  */
+/**
+ * Kolonun varsayılan değerinin yazılacağı satır anahtarı.
+ *
+ * Bir kolon birden çok anahtar yazabilir (fiyat + para + kur); varsayılan
+ * bunlardan ASIL olanına gider — seçimlerde kaydın kimliği, fiyatta fiyatın
+ * kendisi. Hesaplanan ve yansıma kolonlarının varsayılanı olmaz.
+ */
+export function satirVarsayilanAnahtari(hucre: SatirHucreTanimi): keyof TalepSatiri | null {
+  switch (hucre.tip) {
+    case 'metin':
+    case 'sayi':
+    case 'evetHayir':
+    case 'saltOkunurSayi':
+      return hucre.ad
+    case 'sure':
+    case 'sureTarih':
+      return hucre.ad
+    case 'secim':
+      return SATIR_KAYITLARI[hucre.kaynak].idAnahtari
+    case 'fiyat':
+      return FIYAT_GRUPLARI[hucre.grup].fiyat
+    default:
+      return null
+  }
+}
+
 export function sutunGenisligi(hucre: SatirHucreTanimi): string {
   switch (hucre.tip) {
     case 'yansima':

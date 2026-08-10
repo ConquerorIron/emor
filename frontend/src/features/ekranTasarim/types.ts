@@ -62,6 +62,8 @@ export interface DuzenSatirKolonu {
   alan: string
   genislik: number
   gizli?: boolean
+  /** Yeni satır açılırken yazılan değer — gizli kolonlar için de geçerli */
+  varsayilan?: string
 }
 
 export interface EkranDuzeni {

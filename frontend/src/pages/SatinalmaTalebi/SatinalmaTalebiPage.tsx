@@ -22,7 +22,7 @@ import { AlanGirisi, girisTipiTanimliMi, ILGI_CINSI_PROJEMIZ, kurGetir } from '@
 import { FIYAT_GRUPLARI } from './fiyatGruplari'
 import { SatirHucresi } from './SatirHucresi'
 import { talepKaydet } from './talepApi'
-import { SATIR_ALANLARI, sutunGenisligi } from './talepAlanlari'
+import { SATIR_ALANLARI, satirVarsayilanAnahtari, sutunGenisligi } from './talepAlanlari'
 import { BOS_SATIR, BOS_TALEP, talepSemasiUret, type TalepGirdisi } from './talepSchema'
 
 /**
@@ -166,6 +166,26 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
     return anahtarlar
   }, [tasarim.duzen, katalogHaritasi])
 
+  /**
+   * Yeni satırın açılış değerleri. Tasarımda varsayılan verilen kolonlar
+   * (gizlenmiş olsalar bile) satıra işlenir — kullanıcı görmese de ERP'ye
+   * gitmesi gereken değerler böyle taşınır.
+   */
+  const bosSatir = useMemo(() => {
+    const satir = { ...BOS_SATIR }
+
+    for (const kolon of tasarim.duzen.satirlar ?? []) {
+      const tanim = SATIR_ALANLARI.find((alan) => alan.etiketAnahtari === kolon.alan)
+      const anahtar = tanim ? satirVarsayilanAnahtari(tanim.hucre) : null
+
+      if (anahtar && (kolon.varsayilan ?? '') !== '') {
+        satir[anahtar] = kolon.varsayilan as string
+      }
+    }
+
+    return satir
+  }, [tasarim.duzen.satirlar])
+
   const varsayilanlar = useMemo(() => {
     const deger: Record<string, string> = {}
     for (const bolum of tasarim.duzen.bolumler) {
@@ -177,8 +197,8 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
       }
     }
 
-    return { ...BOS_TALEP, ...deger }
-  }, [tasarim.duzen, katalogHaritasi])
+    return { ...BOS_TALEP, satirlar: [bosSatir], ...deger }
+  }, [tasarim.duzen, katalogHaritasi, bosSatir])
 
   const form = useForm<TalepGirdisi>({
     resolver: standardSchemaResolver(talepSemasiUret(zorunluAnahtarlar)),
@@ -307,7 +327,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">
             {t('satinalma.satirlar')}
           </h3>
-          <Button type="button" variant="mor" onClick={() => satirlar.append({ ...BOS_SATIR })}>
+          <Button type="button" variant="mor" onClick={() => satirlar.append({ ...bosSatir })}>
             {t('satinalma.satirEkle')}
           </Button>
         </div>

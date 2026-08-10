@@ -99,6 +99,18 @@ export function SatirTasarimi({
                 />
               </label>
 
+              {/* Gizli kolon da ERP'ye değer gönderebilmeli */}
+              <label className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                {t('tasarim.varsayilan')}
+                <input
+                  type="text"
+                  aria-label={`${t(tanim.etiket_anahtari)} — ${t('tasarim.varsayilan')}`}
+                  value={kolon.varsayilan ?? ''}
+                  onChange={(olay) => guncelle(indeks, { varsayilan: olay.target.value })}
+                  className="h-9 w-28 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                />
+              </label>
+
               {/* Ürün kodu satırın kimliği: gizlenemez */}
               <div className="w-32">
                 <Switch

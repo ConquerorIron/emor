@@ -107,7 +107,7 @@ const SAHTE_TASARIM = {
   katalog: KATALOG,
   duzen: {
     // Satır düzeni boş: ekran katalog sırasıyla çizilir (motor öncesi davranış)
-    satirlar: [] as { alan: string; genislik: number; gizli: boolean }[],
+    satirlar: [] as { alan: string; genislik: number; gizli: boolean; varsayilan?: string }[],
     bolumler: [
       {
         anahtar: 'talep',
@@ -339,6 +339,27 @@ describe('SatinalmaTalebiPage', () => {
 
     // Gizli kolon hiç çizilmez
     expect(screen.queryByLabelText('Barkod 1')).not.toBeInTheDocument()
+  })
+
+  it('gizli kolonun varsayılanı satıra yine de işlenir', async () => {
+    // Kullanıcı isteği: birim fiyatı ekranda görünmesin ama ERP'ye 0 gitsin
+    tasarimYaniti = {
+      ...SAHTE_TASARIM,
+      duzen: {
+        ...SAHTE_TASARIM.duzen,
+        satirlar: [
+          { alan: 'urunKodu', genislik: 150, gizli: false },
+          { alan: 'birimFiyati', genislik: 150, gizli: true, varsayilan: '0' },
+          { alan: 'miktar', genislik: 150, gizli: false, varsayilan: '7' },
+        ],
+      },
+    }
+
+    await formuAc()
+
+    // Gizli kolon çizilmez ama görünen kolonun varsayılanı ekrana yansır
+    expect(screen.queryByLabelText('Birim fiyatı 1')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Miktar 1')).toHaveValue('7,00')
   })
 
   it('ürün kodu boşken kaydet hücre hatası üretir', async () => {
