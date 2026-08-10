@@ -91,7 +91,7 @@ export function SatirTasarimi({
                   type="number"
                   min={64}
                   max={640}
-                  step={8}
+                  step={1}
                   aria-label={`${t(tanim.etiket_anahtari)} — ${t('tasarim.genislikPx')}`}
                   value={kolon.genislik}
                   onChange={(olay) => guncelle(indeks, { genislik: Number(olay.target.value) })}

@@ -335,7 +335,14 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
         {/* Sütunlar doğal genişliklerini alsın diye tablo içeriğe göre büyür
             (w-full olsaydı 38 sütun ekrana sıkıştırılır, hücreler ezilirdi) */}
         <div className="overflow-x-auto">
-          <table className="w-max min-w-full border-separate border-spacing-0">
+          {/* Genişlikler tasarımdan geldiğinde table-fixed şart: aksi halde
+              tarayıcı kolonları içeriğe/başlık metnine göre esnetiyor ve
+              verilen px değeri tutmuyor (kullanıcı bildirimi 2026-08-10) */}
+          <table
+            className={`w-max border-separate border-spacing-0 ${
+              kolonlar.some((k) => k.genislik > 0) ? 'table-fixed' : 'min-w-full'
+            }`}
+          >
             <thead>
               <tr>
                 {/* Izgara çok geniş: satır no ve sil düğmesi yatay kaydırmada
@@ -350,7 +357,9 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                     key={alan.etiketAnahtari}
                     // Tasarımda genişlik verilmişse piksel, yoksa katalog sınıfı
                     style={genislik > 0 ? { width: genislik, minWidth: genislik } : undefined}
-                    className={`border-y border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold tracking-wide whitespace-nowrap text-slate-500 uppercase dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 ${genislik > 0 ? '' : sutunGenisligi(alan.hucre)}`}
+                    // Başlık metni nowrap olursa kolonu kendi uzunluğu kadar
+                    // zorluyor; verilen genişlikte kırpılmalı
+                    className={`overflow-hidden border-y border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold tracking-wide text-ellipsis text-slate-500 uppercase dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 ${genislik > 0 ? 'whitespace-nowrap' : `whitespace-nowrap ${sutunGenisligi(alan.hucre)}`}`}
                   >
                     {alan.zorunlu ? '* ' : ''}
                     {t(`satinalma.alan.${alan.etiketAnahtari}`)}
