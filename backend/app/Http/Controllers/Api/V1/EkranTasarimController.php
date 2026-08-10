@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Ekranlar\EkranKataloglari;
-use App\Ekranlar\SatinalmaTalebiSatirKatalogu;
 use App\Http\Controllers\Controller;
 use App\Models\EkranTasarimi;
 use App\Services\EkranTasarimServisi;
@@ -39,7 +38,7 @@ final class EkranTasarimController extends Controller
                 ),
                 // Satır ızgarasının kolonları — hücrenin nasıl çizildiği kodda,
                 // hangi kolonların olduğu ve kilitleri burada
-                'satir_katalogu' => SatinalmaTalebiSatirKatalogu::alanlar(),
+                'satir_katalogu' => $this->servis->satirKatalogu(),
                 'duzen' => $this->servis->yayindakiDuzen($ekran),
             ],
         ]);
@@ -63,7 +62,7 @@ final class EkranTasarimController extends Controller
                 ),
                 // Satır ızgarasının kolonları — hücrenin nasıl çizildiği kodda,
                 // hangi kolonların olduğu ve kilitleri burada
-                'satir_katalogu' => SatinalmaTalebiSatirKatalogu::alanlar(),
+                'satir_katalogu' => $this->servis->satirKatalogu(),
                 'duzen' => $taslak->duzen,
                 'surum' => $taslak->surum,
                 'yayinda_surum' => EkranTasarimi::query()

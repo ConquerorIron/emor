@@ -1,7 +1,11 @@
 import { useTranslation } from 'react-i18next'
 
 import { Switch } from '@/components/Switch'
-import type { DuzenSatirKolonu, SatirKatalogAlani } from '@/features/ekranTasarim/types'
+import {
+  satirKolonEtiketi,
+  type DuzenSatirKolonu,
+  type SatirKatalogAlani,
+} from '@/features/ekranTasarim/types'
 
 /**
  * Satır ızgarasının tasarımı.
@@ -93,7 +97,7 @@ export function SatirTasarimi({
               <div className="flex shrink-0 flex-col">
                 <button
                   type="button"
-                  aria-label={`${t(tanim.etiket_anahtari)} — ${t('tasarim.yukariTasi')}`}
+                  aria-label={`${satirKolonEtiketi(tanim, t)} — ${t('tasarim.yukariTasi')}`}
                   disabled={indeks === 0}
                   onClick={() => tasi(indeks, -1)}
                   className="cursor-pointer px-1 text-xs text-slate-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-30"
@@ -102,7 +106,7 @@ export function SatirTasarimi({
                 </button>
                 <button
                   type="button"
-                  aria-label={`${t(tanim.etiket_anahtari)} — ${t('tasarim.asagiTasi')}`}
+                  aria-label={`${satirKolonEtiketi(tanim, t)} — ${t('tasarim.asagiTasi')}`}
                   disabled={indeks === satirlar.length - 1}
                   onClick={() => tasi(indeks, 1)}
                   className="cursor-pointer px-1 text-xs text-slate-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-30"
@@ -112,7 +116,7 @@ export function SatirTasarimi({
               </div>
 
               <span className="min-w-40 flex-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                {t(tanim.etiket_anahtari)}
+                {satirKolonEtiketi(tanim, t)}
               </span>
 
               <label className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
@@ -122,7 +126,7 @@ export function SatirTasarimi({
                   min={birim === 'px' ? 64 : 1}
                   max={birim === 'px' ? 640 : 100}
                   step={1}
-                  aria-label={`${t(tanim.etiket_anahtari)} — ${t(birim === 'px' ? 'tasarim.genislikPx' : 'tasarim.genislikYuzde')}`}
+                  aria-label={`${satirKolonEtiketi(tanim, t)} — ${t(birim === 'px' ? 'tasarim.genislikPx' : 'tasarim.genislikYuzde')}`}
                   value={kolon.genislik}
                   onChange={(olay) => guncelle(indeks, { genislik: Number(olay.target.value) })}
                   className="h-9 w-20 rounded-lg border border-slate-300 bg-white px-2 text-right text-sm text-slate-900 outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
@@ -134,7 +138,7 @@ export function SatirTasarimi({
                 {t('tasarim.varsayilan')}
                 <input
                   type="text"
-                  aria-label={`${t(tanim.etiket_anahtari)} — ${t('tasarim.varsayilan')}`}
+                  aria-label={`${satirKolonEtiketi(tanim, t)} — ${t('tasarim.varsayilan')}`}
                   value={kolon.varsayilan ?? ''}
                   onChange={(olay) => guncelle(indeks, { varsayilan: olay.target.value })}
                   className="h-9 w-28 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"

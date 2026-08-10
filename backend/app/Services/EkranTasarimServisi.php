@@ -21,6 +21,29 @@ use Illuminate\Validation\ValidationException;
  */
 final class EkranTasarimServisi
 {
+    public function __construct(
+        private readonly ErpEvrakOzellikleri $ozellikler,
+    ) {}
+
+    /**
+     * Satır kataloğu = program kolonları + ERP'nin özel alanları.
+     *
+     * ERP'ye ulaşılamazsa yalnız program kolonlarıyla devam edilir: tasarım
+     * ekranı MSSQL kapalıyken de açılabilmeli.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function satirKatalogu(): array
+    {
+        try {
+            $ozellikler = $this->ozellikler->satinalmaTalebi(1);
+        } catch (\Throwable) {
+            $ozellikler = [];
+        }
+
+        return SatinalmaTalebiSatirKatalogu::alanlar($ozellikler);
+    }
+
     /** Yayında sürüm yoksa katalogun varsayılan düzeni kullanılır. */
     public function yayindakiDuzen(string $ekranAnahtari): array
     {
@@ -167,12 +190,20 @@ final class EkranTasarimServisi
         // Yüzde 1-100, piksel 64-640 aralığında anlamlı
         [$enAz, $enCok] = $birim === 'yuzde' ? [1, 100] : [64, 640];
         $katalogAlanlari = [];
-        foreach (SatinalmaTalebiSatirKatalogu::alanlar() as $alan) {
+        foreach ($this->satirKatalogu() as $alan) {
             $katalogAlanlari[$alan['anahtar']] = $alan;
         }
 
         if (! is_array($satirlar) || $satirlar === []) {
-            return SatinalmaTalebiSatirKatalogu::varsayilanDuzen();
+            return array_map(
+                static fn (array $alan): array => [
+                    'alan' => $alan['anahtar'],
+                    'genislik' => $alan['varsayilan_genislik'],
+                    'gizli' => false,
+                    'varsayilan' => '',
+                ],
+                $katalogAlanlari === [] ? $this->satirKatalogu() : array_values($katalogAlanlari),
+            );
         }
 
         $temiz = [];

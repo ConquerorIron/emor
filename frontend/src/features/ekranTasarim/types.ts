@@ -92,9 +92,20 @@ export interface BolumTanimi {
 export interface SatirKatalogAlani {
   anahtar: string
   etiket_anahtari: string
+  /** ERP özel alanlarında etiket i18n'den değil ERP'den gelir */
+  etiket?: string
   varsayilan_genislik: number
   kaldirilamaz: boolean
   salt_okunur_sabit: boolean
+  /** Özel alanlarda ERP'nin OZELLIK_ID'si */
+  ozellik_id?: number
+  /** ERP'nin zorunlu işaretlediği özel alan */
+  zorunlu?: boolean
+}
+
+/** Katalog alanının görünen adı: ERP'den geldiyse ham, değilse i18n anahtarı */
+export function satirKolonEtiketi(alan: SatirKatalogAlani, t: (anahtar: string) => string): string {
+  return alan.etiket && alan.etiket !== '' ? alan.etiket : t(alan.etiket_anahtari)
 }
 
 export interface EkranTasarimi {
