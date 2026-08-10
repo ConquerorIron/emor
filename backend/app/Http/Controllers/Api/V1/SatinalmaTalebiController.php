@@ -21,6 +21,15 @@ final class SatinalmaTalebiController extends Controller
         private readonly SatinalmaTalebiKaydi $kayit,
     ) {}
 
+    /**
+     * Belgenin özel alanları — ERP'nin tanımı. Ekran bunları satır sütunu
+     * olarak çizer; hangi alanların olduğu ve zorunluluğu ERP'den gelir.
+     */
+    public function ozellikler(): JsonResponse
+    {
+        return response()->json(['data' => $this->kayit->ozellikler()]);
+    }
+
     public function kaydet(Request $request): JsonResponse
     {
         $veri = $request->validate([

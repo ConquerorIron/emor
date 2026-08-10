@@ -69,6 +69,8 @@ Route::prefix('v1')->group(function (): void {
         // Satınalma Talebi — kayıt doğrudan ERP'ye (SOHOM_SIPARIS_KAYDET)
         Route::post('/satinalma/talepler', [SatinalmaTalebiController::class, 'kaydet'])
             ->name('satinalma.talepler.kaydet');
+        Route::get('/satinalma/ozellikler', [SatinalmaTalebiController::class, 'ozellikler'])
+            ->name('satinalma.ozellikler');
 
         // Ekran tasarım motoru — okuma herkese (form çizimi), düzenleme yöneticiye
         Route::get('/ekranlar/{ekran}/tasarim', [EkranTasarimController::class, 'goster'])

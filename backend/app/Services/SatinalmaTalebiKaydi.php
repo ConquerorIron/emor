@@ -199,6 +199,41 @@ final class SatinalmaTalebiKaydi
                     'HAKKINDA' => $hakkinda === '' ? null : $hakkinda,
                 ]);
             }
+
+            $this->ozellikDegerleriniYaz($baglanti, $guid, $indeks, $satir);
+        }
+    }
+
+    /**
+     * Satırın özel alan değerleri. Proc bunları SATIR_NO ile eşleyip
+     * TOHOM_OZELLIK_DEGERI'ye (SAHIP_TURU = 3) taşır.
+     *
+     * Değer, özelliğin türüne göre farklı kolonda durur; şu an ekranda yalnız
+     * metin türü var (mevcut kayıtlarda TUR = 0 / STRING_DEGER).
+     *
+     * @param  array<string, mixed>  $satir
+     */
+    private function ozellikDegerleriniYaz(
+        Connection $baglanti,
+        string $guid,
+        int $satirNo,
+        array $satir,
+    ): void {
+        /** @var array<string, mixed> $ozellikler */
+        $ozellikler = (array) ($satir['ozellikler'] ?? []);
+
+        foreach ($ozellikler as $ozellikId => $deger) {
+            $metin = is_string($deger) ? trim($deger) : '';
+            if (! is_numeric($ozellikId) || $metin === '') {
+                continue;
+            }
+
+            $baglanti->table('#TOHOM_ISKELE_OZELLIK_DEGERI')->insert([
+                'SAHIP' => $satirNo,
+                'OZELLIK_ID' => (int) $ozellikId,
+                'TUR' => 0,
+                'STRING_DEGER' => $metin,
+            ]);
         }
     }
 
@@ -331,6 +366,41 @@ final class SatinalmaTalebiKaydi
             'talep_no' => trim((string) ($ilk['talep_no'] ?? '')),
             'onay_durumu' => (int) ($ilk['onay_durumu'] ?? 0),
         ];
+    }
+
+    /**
+     * Belgenin ÖZEL ALANLARI — ERP'nin kendi tanımı (kullanıcı ekran görüntüsü
+     * 2026-08-10: "Kullanıcı tanımlı alanlar"). Hangi alanların olduğunu ve
+     * zorunlu olup olmadığını ERP söyler; biz yalnız nasıl göründüğünü
+     * yönetiriz — katalog/tasarım ayrımının aynısı.
+     *
+     * EVRAK_KISMI: 1 = satır alanları, 0 = evrak geneli.
+     *
+     * @return array{satir: list<array<string, mixed>>, evrak: list<array<string, mixed>>}
+     */
+    public function ozellikler(): array
+    {
+        $baglanti = $this->iskele->kur();
+        $evrakKonusuId = $this->evrakKonusuId($baglanti);
+
+        $oku = static fn (int $kisim): array => array_map(
+            static fn (object $satir): array => [
+                'ozellik_id' => (int) $satir->OZELLIK_ID,
+                'ad' => trim((string) $satir->AD),
+                'format' => (int) ($satir->OZELLIK_FORMATI ?? 0),
+                'zorunlu' => (bool) ($satir->DEGER_GIRISI_ZORUNLU ?? false),
+                'salt_okunur' => (bool) ($satir->SALT_OKUNUR ?? false),
+            ],
+            $baglanti->select(
+                'SELECT OZELLIK_ID, AD, OZELLIK_FORMATI, DEGER_GIRISI_ZORUNLU, SALT_OKUNUR
+                 FROM VOHOM_EVRAK_OZELLIGI
+                 WHERE EVRAK_KONUSU_ID = ? AND EVRAK_KISMI = ?
+                 ORDER BY SIRA_NO',
+                [$evrakKonusuId, $kisim],
+            ),
+        );
+
+        return ['satir' => $oku(1), 'evrak' => $oku(0)];
     }
 
     /** Evrak konusu id'si ortama göre değişebilir; sabit yazılmaz */
