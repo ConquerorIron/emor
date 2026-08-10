@@ -31,7 +31,11 @@ final class EkranTasarimServisi
             ->where('durum', EkranTasarimi::DURUM_YAYINDA)
             ->first();
 
-        return $tasarim?->duzen ?? $katalog->varsayilanDuzen();
+        // Saklanan düzen katalogla UZLAŞTIRILARAK döner: katalog sonradan
+        // büyüdüğünde (yeni alan, satır ızgarası) eski kayıtlar eksik kalmaz
+        return $tasarim === null
+            ? $katalog->varsayilanDuzen()
+            : $this->duzeniDogrula($katalog, $tasarim->duzen);
     }
 
     /** Taslak yoksa yayındakinden (o da yoksa varsayılandan) kopyalanarak açılır. */
@@ -43,6 +47,12 @@ final class EkranTasarimServisi
             ->first();
 
         if ($mevcut !== null) {
+            // Eski taslak da katalogla uzlaştırılır (kaydedilmez, gösterilir)
+            $mevcut->duzen = $this->duzeniDogrula(
+                EkranKataloglari::bul($ekranAnahtari),
+                $mevcut->duzen,
+            );
+
             return $mevcut;
         }
 

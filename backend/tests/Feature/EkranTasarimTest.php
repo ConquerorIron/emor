@@ -88,6 +88,25 @@ final class EkranTasarimTest extends TestCase
             ->assertJsonPath('data.duzen.bolumler.0.alanlar.1.genislik', 4);
     }
 
+    public function test_satir_alani_eklenmeden_kaydedilmis_taslak_da_kolonlari_alir(): void
+    {
+        // Katalog sonradan büyüdü: eski kayıtlarda 'satirlar' hiç yok
+        EkranTasarimi::query()->create([
+            'ekran_anahtari' => self::EKRAN,
+            'surum' => 1,
+            'durum' => EkranTasarimi::DURUM_TASLAK,
+            'duzen' => ['bolumler' => (new SatinalmaTalebiKatalogu)->varsayilanDuzen()['bolumler']],
+            'olusturan_id' => $this->yonetici()->id,
+        ]);
+
+        $satirlar = $this->getJson('/api/v1/ekranlar/'.self::EKRAN.'/taslak')
+            ->assertOk()
+            ->json('data.duzen.satirlar');
+
+        $this->assertNotEmpty($satirlar);
+        $this->assertContains('urunKodu', array_column($satirlar, 'alan'));
+    }
+
     public function test_satir_duzeni_katalogla_tamamlanir_ve_kilitlere_uyar(): void
     {
         $this->yonetici();
