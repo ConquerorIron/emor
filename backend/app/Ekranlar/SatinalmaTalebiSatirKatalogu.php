@@ -19,9 +19,35 @@ namespace App\Ekranlar;
 final class SatinalmaTalebiSatirKatalogu
 {
     /**
-     * @return list<array{anahtar: string, etiket_anahtari: string, varsayilan_genislik: int, kaldirilamaz?: bool, salt_okunur_sabit?: bool}>
+     * ERP'nin bu belge için tanımladığı satır özel alanları verildiğinde
+     * (VOHOM_EVRAK_OZELLIGI, EVRAK_KISMI = 1) katalogun sonuna eklenir.
+     *
+     * @param  list<array{ozellik_id: int, ad: string, zorunlu: bool}>  $ozellikler
+     * @return list<array<string, mixed>>
      */
-    public static function alanlar(): array
+    public static function alanlar(array $ozellikler = []): array
+    {
+        // ERP'de tanımlı özel alanlar KAPATILAMAZ: belge onları bekliyor
+        // (kullanıcı kararı 2026-08-10). Etiket ERP'den gelir, i18n anahtarı yok.
+        $ozellikAlanlari = array_map(
+            static fn (array $ozellik): array => [
+                'anahtar' => 'ozellik_'.$ozellik['ozellik_id'],
+                'etiket_anahtari' => '',
+                'etiket' => $ozellik['ad'],
+                'varsayilan_genislik' => 208,
+                'kaldirilamaz' => true,
+                'salt_okunur_sabit' => false,
+                'ozellik_id' => $ozellik['ozellik_id'],
+                'zorunlu' => $ozellik['zorunlu'],
+            ],
+            $ozellikler,
+        );
+
+        return [...self::programAlanlari(), ...$ozellikAlanlari];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function programAlanlari(): array
     {
         return array_map(
             static fn (array $alan): array => [
