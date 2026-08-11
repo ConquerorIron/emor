@@ -150,8 +150,14 @@ export function talepSemasiUret(
    * Zorunluluk bizim tasarımımızdan değil ERP'den gelir.
    */
   zorunluOzellikler: number[] = [],
+  /** Tasarımda zorunlu işaretlenmiş satır kolonlarının form anahtarları */
+  zorunluSatirAnahtarlari: string[] = [],
 ): typeof talepSchema {
-  if (zorunluAnahtarlar.length === 0 && zorunluOzellikler.length === 0) {
+  if (
+    zorunluAnahtarlar.length === 0 &&
+    zorunluOzellikler.length === 0 &&
+    zorunluSatirAnahtarlari.length === 0
+  ) {
     return talepSchema
   }
 
@@ -159,6 +165,17 @@ export function talepSemasiUret(
 
   return talepSchema.superRefine((veri, ctx) => {
     veri.satirlar.forEach((satir, indeks) => {
+      for (const anahtar of zorunluSatirAnahtarlari) {
+        const deger = satir[anahtar as keyof typeof satir]
+        if (typeof deger === 'string' && deger.trim() === '') {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['satirlar', indeks, anahtar],
+            message: 'satinalma.dogrulama.alanZorunlu',
+          })
+        }
+      }
+
       for (const ozellikId of zorunluOzellikler) {
         if ((satir.ozellikler?.[String(ozellikId)] ?? '').trim() === '') {
           ctx.addIssue({
