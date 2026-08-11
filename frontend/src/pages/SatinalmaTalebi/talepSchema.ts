@@ -143,14 +143,33 @@ export type TalepGirdisi = z.infer<typeof talepSchema>
  * bu yüzden şema çalışma zamanında üretilir. Backend kayıt sırasında aynı
  * tasarımı okuyup tekrar doğrular (tarayıcı atlatılabilir).
  */
-export function talepSemasiUret(zorunluAnahtarlar: string[]): typeof talepSchema {
-  if (zorunluAnahtarlar.length === 0) {
+export function talepSemasiUret(
+  zorunluAnahtarlar: string[],
+  /**
+   * ERP'nin zorunlu işaretlediği özel alanlar (DEGER_GIRISI_ZORUNLU).
+   * Zorunluluk bizim tasarımımızdan değil ERP'den gelir.
+   */
+  zorunluOzellikler: number[] = [],
+): typeof talepSchema {
+  if (zorunluAnahtarlar.length === 0 && zorunluOzellikler.length === 0) {
     return talepSchema
   }
 
   const zorunlu = new Set(zorunluAnahtarlar)
 
   return talepSchema.superRefine((veri, ctx) => {
+    veri.satirlar.forEach((satir, indeks) => {
+      for (const ozellikId of zorunluOzellikler) {
+        if ((satir.ozellikler?.[String(ozellikId)] ?? '').trim() === '') {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['satirlar', indeks, 'ozellikler'],
+            message: 'satinalma.dogrulama.alanZorunlu',
+          })
+        }
+      }
+    })
+
     for (const anahtar of zorunlu) {
       const deger = veri[anahtar as keyof TalepGirdisi]
       if (typeof deger === 'string' && deger.trim() === '') {

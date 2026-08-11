@@ -210,7 +210,15 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
   }, [tasarim.duzen, katalogHaritasi, bosSatir])
 
   const form = useForm<TalepGirdisi>({
-    resolver: standardSchemaResolver(talepSemasiUret(zorunluAnahtarlar)),
+    resolver: standardSchemaResolver(
+      talepSemasiUret(
+        zorunluAnahtarlar,
+        // Zorunluluk ERP'nin tanımından gelir, tasarımdan değil
+        (tasarim.satir_katalogu ?? [])
+          .filter((alan) => alan.zorunlu === true && alan.ozellik_id !== undefined)
+          .map((alan) => alan.ozellik_id as number),
+      ),
+    ),
     defaultValues: varsayilanlar,
   })
 
