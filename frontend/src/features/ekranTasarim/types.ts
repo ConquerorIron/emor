@@ -64,6 +64,8 @@ export interface DuzenSatirKolonu {
   gizli?: boolean
   /** Yeni satır açılırken yazılan değer — gizli kolonlar için de geçerli */
   varsayilan?: string
+  zorunlu?: boolean
+  salt_okunur?: boolean
 }
 
 export interface EkranDuzeni {

@@ -111,7 +111,9 @@ describe('EkranTasarimAyarlariPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Satırlar' }))
 
-    // Kolonlar tasarımdaki sırayla listelenir
+    // Ayarlar başlıktaki gibi seçili kolonun panelinde açılır
+    fireEvent.click(screen.getByText('Miktar'))
+
     const genislik = screen.getByLabelText('Miktar — Genişlik (px)')
     expect(genislik).toHaveValue(160)
 
@@ -119,8 +121,10 @@ describe('EkranTasarimAyarlariPage', () => {
     expect(screen.getByLabelText('Miktar — Genişlik (px)')).toHaveValue(200)
 
     // Ürün kodu satırın kimliği: görünürlük anahtarı kilitli, miktarınki değil
-    expect(document.getElementById('gorunur-urunKodu')).toBeDisabled()
     expect(document.getElementById('gorunur-miktar')).toBeEnabled()
+
+    fireEvent.click(screen.getByText('Ürün kodu'))
+    expect(document.getElementById('gorunur-urunKodu')).toBeDisabled()
   })
 
   it('tuval ve kullanılmayan alan paleti yüklenir', async () => {

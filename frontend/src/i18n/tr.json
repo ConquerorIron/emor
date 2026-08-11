@@ -39,16 +39,22 @@
     "aciklama": "Alanları sürükleyip bırakarak formu düzenleyin. Değişiklikler taslakta kalır; yayınlayana kadar kullanıcılar etkilenmez.",
     "kullanilmayanAlanlar": "Kullanılmayan Alanlar",
     "paletAciklama": "Forma eklemek için tuvale sürükleyin. Kaldırmak için alanı buraya geri sürükleyin.",
-    "sekme": { "baslik": "Başlık", "satirlar": "Satırlar" },
+    "sekme": {
+      "baslik": "Başlık",
+      "satirlar": "Satırlar"
+    },
     "satirKolonlari": "Satır Kolonları",
     "satirKolonlariAciklama": "Sırayı ok tuşlarıyla değiştirin, genişliği piksel olarak verin, kullanmadığınız kolonu kapatın.",
     "yukariTasi": "yukarı taşı",
     "asagiTasi": "aşağı taşı",
     "genislikPx": "Genişlik (px)",
-    "varsayilan": "Varsayılan",
+    "varsayilan": "Varsayılan değer",
     "genislikYuzde": "Genişlik (%)",
     "genislikBirimi": "Genişlik birimi:",
-    "birim": { "px": "Piksel", "yuzde": "Yüzde" },
+    "birim": {
+      "px": "Piksel",
+      "yuzde": "Yüzde"
+    },
     "birimPxAciklama": "Izgara içeriğe göre genişler, yatay kaydırılır.",
     "birimYuzdeAciklama": "Izgara ekranı doldurur; kolonlar sığmazsa daralır.",
     "gorunur": "Görünür",
@@ -75,7 +81,6 @@
     "saltOkunurKilitli": "Bu alanın değerini program üretir; her zaman salt okunurdur.",
     "textarea": "Çok satırlı (textarea)",
     "satirSayisi": "Satır sayısı",
-    "varsayilan": "Varsayılan değer",
     "kaldirilamaz": "Bu alan kayıt için zorunludur, formdan çıkarılamaz.",
     "alaniKaldir": "Alanı formdan çıkar",
     "rozetSaltOkunur": "salt okunur",
@@ -88,7 +93,9 @@
     "yayindaSurum": "Yayında: sürüm {{surum}}",
     "henuzYayinlanmadi": "Henüz yayınlanmadı",
     "yayinOnayBaslik": "Tasarım yayınlansın mı?",
-    "yayinOnayMesaj": "Bu düzen tüm kullanıcılar için geçerli olacak. Önceki sürüm arşivlenir; gerekirse geri alabilirsiniz."
+    "yayinOnayMesaj": "Bu düzen tüm kullanıcılar için geçerli olacak. Önceki sürüm arşivlenir; gerekirse geri alabilirsiniz.",
+    "kolonSec": "Ayarlarını değiştirmek için bir kolon seçin.",
+    "erpZorunlu": "Bu alanı ERP zorunlu tanımlamış; kapatılamaz."
   },
   "personel": {
     "sec": "Personel seçin veya arayın…"
