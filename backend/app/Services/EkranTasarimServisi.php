@@ -231,6 +231,15 @@ final class EkranTasarimServisi
                 'varsayilan' => is_scalar($kolon['varsayilan'] ?? null)
                     ? trim((string) $kolon['varsayilan'])
                     : '',
+                // Başlık alanlarındaki iki ayarın satır karşılığı. Gizli kolon
+                // doldurulamayacağı için zorunlu sayılmaz; ERP'nin hesapladığı
+                // kolonlar zaten daima salt okunur.
+                'zorunlu' => ($kolon['gizli'] ?? false) === true
+                    ? false
+                    : (bool) ($kolon['zorunlu'] ?? false),
+                'salt_okunur' => ($katalogAlani['salt_okunur_sabit'] ?? false)
+                    ? true
+                    : (bool) ($kolon['salt_okunur'] ?? false),
             ];
         }
 
@@ -243,6 +252,8 @@ final class EkranTasarimServisi
                     'genislik' => $alan['varsayilan_genislik'],
                     'gizli' => false,
                     'varsayilan' => '',
+                    'zorunlu' => false,
+                    'salt_okunur' => (bool) ($alan['salt_okunur_sabit'] ?? false),
                 ];
             }
         }
