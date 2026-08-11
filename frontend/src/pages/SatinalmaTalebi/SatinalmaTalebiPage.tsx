@@ -187,8 +187,8 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
       const tanim = SATIR_ALANLARI.find((alan) => alan.etiketAnahtari === kolon.alan)
       const anahtar = tanim ? satirVarsayilanAnahtari(tanim.hucre) : null
 
-      if (anahtar && (kolon.varsayilan ?? '') !== '') {
-        satir[anahtar] = kolon.varsayilan as string
+      if (anahtar && anahtar !== 'ozellikler' && (kolon.varsayilan ?? '') !== '') {
+        satir[anahtar] = kolon.varsayilan as never
       }
     }
 
@@ -237,13 +237,38 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
       return SATIR_ALANLARI.map((alan) => ({ alan, genislik: 0 }))
     }
 
+    // ERP özel alanları sabit listede yok: kolon tanımı katalogdan üretilir
+    const ozellikler = new Map(
+      (tasarim.satir_katalogu ?? [])
+        .filter((alan) => alan.ozellik_id !== undefined)
+        .map((alan) => [alan.anahtar, alan]),
+    )
+
     return duzen.flatMap((kolon) => {
+      if (kolon.gizli === true) {
+        return []
+      }
+
+      const ozellik = ozellikler.get(kolon.alan)
+      if (ozellik?.ozellik_id !== undefined) {
+        return [
+          {
+            alan: {
+              etiketAnahtari: kolon.alan,
+              etiket: ozellik.etiket,
+              hucre: { tip: 'ozellik' as const, ozellikId: ozellik.ozellik_id },
+            },
+            genislik: kolon.genislik,
+          },
+        ]
+      }
+
+      // Çizimi henüz tanımlanmamış kolon sessizce atlanır
       const alan = tanimlar.get(kolon.alan)
 
-      // Gizlenen ya da henüz çizimi tanımlanmamış kolon atlanır
-      return alan && kolon.gizli !== true ? [{ alan, genislik: kolon.genislik }] : []
+      return alan ? [{ alan, genislik: kolon.genislik }] : []
     })
-  }, [tasarim.duzen.satirlar])
+  }, [tasarim.duzen.satirlar, tasarim.satir_katalogu])
 
   // Satır listeleri (aktivite, masraf merkezi) başlıktaki projeye bağlıdır;
   // proje yalnız "İlgi konusu = Projemiz" iken anlamlıdır

@@ -38,6 +38,11 @@ export type SatirHucreTanimi =
    */
   | { tip: 'sure'; ad: keyof TalepSatiri; birimAnahtari: keyof TalepSatiri }
   | { tip: 'sureTarih'; ad: keyof TalepSatiri; birimAnahtari: keyof TalepSatiri }
+  /**
+   * ERP'nin özel alanı. Sabit kolon değil: belgeye göre değişir, değeri
+   * satırın `ozellikler` sözlüğünde OZELLIK_ID anahtarıyla durur.
+   */
+  | { tip: 'ozellik'; ozellikId: number }
   /** Fiyat + para birimi birlikte; para seçimi kuru da doldurur */
   | { tip: 'fiyat'; grup: FiyatGrubuAdi }
   /** Hesaplanan, salt okunur tutar; `kurUygula=false` yabancı para tutarıdır */
@@ -67,6 +72,8 @@ export type SatirHucreTanimi =
 export interface TalepAlani {
   /** i18n etiketi (satinalma.alan.*) */
   etiketAnahtari: string
+  /** ERP özel alanlarında başlık çeviriden değil ERP'den gelir */
+  etiket?: string
   hucre: SatirHucreTanimi
   /** Zorunlu kolonlar başlıkta * ile işaretlenir */
   zorunlu?: boolean

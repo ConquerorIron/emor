@@ -105,6 +105,17 @@ const SAHTE_TASARIM = {
     { anahtar: 'teslimat', baslik_anahtari: 'satinalma.teslimatBilgileri' },
   ],
   katalog: KATALOG,
+  // ERP özel alanları (VOHOM_EVRAK_OZELLIGI) — belgeye göre değişir
+  satir_katalogu: [] as {
+    anahtar: string
+    etiket_anahtari: string
+    etiket?: string
+    varsayilan_genislik: number
+    kaldirilamaz: boolean
+    salt_okunur_sabit: boolean
+    ozellik_id?: number
+    zorunlu?: boolean
+  }[],
   duzen: {
     // Satır düzeni boş: ekran katalog sırasıyla çizilir (motor öncesi davranış)
     satirlar: [] as { alan: string; genislik: number; gizli: boolean; varsayilan?: string }[],
@@ -360,6 +371,38 @@ describe('SatinalmaTalebiPage', () => {
     // Gizli kolon çizilmez ama görünen kolonun varsayılanı ekrana yansır
     expect(screen.queryByLabelText('Birim fiyatı 1')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Miktar 1')).toHaveValue('7,00')
+  })
+
+  it('ERP özel alanı ızgarada kendi adıyla çizilir', async () => {
+    tasarimYaniti = {
+      ...SAHTE_TASARIM,
+      satir_katalogu: [
+        {
+          anahtar: 'ozellik_10',
+          etiket_anahtari: '',
+          etiket: 'Kullanım Amacı',
+          varsayilan_genislik: 208,
+          kaldirilamaz: true,
+          salt_okunur_sabit: false,
+          ozellik_id: 10,
+          zorunlu: true,
+        },
+      ],
+      duzen: {
+        ...SAHTE_TASARIM.duzen,
+        satirlar: [
+          { alan: 'urunKodu', genislik: 150, gizli: false },
+          { alan: 'ozellik_10', genislik: 200, gizli: false },
+        ],
+      },
+    }
+
+    await formuAc()
+
+    // Başlık ERP'den gelen ad; değer ozellikler sözlüğüne yazılır
+    const hucre = screen.getByLabelText('Kullanım Amacı 1')
+    fireEvent.change(hucre, { target: { value: 'Depo ihtiyacı' } })
+    expect(hucre).toHaveValue('Depo ihtiyacı')
   })
 
   it('ürün kodu boşken kaydet hücre hatası üretir', async () => {

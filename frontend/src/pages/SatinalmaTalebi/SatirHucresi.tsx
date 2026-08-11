@@ -76,12 +76,16 @@ export function SatirHucresi({
 }) {
   const { t } = useTranslation()
 
-  const etiket = t(`satinalma.alan.${alan.etiketAnahtari}`)
+  // ERP özel alanlarının adı çeviriden değil ERP'den gelir
+  const etiket = alan.etiket ?? t(`satinalma.alan.${alan.etiketAnahtari}`)
   const erisimEtiketi = `${etiket} ${indeks + 1}`
   const id = `satir-${indeks}-${alan.etiketAnahtari}`
   const anahtar = (son: string) => `satirlar.${indeks}.${son}` as Path<TalepGirdisi>
-  const hataMetni = (formAnahtari: keyof TalepSatiri): string | undefined =>
-    form.formState.errors.satirlar?.[indeks]?.[formAnahtari]?.message
+  const hataMetni = (formAnahtari: keyof TalepSatiri): string | undefined => {
+    const mesaj = form.formState.errors.satirlar?.[indeks]?.[formAnahtari]?.message
+
+    return typeof mesaj === 'string' ? mesaj : undefined
+  }
 
   // Başlıktan türeyen, satırda saklanmayan değer
   if (alan.hucre.tip === 'yansima') {
@@ -235,6 +239,23 @@ export function SatirHucresi({
         })}
         {yuzde ? ' %' : ''}
       </output>
+    )
+  }
+
+  // ERP özel alanı: değer sabit kolonda değil, ozellikler sözlüğünde durur
+  if (alan.hucre.tip === 'ozellik') {
+    const yol = `satirlar.${indeks}.ozellikler.${alan.hucre.ozellikId}` as Path<TalepGirdisi>
+    const hata = hataMetni('ozellikler')
+
+    return (
+      <input
+        aria-label={erisimEtiketi}
+        aria-invalid={hata ? true : undefined}
+        title={hata ? t(hata) : undefined}
+        autoComplete="off"
+        className={`block w-full px-2 ${ALAN_GORUNUMU} ${ALAN_KUTUSU} ${alanCercevesi(hata)}`}
+        {...form.register(yol)}
+      />
     )
   }
 

@@ -81,6 +81,11 @@ export const talepSatiriSchema = z.object({
   gerceklesme_kuru: z.string(),
   gerceklesme_orani: z.string(),
   kullanim_amaci: z.string(),
+  /**
+   * ERP'nin özel alanları (VOHOM_EVRAK_OZELLIGI) — anahtar OZELLIK_ID.
+   * Sabit kolon değiller, belgeye göre değişirler; bu yüzden sözlük.
+   */
+  ozellikler: z.record(z.string(), z.string()),
 })
 
 export const talepSchema = z.object({
@@ -221,6 +226,7 @@ export const BOS_SATIR: TalepSatiri = {
   gerceklesme_kuru: '',
   gerceklesme_orani: '',
   kullanim_amaci: '',
+  ozellikler: {},
 }
 
 export const BOS_TALEP: TalepGirdisi = {
