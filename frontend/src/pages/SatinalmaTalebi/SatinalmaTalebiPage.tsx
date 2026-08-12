@@ -460,7 +460,8 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                     className={`overflow-hidden border-y border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold tracking-wide text-ellipsis text-slate-500 uppercase dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 ${genislik > 0 ? 'whitespace-nowrap' : `whitespace-nowrap ${sutunGenisligi(alan.hucre)}`}`}
                   >
                     {alan.zorunlu ? '* ' : ''}
-                    {t(`satinalma.alan.${alan.etiketAnahtari}`)}
+                    {/* ERP özel alanlarının adı çeviriden değil ERP'den gelir */}
+                    {alan.etiket ?? t(`satinalma.alan.${alan.etiketAnahtari}`)}
                   </th>
                 ))}
                 <th className={`w-12 rounded-tr-lg border-y border-r px-2 py-2 ${SABIT_SAG}`} />
