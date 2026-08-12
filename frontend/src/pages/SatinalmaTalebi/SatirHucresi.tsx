@@ -63,6 +63,7 @@ export function SatirHucresi({
   projemizId,
   projeKodu,
   tarih,
+  saltOkunur = false,
 }: {
   alan: TalepAlani
   indeks: number
@@ -73,6 +74,8 @@ export function SatirHucresi({
   projeKodu: string
   /** Başlıktaki talep tarihi (ISO) — kur bu tarihe göre okunur */
   tarih: string
+  /** Ekran tasarımı kolonu salt okunur işaretledi: değer görünür, girilemez */
+  saltOkunur?: boolean
 }) {
   const { t } = useTranslation()
 
@@ -132,6 +135,7 @@ export function SatirHucresi({
                 yaz(cevrim.sure, cevrim.birim)
               }}
               hata={hataMetni(ad)}
+              disabled={saltOkunur}
             />
           ) : (
             <TeslimatSuresiSecimi
@@ -142,6 +146,7 @@ export function SatirHucresi({
               birim={birim}
               degisti={yaz}
               hata={hataMetni(ad)}
+              disabled={saltOkunur}
             />
           )
         }}
@@ -159,6 +164,7 @@ export function SatirHucresi({
         etiket={erisimEtiketi}
         tarih={tarih}
         hata={hataMetni(FIYAT_GRUPLARI[alan.hucre.grup].fiyat)}
+        saltOkunur={saltOkunur}
       />
     )
   }
@@ -196,6 +202,7 @@ export function SatirHucresi({
             ondalik={Number.isFinite(basamak) && basamak > 0 ? basamak : VARSAYILAN_BASAMAK}
             sonEk={sonEk}
             hata={hataMetni(ad)}
+            disabled={saltOkunur}
           />
         )}
       />
@@ -217,6 +224,7 @@ export function SatirHucresi({
             value={typeof field.value === 'string' ? field.value : ''}
             onChange={field.onChange}
             hata={hataMetni(ad)}
+            disabled={saltOkunur}
           />
         )}
       />
@@ -253,6 +261,7 @@ export function SatirHucresi({
         aria-invalid={hata ? true : undefined}
         title={hata ? t(hata) : undefined}
         autoComplete="off"
+        disabled={saltOkunur}
         className={`block w-full px-2 ${ALAN_GORUNUMU} ${ALAN_KUTUSU} ${alanCercevesi(hata)}`}
         {...form.register(yol)}
       />
@@ -268,6 +277,7 @@ export function SatirHucresi({
         aria-invalid={hata ? true : undefined}
         title={hata ? t(hata) : undefined}
         autoComplete="off"
+        disabled={saltOkunur}
         className={`block w-full px-2 ${ALAN_GORUNUMU} ${ALAN_KUTUSU} ${alanCercevesi(hata)}`}
         {...form.register(`satirlar.${indeks}.${alan.hucre.ad}`)}
       />
@@ -309,6 +319,7 @@ export function SatirHucresi({
             // sonuçta olmayabilir; gösterimi satırdan okuyoruz
             seciliEtiket={seciliYuz ? String(form.watch(anahtar(seciliYuz)) ?? '') : ''}
             hata={hata ? t(hata) : undefined}
+            disabled={saltOkunur}
           />
         )}
       />

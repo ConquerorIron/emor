@@ -23,6 +23,7 @@ export function FiyatHucresi({
   etiket,
   tarih,
   hata,
+  saltOkunur = false,
 }: {
   grup: FiyatGrubu
   indeks: number
@@ -32,6 +33,8 @@ export function FiyatHucresi({
   /** Başlıktaki talep tarihi (ISO) — kur bu tarihe göre okunur */
   tarih: string
   hata?: string
+  /** Kolon salt okunursa fiyat da para birimi de kilitlenir */
+  saltOkunur?: boolean
 }) {
   const istemci = useQueryClient()
 
@@ -80,6 +83,7 @@ export function FiyatHucresi({
               onChange={field.onChange}
               ondalik={secili?.fiyat_basamak ?? 2}
               hata={hata}
+              disabled={saltOkunur}
             />
           )}
         />
@@ -91,6 +95,7 @@ export function FiyatHucresi({
           etiketGizli
           deger={paraId}
           degisti={(para) => void paraSecildi(para)}
+          disabled={saltOkunur}
         />
       </div>
     </div>

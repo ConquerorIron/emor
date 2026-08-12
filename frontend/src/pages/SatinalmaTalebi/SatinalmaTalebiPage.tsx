@@ -209,6 +209,20 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
     return { ...BOS_TALEP, satirlar: [bosSatir], ...deger }
   }, [tasarim.duzen, katalogHaritasi, bosSatir])
 
+  // Satır kolonlarında "zorunlu" işareti: hangi form anahtarı doldurulmalı
+  const zorunluSatirAnahtarlari = useMemo(() => {
+    const tanimlar = new Map(SATIR_ALANLARI.map((alan) => [alan.etiketAnahtari, alan]))
+
+    return (tasarim.duzen.satirlar ?? [])
+      .filter((kolon) => kolon.zorunlu === true && kolon.gizli !== true)
+      .flatMap((kolon) => {
+        const hucre = tanimlar.get(kolon.alan)?.hucre
+        const anahtar = hucre ? satirVarsayilanAnahtari(hucre) : null
+
+        return anahtar ? [anahtar] : []
+      })
+  }, [tasarim.duzen.satirlar])
+
   const form = useForm<TalepGirdisi>({
     resolver: standardSchemaResolver(
       talepSemasiUret(
@@ -217,6 +231,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
         (tasarim.satir_katalogu ?? [])
           .filter((alan) => alan.zorunlu === true && alan.ozellik_id !== undefined)
           .map((alan) => alan.ozellik_id as number),
+        zorunluSatirAnahtarlari,
       ),
     ),
     defaultValues: varsayilanlar,
@@ -242,7 +257,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
     const duzen = tasarim.duzen.satirlar ?? []
 
     if (duzen.length === 0) {
-      return SATIR_ALANLARI.map((alan) => ({ alan, genislik: 0 }))
+      return SATIR_ALANLARI.map((alan) => ({ alan, genislik: 0, saltOkunur: false }))
     }
 
     // ERP özel alanları sabit listede yok: kolon tanımı katalogdan üretilir
@@ -265,8 +280,10 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
               etiketAnahtari: kolon.alan,
               etiket: ozellik.etiket,
               hucre: { tip: 'ozellik' as const, ozellikId: ozellik.ozellik_id },
+              zorunlu: ozellik.zorunlu === true || kolon.zorunlu === true,
             },
             genislik: kolon.genislik,
+            saltOkunur: kolon.salt_okunur === true,
           },
         ]
       }
@@ -274,7 +291,16 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
       // Çizimi henüz tanımlanmamış kolon sessizce atlanır
       const alan = tanimlar.get(kolon.alan)
 
-      return alan ? [{ alan, genislik: kolon.genislik }] : []
+      return alan
+        ? [
+            {
+              // Zorunluluk katalogdan da tasarımdan da gelebilir
+              alan: { ...alan, zorunlu: alan.zorunlu === true || kolon.zorunlu === true },
+              genislik: kolon.genislik,
+              saltOkunur: kolon.salt_okunur === true,
+            },
+          ]
+        : []
     })
   }, [tasarim.duzen.satirlar, tasarim.satir_katalogu])
 
@@ -425,7 +451,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                   >
                     {indeks + 1}
                   </td>
-                  {kolonlar.map(({ alan, genislik }) => (
+                  {kolonlar.map(({ alan, genislik, saltOkunur }) => (
                     <td
                       key={alan.etiketAnahtari}
                       style={kolonGenisligi(genislik, yuzdeMi)}
@@ -438,6 +464,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                         projemizId={projemizId}
                         projeKodu={projeKodu}
                         tarih={tarih}
+                        saltOkunur={saltOkunur}
                       />
                     </td>
                   ))}
