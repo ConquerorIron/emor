@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Ekranlar\SatinalmaTalebiKatalogu;
-use App\Ekranlar\SatinalmaTalebiSatirKatalogu;
 use App\Models\EkranTasarimi;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -139,11 +138,11 @@ final class EkranTasarimTest extends TestCase
         // Aşırı genişlik sınırlanır
         $this->assertSame(640, $satirlar[0]['genislik']);
         $this->assertFalse($satirlar[1]['gizli']);
-        // Katalogdaki tüm kolonlar düzende bulunur (yenisi sessizce kaybolmaz)
-        $this->assertEqualsCanonicalizing(
-            array_column(SatinalmaTalebiSatirKatalogu::alanlar(), 'anahtar'),
-            array_column($satirlar, 'alan'),
-        );
+        // Gönderilmeyen kolonlar tasarımdan çıkarılmış sayılır (palette durur);
+        // yalnız kaldırılamaz olanlar zorla geri konur
+        $anahtarlar = array_column($satirlar, 'alan');
+        $this->assertContains('urunKodu', $anahtarlar);
+        $this->assertNotContains('barkod', $anahtarlar);
     }
 
     public function test_onay_rolu_tasarimla_birlikte_saklanir(): void

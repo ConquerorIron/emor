@@ -243,10 +243,12 @@ final class EkranTasarimServisi
             ];
         }
 
-        // Katalogda olup düzende bulunmayan kolonlar sona eklenir: yeni kolon
-        // geldiğinde eski tasarım onu sessizce yutmasın
+        // Düzende bulunmayan kolon TASARIMDAN ÇIKARILMIŞ demektir; editörde
+        // "Kullanılmayan Alanlar" paletinde durur, oradan geri eklenebilir.
+        // Yalnız kaldırılamaz olanlar (Ürün kodu, ERP'nin özel alanları) zorla
+        // geri konur — onlar zaten çıkarılamaz.
         foreach ($katalogAlanlari as $anahtar => $alan) {
-            if (! isset($gorulen[$anahtar])) {
+            if (! isset($gorulen[$anahtar]) && ($alan['kaldirilamaz'] ?? false)) {
                 $temiz[] = [
                     'alan' => $anahtar,
                     'genislik' => $alan['varsayilan_genislik'],

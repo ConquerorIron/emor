@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type DragEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Switch } from '@/components/Switch'
@@ -17,6 +17,22 @@ import {
  * kolonun paneline açılır.
  */
 const SURUKLE_TURU = 'application/x-emor-satir-kolonu'
+
+/** Sürüklenen kolon — palete mi şeride mi ait olduğu bırakma anında gerekir. */
+type SurukleVerisi = { alan: string; kaynak: 'palet' | 'serit' }
+
+function surukleOku(olay: DragEvent): SurukleVerisi | null {
+  const ham = olay.dataTransfer.getData(SURUKLE_TURU)
+
+  try {
+    return ham ? (JSON.parse(ham) as SurukleVerisi) : null
+  } catch {
+    return null
+  }
+}
+
+/** Palete geri konan kolon %10; px'te katalogun önerdiği genişlik kullanılır */
+const YUZDE_VARSAYILANI = 10
 
 export function SatirTasarimi({
   katalog,
@@ -47,6 +63,69 @@ export function SatirTasarimi({
 
   const guncelle = (anahtar: string, deger: Partial<DuzenSatirKolonu>) =>
     degisti(satirlar.map((kolon) => (kolon.alan === anahtar ? { ...kolon, ...deger } : kolon)))
+
+  // Tasarımda yeri olmayan kolonlar palette bekler (başlık tuvalindeki desen)
+  const kullanilmayan = katalog.filter(
+    (alan) => !satirlar.some((kolon) => kolon.alan === alan.anahtar),
+  )
+
+  /** Şeride bırakma: şeritten geldiyse taşıma, paletten geldiyse ekleme */
+  const birak = (olay: DragEvent, hedef: number) => {
+    olay.preventDefault()
+    olay.stopPropagation()
+    const veri = surukleOku(olay)
+    if (!veri) {
+      return
+    }
+
+    if (veri.kaynak === 'serit') {
+      tasi(
+        satirlar.findIndex((kolon) => kolon.alan === veri.alan),
+        hedef,
+      )
+
+      return
+    }
+
+    const tanim = tanimlar.get(veri.alan)
+    if (!tanim) {
+      return
+    }
+
+    const yeni = [...satirlar]
+    yeni.splice(hedef, 0, {
+      alan: tanim.anahtar,
+      genislik: birim === 'px' ? tanim.varsayilan_genislik : YUZDE_VARSAYILANI,
+      gizli: false,
+    })
+    degisti(yeni)
+    setSecili(tanim.anahtar)
+  }
+
+  /** Paletten tıklayarak ekleme — sürükleyemeyenler için sona koyar */
+  const birakmadanEkle = (tanim: SatirKatalogAlani) => {
+    degisti([
+      ...satirlar,
+      {
+        alan: tanim.anahtar,
+        genislik: birim === 'px' ? tanim.varsayilan_genislik : YUZDE_VARSAYILANI,
+        gizli: false,
+      },
+    ])
+    setSecili(tanim.anahtar)
+  }
+
+  /** Palete bırakma: kolonu tasarımdan çıkarır — kaldırılamazlar hariç */
+  const paleteBirak = (olay: DragEvent) => {
+    olay.preventDefault()
+    const veri = surukleOku(olay)
+    if (!veri || veri.kaynak !== 'serit' || tanimlar.get(veri.alan)?.kaldirilamaz) {
+      return
+    }
+
+    degisti(satirlar.filter((kolon) => kolon.alan !== veri.alan))
+    setSecili((onceki) => (onceki === veri.alan ? null : onceki))
+  }
 
   const seciliKolon = satirlar.find((kolon) => kolon.alan === secili)
   const seciliTanim = secili ? tanimlar.get(secili) : undefined
@@ -89,7 +168,11 @@ export function SatirTasarimi({
         </div>
 
         {/* Izgaradaki gibi soldan sağa; sürükleyerek sıra değiştirilir */}
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
+        <div
+          onDragOver={(olay) => olay.preventDefault()}
+          onDrop={(olay) => birak(olay, satirlar.length)}
+          className="mt-3 flex min-h-24 gap-2 overflow-x-auto pb-2"
+        >
           {satirlar.map((kolon, indeks) => {
             const tanim = tanimlar.get(kolon.alan)
             if (!tanim) {
@@ -101,15 +184,14 @@ export function SatirTasarimi({
                 key={kolon.alan}
                 type="button"
                 draggable
-                onDragStart={(olay) => olay.dataTransfer.setData(SURUKLE_TURU, String(indeks))}
+                onDragStart={(olay) =>
+                  olay.dataTransfer.setData(
+                    SURUKLE_TURU,
+                    JSON.stringify({ alan: kolon.alan, kaynak: 'serit' } satisfies SurukleVerisi),
+                  )
+                }
                 onDragOver={(olay) => olay.preventDefault()}
-                onDrop={(olay) => {
-                  olay.preventDefault()
-                  const kaynak = Number(olay.dataTransfer.getData(SURUKLE_TURU))
-                  if (Number.isInteger(kaynak)) {
-                    tasi(kaynak, indeks)
-                  }
-                }}
+                onDrop={(olay) => birak(olay, indeks)}
                 onClick={() => setSecili(kolon.alan)}
                 className={`w-36 shrink-0 cursor-grab rounded-lg border p-2 text-left transition-colors active:cursor-grabbing ${
                   secili === kolon.alan
@@ -129,6 +211,46 @@ export function SatirTasarimi({
               </button>
             )
           })}
+        </div>
+
+        {/* Palet: ızgarada yeri olmayan kolonlar. Gizlemek ile kaldırmak ayrı
+            şeylerdir — gizli kolon varsayılanını kayda gönderir, buradaki hiç
+            gönderilmez */}
+        <div
+          onDragOver={(olay) => olay.preventDefault()}
+          onDrop={paleteBirak}
+          className="mt-4 rounded-lg border border-dashed border-slate-300 p-3 dark:border-slate-700"
+        >
+          <h4 className="text-xs font-bold text-slate-700 dark:text-slate-200">
+            {t('tasarim.kullanilmayanAlanlar')}
+          </h4>
+          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+            {t('tasarim.paletAciklama')}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {kullanilmayan.length === 0 ? (
+              <span className="text-xs text-slate-400 dark:text-slate-500">
+                {t('tasarim.tumAlanlarKullanimda')}
+              </span>
+            ) : null}
+            {kullanilmayan.map((alan) => (
+              <button
+                key={alan.anahtar}
+                type="button"
+                draggable
+                onDragStart={(olay) =>
+                  olay.dataTransfer.setData(
+                    SURUKLE_TURU,
+                    JSON.stringify({ alan: alan.anahtar, kaynak: 'palet' } satisfies SurukleVerisi),
+                  )
+                }
+                onClick={() => birakmadanEkle(alan)}
+                className="cursor-grab rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600 hover:border-blue-400 active:cursor-grabbing dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              >
+                {satirKolonEtiketi(alan, t)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
