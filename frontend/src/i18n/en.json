@@ -56,7 +56,8 @@
       "yuzde": "Percent"
     },
     "birimPxAciklama": "The grid grows with its content and scrolls sideways.",
-    "birimYuzdeAciklama": "The grid fills the screen; columns shrink to fit.",
+    "birimYuzdeAciklama": "Width is a share of the screen; above 100% total the grid scrolls horizontally.",
+    "yuzdeToplami": "Total: {{deger}}%",
     "gorunur": "Visible",
     "ekran": "Screen",
     "ekranAnahtari": "Key",

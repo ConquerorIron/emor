@@ -127,6 +127,11 @@ export function SatirTasarimi({
     setSecili((onceki) => (onceki === veri.alan ? null : onceki))
   }
 
+  // Gizli kolon ızgarada yer kaplamaz, toplama da girmez
+  const yuzdeToplami = satirlar
+    .filter((kolon) => kolon.gizli !== true)
+    .reduce((toplam, kolon) => toplam + Math.max(0, kolon.genislik), 0)
+
   const seciliKolon = satirlar.find((kolon) => kolon.alan === secili)
   const seciliTanim = secili ? tanimlar.get(secili) : undefined
   const genislikEtiketi = t(birim === 'px' ? 'tasarim.genislikPx' : 'tasarim.genislikYuzde')
@@ -202,6 +207,19 @@ export function SatirTasarimi({
               {t(`tasarim.birim.${secenek}`)}
             </button>
           ))}
+          {/* Toplam 100'ü aşabilir (ızgara kaydırılır) ama tasarımcı bunu
+              görmeden yapmamalı */}
+          {birim === 'yuzde' ? (
+            <span
+              className={`text-xs font-semibold ${
+                yuzdeToplami > 100
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              {t('tasarim.yuzdeToplami', { deger: yuzdeToplami })}
+            </span>
+          ) : null}
           <span className="text-xs text-slate-400 dark:text-slate-500">
             {t(birim === 'px' ? 'tasarim.birimPxAciklama' : 'tasarim.birimYuzdeAciklama')}
           </span>

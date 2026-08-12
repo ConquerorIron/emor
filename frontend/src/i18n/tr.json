@@ -56,7 +56,8 @@
       "yuzde": "Yüzde"
     },
     "birimPxAciklama": "Izgara içeriğe göre genişler, yatay kaydırılır.",
-    "birimYuzdeAciklama": "Izgara ekranı doldurur; kolonlar sığmazsa daralır.",
+    "birimYuzdeAciklama": "Genişlik ekranın payıdır; toplam %100'ü aşarsa ızgara yatay kaydırılır.",
+    "yuzdeToplami": "Toplam: %{{deger}}",
     "gorunur": "Görünür",
     "ekran": "Ekran",
     "ekranAnahtari": "Anahtar",

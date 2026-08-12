@@ -39,13 +39,26 @@ const SABIT_SOL_GOVDE =
 const SABIT_SAG_GOVDE =
   'sticky right-0 z-10 border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-950'
 
-/** Kolon genişliği: birime göre piksel ya da ekranın yüzdesi */
-function kolonGenisligi(genislik: number, yuzdeMi: boolean): React.CSSProperties | undefined {
+/**
+ * Kolon genişliği: birime göre piksel ya da ekranın yüzdesi.
+ *
+ * Yüzdeler ekranın payıdır ama toplamları 100'ü aşabilir — ERP'de de öyle,
+ * ızgara ekrana sığmaz ve yatay kaydırılır. Tablo o toplam kadar genişletildiği
+ * için kolonun payı tabloya göre yeniden ölçeklenir; böylece ekrandaki
+ * genişliği yine tam olarak `genislik`% olur.
+ */
+function kolonGenisligi(
+  genislik: number,
+  yuzdeMi: boolean,
+  tabloYuzdesi: number,
+): React.CSSProperties | undefined {
   if (genislik <= 0) {
     return undefined
   }
 
-  return yuzdeMi ? { width: `${genislik}%` } : { width: genislik, minWidth: genislik }
+  return yuzdeMi
+    ? { width: `${(genislik / tabloYuzdesi) * 100}%` }
+    : { width: genislik, minWidth: genislik }
 }
 
 /** Proje değişince temizlenmesi gereken satır anahtarları */
@@ -252,6 +265,14 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
    */
   const yuzdeMi = tasarim.duzen.satir_genislik_birimi === 'yuzde'
 
+  /** Yüzde kipinde tablonun ekrana oranı — 100'ün altına inmez */
+  const tabloYuzdesi = Math.max(
+    100,
+    (tasarim.duzen.satirlar ?? [])
+      .filter((kolon) => kolon.gizli !== true)
+      .reduce((toplam, kolon) => toplam + Math.max(0, kolon.genislik), 0),
+  )
+
   const kolonlar = useMemo(() => {
     const tanimlar = new Map(SATIR_ALANLARI.map((alan) => [alan.etiketAnahtari, alan]))
     const duzen = tasarim.duzen.satirlar ?? []
@@ -409,10 +430,12 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
               tarayıcı kolonları içeriğe/başlık metnine göre esnetiyor ve
               verilen px değeri tutmuyor (kullanıcı bildirimi 2026-08-10) */}
           <table
+            // Yüzdeler toplamı 100'ü aşarsa tablo ekrandan taşar ve alttaki
+            // kaydırma çubuğu görünür (ERP'deki davranış)
+            style={yuzdeMi ? { width: `${tabloYuzdesi}%` } : undefined}
             className={`border-separate border-spacing-0 ${
               yuzdeMi
-                ? // Yüzde ekranın payıdır: tablo ekranı doldurur, kaydırma olmaz
-                  'w-full table-fixed'
+                ? 'table-fixed'
                 : kolonlar.some((k) => k.genislik > 0)
                   ? 'w-max table-fixed'
                   : 'w-max min-w-full'
@@ -431,7 +454,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                   <th
                     key={alan.etiketAnahtari}
                     // Tasarımda genişlik verilmişse piksel, yoksa katalog sınıfı
-                    style={kolonGenisligi(genislik, yuzdeMi)}
+                    style={kolonGenisligi(genislik, yuzdeMi, tabloYuzdesi)}
                     // Başlık metni nowrap olursa kolonu kendi uzunluğu kadar
                     // zorluyor; verilen genişlikte kırpılmalı
                     className={`overflow-hidden border-y border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold tracking-wide text-ellipsis text-slate-500 uppercase dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 ${genislik > 0 ? 'whitespace-nowrap' : `whitespace-nowrap ${sutunGenisligi(alan.hucre)}`}`}
@@ -454,7 +477,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                   {kolonlar.map(({ alan, genislik, saltOkunur }) => (
                     <td
                       key={alan.etiketAnahtari}
-                      style={kolonGenisligi(genislik, yuzdeMi)}
+                      style={kolonGenisligi(genislik, yuzdeMi, tabloYuzdesi)}
                       className={`border-b border-slate-200 px-1 py-1.5 align-top dark:border-slate-700 ${genislik > 0 ? '' : sutunGenisligi(alan.hucre)}`}
                     >
                       <SatirHucresi
