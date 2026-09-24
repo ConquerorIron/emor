@@ -75,6 +75,7 @@ const FATURA: EFatura = {
   harici_aktarim: null,
   mail_durumu: null,
   emor_islendi: true,
+  vergi_istisna_kodu: '318',
 }
 
 /** Gelen faturalar kullanıcı henüz sıralamadıysa en son alınan üstte açılır */
@@ -272,7 +273,7 @@ describe('EFaturalarPage', () => {
     // İşlemler (Detay/PDF) en solda, başlıksız
     expect(basliklar()[0]).toBe('')
     expect(screen.getAllByRole('row')[1].querySelector('td')).toHaveTextContent('Detay')
-    expect(basliklar().slice(1, 11)).toEqual([
+    expect(basliklar().slice(1, 12)).toEqual([
       'eMOR',
       'Fatura No',
       'Tarih',
@@ -280,11 +281,13 @@ describe('EFaturalarPage', () => {
       'Unvan',
       'Ad Soyad',
       'Tip',
+      'Vergi İstisna Kodu',
       'Tutar',
       'Para Birimi',
       'Alınma Zamanı',
     ])
     expect(screen.getByText('IRS2026000000007')).toBeInTheDocument()
+    expect(screen.getByText('318')).toBeInTheDocument()
     expect(screen.getByText('urn:mail:defaultpk@tersane.com')).toBeInTheDocument()
     // ERP'ye işlenmiş fatura (TOHOM_FATURA eşleşmesi)
     expect(screen.getByText('İşlendi')).toBeInTheDocument()

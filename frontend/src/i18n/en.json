@@ -602,7 +602,8 @@
       "gondericiBilgisi": "Sender Alias (GB)",
       "aliciBilgisi": "Receiver Alias (PK)",
       "portalNotu": "Portal Note",
-      "emor": "eMOR"
+      "emor": "eMOR",
+      "vergiIstisnaKodu": "Tax Exemption Code"
     },
     "emorIslendi": "Processed",
     "emorIslenmedi": "Not processed",

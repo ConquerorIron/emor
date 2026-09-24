@@ -33,6 +33,8 @@ export interface EFatura {
   erp_okundu: boolean | null
   /** ERP'ye (TOHOM_FATURA) işlendi mi; null = henüz kontrol edilmedi. Yalnız gelen. */
   emor_islendi: boolean | null
+  /** Vergi (KDV) istisna kodu — ERP'nin TOHOM_E_FATURA kaydından; yalnız gelen */
+  vergi_istisna_kodu: string | null
   okundu: boolean | null
   yanit_aciklamasi: string | null
   son_gorulme: string | null

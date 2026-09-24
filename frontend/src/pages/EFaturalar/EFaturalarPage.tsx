@@ -285,6 +285,16 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
       baslik: t('efatura.kolon.tip'),
       render: (f) => <Metin deger={f.fatura_tipi} />,
     },
+    // İstisna kodu ERP'nin aldığı e-fatura kaydından gelir (yalnız gelen)
+    ...(gelen
+      ? [
+          {
+            anahtar: 'vergi_istisna_kodu',
+            baslik: t('efatura.kolon.vergiIstisnaKodu'),
+            render: (f: EFatura) => <Metin deger={f.vergi_istisna_kodu} />,
+          },
+        ]
+      : []),
     {
       anahtar: 'tutar',
       baslik: t('efatura.kolon.tutar'),

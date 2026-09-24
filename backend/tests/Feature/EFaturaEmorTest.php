@@ -28,23 +28,31 @@ final class EFaturaEmorTest extends TestCase
     /**
      * @param  list<string>|RuntimeException  $gelen
      * @param  list<array{ettn: string|null, belge_no: string, vkn: string}>|RuntimeException  $giden
+     * @param  array<string, string>  $istisnaKodlari  ETTN => vergi istisna kodu
      */
-    private function erp(array|RuntimeException $gelen, array|RuntimeException $giden = []): void
+    private function erp(array|RuntimeException $gelen, array|RuntimeException $giden = [], array $istisnaKodlari = []): void
     {
-        $this->app->instance(ErpFaturaKaynagi::class, new class($gelen, $giden) implements ErpFaturaKaynagi
+        $this->app->instance(ErpFaturaKaynagi::class, new class($gelen, $giden, $istisnaKodlari) implements ErpFaturaKaynagi
         {
             /**
              * @param  list<string>|RuntimeException  $gelen
              * @param  list<array{ettn: string|null, belge_no: string, vkn: string}>|RuntimeException  $giden
+             * @param  array<string, string>  $istisnaKodlari
              */
             public function __construct(
                 private readonly array|RuntimeException $gelen,
                 private readonly array|RuntimeException $giden,
+                private readonly array $istisnaKodlari,
             ) {}
 
             public function islenmisGelenEttnler(): array
             {
                 return $this->gelen instanceof RuntimeException ? throw $this->gelen : $this->gelen;
+            }
+
+            public function gelenIstisnaKodlari(): array
+            {
+                return $this->istisnaKodlari;
             }
 
             public function gonderilenFaturalar(): array
@@ -105,6 +113,30 @@ final class EFaturaEmorTest extends TestCase
         $this->assertFalse($gelen->fresh()->emor_islendi);
     }
 
+    public function test_gelen_faturanin_vergi_istisna_kodu_erpden_ettn_ile_yazilir_ve_kalkinca_silinir(): void
+    {
+        $tanim = $this->tanim();
+        $istisnali = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => self::ISLENMIS, 'fatura_tipi' => 'ISTISNA']);
+        $digeri = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id]);
+        // Giden faturaya gelen kodu yazılmaz
+        $giden = EFatura::factory()->giden()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => self::ISLENMIS]);
+
+        $this->erp([], istisnaKodlari: [strtoupper(self::ISLENMIS) => '318']);
+        $this->artisan('efatura:emor')->assertSuccessful();
+
+        $this->assertSame('318', $istisnali->fresh()->vergi_istisna_kodu);
+        $this->assertNull($digeri->fresh()->vergi_istisna_kodu);
+        $this->assertNull($giden->fresh()->vergi_istisna_kodu);
+
+        $this->erp([]);
+        $this->artisan('efatura:emor')->assertSuccessful();
+        $this->assertNull($istisnali->fresh()->vergi_istisna_kodu);
+
+        $this->actingAs(User::factory()->yonetici()->create())
+            ->getJson('/api/v1/efatura/gelen/faturalar?baslangic=2026-01-01&bitis=2026-01-31')
+            ->assertJsonPath('data.0.vergi_istisna_kodu', null);
+    }
+
     public function test_erpden_silinen_fatura_islenmedi_olur_ve_degismeyen_satir_yazilmaz(): void
     {
         $tanim = $this->tanim();
@@ -152,13 +184,20 @@ final class EFaturaEmorTest extends TestCase
         $this->assertNull($gelen->fresh()->emor_islendi);
     }
 
-    public function test_erp_senkronla_yon_ister(): void
+    public function test_erp_senkronla_gecersiz_yonu_reddeder_yon_yoksa_gelen_sayar(): void
     {
-        $this->erp([]);
+        $tanim = $this->tanim();
+        $gelen = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => self::ISLENMIS]);
+        $this->erp([self::ISLENMIS]);
+        $yonetici = User::factory()->yonetici()->create();
 
-        $this->actingAs(User::factory()->yonetici()->create())
+        $this->actingAs($yonetici)
             ->postJson('/api/v1/efatura/erp-senkron', ['yon' => 'yanlis'])
             ->assertUnprocessable();
+
+        // Deploy öncesi açık kalmış sekmenin düğmesi yön göndermiyordu
+        $this->actingAs($yonetici)->postJson('/api/v1/efatura/erp-senkron')->assertOk();
+        $this->assertTrue($gelen->fresh()->emor_islendi);
     }
 
     public function test_erp_senkronla_erp_okunamazsa_502_doner_ve_bayrak_degismez(): void

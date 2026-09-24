@@ -30,6 +30,26 @@ final class ErpFaturaSorgusu implements ErpFaturaKaynagi
     }
 
     /**
+     * Yalnız iki kolon okunur (tabloda PDF/XSLT/XML kodları var — SELECT * yok).
+     */
+    public function gelenIstisnaKodlari(): array
+    {
+        /** @var list<object{UUID: string, KOD: string}> $satirlar */
+        $satirlar = $this->mssql->baglan()->select(
+            "SELECT CAST(UUID AS nvarchar(64)) AS UUID, LTRIM(RTRIM(VERGI_ISTISNA_KODU)) AS KOD
+             FROM TOHOM_E_FATURA
+             WHERE UUID IS NOT NULL AND LTRIM(RTRIM(ISNULL(VERGI_ISTISNA_KODU, ''))) <> ''",
+        );
+
+        $kodlar = [];
+        foreach ($satirlar as $satir) {
+            $kodlar[$satir->UUID] = $satir->KOD;
+        }
+
+        return $kodlar;
+    }
+
+    /**
      * ERP_GONDERILEN_E_FATURA_LISTESI (parametresiz; tanımı yalnız SELECT —
      * 2026-09-24'te okunarak doğrulandı). nchar alanlar boşlukla dolu gelir.
      */

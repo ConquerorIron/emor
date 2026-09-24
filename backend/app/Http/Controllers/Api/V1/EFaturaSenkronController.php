@@ -40,11 +40,13 @@ final class EFaturaSenkronController extends Controller
      */
     public function erpEslestir(Request $request, EmorIslenmeServisi $emor): JsonResponse
     {
-        /** @var array{yon: string} $veri */
-        $veri = $request->validate(['yon' => ['required', Rule::enum(FaturaYonu::class)]]);
+        // Yön gönderilmezse gelen: ilk sürümün düğmesi yalnız gelen sayfasındaydı
+        // ve yön göndermiyordu (deploy öncesi açık kalmış sekmeler)
+        /** @var array{yon?: string} $veri */
+        $veri = $request->validate(['yon' => ['sometimes', Rule::enum(FaturaYonu::class)]]);
 
         try {
-            $sonuc = $emor->tazele(FaturaYonu::from($veri['yon']));
+            $sonuc = $emor->tazele(FaturaYonu::from($veri['yon'] ?? FaturaYonu::Gelen->value));
         } catch (ValidationException $hata) {
             throw $hata;
         } catch (Throwable $hata) {

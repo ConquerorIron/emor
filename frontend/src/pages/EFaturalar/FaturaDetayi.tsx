@@ -104,6 +104,7 @@ export function FaturaDetayi({ fatura }: { fatura: EFatura }) {
         [
           ['efatura.kolon.gondericiBilgisi', fatura.gonderici_etiketi],
           ['efatura.kolon.aliciBilgisi', fatura.alici_etiketi],
+          ['efatura.kolon.vergiIstisnaKodu', fatura.vergi_istisna_kodu],
           ['efatura.kolon.irsaliyeNo', fatura.irsaliye_no],
           [
             'efatura.kolon.siparisNo',

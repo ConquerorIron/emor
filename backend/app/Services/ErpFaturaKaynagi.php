@@ -19,6 +19,14 @@ interface ErpFaturaKaynagi
     public function islenmisGelenEttnler(): array;
 
     /**
+     * ERP'nin aldığı e-faturaların (TOHOM_E_FATURA) vergi istisna kodları,
+     * ETTN => kod. Yalnız kodu dolu olanlar döner.
+     *
+     * @return array<string, string>
+     */
+    public function gelenIstisnaKodlari(): array;
+
+    /**
      * ERP'nin gönderilen e-fatura listesi (fatura + gider yansıtma). ETTN
      * gider yansıtmada boş olabilir; o zaman belge no + alıcı VKN'si kullanılır.
      * ERP'ye ulaşılamazsa istisna fırlatır.
