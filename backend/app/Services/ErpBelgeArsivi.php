@@ -22,4 +22,15 @@ interface ErpBelgeArsivi
      * ERP'ye ulaşılamazsa istisna fırlatır.
      */
     public function xml(string $ettn): ?string;
+
+    /**
+     * Havuzda XML'i olan faturalar, küçük harf ETTN => XML; XML'de istisna
+     * kodu etiketi (TaxExemptionReasonCode) yoksa değer null (XML taşınmaz).
+     * Havuzda olmayan ya da XML'i boş olan ETTN dönmez. En çok 1000 ETTN.
+     * ERP'ye ulaşılamazsa istisna fırlatır.
+     *
+     * @param  list<string>  $ettnler
+     * @return array<string, string|null>
+     */
+    public function istisnaXmlleri(array $ettnler): array;
 }

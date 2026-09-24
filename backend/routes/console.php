@@ -28,7 +28,7 @@ Schedule::command('efatura:emor')
     ->everyFiveMinutes()
     ->withoutOverlapping(10);
 
-// Vergi istisna kodu İzibiz UBL'inden: toplu indirme, çalışma başına sınırlı
+// Vergi istisna kodu önce ERP havuzundaki UBL'den, yoksa İzibiz'den: toplu indirme, çalışma başına sınırlı
 // istek, fatura başına bir kez (okundu bayraklarını değiştirmez)
 Schedule::command('efatura:istisna-kodlari')
     ->everyFifteenMinutes()

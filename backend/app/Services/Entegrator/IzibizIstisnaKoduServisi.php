@@ -6,18 +6,26 @@ namespace App\Services\Entegrator;
 
 use App\Models\EFatura;
 use App\Models\EntegratorBaglanti;
+use App\Services\ErpBelgeArsivi;
 use Carbon\CarbonImmutable;
 use DOMDocument;
 use DOMXPath;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Throwable;
 use ZipArchive;
 
 /**
- * Gelen faturanın vergi istisna kodunu İzibiz'deki UBL'inden okur (kullanıcı
+ * Gelen faturanın vergi istisna kodunu entegratörden gelen UBL'den okur (kullanıcı
  * kararı 2026-09-24: entegratördeki bilgi esas). İzibiz liste yanıtında bu alan
  * yok; kod yalnız UBL'de (`cac:TaxCategory/cbc:TaxExemptionReasonCode`).
+ *
+ * Önce ERP havuzu: ERP entegratörden çektiği UBL'in aynısını TOHOM_E_FATURA.XML_KODU'nda
+ * saklar; havuzdaki faturanın kodu oradan okunur, İzibiz'e gidilmez (kullanıcı
+ * kararı 2026-09-24). Havuzda olmayan fatura ERP'ye çekmesi için süre tanındıktan
+ * (istisna_erp_bekleme_saat) sonra İzibiz'den okunur. ERP'ye ulaşılamazsa bu
+ * çalışmada doğrudan İzibiz'e gidilir.
  *
  * İzibiz'i yormamak için (kullanıcı kuralı: fatura başına istek yok):
  * - toplu indirme (partide en çok 100 fatura), her çalışmada sınırlı istek;
@@ -35,20 +43,28 @@ final class IzibizIstisnaKoduServisi
 
     private const AZAMI_HATA = 3;
 
+    /** ERP sorgusu başına fatura: kodlu XML'ler (~320 KB) bellekte birlikte durur */
+    private const ERP_PARTI = 50;
+
     public function __construct(
         private readonly IzibizIstemcisi $istemci,
+        private readonly ErpBelgeArsivi $erp,
     ) {}
 
     /**
-     * @return array{istek: int, okunan: int, kodlu: int, hatali: int}
+     * @return array{erp_okunan: int, erp_kodlu: int, istek: int, okunan: int, kodlu: int, hatali: int}
      */
     public function tazele(EntegratorBaglanti $tanim, int $partiBoyutu, int $azamiIstek): array
     {
         $partiBoyutu = max(1, min($partiBoyutu, EntegratorBaglanti::ENCOK_SAYFA_BOYUTU));
-        $sonuc = ['istek' => 0, 'okunan' => 0, 'kodlu' => 0, 'hatali' => 0];
+        $sonuc = ['erp_okunan' => 0, 'erp_kodlu' => 0, 'istek' => 0, 'okunan' => 0, 'kodlu' => 0, 'hatali' => 0];
+        $erpOkundu = $this->erpdenOku($tanim, $sonuc);
+        $bekleme = CarbonImmutable::now()->subHours((int) config('efatura.istisna_erp_bekleme_saat'));
 
         /** @var list<array{id: int, kaynak_id: int, ettn: string}> $adaylar */
-        $adaylar = $this->adaylar($tanim)
+        $adaylar = $this->izibizAdaylari($tanim)
+            // Havuzda henüz olmayan yeni fatura: ERP çekince kodu ondan okunur
+            ->when($erpOkundu, fn (Builder $q) => $q->where('created_at', '<', $bekleme))
             ->orderByDesc('id')
             ->limit($partiBoyutu * $azamiIstek)
             ->get(['id', 'kaynak_id', 'ettn'])
@@ -108,6 +124,60 @@ final class IzibizIstisnaKoduServisi
     }
 
     /**
+     * Havuzdaki adayların kodu ERP'deki UBL'den; İzibiz'de okunamamış (hata
+     * sayacı dolmuş) fatura da buradan okunabilir. Kodu olmayan XML ağdan
+     * gelmez (etiket SQL'de aranır).
+     *
+     * @param  array{erp_okunan: int, erp_kodlu: int, istek: int, okunan: int, kodlu: int, hatali: int}  $sonuc
+     * @return bool ERP okunabildi mi
+     */
+    private function erpdenOku(EntegratorBaglanti $tanim, array &$sonuc): bool
+    {
+        $adaylar = $this->adaylar($tanim)->pluck('ettn', 'id');
+
+        try {
+            foreach ($adaylar->chunk(self::ERP_PARTI) as $parti) {
+                $xmller = $this->erp->istisnaXmlleri(array_values($parti->all()));
+                $simdi = CarbonImmutable::now();
+
+                foreach ($parti as $id => $ettn) {
+                    $anahtar = mb_strtolower($ettn);
+
+                    // Havuzda yok: ERP çekene kadar bekler, sonra İzibiz'den
+                    if (! array_key_exists($anahtar, $xmller)) {
+                        continue;
+                    }
+
+                    $kod = null;
+                    if ($xmller[$anahtar] !== null) {
+                        [$xmlEttn, $kod] = $this->ublOku($xmller[$anahtar]);
+
+                        // Okunamayan ya da başka faturanın XML'i: İzibiz'e kalır
+                        if ($xmlEttn !== $anahtar) {
+                            Log::warning('ERP arşivindeki UBL okunamadı', ['ettn' => $ettn]);
+
+                            continue;
+                        }
+                    }
+
+                    EFatura::query()->whereKey($id)->update([
+                        'izibiz_istisna_kodu' => $kod,
+                        'izibiz_ubl_okundu' => $simdi,
+                    ]);
+                    $sonuc['erp_okunan']++;
+                    $sonuc['erp_kodlu'] += $kod !== null ? 1 : 0;
+                }
+            }
+        } catch (Throwable $e) {
+            Log::warning('İstisna kodu ERP arşivinden okunamadı; İzibiz\'den okunacak', ['hata' => $e->getMessage()]);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * @return Builder<EFatura>
      */
     private function adaylar(EntegratorBaglanti $tanim): Builder
@@ -116,11 +186,19 @@ final class IzibizIstisnaKoduServisi
             ->where('entegrator_baglanti_id', $tanim->id)
             ->where('yon', FaturaYonu::Gelen->value)
             ->whereNull('izibiz_ubl_okundu')
-            ->where('izibiz_ubl_hata', '<', self::AZAMI_HATA)
-            ->where(fn (Builder $q) => $q->whereNull('izibiz_ubl_son_deneme')
-                ->orWhere('izibiz_ubl_son_deneme', '<', CarbonImmutable::now()->subDay()))
             ->where(fn (Builder $q) => $q->whereIn('fatura_tipi', self::ISTISNA_TIPLERI)
                 ->orWhere('vergi_tutari', 0));
+    }
+
+    /**
+     * @return Builder<EFatura>
+     */
+    private function izibizAdaylari(EntegratorBaglanti $tanim): Builder
+    {
+        return $this->adaylar($tanim)
+            ->where('izibiz_ubl_hata', '<', self::AZAMI_HATA)
+            ->where(fn (Builder $q) => $q->whereNull('izibiz_ubl_son_deneme')
+                ->orWhere('izibiz_ubl_son_deneme', '<', CarbonImmutable::now()->subDay()));
     }
 
     /**

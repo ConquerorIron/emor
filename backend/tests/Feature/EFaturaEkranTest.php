@@ -532,6 +532,11 @@ final class EFaturaEkranTest extends TestCase
                 return $this->oku($this->xmller, $ettn);
             }
 
+            public function istisnaXmlleri(array $ettnler): array
+            {
+                return [];
+            }
+
             /** @param array<string, string> $kaynak */
             private function oku(array $kaynak, string $ettn): ?string
             {

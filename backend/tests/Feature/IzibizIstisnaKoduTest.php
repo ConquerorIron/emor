@@ -9,15 +9,18 @@ use App\Models\EntegratorBaglanti;
 use App\Models\User;
 use App\Services\Entegrator\FaturaYonu;
 use App\Services\Entegrator\IzibizIstemcisi;
+use App\Services\ErpBelgeArsivi;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
+use RuntimeException;
 use Tests\TestCase;
 use ZipArchive;
 
 /**
- * Vergi istisna kodu İzibiz UBL'inden (toplu indirme, fatura başına bir kez) ve
+ * Vergi istisna kodu önce ERP havuzundaki UBL'den, yoksa İzibiz UBL'inden (toplu
+ * indirme, fatura başına bir kez) ve
  * İzibiz istemcisinin yalnız-okuma kilidi.
  */
 final class IzibizIstisnaKoduTest extends TestCase
@@ -47,8 +50,43 @@ final class IzibizIstisnaKoduTest extends TestCase
             ."<cac:TaxTotal>{$vergiler}</cac:TaxTotal></Invoice>";
     }
 
+    /**
+     * ERP havuzu sahtesi: küçük harf ETTN => UBL (null: havuzda, istisna etiketi yok).
+     *
+     * @param  array<string, string|null>  $havuz
+     */
+    private function erpHavuzu(array $havuz, ?RuntimeException $hata = null): void
+    {
+        $this->app->instance(ErpBelgeArsivi::class, new class($havuz, $hata) implements ErpBelgeArsivi
+        {
+            /** @param array<string, string|null> $havuz */
+            public function __construct(private readonly array $havuz, private readonly ?RuntimeException $hata) {}
+
+            public function pdf(string $ettn): ?string
+            {
+                return null;
+            }
+
+            public function xml(string $ettn): ?string
+            {
+                return null;
+            }
+
+            public function istisnaXmlleri(array $ettnler): array
+            {
+                if ($this->hata !== null) {
+                    throw $this->hata;
+                }
+
+                return array_intersect_key($this->havuz, array_flip(array_map(mb_strtolower(...), $ettnler)));
+            }
+        });
+    }
+
+    /** İzibiz sahtesi; ERP havuzu varsayılan boştur (fatura havuzda değil). */
     private function sahteIzibiz(): void
     {
+        $this->erpHavuzu([]);
         Http::preventStrayRequests();
         Http::fake(function (Request $istek) {
             if (str_ends_with($istek->url(), '/v1/auth/token')) {
@@ -94,6 +132,8 @@ final class IzibizIstisnaKoduTest extends TestCase
             'ettn' => $ettn,
             'fatura_tipi' => 'ISTISNA',
             'vergi_tutari' => '0.0000',
+            // ERP'nin çekmesi için tanınan süre geçmiş: havuzda yoksa İzibiz'e gidilir
+            'created_at' => now()->subDays(2),
             ...$alanlar,
         ]);
     }
@@ -111,7 +151,7 @@ final class IzibizIstisnaKoduTest extends TestCase
         $this->sahteIzibiz();
 
         $this->artisan('efatura:istisna-kodlari')
-            ->expectsOutput('İstisna kodu [test]: 1 istek, 3 fatura okundu (2 kodlu), 0 okunamadı')
+            ->expectsOutput('İstisna kodu [test]: ERP arşivinden 0 fatura (0 kodlu); İzibiz: 1 istek, 3 fatura okundu (2 kodlu), 0 okunamadı')
             ->assertSuccessful();
 
         $this->assertSame([[103, 102, 101]], $this->istenenler);
@@ -137,7 +177,7 @@ final class IzibizIstisnaKoduTest extends TestCase
         $this->sahteIzibiz();
 
         $this->artisan('efatura:istisna-kodlari')
-            ->expectsOutput('İstisna kodu [test]: 5 istek, 3 fatura okundu (3 kodlu), 1 okunamadı')
+            ->expectsOutput('İstisna kodu [test]: ERP arşivinden 0 fatura (0 kodlu); İzibiz: 5 istek, 3 fatura okundu (3 kodlu), 1 okunamadı')
             ->assertSuccessful();
 
         // [204,203,202,201] → [204,203] + [202,201] → [204] + [203]
@@ -164,6 +204,61 @@ final class IzibizIstisnaKoduTest extends TestCase
 
         $this->assertCount(2, $this->istenenler);
         $this->assertSame(4, EFatura::query()->whereNotNull('izibiz_ubl_okundu')->count());
+    }
+
+    // --- Önce ERP havuzundaki UBL ------------------------------------------------
+
+    public function test_havuzdaki_faturanin_kodu_erp_xmlinden_okunur_izibize_gidilmez(): void
+    {
+        $tanim = EntegratorBaglanti::factory()->aktif()->create();
+        $havuzdaKodlu = $this->fatura($tanim, 401, [], '350');
+        $havuzdaKodsuz = $this->fatura($tanim, 402, ['fatura_tipi' => 'SATIS']);
+        // İzibiz'de üç kez okunamamış fatura ERP'den okunabilir
+        $izibizdeOkunamayan = $this->fatura($tanim, 403, ['izibiz_ubl_hata' => 3], '318');
+        // Havuzda yok, yeni: ERP'nin çekmesi beklenir
+        $yeni = $this->fatura($tanim, 404, ['created_at' => now()], '351');
+        // Havuzda yok, bekleme süresi geçmiş: İzibiz'den
+        $eski = $this->fatura($tanim, 405, [], '308');
+        $this->sahteIzibiz();
+        $this->erpHavuzu([
+            $havuzdaKodlu->ettn => $this->ubller[401],
+            $havuzdaKodsuz->ettn => null,
+            $izibizdeOkunamayan->ettn => $this->ubller[403],
+        ]);
+
+        $this->artisan('efatura:istisna-kodlari')
+            ->expectsOutput('İstisna kodu [test]: ERP arşivinden 3 fatura (2 kodlu); İzibiz: 1 istek, 1 fatura okundu (1 kodlu), 0 okunamadı')
+            ->assertSuccessful();
+
+        $this->assertSame([[405]], $this->istenenler);
+        $this->assertSame('350', $havuzdaKodlu->fresh()->izibiz_istisna_kodu);
+        $this->assertNull($havuzdaKodsuz->fresh()->izibiz_istisna_kodu);
+        $this->assertNotNull($havuzdaKodsuz->fresh()->izibiz_ubl_okundu);
+        $this->assertSame('318', $izibizdeOkunamayan->fresh()->izibiz_istisna_kodu);
+        $this->assertNull($yeni->fresh()->izibiz_ubl_okundu);
+        $this->assertSame('308', $eski->fresh()->izibiz_istisna_kodu);
+
+        // ERP bir gün içinde çekmezse yeni fatura da İzibiz'den okunur
+        $this->travel(25)->hours();
+        $this->artisan('efatura:istisna-kodlari')->assertSuccessful();
+
+        $this->assertSame([[405], [404]], $this->istenenler);
+        $this->assertSame('351', $yeni->fresh()->izibiz_istisna_kodu);
+    }
+
+    public function test_erpye_ulasilamazsa_yeni_fatura_beklemeden_izibizden_okunur(): void
+    {
+        $tanim = EntegratorBaglanti::factory()->aktif()->create();
+        $fatura = $this->fatura($tanim, 501, ['created_at' => now()], '318');
+        $this->sahteIzibiz();
+        $this->erpHavuzu([], new RuntimeException('SELECT permission was denied'));
+
+        $this->artisan('efatura:istisna-kodlari')
+            ->expectsOutput('İstisna kodu [test]: ERP arşivinden 0 fatura (0 kodlu); İzibiz: 1 istek, 1 fatura okundu (1 kodlu), 0 okunamadı')
+            ->assertSuccessful();
+
+        $this->assertSame([[501]], $this->istenenler);
+        $this->assertSame('318', $fatura->fresh()->izibiz_istisna_kodu);
     }
 
     public function test_okundu_isaretleme_ve_yanit_uclari_istemciden_cagrilamaz(): void

@@ -13,12 +13,12 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Gelen faturaların vergi istisna kodunu İzibiz'deki UBL'lerinden okur
- * (IzibizIstisnaKoduServisi). Her çalışmada sınırlı sayıda toplu istek
+ * Gelen faturaların vergi istisna kodunu önce ERP havuzundaki, yoksa İzibiz'deki
+ * UBL'lerinden okur (IzibizIstisnaKoduServisi). Her çalışmada sınırlı sayıda toplu istek
  * (config/efatura.php); her fatura bir kez okunur.
  */
 #[Signature('efatura:istisna-kodlari')]
-#[Description('Gelen e-Faturaların vergi istisna kodunu İzibiz UBL\'inden okur (toplu, sınırlı istek)')]
+#[Description('Gelen e-Faturaların vergi istisna kodunu ERP havuzundaki, yoksa İzibiz\'deki UBL\'den okur')]
 final class EFaturaIstisnaKodlari extends Command
 {
     public function handle(IzibizIstisnaKoduServisi $servis, EntegratorBaglantiServisi $baglantilar): int
@@ -51,8 +51,10 @@ final class EFaturaIstisnaKodlari extends Command
         }
 
         $this->line(sprintf(
-            'İstisna kodu [%s]: %d istek, %d fatura okundu (%d kodlu), %d okunamadı',
+            'İstisna kodu [%s]: ERP arşivinden %d fatura (%d kodlu); İzibiz: %d istek, %d fatura okundu (%d kodlu), %d okunamadı',
             $tanim->ortam,
+            $sonuc['erp_okunan'],
+            $sonuc['erp_kodlu'],
             $sonuc['istek'],
             $sonuc['okunan'],
             $sonuc['kodlu'],

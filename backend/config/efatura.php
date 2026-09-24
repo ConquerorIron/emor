@@ -42,6 +42,10 @@ return [
     'istisna_parti_boyutu' => 50,
     'istisna_azami_istek' => 4,
 
+    // Kod önce ERP havuzundaki UBL'den (TOHOM_E_FATURA.XML_KODU) okunur. Havuzda
+    // olmayan faturaya ERP'nin çekmesi için bu kadar saat tanınır, sonra İzibiz'e gidilir.
+    'istisna_erp_bekleme_saat' => 24,
+
     // ERP'de boş olan vergi istisna kodu entegratördekiyle doldurulsun mu
     // (TOHOM_E_FATURA'ya doğrudan UPDATE; yalnız boş koda). Varsayılan KAPALI:
     // sunucuda yazılacak liste kullanıcıya onaylatıldıktan sonra .env ile açılır.
