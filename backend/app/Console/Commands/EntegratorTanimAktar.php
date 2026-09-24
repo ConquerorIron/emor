@@ -63,7 +63,7 @@ final class EntegratorTanimAktar extends Command
             return self::INVALID;
         }
 
-        /** @var array{kullanici_adi: string, sifre: string, vkn: string, posta_kutusu?: string|null, gonderici_birim?: string|null} $gecerli */
+        /** @var array{kullanici_adi: string, sifre: string, vkn: string, posta_kutusu?: string|null, gonderici_birim?: string|null, api_url?: string|null} $gecerli */
         $gecerli = $dogrulayici->validated();
 
         $mevcut = $servis->tanim($ortam);
@@ -128,7 +128,7 @@ final class EntegratorTanimAktar extends Command
     }
 
     /**
-     * @param  array{kullanici_adi: string, sifre: string, vkn: string, posta_kutusu?: string|null, gonderici_birim?: string|null}  $veri
+     * @param  array{kullanici_adi: string, sifre: string, vkn: string, posta_kutusu?: string|null, gonderici_birim?: string|null, api_url?: string|null}  $veri
      */
     private function ayni(EntegratorBaglanti $mevcut, array $veri): bool
     {
@@ -136,6 +136,9 @@ final class EntegratorTanimAktar extends Command
             && hash_equals($mevcut->sifre, $veri['sifre'])
             && $mevcut->vkn === $veri['vkn']
             && $mevcut->posta_kutusu === ($veri['posta_kutusu'] ?? null)
-            && $mevcut->gonderici_birim === ($veri['gonderici_birim'] ?? null);
+            && $mevcut->gonderici_birim === ($veri['gonderici_birim'] ?? null)
+            // Adres verilmediyse karşılaştırılmaz (değişmez); verildiyse aynı olmalı
+            && (! array_key_exists('api_url', $veri)
+                || EntegratorBaglantiServisi::saklanacakAdres($veri['api_url']) === $mevcut->api_url);
     }
 }

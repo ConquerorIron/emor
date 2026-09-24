@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Ayar;
 
+use App\Rules\EntegratorApiAdresi;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * API adresi gövdeden ALINMAZ (sağlayıcı + ortamdan türetilir); gönderilse de
- * validated() dışında kalır.
+ * API adresi isteğe bağlıdır: boş = ortamın varsayılanı; dolu adres yalnız
+ * https + izinli alan adı (EntegratorApiAdresi). Adres değişirse servis
+ * şifreyi yeniden ister.
  */
 final class EntegratorBaglantiGuncelleRequest extends FormRequest
 {
@@ -18,7 +20,7 @@ final class EntegratorBaglantiGuncelleRequest extends FormRequest
     }
 
     /**
-     * @return array<string, list<string>>
+     * @return array<string, list<mixed>>
      */
     public function rules(): array
     {
@@ -36,11 +38,12 @@ final class EntegratorBaglantiGuncelleRequest extends FormRequest
     /**
      * Ekran ve tek seferlik içe aktarma komutu aynı kuralları kullanır.
      *
-     * @return array<string, list<string>>
+     * @return array<string, list<mixed>>
      */
     public static function kurallar(): array
     {
         return [
+            'api_url' => ['nullable', 'string', 'max:255', new EntegratorApiAdresi],
             'kullanici_adi' => ['required', 'string', 'max:128'],
             // İlk kayıtta zorunlu (servis denetler); güncellemede boş = değişmesin
             'sifre' => ['nullable', 'string', 'max:255'],

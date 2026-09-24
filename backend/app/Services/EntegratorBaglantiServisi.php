@@ -52,7 +52,7 @@ final class EntegratorBaglantiServisi
      * kullanıcı adı değişiyorsa şifre de yeniden girilmelidir (kayıtlı şifre
      * başka bir hesabın şifresi olarak denenmesin).
      *
-     * @param  array{kullanici_adi: string, sifre?: string|null, vkn: string, posta_kutusu?: string|null, gonderici_birim?: string|null}  $veri
+     * @param  array{kullanici_adi: string, sifre?: string|null, vkn: string, posta_kutusu?: string|null, gonderici_birim?: string|null, api_url?: string|null}  $veri
      */
     public function guncelle(string $ortam, array $veri): EntegratorBaglanti
     {
@@ -100,7 +100,18 @@ final class EntegratorBaglantiServisi
     }
 
     /**
-     * @param  array{kullanici_adi: string, sifre?: string|null, vkn: string, posta_kutusu?: string|null, gonderici_birim?: string|null}  $veri
+     * Boş adres NULL (varsayılan) saklanır; dolu adres normalleştirilir
+     * (doğrulamadan geçmiş olmalı: `EntegratorApiAdresi`).
+     */
+    public static function saklanacakAdres(?string $adres): ?string
+    {
+        return $adres === null || trim($adres) === ''
+            ? null
+            : EntegratorBaglanti::adresNormallestir($adres);
+    }
+
+    /**
+     * @param  array{kullanici_adi: string, sifre?: string|null, vkn: string, posta_kutusu?: string|null, gonderici_birim?: string|null, api_url?: string|null}  $veri
      */
     private function kaydet(string $ortam, array $veri): EntegratorBaglanti
     {
@@ -127,9 +138,24 @@ final class EntegratorBaglantiServisi
             ]);
         }
 
+        // Adres gönderilmediyse değişmez; boş = ortamın varsayılanı
+        $yeniAdres = array_key_exists('api_url', $veri)
+            ? self::saklanacakAdres($veri['api_url'])
+            : $baglanti->api_url;
+        $adresDegisti = $baglanti->exists
+            && ($yeniAdres ?? $baglanti->varsayilanApiUrl()) !== $baglanti->apiUrl();
+
+        // Kayıtlı şifre yeni (henüz doğrulanmamış) bir adrese gönderilmesin
+        if ($adresDegisti && $sifreBos) {
+            throw ValidationException::withMessages([
+                'sifre' => __('hata.entegrator_sifre_adres_degisti'),
+            ]);
+        }
+
         $eskiTokenAnahtari = $baglanti->exists ? $baglanti->tokenOnbellekAnahtari() : null;
 
         $baglanti->fill([
+            'api_url' => $yeniAdres,
             'kullanici_adi' => $veri['kullanici_adi'],
             'vkn' => $veri['vkn'],
             'posta_kutusu' => $veri['posta_kutusu'] ?? null,
@@ -140,7 +166,8 @@ final class EntegratorBaglantiServisi
             $baglanti->sifre = $sifre;
         }
 
-        $kimlikDegisti = $baglanti->exists && ($kullaniciDegisti || ! $sifreBos);
+        // Adres değişince eski adresten alınmış token kullanılmasın
+        $kimlikDegisti = $baglanti->exists && ($kullaniciDegisti || $adresDegisti || ! $sifreBos);
 
         if ($kimlikDegisti) {
             $baglanti->kimlik_surumu++;

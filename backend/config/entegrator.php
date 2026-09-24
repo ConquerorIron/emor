@@ -18,6 +18,12 @@ return [
             ],
         ],
 
+        // Yukarıdakiler VARSAYILAN adreslerdir; ekrandan başka adres girilebilir
+        // (kullanıcı isteği 2026-09-24) ama yalnız https ve bu alan adları (alt
+        // alan adları dahil) kabul edilir: kayıtlı şifre ve token başka bir
+        // sunucuya gönderilemesin. Yeni sağlayıcı alan adı gerekirse buraya eklenir.
+        'izinli_alan_adlari' => ['izibiz.com.tr'],
+
         // Token yanıtındaki `validity` saat dilimi eki taşımaz; İstanbul saatidir
         // (2026-09-23 test hesabında JWT exp ile karşılaştırılarak doğrulandı)
         'saat_dilimi' => 'Europe/Istanbul',

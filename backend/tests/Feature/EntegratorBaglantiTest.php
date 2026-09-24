@@ -22,6 +22,12 @@ final class EntegratorBaglantiTest extends TestCase
 
     private const HATA_KULLANICI_DEGISTI = 'Kullanıcı adı değiştiğinde entegratör şifresi yeniden girilmelidir.';
 
+    private const HATA_ADRES_DEGISTI = 'API adresi değiştiğinde entegratör şifresi yeniden girilmelidir.';
+
+    private const HATA_ADRES_BICIMI = 'API adresi "https://alan-adı" biçiminde olmalı (yol, sorgu veya kullanıcı bilgisi içeremez).';
+
+    private const HATA_ADRES_IZINSIZ = 'API adresinin alan adı izinli değil. İzinli alan adları: izibiz.com.tr';
+
     private const TOKEN_URL = 'https://apitest.izibiz.com.tr/v1/auth/token';
 
     private function yonetici(): User
@@ -99,6 +105,10 @@ final class EntegratorBaglantiTest extends TestCase
                 'aktif_ortam' => null,
                 'sql_aktif_ortam' => null,
                 'ortam_uyumsuz' => false,
+                'varsayilan_api_url' => [
+                    'test' => 'https://apitest.izibiz.com.tr',
+                    'canli' => 'https://api.izibiz.com.tr',
+                ],
             ]]);
     }
 
@@ -113,18 +123,16 @@ final class EntegratorBaglantiTest extends TestCase
         $this->assertDatabaseCount('entegrator_baglantilari', 0);
     }
 
-    public function test_tanim_olusturulur_adres_ortamdan_turetilir_ve_sifre_gizli_kalir(): void
+    public function test_tanim_olusturulur_adres_verilmezse_ortamin_varsayilani_kullanilir_ve_sifre_gizli_kalir(): void
     {
         $this->yonetici();
 
-        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/test', $this->govde([
-            // Gövdeden adres alınmaz: gönderilse de yok sayılır
-            'api_url' => 'https://saldirgan.example',
-        ]))
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/test', $this->govde())
             ->assertOk()
             ->assertJsonPath('data.ortam', 'test')
             ->assertJsonPath('data.saglayici', 'izibiz')
             ->assertJsonPath('data.api_url', 'https://apitest.izibiz.com.tr')
+            ->assertJsonPath('data.api_url_ozel', false)
             ->assertJsonPath('data.portal_url', 'https://portaltest.izibiz.com.tr')
             ->assertJsonPath('data.vkn', '1234567890')
             ->assertJsonPath('data.sifre_dolu', true)
@@ -205,7 +213,92 @@ final class EntegratorBaglantiTest extends TestCase
             'VKN kısa' => [['vkn' => '123456789'], 'vkn', 'VKN 10, TCKN 11 haneli olmalı ve yalnız rakam içermelidir.'],
             'posta kutusu urn değil' => [['posta_kutusu' => 'pk@ornek.test'], 'posta_kutusu', 'Etiket "urn:mail:" ile başlamalıdır.'],
             'gönderici birim urn değil' => [['gonderici_birim' => 'gb@ornek.test'], 'gonderici_birim', 'Etiket "urn:mail:" ile başlamalıdır.'],
+            'adres https değil' => [['api_url' => 'http://apitest.izibiz.com.tr'], 'api_url', self::HATA_ADRES_BICIMI],
+            'adreste yol var' => [['api_url' => 'https://apitest.izibiz.com.tr/v1/auth'], 'api_url', self::HATA_ADRES_BICIMI],
+            'adreste kullanıcı bilgisi var' => [['api_url' => 'https://a:b@apitest.izibiz.com.tr'], 'api_url', self::HATA_ADRES_BICIMI],
+            'adres izinsiz alan adı' => [['api_url' => 'https://saldirgan.example'], 'api_url', self::HATA_ADRES_IZINSIZ],
+            // Sonek hilesi: alan adı izinli adla BİTMİYOR
+            'adres izinli adı içeren başka alan' => [['api_url' => 'https://izibiz.com.tr.saldirgan.example'], 'api_url', self::HATA_ADRES_IZINSIZ],
+            'adres benzer ama farklı alan' => [['api_url' => 'https://kotuizibiz.com.tr'], 'api_url', self::HATA_ADRES_IZINSIZ],
         ];
+    }
+
+    public function test_api_adresi_ekrandan_tanimlanir_normallestirilir_ve_ozel_isaretlenir(): void
+    {
+        $this->yonetici();
+
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/test', $this->govde([
+            'api_url' => ' https://APITEST2.izibiz.com.tr/ ',
+        ]))
+            ->assertOk()
+            ->assertJsonPath('data.api_url', 'https://apitest2.izibiz.com.tr')
+            ->assertJsonPath('data.api_url_ozel', true);
+
+        $this->assertSame('https://apitest2.izibiz.com.tr', EntegratorBaglanti::query()->value('api_url'));
+    }
+
+    public function test_adres_degisince_bos_sifreyle_422_doner_kayitli_sifre_yeni_adrese_baglanmaz(): void
+    {
+        $this->yonetici();
+        EntegratorBaglanti::factory()->create();
+
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/test', $this->govde([
+            'api_url' => 'https://apitest2.izibiz.com.tr',
+            'sifre' => '',
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonPath('hatalar.sifre.0', self::HATA_ADRES_DEGISTI);
+
+        $this->assertNull(EntegratorBaglanti::query()->value('api_url'));
+    }
+
+    public function test_adres_sifreyle_degisince_kimlik_surumu_artar_ve_eski_token_silinir(): void
+    {
+        $this->yonetici();
+        $tanim = EntegratorBaglanti::factory()->create();
+        $eskiAnahtar = $tanim->tokenOnbellekAnahtari();
+        Cache::put($eskiAnahtar, 'eski-token', 600);
+
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/test', $this->govde([
+            'api_url' => 'https://apitest2.izibiz.com.tr',
+            'sifre' => 'yeni-adresin-sifresi',
+        ]))->assertOk();
+
+        $this->assertSame(2, $tanim->refresh()->kimlik_surumu);
+        $this->assertFalse(Cache::has($eskiAnahtar));
+    }
+
+    public function test_adres_gonderilmezse_kayitli_ozel_adres_korunur_bosaltilirsa_varsayilana_doner(): void
+    {
+        $this->yonetici();
+        EntegratorBaglanti::factory()->create(['api_url' => 'https://apitest2.izibiz.com.tr']);
+
+        // Adres alanı olmayan eski istemci: adres ve şifre korunur
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/test', $this->govde(['sifre' => '']))
+            ->assertOk()
+            ->assertJsonPath('data.api_url', 'https://apitest2.izibiz.com.tr');
+
+        // Boşaltmak da adres değişikliğidir: şifre ister
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/test', $this->govde(['api_url' => '', 'sifre' => '']))
+            ->assertUnprocessable()
+            ->assertJsonPath('hatalar.sifre.0', self::HATA_ADRES_DEGISTI);
+
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/test', $this->govde(['api_url' => '']))
+            ->assertOk()
+            ->assertJsonPath('data.api_url', 'https://apitest.izibiz.com.tr')
+            ->assertJsonPath('data.api_url_ozel', false);
+    }
+
+    public function test_liste_bos_adres_icin_ortamlarin_varsayilan_adresini_bildirir(): void
+    {
+        $this->yonetici();
+
+        $this->getJson('/api/v1/ayarlar/entegrator-baglantilari')
+            ->assertOk()
+            ->assertJsonPath('data.varsayilan_api_url', [
+                'test' => 'https://apitest.izibiz.com.tr',
+                'canli' => 'https://api.izibiz.com.tr',
+            ]);
     }
 
     /**
@@ -336,6 +429,57 @@ final class EntegratorBaglantiTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_sinama_adres_degisip_sifre_bossa_kayitli_sifre_yeni_adrese_gonderilmez(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake();
+        $this->yonetici();
+        EntegratorBaglanti::factory()->create();
+
+        $this->postJson('/api/v1/ayarlar/entegrator-baglantilari/test/sina', ['api_url' => 'https://apitest2.izibiz.com.tr'])
+            ->assertUnprocessable()
+            ->assertJsonPath('hatalar.sifre.0', self::HATA_ADRES_DEGISTI);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_sinama_formdaki_adres_ve_sifreyle_o_adrese_yapilir(): void
+    {
+        Http::preventStrayRequests();
+        $this->travelTo('2026-09-23 11:24:41');
+        Http::fake(['https://apitest2.izibiz.com.tr/v1/auth/token' => Http::response([
+            'data' => ['accessToken' => 'erisim-token-2', 'validity' => '2026-09-24 02:24:41', 'customerType' => 'C'],
+            'error' => null,
+        ])]);
+        $this->yonetici();
+        EntegratorBaglanti::factory()->create();
+
+        $this->postJson('/api/v1/ayarlar/entegrator-baglantilari/test/sina', [
+            'api_url' => 'https://apitest2.izibiz.com.tr',
+            'sifre' => 'formdaki-sifre',
+        ])->assertOk();
+
+        Http::assertSent(fn (Request $istek): bool => $istek->url() === 'https://apitest2.izibiz.com.tr/v1/auth/token');
+        $this->assertNull(EntegratorBaglanti::query()->value('api_url'));
+    }
+
+    public function test_sinama_izinsiz_adrese_istek_atmadan_422_doner(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake();
+        $this->yonetici();
+        EntegratorBaglanti::factory()->create();
+
+        $this->postJson('/api/v1/ayarlar/entegrator-baglantilari/test/sina', [
+            'api_url' => 'https://saldirgan.example',
+            'sifre' => 'formdaki-sifre',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('hatalar.api_url.0', self::HATA_ADRES_IZINSIZ);
+
+        Http::assertNothingSent();
+    }
+
     public function test_sinama_tanim_ve_sifre_yoksa_istek_atmadan_422_doner(): void
     {
         Http::preventStrayRequests();
@@ -393,6 +537,8 @@ final class EntegratorBaglantiTest extends TestCase
                 'ortam' => 'test',
                 'kullanici_id' => $yonetici->id,
                 'sifre_degisti' => true,
+                // Adres sır değil; hangi adrese bağlanıldığı iz için yazılır
+                'api_url' => 'https://apitest.izibiz.com.tr',
             ])
             ->once();
     }

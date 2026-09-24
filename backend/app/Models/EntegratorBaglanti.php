@@ -16,11 +16,13 @@ use Illuminate\Database\Eloquent\Model;
  * Aktiflik sağlayıcı başına globaldir ve SQL'in aktif ortamından BAĞIMSIZ
  * seçilir (EFAT-15, S5); uyuşmazlık yalnız uyarı olarak gösterilir.
  *
- * API adresi saklanmaz; sağlayıcı + ortamdan türetilir (config/entegrator.php).
+ * API adresi ekrandan tanımlanabilir; boşsa sağlayıcı + ortamın varsayılanı
+ * (config/entegrator.php). Yalnız https ve izinli alan adı kabul edilir.
  *
  * @property int $id
  * @property string $saglayici
  * @property string $ortam
+ * @property string|null $api_url
  * @property string $kullanici_adi
  * @property string $sifre
  * @property string $vkn
@@ -53,6 +55,7 @@ final class EntegratorBaglanti extends Model
     protected $fillable = [
         'saglayici',
         'ortam',
+        'api_url',
         'kullanici_adi',
         'sifre',
         'vkn',
@@ -64,9 +67,35 @@ final class EntegratorBaglanti extends Model
     /** @var list<string> */
     protected $hidden = ['sifre'];
 
+    /** Kullanılan adres: tanımlanmışsa o, değilse ortamın varsayılanı. */
     public function apiUrl(): string
     {
+        return $this->api_url ?? $this->varsayilanApiUrl();
+    }
+
+    public function varsayilanApiUrl(): string
+    {
         return (string) config("entegrator.{$this->saglayici}.ortamlar.{$this->ortam}.api_url");
+    }
+
+    /**
+     * `https://alan-adı[:port]` biçimine indirger (küçük harf, sondaki `/`
+     * atılır). Yol, sorgu, parça ya da kullanıcı bilgisi varsa geçersizdir (null).
+     */
+    public static function adresNormallestir(string $adres): ?string
+    {
+        $parca = parse_url(trim($adres));
+
+        if (! is_array($parca)
+            || strtolower($parca['scheme'] ?? '') !== 'https'
+            || ($parca['host'] ?? '') === ''
+            || isset($parca['user']) || isset($parca['pass'])
+            || isset($parca['query']) || isset($parca['fragment'])
+            || ! in_array($parca['path'] ?? '', ['', '/'], true)) {
+            return null;
+        }
+
+        return 'https://'.strtolower($parca['host']).(isset($parca['port']) ? ':'.$parca['port'] : '');
     }
 
     public function portalUrl(): string

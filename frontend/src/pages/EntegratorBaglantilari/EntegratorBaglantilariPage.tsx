@@ -26,6 +26,9 @@ import {
 
 const URN_ONEKI = 'urn:mail:'
 
+// Yalnız https://alan-adı[:port] — izinli alan adı listesi backend'de denetlenir
+const API_ADRESI = /^https:\/\/[A-Za-z0-9.-]+(:\d+)?\/?$/
+
 function baglantiSchemaOlustur(sifreZorunlu: boolean) {
   const urn = z
     .string()
@@ -36,6 +39,13 @@ function baglantiSchemaOlustur(sifreZorunlu: boolean) {
     )
 
   return z.object({
+    api_url: z
+      .string()
+      .max(255)
+      .refine(
+        (deger) => deger.trim() === '' || API_ADRESI.test(deger.trim()),
+        'ayarlar.entegrator.dogrulama.apiAdresiGecersiz',
+      ),
     kullanici_adi: z.string().min(1, 'ayarlar.entegrator.dogrulama.kullaniciZorunlu').max(128),
     sifre: z
       .string()
@@ -52,8 +62,14 @@ function baglantiSchemaOlustur(sifreZorunlu: boolean) {
 
 type BaglantiGirdisi = z.infer<ReturnType<typeof baglantiSchemaOlustur>>
 
+/** Boş adres = ortamın varsayılanı (null gönderilir). */
+function adresGovdesi(adres: string): string | null {
+  return adres.trim() === '' ? null : adres.trim()
+}
+
 function girdidenGovde(girdi: BaglantiGirdisi): EntegratorBaglantiGovdesi {
   return {
+    api_url: adresGovdesi(girdi.api_url),
     kullanici_adi: girdi.kullanici_adi,
     vkn: girdi.vkn,
     posta_kutusu: girdi.posta_kutusu === '' ? null : girdi.posta_kutusu,
@@ -70,6 +86,8 @@ function formAnahtari(tanim: EntegratorBaglanti | null): string {
   // kaydedilmemiş düzenlemeleri silmemelidir.
   return JSON.stringify([
     tanim.id,
+    tanim.api_url,
+    tanim.api_url_ozel,
     tanim.kullanici_adi,
     tanim.vkn,
     tanim.posta_kutusu,
@@ -78,12 +96,19 @@ function formAnahtari(tanim: EntegratorBaglanti | null): string {
   ])
 }
 
+/** Formun adres alanı: yalnız ekrandan tanımlanmış adres dolu gelir; varsayılan ipucudur. */
+function formAdresi(tanim: EntegratorBaglanti | null): string {
+  return tanim?.api_url_ozel ? tanim.api_url : ''
+}
+
 function BaglantiFormu({
   ortam,
   tanim,
+  varsayilanAdres,
 }: {
   ortam: EntegratorOrtam
   tanim: EntegratorBaglanti | null
+  varsayilanAdres: string
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -101,6 +126,7 @@ function BaglantiFormu({
   } = useForm<BaglantiGirdisi>({
     resolver: standardSchemaResolver(baglantiSchemaOlustur(!tanim?.sifre_dolu)),
     defaultValues: {
+      api_url: formAdresi(tanim),
       kullanici_adi: tanim?.kullanici_adi ?? '',
       sifre: '',
       vkn: tanim?.vkn ?? '',
@@ -115,6 +141,7 @@ function BaglantiFormu({
     mutationFn: (girdi: BaglantiGirdisi) => entegratorBaglantiGuncelle(ortam, girdidenGovde(girdi)),
     onSuccess: async (kaydedilen) => {
       reset({
+        api_url: formAdresi(kaydedilen),
         kullanici_adi: kaydedilen.kullanici_adi,
         sifre: '',
         vkn: kaydedilen.vkn,
@@ -130,12 +157,13 @@ function BaglantiFormu({
     },
   })
 
-  // Sınama formdaki kullanıcı/şifreyle yapılır — kaydetmeden de denenebilir
+  // Sınama formdaki adres/kullanıcı/şifreyle yapılır — kaydetmeden de denenebilir
   const sina = useMutation({
     mutationFn: (_surum: number) => {
-      const { kullanici_adi, sifre } = getValues()
+      const { api_url, kullanici_adi, sifre } = getValues()
 
       return entegratorBaglantiSina(ortam, {
+        api_url: adresGovdesi(api_url),
         kullanici_adi,
         ...(sifre !== '' ? { sifre } : {}),
       })
@@ -189,13 +217,21 @@ function BaglantiFormu({
         ) : null}
       </div>
 
-      {tanim ? (
-        <p className="mb-4 text-xs break-all text-slate-500 dark:text-slate-400">
-          {t('ayarlar.entegrator.apiAdresi')}: <span className="font-mono">{tanim.api_url}</span>
-        </p>
-      ) : null}
-
       <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <Input
+            id={`entegrator-${ortam}-api-adresi`}
+            label={t('ayarlar.entegrator.apiAdresi')}
+            placeholder={varsayilanAdres}
+            inputMode="url"
+            autoComplete="off"
+            hata={alanHatasi(errors.api_url?.message)}
+            {...register('api_url')}
+          />
+          <p className="mt-1 text-xs break-all text-slate-500 dark:text-slate-400">
+            {t('ayarlar.entegrator.apiAdresiNotu', { varsayilan: varsayilanAdres })}
+          </p>
+        </div>
         <Input
           id={`entegrator-${ortam}-kullanici`}
           label={t('ayarlar.entegrator.kullaniciAdi')}
@@ -471,11 +507,13 @@ export function EntegratorBaglantilariPage() {
               key={`test-${formAnahtari(baglantilar.data.test)}`}
               ortam="test"
               tanim={baglantilar.data.test}
+              varsayilanAdres={baglantilar.data.varsayilan_api_url.test}
             />
             <BaglantiFormu
               key={`canli-${formAnahtari(baglantilar.data.canli)}`}
               ortam="canli"
               tanim={baglantilar.data.canli}
+              varsayilanAdres={baglantilar.data.varsayilan_api_url.canli}
             />
           </div>
         </>

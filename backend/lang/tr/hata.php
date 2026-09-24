@@ -23,6 +23,9 @@ return [
     // Entegratör (İzibiz) bağlantı ayarları
     'entegrator_sifre_zorunlu' => 'İlk kayıtta entegratör şifresi zorunludur.',
     'entegrator_sifre_kullanici_degisti' => 'Kullanıcı adı değiştiğinde entegratör şifresi yeniden girilmelidir.',
+    'entegrator_sifre_adres_degisti' => 'API adresi değiştiğinde entegratör şifresi yeniden girilmelidir.',
+    'entegrator_api_adresi_gecersiz' => 'API adresi "https://alan-adı" biçiminde olmalı (yol, sorgu veya kullanıcı bilgisi içeremez).',
+    'entegrator_api_adresi_izinsiz' => 'API adresinin alan adı izinli değil. İzinli alan adları: :alanlar',
     'entegrator_kullanici_zorunlu' => 'Entegratör kullanıcı adı zorunludur.',
     'entegrator_baglanti_tanimsiz' => 'Bu ortam için entegratör bağlantısı tanımlanmamış.',
     'entegrator_eszamanli_guncelleme' => 'Tanım aynı anda başka bir oturumdan kaydedildi; sayfayı yenileyip tekrar deneyin.',

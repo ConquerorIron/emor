@@ -68,3 +68,10 @@ sonucu artık başarı/hata olarak gösterilmiyor. Aktif ortam değişimi formda
 kaydedilmemiş alanları silmiyor; başarılı kayıttan sonra şifre alanı açıkça
 temizleniyor. Üç davranışın regresyon testi geçti. Tarayıcıda görsel kontrol
 bu incelemede yapılmadı.
+
+2026-09-24 (Claude, kullanıcı isteği): API adresi artık ekrandan tanımlanır.
+
+- Test ve canlı için ayrı adres girilebilir. Adres
+   kolonunda saklanır (yeni migration). Boş
+  bırakılırsa ortamın config'teki varsayılan adresi kullanılır.
+- Önceki adres

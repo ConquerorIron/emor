@@ -29,6 +29,7 @@ const TEST_TANIMI = {
   saglayici: 'izibiz' as const,
   ortam: 'test' as const,
   api_url: 'https://apitest.izibiz.com.tr',
+  api_url_ozel: false,
   portal_url: 'https://portaltest.izibiz.com.tr',
   kullanici_adi: 'deneme-kullanici',
   vkn: '1234567890',
@@ -46,8 +47,16 @@ function veri(degisen: Partial<EntegratorBaglantilar> = {}): EntegratorBaglantil
     aktif_ortam: 'test',
     sql_aktif_ortam: 'test',
     ortam_uyumsuz: false,
+    varsayilan_api_url: {
+      test: 'https://apitest.izibiz.com.tr',
+      canli: 'https://api.izibiz.com.tr',
+    },
     ...degisen,
   }
+}
+
+function testKartiAdresi(): HTMLInputElement {
+  return document.getElementById('entegrator-test-api-adresi') as HTMLInputElement
 }
 
 function ciz() {
@@ -73,12 +82,47 @@ describe('EntegratorBaglantilariPage', () => {
     vi.clearAllMocks()
   })
 
-  it('kayıtlı tanımı ve türetilmiş API adresini gösterir, şifreyi göstermez', async () => {
+  it('kayıtlı tanımı gösterir; varsayılan adreste adres alanı boş ve ipucu varsayılandır, şifre gösterilmez', async () => {
     ciz()
 
     expect(await screen.findByDisplayValue('deneme-kullanici')).toBeInTheDocument()
-    expect(screen.getByText('https://apitest.izibiz.com.tr')).toBeInTheDocument()
+    expect(testKartiAdresi()).toHaveValue('')
+    expect(testKartiAdresi()).toHaveAttribute('placeholder', 'https://apitest.izibiz.com.tr')
+    expect(document.getElementById('entegrator-canli-api-adresi')).toHaveAttribute(
+      'placeholder',
+      'https://api.izibiz.com.tr',
+    )
     expect(document.getElementById('entegrator-test-sifre')).toHaveValue('')
+  })
+
+  it('ekrandan tanımlanmış adresi alanda gösterir ve kaydederken gönderir', async () => {
+    const ozel = { ...TEST_TANIMI, api_url: 'https://apitest2.izibiz.com.tr', api_url_ozel: true }
+    api.getir.mockResolvedValue(veri({ test: ozel }))
+    api.guncelle.mockResolvedValue(ozel)
+    ciz()
+    await screen.findByDisplayValue('deneme-kullanici')
+
+    expect(testKartiAdresi()).toHaveValue('https://apitest2.izibiz.com.tr')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Kaydet' })[0])
+
+    await waitFor(() => expect(api.guncelle).toHaveBeenCalledTimes(1))
+    expect(api.guncelle).toHaveBeenCalledWith(
+      'test',
+      expect.objectContaining({ api_url: 'https://apitest2.izibiz.com.tr' }),
+    )
+  })
+
+  it('https olmayan adresle istek atmadan hata gösterir', async () => {
+    ciz()
+    await screen.findByDisplayValue('deneme-kullanici')
+
+    fireEvent.change(testKartiAdresi(), { target: { value: 'http://apitest.izibiz.com.tr' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Kaydet' })[0])
+
+    expect(
+      await screen.findByText('Adres https://alan-adı biçiminde olmalı (yol veya sorgu içermez).'),
+    ).toBeInTheDocument()
+    expect(api.guncelle).not.toHaveBeenCalled()
   })
 
   it('SQL ve entegratör farklı ortamdaysa uyarı gösterir', async () => {
@@ -101,6 +145,8 @@ describe('EntegratorBaglantilariPage', () => {
 
     await waitFor(() => expect(api.guncelle).toHaveBeenCalledTimes(1))
     expect(api.guncelle).toHaveBeenCalledWith('test', {
+      // Boş adres = ortamın varsayılanı
+      api_url: null,
       kullanici_adi: 'deneme-kullanici',
       vkn: '1234567890',
       posta_kutusu: 'urn:mail:deneme-pk@ornek.test',
@@ -147,7 +193,10 @@ describe('EntegratorBaglantilariPage', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Bağlantıyı Sına' })[0])
 
     expect(await screen.findByText('Entegratöre giriş başarılı')).toBeInTheDocument()
-    expect(api.sina).toHaveBeenCalledWith('test', { kullanici_adi: 'deneme-kullanici' })
+    expect(api.sina).toHaveBeenCalledWith('test', {
+      api_url: null,
+      kullanici_adi: 'deneme-kullanici',
+    })
 
     fireEvent.change(testKartiKullanicisi(), { target: { value: 'baska-kullanici' } })
 

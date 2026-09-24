@@ -22,8 +22,9 @@ final class EntegratorBaglantiResource extends JsonResource
             'id' => $this->id,
             'saglayici' => $this->saglayici,
             'ortam' => $this->ortam,
-            // Bilgi amaçlı: config'ten türetilir, düzenlenemez
+            // Kullanılan adres; `api_url_ozel` false ise ortamın varsayılanıdır
             'api_url' => $this->apiUrl(),
+            'api_url_ozel' => $this->api_url !== null,
             'portal_url' => $this->portalUrl(),
             'kullanici_adi' => $this->kullanici_adi,
             'vkn' => $this->vkn,

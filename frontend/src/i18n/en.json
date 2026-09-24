@@ -315,7 +315,7 @@
       "vkn": "Tax ID / National ID",
       "postaKutusu": "Mailbox Alias",
       "gondericiBirim": "Sender Unit Alias",
-      "sifreNotu": "Leave blank to keep the saved password. Re-enter it if you change the username.",
+      "sifreNotu": "Leave blank to keep the saved password. Re-enter it if you change the username or the API address.",
       "kaydedildi": "{{ortam}} integrator connection saved.",
       "sinamaBasarili": "Signed in to the integrator",
       "tokenGecerlilik": "The session is valid until {{zaman}}.",
@@ -335,8 +335,10 @@
         "kullaniciZorunlu": "Username is required.",
         "sifreZorunlu": "Password is required on first save.",
         "vknGecersiz": "Tax ID must be 10 digits (national ID 11) and contain only digits.",
-        "urnGecersiz": "Alias must start with \"urn:mail:\"."
-      }
+        "urnGecersiz": "Alias must start with \"urn:mail:\".",
+        "apiAdresiGecersiz": "Address must be https://host (no path or query)."
+      },
+      "apiAdresiNotu": "If left empty, the environment default is used: {{varsayilan}}. Re-enter the password if you change the address."
     },
     "roller": {
       "baslik": "Roles",

@@ -8,8 +8,10 @@ export interface EntegratorBaglanti {
   id: number
   saglayici: 'izibiz'
   ortam: EntegratorOrtam
-  /** Ortamdan türetilir, düzenlenemez */
+  /** Kullanılan adres (tanımlanmışsa o, değilse ortamın varsayılanı) */
   api_url: string
+  /** true: adres ekrandan tanımlanmış; false: ortamın varsayılanı kullanılıyor */
+  api_url_ozel: boolean
   portal_url: string
   kullanici_adi: string
   vkn: string
@@ -27,9 +29,13 @@ export interface EntegratorBaglantilar {
   /** SQL'in aktif ortamı — seçimler bağımsızdır, uyuşmazlık uyarı olarak gösterilir */
   sql_aktif_ortam: SqlOrtam | null
   ortam_uyumsuz: boolean
+  /** Adres alanı boş bırakılırsa kullanılacak adresler */
+  varsayilan_api_url: Record<EntegratorOrtam, string>
 }
 
 export interface EntegratorBaglantiGovdesi {
+  /** null = ortamın varsayılan adresi. Değişirse şifre yeniden istenir. */
+  api_url: string | null
   kullanici_adi: string
   /** Boş bırakılırsa gönderilmez — kullanıcı adı değişmediyse backend kayıtlı şifreyi korur */
   sifre?: string
@@ -66,12 +72,12 @@ export async function entegratorBaglantiGuncelle(
 }
 
 /**
- * Kaydedilmemiş kullanıcı/şifreyle de sınanabilir. Boş şifre yalnız kullanıcı
- * adı kayıtlıyla aynıysa kayıtlı şifreye düşer. Adres ortamdan türetilir.
+ * Kaydedilmemiş adres/kullanıcı/şifreyle de sınanabilir. Boş şifre yalnız
+ * kullanıcı adı VE adres kayıtlıyla aynıysa kayıtlı şifreye düşer.
  */
 export async function entegratorBaglantiSina(
   ortam: EntegratorOrtam,
-  govde: { kullanici_adi: string; sifre?: string },
+  govde: { api_url: string | null; kullanici_adi: string; sifre?: string },
 ): Promise<EntegratorSinamaSonucu> {
   const yanit = await api.post<{ data: EntegratorSinamaSonucu }>(
     `/api/v1/ayarlar/entegrator-baglantilari/${ortam}/sina`,

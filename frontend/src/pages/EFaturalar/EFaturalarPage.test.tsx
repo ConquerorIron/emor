@@ -111,6 +111,9 @@ function ciz(izinler: string[]) {
   )
 }
 
+/** Aramanın 300 ms gecikmesini içeren beklemeler için (yük altında 1 sn yetmeyebiliyor) */
+const ARAMA_BEKLEME = 3000
+
 const TUM_IZINLER = ['efatura.goruntule', 'efatura.pdf', 'efatura.disari_aktar', 'efatura.senkron']
 
 describe('EFaturalarPage', () => {
@@ -170,13 +173,15 @@ describe('EFaturalarPage', () => {
       target: { value: 'deniz' },
     })
 
-    await waitFor(() =>
-      expect(api.faturalar).toHaveBeenLastCalledWith(
-        'gelen',
-        expect.objectContaining({ ara: 'deniz' }),
-        null,
-        1,
-      ),
+    await waitFor(
+      () =>
+        expect(api.faturalar).toHaveBeenLastCalledWith(
+          'gelen',
+          expect.objectContaining({ ara: 'deniz' }),
+          null,
+          1,
+        ),
+      { timeout: ARAMA_BEKLEME },
     )
   })
 
@@ -193,7 +198,11 @@ describe('EFaturalarPage', () => {
     })
 
     // Önceki satırlar yerinde kalır (tablo kaybolup yeniden çizilmez)...
-    expect(await screen.findByText('Güncelleniyor…')).toBeInTheDocument()
+    // Arama 300 ms gecikmeli uygulanır; tüm takım yük altında koşarken
+    // varsayılan 1 sn bekleme yetmeyebiliyor (kararsız test olarak görüldü)
+    expect(
+      await screen.findByText('Güncelleniyor…', {}, { timeout: ARAMA_BEKLEME }),
+    ).toBeInTheDocument()
     expect(screen.getByText('Deniz Boya Ltd.')).toBeInTheDocument()
     expect(screen.queryByText('Yükleniyor…')).not.toBeInTheDocument()
     // ...ama yeni filtreninmiş gibi kullanılamaz

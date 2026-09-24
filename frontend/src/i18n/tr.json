@@ -315,7 +315,7 @@
       "vkn": "VKN / TCKN",
       "postaKutusu": "Posta Kutusu Etiketi",
       "gondericiBirim": "Gönderici Birim Etiketi",
-      "sifreNotu": "Şifreyi değiştirmeyecekseniz boş bırakın; kayıtlı şifre korunur. Kullanıcı adını değiştirirseniz şifreyi yeniden girin.",
+      "sifreNotu": "Şifreyi değiştirmeyecekseniz boş bırakın; kayıtlı şifre korunur. Kullanıcı adını ya da API adresini değiştirirseniz şifreyi yeniden girin.",
       "kaydedildi": "{{ortam}} entegratör tanımı kaydedildi.",
       "sinamaBasarili": "Entegratöre giriş başarılı",
       "tokenGecerlilik": "Alınan oturum {{zaman}} tarihine kadar geçerli.",
@@ -335,8 +335,10 @@
         "kullaniciZorunlu": "Kullanıcı adı zorunludur.",
         "sifreZorunlu": "İlk kayıtta şifre zorunludur.",
         "vknGecersiz": "VKN 10, TCKN 11 haneli olmalı ve yalnız rakam içermelidir.",
-        "urnGecersiz": "Etiket \"urn:mail:\" ile başlamalıdır."
-      }
+        "urnGecersiz": "Etiket \"urn:mail:\" ile başlamalıdır.",
+        "apiAdresiGecersiz": "Adres https://alan-adı biçiminde olmalı (yol veya sorgu içermez)."
+      },
+      "apiAdresiNotu": "Boş bırakılırsa ortamın varsayılan adresi kullanılır: {{varsayilan}}. Adres değişirse şifreyi yeniden girin."
     },
     "roller": {
       "baslik": "Roller",
