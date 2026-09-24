@@ -340,9 +340,15 @@
         "sifreZorunlu": "İlk kayıtta şifre zorunludur.",
         "vknGecersiz": "VKN 10, TCKN 11 haneli olmalı ve yalnız rakam içermelidir.",
         "urnGecersiz": "Etiket \"urn:mail:\" ile başlamalıdır.",
-        "apiAdresiGecersiz": "Adres https://alan-adı biçiminde olmalı (yol veya sorgu içermez)."
+        "apiAdresiGecersiz": "Adres https://alan-adı biçiminde olmalı (yol veya sorgu içermez).",
+        "aralikGecersiz": "Aralık 15 ile 1440 dakika arasında olmalı (İzibiz: en az 15 dakika).",
+        "sayfaGecersiz": "Fatura sayısı 10 ile 100 arasında olmalı (İzibiz: en çok 100)."
       },
-      "apiAdresiNotu": "Boş bırakılırsa ortamın varsayılan adresi kullanılır: {{varsayilan}}. Adres değişirse şifreyi yeniden girin."
+      "apiAdresiNotu": "Boş bırakılırsa ortamın varsayılan adresi kullanılır: {{varsayilan}}. Adres değişirse şifreyi yeniden girin.",
+      "senkronAyarlari": "Senkron ayarları",
+      "senkronAraligi": "Otomatik senkron aralığı (dakika)",
+      "sayfaBoyutu": "Tek istekteki fatura sayısı",
+      "senkronAyarlariNotu": "İzibiz kuralları: otomatik çekim en az 15 dakikada bir yapılır, tek istekte en çok 100 fatura istenir. Aktif ortamın ayarı kullanılır."
     },
     "roller": {
       "baslik": "Roller",
@@ -603,7 +609,9 @@
       "aliciBilgisi": "Alıcı Bilgisi (PK)",
       "portalNotu": "Portal Notu",
       "emor": "eMOR",
-      "vergiIstisnaKodu": "Vergi İstisna Kodu"
+      "vergiIstisnaKodu": "Vergi İstisna Kodu",
+      "istisnaKoduEntegrator": "İstisna Kodu (Entegratör)",
+      "istisnaKoduErp": "İstisna Kodu (ERP)"
     },
     "erpSenkron": {
       "ac": "ERP Senkronla",
@@ -630,7 +638,9 @@
     "hizliFiltre": {
       "baslik": "Hızlı filtreler",
       "erpIslenmeyenler": "ERP İşlenmeyenler",
-      "istisnalilar": "Vergi İstisnası Olanlar"
-    }
+      "istisnalilar": "Vergi İstisnası Olanlar",
+      "havuzdaOlmayanlar": "Havuzda Olmayanlar"
+    },
+    "istisnaFarkli": "Entegratördeki ve ERP'deki istisna kodu farklı"
   }
 }

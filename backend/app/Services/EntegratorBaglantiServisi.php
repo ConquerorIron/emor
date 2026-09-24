@@ -162,6 +162,13 @@ final class EntegratorBaglantiServisi
             'gonderici_birim' => $veri['gonderici_birim'] ?? null,
         ]);
 
+        // Senkron ayarları gönderilmediyse değişmez (tek seferlik içe aktarma göndermez)
+        foreach (['senkron_araligi_dakika', 'sayfa_boyutu'] as $ayar) {
+            if (array_key_exists($ayar, $veri)) {
+                $baglanti->{$ayar} = (int) $veri[$ayar];
+            }
+        }
+
         if (! $sifreBos) {
             $baglanti->sifre = $sifre;
         }

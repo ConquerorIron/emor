@@ -62,6 +62,9 @@ final class EFatura extends Model
             'okundu' => 'boolean',
             'siparis_tarihi' => 'immutable_date',
             'harici_aktarim' => 'boolean',
+            'izibiz_ubl_okundu' => 'immutable_datetime',
+            'izibiz_ubl_son_deneme' => 'immutable_datetime',
+            'izibiz_ubl_hata' => 'integer',
             'ilk_gorulme' => 'immutable_datetime',
             'son_gorulme' => 'immutable_datetime',
         ];

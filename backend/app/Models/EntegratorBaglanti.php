@@ -30,6 +30,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $gonderici_birim
  * @property bool $aktif
  * @property int $kimlik_surumu
+ * @property int $senkron_araligi_dakika Otomatik senkron aralığı (en az ENAZ_SENKRON_ARALIGI)
+ * @property int $sayfa_boyutu Tek istekteki fatura sayısı (en çok ENCOK_SAYFA_BOYUTU)
  */
 final class EntegratorBaglanti extends Model
 {
@@ -44,12 +46,25 @@ final class EntegratorBaglanti extends Model
 
     public const ORTAMLAR = [self::ORTAM_TEST, self::ORTAM_CANLI];
 
+    /** İzibiz kuralı: zamanlayıcı ile çekimde aralık en az 15 dakika */
+    public const ENAZ_SENKRON_ARALIGI = 15;
+
+    /** Bir günden seyrek otomatik senkron anlamsız */
+    public const ENCOK_SENKRON_ARALIGI = 1440;
+
+    /** İzibiz kuralı: tek çağrıda en çok 100 fatura */
+    public const ENCOK_SAYFA_BOYUTU = 100;
+
+    public const ENAZ_SAYFA_BOYUTU = 10;
+
     protected $table = 'entegrator_baglantilari';
 
     /** @var array<string, mixed> */
     protected $attributes = [
         'aktif' => false,
         'kimlik_surumu' => 1,
+        'senkron_araligi_dakika' => self::ENAZ_SENKRON_ARALIGI,
+        'sayfa_boyutu' => self::ENCOK_SAYFA_BOYUTU,
     ];
 
     protected $fillable = [
@@ -62,6 +77,8 @@ final class EntegratorBaglanti extends Model
         'posta_kutusu',
         'gonderici_birim',
         'aktif',
+        'senkron_araligi_dakika',
+        'sayfa_boyutu',
     ];
 
     /** @var list<string> */
@@ -121,6 +138,8 @@ final class EntegratorBaglanti extends Model
             'sifre' => 'encrypted',
             'aktif' => 'boolean',
             'kimlik_surumu' => 'integer',
+            'senkron_araligi_dakika' => 'integer',
+            'sayfa_boyutu' => 'integer',
         ];
     }
 }

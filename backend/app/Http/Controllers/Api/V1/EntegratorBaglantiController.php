@@ -50,6 +50,11 @@ final class EntegratorBaglantiController extends Controller
                 'aktif_ortam' => $aktifOrtam,
                 'sql_aktif_ortam' => $sqlAktifOrtam,
                 'ortam_uyumsuz' => $aktifOrtam !== null && $sqlAktifOrtam !== null && $aktifOrtam !== $sqlAktifOrtam,
+                // İzibiz kurallarından gelen sınırlar (formun doğrulaması)
+                'sinirlar' => [
+                    'senkron_araligi_dakika' => ['en_az' => EntegratorBaglanti::ENAZ_SENKRON_ARALIGI, 'en_cok' => EntegratorBaglanti::ENCOK_SENKRON_ARALIGI],
+                    'sayfa_boyutu' => ['en_az' => EntegratorBaglanti::ENAZ_SAYFA_BOYUTU, 'en_cok' => EntegratorBaglanti::ENCOK_SAYFA_BOYUTU],
+                ],
                 // Adres alanı boş bırakılırsa kullanılacak adresler (formun ipucu)
                 'varsayilan_api_url' => [
                     EntegratorBaglanti::ORTAM_TEST => (string) config('entegrator.izibiz.ortamlar.test.api_url'),
@@ -61,7 +66,7 @@ final class EntegratorBaglantiController extends Controller
 
     public function guncelle(EntegratorBaglantiGuncelleRequest $request, string $ortam): JsonResponse
     {
-        /** @var array{kullanici_adi: string, sifre?: string|null, vkn: string, posta_kutusu?: string|null, gonderici_birim?: string|null, api_url?: string|null} $veri */
+        /** @var array{kullanici_adi: string, sifre?: string|null, vkn: string, posta_kutusu?: string|null, gonderici_birim?: string|null, api_url?: string|null, senkron_araligi_dakika?: int, sayfa_boyutu?: int} $veri */
         $veri = $request->validated();
 
         $tanim = $this->servis->guncelle($ortam, $veri);

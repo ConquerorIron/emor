@@ -35,6 +35,7 @@ import { bugunIso, gunFarki, tarihGoster, zamanGoster } from '@/utils/tarih'
 import { FaturaDetayi } from './FaturaDetayi'
 import { ILK_TARAMA_TARIHI, LISTE_AZAMI_GUN, tutarGoster } from './bicim'
 import { durumIsaretSinifi, durumSatirSinifi } from './durumRenkleri'
+import { istisnaKoduFarkli } from './istisna'
 import { PdfGoruntuleyici } from './PdfGoruntuleyici'
 import { SenkronDurumuPaneli } from './SenkronDurumuPaneli'
 
@@ -170,6 +171,26 @@ function EmorRozeti({ deger }: { deger: EmorDurumu | null }) {
     >
       {t(`efatura.emor.${deger}`)}
     </span>
+  )
+}
+
+/** İstisna kodu hücresi; iki kaynak farklıysa kırmızı ve açıklamalı. */
+function IstisnaKodu({ deger, farkli }: { deger: string | null; farkli: boolean }) {
+  const { t } = useTranslation()
+
+  if (deger === null) {
+    return <span className="text-slate-400">—</span>
+  }
+
+  return farkli ? (
+    <span
+      className="rounded bg-red-100 px-1.5 py-0.5 font-semibold whitespace-nowrap text-red-800 dark:bg-red-950 dark:text-red-300"
+      title={t('efatura.istisnaFarkli')}
+    >
+      {deger}
+    </span>
+  ) : (
+    <span className="whitespace-nowrap">{deger}</span>
   )
 }
 
@@ -347,13 +368,23 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
       siralamaAnahtari: 'fatura_tipi',
       render: (f) => <Metin deger={f.fatura_tipi} />,
     },
-    // İstisna kodu ERP'nin aldığı e-fatura kaydından gelir (yalnız gelen)
+    // Vergi istisna kodu iki kaynaktan (yalnız gelen): entegratördeki UBL esas,
+    // ERP'deki (TOHOM_E_FATURA) yanında; farklıysa ikisi de kırmızı
     ...(gelen
       ? [
           {
+            anahtar: 'izibiz_istisna_kodu',
+            baslik: t('efatura.kolon.istisnaKoduEntegrator'),
+            render: (f: EFatura) => (
+              <IstisnaKodu deger={f.izibiz_istisna_kodu} farkli={istisnaKoduFarkli(f)} />
+            ),
+          },
+          {
             anahtar: 'vergi_istisna_kodu',
-            baslik: t('efatura.kolon.vergiIstisnaKodu'),
-            render: (f: EFatura) => <Metin deger={f.vergi_istisna_kodu} />,
+            baslik: t('efatura.kolon.istisnaKoduErp'),
+            render: (f: EFatura) => (
+              <IstisnaKodu deger={f.vergi_istisna_kodu} farkli={istisnaKoduFarkli(f)} />
+            ),
           },
         ]
       : []),
@@ -538,6 +569,16 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
         >
           {t('efatura.hizliFiltre.erpIslenmeyenler')}
         </HizliFiltre>
+        {gelen ? (
+          // Entegratörde olup ERP havuzunda (TOHOM_E_FATURA) olmayanlar = eMOR "ERP'de yok";
+          // eMOR alanını paylaştığı için "ERP İşlenmeyenler" ile birlikte basılı olamaz
+          <HizliFiltre
+            aktif={filtre.emor === 'yok'}
+            onClick={() => filtreDegistir('emor', filtre.emor === 'yok' ? '' : 'yok')}
+          >
+            {t('efatura.hizliFiltre.havuzdaOlmayanlar')}
+          </HizliFiltre>
+        ) : null}
         {gelen ? (
           <HizliFiltre
             aktif={filtre.istisnali === 'evet'}

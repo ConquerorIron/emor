@@ -88,7 +88,8 @@ final class EFaturaDurumServisi
         return [
             'veri_zamani' => $veriZamani,
             'guncel' => $veriZamani !== null
-                && $veriZamani->gte($simdi->subMinutes((int) config('efatura.guncellik_dakika'))),
+                // Aralık uzatıldıysa eşik de uzar (en az üç aralık)
+                && $veriZamani->gte($simdi->subMinutes(max((int) config('efatura.guncellik_dakika'), $tanim->senkron_araligi_dakika * 3))),
             'calisiyor' => $calisiyor,
             'son_calisma' => $sonCalisma,
             'ardisik_hata' => $this->ardisikHata($tanim, $yon),

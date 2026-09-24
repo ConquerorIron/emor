@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Models\EFaturaSenkronCalismasi;
+use App\Models\EntegratorBaglanti;
 use App\Services\Entegrator\EFaturaSenkronServisi;
 use App\Services\Entegrator\FaturaYonu;
 use App\Services\Entegrator\IzibizFaturaKaynagi;
@@ -31,7 +32,8 @@ use InvalidArgumentException;
     {--bitis= : Bitiş tarihi (YYYY-MM-DD; varsayılan bugün)}
     {--yon=hepsi : gelen | giden | hepsi}
     {--tarih-turu=DOCUMENT : DOCUMENT (belge tarihi) | DELIVERY (İzibiz\'e ulaşma)}
-    {--tetikleyen=zamanlanmis : zamanlanmis | manuel | ilk_tarama}')]
+    {--tetikleyen=zamanlanmis : zamanlanmis | manuel | ilk_tarama}
+    {--aralik-denetimi : Zamanlayıcı için: tanımdaki senkron aralığı dolmadıysa çalışmaz}')]
 #[Description('Aktif entegratör hesabının e-Faturalarını senkronlar')]
 final class EFaturaSenkron extends Command
 {
@@ -48,6 +50,11 @@ final class EFaturaSenkron extends Command
         if ($tanim === null) {
             $this->warn('Aktif entegratör ortamı yok; senkron atlandı.');
 
+            return self::SUCCESS;
+        }
+
+        // Zamanlayıcı dakikada bir çağırır; asıl aralık ekrandan tanımlı (en az 15 dk)
+        if ($this->option('aralik-denetimi') && ! $this->araligiDoldu($tanim)) {
             return self::SUCCESS;
         }
 
@@ -123,6 +130,27 @@ final class EFaturaSenkron extends Command
         }
 
         return [$this->tarih((string) $baslangic), $bitis];
+    }
+
+    /**
+     * Son zamanlanmış artımlı (DELIVERY) çalışmanın üzerinden tanımdaki aralık
+     * geçti mi. Dakikalık zamanlayıcının kaymasını önlemek için 1 dk pay.
+     */
+    private function araligiDoldu(EntegratorBaglanti $tanim): bool
+    {
+        $son = EFaturaSenkronCalismasi::query()
+            ->where('entegrator_baglanti_id', $tanim->id)
+            ->where('tetikleyen', EFaturaSenkronCalismasi::TETIKLEYEN_ZAMANLANMIS)
+            ->where('tarih_turu', IzibizFaturaKaynagi::TARIH_ULASMA)
+            ->max('basladi');
+
+        if ($son === null) {
+            return true;
+        }
+
+        $aralik = max($tanim->senkron_araligi_dakika, EntegratorBaglanti::ENAZ_SENKRON_ARALIGI);
+
+        return CarbonImmutable::parse($son)->addMinutes($aralik)->subMinute()->lte(CarbonImmutable::now());
     }
 
     private function tarih(string $deger): CarbonImmutable

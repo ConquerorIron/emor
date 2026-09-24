@@ -35,4 +35,10 @@ return [
     // bayrağına güvenir (eşiği geçmiş faturaları gece 03:15 DOCUMENT senkronu
     // tazeler; 24 saat + pay)
     'erp_okundu_tazelik_saat' => 26,
+
+    // Vergi istisna kodu İzibiz UBL'inden (efatura:istisna-kodlari, 15 dk'da bir):
+    // istek başına fatura (İzibiz sınırı 100) ve çalışma başına azami istek.
+    // Birikmiş faturalar bu hızla (saatte ~800 fatura) yavaşça okunur.
+    'istisna_parti_boyutu' => 50,
+    'istisna_azami_istek' => 4,
 ];

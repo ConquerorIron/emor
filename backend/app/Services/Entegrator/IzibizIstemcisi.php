@@ -181,6 +181,74 @@ final class IzibizIstemcisi
     }
 
     /**
+     * Faturaların UBL'lerini TOPLU indirir (`POST .../{inbox|outbox}/download/ubl`,
+     * gövde `[{id}]`); yanıttaki base64 zip'i ham bayt olarak döner. Yalnız
+     * okuma: test hesabında ölçüldü, okundu bayrakları DEĞİŞMİYOR (2026-09-24).
+     * Tek istekte en çok 100 fatura (İzibiz kuralı). Partide sorunlu bir fatura
+     * varsa İzibiz tüm isteği 10008 ile reddeder — çağıran bölerek dener.
+     *
+     * @param  list<int>  $kaynakIdleri  İzibiz fatura kimlikleri (ETTN değil)
+     */
+    public function ublIndir(EntegratorBaglanti $tanim, FaturaYonu $yon, array $kaynakIdleri): string
+    {
+        if ($kaynakIdleri === [] || count($kaynakIdleri) > EntegratorBaglanti::ENCOK_SAYFA_BOYUTU) {
+            throw new InvalidArgumentException('Toplu indirmede 1–100 fatura olmalı.');
+        }
+
+        $yol = '/v1/einvoices/'.$yon->izibizKutusu().'/download/ubl';
+        $govde = array_map(fn (int $id): array => ['id' => $id], $kaynakIdleri);
+
+        $gonder = function (string $token) use ($tanim, $yol, $govde): Response {
+            try {
+                return $this->istemci($tanim)->withToken($token)->acceptJson()->post($yol, $govde);
+            } catch (ConnectionException) {
+                throw EntegratorHatasi::erisilemedi();
+            }
+        };
+
+        $this->yolIzinliMi($yol);
+        $yanit = $gonder($this->token($tanim));
+
+        if (in_array($yanit->status(), [401, 403], true)) {
+            $this->tokenUnut($tanim);
+            $yanit = $gonder($this->token($tanim));
+        }
+
+        $json = $yanit->json();
+        $hata = is_array($json) ? ($json['error'] ?? null) : null;
+        $this->basarisizsaFirlat($yanit, $hata);
+
+        if ($hata !== null) {
+            throw EntegratorHatasi::saglayiciHatasi($this->hataKodu($hata) ?? 'BILINMIYOR', $yanit->status());
+        }
+
+        $zip = base64_decode((string) ($json['data']['content'] ?? ''), true);
+
+        if ($zip === false || ! str_starts_with($zip, 'PK')) {
+            throw EntegratorHatasi::yanitGecersiz();
+        }
+
+        return $zip;
+    }
+
+    /**
+     * Güvenlik kilidi: yalnız İzibiz'in göreli API yolları ve ASLA okundu
+     * işaretleme, yanıtlama (kabul/red), gönderme ya da iptal uçları.
+     * Okundu işareti mevcut ERP entegrasyonunun işidir (kullanıcı kuralı);
+     * bu uygulama yalnız okur ve listeler.
+     */
+    private function yolIzinliMi(string $yol): void
+    {
+        if (preg_match('#^/v1/(?!/)[A-Za-z0-9._~/-]+$#D', $yol) !== 1) {
+            throw new InvalidArgumentException('İzibiz API yolu geçersiz.');
+        }
+
+        if (preg_match('#read-flag|/response|/send|/cancel|/load|/import|/draft#i', $yol) === 1) {
+            throw new InvalidArgumentException('Bu İzibiz ucu bu uygulamada kullanılamaz (yalnız okuma).');
+        }
+    }
+
+    /**
      * Token'lı GET; 401/403 gelirse token bir kez yenilenip tekrarlanır.
      * Bearer token yalnız İzibiz'in göreli API yollarına gönderilebilir.
      *
@@ -188,9 +256,7 @@ final class IzibizIstemcisi
      */
     private function yenilemeliGet(EntegratorBaglanti $tanim, string $yol, array $sorgu, string $kabul): Response
     {
-        if (preg_match('#^/v1/(?!/)[A-Za-z0-9._~/-]+$#D', $yol) !== 1) {
-            throw new InvalidArgumentException('İzibiz API yolu geçersiz.');
-        }
+        $this->yolIzinliMi($yol);
 
         $yanit = $this->tokenliGet($tanim, $yol, $sorgu, $this->token($tanim), $kabul);
 

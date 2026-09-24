@@ -36,6 +36,8 @@ const TEST_TANIMI = {
   vkn: '1234567890',
   posta_kutusu: 'urn:mail:deneme-pk@ornek.test',
   gonderici_birim: null,
+  senkron_araligi_dakika: 15,
+  sayfa_boyutu: 100,
   aktif: true,
   sifre_dolu: true,
   updated_at: '2026-09-23T10:00:00Z',
@@ -154,6 +156,8 @@ describe('EntegratorBaglantilariPage', () => {
       vkn: '1234567890',
       posta_kutusu: 'urn:mail:deneme-pk@ornek.test',
       gonderici_birim: null,
+      senkron_araligi_dakika: 15,
+      sayfa_boyutu: 100,
     })
   })
 
@@ -168,6 +172,33 @@ describe('EntegratorBaglantilariPage', () => {
 
     await waitFor(() => expect(api.guncelle).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(document.getElementById('entegrator-test-sifre')).toHaveValue(''))
+  })
+
+  it('senkron aralığı 15 dakikadan, fatura sayısı 100 den fazla olamaz; geçerliler gönderilir', async () => {
+    api.guncelle.mockResolvedValue(TEST_TANIMI)
+    ciz()
+    await screen.findByDisplayValue('deneme-kullanici')
+    const aralik = document.getElementById('entegrator-test-aralik') as HTMLInputElement
+    const sayfa = document.getElementById('entegrator-test-sayfa') as HTMLInputElement
+
+    fireEvent.change(aralik, { target: { value: '10' } })
+    fireEvent.change(sayfa, { target: { value: '150' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Kaydet' })[0])
+
+    expect(await screen.findByText(/Aralık 15 ile 1440 dakika arasında olmalı/)).toBeInTheDocument()
+    expect(screen.getByText(/Fatura sayısı 10 ile 100 arasında olmalı/)).toBeInTheDocument()
+    expect(api.guncelle).not.toHaveBeenCalled()
+
+    fireEvent.change(aralik, { target: { value: '30' } })
+    fireEvent.change(sayfa, { target: { value: '50' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Kaydet' })[0])
+
+    await waitFor(() =>
+      expect(api.guncelle).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({ senkron_araligi_dakika: 30, sayfa_boyutu: 50 }),
+      ),
+    )
   })
 
   it('geçersiz VKN ile istek atmadan alan hatası gösterir', async () => {

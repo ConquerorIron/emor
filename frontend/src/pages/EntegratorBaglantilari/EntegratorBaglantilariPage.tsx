@@ -31,6 +31,11 @@ const URN_ONEKI = 'urn:mail:'
 // Yalnız https://alan-adı[:port] — izinli alan adı listesi backend'de denetlenir
 const API_ADRESI = /^https:\/\/[A-Za-z0-9.-]+(:\d+)?\/?$/
 
+// İzibiz kuralları (backend EntegratorBaglanti ile aynı): zamanlayıcı en az 15 dk,
+// tek çağrıda en çok 100 fatura
+const ARALIK = { enAz: 15, enCok: 1440 }
+const SAYFA = { enAz: 10, enCok: 100 }
+
 function baglantiSchemaOlustur(sifreZorunlu: boolean) {
   const urn = z
     .string()
@@ -59,6 +64,16 @@ function baglantiSchemaOlustur(sifreZorunlu: boolean) {
     vkn: z.string().regex(/^\d{10,11}$/, 'ayarlar.entegrator.dogrulama.vknGecersiz'),
     posta_kutusu: urn,
     gonderici_birim: urn,
+    senkron_araligi_dakika: z
+      .number('ayarlar.entegrator.dogrulama.aralikGecersiz')
+      .int('ayarlar.entegrator.dogrulama.aralikGecersiz')
+      .min(ARALIK.enAz, 'ayarlar.entegrator.dogrulama.aralikGecersiz')
+      .max(ARALIK.enCok, 'ayarlar.entegrator.dogrulama.aralikGecersiz'),
+    sayfa_boyutu: z
+      .number('ayarlar.entegrator.dogrulama.sayfaGecersiz')
+      .int('ayarlar.entegrator.dogrulama.sayfaGecersiz')
+      .min(SAYFA.enAz, 'ayarlar.entegrator.dogrulama.sayfaGecersiz')
+      .max(SAYFA.enCok, 'ayarlar.entegrator.dogrulama.sayfaGecersiz'),
   })
 }
 
@@ -76,6 +91,8 @@ function girdidenGovde(girdi: BaglantiGirdisi): EntegratorBaglantiGovdesi {
     vkn: girdi.vkn,
     posta_kutusu: girdi.posta_kutusu === '' ? null : girdi.posta_kutusu,
     gonderici_birim: girdi.gonderici_birim === '' ? null : girdi.gonderici_birim,
+    senkron_araligi_dakika: girdi.senkron_araligi_dakika,
+    sayfa_boyutu: girdi.sayfa_boyutu,
     // Boş bırakılırsa gönderilmez — kullanıcı adı aynıysa backend kayıtlı şifreyi korur
     ...(girdi.sifre !== '' ? { sifre: girdi.sifre } : {}),
   }
@@ -94,6 +111,8 @@ function formAnahtari(tanim: EntegratorBaglanti | null): string {
     tanim.vkn,
     tanim.posta_kutusu,
     tanim.gonderici_birim,
+    tanim.senkron_araligi_dakika,
+    tanim.sayfa_boyutu,
     tanim.sifre_dolu,
   ])
 }
@@ -134,6 +153,8 @@ function BaglantiFormu({
       vkn: tanim?.vkn ?? '',
       posta_kutusu: tanim?.posta_kutusu ?? '',
       gonderici_birim: tanim?.gonderici_birim ?? '',
+      senkron_araligi_dakika: tanim?.senkron_araligi_dakika ?? ARALIK.enAz,
+      sayfa_boyutu: tanim?.sayfa_boyutu ?? SAYFA.enCok,
     },
   })
 
@@ -149,6 +170,8 @@ function BaglantiFormu({
         vkn: kaydedilen.vkn,
         posta_kutusu: kaydedilen.posta_kutusu ?? '',
         gonderici_birim: kaydedilen.gonderici_birim ?? '',
+        senkron_araligi_dakika: kaydedilen.senkron_araligi_dakika,
+        sayfa_boyutu: kaydedilen.sayfa_boyutu,
       })
       sinamayiTemizle()
       await queryClient.invalidateQueries({ queryKey: queryKeys.ayarlar.entegratorBaglantilari })
@@ -276,6 +299,37 @@ function BaglantiFormu({
           {...register('gonderici_birim')}
         />
       </div>
+
+      <fieldset className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
+        <legend className="pr-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+          {t('ayarlar.entegrator.senkronAyarlari')}
+        </legend>
+        <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+          <Input
+            id={`entegrator-${ortam}-aralik`}
+            type="number"
+            label={t('ayarlar.entegrator.senkronAraligi')}
+            min={ARALIK.enAz}
+            max={ARALIK.enCok}
+            step={1}
+            hata={alanHatasi(errors.senkron_araligi_dakika?.message)}
+            {...register('senkron_araligi_dakika', { valueAsNumber: true })}
+          />
+          <Input
+            id={`entegrator-${ortam}-sayfa`}
+            type="number"
+            label={t('ayarlar.entegrator.sayfaBoyutu')}
+            min={SAYFA.enAz}
+            max={SAYFA.enCok}
+            step={1}
+            hata={alanHatasi(errors.sayfa_boyutu?.message)}
+            {...register('sayfa_boyutu', { valueAsNumber: true })}
+          />
+        </div>
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          {t('ayarlar.entegrator.senkronAyarlariNotu')}
+        </p>
+      </fieldset>
 
       {tanim?.sifre_dolu ? (
         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">

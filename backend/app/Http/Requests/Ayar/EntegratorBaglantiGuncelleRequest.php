@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Ayar;
 
+use App\Models\EntegratorBaglanti;
 use App\Rules\EntegratorApiAdresi;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -51,6 +52,9 @@ final class EntegratorBaglantiGuncelleRequest extends FormRequest
             'vkn' => ['required', 'string', 'regex:/^\d{10,11}$/'],
             'posta_kutusu' => ['nullable', 'string', 'max:255', 'starts_with:urn:mail:'],
             'gonderici_birim' => ['nullable', 'string', 'max:255', 'starts_with:urn:mail:'],
+            // İzibiz kuralları: zamanlayıcı en az 15 dk, tek çağrıda en çok 100 fatura
+            'senkron_araligi_dakika' => ['sometimes', 'integer', 'min:'.EntegratorBaglanti::ENAZ_SENKRON_ARALIGI, 'max:'.EntegratorBaglanti::ENCOK_SENKRON_ARALIGI],
+            'sayfa_boyutu' => ['sometimes', 'integer', 'min:'.EntegratorBaglanti::ENAZ_SAYFA_BOYUTU, 'max:'.EntegratorBaglanti::ENCOK_SAYFA_BOYUTU],
         ];
     }
 

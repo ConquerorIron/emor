@@ -35,6 +35,8 @@ export interface EFatura {
   emor_durumu: EmorDurumu | null
   /** Vergi (KDV) istisna kodu — ERP'nin TOHOM_E_FATURA kaydından; yalnız gelen */
   vergi_istisna_kodu: string | null
+  /** Vergi istisna kodu — entegratördeki UBL'den (esas); birden çok kod virgülle */
+  izibiz_istisna_kodu: string | null
   okundu: boolean | null
   yanit_aciklamasi: string | null
   son_gorulme: string | null

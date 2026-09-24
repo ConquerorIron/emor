@@ -5,6 +5,7 @@ import type { EFatura } from '@/features/efatura/efaturaApi'
 import { tarihGoster, zamanGoster } from '@/utils/tarih'
 
 import { tutarGoster } from './bicim'
+import { istisnaKoduFarkli } from './istisna'
 
 function Satir({ etiket, children }: { etiket: string; children: ReactNode }) {
   return (
@@ -104,7 +105,8 @@ export function FaturaDetayi({ fatura }: { fatura: EFatura }) {
         [
           ['efatura.kolon.gondericiBilgisi', fatura.gonderici_etiketi],
           ['efatura.kolon.aliciBilgisi', fatura.alici_etiketi],
-          ['efatura.kolon.vergiIstisnaKodu', fatura.vergi_istisna_kodu],
+          ['efatura.kolon.istisnaKoduEntegrator', fatura.izibiz_istisna_kodu],
+          ['efatura.kolon.istisnaKoduErp', fatura.vergi_istisna_kodu],
           ['efatura.kolon.irsaliyeNo', fatura.irsaliye_no],
           [
             'efatura.kolon.siparisNo',
@@ -125,6 +127,13 @@ export function FaturaDetayi({ fatura }: { fatura: EFatura }) {
           </Satir>
         ) : null,
       )}
+      {istisnaKoduFarkli(fatura) ? (
+        <Satir etiket={t('efatura.kolon.vergiIstisnaKodu')}>
+          <span className="font-semibold text-red-700 dark:text-red-300">
+            {t('efatura.istisnaFarkli')}
+          </span>
+        </Satir>
+      ) : null}
       <Satir etiket={t('efatura.kolon.emor')}>
         {fatura.emor_durumu === null
           ? t('efatura.emor.bilinmiyor')

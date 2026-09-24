@@ -17,6 +17,10 @@ export interface EntegratorBaglanti {
   vkn: string
   posta_kutusu: string | null
   gonderici_birim: string | null
+  /** Otomatik senkron aralığı (dk) — İzibiz kuralı: en az 15 */
+  senkron_araligi_dakika: number
+  /** Tek istekteki fatura sayısı — İzibiz kuralı: en çok 100 */
+  sayfa_boyutu: number
   aktif: boolean
   sifre_dolu: boolean
   updated_at: string | null
@@ -42,6 +46,8 @@ export interface EntegratorBaglantiGovdesi {
   vkn: string
   posta_kutusu: string | null
   gonderici_birim: string | null
+  senkron_araligi_dakika: number
+  sayfa_boyutu: number
 }
 
 export interface EntegratorSinamaSonucu {

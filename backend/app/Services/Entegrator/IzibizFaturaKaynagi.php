@@ -37,7 +37,8 @@ final class IzibizFaturaKaynagi
 
         $basladi = CarbonImmutable::now();
         $azamiSayfa = (int) config('entegrator.izibiz.azami_sayfa');
-        $sayfaBoyutu = (int) config('entegrator.izibiz.sayfa_boyutu');
+        // Ekrandan tanımlı (Entegratör Bağlantıları); İzibiz sınırı en çok 100
+        $sayfaBoyutu = min($tanim->sayfa_boyutu, EntegratorBaglanti::ENCOK_SAYFA_BOYUTU);
 
         $sayfa = 0;
         $toplamSayfa = 0;

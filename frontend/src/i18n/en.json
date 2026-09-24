@@ -340,9 +340,15 @@
         "sifreZorunlu": "Password is required on first save.",
         "vknGecersiz": "Tax ID must be 10 digits (national ID 11) and contain only digits.",
         "urnGecersiz": "Alias must start with \"urn:mail:\".",
-        "apiAdresiGecersiz": "Address must be https://host (no path or query)."
+        "apiAdresiGecersiz": "Address must be https://host (no path or query).",
+        "aralikGecersiz": "Interval must be between 15 and 1440 minutes (İzibiz: at least 15).",
+        "sayfaGecersiz": "Must be between 10 and 100 (İzibiz: at most 100)."
       },
-      "apiAdresiNotu": "If left empty, the environment default is used: {{varsayilan}}. Re-enter the password if you change the address."
+      "apiAdresiNotu": "If left empty, the environment default is used: {{varsayilan}}. Re-enter the password if you change the address.",
+      "senkronAyarlari": "Sync settings",
+      "senkronAraligi": "Automatic sync interval (minutes)",
+      "sayfaBoyutu": "Invoices per request",
+      "senkronAyarlariNotu": "İzibiz rules: automatic fetching at most every 15 minutes, at most 100 invoices per request. The active environment’s setting is used."
     },
     "roller": {
       "baslik": "Roles",
@@ -603,7 +609,9 @@
       "aliciBilgisi": "Receiver Alias (PK)",
       "portalNotu": "Portal Note",
       "emor": "eMOR",
-      "vergiIstisnaKodu": "Tax Exemption Code"
+      "vergiIstisnaKodu": "Tax Exemption Code",
+      "istisnaKoduEntegrator": "Exemption Code (Integrator)",
+      "istisnaKoduErp": "Exemption Code (ERP)"
     },
     "erpSenkron": {
       "ac": "Sync with ERP",
@@ -630,7 +638,9 @@
     "hizliFiltre": {
       "baslik": "Quick filters",
       "erpIslenmeyenler": "Not processed in ERP",
-      "istisnalilar": "With tax exemption"
-    }
+      "istisnalilar": "With tax exemption",
+      "havuzdaOlmayanlar": "Not in ERP pool"
+    },
+    "istisnaFarkli": "Exemption code differs between the integrator and the ERP"
   }
 }

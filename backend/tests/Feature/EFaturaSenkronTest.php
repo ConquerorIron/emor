@@ -345,6 +345,35 @@ final class EFaturaSenkronTest extends TestCase
         $this->assertSame('zamanlanmis', $calismalar[0]->tetikleyen);
     }
 
+    public function test_zamanlayici_tanimdaki_aralik_dolmadan_izibize_gitmez(): void
+    {
+        $this->travelTo('2026-09-24 10:00:00');
+        $tanim = EntegratorBaglanti::factory()->aktif()->create(['senkron_araligi_dakika' => 30]);
+        EFaturaSenkronCalismasi::query()->create([
+            'entegrator_baglanti_id' => $tanim->id,
+            'yon' => 'gelen',
+            'tarih_turu' => 'DELIVERY',
+            'baslangic' => '2026-09-23',
+            'bitis' => '2026-09-24',
+            'tetikleyen' => 'zamanlanmis',
+            'durum' => 'tam',
+            'basladi' => '2026-09-24 09:40:00',
+            'bitti' => '2026-09-24 09:40:05',
+        ]);
+
+        // 20 dk geçti, aralık 30 dk: istek yok
+        Http::preventStrayRequests();
+        Http::fake();
+        $this->artisan('efatura:senkron', ['--gun' => 2, '--tarih-turu' => 'DELIVERY', '--aralik-denetimi' => true])->assertSuccessful();
+        Http::assertNothingSent();
+
+        // 29 dk geçti (1 dk pay): çalışır
+        $this->travelTo('2026-09-24 10:09:00');
+        $this->sahteIzibiz([]);
+        $this->artisan('efatura:senkron', ['--gun' => 2, '--tarih-turu' => 'DELIVERY', '--aralik-denetimi' => true]);
+        $this->assertSame(3, EFaturaSenkronCalismasi::query()->count());
+    }
+
     public function test_komut_gecersiz_secenekleri_istek_atmadan_reddeder(): void
     {
         Http::preventStrayRequests();

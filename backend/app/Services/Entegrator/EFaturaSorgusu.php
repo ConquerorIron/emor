@@ -88,13 +88,19 @@ final class EFaturaSorgusu
             $sorgu->where('fatura_tipi', $filtre['tip']);
         }
 
+        // İstisna kodu entegratörde (virgüllü olabilir) ya da ERP'de
         if (($filtre['istisna_kodu'] ?? null) !== null) {
-            $sorgu->where('vergi_istisna_kodu', $filtre['istisna_kodu']);
+            $kod = $filtre['istisna_kodu'];
+            $sorgu->where(fn (Builder $q) => $q->where('vergi_istisna_kodu', $kod)
+                ->orWhere('izibiz_istisna_kodu', $kod)
+                ->orWhereLike('izibiz_istisna_kodu', $kod.',%')
+                ->orWhereLike('izibiz_istisna_kodu', '%,'.$kod)
+                ->orWhereLike('izibiz_istisna_kodu', '%,'.$kod.',%'));
         }
 
-        // Hızlı filtre: vergi istisna kodu olanlar
+        // Hızlı filtre: iki kaynaktan birinde vergi istisna kodu olanlar
         if (($filtre['istisnali'] ?? null) === 'evet') {
-            $sorgu->whereNotNull('vergi_istisna_kodu');
+            $sorgu->where(fn (Builder $q) => $q->whereNotNull('vergi_istisna_kodu')->orWhereNotNull('izibiz_istisna_kodu'));
         }
 
         return $sorgu;
@@ -199,8 +205,12 @@ final class EFaturaSorgusu
 
         /** @var list<string> $tipler */
         $tipler = $taban->clone()->whereNotNull('fatura_tipi')->distinct()->orderBy('fatura_tipi')->pluck('fatura_tipi')->all();
-        /** @var list<string> $istisnaKodlari */
-        $istisnaKodlari = $taban->clone()->whereNotNull('vergi_istisna_kodu')->distinct()->orderBy('vergi_istisna_kodu')->pluck('vergi_istisna_kodu')->all();
+        // İki kaynağın kodları birleşik; entegratördeki virgüllü değerler ayrılır
+        $istisnaKodlari = collect([
+            ...$taban->clone()->whereNotNull('vergi_istisna_kodu')->distinct()->pluck('vergi_istisna_kodu'),
+            ...$taban->clone()->whereNotNull('izibiz_istisna_kodu')->distinct()->pluck('izibiz_istisna_kodu')
+                ->flatMap(fn (string $kodlar): array => explode(',', $kodlar)),
+        ])->map(fn (string $kod): string => trim($kod))->filter()->unique()->sort()->values()->all();
 
         return [
             'durumlar' => $durumlar,

@@ -46,7 +46,9 @@ final class EFaturaResource extends JsonResource
             'gib_durum_aciklamasi' => $this->getAttribute('gib_durum_aciklamasi'),
             'erp_okundu' => $this->erp_okundu,
             'emor_durumu' => $this->emor_durumu?->value,
+            // İstisna kodu iki kaynaktan: entegratör (UBL, esas) ve ERP (TOHOM_E_FATURA)
             'vergi_istisna_kodu' => $this->getAttribute('vergi_istisna_kodu'),
+            'izibiz_istisna_kodu' => $this->getAttribute('izibiz_istisna_kodu'),
             'okundu' => $this->getAttribute('okundu'),
             'yanit_aciklamasi' => $this->getAttribute('yanit_aciklamasi'),
             'gonderici_ad_soyad' => $this->getAttribute('gonderici_ad_soyad'),

@@ -30,6 +30,8 @@ final class EntegratorBaglantiResource extends JsonResource
             'vkn' => $this->vkn,
             'posta_kutusu' => $this->posta_kutusu,
             'gonderici_birim' => $this->gonderici_birim,
+            'senkron_araligi_dakika' => $this->senkron_araligi_dakika,
+            'sayfa_boyutu' => $this->sayfa_boyutu,
             'aktif' => $this->aktif,
             // Şifre asla dönmez; form "kayıtlı" durumunu bununla gösterir
             'sifre_dolu' => $this->sifre !== '',

@@ -12,8 +12,10 @@ Artisan::command('inspire', function () {
 // entegratör ortamı yokken hiçbir şey yapmadan çıkar.
 // Artımlı: son 2 günde İzibiz'e ULAŞAN faturalar (geç düzenlenmiş eski
 // tarihli faturalar da yakalanır)
-Schedule::command('efatura:senkron --gun=2 --tarih-turu=DELIVERY')
-    ->everyFifteenMinutes()
+// Aralık Entegratör Bağlantıları ekranından (en az 15 dk, İzibiz kuralı): komut
+// dakikada bir çağrılır, aralık dolmadıysa hiçbir şey yapmadan çıkar
+Schedule::command('efatura:senkron --gun=2 --tarih-turu=DELIVERY --aralik-denetimi')
+    ->everyMinute()
     ->withoutOverlapping(60);
 
 // e-Fatura alarmları (EFAT-13): senkrondan SONRA (aynı dakikada sırayla çalışır)
@@ -25,6 +27,12 @@ Schedule::command('efatura:alarmlar')
 Schedule::command('efatura:emor')
     ->everyFiveMinutes()
     ->withoutOverlapping(10);
+
+// Vergi istisna kodu İzibiz UBL'inden: toplu indirme, çalışma başına sınırlı
+// istek, fatura başına bir kez (okundu bayraklarını değiştirmez)
+Schedule::command('efatura:istisna-kodlari')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(30);
 
 // Durum tazeleme: son 45 günün belge tarihli faturaları (kabul/red/GİB durumu)
 Schedule::command('efatura:senkron --gun=45')

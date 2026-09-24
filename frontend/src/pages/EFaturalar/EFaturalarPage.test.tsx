@@ -76,6 +76,7 @@ const FATURA: EFatura = {
   mail_durumu: null,
   emor_durumu: 'islendi',
   vergi_istisna_kodu: '318',
+  izibiz_istisna_kodu: '351',
 }
 
 /** Gelen faturalar kullanıcı henüz sıralamadıysa en son alınan üstte açılır */
@@ -285,7 +286,7 @@ describe('EFaturalarPage', () => {
     // İşlemler (Detay/PDF) en solda, başlıksız
     expect(basliklar()[0]).toBe('')
     expect(screen.getAllByRole('row')[1].querySelector('td')).toHaveTextContent('Detay')
-    expect(basliklar().slice(1, 13)).toEqual([
+    expect(basliklar().slice(1, 14)).toEqual([
       'ERP Okudu',
       'eMOR',
       'Fatura No',
@@ -294,13 +295,22 @@ describe('EFaturalarPage', () => {
       'Unvan',
       'Ad Soyad',
       'Tip',
-      'Vergi İstisna Kodu',
+      'İstisna Kodu (Entegratör)',
+      'İstisna Kodu (ERP)',
       'Tutar',
       'Para Birimi',
       'Alınma Zamanı',
     ])
     expect(screen.getByText('IRS2026000000007')).toBeInTheDocument()
-    expect(screen.getByText('318')).toBeInTheDocument()
+    // İki kaynağın istisna kodu farklı: ikisi de kırmızı ve açıklamalı
+    expect(screen.getByText('318')).toHaveAttribute(
+      'title',
+      "Entegratördeki ve ERP'deki istisna kodu farklı",
+    )
+    expect(screen.getByText('351')).toHaveAttribute(
+      'title',
+      "Entegratördeki ve ERP'deki istisna kodu farklı",
+    )
     expect(screen.getByText('urn:mail:defaultpk@tersane.com')).toBeInTheDocument()
     // ERP'ye işlenmiş fatura (TOHOM_FATURA eşleşmesi)
     expect(screen.getByText('İşlendi')).toBeInTheDocument()
@@ -451,6 +461,28 @@ describe('EFaturalarPage', () => {
     expect(islenmeyenler).toHaveAttribute('aria-pressed', 'false')
   })
 
+  it('Havuzda Olmayanlar eMOR "ERP’de yok" ister; ERP İşlenmeyenler ile birlikte basılı kalmaz', async () => {
+    ciz(['efatura.goruntule'])
+    await screen.findByText('Deniz Boya Ltd.')
+    const grup = screen.getByRole('group', { name: 'Hızlı filtreler' })
+    const havuzdaOlmayanlar = within(grup).getByRole('button', { name: 'Havuzda Olmayanlar' })
+    const islenmeyenler = within(grup).getByRole('button', { name: 'ERP İşlenmeyenler' })
+
+    fireEvent.click(islenmeyenler)
+    fireEvent.click(havuzdaOlmayanlar)
+
+    await waitFor(() =>
+      expect(api.faturalar).toHaveBeenLastCalledWith(
+        'gelen',
+        expect.objectContaining({ emor: 'yok' }),
+        VARSAYILAN_SIRALAMA,
+        1,
+      ),
+    )
+    expect(havuzdaOlmayanlar).toHaveAttribute('aria-pressed', 'true')
+    expect(islenmeyenler).toHaveAttribute('aria-pressed', 'false')
+  })
+
   it('tip ve vergi istisna kodu seçenekleri listedeki değerlerden gelir', async () => {
     ciz(['efatura.goruntule'])
     await screen.findByText('Deniz Boya Ltd.')
@@ -460,7 +492,7 @@ describe('EFaturalarPage', () => {
     fireEvent.keyDown(within(alan('efatura-tip')).getByRole('combobox'), { key: 'ArrowDown' })
     fireEvent.click(await screen.findByText('ISTISNA'))
     fireEvent.keyDown(within(alan('efatura-istisna')).getByRole('combobox'), { key: 'ArrowDown' })
-    fireEvent.click(await screen.findByText('351'))
+    fireEvent.click(await screen.findByRole('option', { name: '351' }))
 
     await waitFor(() =>
       expect(api.faturalar).toHaveBeenLastCalledWith(

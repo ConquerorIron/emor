@@ -105,11 +105,58 @@ final class EntegratorBaglantiTest extends TestCase
                 'aktif_ortam' => null,
                 'sql_aktif_ortam' => null,
                 'ortam_uyumsuz' => false,
+                'sinirlar' => [
+                    'senkron_araligi_dakika' => ['en_az' => 15, 'en_cok' => 1440],
+                    'sayfa_boyutu' => ['en_az' => 10, 'en_cok' => 100],
+                ],
                 'varsayilan_api_url' => [
                     'test' => 'https://apitest.izibiz.com.tr',
                     'canli' => 'https://api.izibiz.com.tr',
                 ],
             ]]);
+    }
+
+    /**
+     * @return array<string, array{0: array<string, int>, 1: string}>
+     */
+    public static function izibizSinirlari(): array
+    {
+        return [
+            '15 dakikadan sık senkron' => [['senkron_araligi_dakika' => 14], 'senkron_araligi_dakika'],
+            'tek istekte 100 faturadan fazla' => [['sayfa_boyutu' => 101], 'sayfa_boyutu'],
+            'çok küçük sayfa' => [['sayfa_boyutu' => 5], 'sayfa_boyutu'],
+        ];
+    }
+
+    /**
+     * @param  array<string, int>  $ayar
+     */
+    #[DataProvider('izibizSinirlari')]
+    public function test_senkron_ayarlari_izibiz_sinirlarinin_disina_cikamaz(array $ayar, string $alan): void
+    {
+        $this->yonetici();
+
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/test', $this->govde($ayar))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrorFor($alan, 'hatalar');
+    }
+
+    public function test_senkron_ayarlari_kaydedilir_gonderilmezse_degismez(): void
+    {
+        $this->yonetici();
+
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/test', $this->govde(['senkron_araligi_dakika' => 30, 'sayfa_boyutu' => 50]))
+            ->assertOk()
+            ->assertJsonPath('data.senkron_araligi_dakika', 30)
+            ->assertJsonPath('data.sayfa_boyutu', 50);
+
+        // Tek seferlik içe aktarma gibi ayarsız güncelleme mevcut ayarı korur
+        $govde = $this->govde();
+        unset($govde['sifre']);
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/test', $govde)
+            ->assertOk()
+            ->assertJsonPath('data.senkron_araligi_dakika', 30)
+            ->assertJsonPath('data.sayfa_boyutu', 50);
     }
 
     public function test_ilk_kayitta_sifre_yoksa_422_doner_ve_kayit_olusmaz(): void
