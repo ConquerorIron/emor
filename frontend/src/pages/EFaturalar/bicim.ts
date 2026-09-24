@@ -26,4 +26,4 @@ export const ILK_TARAMA_TARIHI = '2026-01-01'
 
 /** Liste aralığı ve elle senkron sınırları — backend config/efatura.php ile aynı */
 export const LISTE_AZAMI_GUN = 366
-export const MANUEL_AZAMI_GUN = 92
+export const MANUEL_AZAMI_GUN = 366

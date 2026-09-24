@@ -8,9 +8,10 @@ return [
     // Liste/Excel'de seçilebilecek en geniş tarih aralığı (gün)
     'liste_azami_gun' => 366,
 
-    // Elle senkronda seçilebilecek en geniş aralık (gün). Kuyruk işinin süresi
-    // sınırlı kalsın: ay başına yön başına ~6 sn ölçüldü (EFAT-10 ilk tarama).
-    'manuel_azami_gun' => 92,
+    // Elle senkronda seçilebilecek en geniş aralık (gün) — bizim sınırımız,
+    // İzibiz'in değil. Kuyruk işi 300 sn ile sınırlı; ölçüm (2026-09-24, canlı
+    // hesap): 01.01–24.09 iki yön 18 okuma 23 sn. Bir yıl rahatça sığar.
+    'manuel_azami_gun' => 366,
 
     // Elle senkron, zamanlanmış senkron kilidi tutuyorsa en çok bu kadar bekler
     // (sn); yine alamazsa atlanır ve log yazılır

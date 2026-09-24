@@ -55,6 +55,20 @@ const FATURA: EFatura = {
   okundu: true,
   yanit_aciklamasi: null,
   son_gorulme: '2026-09-23T10:00:00+00:00',
+  gonderici_ad_soyad: null,
+  alici_ad_soyad: null,
+  gonderici_etiketi: 'urn:mail:defaultgb@deniz.com',
+  alici_etiketi: 'urn:mail:defaultpk@tersane.com',
+  irsaliye_no: 'IRS2026000000007',
+  siparis_no: 'SIP-42',
+  siparis_tarihi: '2026-01-05',
+  gtb_ref_no: null,
+  gcb_tescil_no: null,
+  gcb_tarihi: null,
+  portal_notu: null,
+  teslim_ref: null,
+  harici_aktarim: null,
+  mail_durumu: null,
 }
 
 const LISTE: EFaturaListesi = {
@@ -231,6 +245,42 @@ describe('EFaturalarPage', () => {
     expect(localStorage.getItem('erp.sayfaBoyutu')).toBe('100')
   })
 
+  it('kolonlar istenen sırada ve varsayılan hepsi açık; gizlenen kolon tarayıcıda hatırlanır', async () => {
+    ciz(['efatura.goruntule'])
+    await screen.findByText('Deniz Boya Ltd.')
+    // Sıralanabilir başlıklardaki ok simgesi hariç
+    const basliklar = () =>
+      screen.getAllByRole('columnheader').map((th) => th.textContent?.replace(/[↕↑↓]/g, ''))
+
+    expect(basliklar().slice(0, 9)).toEqual([
+      'Fatura No',
+      'Tarih',
+      'VKN/TCKN',
+      'Unvan',
+      'Ad Soyad',
+      'Tip',
+      'Tutar',
+      'Para Birimi',
+      'Alınma Zamanı',
+    ])
+    expect(screen.getByText('IRS2026000000007')).toBeInTheDocument()
+    expect(screen.getByText('urn:mail:defaultpk@tersane.com')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Kolonlar/ }))
+    fireEvent.click(await screen.findByRole('switch', { name: 'İrsaliye No' }))
+
+    await waitFor(() => expect(screen.queryByText('IRS2026000000007')).not.toBeInTheDocument())
+    expect(basliklar()).not.toContain('İrsaliye No')
+    expect(JSON.parse(localStorage.getItem('erp.kolonlar.efatura-gelen')!)).toEqual(['irsaliye_no'])
+
+    // Sayfa yeniden açıldığında seçim korunur
+    cleanup()
+    ciz(['efatura.goruntule'])
+    await screen.findByText('Deniz Boya Ltd.')
+    expect(basliklar()).not.toContain('İrsaliye No')
+    expect(basliklar()).toContain('Sipariş No')
+  })
+
   it('alarm mailindeki bağlantı ERP okumadı filtresiyle açar', async () => {
     window.history.replaceState(null, '', '/efatura/gelen?erp_okundu=hayir')
     ciz(['efatura.goruntule'])
@@ -375,7 +425,8 @@ describe('EFaturalarPage', () => {
     })
   })
 
-  it('92 günden uzun elle senkron aralığında istek atmaz', async () => {
+  it('sene başından bugüne elle senkron başlatılabilir (92 günlük eski sınır yok)', async () => {
+    api.senkron.mockResolvedValue(undefined)
     ciz(TUM_IZINLER)
     await screen.findByText('Deniz Boya Ltd.')
 
@@ -384,10 +435,27 @@ describe('EFaturalarPage', () => {
     fireEvent.change(within(dialog).getByLabelText('Başlangıç'), {
       target: { value: '01.01.2026' },
     })
-    fireEvent.change(within(dialog).getByLabelText('Bitiş'), { target: { value: '03.04.2026' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Senkronu Başlat' }))
 
-    expect(await within(dialog).findByText('Aralık en fazla 92 gün olabilir.')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(api.senkron).toHaveBeenCalledWith({ baslangic: '2026-01-01', bitis: bugunIso() }),
+    )
+  })
+
+  it('ilk tarama tarihinden önceki elle senkron aralığında istek atmaz', async () => {
+    ciz(TUM_IZINLER)
+    await screen.findByText('Deniz Boya Ltd.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Şimdi Senkronla' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Başlangıç'), {
+      target: { value: '31.12.2025' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Senkronu Başlat' }))
+
+    expect(
+      await within(dialog).findByText('e-Faturalar 01.01.2026 tarihinden itibaren izlenir.'),
+    ).toBeInTheDocument()
     expect(api.senkron).not.toHaveBeenCalled()
   })
 

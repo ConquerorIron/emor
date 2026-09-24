@@ -26,7 +26,10 @@
     "tumunuSec": "Select all",
     "satirSec": "Select row",
     "duzenle": "Edit",
-    "sil": "Delete"
+    "sil": "Delete",
+    "kolonlar": "Columns ({{gorunen}}/{{toplam}})",
+    "kolonSecimi": "Visible columns",
+    "tumKolonlariGoster": "Show all"
   },
   "nav": {
     "anasayfa": "Home",
@@ -572,6 +575,28 @@
       }
     },
     "durumAlinamadi": "Sync status could not be loaded; it is unknown whether the list is current.",
-    "guncelleniyor": "Updating…"
+    "guncelleniyor": "Updating…",
+    "kolon": {
+      "faturaNo": "Invoice No",
+      "tarih": "Date",
+      "vkn": "Tax ID",
+      "unvan": "Title",
+      "adSoyad": "Full Name",
+      "tip": "Type",
+      "tutar": "Amount",
+      "paraBirimi": "Currency",
+      "alinmaZamani": "Received At",
+      "irsaliyeNo": "Despatch No",
+      "siparisNo": "Order No",
+      "durum": "Status",
+      "faturaZarfDurumu": "Invoice Envelope Status",
+      "yanitAciklamasi": "Response Note",
+      "gtbRefNo": "GTB Ref No",
+      "gcbTescilNo": "Customs Reg. No",
+      "gcbTarihi": "Customs Date",
+      "gondericiBilgisi": "Sender Alias (GB)",
+      "aliciBilgisi": "Receiver Alias (PK)",
+      "portalNotu": "Portal Note"
+    }
   }
 }

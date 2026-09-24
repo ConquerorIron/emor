@@ -435,21 +435,22 @@ final class EFaturaEkranTest extends TestCase
     }
 
     /**
-     * @return array<string, array{0: string, 1: string, 2: string, 3: string}>
+     * @return array<string, array{0: string, 1: string, 2: string, 3: string, 4?: string}>
      */
     public static function gecersizSenkronAraliklari(): array
     {
         return [
             'ilk tarama öncesi' => ['2025-12-31', '2026-01-15', 'baslangic', 'e-Faturalar 01.01.2026 tarihinden itibaren izlenir; başlangıç daha erken olamaz.'],
             'gelecek' => ['2026-09-20', '2026-09-24', 'bitis', 'Bitiş tarihi bugünden sonra olamaz.'],
-            '92 günden uzun' => ['2026-01-01', '2026-04-03', 'bitis', 'Tarih aralığı en fazla 92 gün olabilir.'],
+            // İlk tarama 01.01.2026 olduğundan 366 günü aşan aralık ancak 2027'de seçilebilir
+            '366 günden uzun' => ['2026-01-01', '2027-01-02', 'bitis', 'Tarih aralığı en fazla 366 gün olabilir.', '2027-03-01 10:00:00'],
         ];
     }
 
     #[DataProvider('gecersizSenkronAraliklari')]
-    public function test_gecersiz_senkron_araligi_422_doner_ve_kuyruga_girmez(string $baslangic, string $bitis, string $alan, string $mesaj): void
+    public function test_gecersiz_senkron_araligi_422_doner_ve_kuyruga_girmez(string $baslangic, string $bitis, string $alan, string $mesaj, string $simdi = '2026-09-23 10:00:00'): void
     {
-        $this->travelTo('2026-09-23 10:00:00');
+        $this->travelTo($simdi);
         Queue::fake([EFaturaManuelSenkron::class]);
         $this->aktifTanim();
 

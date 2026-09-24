@@ -34,6 +34,22 @@ export interface EFatura {
   okundu: boolean | null
   yanit_aciklamasi: string | null
   son_gorulme: string | null
+  gonderici_ad_soyad: string | null
+  alici_ad_soyad: string | null
+  /** GİB gönderici birim etiketi (GB) */
+  gonderici_etiketi: string | null
+  /** GİB posta kutusu etiketi (PK) */
+  alici_etiketi: string | null
+  irsaliye_no: string | null
+  siparis_no: string | null
+  siparis_tarihi: string | null
+  gtb_ref_no: string | null
+  gcb_tescil_no: string | null
+  gcb_tarihi: string | null
+  portal_notu: string | null
+  teslim_ref: string | null
+  harici_aktarim: boolean | null
+  mail_durumu: string | null
 }
 
 export interface ParaBirimiOzeti {

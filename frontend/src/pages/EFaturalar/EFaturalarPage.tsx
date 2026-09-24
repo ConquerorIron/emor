@@ -9,6 +9,7 @@ import { Button } from '@/components/Button'
 import { DataTable, type DataTableKolonu } from '@/components/DataTable'
 import { ErrorState } from '@/components/ErrorState'
 import { Input } from '@/components/Input'
+import { KolonSecici } from '@/components/KolonSecici'
 import { Modal } from '@/components/Modal'
 import { Pagination } from '@/components/Pagination'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
@@ -26,7 +27,8 @@ import {
 import { useDebounce } from '@/hooks/useDebounce'
 import { useIzin } from '@/hooks/useIzin'
 import { useKaliciSiralama } from '@/hooks/useKaliciSiralama'
-import { bugunIso, gunFarki, tarihGoster } from '@/utils/tarih'
+import { useKolonGorunurlugu } from '@/hooks/useKolonGorunurlugu'
+import { bugunIso, gunFarki, tarihGoster, zamanGoster } from '@/utils/tarih'
 
 import { FaturaDetayi } from './FaturaDetayi'
 import { ILK_TARAMA_TARIHI, LISTE_AZAMI_GUN, tutarGoster } from './bicim'
@@ -93,6 +95,19 @@ function OzetKartlari({ ozet, toplam }: { ozet: ParaBirimiOzeti[]; toplam: numbe
   )
 }
 
+/** Tablo hücresi metni: boşsa "—", uzunsa kısaltılır, tamamı üzerine gelince görünür. */
+function Metin({ deger, genis = false }: { deger: string | null; genis?: boolean }) {
+  if (deger === null || deger === '') {
+    return <span className="text-slate-400">—</span>
+  }
+
+  return (
+    <span className={`block truncate ${genis ? 'max-w-xs' : 'max-w-[12rem]'}`} title={deger}>
+      {deger}
+    </span>
+  )
+}
+
 function ErpRozeti({ deger }: { deger: boolean | null }) {
   const { t } = useTranslation()
 
@@ -130,6 +145,7 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
   const [pencere, setPencere] = useState<AcikPencere>(null)
   const [excelSuruyor, setExcelSuruyor] = useState(false)
   const { siralama, siralamaDegistir } = useKaliciSiralama(`efatura-${yon}`)
+  const kolonGorunurlugu = useKolonGorunurlugu(`efatura-${yon}`)
 
   // Arama yazarken her tuşta istek atılmaz; diğer filtreler anında uygulanır
   const ara = useDebounce(filtre.ara)
@@ -200,57 +216,127 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
     }
   }
 
-  const karsiUnvan = (f: EFatura) => (yon === 'gelen' ? f.gonderici_unvan : f.alici_unvan)
-  const karsiVkn = (f: EFatura) => (yon === 'gelen' ? f.gonderici_vkn : f.alici_vkn)
+  // Karşı taraf: gelen faturada gönderici, giden faturada alıcı
+  const gelen = yon === 'gelen'
 
-  const kolonlar: DataTableKolonu<EFatura>[] = [
+  // Kullanıcı isteği (2026-09-24) sırasıyla; hepsi göster/gizle seçilebilir
+  const secilebilirKolonlar: DataTableKolonu<EFatura>[] = [
+    {
+      anahtar: 'belge_no',
+      baslik: t('efatura.kolon.faturaNo'),
+      siralamaAnahtari: 'belge_no',
+      render: (f) => <span className="font-semibold whitespace-nowrap">{f.belge_no}</span>,
+    },
     {
       anahtar: 'belge_tarihi',
-      baslik: t('efatura.alan.belgeTarihi'),
+      baslik: t('efatura.kolon.tarih'),
       siralamaAnahtari: 'belge_tarihi',
       render: (f) => <span className="whitespace-nowrap">{tarihGoster(f.belge_tarihi)}</span>,
     },
     {
-      anahtar: 'belge_no',
-      baslik: t('efatura.alan.belgeNo'),
-      siralamaAnahtari: 'belge_no',
-      render: (f) => (
-        <div>
-          <p className="font-semibold whitespace-nowrap">{f.belge_no}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {[f.fatura_tipi, f.senaryo].filter(Boolean).join(' / ')}
-          </p>
-        </div>
-      ),
+      anahtar: 'karsi_vkn',
+      baslik: t('efatura.kolon.vkn'),
+      render: (f) => <Metin deger={gelen ? f.gonderici_vkn : f.alici_vkn} />,
     },
     {
       anahtar: 'karsi_unvan',
-      baslik: t(yon === 'gelen' ? 'efatura.alan.gonderici' : 'efatura.alan.alici'),
+      baslik: t('efatura.kolon.unvan'),
       siralamaAnahtari: 'karsi_unvan',
-      render: (f) => (
-        <div className="max-w-md">
-          <p className="truncate" title={karsiUnvan(f) ?? undefined}>
-            {karsiUnvan(f) ?? '—'}
-          </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{karsiVkn(f)}</p>
-        </div>
-      ),
+      render: (f) => <Metin deger={gelen ? f.gonderici_unvan : f.alici_unvan} genis />,
+    },
+    {
+      anahtar: 'karsi_ad_soyad',
+      baslik: t('efatura.kolon.adSoyad'),
+      render: (f) => <Metin deger={gelen ? f.gonderici_ad_soyad : f.alici_ad_soyad} />,
+    },
+    {
+      anahtar: 'fatura_tipi',
+      baslik: t('efatura.kolon.tip'),
+      render: (f) => <Metin deger={f.fatura_tipi} />,
     },
     {
       anahtar: 'tutar',
-      baslik: t('efatura.alan.tutar'),
+      baslik: t('efatura.kolon.tutar'),
       siralamaAnahtari: 'tutar',
       hizala: 'sag',
-      render: (f) => (
-        <span className="whitespace-nowrap tabular-nums">
-          {tutarGoster(f.tutar)} {f.para_birimi}
-        </span>
-      ),
+      render: (f) => <span className="whitespace-nowrap tabular-nums">{tutarGoster(f.tutar)}</span>,
+    },
+    {
+      anahtar: 'para_birimi',
+      baslik: t('efatura.kolon.paraBirimi'),
+      render: (f) => f.para_birimi,
+    },
+    {
+      anahtar: 'olusturma_zamani',
+      baslik: t('efatura.kolon.alinmaZamani'),
+      siralamaAnahtari: 'olusturma_zamani',
+      render: (f) => <span className="whitespace-nowrap">{zamanGoster(f.olusturma_zamani)}</span>,
+    },
+    {
+      anahtar: 'irsaliye_no',
+      baslik: t('efatura.kolon.irsaliyeNo'),
+      render: (f) => <Metin deger={f.irsaliye_no} />,
+    },
+    {
+      anahtar: 'siparis_no',
+      baslik: t('efatura.kolon.siparisNo'),
+      render: (f) => <Metin deger={f.siparis_no} />,
     },
     {
       anahtar: 'durum',
-      baslik: t('efatura.alan.durum'),
-      render: (f) => f.durum_aciklamasi ?? f.durum ?? '—',
+      baslik: t('efatura.kolon.durum'),
+      render: (f) => <Metin deger={f.durum_aciklamasi ?? f.durum} />,
+    },
+    {
+      anahtar: 'zarf_durumu',
+      baslik: t('efatura.kolon.faturaZarfDurumu'),
+      render: (f) => (
+        <Metin
+          deger={
+            f.gib_durum_kodu === null
+              ? f.gib_durum_aciklamasi
+              : `${f.gib_durum_kodu} ${f.gib_durum_aciklamasi ?? ''}`.trim()
+          }
+          genis
+        />
+      ),
+    },
+    {
+      anahtar: 'yanit_aciklamasi',
+      baslik: t('efatura.kolon.yanitAciklamasi'),
+      render: (f) => <Metin deger={f.yanit_aciklamasi} genis />,
+    },
+    {
+      anahtar: 'gtb_ref_no',
+      baslik: t('efatura.kolon.gtbRefNo'),
+      render: (f) => <Metin deger={f.gtb_ref_no} />,
+    },
+    {
+      anahtar: 'gcb_tescil_no',
+      baslik: t('efatura.kolon.gcbTescilNo'),
+      render: (f) => <Metin deger={f.gcb_tescil_no} />,
+    },
+    {
+      anahtar: 'gcb_tarihi',
+      baslik: t('efatura.kolon.gcbTarihi'),
+      render: (f) => (
+        <span className="whitespace-nowrap">{f.gcb_tarihi ? tarihGoster(f.gcb_tarihi) : '—'}</span>
+      ),
+    },
+    {
+      anahtar: 'gonderici_etiketi',
+      baslik: t('efatura.kolon.gondericiBilgisi'),
+      render: (f) => <Metin deger={f.gonderici_etiketi} />,
+    },
+    {
+      anahtar: 'alici_etiketi',
+      baslik: t('efatura.kolon.aliciBilgisi'),
+      render: (f) => <Metin deger={f.alici_etiketi} />,
+    },
+    {
+      anahtar: 'portal_notu',
+      baslik: t('efatura.kolon.portalNotu'),
+      render: (f) => <Metin deger={f.portal_notu} genis />,
     },
     {
       anahtar: 'erp_okundu',
@@ -258,7 +344,12 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
       hizala: 'orta',
       render: (f) => <ErpRozeti deger={f.erp_okundu} />,
     },
+  ]
+
+  const kolonlar: DataTableKolonu<EFatura>[] = [
+    ...secilebilirKolonlar.filter((kolon) => kolonGorunurlugu.gorunurMu(kolon.anahtar)),
     {
+      // İşlemler her zaman görünür (seçicide yok)
       anahtar: 'islemler',
       baslik: '',
       hizala: 'sag',
@@ -402,7 +493,13 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
           ) : null}
           {liste.data ? (
             // Uzun listede alta inmeden sayfa değiştirilebilsin (altta da aynısı var)
-            <div className="mt-4">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <KolonSecici
+                kolonlar={secilebilirKolonlar.map(({ anahtar, baslik }) => ({ anahtar, baslik }))}
+                gorunurMu={kolonGorunurlugu.gorunurMu}
+                degistir={kolonGorunurlugu.degistir}
+                hepsiniGoster={kolonGorunurlugu.hepsiniGoster}
+              />
               <Pagination
                 sayfa={liste.data.meta.current_page}
                 toplamSayfa={liste.data.meta.last_page}

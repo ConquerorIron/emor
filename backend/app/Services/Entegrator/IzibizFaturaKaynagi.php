@@ -216,7 +216,65 @@ final class IzibizFaturaKaynagi
             erpOkundu: is_bool($ham['erpReadFlag'] ?? null) ? $ham['erpReadFlag'] : null,
             okundu: is_bool($ham['readStatus'] ?? null) ? $ham['readStatus'] : null,
             yanitAciklamasi: $this->metin($ham['responseDescription'] ?? null),
+            gondericiAdSoyad: $this->kisi($gonderici['person'] ?? null),
+            aliciAdSoyad: $this->kisi($alici['person'] ?? null),
+            gondericiEtiketi: $this->metin($gonderici['alias'] ?? $ham['supplierAlias'] ?? null),
+            aliciEtiketi: $this->metin($alici['alias'] ?? $ham['customerAlias'] ?? null),
+            irsaliyeNo: $this->liste($ham['despatchReference'] ?? null),
+            siparisNo: $this->liste($ham['orderReference'] ?? null),
+            siparisTarihi: $this->tarih($ham['orderReferenceDate'] ?? null),
+            gtbRefNo: $this->metin($ham['gtbRefNo'] ?? null),
+            gcbTescilNo: $this->metin($ham['gtbRegistrationNo'] ?? null),
+            gcbTarihi: $this->kisalt($this->metin($ham['gtbExportDate'] ?? null), 32),
+            portalNotu: $this->liste($ham['note'] ?? null),
+            teslimRef: $this->metin($ham['deliveryRef'] ?? null),
+            hariciAktarim: is_bool($ham['externalTransferFlag'] ?? null) ? $ham['externalTransferFlag'] : null,
+            mailDurumu: $this->kisalt($this->metin($ham['mailStatus'] ?? null), 32),
         );
+    }
+
+    /**
+     * İzibiz kişi adını "Ad Soyad" metni olarak verir; kişi değilse
+     * "null null" gelir (Postman örneği) — bu durumda null.
+     */
+    private function kisi(mixed $deger): ?string
+    {
+        $metin = $this->metin($deger);
+        if ($metin === null) {
+            return null;
+        }
+
+        $parcalar = array_filter(preg_split('/\s+/', $metin) ?: [], fn (string $p): bool => $p !== 'null');
+
+        return $parcalar === [] ? null : implode(' ', $parcalar);
+    }
+
+    /** Tek değer ya da liste (ör. birden çok irsaliye) — virgülle birleşir. */
+    private function liste(mixed $deger): ?string
+    {
+        if (is_array($deger)) {
+            $ogeler = array_values(array_filter(array_map($this->metin(...), $deger)));
+
+            return $ogeler === [] ? null : implode(', ', $ogeler);
+        }
+
+        return $this->metin($deger);
+    }
+
+    /** `YYYY-MM-DD[T…]` → `YYYY-MM-DD`; geçersizse null (özet alanı, kaydı bozmaz). */
+    private function tarih(mixed $deger): ?string
+    {
+        $metin = $this->metin($deger);
+        if ($metin === null || preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $metin, $p) !== 1) {
+            return null;
+        }
+
+        return checkdate((int) $p[2], (int) $p[3], (int) $p[1]) ? "{$p[1]}-{$p[2]}-{$p[3]}" : null;
+    }
+
+    private function kisalt(?string $deger, int $sinir): ?string
+    {
+        return $deger === null ? null : mb_substr($deger, 0, $sinir);
     }
 
     /**

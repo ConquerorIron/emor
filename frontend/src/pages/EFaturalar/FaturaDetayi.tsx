@@ -83,6 +83,31 @@ export function FaturaDetayi({ fatura }: { fatura: EFatura }) {
       {fatura.yanit_aciklamasi ? (
         <Satir etiket={t('efatura.alan.yanit')}>{fatura.yanit_aciklamasi}</Satir>
       ) : null}
+      {(
+        [
+          ['efatura.kolon.adSoyad', fatura.gonderici_ad_soyad ?? fatura.alici_ad_soyad],
+          ['efatura.kolon.gondericiBilgisi', fatura.gonderici_etiketi],
+          ['efatura.kolon.aliciBilgisi', fatura.alici_etiketi],
+          ['efatura.kolon.irsaliyeNo', fatura.irsaliye_no],
+          [
+            'efatura.kolon.siparisNo',
+            fatura.siparis_no &&
+              [fatura.siparis_no, fatura.siparis_tarihi && tarihGoster(fatura.siparis_tarihi)]
+                .filter(Boolean)
+                .join(' / '),
+          ],
+          ['efatura.kolon.gtbRefNo', fatura.gtb_ref_no],
+          ['efatura.kolon.gcbTescilNo', fatura.gcb_tescil_no],
+          ['efatura.kolon.gcbTarihi', fatura.gcb_tarihi],
+          ['efatura.kolon.portalNotu', fatura.portal_notu],
+        ] as const
+      ).map(([anahtar, deger]) =>
+        deger ? (
+          <Satir key={anahtar} etiket={t(anahtar)}>
+            {deger}
+          </Satir>
+        ) : null,
+      )}
       <Satir etiket={t('efatura.alan.erpOkundu')}>
         {bayrak(fatura.erp_okundu)}
         <span className="block text-xs text-slate-500 dark:text-slate-400">

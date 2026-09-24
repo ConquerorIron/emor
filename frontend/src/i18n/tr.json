@@ -26,7 +26,10 @@
     "tumunuSec": "Tümünü seç",
     "satirSec": "Satırı seç",
     "duzenle": "Düzenle",
-    "sil": "Sil"
+    "sil": "Sil",
+    "kolonlar": "Kolonlar ({{gorunen}}/{{toplam}})",
+    "kolonSecimi": "Gösterilecek kolonlar",
+    "tumKolonlariGoster": "Tümünü göster"
   },
   "nav": {
     "anasayfa": "Ana Sayfa",
@@ -572,6 +575,28 @@
       }
     },
     "durumAlinamadi": "Senkron durumu alınamadı; listenin güncel olup olmadığı bilinmiyor.",
-    "guncelleniyor": "Güncelleniyor…"
+    "guncelleniyor": "Güncelleniyor…",
+    "kolon": {
+      "faturaNo": "Fatura No",
+      "tarih": "Tarih",
+      "vkn": "VKN/TCKN",
+      "unvan": "Unvan",
+      "adSoyad": "Ad Soyad",
+      "tip": "Tip",
+      "tutar": "Tutar",
+      "paraBirimi": "Para Birimi",
+      "alinmaZamani": "Alınma Zamanı",
+      "irsaliyeNo": "İrsaliye No",
+      "siparisNo": "Sipariş No",
+      "durum": "Durum",
+      "faturaZarfDurumu": "Fatura Zarf Durumu",
+      "yanitAciklamasi": "Yanıt Açıklaması",
+      "gtbRefNo": "GTB Ref No",
+      "gcbTescilNo": "GÇB Tescil No",
+      "gcbTarihi": "GÇB Tarihi",
+      "gondericiBilgisi": "Gönderici Bilgisi (GB)",
+      "aliciBilgisi": "Alıcı Bilgisi (PK)",
+      "portalNotu": "Portal Notu"
+    }
   }
 }

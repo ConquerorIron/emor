@@ -140,6 +140,36 @@ final class IzibizFaturaKaynagiTest extends TestCase
         $this->assertFalse($fatura->okundu);
     }
 
+    public function test_liste_ek_alanlari_esenir_bos_kisi_ve_gecersiz_tarih_null_olur(): void
+    {
+        $this->travelTo('2026-09-23 11:24:41');
+        $this->sahteIzibiz('inbox', [0 => $this->sayfa([$this->kayit(7, [
+            'accountingSupplier' => ['identifier' => '12345678901', 'name' => null, 'person' => 'Ayşe  Yılmaz', 'alias' => 'urn:mail:defaultgb@ornek.test'],
+            // İzibiz kişi olmayan tarafta "null null" döndürür
+            'accountingCustomer' => ['identifier' => '9876543210', 'name' => 'Alıcı A.Ş.', 'person' => 'null null', 'alias' => null],
+            'customerAlias' => 'urn:mail:defaultpk@ornek.test',
+            'despatchReference' => ['IRS2026000000147', 'IRS2026000000148'],
+            'orderReference' => 'SIP2026-00421',
+            'orderReferenceDate' => '2026-09-18T00:00:00',
+            'gtbRefNo' => 'GTB-1',
+            'gtbRegistrationNo' => 'GCB-2',
+            'gtbExportDate' => '2026-09-19',
+            'note' => 'Portal notu',
+            'deliveryRef' => 'TRK-2026-000147',
+            'externalTransferFlag' => false,
+            'mailStatus' => 'NEW',
+        ])], 1, 1)]);
+
+        $f = $this->kaynak()->oku($this->tanim(), FaturaYonu::Gelen, $this->tarih('2026-03-20'), $this->tarih('2026-03-20'))->faturalar[0];
+
+        $this->assertSame(['Ayşe Yılmaz', null], [$f->gondericiAdSoyad, $f->aliciAdSoyad]);
+        $this->assertSame(['urn:mail:defaultgb@ornek.test', 'urn:mail:defaultpk@ornek.test'], [$f->gondericiEtiketi, $f->aliciEtiketi]);
+        $this->assertSame('IRS2026000000147, IRS2026000000148', $f->irsaliyeNo);
+        $this->assertSame(['SIP2026-00421', '2026-09-18'], [$f->siparisNo, $f->siparisTarihi]);
+        $this->assertSame(['GTB-1', 'GCB-2', '2026-09-19'], [$f->gtbRefNo, $f->gcbTescilNo, $f->gcbTarihi]);
+        $this->assertSame(['Portal notu', 'TRK-2026-000147', false, 'NEW'], [$f->portalNotu, $f->teslimRef, $f->hariciAktarim, $f->mailDurumu]);
+    }
+
     public function test_sayfalar_sonuna_kadar_kararli_sirayla_okunur(): void
     {
         $this->travelTo('2026-09-23 11:24:41');

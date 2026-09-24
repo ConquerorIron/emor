@@ -57,6 +57,8 @@ final class EFatura extends Model
             'gib_durum_kodu' => 'integer',
             'erp_okundu' => 'boolean',
             'okundu' => 'boolean',
+            'siparis_tarihi' => 'immutable_date',
+            'harici_aktarim' => 'boolean',
             'ilk_gorulme' => 'immutable_datetime',
             'son_gorulme' => 'immutable_datetime',
         ];

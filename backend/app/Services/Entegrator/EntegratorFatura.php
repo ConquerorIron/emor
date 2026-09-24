@@ -45,5 +45,26 @@ final readonly class EntegratorFatura
         public ?bool $erpOkundu,
         public ?bool $okundu,
         public ?string $yanitAciklamasi,
+        // Liste ek alanları (2026-09-24) — hepsi isteğe bağlı
+        public ?string $gondericiAdSoyad = null,
+        public ?string $aliciAdSoyad = null,
+        /** GİB gönderici birim etiketi (GB) */
+        public ?string $gondericiEtiketi = null,
+        /** GİB posta kutusu etiketi (PK) */
+        public ?string $aliciEtiketi = null,
+        public ?string $irsaliyeNo = null,
+        public ?string $siparisNo = null,
+        /** `YYYY-MM-DD` */
+        public ?string $siparisTarihi = null,
+        public ?string $gtbRefNo = null,
+        public ?string $gcbTescilNo = null,
+        public ?string $gcbTarihi = null,
+        public ?string $portalNotu = null,
+        /** İzibiz `deliveryRef` — ekran karşılığı netleşmedi */
+        public ?string $teslimRef = null,
+        /** İzibiz `externalTransferFlag` — ekran karşılığı netleşmedi */
+        public ?bool $hariciAktarim = null,
+        /** İzibiz `mailStatus` — ekran karşılığı netleşmedi */
+        public ?string $mailDurumu = null,
     ) {}
 }
