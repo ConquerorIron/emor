@@ -212,6 +212,91 @@ final class EFaturaEkranTest extends TestCase
             ->assertJsonPath('data.1.id', $buyuk->id);
     }
 
+    /**
+     * [sıralama anahtarı, küçük değerli alanlar, büyük değerli alanlar]
+     *
+     * @return array<string, array{0: string, 1: array<string, mixed>, 2: array<string, mixed>}>
+     */
+    public static function yeniSiralamalar(): array
+    {
+        return [
+            'eMOR (aşama sırası, alfabetik değil)' => ['emor', ['emor_durumu' => 'yok'], ['emor_durumu' => 'havuzda']],
+            'ERP okudu' => ['erp_okundu', ['erp_okundu' => false], ['erp_okundu' => true]],
+            'VKN (gelende gönderici)' => ['karsi_vkn', ['gonderici_vkn' => '111'], ['gonderici_vkn' => '999']],
+            'ad soyad' => ['karsi_ad_soyad', ['gonderici_ad_soyad' => 'Ali'], ['gonderici_ad_soyad' => 'Zeynep']],
+            'tip' => ['fatura_tipi', ['fatura_tipi' => 'IADE'], ['fatura_tipi' => 'SATIS']],
+            'para birimi' => ['para_birimi', ['para_birimi' => 'EUR'], ['para_birimi' => 'USD']],
+            'irsaliye no' => ['irsaliye_no', ['irsaliye_no' => 'A1'], ['irsaliye_no' => 'B2']],
+            'sipariş no' => ['siparis_no', ['siparis_no' => 'A1'], ['siparis_no' => 'B2']],
+            'durum (açıklamasına göre)' => ['durum', ['durum_aciklamasi' => 'Alındı'], ['durum_aciklamasi' => 'Reddedildi']],
+            'zarf durumu (GİB koduna göre)' => ['zarf_durumu', ['gib_durum_kodu' => 1200], ['gib_durum_kodu' => 1300]],
+            'yanıt açıklaması' => ['yanit_aciklamasi', ['yanit_aciklamasi' => 'Kabul'], ['yanit_aciklamasi' => 'Red']],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $kucukAlanlar
+     * @param  array<string, mixed>  $buyukAlanlar
+     */
+    #[DataProvider('yeniSiralamalar')]
+    public function test_tablo_kolonlarina_gore_siralanir_bos_degerler_en_sonda(string $anahtar, array $kucukAlanlar, array $buyukAlanlar): void
+    {
+        $tanim = $this->aktifTanim();
+        $buyuk = $this->fatura($tanim, $buyukAlanlar);
+        $kucuk = $this->fatura($tanim, $kucukAlanlar);
+        // Para birimi zorunlu kolon: boş değerli kayıt yalnız boş olabilen kolonlarda
+        $bos = $anahtar === 'para_birimi' ? null : $this->fatura($tanim, array_map(fn (): null => null, $kucukAlanlar));
+        $kullanici = $this->izinli('efatura.goruntule');
+        $sirasi = fn (string $yon): array => array_column(
+            $this->actingAs($kullanici)->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK."&sirala={$anahtar}&yon={$yon}")->assertOk()->json('data'),
+            'id',
+        );
+        $bosId = $bos === null ? [] : [$bos->id];
+
+        $this->assertSame([$kucuk->id, $buyuk->id, ...$bosId], $sirasi('asc'));
+        $this->assertSame([$buyuk->id, $kucuk->id, ...$bosId], $sirasi('desc'));
+    }
+
+    public function test_arama_siparis_irsaliye_ve_zarf_durumunda_da_arar(): void
+    {
+        $tanim = $this->aktifTanim();
+        $siparis = $this->fatura($tanim, ['siparis_no' => 'SIP-4242']);
+        $irsaliye = $this->fatura($tanim, ['irsaliye_no' => 'IRS-7777']);
+        $zarf = $this->fatura($tanim, ['gib_durum_kodu' => 1215, 'gib_durum_aciklamasi' => 'ALICIDAN YANIT BEKLENIYOR']);
+        $kullanici = $this->izinli('efatura.goruntule');
+        $bulunan = fn (string $ara): array => array_column(
+            $this->actingAs($kullanici)->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK.'&ara='.urlencode($ara))->json('data'),
+            'id',
+        );
+
+        $this->assertSame([$siparis->id], $bulunan('4242'));
+        $this->assertSame([$irsaliye->id], $bulunan('irs-777'));
+        $this->assertSame([$zarf->id], $bulunan('yanit bek'));
+        $this->assertSame([$zarf->id], $bulunan('1215'));
+    }
+
+    public function test_emor_filtresi_asamaya_gore_suzer(): void
+    {
+        $tanim = $this->aktifTanim();
+        $havuzda = $this->fatura($tanim, ['emor_durumu' => 'havuzda']);
+        $this->fatura($tanim, ['emor_durumu' => 'islendi']);
+        $bilinmiyor = $this->fatura($tanim);
+        $kullanici = $this->izinli('efatura.goruntule');
+
+        $this->actingAs($kullanici)
+            ->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK.'&emor=havuzda')
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $havuzda->id)
+            ->assertJsonPath('data.0.emor_durumu', 'havuzda');
+        $this->actingAs($kullanici)
+            ->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK.'&emor=bilinmiyor')
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $bilinmiyor->id);
+        $this->actingAs($kullanici)
+            ->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK.'&emor=muhasebe')
+            ->assertUnprocessable();
+    }
+
     public function test_izinsiz_siralama_kolonu_422_doner(): void
     {
         $this->aktifTanim();

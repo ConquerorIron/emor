@@ -31,8 +31,8 @@ export interface EFatura {
   gib_durum_aciklamasi: string | null
   /** İzibiz'in ERP okundu bayrağı — yalnız gösterilir, bu uygulama değiştirmez */
   erp_okundu: boolean | null
-  /** ERP'ye (TOHOM_FATURA) işlendi mi; null = henüz kontrol edilmedi. Yalnız gelen. */
-  emor_islendi: boolean | null
+  /** ERP'deki aşama; null = henüz kontrol edilmedi (havuzda yalnız gelende) */
+  emor_durumu: EmorDurumu | null
   /** Vergi (KDV) istisna kodu — ERP'nin TOHOM_E_FATURA kaydından; yalnız gelen */
   vergi_istisna_kodu: string | null
   okundu: boolean | null
@@ -77,12 +77,21 @@ export interface EFaturaListesi {
 
 export type ErpOkunduFiltresi = '' | 'evet' | 'hayir' | 'bilinmiyor'
 
+/**
+ * eMOR: islendi = muhasebeleşmiş (gelen: TOHOM_FATURA), havuzda = ERP almış ama
+ * muhasebeleşmemiş (TOHOM_E_FATURA), yok = ERP'de karşılığı yok.
+ */
+export type EmorDurumu = 'islendi' | 'havuzda' | 'yok'
+
+export type EmorFiltresi = '' | EmorDurumu | 'bilinmiyor'
+
 export interface EFaturaFiltresi {
   baslangic: string
   bitis: string
   ara: string
   durum: string
   erp_okundu: ErpOkunduFiltresi
+  emor: EmorFiltresi
   para_birimi: string
 }
 
@@ -126,7 +135,7 @@ export interface SenkronDurumu {
 /** Boş filtreler gönderilmez; sayfa boyutu interceptor'dan gelir (`page` varken). */
 function parametreler(filtre: EFaturaFiltresi, siralama: Siralama | null): Record<string, string> {
   const sonuc: Record<string, string> = { baslangic: filtre.baslangic, bitis: filtre.bitis }
-  for (const anahtar of ['ara', 'durum', 'erp_okundu', 'para_birimi'] as const) {
+  for (const anahtar of ['ara', 'durum', 'erp_okundu', 'emor', 'para_birimi'] as const) {
     const deger = filtre[anahtar].trim()
     if (deger !== '') {
       sonuc[anahtar] = deger
@@ -165,7 +174,8 @@ export async function senkronBaslat(aralik: { baslangic: string; bitis: string }
 
 export interface ErpSenkronSonucu {
   islendi: number
-  islenmedi: number
+  havuzda: number
+  yok: number
   degisen: number
 }
 

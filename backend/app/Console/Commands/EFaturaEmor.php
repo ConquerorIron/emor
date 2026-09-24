@@ -38,10 +38,11 @@ final class EFaturaEmor extends Command
             }
 
             $this->line(sprintf(
-                'eMOR %s: işlendi %d, işlenmedi %d, değişen %d',
+                'eMOR %s: işlendi %d, havuzda %d, yok %d, değişen %d',
                 $yon->value,
                 $sonuc['islendi'],
-                $sonuc['islenmedi'],
+                $sonuc['havuzda'],
+                $sonuc['yok'],
                 $sonuc['degisen'],
             ));
         }

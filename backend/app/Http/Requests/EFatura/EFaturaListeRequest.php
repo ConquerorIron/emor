@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\EFatura;
 
 use App\Services\Entegrator\EFaturaSorgusu;
+use App\Services\Entegrator\EmorDurumu;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -33,6 +34,7 @@ final class EFaturaListeRequest extends FormRequest
             'ara' => ['nullable', 'string', 'max:100'],
             'durum' => ['nullable', 'string', 'max:64'],
             'erp_okundu' => ['nullable', Rule::in(['evet', 'hayir', 'bilinmiyor'])],
+            'emor' => ['nullable', Rule::in([...array_column(EmorDurumu::cases(), 'value'), 'bilinmiyor'])],
             'para_birimi' => ['nullable', 'string', 'size:3'],
             'sirala' => ['nullable', Rule::in(EFaturaSorgusu::SIRALAMALAR)],
             'yon' => ['nullable', Rule::in(['asc', 'desc'])],
@@ -64,12 +66,12 @@ final class EFaturaListeRequest extends FormRequest
     }
 
     /**
-     * @return array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, para_birimi?: string|null}
+     * @return array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, emor?: string|null, para_birimi?: string|null}
      */
     public function filtre(): array
     {
-        /** @var array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, para_birimi?: string|null} */
-        return $this->safe()->only(['baslangic', 'bitis', 'ara', 'durum', 'erp_okundu', 'para_birimi']);
+        /** @var array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, emor?: string|null, para_birimi?: string|null} */
+        return $this->safe()->only(['baslangic', 'bitis', 'ara', 'durum', 'erp_okundu', 'emor', 'para_birimi']);
     }
 
     /** "Hepsi" (0) da sayfalıdır; üst sınır kötüye kullanımı keser. */

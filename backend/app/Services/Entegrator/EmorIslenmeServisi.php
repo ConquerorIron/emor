@@ -8,21 +8,22 @@ use App\Models\EFatura;
 use App\Services\ErpFaturaKaynagi;
 
 /**
- * eMOR kolonu: e-faturanın ERP'de karşılığı var mı, PostgreSQL'e yansıtır.
- * Liste ERP'ye her istekte gitmez (ERP yavaşsa/kapalıysa ekran etkilenmez;
- * filtre/sıralama/Excel aynı veriden çalışır); efatura:emor komutu 5 dakikada
- * bir tazeler, "ERP Senkronla" düğmesi hemen.
+ * eMOR kolonu: e-faturanın ERP'deki aşaması (EmorDurumu), PostgreSQL'e
+ * yansıtılır. Liste ERP'ye her istekte gitmez (ERP yavaşsa/kapalıysa ekran
+ * etkilenmez; filtre/sıralama/Excel aynı veriden çalışır); efatura:emor
+ * komutu 5 dakikada bir tazeler, "ERP Senkronla" düğmesi hemen.
  *
- * - Gelen: TOHOM_FATURA'daki alış faturalarının E_FATURA_ETTN'i ile.
+ * - Gelen: TOHOM_FATURA'daki alış faturasının E_FATURA_ETTN'i → işlendi;
+ *   değilse TOHOM_E_FATURA havuzunda (UUID) → havuzda; ikisi de değilse yok.
  * - Giden: ERP_GONDERILEN_E_FATURA_LISTESI; önce ETTN, ERP satırında ETTN
  *   yoksa (gider yansıtma) belge no + alıcı VKN'si. İki tarafta da ETTN varsa
  *   belge no ile eşleştirilmez (kullanıcı kuralı: yalnız fatura no ile olmaz).
  *
- * Gelen faturada vergi istisna kodu da aynı okumada TOHOM_E_FATURA'dan
- * (VERGI_ISTISNA_KODU) ETTN ile tazelenir; İzibiz yanıtında bu alan yok.
+ * Gelen faturada vergi istisna kodu da aynı okumada havuzdan
+ * (TOHOM_E_FATURA.VERGI_ISTISNA_KODU) ETTN ile tazelenir; İzibiz yanıtında yok.
  *
- * Yalnız DEĞİŞEN satırlar yazılır. ERP okunamazsa hiçbir bayrak değişmez
- * (istisna çağırana gider) — "okunamadı" asla "işlenmedi" sayılmaz.
+ * Yalnız DEĞİŞEN satırlar yazılır. ERP okunamazsa hiçbir alan değişmez
+ * (istisna çağırana gider) — "okunamadı" asla "yok" sayılmaz.
  */
 final class EmorIslenmeServisi
 {
@@ -33,78 +34,82 @@ final class EmorIslenmeServisi
     ) {}
 
     /**
-     * @return array{islendi: int, islenmedi: int, degisen: int}
+     * @return array{islendi: int, havuzda: int, yok: int, degisen: int}
      */
     public function tazele(FaturaYonu $yon): array
     {
         $gelen = $yon === FaturaYonu::Gelen;
-        $islendiMi = $gelen ? $this->gelenEslestirici() : $this->gidenEslestirici();
-        // Gelen faturanın vergi istisna kodu da aynı ERP okumasında tazelenir
-        $istisnaKodlari = $gelen ? $this->istisnaKodlari() : null;
+        // Gelen: [muhasebeleşmiş ETTN'ler, havuz ETTN => istisna kodu]
+        $islenmis = $gelen ? $this->kume($this->erp->islenmisGelenEttnler()) : null;
+        $havuz = $gelen ? $this->havuz() : null;
+        $gidenIslendiMi = $gelen ? null : $this->gidenEslestirici();
 
-        /** @var array{islendi: list<int>, islenmedi: list<int>} $degisenler yeni değere göre */
-        $degisenler = ['islendi' => [], 'islenmedi' => []];
-        /** @var array<string, list<int>> $kodDegisenler yeni kod ('' = boş) => id'ler */
-        $kodDegisenler = [];
-        $sayac = ['islendi' => 0, 'islenmedi' => 0];
+        /** @var array<string, array<string, list<int>>> $degisenler kolon => yeni değer ('' = null) => id'ler */
+        $degisenler = ['emor_durumu' => [], 'vergi_istisna_kodu' => []];
+        $sayac = ['islendi' => 0, 'havuzda' => 0, 'yok' => 0];
 
         EFatura::query()
             ->where('yon', $yon->value)
-            ->select(['id', 'ettn', 'belge_no', 'alici_vkn', 'emor_islendi', 'vergi_istisna_kodu'])
+            ->select(['id', 'ettn', 'belge_no', 'alici_vkn', 'emor_durumu', 'vergi_istisna_kodu'])
             ->lazyById(self::PARCA)
-            ->each(function (EFatura $fatura) use ($islendiMi, $istisnaKodlari, &$degisenler, &$kodDegisenler, &$sayac): void {
-                $islendi = $islendiMi($fatura);
-                $durum = $islendi ? 'islendi' : 'islenmedi';
-                $sayac[$durum]++;
+            ->each(function (EFatura $fatura) use ($islenmis, $havuz, $gidenIslendiMi, &$degisenler, &$sayac): void {
+                $ettn = $this->ettn($fatura->ettn);
 
-                if ($fatura->getAttribute('emor_islendi') !== $islendi) {
-                    $degisenler[$durum][] = $fatura->id;
+                if ($gidenIslendiMi !== null) {
+                    $durum = $gidenIslendiMi($fatura) ? EmorDurumu::Islendi : EmorDurumu::Yok;
+                } else {
+                    $durum = match (true) {
+                        isset($islenmis[$ettn]) => EmorDurumu::Islendi,
+                        array_key_exists($ettn, $havuz ?? []) => EmorDurumu::Havuzda,
+                        default => EmorDurumu::Yok,
+                    };
+
+                    $kod = $havuz[$ettn] ?? null;
+                    if ($fatura->getAttribute('vergi_istisna_kodu') !== $kod) {
+                        $degisenler['vergi_istisna_kodu'][$kod ?? ''][] = $fatura->id;
+                    }
                 }
 
-                if ($istisnaKodlari !== null) {
-                    $kod = $istisnaKodlari[$this->ettn($fatura->ettn)] ?? null;
-                    if ($fatura->getAttribute('vergi_istisna_kodu') !== $kod) {
-                        $kodDegisenler[$kod ?? ''][] = $fatura->id;
-                    }
+                $sayac[$durum->value]++;
+
+                if ($fatura->getAttribute('emor_durumu') !== $durum) {
+                    $degisenler['emor_durumu'][$durum->value][] = $fatura->id;
                 }
             });
 
-        foreach ($degisenler as $durum => $idler) {
-            foreach (array_chunk($idler, self::PARCA) as $parca) {
-                EFatura::query()->whereKey($parca)->update(['emor_islendi' => $durum === 'islendi']);
+        foreach ($degisenler as $kolon => $degerler) {
+            foreach ($degerler as $deger => $idler) {
+                foreach (array_chunk($idler, self::PARCA) as $parca) {
+                    EFatura::query()->whereKey($parca)->update([$kolon => $deger === '' ? null : (string) $deger]);
+                }
             }
         }
 
-        foreach ($kodDegisenler as $kod => $idler) {
-            foreach (array_chunk($idler, self::PARCA) as $parca) {
-                EFatura::query()->whereKey($parca)->update(['vergi_istisna_kodu' => $kod === '' ? null : (string) $kod]);
-            }
-        }
+        $degisen = array_sum(array_map('count', $degisenler['emor_durumu']));
 
-        return [...$sayac, 'degisen' => count($degisenler['islendi']) + count($degisenler['islenmedi'])];
+        return [...$sayac, 'degisen' => $degisen];
     }
 
     /**
-     * @return array<string, string> küçük harf ETTN => istisna kodu
+     * @return array<string, string|null> küçük harf ETTN => istisna kodu
      */
-    private function istisnaKodlari(): array
+    private function havuz(): array
     {
-        $kodlar = [];
-        foreach ($this->erp->gelenIstisnaKodlari() as $ettn => $kod) {
-            $kodlar[$this->ettn((string) $ettn)] = $kod;
+        $havuz = [];
+        foreach ($this->erp->havuzdakiGelenler() as $ettn => $kod) {
+            $havuz[$this->ettn((string) $ettn)] = $kod;
         }
 
-        return $kodlar;
+        return $havuz;
     }
 
     /**
-     * @return callable(EFatura): bool
+     * @param  list<string>  $ettnler
+     * @return array<string, true>
      */
-    private function gelenEslestirici(): callable
+    private function kume(array $ettnler): array
     {
-        $ettnler = array_flip(array_map($this->ettn(...), $this->erp->islenmisGelenEttnler()));
-
-        return fn (EFatura $fatura): bool => isset($ettnler[$this->ettn($fatura->ettn)]);
+        return array_fill_keys(array_map($this->ettn(...), $ettnler), true);
     }
 
     /**

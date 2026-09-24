@@ -518,7 +518,7 @@
     "hepsi": "All",
     "baslangic": "From",
     "bitis": "To",
-    "ara": "Search (no, ETTN, tax id, title, full name, type)",
+    "ara": "Search (no, ETTN, tax id, title, full name, type, order, despatch, envelope status)",
     "excel": "Excel",
     "detay": "Details",
     "pdf": "PDF",
@@ -605,13 +605,26 @@
       "emor": "eMOR",
       "vergiIstisnaKodu": "Tax Exemption Code"
     },
-    "emorIslendi": "Processed",
-    "emorIslenmedi": "Not processed",
-    "emorBilinmiyor": "Not checked in ERP yet",
     "erpSenkron": {
       "ac": "Sync with ERP",
       "aciklama": "Checks now whether the invoices in this list exist in the ERP (incoming: TOHOM_FATURA, outgoing: sent e-invoice list) and updates the eMOR column. Also runs automatically every 5 minutes.",
-      "tamam": "eMOR updated: {{islendi}} processed, {{islenmedi}} not processed ({{degisen}} changed)."
+      "tamam": "eMOR updated: {{islendi}} processed, {{havuzda}} in pool, {{yok}} not in ERP ({{degisen}} changed)."
+    },
+    "emor": {
+      "islendi": "Processed",
+      "havuzda": "In pool",
+      "yok": "Not in ERP",
+      "bilinmiyor": "Not checked in ERP yet",
+      "aciklama": {
+        "islendi": "Accepted into accounting (TOHOM_FATURA)",
+        "havuzda": "Received by the ERP (TOHOM_E_FATURA), not yet accounted"
+      },
+      "filtre": {
+        "islendi": "Processed",
+        "havuzda": "In pool (not accounted)",
+        "yok": "Not in ERP",
+        "bilinmiyor": "Not checked"
+      }
     }
   }
 }

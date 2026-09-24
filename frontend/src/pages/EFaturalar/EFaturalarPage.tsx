@@ -17,6 +17,8 @@ import { TarihInput } from '@/components/TarihInput'
 import {
   type EFatura,
   type EFaturaFiltresi,
+  type EmorDurumu,
+  type EmorFiltresi,
   type ErpOkunduFiltresi,
   type FaturaYonu,
   type ParaBirimiOzeti,
@@ -41,10 +43,13 @@ const BOS_FILTRE: Omit<EFaturaFiltresi, 'bitis'> = {
   ara: '',
   durum: '',
   erp_okundu: '',
+  emor: '',
   para_birimi: '',
 }
 
 const ERP_FILTRELERI: readonly ErpOkunduFiltresi[] = ['evet', 'hayir', 'bilinmiyor']
+
+const EMOR_FILTRELERI: readonly EmorFiltresi[] = ['islendi', 'havuzda', 'yok', 'bilinmiyor']
 
 /** Alarm mailindeki bağlantı (?erp_okundu=hayir) listeyi o filtreyle açar. */
 function adrestekiErpFiltresi(): ErpOkunduFiltresi {
@@ -129,23 +134,34 @@ function ErpRozeti({ deger }: { deger: boolean | null }) {
   )
 }
 
-/** İşlendiyse rozet; işlenmediyse boş; henüz kontrol edilmediyse (null) soluk tire. */
-function EmorRozeti({ deger }: { deger: boolean | null }) {
+const EMOR_ROZETLERI: Record<'islendi' | 'havuzda', string> = {
+  islendi: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+  havuzda: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+}
+
+/**
+ * eMOR: İşlendi (muhasebeleşmiş) yeşil, Havuzda (ERP almış, muhasebeleşmemiş)
+ * sarı; ERP'de yoksa boş; henüz kontrol edilmediyse (null) soluk tire.
+ */
+function EmorRozeti({ deger }: { deger: EmorDurumu | null }) {
   const { t } = useTranslation()
 
   if (deger === null) {
     return (
-      <span className="text-slate-400" title={t('efatura.emorBilinmiyor')}>
+      <span className="text-slate-400" title={t('efatura.emor.bilinmiyor')}>
         —
       </span>
     )
   }
 
-  return deger ? (
-    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-      {t('efatura.emorIslendi')}
+  return deger === 'yok' ? null : (
+    <span
+      className={`rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${EMOR_ROZETLERI[deger]}`}
+      title={t(`efatura.emor.aciklama.${deger}`)}
+    >
+      {t(`efatura.emor.${deger}`)}
     </span>
-  ) : null
+  )
 }
 
 type AcikPencere = { tur: 'detay' | 'pdf'; fatura: EFatura } | null
@@ -245,12 +261,20 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
 
   // Kullanıcı isteği (2026-09-24) sırasıyla; hepsi göster/gizle seçilebilir
   const secilebilirKolonlar: DataTableKolonu<EFatura>[] = [
-    // ERP'de karşılığı var mı (gelen: TOHOM_FATURA, giden: gönderilen e-fatura listesi)
+    {
+      anahtar: 'erp_okundu',
+      baslik: t('efatura.alan.erpOkundu'),
+      siralamaAnahtari: 'erp_okundu',
+      hizala: 'orta',
+      render: (f) => <ErpRozeti deger={f.erp_okundu} />,
+    },
+    // ERP'deki aşama (gelen: havuz TOHOM_E_FATURA → muhasebe TOHOM_FATURA; giden: gönderilen listesi)
     {
       anahtar: 'emor',
       baslik: t('efatura.kolon.emor'),
+      siralamaAnahtari: 'emor',
       hizala: 'orta',
-      render: (f) => <EmorRozeti deger={f.emor_islendi} />,
+      render: (f) => <EmorRozeti deger={f.emor_durumu} />,
     },
     {
       anahtar: 'belge_no',
@@ -267,6 +291,7 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
     {
       anahtar: 'karsi_vkn',
       baslik: t('efatura.kolon.vkn'),
+      siralamaAnahtari: 'karsi_vkn',
       render: (f) => <Metin deger={gelen ? f.gonderici_vkn : f.alici_vkn} />,
     },
     {
@@ -278,11 +303,13 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
     {
       anahtar: 'karsi_ad_soyad',
       baslik: t('efatura.kolon.adSoyad'),
+      siralamaAnahtari: 'karsi_ad_soyad',
       render: (f) => <Metin deger={gelen ? f.gonderici_ad_soyad : f.alici_ad_soyad} />,
     },
     {
       anahtar: 'fatura_tipi',
       baslik: t('efatura.kolon.tip'),
+      siralamaAnahtari: 'fatura_tipi',
       render: (f) => <Metin deger={f.fatura_tipi} />,
     },
     // İstisna kodu ERP'nin aldığı e-fatura kaydından gelir (yalnız gelen)
@@ -305,6 +332,7 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
     {
       anahtar: 'para_birimi',
       baslik: t('efatura.kolon.paraBirimi'),
+      siralamaAnahtari: 'para_birimi',
       render: (f) => f.para_birimi,
     },
     {
@@ -320,21 +348,25 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
     {
       anahtar: 'irsaliye_no',
       baslik: t('efatura.kolon.irsaliyeNo'),
+      siralamaAnahtari: 'irsaliye_no',
       render: (f) => <Metin deger={f.irsaliye_no} />,
     },
     {
       anahtar: 'siparis_no',
       baslik: t('efatura.kolon.siparisNo'),
+      siralamaAnahtari: 'siparis_no',
       render: (f) => <Metin deger={f.siparis_no} />,
     },
     {
       anahtar: 'durum',
       baslik: t('efatura.kolon.durum'),
+      siralamaAnahtari: 'durum',
       render: (f) => <Metin deger={f.durum_aciklamasi ?? f.durum} />,
     },
     {
       anahtar: 'zarf_durumu',
       baslik: t('efatura.kolon.faturaZarfDurumu'),
+      siralamaAnahtari: 'zarf_durumu',
       render: (f) => (
         <Metin
           deger={
@@ -349,6 +381,7 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
     {
       anahtar: 'yanit_aciklamasi',
       baslik: t('efatura.kolon.yanitAciklamasi'),
+      siralamaAnahtari: 'yanit_aciklamasi',
       render: (f) => <Metin deger={f.yanit_aciklamasi} genis />,
     },
     {
@@ -383,12 +416,6 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
       baslik: t('efatura.kolon.portalNotu'),
       render: (f) => <Metin deger={f.portal_notu} genis />,
     },
-    {
-      anahtar: 'erp_okundu',
-      baslik: t('efatura.alan.erpOkundu'),
-      hizala: 'orta',
-      render: (f) => <ErpRozeti deger={f.erp_okundu} />,
-    },
   ]
 
   const kolonlar: DataTableKolonu<EFatura>[] = [
@@ -422,6 +449,10 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
     value: p,
     label: p,
   }))
+  // Giden faturada havuz aşaması yok
+  const emorSecenekleri: SecenekOgesi[] = EMOR_FILTRELERI.filter(
+    (d) => gelen || d !== 'havuzda',
+  ).map((d) => ({ value: d, label: t(`efatura.emor.filtre.${d}`) }))
   const erpSecenekleri: SecenekOgesi[] = ERP_FILTRELERI.map((d) => ({
     value: d,
     label: t(`efatura.${d}`),
@@ -457,7 +488,7 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
         ) : null}
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         <TarihInput
           id="efatura-baslangic"
           label={t('efatura.baslangic')}
@@ -506,6 +537,16 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
           onChange={(secim) =>
             filtreDegistir('erp_okundu', (secim?.value ?? '') as ErpOkunduFiltresi)
           }
+          placeholder={t('efatura.hepsi')}
+          isClearable
+          isSearchable={false}
+        />
+        <SelectField
+          id="efatura-emor"
+          label={t('efatura.kolon.emor')}
+          options={emorSecenekleri}
+          value={secili(emorSecenekleri, filtre.emor)}
+          onChange={(secim) => filtreDegistir('emor', (secim?.value ?? '') as EmorFiltresi)}
           placeholder={t('efatura.hepsi')}
           isClearable
           isSearchable={false}

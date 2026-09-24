@@ -126,11 +126,14 @@ export function FaturaDetayi({ fatura }: { fatura: EFatura }) {
         ) : null,
       )}
       <Satir etiket={t('efatura.kolon.emor')}>
-        {fatura.emor_islendi === null
-          ? t('efatura.emorBilinmiyor')
-          : fatura.emor_islendi
-            ? t('efatura.emorIslendi')
-            : t('efatura.emorIslenmedi')}
+        {fatura.emor_durumu === null
+          ? t('efatura.emor.bilinmiyor')
+          : t(`efatura.emor.${fatura.emor_durumu}`)}
+        {fatura.emor_durumu === 'islendi' || fatura.emor_durumu === 'havuzda' ? (
+          <span className="block text-xs text-slate-500 dark:text-slate-400">
+            {t(`efatura.emor.aciklama.${fatura.emor_durumu}`)}
+          </span>
+        ) : null}
       </Satir>
       <Satir etiket={t('efatura.alan.erpOkundu')}>
         {bayrak(fatura.erp_okundu)}

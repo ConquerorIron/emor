@@ -15,11 +15,16 @@ use Illuminate\Database\Eloquent\Builder;
  * Kapsam her zaman tek entegratör tanımı + yöndür (test ve canlı hesabın
  * faturaları karışmaz). Sıralama kolonları allow-list'tir.
  *
- * @phpstan-type Filtre array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, para_birimi?: string|null}
+ * @phpstan-type Filtre array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, emor?: string|null, para_birimi?: string|null}
  */
 final class EFaturaSorgusu
 {
-    public const SIRALAMALAR = ['belge_tarihi', 'belge_no', 'tutar', 'karsi_unvan', 'olusturma_zamani'];
+    /** Tablodan sıralanabilen kolonlar (anahtar => veritabanı kolonu; karşı taraf yöne göre çözülür) */
+    public const SIRALAMALAR = [
+        'belge_tarihi', 'belge_no', 'tutar', 'karsi_unvan', 'olusturma_zamani',
+        'emor', 'erp_okundu', 'karsi_vkn', 'karsi_ad_soyad', 'fatura_tipi', 'para_birimi',
+        'irsaliye_no', 'siparis_no', 'durum', 'zarf_durumu', 'yanit_aciklamasi',
+    ];
 
     /**
      * @param  Filtre  $filtre
@@ -45,7 +50,12 @@ final class EFaturaSorgusu
                     ->orWhereLike($karsiVkn, $desen)
                     ->orWhereLike($karsiUnvan, $desen)
                     ->orWhereLike($karsiAdSoyad, $desen)
-                    ->orWhereLike('fatura_tipi', $desen);
+                    ->orWhereLike('fatura_tipi', $desen)
+                    ->orWhereLike('siparis_no', $desen)
+                    ->orWhereLike('irsaliye_no', $desen)
+                    // Fatura zarf durumu ekranda "1300 BAŞARIYLA TAMAMLANDI" diye görünür
+                    ->orWhereLike('gib_durum_aciklamasi', $desen)
+                    ->orWhereRaw('CAST(gib_durum_kodu AS TEXT) LIKE ?', [$desen]);
             });
         }
 
@@ -64,6 +74,13 @@ final class EFaturaSorgusu
             default => null,
         };
 
+        // eMOR: islendi | havuzda | yok (EmorDurumu), bilinmiyor = henüz kontrol edilmedi
+        match ($filtre['emor'] ?? null) {
+            null => null,
+            'bilinmiyor' => $sorgu->whereNull('emor_durumu'),
+            default => $sorgu->where('emor_durumu', $filtre['emor']),
+        };
+
         return $sorgu;
     }
 
@@ -75,16 +92,34 @@ final class EFaturaSorgusu
     {
         $yonu = $yonu === 'asc' ? 'asc' : 'desc';
 
+        [$karsiVkn, $karsiUnvan] = $this->karsiKolonlar($yon);
+
+        // Allow-list: ham ifadelere yalnız buradaki sabit kolon adları girer
         $sutun = match ($kolon) {
-            'belge_no' => 'belge_no',
-            'tutar' => 'tutar',
-            'karsi_unvan' => $this->karsiKolonlar($yon)[1],
-            'olusturma_zamani' => 'olusturma_zamani',
+            'belge_no', 'tutar', 'olusturma_zamani', 'erp_okundu', 'fatura_tipi', 'para_birimi',
+            'irsaliye_no', 'siparis_no', 'yanit_aciklamasi' => $kolon,
+            'karsi_unvan' => $karsiUnvan,
+            'karsi_vkn' => $karsiVkn,
+            'karsi_ad_soyad' => $yon === FaturaYonu::Gelen ? 'gonderici_ad_soyad' : 'alici_ad_soyad',
+            // Ekrandaki metinlerle aynı sıra: durum açıklaması, zarf durumunda GİB kodu
+            'durum' => 'durum_aciklamasi',
+            'zarf_durumu' => 'gib_durum_kodu',
+            'emor' => 'emor_durumu',
             default => 'belge_tarihi',
         };
 
+        // Boş değerler yönden bağımsız en sonda (PostgreSQL ile SQLite'ın NULL sırası farklı)
+        $sorgu->orderByRaw("CASE WHEN {$sutun} IS NULL THEN 1 ELSE 0 END");
+
+        if ($sutun === 'emor_durumu') {
+            // Aşama sırası (alfabetik değil): işlendi > havuzda > yok
+            $sorgu->orderByRaw("CASE emor_durumu WHEN 'islendi' THEN 3 WHEN 'havuzda' THEN 2 ELSE 1 END {$yonu}");
+        } else {
+            $sorgu->orderBy($sutun, $yonu);
+        }
+
         // id: eşit değerlerde sayfalar arası kararlı sıra
-        return $sorgu->orderBy($sutun, $yonu)->orderBy('id', $yonu);
+        return $sorgu->orderBy('id', $yonu);
     }
 
     /**

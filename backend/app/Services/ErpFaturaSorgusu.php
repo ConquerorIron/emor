@@ -32,21 +32,21 @@ final class ErpFaturaSorgusu implements ErpFaturaKaynagi
     /**
      * Yalnız iki kolon okunur (tabloda PDF/XSLT/XML kodları var — SELECT * yok).
      */
-    public function gelenIstisnaKodlari(): array
+    public function havuzdakiGelenler(): array
     {
-        /** @var list<object{UUID: string, KOD: string}> $satirlar */
+        /** @var list<object{UUID: string, KOD: string|null}> $satirlar */
         $satirlar = $this->mssql->baglan()->select(
-            "SELECT CAST(UUID AS nvarchar(64)) AS UUID, LTRIM(RTRIM(VERGI_ISTISNA_KODU)) AS KOD
+            'SELECT CAST(UUID AS nvarchar(64)) AS UUID, LTRIM(RTRIM(VERGI_ISTISNA_KODU)) AS KOD
              FROM TOHOM_E_FATURA
-             WHERE UUID IS NOT NULL AND LTRIM(RTRIM(ISNULL(VERGI_ISTISNA_KODU, ''))) <> ''",
+             WHERE UUID IS NOT NULL',
         );
 
-        $kodlar = [];
+        $havuz = [];
         foreach ($satirlar as $satir) {
-            $kodlar[$satir->UUID] = $satir->KOD;
+            $havuz[$satir->UUID] = ($satir->KOD ?? '') !== '' ? $satir->KOD : null;
         }
 
-        return $kodlar;
+        return $havuz;
     }
 
     /**

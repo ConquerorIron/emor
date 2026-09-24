@@ -74,7 +74,7 @@ const FATURA: EFatura = {
   teslim_ref: null,
   harici_aktarim: null,
   mail_durumu: null,
-  emor_islendi: true,
+  emor_durumu: 'islendi',
   vergi_istisna_kodu: '318',
 }
 
@@ -201,9 +201,14 @@ describe('EFaturalarPage', () => {
       ),
     )
 
-    fireEvent.change(screen.getByLabelText('Ara (no, ETTN, VKN, unvan, ad soyad, tip)'), {
-      target: { value: 'deniz' },
-    })
+    fireEvent.change(
+      screen.getByLabelText(
+        'Ara (no, ETTN, VKN, unvan, ad soyad, tip, sipariş, irsaliye, zarf durumu)',
+      ),
+      {
+        target: { value: 'deniz' },
+      },
+    )
 
     await waitFor(
       () =>
@@ -225,9 +230,14 @@ describe('EFaturalarPage', () => {
       () => new Promise<typeof LISTE>((resolve) => (bitir = resolve)),
     )
 
-    fireEvent.change(screen.getByLabelText('Ara (no, ETTN, VKN, unvan, ad soyad, tip)'), {
-      target: { value: 'baska' },
-    })
+    fireEvent.change(
+      screen.getByLabelText(
+        'Ara (no, ETTN, VKN, unvan, ad soyad, tip, sipariş, irsaliye, zarf durumu)',
+      ),
+      {
+        target: { value: 'baska' },
+      },
+    )
 
     // Önceki satırlar yerinde kalır (tablo kaybolup yeniden çizilmez)...
     // Arama 300 ms gecikmeli uygulanır; tüm takım yük altında koşarken
@@ -273,7 +283,8 @@ describe('EFaturalarPage', () => {
     // İşlemler (Detay/PDF) en solda, başlıksız
     expect(basliklar()[0]).toBe('')
     expect(screen.getAllByRole('row')[1].querySelector('td')).toHaveTextContent('Detay')
-    expect(basliklar().slice(1, 12)).toEqual([
+    expect(basliklar().slice(1, 13)).toEqual([
+      'ERP Okudu',
       'eMOR',
       'Fatura No',
       'Tarih',
@@ -352,6 +363,59 @@ describe('EFaturalarPage', () => {
 
     expect(reddedilen).toHaveClass('bg-red-50')
     expect(alinan.className).not.toMatch(/bg-(red|emerald|amber)-50/)
+  })
+
+  it('eMOR üç durumlu: havuzdaki fatura sarı rozetle, ERP’de olmayan boş görünür', async () => {
+    api.faturalar.mockResolvedValue({
+      ...LISTE,
+      data: [
+        {
+          ...FATURA,
+          id: 21,
+          belge_no: 'HAV1',
+          gonderici_unvan: 'Havuz Ltd.',
+          emor_durumu: 'havuzda',
+        },
+        { ...FATURA, id: 22, belge_no: 'YOK1', gonderici_unvan: 'Yok Ltd.', emor_durumu: 'yok' },
+      ],
+    })
+    ciz(['efatura.goruntule'])
+
+    const havuzSatiri = (await screen.findByText('Havuz Ltd.')).closest('tr') as HTMLElement
+    expect(within(havuzSatiri).getByText('Havuzda')).toHaveAttribute(
+      'title',
+      'ERP entegratörden almış (TOHOM_E_FATURA), henüz muhasebeleşmemiş',
+    )
+    const yokSatiri = screen.getByText('Yok Ltd.').closest('tr') as HTMLElement
+    expect(within(yokSatiri).queryByText('İşlendi')).not.toBeInTheDocument()
+    expect(within(yokSatiri).queryByText('Havuzda')).not.toBeInTheDocument()
+  })
+
+  it('eMOR filtresi ve eMOR başlığıyla sıralama isteğe gider', async () => {
+    ciz(['efatura.goruntule'])
+    await screen.findByText('Deniz Boya Ltd.')
+    const alan = document.querySelector<HTMLElement>('label[for="efatura-emor"]')!.parentElement!
+
+    fireEvent.keyDown(within(alan).getByRole('combobox'), { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByText('Havuzda (muhasebeleşmemiş)'))
+    await waitFor(() =>
+      expect(api.faturalar).toHaveBeenLastCalledWith(
+        'gelen',
+        expect.objectContaining({ emor: 'havuzda' }),
+        VARSAYILAN_SIRALAMA,
+        1,
+      ),
+    )
+
+    fireEvent.click(within(screen.getByRole('columnheader', { name: /eMOR/ })).getByRole('button'))
+    await waitFor(() =>
+      expect(api.faturalar).toHaveBeenLastCalledWith(
+        'gelen',
+        expect.anything(),
+        { anahtar: 'emor', yon: 'asc' },
+        1,
+      ),
+    )
   })
 
   it('alarm mailindeki bağlantı ERP okumadı filtresiyle açar', async () => {
@@ -497,7 +561,7 @@ describe('EFaturalarPage', () => {
   })
 
   it('ERP Senkronla eMOR’u tazeler, sonucu bildirir ve listeyi yeniden okur', async () => {
-    api.erp.mockResolvedValue({ islendi: 5, islenmedi: 2, degisen: 1 })
+    api.erp.mockResolvedValue({ islendi: 5, havuzda: 3, yok: 2, degisen: 1 })
     ciz(TUM_IZINLER)
     await screen.findByText('Deniz Boya Ltd.')
     const okumaSayisi = api.faturalar.mock.calls.length
@@ -506,7 +570,7 @@ describe('EFaturalarPage', () => {
 
     await waitFor(() =>
       expect(toastlar.success).toHaveBeenCalledWith(
-        'eMOR güncellendi: 5 işlendi, 2 işlenmedi (1 değişti).',
+        "eMOR güncellendi: 5 işlendi, 3 havuzda, 2 ERP'de yok (1 değişti).",
       ),
     )
     expect(api.erp).toHaveBeenCalledExactlyOnceWith('gelen')
