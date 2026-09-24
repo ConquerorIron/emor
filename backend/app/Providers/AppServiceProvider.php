@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\ErpBelgeArsivi;
+use App\Services\ErpBelgeArsiviSorgusu;
 use App\Services\ErpFaturaKaynagi;
 use App\Services\ErpFaturaSorgusu;
 use App\Services\ErpIstisnaKoduYazici;
@@ -30,6 +32,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(
             ErpFaturaKaynagi::class,
             ErpFaturaSorgusu::class,
+        );
+
+        $this->app->bind(
+            ErpBelgeArsivi::class,
+            ErpBelgeArsiviSorgusu::class,
         );
 
         $this->app->bind(
@@ -80,8 +87,8 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(5)->by($request->user()?->id ?? $request->ip());
         });
 
-        // PDF her açılışta İzibiz'den okunur; aynı hesabı kullanan ERP
-        // entegrasyonunu zorlamamak için kullanıcı başına sınırlı
+        // PDF/XML ERP havuzunda yoksa İzibiz'den okunur; aynı hesabı kullanan
+        // ERP entegrasyonunu zorlamamak için kullanıcı başına sınırlı
         RateLimiter::for('efatura-pdf', function (Request $request): Limit {
             return Limit::perMinute(30)->by($request->user()?->id ?? $request->ip());
         });

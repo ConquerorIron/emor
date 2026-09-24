@@ -18,6 +18,7 @@ const api = vi.hoisted(() => ({
   senkron: vi.fn(),
   excel: vi.fn(),
   pdf: vi.fn(),
+  xml: vi.fn(),
   erp: vi.fn(),
 }))
 
@@ -30,6 +31,7 @@ vi.mock('@/features/efatura/efaturaApi', () => ({
   senkronBaslat: api.senkron,
   excelIndir: api.excel,
   pdfGetir: api.pdf,
+  xmlIndir: api.xml,
   erpSenkronla: api.erp,
 }))
 
@@ -625,7 +627,10 @@ describe('EFaturalarPage', () => {
     const olustur = vi.fn(() => `blob:efatura-${++sayac}`)
     const birak = vi.fn()
     vi.stubGlobal('URL', { ...URL, createObjectURL: olustur, revokeObjectURL: birak })
-    api.pdf.mockResolvedValue(new Blob(['%PDF-1.4'], { type: 'application/pdf' }))
+    api.pdf.mockResolvedValue({
+      pdf: new Blob(['%PDF-1.4'], { type: 'application/pdf' }),
+      kaynak: 'erp',
+    })
     ciz(TUM_IZINLER)
     await screen.findByText('Deniz Boya Ltd.')
 
@@ -638,12 +643,41 @@ describe('EFaturalarPage', () => {
     // StrictMode'un kur-temizle-kur döngüsünden sonra gösterilen adres geçerli kalmalı
     expect(birak).not.toHaveBeenCalledWith(adres)
     expect(api.pdf).toHaveBeenCalledWith(11)
+    // Kaynak kullanıcıya gösterilir (ERP havuzu mu, entegratör mü)
+    expect(within(dialog).getByText('Kaynak: ERP arşivi')).toBeInTheDocument()
 
     fireEvent.keyDown(dialog, { key: 'Escape' })
 
     await waitFor(() => expect(birak).toHaveBeenCalledWith(adres))
     // Üretilen her adres bırakıldı (sızıntı yok)
     expect(birak).toHaveBeenCalledTimes(olustur.mock.calls.length)
+  })
+
+  it('PDF penceresinden faturanın XML’i indirilir; hata bildirilir', async () => {
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: vi.fn(() => 'blob:efatura-x'),
+      revokeObjectURL: vi.fn(),
+    })
+    api.pdf.mockResolvedValue({
+      pdf: new Blob(['%PDF-1.4'], { type: 'application/pdf' }),
+      kaynak: 'entegrator',
+    })
+    api.xml.mockRejectedValueOnce(new Error('ağ')).mockResolvedValueOnce(undefined)
+    ciz(TUM_IZINLER)
+    await screen.findByText('Deniz Boya Ltd.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'PDF' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText('Kaynak: Entegratör')).toBeInTheDocument()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'XML İndir' }))
+    await waitFor(() => expect(toastlar.error).toHaveBeenCalled())
+    expect(api.xml.mock.calls[0]?.[0]).toMatchObject({ id: 11, belge_no: 'ABC2026000000001' })
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'XML İndir' }))
+    await waitFor(() => expect(api.xml).toHaveBeenCalledTimes(2))
+    expect(toastlar.error).toHaveBeenCalledTimes(1)
   })
 
   it('ERP Senkronla eMOR’u tazeler, sonucu bildirir ve listeyi yeniden okur', async () => {

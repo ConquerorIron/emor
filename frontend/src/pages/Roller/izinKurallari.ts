@@ -36,7 +36,7 @@ export function izinDegistir(
 
 /**
  * Rol listesindeki özet: izni olan her ekran için bir satır, ör.
- * "SQL Bağlantıları: Güncelle" ya da "e-Faturalar: Görüntüle (e-Fatura PDF görüntüleme)".
+ * "SQL Bağlantıları: Güncelle" ya da "e-Faturalar: Görüntüle (e-Fatura PDF/XML görüntüleme)".
  */
 export function rolOzeti(
   izinler: string[],

@@ -504,7 +504,7 @@
     },
     "izin": {
       "efatura_goruntule": "e-Fatura listelerini görüntüleme",
-      "efatura_pdf": "e-Fatura PDF görüntüleme",
+      "efatura_pdf": "e-Fatura PDF/XML görüntüleme",
       "efatura_disari_aktar": "e-Fatura listesini Excel'e aktarma",
       "efatura_senkron": "e-Fatura senkronunu elle başlatma"
     }
@@ -530,9 +530,14 @@
     "pdf": "PDF",
     "detayBaslik": "Fatura {{no}}",
     "pdfBaslik": "Fatura {{no}} — PDF",
-    "pdfYukleniyor": "Fatura aslı entegratörden alınıyor…",
+    "pdfYukleniyor": "Fatura aslı alınıyor…",
     "pdfIndir": "İndir",
     "pdfYeniSekme": "Yeni sekmede aç",
+    "xmlIndir": "XML İndir",
+    "belgeKaynagi": {
+      "erp": "Kaynak: ERP arşivi",
+      "entegrator": "Kaynak: Entegratör"
+    },
     "erpOkunduNotu": "Entegratördeki bayraktır; ERP entegrasyonu kullanır. Bu ekran yalnız gösterir, değiştirmez.",
     "ozetBaslik": "Özet",
     "toplamFatura": "Toplam fatura",

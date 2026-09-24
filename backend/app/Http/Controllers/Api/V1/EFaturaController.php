@@ -12,8 +12,8 @@ use App\Models\EntegratorBaglanti;
 use App\Services\Entegrator\EFaturaExcelAktarici;
 use App\Services\Entegrator\EFaturaSorgusu;
 use App\Services\Entegrator\EntegratorHatasi;
+use App\Services\Entegrator\FaturaBelgeServisi;
 use App\Services\Entegrator\FaturaYonu;
-use App\Services\Entegrator\IzibizIstemcisi;
 use App\Services\EntegratorBaglantiServisi;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
@@ -22,7 +22,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
- * e-Fatura listeleri, Excel çıktısı ve PDF görüntüleme (EFAT-11).
+ * e-Fatura listeleri, Excel çıktısı, PDF görüntüleme ve UBL XML indirme (EFAT-11).
  *
  * Kapsam her zaman AKTİF entegratör tanımıdır: başka ortamın faturası
  * listelenmez ve PDF'i açılmaz (404 — varlığı da açık edilmez).
@@ -100,31 +100,60 @@ final class EFaturaController extends Controller
     }
 
     /**
-     * Fatura aslı İzibiz'den anlık okunur (saklanmaz). Bearer token ve İzibiz
-     * adresi tarayıcıya gitmez; yalnız PDF gövdesi döner.
+     * Fatura aslı önce ERP havuzundan, yoksa İzibiz'den anlık okunur
+     * (saklanmaz). Bearer token ve İzibiz adresi tarayıcıya gitmez; yalnız
+     * PDF gövdesi ve kaynağı (X-Belge-Kaynagi: erp|entegrator) döner.
      */
-    public function pdf(int $fatura, IzibizIstemcisi $istemci): Response
+    public function pdf(int $fatura, FaturaBelgeServisi $belgeler): Response
     {
         $tanim = $this->aktifTanim();
-
-        // Rota model bağlama bilinçli kullanılmıyor: kayıt yetki denetiminden
-        // SONRA ve aktif hesapla sınırlı aranır; başka ortamın faturası 404
-        $fatura = EFatura::query()
-            ->where('entegrator_baglanti_id', $tanim->id)
-            ->find($fatura) ?? throw new NotFoundHttpException;
-
-        $kutu = FaturaYonu::from($fatura->yon)->izibizKutusu();
-        $pdf = $istemci->getPdf($tanim, "/v1/einvoices/{$kutu}/{$fatura->kaynak_id}/preview/pdf");
-
-        // Dosya adında yalnız güvenli karakterler (başlık enjeksiyonu yok)
-        $ad = preg_replace('/[^A-Za-z0-9._-]/', '_', $fatura->belge_no).'.pdf';
+        $kayit = $this->aktifHesabinFaturasi($tanim, $fatura);
+        ['icerik' => $pdf, 'kaynak' => $kaynak] = $belgeler->pdf($tanim, $kayit);
 
         return response($pdf, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="'.$ad.'"',
+            'Content-Disposition' => 'inline; filename="'.$this->dosyaAdi($kayit, 'pdf').'"',
             'Cache-Control' => 'private, no-store',
             'X-Content-Type-Options' => 'nosniff',
+            'X-Belge-Kaynagi' => $kaynak,
         ]);
+    }
+
+    /**
+     * UBL XML — PDF ile aynı kaynak sırası. Tarayıcıda çizilmesin diye her
+     * zaman ek (attachment) olarak ve betik çalıştırmayan CSP ile döner.
+     */
+    public function xml(int $fatura, FaturaBelgeServisi $belgeler): Response
+    {
+        $tanim = $this->aktifTanim();
+        $kayit = $this->aktifHesabinFaturasi($tanim, $fatura);
+        ['icerik' => $xml, 'kaynak' => $kaynak] = $belgeler->xml($tanim, $kayit);
+
+        return response($xml, 200, [
+            'Content-Type' => 'application/xml; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$this->dosyaAdi($kayit, 'xml').'"',
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+            'Content-Security-Policy' => 'sandbox',
+            'X-Belge-Kaynagi' => $kaynak,
+        ]);
+    }
+
+    /**
+     * Rota model bağlama bilinçli kullanılmıyor: kayıt yetki denetiminden
+     * SONRA ve aktif hesapla sınırlı aranır; başka ortamın faturası 404.
+     */
+    private function aktifHesabinFaturasi(EntegratorBaglanti $tanim, int $fatura): EFatura
+    {
+        return EFatura::query()
+            ->where('entegrator_baglanti_id', $tanim->id)
+            ->find($fatura) ?? throw new NotFoundHttpException;
+    }
+
+    /** Dosya adında yalnız güvenli karakterler (başlık enjeksiyonu yok). */
+    private function dosyaAdi(EFatura $fatura, string $uzanti): string
+    {
+        return preg_replace('/[^A-Za-z0-9._-]/', '_', $fatura->belge_no).'.'.$uzanti;
     }
 
     /** Sınır yalnız yükseltilir: sunucu daha yüksek/sınırsız verdiyse düşürülmez. */

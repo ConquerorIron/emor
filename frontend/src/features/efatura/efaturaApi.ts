@@ -234,10 +234,14 @@ export async function excelIndir(
     })
     .catch(blobHatasiniCoz)
 
-  const adres = URL.createObjectURL(yanit.data)
+  dosyayiIndir(yanit.data, `efatura-${yon}-${filtre.baslangic}-${filtre.bitis}.xlsx`)
+}
+
+function dosyayiIndir(icerik: Blob, ad: string): void {
+  const adres = URL.createObjectURL(icerik)
   const baglanti = document.createElement('a')
   baglanti.href = adres
-  baglanti.download = `efatura-${yon}-${filtre.baslangic}-${filtre.bitis}.xlsx`
+  baglanti.download = ad
   document.body.appendChild(baglanti)
   baglanti.click()
   baglanti.remove()
@@ -245,11 +249,32 @@ export async function excelIndir(
   window.setTimeout(() => URL.revokeObjectURL(adres), 60_000)
 }
 
-/** Fatura aslı İzibiz'den anlık okunur; token tarayıcıya gelmez. */
-export async function pdfGetir(faturaId: number): Promise<Blob> {
+/** Fatura aslının nereden okunduğu (sunucu X-Belge-Kaynagi başlığıyla bildirir). */
+export type BelgeKaynagi = 'erp' | 'entegrator'
+
+export type FaturaPdfi = { pdf: Blob; kaynak: BelgeKaynagi | null }
+
+function belgeKaynagi(baslik: unknown): BelgeKaynagi | null {
+  return baslik === 'erp' || baslik === 'entegrator' ? baslik : null
+}
+
+/**
+ * Fatura aslı önce ERP havuzundan, yoksa entegratörden anlık okunur;
+ * token tarayıcıya gelmez.
+ */
+export async function pdfGetir(faturaId: number): Promise<FaturaPdfi> {
   const yanit = await api
     .get<Blob>(`/api/v1/efatura/faturalar/${faturaId}/pdf`, { responseType: 'blob' })
     .catch(blobHatasiniCoz)
 
-  return yanit.data
+  return { pdf: yanit.data, kaynak: belgeKaynagi(yanit.headers['x-belge-kaynagi']) }
+}
+
+/** UBL XML'i PDF ile aynı kaynak sırasıyla okunup dosya olarak indirilir. */
+export async function xmlIndir(fatura: Pick<EFatura, 'id' | 'belge_no'>): Promise<void> {
+  const yanit = await api
+    .get<Blob>(`/api/v1/efatura/faturalar/${fatura.id}/xml`, { responseType: 'blob' })
+    .catch(blobHatasiniCoz)
+
+  dosyayiIndir(yanit.data, `${fatura.belge_no}.xml`)
 }

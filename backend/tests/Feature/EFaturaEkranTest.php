@@ -14,6 +14,7 @@ use App\Services\Entegrator\EFaturaDurumServisi;
 use App\Services\Entegrator\EFaturaExcelAktarici;
 use App\Services\Entegrator\EFaturaSenkronServisi;
 use App\Services\Entegrator\FaturaYonu;
+use App\Services\ErpBelgeArsivi;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
@@ -25,9 +26,11 @@ use Illuminate\Support\Sleep;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Tests\TestCase;
+use ZipArchive;
 
-/** e-Fatura ekran uçları (EFAT-11): liste, özet, Excel, PDF, durum, elle senkron. */
+/** e-Fatura ekran uçları (EFAT-11): liste, özet, Excel, PDF/XML, durum, elle senkron. */
 final class EFaturaEkranTest extends TestCase
 {
     use RefreshDatabase;
@@ -80,10 +83,12 @@ final class EFaturaEkranTest extends TestCase
             'durum' => ['get', '/api/v1/efatura/durum', 'efatura.senkron'],
             'excel' => ['get', '/api/v1/efatura/gelen/faturalar/excel?'.self::ARALIK, 'efatura.goruntule'],
             'pdf' => ['get', '/api/v1/efatura/faturalar/1/pdf', 'efatura.goruntule'],
+            'xml' => ['get', '/api/v1/efatura/faturalar/1/xml', 'efatura.goruntule'],
             'senkron' => ['post', '/api/v1/efatura/senkron', 'efatura.goruntule'],
             // İşlem izni tek başına yetmez: görüntüleme izni de gerekir
             'excel, görüntüleme izni olmadan' => ['get', '/api/v1/efatura/gelen/faturalar/excel?'.self::ARALIK, 'efatura.disari_aktar'],
             'pdf, görüntüleme izni olmadan' => ['get', '/api/v1/efatura/faturalar/1/pdf', 'efatura.pdf'],
+            'xml, görüntüleme izni olmadan' => ['get', '/api/v1/efatura/faturalar/1/xml', 'efatura.pdf'],
             'senkron, görüntüleme izni olmadan' => ['post', '/api/v1/efatura/senkron', 'efatura.senkron'],
         ];
     }
@@ -472,6 +477,7 @@ final class EFaturaEkranTest extends TestCase
     {
         $this->travelTo('2026-09-23 11:24:41');
         $fatura = $this->fatura($this->aktifTanim());
+        $this->erpArsivi();
         $this->sahteIzibizPdf('<html>hata</html>');
 
         $this->actingAs($this->izinli('efatura.goruntule', 'efatura.pdf'))
@@ -493,6 +499,153 @@ final class EFaturaEkranTest extends TestCase
             ->assertJsonPath('kod', 'BULUNAMADI');
 
         Http::assertNothingSent();
+    }
+
+    // --- Fatura aslı: önce ERP havuzu, yoksa entegratör ---------------------------
+
+    /** @var list<string> ERP arşivine sorulan ETTN'ler */
+    public array $erpSorulan = [];
+
+    /**
+     * ERP havuzu (TOHOM_E_FATURA) sahtesi: ETTN => içerik; $hata verilirse ERP'ye ulaşılamaz.
+     *
+     * @param  array<string, string>  $pdfler
+     * @param  array<string, string>  $xmller
+     */
+    private function erpArsivi(array $pdfler = [], array $xmller = [], ?RuntimeException $hata = null): void
+    {
+        $this->app->instance(ErpBelgeArsivi::class, new class($this, $pdfler, $xmller, $hata) implements ErpBelgeArsivi
+        {
+            /**
+             * @param  array<string, string>  $pdfler
+             * @param  array<string, string>  $xmller
+             */
+            public function __construct(private readonly EFaturaEkranTest $test, private readonly array $pdfler, private readonly array $xmller, private readonly ?RuntimeException $hata) {}
+
+            public function pdf(string $ettn): ?string
+            {
+                return $this->oku($this->pdfler, $ettn);
+            }
+
+            public function xml(string $ettn): ?string
+            {
+                return $this->oku($this->xmller, $ettn);
+            }
+
+            /** @param array<string, string> $kaynak */
+            private function oku(array $kaynak, string $ettn): ?string
+            {
+                $this->test->erpSorulan[] = $ettn;
+
+                if ($this->hata !== null) {
+                    throw $this->hata;
+                }
+
+                return $kaynak[$ettn] ?? null;
+            }
+        });
+    }
+
+    public function test_gelen_faturanin_pdfi_erp_havuzunda_varsa_oradan_doner_entegratore_gidilmez(): void
+    {
+        $fatura = $this->fatura($this->aktifTanim(), ['ettn' => 'aaaaaaaa-0000-0000-0000-000000000001', 'belge_no' => 'GLN2026000000001']);
+        $this->erpArsivi(pdfler: ['aaaaaaaa-0000-0000-0000-000000000001' => '%PDF-1.7 erp']);
+        Http::preventStrayRequests();
+        Http::fake();
+
+        $this->actingAs($this->izinli('efatura.goruntule', 'efatura.pdf'))
+            ->get("/api/v1/efatura/faturalar/{$fatura->id}/pdf")
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf')
+            ->assertHeader('X-Belge-Kaynagi', 'erp')
+            ->assertContent('%PDF-1.7 erp');
+
+        Http::assertNothingSent();
+    }
+
+    public function test_gelen_faturanin_pdfi_erp_havuzunda_yoksa_entegratorden_okunur(): void
+    {
+        $this->travelTo('2026-09-23 11:24:41');
+        $fatura = $this->fatura($this->aktifTanim(), ['ettn' => 'aaaaaaaa-0000-0000-0000-000000000001', 'kaynak_id' => 77]);
+        $this->erpArsivi();
+        $this->sahteIzibizPdf('%PDF-1.4 izibiz');
+
+        $this->actingAs($this->izinli('efatura.goruntule', 'efatura.pdf'))
+            ->get("/api/v1/efatura/faturalar/{$fatura->id}/pdf")
+            ->assertOk()
+            ->assertHeader('X-Belge-Kaynagi', 'entegrator')
+            ->assertContent('%PDF-1.4 izibiz');
+
+        $this->assertSame(['aaaaaaaa-0000-0000-0000-000000000001'], $this->erpSorulan);
+        Http::assertSent(fn (Request $istek) => $istek->url() === 'https://apitest.izibiz.com.tr/v1/einvoices/inbox/77/preview/pdf');
+    }
+
+    public function test_erpye_ulasilamazsa_pdf_entegratorden_okunur_ve_uyari_loglanir(): void
+    {
+        $this->travelTo('2026-09-23 11:24:41');
+        $fatura = $this->fatura($this->aktifTanim());
+        $this->erpArsivi(hata: new RuntimeException('SELECT permission was denied'));
+        $this->sahteIzibizPdf('%PDF-1.4 izibiz');
+        Log::spy();
+
+        $this->actingAs($this->izinli('efatura.goruntule', 'efatura.pdf'))
+            ->get("/api/v1/efatura/faturalar/{$fatura->id}/pdf")
+            ->assertOk()
+            ->assertHeader('X-Belge-Kaynagi', 'entegrator');
+
+        Log::shouldHaveReceived('warning')->with('ERP fatura arşivi okunamadı; entegratörden okunuyor', ['fatura_id' => $fatura->id, 'hata' => 'SELECT permission was denied'])->once();
+    }
+
+    public function test_gelen_faturanin_xmli_erp_havuzundan_utf8_bildirimiyle_ek_olarak_doner(): void
+    {
+        $fatura = $this->fatura($this->aktifTanim(), ['ettn' => 'aaaaaaaa-0000-0000-0000-000000000001', 'belge_no' => 'GLN2026000000001']);
+        // ERP XML'i bildirimsiz saklar
+        $this->erpArsivi(xmller: ['aaaaaaaa-0000-0000-0000-000000000001' => '<Invoice><cbc:ID>İŞ</cbc:ID></Invoice>']);
+        Http::preventStrayRequests();
+        Http::fake();
+
+        $this->actingAs($this->izinli('efatura.goruntule', 'efatura.pdf'))
+            ->get("/api/v1/efatura/faturalar/{$fatura->id}/xml")
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/xml; charset=UTF-8')
+            ->assertHeader('Content-Disposition', 'attachment; filename="GLN2026000000001.xml"')
+            ->assertHeader('X-Belge-Kaynagi', 'erp')
+            ->assertContent("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Invoice><cbc:ID>İŞ</cbc:ID></Invoice>");
+
+        Http::assertNothingSent();
+    }
+
+    public function test_giden_faturanin_xmli_erpye_sorulmadan_entegratorden_toplu_indirmeyle_okunur(): void
+    {
+        $this->travelTo('2026-09-23 11:24:41');
+        $fatura = $this->fatura($this->aktifTanim(), ['yon' => 'giden', 'kaynak_id' => 4242]);
+        $this->erpArsivi();
+        $xml = '<?xml version="1.0" encoding="UTF-8"?><Invoice/>';
+        $yol = (string) tempnam(sys_get_temp_dir(), 'test-ubl-');
+        $zip = new ZipArchive;
+        $zip->open($yol, ZipArchive::OVERWRITE);
+        $zip->addFromString('fatura.xml', $xml);
+        $zip->close();
+        $zipIcerigi = (string) file_get_contents($yol);
+        unlink($yol);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'apitest.izibiz.com.tr/v1/auth/token' => Http::response(['data' => ['accessToken' => 'erisim-token', 'validity' => '2026-09-24 02:24:41', 'customerType' => 'C'], 'error' => null]),
+            'apitest.izibiz.com.tr/v1/einvoices/outbox/download/ubl' => Http::response(['data' => ['filename' => 'x.zip', 'content' => base64_encode($zipIcerigi)], 'error' => null]),
+        ]);
+
+        $this->actingAs($this->izinli('efatura.goruntule', 'efatura.pdf'))
+            ->get("/api/v1/efatura/faturalar/{$fatura->id}/xml")
+            ->assertOk()
+            ->assertHeader('X-Belge-Kaynagi', 'entegrator')
+            ->assertContent($xml);
+
+        // ERP havuzu yalnız gelen faturaları tutar
+        $this->assertSame([], $this->erpSorulan);
+        Http::assertSent(fn (Request $istek) => $istek->url() === 'https://apitest.izibiz.com.tr/v1/einvoices/outbox/download/ubl'
+            && $istek->method() === 'POST'
+            && $istek->data() === [['id' => 4242]]);
     }
 
     // --- Durum -----------------------------------------------------------------

@@ -504,7 +504,7 @@
     },
     "izin": {
       "efatura_goruntule": "View e-Invoice lists",
-      "efatura_pdf": "View e-Invoice PDF",
+      "efatura_pdf": "View e-Invoice PDF/XML",
       "efatura_disari_aktar": "Export e-Invoice list to Excel",
       "efatura_senkron": "Start e-Invoice sync manually"
     }
@@ -530,9 +530,14 @@
     "pdf": "PDF",
     "detayBaslik": "Invoice {{no}}",
     "pdfBaslik": "Invoice {{no}} — PDF",
-    "pdfYukleniyor": "Fetching the invoice from the integrator…",
+    "pdfYukleniyor": "Fetching the invoice…",
     "pdfIndir": "Download",
     "pdfYeniSekme": "Open in new tab",
+    "xmlIndir": "Download XML",
+    "belgeKaynagi": {
+      "erp": "Source: ERP archive",
+      "entegrator": "Source: Integrator"
+    },
     "erpOkunduNotu": "Integrator flag used by the ERP integration. This screen only shows it and never changes it.",
     "ozetBaslik": "Summary",
     "toplamFatura": "Total invoices",

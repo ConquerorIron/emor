@@ -73,7 +73,9 @@ describe('RollerPage', () => {
 
     expect(await screen.findByText('Muhasebe')).toBeInTheDocument()
     expect(
-      await screen.findByText('e-Faturalar (Gelen/Giden): Görüntüle (e-Fatura PDF görüntüleme)'),
+      await screen.findByText(
+        'e-Faturalar (Gelen/Giden): Görüntüle (e-Fatura PDF/XML görüntüleme)',
+      ),
     ).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
   })
@@ -142,7 +144,7 @@ describe('RollerPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }))
     const dialog = await screen.findByRole('dialog')
-    const pdf = within(dialog).getByRole('switch', { name: 'e-Fatura PDF görüntüleme' })
+    const pdf = within(dialog).getByRole('switch', { name: 'e-Fatura PDF/XML görüntüleme' })
     expect(pdf).toBeChecked()
 
     fireEvent.click(
