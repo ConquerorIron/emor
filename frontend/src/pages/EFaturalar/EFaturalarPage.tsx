@@ -492,6 +492,31 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
       baslik: t('efatura.kolon.portalNotu'),
       render: (f) => <Metin deger={f.portal_notu} genis />,
     },
+    // Eski Excel'deki alanlar (kullanıcı isteği 2026-09-24): ekranda da seçilebilir,
+    // Excel tablonun aynısı olduğu için oraya da buradan gider
+    {
+      anahtar: 'ettn',
+      baslik: t('efatura.kolon.ettn'),
+      render: (f) => <span className="font-mono text-xs whitespace-nowrap">{f.ettn}</span>,
+    },
+    {
+      anahtar: 'senaryo',
+      baslik: t('efatura.kolon.senaryo'),
+      siralamaAnahtari: 'senaryo',
+      render: (f) => <Metin deger={f.senaryo} />,
+    },
+    {
+      anahtar: 'vergi_tutari',
+      baslik: t('efatura.kolon.vergiTutari'),
+      siralamaAnahtari: 'vergi_tutari',
+      hizala: 'sag',
+      render: (f) =>
+        f.vergi_tutari === null ? (
+          <span className="text-slate-400">—</span>
+        ) : (
+          <span className="whitespace-nowrap tabular-nums">{tutarGoster(f.vergi_tutari)}</span>
+        ),
+    },
   ]
 
   const kolonlar: DataTableKolonu<EFatura>[] = [

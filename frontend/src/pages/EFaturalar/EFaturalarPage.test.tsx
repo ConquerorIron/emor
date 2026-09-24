@@ -309,6 +309,8 @@ describe('EFaturalarPage', () => {
       'Para Birimi',
       'Alınma Zamanı',
     ])
+    // Eski Excel'deki alanlar sonda (kullanıcının kolon sırası bozulmaz)
+    expect(basliklar().slice(-3)).toEqual(['ETTN', 'Senaryo', 'Vergi Tutarı'])
     expect(screen.getByText('IRS2026000000007')).toBeInTheDocument()
     // İki kaynağın istisna kodu farklı: ikisi de kırmızı ve açıklamalı
     expect(screen.getByText('318')).toHaveAttribute(

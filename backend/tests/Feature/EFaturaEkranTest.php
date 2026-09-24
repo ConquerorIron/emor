@@ -238,6 +238,8 @@ final class EFaturaEkranTest extends TestCase
             'durum (açıklamasına göre)' => ['durum', ['durum_aciklamasi' => 'Alındı'], ['durum_aciklamasi' => 'Reddedildi']],
             'zarf durumu (GİB koduna göre)' => ['zarf_durumu', ['gib_durum_kodu' => 1200], ['gib_durum_kodu' => 1300]],
             'yanıt açıklaması' => ['yanit_aciklamasi', ['yanit_aciklamasi' => 'Kabul'], ['yanit_aciklamasi' => 'Red']],
+            'senaryo' => ['senaryo', ['senaryo' => 'EARSIVFATURA'], ['senaryo' => 'TICARIFATURA']],
+            'vergi tutarı' => ['vergi_tutari', ['vergi_tutari' => '18.0000'], ['vergi_tutari' => '180.0000']],
         ];
     }
 
@@ -380,8 +382,8 @@ final class EFaturaEkranTest extends TestCase
     // --- Excel -----------------------------------------------------------------
 
     /** Ekrandaki görünür kolonlar ve başlıkları, sırasıyla (Excel isteğinin parçası) */
-    private const EXCEL_KOLONLARI = 'kolonlar[]=karsi_unvan&kolonlar[]=belge_no&kolonlar[]=tutar&kolonlar[]=emor'
-        .'&basliklar[]=Unvan&basliklar[]=Fatura%20No&basliklar[]=Tutar&basliklar[]=eMOR';
+    private const EXCEL_KOLONLARI = 'kolonlar[]=karsi_unvan&kolonlar[]=belge_no&kolonlar[]=tutar&kolonlar[]=emor&kolonlar[]=vergi_tutari&kolonlar[]=ettn'
+        .'&basliklar[]=Unvan&basliklar[]=Fatura%20No&basliklar[]=Tutar&basliklar[]=eMOR&basliklar[]=Vergi&basliklar[]=ETTN';
 
     public function test_excel_ekrandaki_sayfayi_kolonlari_ve_basliklari_yazar_formul_benzeri_metni_metin_tutar(): void
     {
@@ -395,6 +397,8 @@ final class EFaturaEkranTest extends TestCase
             'gonderici_unvan' => '=HYPERLINK("http://kotu.test","tikla")',
             'tutar' => '99.9900',
             'emor_durumu' => 'elle_islendi',
+            'vergi_tutari' => '18.0000',
+            'ettn' => 'aaaaaaaa-0000-0000-0000-000000000099',
         ]);
         $this->fatura($tanim, ['belge_no' => 'ABC0000000000000', 'belge_tarihi' => '2026-03-01']);
 
@@ -409,13 +413,15 @@ final class EFaturaEkranTest extends TestCase
 
         // Yalnız ekrandaki sayfa ve yalnız görünen kolonlar, ekrandaki sırayla
         $this->assertSame(2, $sayfa->getHighestDataRow());
-        $this->assertSame('D', $sayfa->getHighestDataColumn());
-        $this->assertSame(['Unvan', 'Fatura No', 'Tutar', 'eMOR'], $sayfa->rangeToArray('A1:D1')[0]);
+        $this->assertSame('F', $sayfa->getHighestDataColumn());
+        $this->assertSame(['Unvan', 'Fatura No', 'Tutar', 'eMOR', 'Vergi', 'ETTN'], $sayfa->rangeToArray('A1:F1')[0]);
         $this->assertSame(DataType::TYPE_STRING, $sayfa->getCell('A2')->getDataType());
         $this->assertSame('=HYPERLINK("http://kotu.test","tikla")', $sayfa->getCell('A2')->getValue());
         $this->assertSame('ABC9999999999999', $sayfa->getCell('B2')->getValue());
         $this->assertSame(99.99, $sayfa->getCell('C2')->getValue());
         $this->assertSame('İşlendi (elle)', $sayfa->getCell('D2')->getValue());
+        $this->assertSame(18.0, $sayfa->getCell('E2')->getValue());
+        $this->assertSame('aaaaaaaa-0000-0000-0000-000000000099', $sayfa->getCell('F2')->getValue());
         // Özet de yazılan satırlardan
         $this->assertSame(1, $kitap->getSheet(1)->getCell('B7')->getValue());
     }

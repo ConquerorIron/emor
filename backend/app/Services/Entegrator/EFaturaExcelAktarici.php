@@ -59,6 +59,9 @@ final class EFaturaExcelAktarici
         'gonderici_etiketi' => ['metin', 30],
         'alici_etiketi' => ['metin', 30],
         'portal_notu' => ['metin', 30],
+        'ettn' => ['metin', 38],
+        'senaryo' => ['metin', 18],
+        'vergi_tutari' => ['tutar', 14],
     ];
 
     /**
@@ -168,6 +171,7 @@ final class EFaturaExcelAktarici
             'karsi_unvan' => ['metin', $f->getAttribute($karsi.'_unvan')],
             'karsi_ad_soyad' => ['metin', $f->getAttribute($karsi.'_ad_soyad')],
             'tutar' => ['tutar', $f->tutar],
+            'vergi_tutari' => ['tutar', $f->getAttribute('vergi_tutari')],
             'olusturma_zamani' => ['zaman', $f->getAttribute('olusturma_zamani')],
             'durum' => ['metin', $f->getAttribute('durum_aciklamasi') ?? $f->getAttribute('durum')],
             'zarf_durumu' => ['metin', $kod === null
