@@ -24,6 +24,7 @@ import {
   type FaturaYonu,
   type ParaBirimiOzeti,
   excelIndir,
+  type ExcelKolonu,
   faturalariGetir,
   senkronDurumuGetir,
 } from '@/features/efatura/efaturaApi'
@@ -310,10 +311,10 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
   const eskiVeri = liste.isPlaceholderData
   const eskiVeriSinifi = `transition-opacity ${eskiVeri ? 'opacity-50' : ''}`
 
-  const excelAl = async () => {
+  const excelAl = async (gorunenKolonlar: ExcelKolonu[]) => {
     setExcelSuruyor(true)
     try {
-      await excelIndir(yon, sorguFiltresi, siralama)
+      await excelIndir(yon, sorguFiltresi, siralama, sayfa, gorunenKolonlar)
     } catch (error) {
       toast.error(t(apiErrorKey(error)))
     } finally {
@@ -522,6 +523,11 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
     ...secilebilirKolonlar.filter((kolon) => kolonGorunurlugu.gorunurMu(kolon.anahtar)),
   ]
 
+  // Excel tablonun aynısı: görünen kolonlar, ekrandaki başlık ve sırayla
+  const excelKolonlari: ExcelKolonu[] = secilebilirKolonlar
+    .filter((kolon) => kolonGorunurlugu.gorunurMu(kolon.anahtar))
+    .map((kolon) => ({ anahtar: kolon.anahtar, baslik: kolon.baslik }))
+
   const secenekler = liste.data?.secenekler
   // Türkçe açıklama, parantez içinde İzibiz kodu: "Kabul Edildi (ACCEPTED)"
   const durumSecenekleri: SecenekOgesi[] = (secenekler?.durumlar ?? []).map((d) => ({
@@ -562,7 +568,8 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
         {excelIzni ? (
           <Button
             variant="yesil"
-            onClick={() => void excelAl()}
+            onClick={() => void excelAl(excelKolonlari)}
+            title={t('efatura.excelAciklama')}
             yukleniyor={excelSuruyor}
             disabled={tarihHatasi !== null || eskiVeri || (liste.data?.meta.total ?? 0) === 0}
           >

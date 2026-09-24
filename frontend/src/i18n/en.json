@@ -527,6 +527,7 @@
     "bitis": "To",
     "ara": "Search (no, ETTN, tax id, title, full name, type, order, despatch, envelope status)",
     "excel": "Excel",
+    "excelAciklama": "Exports the table as shown: the records on this page and the visible columns. Choose \"All\" as page size for every record.",
     "detay": "Details",
     "pdf": "PDF",
     "detayBaslik": "Invoice {{no}}",

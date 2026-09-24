@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\EFatura;
 
+use App\Services\Entegrator\EFaturaExcelAktarici;
 use App\Services\Entegrator\EFaturaSorgusu;
 use App\Services\Entegrator\EmorDurumu;
 use Carbon\CarbonImmutable;
@@ -45,6 +46,11 @@ final class EFaturaListeRequest extends FormRequest
             'yon' => ['nullable', Rule::in(['asc', 'desc'])],
             'page' => ['nullable', 'integer', 'min:1'],
             'sayfa_boyutu' => ['nullable', 'integer', Rule::in([0, 25, 50, 100, 200])],
+            // Excel: ekrandaki görünür kolonlar ve başlıkları, aynı sırada
+            'kolonlar' => [Rule::requiredIf(fn (): bool => $this->routeIs('efatura.faturalar.excel')), 'array', 'max:'.count(EFaturaExcelAktarici::KOLONLAR)],
+            'kolonlar.*' => ['string', 'distinct', Rule::in(array_keys(EFaturaExcelAktarici::KOLONLAR))],
+            'basliklar' => ['required_with:kolonlar', 'array', 'size:'.count((array) $this->input('kolonlar', []))],
+            'basliklar.*' => ['required', 'string', 'max:100'],
         ];
     }
 
@@ -77,6 +83,25 @@ final class EFaturaListeRequest extends FormRequest
     {
         /** @var array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null} */
         return $this->safe()->only(['baslangic', 'bitis', 'ara', 'durum', 'erp_okundu', 'emor', 'para_birimi', 'tip', 'istisna_kodu', 'istisnali', 'gizlenenler']);
+    }
+
+    /**
+     * Excel kolonları: ekrandaki anahtar + başlık, sırasıyla.
+     *
+     * @return list<array{anahtar: string, baslik: string}>
+     */
+    public function excelKolonlari(): array
+    {
+        /** @var list<string> $anahtarlar */
+        $anahtarlar = array_values((array) $this->validated('kolonlar', []));
+        /** @var list<string> $basliklar */
+        $basliklar = array_values((array) $this->validated('basliklar', []));
+
+        return array_map(
+            fn (string $anahtar, string $baslik): array => ['anahtar' => $anahtar, 'baslik' => $baslik],
+            $anahtarlar,
+            $basliklar,
+        );
     }
 
     /** "Hepsi" (0) da sayfalıdır; üst sınır kötüye kullanımı keser. */

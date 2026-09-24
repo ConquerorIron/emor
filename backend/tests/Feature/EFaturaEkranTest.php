@@ -379,27 +379,83 @@ final class EFaturaEkranTest extends TestCase
 
     // --- Excel -----------------------------------------------------------------
 
-    public function test_excel_filtrenin_tamamini_yazar_ve_formul_benzeri_metni_metin_tutar(): void
+    /** Ekrandaki görünür kolonlar ve başlıkları, sırasıyla (Excel isteğinin parçası) */
+    private const EXCEL_KOLONLARI = 'kolonlar[]=karsi_unvan&kolonlar[]=belge_no&kolonlar[]=tutar&kolonlar[]=emor'
+        .'&basliklar[]=Unvan&basliklar[]=Fatura%20No&basliklar[]=Tutar&basliklar[]=eMOR';
+
+    public function test_excel_ekrandaki_sayfayi_kolonlari_ve_basliklari_yazar_formul_benzeri_metni_metin_tutar(): void
     {
         $tanim = $this->aktifTanim();
-        $this->fatura($tanim, ['belge_no' => 'ABC2026000000001', 'gonderici_unvan' => '=HYPERLINK("http://kotu.test","tikla")']);
-        $this->fatura($tanim, ['belge_no' => 'ABC2026000000002', 'tutar' => '99.9900']);
-        $this->fatura($tanim, ['belge_no' => 'ABC2026000000003', 'belge_tarihi' => '2026-03-01']);
+        foreach (range(1, 25) as $i) {
+            $this->fatura($tanim, ['belge_no' => sprintf('ABC%013d', $i)]);
+        }
+        // Sıralamada 26. kayıt: 25'lik sayfada 2. sayfanın tek satırı
+        $this->fatura($tanim, [
+            'belge_no' => 'ABC9999999999999',
+            'gonderici_unvan' => '=HYPERLINK("http://kotu.test","tikla")',
+            'tutar' => '99.9900',
+            'emor_durumu' => 'elle_islendi',
+        ]);
+        $this->fatura($tanim, ['belge_no' => 'ABC0000000000000', 'belge_tarihi' => '2026-03-01']);
 
         $yanit = $this->actingAs($this->izinli('efatura.goruntule', 'efatura.disari_aktar'))
-            ->get('/api/v1/efatura/gelen/faturalar/excel?'.self::ARALIK.'&sirala=belge_no&yon=asc&page=2&sayfa_boyutu=25');
+            ->get('/api/v1/efatura/gelen/faturalar/excel?'.self::ARALIK.'&sirala=belge_no&yon=asc&page=2&sayfa_boyutu=25&'.self::EXCEL_KOLONLARI);
 
         $yanit->assertOk()->assertDownload('efatura-gelen-2026-01-01-2026-01-31.xlsx');
         $yol = $yanit->baseResponse->getFile()->getPathname();
+        $kitap = IOFactory::load($yol);
+        unlink($yol);
+        $sayfa = $kitap->getSheet(0);
+
+        // Yalnız ekrandaki sayfa ve yalnız görünen kolonlar, ekrandaki sırayla
+        $this->assertSame(2, $sayfa->getHighestDataRow());
+        $this->assertSame('D', $sayfa->getHighestDataColumn());
+        $this->assertSame(['Unvan', 'Fatura No', 'Tutar', 'eMOR'], $sayfa->rangeToArray('A1:D1')[0]);
+        $this->assertSame(DataType::TYPE_STRING, $sayfa->getCell('A2')->getDataType());
+        $this->assertSame('=HYPERLINK("http://kotu.test","tikla")', $sayfa->getCell('A2')->getValue());
+        $this->assertSame('ABC9999999999999', $sayfa->getCell('B2')->getValue());
+        $this->assertSame(99.99, $sayfa->getCell('C2')->getValue());
+        $this->assertSame('İşlendi (elle)', $sayfa->getCell('D2')->getValue());
+        // Özet de yazılan satırlardan
+        $this->assertSame(1, $kitap->getSheet(1)->getCell('B7')->getValue());
+    }
+
+    public function test_excel_sayfa_verilmezse_filtrenin_tamamini_yazar(): void
+    {
+        $tanim = $this->aktifTanim();
+        $this->fatura($tanim, ['belge_no' => 'ABC2026000000001']);
+        $this->fatura($tanim, ['belge_no' => 'ABC2026000000002']);
+
+        $yanit = $this->actingAs($this->izinli('efatura.goruntule', 'efatura.disari_aktar'))
+            ->get('/api/v1/efatura/gelen/faturalar/excel?'.self::ARALIK.'&'.self::EXCEL_KOLONLARI);
+
+        $yol = $yanit->assertOk()->baseResponse->getFile()->getPathname();
         $sayfa = IOFactory::load($yol)->getSheet(0);
         unlink($yol);
 
-        // Başlık + 2 satır; sayfa parametresi çıktıyı kırpmaz
         $this->assertSame(3, $sayfa->getHighestDataRow());
-        $this->assertSame('ABC2026000000001', $sayfa->getCell('A2')->getValue());
-        $this->assertSame(DataType::TYPE_STRING, $sayfa->getCell('D2')->getDataType());
-        $this->assertSame('=HYPERLINK("http://kotu.test","tikla")', $sayfa->getCell('D2')->getValue());
-        $this->assertSame(99.99, $sayfa->getCell('H3')->getValue());
+    }
+
+    public function test_excel_kolonlar_zorunlu_ve_katalogda_olmali(): void
+    {
+        $this->aktifTanim();
+        $kullanici = $this->izinli('efatura.goruntule', 'efatura.disari_aktar');
+
+        $this->actingAs($kullanici)
+            ->getJson('/api/v1/efatura/gelen/faturalar/excel?'.self::ARALIK)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrorFor('kolonlar', 'hatalar');
+
+        $this->actingAs($kullanici)
+            ->getJson('/api/v1/efatura/gelen/faturalar/excel?'.self::ARALIK.'&kolonlar[]=password&basliklar[]=X')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrorFor('kolonlar.0', 'hatalar');
+
+        // Her kolonun bir başlığı olmalı
+        $this->actingAs($kullanici)
+            ->getJson('/api/v1/efatura/gelen/faturalar/excel?'.self::ARALIK.'&kolonlar[]=belge_no&kolonlar[]=tutar&basliklar[]=X')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrorFor('basliklar', 'hatalar');
     }
 
     public function test_excel_satir_siniri_asilirsa_422_ve_kod_doner(): void
@@ -410,7 +466,7 @@ final class EFaturaEkranTest extends TestCase
         $this->fatura($tanim);
 
         $this->actingAs($this->izinli('efatura.goruntule', 'efatura.disari_aktar'))
-            ->getJson('/api/v1/efatura/gelen/faturalar/excel?'.self::ARALIK)
+            ->getJson('/api/v1/efatura/gelen/faturalar/excel?'.self::ARALIK.'&'.self::EXCEL_KOLONLARI)
             ->assertUnprocessable()
             ->assertJsonPath('kod', 'EFATURA_EXCEL_COK_BUYUK');
     }
@@ -424,6 +480,7 @@ final class EFaturaEkranTest extends TestCase
             $tanim,
             [['para_birimi' => 'TRY', 'adet' => 1, 'tutar' => '1234567890123456.78', 'vergi_tutari' => '12.50']],
             ['baslangic' => '2026-01-01', 'bitis' => '2026-01-31'],
+            [['anahtar' => 'belge_no', 'baslik' => 'Fatura No']],
         );
 
         try {

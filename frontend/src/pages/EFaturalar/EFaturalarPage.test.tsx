@@ -585,19 +585,33 @@ describe('EFaturalarPage', () => {
     expect(screen.getByText('Bugünü kapsayan başarılı bir senkron henüz yok.')).toBeInTheDocument()
   })
 
-  it('Excel filtrenin tamamını aynı filtreyle ister', async () => {
+  it('Excel tablonun o anki hâlini ister: aynı filtre, sıralama, sayfa ve görünen kolonlar', async () => {
     api.excel.mockResolvedValue(undefined)
     ciz(TUM_IZINLER)
     await screen.findByText('Deniz Boya Ltd.')
 
+    // Gizlenen kolon Excel'e gitmez
+    fireEvent.click(screen.getByRole('button', { name: /^Kolonlar/ }))
+    fireEvent.click(await screen.findByRole('switch', { name: 'Ad Soyad' }))
+
     fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
 
     await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
-    expect(api.excel).toHaveBeenCalledWith(
-      'gelen',
-      expect.objectContaining({ baslangic: '2026-01-01', bitis: bugunIso() }),
-      VARSAYILAN_SIRALAMA,
-    )
+    const [yon, filtre, siralama, sayfa, kolonlar] = api.excel.mock.calls[0] as [
+      string,
+      Record<string, string>,
+      unknown,
+      number,
+      { anahtar: string; baslik: string }[],
+    ]
+    expect([yon, siralama, sayfa]).toEqual(['gelen', VARSAYILAN_SIRALAMA, 1])
+    expect(filtre).toMatchObject({ baslangic: '2026-01-01', bitis: bugunIso() })
+    expect(kolonlar.slice(0, 3)).toEqual([
+      { anahtar: 'erp_okundu', baslik: 'ERP Okudu' },
+      { anahtar: 'emor', baslik: 'eMOR' },
+      { anahtar: 'belge_no', baslik: 'Fatura No' },
+    ])
+    expect(kolonlar.map((kolon) => kolon.anahtar)).not.toContain('karsi_ad_soyad')
   })
 
   it('detayda kaynak kimliklerini ve ERP bayrağının yalnız gösterildiğini belirtir', async () => {

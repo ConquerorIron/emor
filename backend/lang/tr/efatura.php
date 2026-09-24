@@ -31,6 +31,14 @@ return [
         'olusturma_zamani' => 'İzibiz\'e Ulaşma',
     ],
 
+    // eMOR: e-faturanın ERP'deki aşaması (EmorDurumu)
+    'emor' => [
+        'islendi' => 'İşlendi',
+        'elle_islendi' => 'İşlendi (elle)',
+        'havuzda' => 'Havuzda',
+        'yok' => 'ERP\'de yok',
+    ],
+
     'excel' => [
         'baslik_gelen' => 'Gelen e-Faturalar',
         'baslik_giden' => 'Giden e-Faturalar',

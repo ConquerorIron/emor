@@ -243,15 +243,32 @@ async function blobHatasiniCoz(error: unknown): Promise<never> {
   throw error
 }
 
-/** Filtrenin TAMAMI (görünen sayfa değil) .xlsx olarak indirilir. */
+/** Excel'e aktarılan ekran kolonu: anahtar + ekrandaki başlık */
+export interface ExcelKolonu {
+  anahtar: string
+  baslik: string
+}
+
+/**
+ * Tablonun o anki hâli .xlsx olarak indirilir (kullanıcı isteği 2026-09-24):
+ * aynı filtre, sıralama ve sayfa (sayfa boyutu interceptor'dan); yalnız
+ * görünen kolonlar, ekrandaki başlık ve sırayla.
+ */
 export async function excelIndir(
   yon: FaturaYonu,
   filtre: EFaturaFiltresi,
   siralama: Siralama | null,
+  sayfa: number,
+  kolonlar: ExcelKolonu[],
 ): Promise<void> {
   const yanit = await api
     .get<Blob>(`/api/v1/efatura/${yon}/faturalar/excel`, {
-      params: parametreler(filtre, siralama),
+      params: {
+        ...parametreler(filtre, siralama),
+        page: sayfa,
+        kolonlar: kolonlar.map((kolon) => kolon.anahtar),
+        basliklar: kolonlar.map((kolon) => kolon.baslik),
+      },
       responseType: 'blob',
     })
     .catch(blobHatasiniCoz)

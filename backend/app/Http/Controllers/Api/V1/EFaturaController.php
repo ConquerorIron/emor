@@ -63,6 +63,15 @@ final class EFaturaController extends Controller
         $filtre = $request->filtre();
 
         $sorgu = $this->sorgu->filtrele($tanim, $faturaYonu, $filtre);
+
+        // Ekrandaki sayfa (kullanıcı isteği 2026-09-24): tablonun o an gösterdiği satırlar
+        if ($request->filled('page')) {
+            $idler = $this->sorgu->sirala($sorgu->clone(), $faturaYonu, $request->input('sirala'), $request->input('yon'))
+                ->forPage($request->integer('page'), $request->sayfaBoyutu())
+                ->pluck('efatura_faturalari.id');
+            $sorgu = EFatura::query()->whereKey($idler);
+        }
+
         $adet = $sorgu->count();
         $sinir = (int) config('efatura.excel_azami_satir');
 
@@ -82,6 +91,7 @@ final class EFaturaController extends Controller
             $tanim,
             $this->sorgu->ozet($sorgu),
             ['baslangic' => $filtre['baslangic'], 'bitis' => $filtre['bitis']],
+            $request->excelKolonlari(),
         );
 
         Log::info('e-Fatura Excel çıktısı alındı', [

@@ -18,8 +18,9 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 /**
  * e-Fatura listesinin Excel (.xlsx) çıktısı (EFAT-11).
  *
- * - Listeyle AYNI filtre ve sıralama sorgusunu alır; görünen sayfa değil
- *   filtrenin tamamı yazılır. Satır sınırını çağıran denetler.
+ * - Ekrandaki tablonun AYNISI (kullanıcı isteği 2026-09-24): listeyle aynı
+ *   filtre, sıralama ve sayfa; ekranda görünen kolonlar ekrandaki başlık ve
+ *   sırayla. Sayfa verilmezse filtrenin tamamı; satır sınırını çağıran denetler.
  * - Metin hücreleri açıkça metin tipiyle yazılır: "=", "+", "-", "@" ile
  *   başlayan unvan/açıklama formül olarak yorumlanmaz (CSV/Excel enjeksiyonu).
  * - Tarihler Excel tarihidir. Güvenle temsil edilen tutarlar sayı, Excel'in
@@ -28,19 +29,53 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 final class EFaturaExcelAktarici
 {
     /**
+     * Ekrandaki seçilebilir kolonlar: anahtar => [tür, Excel genişliği].
+     * Anahtarlar frontend'deki kolon anahtarlarıyla aynıdır.
+     *
+     * @var array<string, array{0: string, 1: int}>
+     */
+    public const KOLONLAR = [
+        'erp_okundu' => ['metin', 10],
+        'emor' => ['metin', 14],
+        'belge_no' => ['metin', 20],
+        'belge_tarihi' => ['tarih', 12],
+        'karsi_vkn' => ['metin', 14],
+        'karsi_unvan' => ['metin', 45],
+        'karsi_ad_soyad' => ['metin', 24],
+        'fatura_tipi' => ['metin', 14],
+        'izibiz_istisna_kodu' => ['metin', 14],
+        'vergi_istisna_kodu' => ['metin', 14],
+        'tutar' => ['tutar', 16],
+        'para_birimi' => ['metin', 8],
+        'olusturma_zamani' => ['zaman', 19],
+        'irsaliye_no' => ['metin', 20],
+        'siparis_no' => ['metin', 16],
+        'durum' => ['metin', 22],
+        'zarf_durumu' => ['metin', 32],
+        'yanit_aciklamasi' => ['metin', 30],
+        'gtb_ref_no' => ['metin', 18],
+        'gcb_tescil_no' => ['metin', 18],
+        'gcb_tarihi' => ['tarih', 12],
+        'gonderici_etiketi' => ['metin', 30],
+        'alici_etiketi' => ['metin', 30],
+        'portal_notu' => ['metin', 30],
+    ];
+
+    /**
      * @param  Builder<EFatura>  $sorgu  filtrelenmiş ve sıralanmış sorgu
      * @param  list<array{para_birimi: string, adet: int, tutar: string, vergi_tutari: string}>  $ozet
      * @param  array{baslangic: string, bitis: string}  $aralik
+     * @param  list<array{anahtar: string, baslik: string}>  $kolonlar  ekrandaki görünür kolonlar, sırasıyla
      * @return string oluşturulan geçici dosyanın yolu (çağıran siler)
      */
-    public function olustur(Builder $sorgu, FaturaYonu $yon, EntegratorBaglanti $tanim, array $ozet, array $aralik): string
+    public function olustur(Builder $sorgu, FaturaYonu $yon, EntegratorBaglanti $tanim, array $ozet, array $aralik, array $kolonlar): string
     {
         $kitap = new Spreadsheet;
         $kitap->getProperties()->setCreator('eMOR ERP')->setTitle(__('efatura.excel.baslik_'.$yon->value));
 
         $sayfa = $kitap->getActiveSheet();
         $sayfa->setTitle(__('efatura.excel.faturalar'));
-        $this->faturalariYaz($sayfa, $sorgu, $yon);
+        $this->faturalariYaz($sayfa, $sorgu, $yon, $kolonlar);
 
         $this->ozetYaz($kitap->createSheet(), $yon, $tanim, $ozet, $aralik);
 
@@ -66,82 +101,113 @@ final class EFaturaExcelAktarici
     }
 
     /**
+     * Ekrandaki tablonun kolonları, ekrandaki başlık ve sırayla (kullanıcı
+     * isteği 2026-09-24). Değerler ekrandakiyle aynı kaynaktan.
+     *
      * @param  Builder<EFatura>  $sorgu
+     * @param  list<array{anahtar: string, baslik: string}>  $kolonlar
      */
-    private function faturalariYaz(Worksheet $sayfa, Builder $sorgu, FaturaYonu $yon): void
+    private function faturalariYaz(Worksheet $sayfa, Builder $sorgu, FaturaYonu $yon, array $kolonlar): void
     {
-        $karsi = $yon === FaturaYonu::Gelen ? 'gonderici' : 'alici';
-        $basliklar = [
-            __('efatura.alan.belge_no'),
-            __('efatura.alan.belge_tarihi'),
-            __('efatura.alan.'.$karsi.'_vkn'),
-            __('efatura.alan.'.$karsi.'_unvan'),
-            __('efatura.alan.fatura_tipi'),
-            __('efatura.alan.senaryo'),
-            __('efatura.alan.para_birimi'),
-            __('efatura.alan.tutar'),
-            __('efatura.alan.vergi_tutari'),
-            __('efatura.alan.durum'),
-            __('efatura.alan.gib_durum'),
-            __('efatura.alan.erp_okundu'),
-            __('efatura.alan.ettn'),
-            __('efatura.alan.olusturma_zamani'),
-        ];
-
-        foreach ($basliklar as $i => $baslik) {
-            $sayfa->setCellValueExplicit([$i + 1, 1], (string) $baslik, DataType::TYPE_STRING);
+        foreach ($kolonlar as $i => $kolon) {
+            $sayfa->setCellValueExplicit([$i + 1, 1], $kolon['baslik'], DataType::TYPE_STRING);
         }
 
-        $sonKolon = Coordinate::stringFromColumnIndex(count($basliklar));
+        $sonKolon = Coordinate::stringFromColumnIndex(max(1, count($kolonlar)));
         $sayfa->getStyle("A1:{$sonKolon}1")->getFont()->setBold(true);
         $sayfa->freezePane('A2');
 
-        $saatDilimi = (string) config('entegrator.izibiz.saat_dilimi');
         $satir = 2;
-
         foreach ($sorgu->cursor() as $f) {
             /** @var EFatura $f */
-            $this->metin($sayfa, 1, $satir, $f->belge_no);
-            $sayfa->setCellValueExplicit([2, $satir], ExcelTarihi::PHPToExcel($f->belge_tarihi), DataType::TYPE_NUMERIC);
-            $this->metin($sayfa, 3, $satir, $f->getAttribute($karsi.'_vkn'));
-            $this->metin($sayfa, 4, $satir, $f->getAttribute($karsi.'_unvan'));
-            $this->metin($sayfa, 5, $satir, $f->getAttribute('fatura_tipi'));
-            $this->metin($sayfa, 6, $satir, $f->getAttribute('senaryo'));
-            $this->metin($sayfa, 7, $satir, $f->getAttribute('para_birimi'));
-            $this->tutar($sayfa, 8, $satir, $f->tutar);
-            $vergi = $f->getAttribute('vergi_tutari');
-            if ($vergi !== null) {
-                $this->tutar($sayfa, 9, $satir, $vergi);
-            }
-            $this->metin($sayfa, 10, $satir, $f->getAttribute('durum_aciklamasi') ?? $f->getAttribute('durum'));
-            $this->metin($sayfa, 11, $satir, $f->getAttribute('gib_durum_aciklamasi'));
-            $this->metin($sayfa, 12, $satir, match ($f->erp_okundu) {
-                true => __('efatura.evet'),
-                false => __('efatura.hayir'),
-                null => '',
-            });
-            $this->metin($sayfa, 13, $satir, $f->ettn);
-            $olusturma = $f->getAttribute('olusturma_zamani');
-            if ($olusturma instanceof CarbonImmutable) {
-                // Excel saat dilimi bilmez: İstanbul yerel saati yazılır
-                $sayfa->setCellValueExplicit(
-                    [14, $satir],
-                    ExcelTarihi::PHPToExcel($olusturma->setTimezone($saatDilimi)->toDateTimeString()),
-                    DataType::TYPE_NUMERIC,
-                );
+            foreach ($kolonlar as $i => $kolon) {
+                [$tur, $deger] = $this->hucre($kolon['anahtar'], $f, $yon);
+                $this->yaz($sayfa, $i + 1, $satir, $tur, $deger);
             }
             $satir++;
         }
 
         $sonSatir = max(2, $satir - 1);
-        $sayfa->getStyle("B2:B{$sonSatir}")->getNumberFormat()->setFormatCode('dd.mm.yyyy');
-        $sayfa->getStyle("H2:I{$sonSatir}")->getNumberFormat()->setFormatCode('#,##0.00');
-        $sayfa->getStyle("N2:N{$sonSatir}")->getNumberFormat()->setFormatCode('dd.mm.yyyy hh:mm');
-        $sayfa->setAutoFilter("A1:{$sonKolon}{$sonSatir}");
-
-        foreach (['A' => 20, 'B' => 12, 'C' => 14, 'D' => 45, 'E' => 12, 'F' => 18, 'G' => 8, 'H' => 16, 'I' => 14, 'J' => 22, 'K' => 30, 'L' => 10, 'M' => 38, 'N' => 17] as $kolon => $genislik) {
-            $sayfa->getColumnDimension($kolon)->setWidth($genislik);
+        foreach ($kolonlar as $i => $kolon) {
+            $harf = Coordinate::stringFromColumnIndex($i + 1);
+            [$tur, $genislik] = self::KOLONLAR[$kolon['anahtar']];
+            $bicim = match ($tur) {
+                'tarih' => 'dd.mm.yyyy',
+                'zaman' => 'dd.mm.yyyy hh:mm:ss',
+                'tutar' => '#,##0.00',
+                default => null,
+            };
+            if ($bicim !== null) {
+                $sayfa->getStyle("{$harf}2:{$harf}{$sonSatir}")->getNumberFormat()->setFormatCode($bicim);
+            }
+            $sayfa->getColumnDimension($harf)->setWidth($genislik);
         }
+        $sayfa->setAutoFilter("A1:{$sonKolon}{$sonSatir}");
+    }
+
+    /**
+     * Ekrandaki kolonun hücre değeri: [tür, değer]. Karşı taraf gelen faturada
+     * gönderici, giden faturada alıcıdır (ekrandaki gibi).
+     *
+     * @return array{0: string, 1: mixed}
+     */
+    private function hucre(string $anahtar, EFatura $f, FaturaYonu $yon): array
+    {
+        $karsi = $yon === FaturaYonu::Gelen ? 'gonderici' : 'alici';
+        $kod = $f->getAttribute('gib_durum_kodu');
+
+        return match ($anahtar) {
+            'erp_okundu' => ['metin', match ($f->erp_okundu) {
+                true => __('efatura.evet'),
+                false => __('efatura.hayir'),
+                null => null,
+            }],
+            'emor' => ['metin', $f->emor_durumu === null ? null : __('efatura.emor.'.$f->emor_durumu->value)],
+            'belge_tarihi' => ['tarih', $f->belge_tarihi],
+            'karsi_vkn' => ['metin', $f->getAttribute($karsi.'_vkn')],
+            'karsi_unvan' => ['metin', $f->getAttribute($karsi.'_unvan')],
+            'karsi_ad_soyad' => ['metin', $f->getAttribute($karsi.'_ad_soyad')],
+            'tutar' => ['tutar', $f->tutar],
+            'olusturma_zamani' => ['zaman', $f->getAttribute('olusturma_zamani')],
+            'durum' => ['metin', $f->getAttribute('durum_aciklamasi') ?? $f->getAttribute('durum')],
+            'zarf_durumu' => ['metin', $kod === null
+                ? $f->getAttribute('gib_durum_aciklamasi')
+                : trim($kod.' '.$f->getAttribute('gib_durum_aciklamasi'))],
+            'gcb_tarihi' => ['tarih', $this->tarihMi($f->getAttribute('gcb_tarihi'))],
+            // İzibiz etiketi yoksa ERP havuzundaki karşılığı (ekrandaki gibi)
+            'gonderici_etiketi' => ['metin', $f->getAttribute('gonderici_etiketi') ?? $f->getAttribute('erp_gonderici_etiketi')],
+            'alici_etiketi' => ['metin', $f->getAttribute('alici_etiketi') ?? $f->getAttribute('erp_alici_etiketi')],
+            default => ['metin', $f->getAttribute($anahtar)],
+        };
+    }
+
+    private function yaz(Worksheet $sayfa, int $kolon, int $satir, string $tur, mixed $deger): void
+    {
+        if ($deger === null || $deger === '') {
+            return;
+        }
+
+        match ($tur) {
+            'tarih' => $sayfa->setCellValueExplicit([$kolon, $satir], ExcelTarihi::PHPToExcel(CarbonImmutable::parse($deger)->toDateString()), DataType::TYPE_NUMERIC),
+            // Excel saat dilimi bilmez: İstanbul yerel saati yazılır
+            'zaman' => $sayfa->setCellValueExplicit(
+                [$kolon, $satir],
+                ExcelTarihi::PHPToExcel(CarbonImmutable::parse($deger)->setTimezone((string) config('entegrator.izibiz.saat_dilimi'))->toDateTimeString()),
+                DataType::TYPE_NUMERIC,
+            ),
+            'tutar' => $this->tutar($sayfa, $kolon, $satir, (string) $deger),
+            default => $this->metin($sayfa, $kolon, $satir, $deger),
+        };
+    }
+
+    /** Serbest metin alanı tarih değilse yazılmaz (hücre boş kalır). */
+    private function tarihMi(mixed $deger): ?string
+    {
+        if (! is_string($deger) || preg_match('/^\d{4}-\d{2}-\d{2}/', $deger) !== 1) {
+            return null;
+        }
+
+        return substr($deger, 0, 10);
     }
 
     /**
