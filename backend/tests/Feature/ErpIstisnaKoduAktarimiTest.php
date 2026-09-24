@@ -9,6 +9,9 @@ use App\Models\EntegratorBaglanti;
 use App\Services\ErpFaturaKaynagi;
 use App\Services\ErpIstisnaKoduYazici;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
+use Mockery;
+use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -111,9 +114,16 @@ final class ErpIstisnaKoduAktarimiTest extends TestCase
             'aaaaaaaa-0000-0000-0000-000000000005' => null,
         ]);
 
+        $denetim = Mockery::spy(LoggerInterface::class);
+        Log::shouldReceive('channel')->with('denetim')->andReturn($denetim);
+
         $this->artisan('efatura:emor')
             ->expectsOutput('İstisna kodu ERP\'ye: 2 yazıldı, 0 uzun olduğu için atlandı, 0 yazılmadı')
             ->assertSuccessful();
+
+        // Her yazım denetim kanalına (log seviyesinden bağımsız) düşer
+        $denetim->shouldHaveReceived('info')->with('Vergi istisna kodu ERP\'ye yazıldı', Mockery::on(fn (array $baglam): bool => $baglam['kod'] === '305'))->once();
+        $denetim->shouldHaveReceived('info')->with('Vergi istisna kodu ERP\'ye yazıldı', Mockery::on(fn (array $baglam): bool => $baglam['kod'] === '308,351'))->once();
 
         $this->assertSame([
             ['aaaaaaaa-0000-0000-0000-000000000001', '305'],

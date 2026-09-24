@@ -60,7 +60,8 @@ final class ErpIstisnaKoduAktarimi
             EFatura::query()->whereKey($fatura->id)->update(['vergi_istisna_kodu' => $kod]);
             $sonuc['yazilan']++;
 
-            Log::info('Vergi istisna kodu ERP\'ye yazıldı', [
+            // Denetim kanalı: üretimdeki LOG_LEVEL=warning bu kaydı yutmasın
+            Log::channel('denetim')->info('Vergi istisna kodu ERP\'ye yazıldı', [
                 'belge_no' => $fatura->belge_no,
                 'ettn' => $fatura->ettn,
                 'kod' => $kod,

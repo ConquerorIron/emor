@@ -73,6 +73,16 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Denetim kaydı: ERP'ye yapılan yazımlar gibi izi kalması gereken işlemler.
+        // Genel LOG_LEVEL'dan (üretimde warning) bağımsız, bir yıl saklanır.
+        'denetim' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/denetim.log'),
+            'level' => 'info',
+            'days' => 365,
+            'replace_placeholders' => true,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),
