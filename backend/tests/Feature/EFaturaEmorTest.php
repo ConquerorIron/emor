@@ -29,7 +29,7 @@ final class EFaturaEmorTest extends TestCase
     /**
      * @param  list<string>|RuntimeException  $gelen
      * @param  list<array{ettn: string|null, belge_no: string, vkn: string}>|RuntimeException  $giden
-     * @param  array<string, string|null>  $havuz  TOHOM_E_FATURA: ETTN => vergi istisna kodu
+     * @param  array<string, array{istisna_kodu: string|null, gonderici_etiketi: string|null, alici_etiketi: string|null}>  $havuz  TOHOM_E_FATURA: ETTN => ERP bilgileri
      */
     private function erp(array|RuntimeException $gelen, array|RuntimeException $giden = [], array $havuz = []): void
     {
@@ -38,7 +38,7 @@ final class EFaturaEmorTest extends TestCase
             /**
              * @param  list<string>|RuntimeException  $gelen
              * @param  list<array{ettn: string|null, belge_no: string, vkn: string}>|RuntimeException  $giden
-             * @param  array<string, string|null>  $havuz
+             * @param  array<string, array{istisna_kodu: string|null, gonderici_etiketi: string|null, alici_etiketi: string|null}>  $havuz
              */
             public function __construct(
                 private readonly array|RuntimeException $gelen,
@@ -124,8 +124,8 @@ final class EFaturaEmorTest extends TestCase
 
         // Muhasebeleşen fatura havuzda da durur; işlendi önce gelir
         $this->erp([self::ISLENMIS], havuz: [
-            self::ISLENMIS => null,
-            '58795094-831A-435B-A43A-7D8F763D381B' => '351',
+            self::ISLENMIS => $this->havuzKaydi(),
+            '58795094-831A-435B-A43A-7D8F763D381B' => $this->havuzKaydi(istisnaKodu: '351'),
         ]);
 
         $this->artisan('efatura:emor')
@@ -146,7 +146,7 @@ final class EFaturaEmorTest extends TestCase
         // Giden faturaya gelen kodu yazılmaz
         $giden = EFatura::factory()->giden()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => self::ISLENMIS]);
 
-        $this->erp([], havuz: [strtoupper(self::ISLENMIS) => '318']);
+        $this->erp([], havuz: [strtoupper(self::ISLENMIS) => $this->havuzKaydi(istisnaKodu: '318')]);
         $this->artisan('efatura:emor')->assertSuccessful();
 
         $this->assertSame('318', $istisnali->fresh()->vergi_istisna_kodu);
@@ -160,6 +160,41 @@ final class EFaturaEmorTest extends TestCase
         $this->actingAs(User::factory()->yonetici()->create())
             ->getJson('/api/v1/efatura/gelen/faturalar?baslangic=2026-01-01&bitis=2026-01-31')
             ->assertJsonPath('data.0.vergi_istisna_kodu', null);
+    }
+
+    public function test_gb_pk_etiketi_izibizde_yoksa_erp_havuzundan_gosterilir(): void
+    {
+        $tanim = $this->tanim();
+        $bos = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => self::ISLENMIS, 'belge_no' => 'A1']);
+        // İzibiz etiketi varsa o önceliklidir
+        $izibizli = EFatura::factory()->create([
+            'entegrator_baglanti_id' => $tanim->id,
+            'ettn' => 'aaaaaaaa-0000-0000-0000-000000000002',
+            'belge_no' => 'A2',
+            'gonderici_etiketi' => 'urn:mail:izibizgb@ornek.test',
+        ]);
+        $this->erp([], havuz: [
+            self::ISLENMIS => $this->havuzKaydi(gb: 'urn:mail:defaultgb@ornek.test', pk: 'urn:mail:defaultpk@bizim.test'),
+            'aaaaaaaa-0000-0000-0000-000000000002' => $this->havuzKaydi(gb: 'urn:mail:erpgb@ornek.test'),
+        ]);
+
+        $this->artisan('efatura:emor')->assertSuccessful();
+
+        $this->actingAs(User::factory()->yonetici()->create())
+            ->getJson('/api/v1/efatura/gelen/faturalar?baslangic=2026-01-01&bitis=2026-01-31&sirala=belge_no&yon=asc')
+            ->assertJsonPath('data.0.id', $bos->id)
+            ->assertJsonPath('data.0.gonderici_etiketi', 'urn:mail:defaultgb@ornek.test')
+            ->assertJsonPath('data.0.alici_etiketi', 'urn:mail:defaultpk@bizim.test')
+            ->assertJsonPath('data.1.id', $izibizli->id)
+            ->assertJsonPath('data.1.gonderici_etiketi', 'urn:mail:izibizgb@ornek.test');
+    }
+
+    /**
+     * @return array{istisna_kodu: string|null, gonderici_etiketi: string|null, alici_etiketi: string|null}
+     */
+    private function havuzKaydi(?string $istisnaKodu = null, ?string $gb = null, ?string $pk = null): array
+    {
+        return ['istisna_kodu' => $istisnaKodu, 'gonderici_etiketi' => $gb, 'alici_etiketi' => $pk];
     }
 
     public function test_erpden_silinen_fatura_islenmedi_olur_ve_degismeyen_satir_yazilmaz(): void

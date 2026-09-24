@@ -51,8 +51,9 @@ final class EFaturaResource extends JsonResource
             'yanit_aciklamasi' => $this->getAttribute('yanit_aciklamasi'),
             'gonderici_ad_soyad' => $this->getAttribute('gonderici_ad_soyad'),
             'alici_ad_soyad' => $this->getAttribute('alici_ad_soyad'),
-            'gonderici_etiketi' => $this->getAttribute('gonderici_etiketi'),
-            'alici_etiketi' => $this->getAttribute('alici_etiketi'),
+            // İzibiz etiketi yoksa ERP havuzundaki (TOHOM_E_FATURA) karşılığı
+            'gonderici_etiketi' => $this->getAttribute('gonderici_etiketi') ?? $this->getAttribute('erp_gonderici_etiketi'),
+            'alici_etiketi' => $this->getAttribute('alici_etiketi') ?? $this->getAttribute('erp_alici_etiketi'),
             'irsaliye_no' => $this->getAttribute('irsaliye_no'),
             'siparis_no' => $this->getAttribute('siparis_no'),
             'siparis_tarihi' => $this->getAttribute('siparis_tarihi')?->toDateString(),

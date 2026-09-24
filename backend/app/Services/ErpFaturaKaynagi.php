@@ -19,10 +19,10 @@ interface ErpFaturaKaynagi
     public function islenmisGelenEttnler(): array;
 
     /**
-     * ERP'nin entegratörden çektiği gelen e-faturalar (TOHOM_E_FATURA havuzu):
-     * ETTN => vergi istisna kodu (boşsa null). Havuzdaki her fatura döner.
+     * ERP'nin entegratörden çektiği gelen e-faturalar (TOHOM_E_FATURA havuzu),
+     * ETTN => ERP'deki bilgileri (boşlar null). Havuzdaki her fatura döner.
      *
-     * @return array<string, string|null>
+     * @return array<string, array{istisna_kodu: string|null, gonderici_etiketi: string|null, alici_etiketi: string|null}>
      */
     public function havuzdakiGelenler(): array;
 

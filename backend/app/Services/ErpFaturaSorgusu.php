@@ -34,16 +34,26 @@ final class ErpFaturaSorgusu implements ErpFaturaKaynagi
      */
     public function havuzdakiGelenler(): array
     {
-        /** @var list<object{UUID: string, KOD: string|null}> $satirlar */
+        // Posta kutusu kolon adları ERP'de ters görünür ama değerler açık:
+        // FIRMAMIZ = faturayı gönderenin GB'si, MUHATAP = bizim PK'mız (2026-09-24 keşfi)
+        /** @var list<object{UUID: string, KOD: string|null, GB: string|null, PK: string|null}> $satirlar */
         $satirlar = $this->mssql->baglan()->select(
-            'SELECT CAST(UUID AS nvarchar(64)) AS UUID, LTRIM(RTRIM(VERGI_ISTISNA_KODU)) AS KOD
+            'SELECT CAST(UUID AS nvarchar(64)) AS UUID,
+                    LTRIM(RTRIM(VERGI_ISTISNA_KODU)) AS KOD,
+                    LTRIM(RTRIM(GIB_FIRMAMIZ_POSTA_KUTUSU)) AS GB,
+                    LTRIM(RTRIM(GIB_MUHATAP_POSTA_KUTUSU)) AS PK
              FROM TOHOM_E_FATURA
              WHERE UUID IS NOT NULL',
         );
 
+        $bos = fn (?string $deger): ?string => ($deger ?? '') !== '' ? $deger : null;
         $havuz = [];
         foreach ($satirlar as $satir) {
-            $havuz[$satir->UUID] = ($satir->KOD ?? '') !== '' ? $satir->KOD : null;
+            $havuz[$satir->UUID] = [
+                'istisna_kodu' => $bos($satir->KOD),
+                'gonderici_etiketi' => $bos($satir->GB),
+                'alici_etiketi' => $bos($satir->PK),
+            ];
         }
 
         return $havuz;

@@ -19,8 +19,9 @@ use App\Services\ErpFaturaKaynagi;
  *   yoksa (gider yansıtma) belge no + alıcı VKN'si. İki tarafta da ETTN varsa
  *   belge no ile eşleştirilmez (kullanıcı kuralı: yalnız fatura no ile olmaz).
  *
- * Gelen faturada vergi istisna kodu da aynı okumada havuzdan
- * (TOHOM_E_FATURA.VERGI_ISTISNA_KODU) ETTN ile tazelenir; İzibiz yanıtında yok.
+ * Gelen faturada vergi istisna kodu ve GB/PK etiketleri de aynı okumada
+ * havuzdan (TOHOM_E_FATURA) ETTN ile tazelenir; İzibiz yanıtında bunlar yok
+ * (etiketler neredeyse hep boş gelir).
  *
  * Yalnız DEĞİŞEN satırlar yazılır. ERP okunamazsa hiçbir alan değişmez
  * (istisna çağırana gider) — "okunamadı" asla "yok" sayılmaz.
@@ -28,6 +29,13 @@ use App\Services\ErpFaturaKaynagi;
 final class EmorIslenmeServisi
 {
     private const PARCA = 1000;
+
+    /** Havuzdan (TOHOM_E_FATURA) yazılan kolonlar: kolon => havuz alanı */
+    private const HAVUZ_KOLONLARI = [
+        'vergi_istisna_kodu' => 'istisna_kodu',
+        'erp_gonderici_etiketi' => 'gonderici_etiketi',
+        'erp_alici_etiketi' => 'alici_etiketi',
+    ];
 
     public function __construct(
         private readonly ErpFaturaKaynagi $erp,
@@ -39,18 +47,18 @@ final class EmorIslenmeServisi
     public function tazele(FaturaYonu $yon): array
     {
         $gelen = $yon === FaturaYonu::Gelen;
-        // Gelen: [muhasebeleşmiş ETTN'ler, havuz ETTN => istisna kodu]
+        // Gelen: [muhasebeleşmiş ETTN'ler, havuz ETTN => ERP bilgileri]
         $islenmis = $gelen ? $this->kume($this->erp->islenmisGelenEttnler()) : null;
         $havuz = $gelen ? $this->havuz() : null;
         $gidenIslendiMi = $gelen ? null : $this->gidenEslestirici();
 
         /** @var array<string, array<string, list<int>>> $degisenler kolon => yeni değer ('' = null) => id'ler */
-        $degisenler = ['emor_durumu' => [], 'vergi_istisna_kodu' => []];
+        $degisenler = ['emor_durumu' => [], ...array_fill_keys(array_keys(self::HAVUZ_KOLONLARI), [])];
         $sayac = ['islendi' => 0, 'havuzda' => 0, 'yok' => 0];
 
         EFatura::query()
             ->where('yon', $yon->value)
-            ->select(['id', 'ettn', 'belge_no', 'alici_vkn', 'emor_durumu', 'vergi_istisna_kodu'])
+            ->select(['id', 'ettn', 'belge_no', 'alici_vkn', 'emor_durumu', ...array_keys(self::HAVUZ_KOLONLARI)])
             ->lazyById(self::PARCA)
             ->each(function (EFatura $fatura) use ($islenmis, $havuz, $gidenIslendiMi, &$degisenler, &$sayac): void {
                 $ettn = $this->ettn($fatura->ettn);
@@ -64,9 +72,12 @@ final class EmorIslenmeServisi
                         default => EmorDurumu::Yok,
                     };
 
-                    $kod = $havuz[$ettn] ?? null;
-                    if ($fatura->getAttribute('vergi_istisna_kodu') !== $kod) {
-                        $degisenler['vergi_istisna_kodu'][$kod ?? ''][] = $fatura->id;
+                    // Havuzda olmayan faturanın ERP bilgisi boşalır
+                    foreach (self::HAVUZ_KOLONLARI as $kolon => $alan) {
+                        $deger = $havuz[$ettn][$alan] ?? null;
+                        if ($fatura->getAttribute($kolon) !== $deger) {
+                            $degisenler[$kolon][$deger ?? ''][] = $fatura->id;
+                        }
                     }
                 }
 
@@ -91,13 +102,13 @@ final class EmorIslenmeServisi
     }
 
     /**
-     * @return array<string, string|null> küçük harf ETTN => istisna kodu
+     * @return array<string, array{istisna_kodu: string|null, gonderici_etiketi: string|null, alici_etiketi: string|null}> küçük harf ETTN => ERP bilgileri
      */
     private function havuz(): array
     {
         $havuz = [];
-        foreach ($this->erp->havuzdakiGelenler() as $ettn => $kod) {
-            $havuz[$this->ettn((string) $ettn)] = $kod;
+        foreach ($this->erp->havuzdakiGelenler() as $ettn => $bilgi) {
+            $havuz[$this->ettn((string) $ettn)] = $bilgi;
         }
 
         return $havuz;
