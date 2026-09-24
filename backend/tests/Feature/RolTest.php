@@ -57,7 +57,19 @@ final class RolTest extends TestCase
 
         $this->getJson('/api/v1/ayarlar/izinler')
             ->assertOk()
-            ->assertExactJson(['data' => ['efatura.goruntule', 'efatura.pdf', 'efatura.disari_aktar', 'efatura.senkron']]);
+            ->assertJsonCount(9, 'data')
+            ->assertJsonPath('data.0', [
+                'ekran' => 'satinalma_talebi',
+                'goruntule' => 'satinalma_talebi.goruntule',
+                'guncelle' => 'satinalma_talebi.guncelle',
+                'ekler' => [],
+            ])
+            ->assertJsonPath('data.1', [
+                'ekran' => 'efatura',
+                'goruntule' => 'efatura.goruntule',
+                'guncelle' => 'efatura.senkron',
+                'ekler' => ['efatura.pdf', 'efatura.disari_aktar'],
+            ]);
     }
 
     public function test_rol_izinleriyle_olusturulur(): void
@@ -124,9 +136,21 @@ final class RolTest extends TestCase
         $rol = Rol::query()->create(['ad' => 'Muhasebe']);
         DB::table('rol_izinleri')->insert([['rol_id' => $rol->id, 'izin' => 'efatura.goruntule'], ['rol_id' => $rol->id, 'izin' => 'efatura.pdf']]);
 
-        $this->putJson("/api/v1/ayarlar/roller/{$rol->id}", ['ad' => 'Muhasebe', 'izinler' => ['efatura.senkron']])->assertOk();
+        $this->putJson("/api/v1/ayarlar/roller/{$rol->id}", ['ad' => 'Muhasebe', 'izinler' => ['sql_baglantilari.goruntule']])->assertOk();
 
-        $this->assertSame(['efatura.senkron'], $rol->izinler());
+        $this->assertSame(['sql_baglantilari.goruntule'], $rol->izinler());
+    }
+
+    public function test_guncelleme_ve_ek_izinler_ekranin_goruntuleme_iznini_de_getirir(): void
+    {
+        $this->yonetici();
+
+        $this->postJson('/api/v1/ayarlar/roller', [
+            'ad' => 'Ayar sorumlusu',
+            'izinler' => ['sql_baglantilari.guncelle', 'efatura.pdf'],
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.izinler', ['efatura.goruntule', 'efatura.pdf', 'sql_baglantilari.goruntule', 'sql_baglantilari.guncelle']);
     }
 
     public function test_rol_silinince_kullanicilardan_da_kalkar(): void

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/i18n/i18n'
 import type { YonetilenKullanici } from '@/features/ayarlar/yetkiApi'
 import { AppProviders } from '@/providers/AppProviders'
+import { SahteOturum } from '@/test/SahteOturum'
 
 import { KullanicilarPage } from './KullanicilarPage'
 
@@ -58,10 +59,12 @@ const LOKAL: YonetilenKullanici = {
   pasif_yapilamaz: false,
 }
 
-function ciz() {
+function ciz(izinler = ['kullanicilar.goruntule', 'kullanicilar.guncelle']) {
   render(
     <AppProviders>
-      <KullanicilarPage />
+      <SahteOturum izinler={izinler}>
+        <KullanicilarPage />
+      </SahteOturum>
     </AppProviders>,
   )
 }
@@ -183,7 +186,7 @@ describe('KullanicilarPage', () => {
     })
   })
 
-  it('kurala uymayan şifre ve kullanıcı adıyla istek atmaz', async () => {
+  it('boş şifre ve kurala uymayan kullanıcı adıyla istek atmaz', async () => {
     ciz()
     await screen.findByText('Ayşe Yılmaz')
 
@@ -193,14 +196,35 @@ describe('KullanicilarPage', () => {
       target: { value: 'a b' },
     })
     fireEvent.change(within(dialog).getByLabelText('Ad Soyad'), { target: { value: 'Kişi' } })
-    fireEvent.change(within(dialog).getByLabelText('Şifre'), { target: { value: 'sadeceharf' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
 
-    expect(
-      await within(dialog).findByText('Şifre en az 10 karakter olmalı, harf ve rakam içermelidir.'),
-    ).toBeInTheDocument()
+    expect(await within(dialog).findByText('Şifre zorunludur.')).toBeInTheDocument()
     expect(within(dialog).getByText(/Kullanıcı adı 3-64 karakter olmalı/)).toBeInTheDocument()
     expect(api.olustur).not.toHaveBeenCalled()
+  })
+
+  it('şifre serbesttir: tek karakterlik şifre kabul edilir ve gönderilir', async () => {
+    api.olustur.mockResolvedValue(LOKAL)
+    ciz()
+    await screen.findByText('Ayşe Yılmaz')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lokal Kullanıcı Ekle' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Kullanıcı Adı'), {
+      target: { value: 'kisa.sifre' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('Ad Soyad'), { target: { value: 'Kişi' } })
+    fireEvent.change(within(dialog).getByLabelText('Şifre'), { target: { value: 'a' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+
+    await waitFor(() => expect(api.olustur).toHaveBeenCalledTimes(1))
+    expect(api.olustur).toHaveBeenCalledWith({
+      kullanici_adi: 'kisa.sifre',
+      ad: 'Kişi',
+      email: null,
+      sifre: 'a',
+      rol_idleri: [],
+    })
   })
 
   it('backend hatasını formda çevrilmiş gösterir', async () => {
@@ -226,5 +250,14 @@ describe('KullanicilarPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
 
     expect(await within(dialog).findByRole('alert')).toBeInTheDocument()
+  })
+
+  it('yalnız görüntüleme izninde ekleme ve düzenleme gizlidir', async () => {
+    ciz(['kullanicilar.goruntule'])
+
+    expect(await screen.findByText('Ayşe Yılmaz')).toBeInTheDocument()
+    expect(screen.getByText('Bu ekranı yalnız görüntüleme yetkiniz var.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Lokal Kullanıcı Ekle' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Düzenle' })).not.toBeInTheDocument()
   })
 })

@@ -17,7 +17,7 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Ayarlar → SQL Bağlantıları: Test/Canlı MSSQL tanımları + global aktif ortam.
- * `aktifOrtam` dışındaki uçlar `can:sistem-yonetimi` ile korunur (routes/api.php).
+ * `aktifOrtam` dışındaki uçlar ekranın görüntüle/güncelle izinleriyle korunur (routes/api.php).
  */
 final class SqlBaglantiController extends Controller
 {

@@ -6,14 +6,22 @@ namespace App\Http\Requests\Yetki;
 
 use App\Models\Rol;
 use App\Yetki\Izin;
+use App\Yetki\YetkiSiniri;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 final class RolKaydetRequest extends FormRequest
 {
+    /** Yönetici olmayan, kendinden yetkili bir rolü düzenleyemez (YetkiSiniri). */
     public function authorize(): bool
     {
-        return $this->user()?->can('sistem-yonetimi') ?? false;
+        $kullanici = $this->user();
+        $rol = $this->route('rol');
+
+        return $kullanici !== null
+            && $kullanici->can('roller.guncelle')
+            && (! $rol instanceof Rol || YetkiSiniri::asanRolIzinleri($kullanici, [$rol->id]) === []);
     }
 
     /**
@@ -29,6 +37,27 @@ final class RolKaydetRequest extends FormRequest
             // Boş dizi geçerli: izinsiz rol (henüz yetki verilmemiş)
             'izinler' => ['present', 'array'],
             'izinler.*' => ['string', Rule::in(Izin::degerler())],
+        ];
+    }
+
+    /**
+     * @return list<callable(Validator): void>
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                if ($validator->errors()->isNotEmpty()) {
+                    return;
+                }
+
+                /** @var list<string> $izinler */
+                $izinler = $this->input('izinler');
+
+                if (YetkiSiniri::asanIzinler($this->user(), $izinler) !== []) {
+                    $validator->errors()->add('izinler', __('hata.izin_verme_siniri'));
+                }
+            },
         ];
     }
 }

@@ -29,7 +29,8 @@
     "sil": "Delete",
     "kolonlar": "Columns ({{gorunen}}/{{toplam}})",
     "kolonSecimi": "Visible columns",
-    "tumKolonlariGoster": "Show all"
+    "tumKolonlariGoster": "Show all",
+    "saltOkunur": "You have view-only access to this screen."
   },
   "nav": {
     "anasayfa": "Home",
@@ -395,7 +396,7 @@
         "kullaniciAdiBicimi": "Username must be 3-64 characters; only letters, digits, dot, underscore and dash.",
         "adZorunlu": "Full name is required.",
         "epostaGecersiz": "Enter a valid e-mail address.",
-        "sifreKural": "Password must be at least 10 characters and contain letters and digits.",
+        "sifreZorunlu": "Password is required.",
         "cokUzun": "Can be at most 255 characters."
       }
     },
@@ -491,6 +492,21 @@
     "YAZMA_HATASI": "Invoices could not be written to the database."
   },
   "yetki": {
+    "goruntule": "View",
+    "guncelle": "Update",
+    "ekIzinler": "Extra permissions",
+    "ekranBaslik": "Screen",
+    "ekran": {
+      "satinalma_talebi": "Purchase Request",
+      "efatura": "e-Invoices (Incoming/Outgoing)",
+      "sql_baglantilari": "SQL Connections",
+      "entegrator_baglantilari": "Integrator Connections",
+      "mail_ayarlari": "Mail Settings",
+      "alarm_kurallari": "Alarm Rules",
+      "kullanicilar": "Users",
+      "roller": "Roles",
+      "ekran_tasarimi": "Screen Design"
+    },
     "izin": {
       "efatura_goruntule": "View e-Invoice lists",
       "efatura_pdf": "View e-Invoice PDF",

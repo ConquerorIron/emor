@@ -9,6 +9,8 @@ import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
 import { Button } from '@/components/Button'
 import { ErrorState } from '@/components/ErrorState'
+import { SaltOkunurUyarisi } from '@/components/SaltOkunurUyarisi'
+import { tumuSaltOkunur } from '@/features/ekranTasarim/duzenIslemleri'
 import { ekranTasariminiGetir } from '@/features/ekranTasarim/api'
 import { SATINALMA_TALEP_EKRANI } from '@/features/ekranTasarim/ekranlar'
 import {
@@ -19,6 +21,7 @@ import {
   type KatalogAlani,
 } from '@/features/ekranTasarim/types'
 import { AlanGirisi, girisTipiTanimliMi, ILGI_CINSI_PROJEMIZ, kurGetir } from '@/formAlanlari'
+import { useIzin } from '@/hooks/useIzin'
 import { FIYAT_GRUPLARI } from './fiyatGruplari'
 import { SatirHucresi } from './SatirHucresi'
 import { talepKaydet } from './talepApi'
@@ -156,8 +159,15 @@ export function SatinalmaTalebiPage() {
  * Form, tasarım geldikten SONRA kurulur: zorunlu alanlar tasarımdan geldiği
  * için doğrulama şeması da o anda üretilir.
  */
-function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
+function TalepFormu({ tasarim: yayindaki }: { tasarim: EkranTasarimi }) {
   const { t } = useTranslation()
+  const guncelleyebilir = useIzin('satinalma_talebi.guncelle')
+  // Yalnız görüntüleme izninde her alan salt okunur çizilir (kilit alan
+  // bileşenlerinde zaten var); satır ekle/sil ve kaydet gizlenir
+  const tasarim = useMemo(
+    () => (guncelleyebilir ? yayindaki : { ...yayindaki, duzen: tumuSaltOkunur(yayindaki.duzen) }),
+    [yayindaki, guncelleyebilir],
+  )
 
   const katalogHaritasi = useMemo(
     () => new Map(tasarim.katalog.map((alan) => [alan.anahtar, alan])),
@@ -278,7 +288,8 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
     const duzen = tasarim.duzen.satirlar ?? []
 
     if (duzen.length === 0) {
-      return SATIR_ALANLARI.map((alan) => ({ alan, genislik: 0, saltOkunur: false }))
+      // Tasarımsız ızgarada salt okunurluk yalnız izinden gelir
+      return SATIR_ALANLARI.map((alan) => ({ alan, genislik: 0, saltOkunur: !guncelleyebilir }))
     }
 
     // ERP özel alanları sabit listede yok: kolon tanımı katalogdan üretilir
@@ -323,7 +334,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
           ]
         : []
     })
-  }, [tasarim.duzen.satirlar, tasarim.satir_katalogu])
+  }, [tasarim.duzen.satirlar, tasarim.satir_katalogu, guncelleyebilir])
 
   // Satır listeleri (aktivite, masraf merkezi) başlıktaki projeye bağlıdır;
   // proje yalnız "İlgi konusu = Projemiz" iken anlamlıdır
@@ -399,6 +410,8 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
 
   return (
     <form onSubmit={(e) => void onSubmit(e)} noValidate>
+      {guncelleyebilir ? null : <SaltOkunurUyarisi />}
+
       <div className="mt-4 grid grid-cols-1 items-start gap-5 xl:grid-cols-12">
         {tasarim.duzen.bolumler.map((bolum) => (
           <div key={bolum.anahtar} className={bolumGenisligiSinifi(bolum.genislik)}>
@@ -418,9 +431,11 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">
             {t('satinalma.satirlar')}
           </h3>
-          <Button type="button" variant="mor" onClick={() => satirlar.append({ ...bosSatir })}>
-            {t('satinalma.satirEkle')}
-          </Button>
+          {guncelleyebilir ? (
+            <Button type="button" variant="mor" onClick={() => satirlar.append({ ...bosSatir })}>
+              {t('satinalma.satirEkle')}
+            </Button>
+          ) : null}
         </div>
 
         {/* Sütunlar doğal genişliklerini alsın diye tablo içeriğe göre büyür
@@ -496,7 +511,7 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
                     <button
                       type="button"
                       onClick={() => satirlar.remove(indeks)}
-                      disabled={satirlar.fields.length === 1}
+                      disabled={!guncelleyebilir || satirlar.fields.length === 1}
                       title={t('satinalma.satirSil')}
                       aria-label={`${t('satinalma.satirSil')} ${indeks + 1}`}
                       className="cursor-pointer rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-red-950 dark:hover:text-red-400"
@@ -524,11 +539,13 @@ function TalepFormu({ tasarim }: { tasarim: EkranTasarimi }) {
         </div>
       </div>
 
-      <div className="mt-5 flex justify-end">
-        <Button type="submit" yukleniyor={isSubmitting || kayit.isPending}>
-          {t('ortak.kaydet')}
-        </Button>
-      </div>
+      {guncelleyebilir ? (
+        <div className="mt-5 flex justify-end">
+          <Button type="submit" yukleniyor={isSubmitting || kayit.isPending}>
+            {t('ortak.kaydet')}
+          </Button>
+        </div>
+      ) : null}
     </form>
   )
 }

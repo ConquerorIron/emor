@@ -128,8 +128,7 @@ final class KullaniciYonetimTest extends TestCase
     public static function gecersizKullanicilar(): array
     {
         return [
-            'zayıf şifre (rakamsız)' => [['sifre' => 'yalnizharflerden'], 'sifre'],
-            'kısa şifre' => [['sifre' => 'Ab1'], 'sifre'],
+            'boş şifre' => [['sifre' => ''], 'sifre'],
             'kullanıcı adında boşluk' => [['kullanici_adi' => 'dis denetci'], 'kullanici_adi'],
             'geçersiz e-posta' => [['email' => 'eposta-degil'], 'email'],
         ];
@@ -194,6 +193,20 @@ final class KullaniciYonetimTest extends TestCase
         $this->putJson("/api/v1/ayarlar/kullanicilar/{$lokal->id}", ['sifre' => 'Yeni-Sifre-2026'])->assertOk();
 
         $this->assertTrue(Hash::check('Yeni-Sifre-2026', (string) $lokal->refresh()->password));
+    }
+
+    /** Şifrede uzunluk/karakter kuralı yok (kullanıcı isteği 2026-09-24). */
+    public function test_sifre_serbesttir_tek_karakter_de_olabilir(): void
+    {
+        $this->erp();
+        $this->yonetici();
+
+        $this->postJson('/api/v1/ayarlar/kullanicilar', $this->yeniKullanici(['sifre' => 'a']))->assertCreated();
+        $lokal = User::query()->where('kullanici_adi', 'dis.denetci')->firstOrFail();
+        $this->assertTrue(Hash::check('a', (string) $lokal->password));
+
+        $this->putJson("/api/v1/ayarlar/kullanicilar/{$lokal->id}", ['sifre' => '1'])->assertOk();
+        $this->assertTrue(Hash::check('1', (string) $lokal->refresh()->password));
     }
 
     /** `boolean` kuralı 0 ve "0" değerini de kabul eder; kilit hepsinde çalışmalı. */

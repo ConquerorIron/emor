@@ -20,9 +20,7 @@ interface NavOgesi {
   /** i18n anahtarı (nav.*) — ikon adı olarak da kullanılır */
   ad: string
   end?: boolean
-  /** Yalnız ERP sistem yöneticilerine görünür */
-  yoneticiye?: boolean
-  /** Yalnız bu izne sahip kullanıcılara görünür (EFAT-18) */
+  /** Yalnız bu izne (ekranın görüntüleme izni) sahip kullanıcılara görünür */
   izin?: string
 }
 
@@ -38,7 +36,9 @@ const NAV_GRUPLARI: NavGrubu[] = [
   },
   {
     baslikAnahtari: 'nav.satinalma',
-    ogeler: [{ to: '/satinalma/talep', ad: 'satinalmaTalepleri' }],
+    ogeler: [
+      { to: '/satinalma/talep', ad: 'satinalmaTalepleri', izin: 'satinalma_talebi.goruntule' },
+    ],
   },
   {
     baslikAnahtari: 'nav.efatura',
@@ -50,13 +50,21 @@ const NAV_GRUPLARI: NavGrubu[] = [
   {
     baslikAnahtari: 'nav.ayarlar',
     ogeler: [
-      { to: '/ayarlar/sql-baglantilari', ad: 'sqlBaglantilari', yoneticiye: true },
-      { to: '/ayarlar/entegrator-baglantilari', ad: 'entegratorBaglantilari', yoneticiye: true },
-      { to: '/ayarlar/mail', ad: 'mailAyarlari', yoneticiye: true },
-      { to: '/ayarlar/alarm-kurallari', ad: 'alarmKurallari', yoneticiye: true },
-      { to: '/ayarlar/kullanicilar', ad: 'kullanicilar', yoneticiye: true },
-      { to: '/ayarlar/roller', ad: 'roller', yoneticiye: true },
-      { to: '/ayarlar/ekran-tasarimi', ad: 'ekranTasarimi', yoneticiye: true },
+      {
+        to: '/ayarlar/sql-baglantilari',
+        ad: 'sqlBaglantilari',
+        izin: 'sql_baglantilari.goruntule',
+      },
+      {
+        to: '/ayarlar/entegrator-baglantilari',
+        ad: 'entegratorBaglantilari',
+        izin: 'entegrator_baglantilari.goruntule',
+      },
+      { to: '/ayarlar/mail', ad: 'mailAyarlari', izin: 'mail_ayarlari.goruntule' },
+      { to: '/ayarlar/alarm-kurallari', ad: 'alarmKurallari', izin: 'alarm_kurallari.goruntule' },
+      { to: '/ayarlar/kullanicilar', ad: 'kullanicilar', izin: 'kullanicilar.goruntule' },
+      { to: '/ayarlar/roller', ad: 'roller', izin: 'roller.goruntule' },
+      { to: '/ayarlar/ekran-tasarimi', ad: 'ekranTasarimi', izin: 'ekran_tasarimi.goruntule' },
     ],
   },
 ]
@@ -85,8 +93,7 @@ export function AppLayout() {
 
   // Kullanıcının göremediği öğeler ve hiç öğesi kalmayan gruplar çizilmez
   const gorunurMu = (oge: NavOgesi): boolean =>
-    (!oge.yoneticiye || user?.sistem_yoneticisi === true) &&
-    (oge.izin === undefined || (user?.izinler.includes(oge.izin) ?? false))
+    oge.izin === undefined || (user?.izinler.includes(oge.izin) ?? false)
   const gorunurGruplar = NAV_GRUPLARI.map((grup) => ({
     ...grup,
     ogeler: grup.ogeler.filter(gorunurMu),

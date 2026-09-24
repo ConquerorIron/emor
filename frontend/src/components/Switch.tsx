@@ -39,7 +39,7 @@ export function Switch({
       onChange={onChange}
       disabled={disabled}
       aria-label={etiketGizli ? label : undefined}
-      className="group inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full bg-slate-300 transition-colors data-checked:bg-blue-600 data-disabled:cursor-not-allowed data-disabled:opacity-50 dark:bg-slate-600 dark:data-checked:bg-blue-500"
+      className="group inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full bg-slate-300 transition-colors data-checked:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50 data-disabled:cursor-not-allowed data-disabled:opacity-50 dark:bg-slate-600 dark:data-checked:bg-blue-500"
     >
       <span className="size-4 translate-x-1 rounded-full bg-white transition-transform group-data-checked:translate-x-6" />
     </HeadlessSwitch>

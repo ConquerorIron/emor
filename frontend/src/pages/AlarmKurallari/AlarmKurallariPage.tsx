@@ -11,6 +11,7 @@ import { Button } from '@/components/Button'
 import { DataTable, type DataTableKolonu } from '@/components/DataTable'
 import { ErrorState } from '@/components/ErrorState'
 import { Input } from '@/components/Input'
+import { SaltOkunurUyarisi } from '@/components/SaltOkunurUyarisi'
 import { Switch } from '@/components/Switch'
 import {
   type AlarmBildirimi,
@@ -19,6 +20,7 @@ import {
   alarmKuraliKaydet,
   alarmKurallariniGetir,
 } from '@/features/ayarlar/alarmApi'
+import { useIzin } from '@/hooks/useIzin'
 import { zamanGoster } from '@/utils/tarih'
 
 const SAAT = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -261,6 +263,7 @@ const DURUM_SINIFLARI: Record<AlarmBildirimi['durum'], string> = {
 
 export function AlarmKurallariPage() {
   const { t } = useTranslation()
+  const guncelleyebilir = useIzin('alarm_kurallari.guncelle')
 
   const sorgu = useQuery({
     queryKey: queryKeys.ayarlar.alarmKurallari,
@@ -339,6 +342,8 @@ export function AlarmKurallariPage() {
         {t('ayarlar.alarm.aciklama')}
       </p>
 
+      {guncelleyebilir ? null : <SaltOkunurUyarisi />}
+
       {sorgu.isError ? (
         <div className="mt-4">
           <ErrorState mesaj={t(apiErrorKey(sorgu.error))} tekrarDene={() => void sorgu.refetch()} />
@@ -351,11 +356,12 @@ export function AlarmKurallariPage() {
 
       {sorgu.data ? (
         <>
-          <div className="mt-4 grid gap-4 xl:grid-cols-3">
+          {/* Yalnız görüntüleme izninde kurallar değiştirilemez */}
+          <fieldset disabled={!guncelleyebilir} className="mt-4 grid min-w-0 gap-4 xl:grid-cols-3">
             {sorgu.data.data.map((kural) => (
               <KuralKarti key={kural.tur} kural={kural} />
             ))}
-          </div>
+          </fieldset>
 
           <h3 className="mt-8 text-lg font-bold">{t('ayarlar.alarm.bildirim.baslik')}</h3>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">

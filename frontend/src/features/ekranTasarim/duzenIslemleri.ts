@@ -151,3 +151,21 @@ export function bolumBasligiDegistir(
     ),
   }
 }
+
+/**
+ * Güncelleme izni olmayan kullanıcıya formu çizmek için: başlık alanlarının
+ * ve satır kolonlarının hepsi salt okunur işaretlenir. Kilidin kendisi zaten
+ * alan çiziminde (AlanGirisi, satır hücreleri) uygulanır.
+ */
+export function tumuSaltOkunur(duzen: EkranDuzeni): EkranDuzeni {
+  return {
+    ...duzen,
+    bolumler: duzen.bolumler.map((bolum) => ({
+      ...bolum,
+      alanlar: bolum.alanlar.map((alan) => ({ ...alan, salt_okunur: true })),
+    })),
+    ...(duzen.satirlar
+      ? { satirlar: duzen.satirlar.map((kolon) => ({ ...kolon, salt_okunur: true })) }
+      : {}),
+  }
+}

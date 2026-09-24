@@ -76,24 +76,31 @@ Route::prefix('v1')->group(function (): void {
 
         // Satınalma Talebi — kayıt doğrudan ERP'ye (SOHOM_SIPARIS_KAYDET)
         Route::post('/satinalma/talepler', [SatinalmaTalebiController::class, 'kaydet'])
+            ->middleware('can:satinalma_talebi.guncelle')
             ->name('satinalma.talepler.kaydet');
         Route::get('/satinalma/ozellikler', [SatinalmaTalebiController::class, 'ozellikler'])
+            ->middleware('can:satinalma_talebi.goruntule')
             ->name('satinalma.ozellikler');
 
-        // Ekran tasarım motoru — okuma herkese (form çizimi), düzenleme yöneticiye
+        // Ekran tasarım motoru — yayındaki tasarım herkese (form çizimi),
+        // taslak/sürümler ve düzenleme Ekran Tasarımı izinleriyle
         Route::get('/ekranlar/{ekran}/tasarim', [EkranTasarimController::class, 'goster'])
             ->name('ekranlar.tasarim');
-        Route::get('/ekranlar/{ekran}/taslak', [EkranTasarimController::class, 'taslak'])
-            ->name('ekranlar.taslak');
-        Route::put('/ekranlar/{ekran}/taslak', [EkranTasarimController::class, 'taslagiKaydet'])
-            ->name('ekranlar.taslak.kaydet');
-        Route::post('/ekranlar/{ekran}/yayinla', [EkranTasarimController::class, 'yayinla'])
-            ->name('ekranlar.yayinla');
-        Route::get('/ekranlar/{ekran}/surumler', [EkranTasarimController::class, 'surumler'])
-            ->name('ekranlar.surumler');
-        Route::post('/ekranlar/{ekran}/surumler/{surum}/geri-al', [EkranTasarimController::class, 'geriAl'])
-            ->whereNumber('surum')
-            ->name('ekranlar.surumler.geri-al');
+        Route::middleware('can:ekran_tasarimi.goruntule')->group(function (): void {
+            Route::get('/ekranlar/{ekran}/taslak', [EkranTasarimController::class, 'taslak'])
+                ->name('ekranlar.taslak');
+            Route::get('/ekranlar/{ekran}/surumler', [EkranTasarimController::class, 'surumler'])
+                ->name('ekranlar.surumler');
+        });
+        Route::middleware('can:ekran_tasarimi.guncelle')->group(function (): void {
+            Route::put('/ekranlar/{ekran}/taslak', [EkranTasarimController::class, 'taslagiKaydet'])
+                ->name('ekranlar.taslak.kaydet');
+            Route::post('/ekranlar/{ekran}/yayinla', [EkranTasarimController::class, 'yayinla'])
+                ->name('ekranlar.yayinla');
+            Route::post('/ekranlar/{ekran}/surumler/{surum}/geri-al', [EkranTasarimController::class, 'geriAl'])
+                ->whereNumber('surum')
+                ->name('ekranlar.surumler.geri-al');
+        });
 
         // e-Fatura ekranları (EFAT-11) — kapsam aktif entegratör hesabı; izinler EFAT-18.
         // Her uç önce görüntüleme iznini ister: PDF/Excel/senkron izni tek başına
@@ -121,11 +128,14 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/aktif-ortam', [SqlBaglantiController::class, 'aktifOrtam'])
             ->name('aktif-ortam');
 
+        // Ayarlar ekranları: her ekran kendi görüntüle/güncelle izniyle
+        // (App\Yetki\Izin::ekranlar). Sınama ve test maili de güncelleme sayılır.
+
         // Ayarlar → SQL Bağlantıları (Test/Canlı MSSQL tanımları + aktif ortam)
-        // Bağlantı bilgisi ve ERP hedef ortamı: yalnız sistem yöneticisi
-        Route::middleware('can:sistem-yonetimi')->group(function (): void {
-            Route::get('/ayarlar/sql-baglantilari', [SqlBaglantiController::class, 'index'])
-                ->name('ayarlar.sql-baglantilari');
+        Route::get('/ayarlar/sql-baglantilari', [SqlBaglantiController::class, 'index'])
+            ->middleware('can:sql_baglantilari.goruntule')
+            ->name('ayarlar.sql-baglantilari');
+        Route::middleware('can:sql_baglantilari.guncelle')->group(function (): void {
             Route::post('/ayarlar/sql-baglantilari/aktif', [SqlBaglantiController::class, 'aktifYap'])
                 ->name('ayarlar.sql-baglantilari.aktif');
             Route::put('/ayarlar/sql-baglantilari/{ortam}', [SqlBaglantiController::class, 'guncelle'])
@@ -135,11 +145,14 @@ Route::prefix('v1')->group(function (): void {
                 ->whereIn('ortam', ['test', 'canli'])
                 ->middleware('throttle:sql-sina')
                 ->name('ayarlar.sql-baglantilari.sina');
+        });
 
-            // Ayarlar → Entegratör Bağlantıları (Test/Canlı İzibiz tanımları);
-            // aktif ortam SQL'den bağımsız seçilir (EFAT-15, S5)
-            Route::get('/ayarlar/entegrator-baglantilari', [EntegratorBaglantiController::class, 'index'])
-                ->name('ayarlar.entegrator-baglantilari');
+        // Ayarlar → Entegratör Bağlantıları (Test/Canlı İzibiz tanımları);
+        // aktif ortam SQL'den bağımsız seçilir (EFAT-15, S5)
+        Route::get('/ayarlar/entegrator-baglantilari', [EntegratorBaglantiController::class, 'index'])
+            ->middleware('can:entegrator_baglantilari.goruntule')
+            ->name('ayarlar.entegrator-baglantilari');
+        Route::middleware('can:entegrator_baglantilari.guncelle')->group(function (): void {
             Route::post('/ayarlar/entegrator-baglantilari/aktif', [EntegratorBaglantiController::class, 'aktifYap'])
                 ->name('ayarlar.entegrator-baglantilari.aktif');
             Route::put('/ayarlar/entegrator-baglantilari/{ortam}', [EntegratorBaglantiController::class, 'guncelle'])
@@ -149,12 +162,17 @@ Route::prefix('v1')->group(function (): void {
                 ->whereIn('ortam', ['test', 'canli'])
                 ->middleware('throttle:entegrator-sina')
                 ->name('ayarlar.entegrator-baglantilari.sina');
+        });
 
-            // Ayarlar → Kullanıcılar ve Roller (EFAT-18)
-            Route::get('/ayarlar/izinler', [RolController::class, 'izinler'])
-                ->name('ayarlar.izinler');
-            Route::get('/ayarlar/roller', [RolController::class, 'index'])
-                ->name('ayarlar.roller');
+        // Ayarlar → Roller (EFAT-18). Rol listesi Kullanıcılar ekranında da
+        // (rol ataması) gerekir: `rol-listesi` Gate'i ikisinden birini ister
+        Route::get('/ayarlar/izinler', [RolController::class, 'izinler'])
+            ->middleware('can:roller.goruntule')
+            ->name('ayarlar.izinler');
+        Route::get('/ayarlar/roller', [RolController::class, 'index'])
+            ->middleware('can:rol-listesi')
+            ->name('ayarlar.roller');
+        Route::middleware('can:roller.guncelle')->group(function (): void {
             Route::post('/ayarlar/roller', [RolController::class, 'store'])
                 ->name('ayarlar.roller.store');
             Route::put('/ayarlar/roller/{rol}', [RolController::class, 'update'])
@@ -163,24 +181,34 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('/ayarlar/roller/{rol}', [RolController::class, 'destroy'])
                 ->whereNumber('rol')
                 ->name('ayarlar.roller.destroy');
-            Route::get('/ayarlar/kullanicilar', [KullaniciController::class, 'index'])
-                ->name('ayarlar.kullanicilar');
+        });
+
+        // Ayarlar → Kullanıcılar (EFAT-18)
+        Route::get('/ayarlar/kullanicilar', [KullaniciController::class, 'index'])
+            ->middleware('can:kullanicilar.goruntule')
+            ->name('ayarlar.kullanicilar');
+        Route::middleware('can:kullanicilar.guncelle')->group(function (): void {
             Route::post('/ayarlar/kullanicilar', [KullaniciController::class, 'store'])
                 ->name('ayarlar.kullanicilar.store');
             Route::put('/ayarlar/kullanicilar/{kullanici}', [KullaniciController::class, 'update'])
                 ->whereNumber('kullanici')
                 ->name('ayarlar.kullanicilar.update');
+        });
 
-            // Ayarlar → Alarm Kuralları (EFAT-13)
-            Route::get('/ayarlar/alarm-kurallari', [AlarmKuraliController::class, 'index'])
-                ->name('ayarlar.alarm-kurallari');
-            Route::put('/ayarlar/alarm-kurallari/{tur}', [AlarmKuraliController::class, 'update'])
-                ->whereIn('tur', AlarmKurali::TURLER)
-                ->name('ayarlar.alarm-kurallari.update');
+        // Ayarlar → Alarm Kuralları (EFAT-13)
+        Route::get('/ayarlar/alarm-kurallari', [AlarmKuraliController::class, 'index'])
+            ->middleware('can:alarm_kurallari.goruntule')
+            ->name('ayarlar.alarm-kurallari');
+        Route::put('/ayarlar/alarm-kurallari/{tur}', [AlarmKuraliController::class, 'update'])
+            ->whereIn('tur', AlarmKurali::TURLER)
+            ->middleware('can:alarm_kurallari.guncelle')
+            ->name('ayarlar.alarm-kurallari.update');
 
-            // Ayarlar → Mail (SMTP): uygulamanın giden mail tanımı
-            Route::get('/ayarlar/mail', [MailAyarController::class, 'goster'])
-                ->name('ayarlar.mail');
+        // Ayarlar → Mail (SMTP): uygulamanın giden mail tanımı
+        Route::get('/ayarlar/mail', [MailAyarController::class, 'goster'])
+            ->middleware('can:mail_ayarlari.goruntule')
+            ->name('ayarlar.mail');
+        Route::middleware('can:mail_ayarlari.guncelle')->group(function (): void {
             Route::put('/ayarlar/mail', [MailAyarController::class, 'guncelle'])
                 ->name('ayarlar.mail.guncelle');
             Route::post('/ayarlar/mail/test', [MailAyarController::class, 'testGonder'])

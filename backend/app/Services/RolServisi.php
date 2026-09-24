@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Rol;
+use App\Yetki\Izin;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -39,10 +40,11 @@ final class RolServisi
             $rol->fill(['ad' => $veri['ad'], 'aciklama' => $veri['aciklama'] ?? null]);
             $rol->save();
 
+            // Güncelleme/ek izin, ekranın görüntüleme iznini de getirir
             DB::table('rol_izinleri')->where('rol_id', $rol->id)->delete();
             DB::table('rol_izinleri')->insert(array_map(
                 fn (string $izin): array => ['rol_id' => $rol->id, 'izin' => $izin],
-                array_values(array_unique($veri['izinler'])),
+                Izin::tamamla($veri['izinler']),
             ));
 
             return $rol;

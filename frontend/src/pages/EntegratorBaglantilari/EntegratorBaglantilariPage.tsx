@@ -12,6 +12,7 @@ import { Button } from '@/components/Button'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ErrorState } from '@/components/ErrorState'
 import { Input } from '@/components/Input'
+import { SaltOkunurUyarisi } from '@/components/SaltOkunurUyarisi'
 import {
   entegratorAktifOrtamDegistir,
   entegratorBaglantiGuncelle,
@@ -23,6 +24,7 @@ import {
   type EntegratorOrtam,
   type EntegratorSinamaSonucu,
 } from '@/features/ayarlar/entegratorApi'
+import { useIzin } from '@/hooks/useIzin'
 
 const URN_ONEKI = 'urn:mail:'
 
@@ -464,6 +466,7 @@ function AktifOrtamBolumu({
 
 export function EntegratorBaglantilariPage() {
   const { t } = useTranslation()
+  const guncelleyebilir = useIzin('entegrator_baglantilari.guncelle')
 
   const baglantilar = useQuery({
     queryKey: queryKeys.ayarlar.entegratorBaglantilari,
@@ -479,6 +482,8 @@ export function EntegratorBaglantilariPage() {
         {t('ayarlar.entegrator.aciklama')}
       </p>
 
+      {guncelleyebilir ? null : <SaltOkunurUyarisi />}
+
       {baglantilar.isError ? (
         <div className="mt-4">
           <ErrorState
@@ -493,7 +498,8 @@ export function EntegratorBaglantilariPage() {
       ) : null}
 
       {baglantilar.isSuccess ? (
-        <>
+        // Yalnız görüntüleme izninde ortam seçimi, sınama ve kayıt pasiftir
+        <fieldset disabled={!guncelleyebilir} className="min-w-0">
           <OrtamUyumu veri={baglantilar.data} />
 
           <AktifOrtamBolumu
@@ -516,7 +522,7 @@ export function EntegratorBaglantilariPage() {
               varsayilanAdres={baglantilar.data.varsayilan_api_url.canli}
             />
           </div>
-        </>
+        </fieldset>
       ) : null}
     </>
   )

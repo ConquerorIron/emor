@@ -44,9 +44,24 @@ export interface KullaniciGuncelleGovdesi {
   rol_idleri?: number[]
 }
 
-/** İzin kataloğu (ör. `efatura.goruntule`); etiketleri i18n `yetki.izin.*`. */
-export async function izinleriGetir(): Promise<string[]> {
-  const yanit = await api.get<{ data: string[] }>('/api/v1/ayarlar/izinler')
+/**
+ * Bir ekranın izinleri (sıra = sol menü sırası). Güncelleme görüntülemeyi
+ * gerektirir; ek izinler (ör. `efatura.pdf`) de ekranın görüntüleme iznine
+ * bağlıdır — backend kayıtta bu kuralı uygular.
+ */
+export interface EkranIzni {
+  /** Ekran adı; etiketi i18n `yetki.ekran.*` */
+  ekran: string
+  goruntule: string
+  /** Salt görüntülenen ekranlarda null */
+  guncelle: string | null
+  /** Ekrana özgü ek izinler; etiketleri i18n `yetki.izin.*` */
+  ekler: string[]
+}
+
+/** Ekran bazlı izin kataloğu. */
+export async function izinleriGetir(): Promise<EkranIzni[]> {
+  const yanit = await api.get<{ data: EkranIzni[] }>('/api/v1/ayarlar/izinler')
 
   return yanit.data.data
 }

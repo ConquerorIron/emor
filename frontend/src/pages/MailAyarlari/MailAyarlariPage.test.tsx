@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/i18n/i18n'
 import type { MailAyari } from '@/features/ayarlar/mailApi'
 import { AppProviders } from '@/providers/AppProviders'
+import { SahteOturum } from '@/test/SahteOturum'
 
 import { MailAyarlariPage } from './MailAyarlariPage'
 
@@ -31,10 +32,12 @@ const AYAR: MailAyari = {
   updated_at: '2026-09-23T10:00:00Z',
 }
 
-function ciz() {
+function ciz(izinler = ['mail_ayarlari.goruntule', 'mail_ayarlari.guncelle']) {
   render(
     <AppProviders>
-      <MailAyarlariPage />
+      <SahteOturum izinler={izinler}>
+        <MailAyarlariPage />
+      </SahteOturum>
     </AppProviders>,
   )
 }
@@ -130,5 +133,16 @@ describe('MailAyarlariPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Test Maili Gönder' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('535 Authentication unsuccessful')
+  })
+
+  it('yalnız görüntüleme izninde alanlar ve düğmeler pasiftir', async () => {
+    ciz(['mail_ayarlari.goruntule'])
+    await screen.findByDisplayValue('smtp.office365.com')
+
+    expect(screen.getByText('Bu ekranı yalnız görüntüleme yetkiniz var.')).toBeInTheDocument()
+    expect(alan('mail-sunucu')).toBeDisabled()
+    expect(alan('mail-sifreleme')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Kaydet' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Test Maili Gönder' })).toBeDisabled()
   })
 })

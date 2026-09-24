@@ -11,6 +11,7 @@ import { queryKeys } from '@/api/queryKeys'
 import { Button } from '@/components/Button'
 import { ErrorState } from '@/components/ErrorState'
 import { Input } from '@/components/Input'
+import { SaltOkunurUyarisi } from '@/components/SaltOkunurUyarisi'
 import { SelectField } from '@/components/SelectField'
 import {
   mailAyariGetir,
@@ -21,6 +22,7 @@ import {
   type MailSifreleme,
 } from '@/features/ayarlar/mailApi'
 import { useAuth } from '@/hooks/useAuth'
+import { useIzin } from '@/hooks/useIzin'
 
 const SIFRELEMELER: MailSifreleme[] = ['tls', 'ssl', 'yok']
 
@@ -78,6 +80,7 @@ function girdidenGovde(girdi: AyarGirdisi): MailAyarGovdesi {
 function AyarFormu({ ayar }: { ayar: MailAyari | null }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const guncelleyebilir = useIzin('mail_ayarlari.guncelle')
 
   const {
     register,
@@ -150,6 +153,8 @@ function AyarFormu({ ayar }: { ayar: MailAyari | null }) {
               label={t('ayarlar.mail.sifrelemeEtiket')}
               options={secenekler}
               isSearchable={false}
+              // react-select fieldset'in pasifliğini tanımaz (menü portalda açılır)
+              disabled={!guncelleyebilir}
               value={secenekler.find((secenek) => secenek.value === field.value) ?? null}
               onChange={(secilen) => field.onChange(secilen?.value ?? 'tls')}
             />
@@ -295,6 +300,7 @@ function TestMailiBolumu({ tanimli }: { tanimli: boolean }) {
 
 export function MailAyarlariPage() {
   const { t } = useTranslation()
+  const guncelleyebilir = useIzin('mail_ayarlari.guncelle')
 
   const ayar = useQuery({
     queryKey: queryKeys.ayarlar.mail,
@@ -308,6 +314,8 @@ export function MailAyarlariPage() {
         {t('ayarlar.mail.aciklama')}
       </p>
 
+      {guncelleyebilir ? null : <SaltOkunurUyarisi />}
+
       {ayar.isError ? (
         <div className="mt-4">
           <ErrorState mesaj={t(apiErrorKey(ayar.error))} tekrarDene={() => void ayar.refetch()} />
@@ -319,7 +327,8 @@ export function MailAyarlariPage() {
       ) : null}
 
       {ayar.isSuccess ? (
-        <div className="max-w-3xl">
+        // Yalnız görüntüleme izninde kayıt ve test maili pasiftir
+        <fieldset disabled={!guncelleyebilir} className="max-w-3xl min-w-0">
           {ayar.data?.yonlendirme_adresi ? (
             <p
               role="note"
@@ -330,7 +339,7 @@ export function MailAyarlariPage() {
           ) : null}
           <AyarFormu key={ayar.data?.updated_at ?? 'yeni'} ayar={ayar.data} />
           <TestMailiBolumu tanimli={ayar.data !== null} />
-        </div>
+        </fieldset>
       ) : null}
     </>
   )

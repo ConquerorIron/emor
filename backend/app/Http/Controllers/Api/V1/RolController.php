@@ -9,13 +9,16 @@ use App\Http\Requests\Yetki\RolKaydetRequest;
 use App\Models\Rol;
 use App\Services\RolServisi;
 use App\Yetki\Izin;
+use App\Yetki\YetkiSiniri;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Ayarlar → Roller (EFAT-18). `can:sistem-yonetimi` ile korunur (routes/api.php).
+ * Ayarlar → Roller (EFAT-18). `roller.goruntule` / `roller.guncelle` izinleriyle
+ * korunur (routes/api.php).
  */
 final class RolController extends Controller
 {
@@ -23,10 +26,13 @@ final class RolController extends Controller
         private readonly RolServisi $servis,
     ) {}
 
-    /** İzin kataloğu — etiketler frontend i18n'inde (`yetki.izin.<kod>`). */
+    /**
+     * İzin kataloğu, ekran başına görüntüle/güncelle/ek izinler (Roller
+     * ekranındaki matris). Etiketler frontend i18n'inde (`yetki.ekran.<ekran>`).
+     */
     public function izinler(): JsonResponse
     {
-        return response()->json(['data' => Izin::degerler()]);
+        return response()->json(['data' => Izin::ekranlar()]);
     }
 
     public function index(): JsonResponse
@@ -58,6 +64,11 @@ final class RolController extends Controller
 
     public function destroy(Request $request, Rol $rol): Response
     {
+        // Yönetici olmayan, kendinden yetkili bir rolü silemez (YetkiSiniri)
+        if (YetkiSiniri::asanRolIzinleri($request->user(), [$rol->id]) !== []) {
+            throw new AuthorizationException;
+        }
+
         $this->servis->sil($rol);
         $this->kaydiYaz('Rol silindi', $request, $rol);
 

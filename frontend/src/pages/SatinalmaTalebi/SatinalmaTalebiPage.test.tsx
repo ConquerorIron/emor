@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import '@/i18n/i18n'
 import { AppProviders } from '@/providers/AppProviders'
+import { SahteOturum } from '@/test/SahteOturum'
 import { bugunIso, gunEkle, tarihGoster } from '@/utils/tarih'
 import { SatinalmaTalebiPage } from './SatinalmaTalebiPage'
 
@@ -151,8 +152,15 @@ const SAHTE_TASARIM = {
   },
 }
 
-function render(ui: React.ReactElement) {
-  return rtlRender(<AppProviders>{ui}</AppProviders>)
+function render(
+  ui: React.ReactElement,
+  izinler = ['satinalma_talebi.goruntule', 'satinalma_talebi.guncelle'],
+) {
+  return rtlRender(
+    <AppProviders>
+      <SahteOturum izinler={izinler}>{ui}</SahteOturum>
+    </AppProviders>,
+  )
 }
 
 /** Tasarım API'den geldiği için form asenkron kurulur. */
@@ -241,6 +249,18 @@ describe('SatinalmaTalebiPage', () => {
     }
 
     tasarimYaniti = SAHTE_TASARIM
+  })
+
+  it('yalnız görüntüleme izninde form salt okunur açılır, kayıt ve satır ekleme gizlenir', async () => {
+    render(<SatinalmaTalebiPage />, ['satinalma_talebi.goruntule'])
+    await screen.findByText('Talep Bilgileri')
+
+    expect(screen.getByText('Bu ekranı yalnız görüntüleme yetkiniz var.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Personel adı')).toBeDisabled()
+    expect(screen.getByLabelText('Tarih')).toBeDisabled()
+    expect(screen.getByLabelText('Ürün kodu 1')).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Kaydet' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Satır Ekle' })).not.toBeInTheDocument()
   })
 
   it('zorunlu işaretli alanlar yıldızla gösterilir ve kaydı engeller', async () => {

@@ -14,15 +14,19 @@ import { DataTable, type DataTableKolonu } from '@/components/DataTable'
 import { ErrorState } from '@/components/ErrorState'
 import { Input } from '@/components/Input'
 import { Modal } from '@/components/Modal'
-import { Switch } from '@/components/Switch'
+import { SaltOkunurUyarisi } from '@/components/SaltOkunurUyarisi'
 import {
-  izinEtiketAnahtari,
   izinleriGetir,
   rolKaydet,
   rolleriGetir,
   rolSil,
+  type EkranIzni,
   type Rol,
 } from '@/features/ayarlar/yetkiApi'
+import { useIzin } from '@/hooks/useIzin'
+
+import { IzinMatrisi } from './IzinMatrisi'
+import { rolOzeti } from './izinKurallari'
 
 const rolSemasi = z.object({
   ad: z
@@ -42,7 +46,7 @@ function RolFormu({
   kapat,
 }: {
   rol: Rol | null
-  izinKatalogu: string[]
+  izinKatalogu: EkranIzni[]
   kapat: () => void
 }) {
   const { t } = useTranslation()
@@ -99,7 +103,8 @@ function RolFormu({
         {...register('aciklama')}
       />
 
-      <fieldset>
+      {/* min-w-0: fieldset içeriğe göre genişlemesin, matris dar ekranda kaysın */}
+      <fieldset className="min-w-0">
         <legend className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
           {t('ayarlar.roller.izinler')}
         </legend>
@@ -107,21 +112,7 @@ function RolFormu({
           control={control}
           name="izinler"
           render={({ field }) => (
-            <div className="space-y-2">
-              {izinKatalogu.map((izin) => (
-                <Switch
-                  key={izin}
-                  id={`izin-${izin}`}
-                  label={t(izinEtiketAnahtari(izin))}
-                  checked={field.value.includes(izin)}
-                  onChange={(acik) =>
-                    field.onChange(
-                      acik ? [...field.value, izin] : field.value.filter((deger) => deger !== izin),
-                    )
-                  }
-                />
-              ))}
-            </div>
+            <IzinMatrisi katalog={izinKatalogu} secili={field.value} degistir={field.onChange} />
           )}
         />
       </fieldset>
@@ -150,6 +141,7 @@ function RolFormu({
 export function RollerPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const guncelleyebilir = useIzin('roller.guncelle')
   // null: kapalı; 'yeni': yeni rol; Rol: düzenleme
   const [formdaki, setFormdaki] = useState<Rol | 'yeni' | null>(null)
   const [silinecek, setSilinecek] = useState<Rol | null>(null)
@@ -168,17 +160,25 @@ export function RollerPage() {
     onSettled: () => setSilinecek(null),
   })
 
-  const kolonlar: DataTableKolonu<Rol>[] = [
+  const tumKolonlar: DataTableKolonu<Rol>[] = [
     { anahtar: 'ad', baslik: t('ayarlar.roller.ad'), render: (rol) => <strong>{rol.ad}</strong> },
     {
       anahtar: 'izinler',
       baslik: t('ayarlar.roller.izinler'),
-      render: (rol) =>
-        rol.izinler.length === 0 ? (
+      render: (rol) => {
+        // Ekran başına tek satır: "SQL Bağlantıları: Güncelle"
+        const ozet = rolOzeti(rol.izinler, izinKatalogu.data ?? [], t)
+
+        return ozet.length === 0 ? (
           <span className="text-slate-400">{t('ayarlar.roller.izinYok')}</span>
         ) : (
-          rol.izinler.map((izin) => t(izinEtiketAnahtari(izin))).join(', ')
-        ),
+          <ul className="space-y-0.5">
+            {ozet.map((satir) => (
+              <li key={satir}>{satir}</li>
+            ))}
+          </ul>
+        )
+      },
     },
     {
       anahtar: 'kullanici_sayisi',
@@ -202,6 +202,10 @@ export function RollerPage() {
       ),
     },
   ]
+  // Yalnız görüntüleme izninde düzenle/sil kolonu çizilmez
+  const kolonlar = guncelleyebilir
+    ? tumKolonlar
+    : tumKolonlar.filter((kolon) => kolon.anahtar !== 'islemler')
 
   const hata = roller.error ?? izinKatalogu.error
 
@@ -209,17 +213,21 @@ export function RollerPage() {
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-2xl font-bold">{t('ayarlar.roller.baslik')}</h2>
-        <Button
-          variant="mor"
-          onClick={() => setFormdaki('yeni')}
-          disabled={!izinKatalogu.isSuccess}
-        >
-          {t('ayarlar.roller.yeni')}
-        </Button>
+        {guncelleyebilir ? (
+          <Button
+            variant="mor"
+            onClick={() => setFormdaki('yeni')}
+            disabled={!izinKatalogu.isSuccess}
+          >
+            {t('ayarlar.roller.yeni')}
+          </Button>
+        ) : null}
       </div>
       <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
         {t('ayarlar.roller.aciklamaMetni')}
       </p>
+
+      {guncelleyebilir ? null : <SaltOkunurUyarisi />}
 
       {hata ? (
         <div className="mt-4">
@@ -246,6 +254,7 @@ export function RollerPage() {
         acik={formdaki !== null}
         kapat={() => setFormdaki(null)}
         baslik={formdaki === 'yeni' ? t('ayarlar.roller.yeni') : t('ayarlar.roller.duzenle')}
+        boyut="genis"
       >
         {formdaki !== null && izinKatalogu.isSuccess ? (
           <RolFormu

@@ -15,7 +15,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Ayarlar → Kullanıcılar (EFAT-18). `can:sistem-yonetimi` ile korunur.
+ * Ayarlar → Kullanıcılar (EFAT-18). ekranın görüntüle/güncelle izinleriyle korunur.
  */
 final class KullaniciController extends Controller
 {

@@ -8,15 +8,16 @@ use App\Jobs\EFaturaManuelSenkron;
 use App\Models\EFatura;
 use App\Models\EFaturaSenkronCalismasi;
 use App\Models\EntegratorBaglanti;
+use App\Models\Rol;
 use App\Models\User;
 use App\Services\Entegrator\EFaturaDurumServisi;
 use App\Services\Entegrator\EFaturaExcelAktarici;
 use App\Services\Entegrator\EFaturaSenkronServisi;
 use App\Services\Entegrator\FaturaYonu;
-use App\Services\RolServisi;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
@@ -33,9 +34,14 @@ final class EFaturaEkranTest extends TestCase
 
     private const ARALIK = 'baslangic=2026-01-01&bitis=2026-01-31';
 
+    /**
+     * Rol, izinler TAM OLARAK bunlar olacak şekilde yazılır (RolServisi
+     * görüntülemeyi tamamlardı): uçların kendi denetimi ayrıca sınanır.
+     */
     private function izinli(string ...$izinler): User
     {
-        $rol = app(RolServisi::class)->kaydet(null, ['ad' => 'Rol '.implode(',', $izinler), 'izinler' => $izinler]);
+        $rol = Rol::query()->create(['ad' => 'Rol '.implode(',', $izinler)]);
+        DB::table('rol_izinleri')->insert(array_map(fn (string $izin): array => ['rol_id' => $rol->id, 'izin' => $izin], $izinler));
         $kullanici = User::factory()->create();
         $kullanici->roller()->attach($rol);
 

@@ -75,9 +75,9 @@ final class YetkiTest extends TestCase
         $this->actingAs($kullanici)->getJson('/api/v1/auth/me')
             ->assertJsonPath('data.izinler', ['efatura.goruntule']);
 
-        app(RolServisi::class)->kaydet($rol, ['ad' => 'Görüntüleyici', 'izinler' => ['efatura.pdf']]);
+        app(RolServisi::class)->kaydet($rol, ['ad' => 'Görüntüleyici', 'izinler' => ['sql_baglantilari.goruntule']]);
 
-        $this->getJson('/api/v1/auth/me')->assertJsonPath('data.izinler', ['efatura.pdf']);
+        $this->getJson('/api/v1/auth/me')->assertJsonPath('data.izinler', ['sql_baglantilari.goruntule']);
         $this->assertFalse(Gate::forUser($kullanici->fresh())->allows('efatura.goruntule'));
     }
 

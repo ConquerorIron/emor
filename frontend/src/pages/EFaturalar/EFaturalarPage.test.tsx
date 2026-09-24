@@ -264,7 +264,10 @@ describe('EFaturalarPage', () => {
     const basliklar = () =>
       screen.getAllByRole('columnheader').map((th) => th.textContent?.replace(/[↕▲▼]/g, ''))
 
-    expect(basliklar().slice(0, 10)).toEqual([
+    // İşlemler (Detay/PDF) en solda, başlıksız
+    expect(basliklar()[0]).toBe('')
+    expect(screen.getAllByRole('row')[1].querySelector('td')).toHaveTextContent('Detay')
+    expect(basliklar().slice(1, 11)).toEqual([
       'eMOR',
       'Fatura No',
       'Tarih',

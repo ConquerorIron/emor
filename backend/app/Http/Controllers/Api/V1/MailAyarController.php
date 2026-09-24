@@ -18,7 +18,7 @@ use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 /**
  * Ayarlar → Mail (SMTP): uygulamanın giden mail tanımı ve test maili.
- * Uçlar `can:sistem-yonetimi` ile korunur (routes/api.php).
+ * Uçlar ekranın görüntüle/güncelle izinleriyle korunur (routes/api.php).
  */
 final class MailAyarController extends Controller
 {

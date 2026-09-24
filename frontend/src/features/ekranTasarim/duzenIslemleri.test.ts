@@ -7,6 +7,7 @@ import {
   alanYerlestir,
   bolumGenisligiDegistir,
   kullanilmayanAlanlar,
+  tumuSaltOkunur,
 } from './duzenIslemleri'
 import type { EkranDuzeni, KatalogAlani } from './types'
 
@@ -144,5 +145,20 @@ describe('bolumGenisligiDegistir', () => {
 
     expect(sonuc.bolumler[0].genislik).toBe(12)
     expect(sonuc.bolumler[1].genislik).toBe(6)
+  })
+})
+
+describe('tumuSaltOkunur', () => {
+  it('başlık alanlarını ve satır kolonlarını salt okunur yapar, girdiyi değiştirmez', () => {
+    const girdi: EkranDuzeni = {
+      ...duzen(),
+      satirlar: [{ alan: 'miktar', genislik: 80 }],
+    }
+
+    const sonuc = tumuSaltOkunur(girdi)
+
+    expect(sonuc.bolumler.flatMap((b) => b.alanlar).every((a) => a.salt_okunur)).toBe(true)
+    expect(sonuc.satirlar).toEqual([{ alan: 'miktar', genislik: 80, salt_okunur: true }])
+    expect(girdi.bolumler[0].alanlar[0].salt_okunur).toBeUndefined()
   })
 })

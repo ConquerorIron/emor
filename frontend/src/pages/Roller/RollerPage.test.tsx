@@ -2,8 +2,9 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import '@/i18n/i18n'
-import type { Rol } from '@/features/ayarlar/yetkiApi'
+import type { EkranIzni, Rol } from '@/features/ayarlar/yetkiApi'
 import { AppProviders } from '@/providers/AppProviders'
+import { SahteOturum } from '@/test/SahteOturum'
 
 import { RollerPage } from './RollerPage'
 
@@ -30,22 +31,35 @@ const MUHASEBE: Rol = {
   kullanici_sayisi: 3,
 }
 
-function ciz() {
+function ciz(izinler = ['roller.goruntule', 'roller.guncelle']) {
   render(
     <AppProviders>
-      <RollerPage />
+      <SahteOturum izinler={izinler}>
+        <RollerPage />
+      </SahteOturum>
     </AppProviders>,
   )
 }
 
+const KATALOG: EkranIzni[] = [
+  {
+    ekran: 'efatura',
+    goruntule: 'efatura.goruntule',
+    guncelle: 'efatura.senkron',
+    ekler: ['efatura.pdf', 'efatura.disari_aktar'],
+  },
+  {
+    ekran: 'sql_baglantilari',
+    goruntule: 'sql_baglantilari.goruntule',
+    guncelle: 'sql_baglantilari.guncelle',
+    ekler: [],
+  },
+  { ekran: 'roller', goruntule: 'roller.goruntule', guncelle: 'roller.guncelle', ekler: [] },
+]
+
 describe('RollerPage', () => {
   beforeEach(() => {
-    api.izinler.mockResolvedValue([
-      'efatura.goruntule',
-      'efatura.pdf',
-      'efatura.disari_aktar',
-      'efatura.senkron',
-    ])
+    api.izinler.mockResolvedValue(KATALOG)
     api.roller.mockResolvedValue([MUHASEBE])
   })
 
@@ -54,18 +68,42 @@ describe('RollerPage', () => {
     vi.clearAllMocks()
   })
 
-  it('rolleri izin etiketleri ve kullanıcı sayısıyla listeler', async () => {
+  it('rolün izinlerini ekran başına özetler ve kullanıcı sayısını gösterir', async () => {
     ciz()
 
     expect(await screen.findByText('Muhasebe')).toBeInTheDocument()
     expect(
-      screen.getByText('e-Fatura listelerini görüntüleme, e-Fatura PDF görüntüleme'),
+      await screen.findByText('e-Faturalar (Gelen/Giden): Görüntüle (e-Fatura PDF görüntüleme)'),
     ).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
   })
 
-  it('yeni rolü seçilen izinlerle kaydeder', async () => {
+  it('güncelleme açılınca görüntüleme de açılır ve ikisi birlikte kaydedilir', async () => {
     api.kaydet.mockResolvedValue({ ...MUHASEBE, id: 8, ad: 'Denetçi' })
+    ciz()
+    await screen.findByText('Muhasebe')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Yeni Rol' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Rol Adı'), { target: { value: 'Denetçi' } })
+    fireEvent.click(within(dialog).getByRole('switch', { name: 'SQL Bağlantıları — Güncelle' }))
+
+    expect(
+      within(dialog).getByRole('switch', { name: 'SQL Bağlantıları — Görüntüle' }),
+    ).toBeChecked()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+
+    await waitFor(() => expect(api.kaydet).toHaveBeenCalledTimes(1))
+    expect(api.kaydet).toHaveBeenCalledWith(null, {
+      ad: 'Denetçi',
+      aciklama: null,
+      izinler: ['sql_baglantilari.goruntule', 'sql_baglantilari.guncelle'],
+    })
+  })
+
+  it('ek izin açılınca ekranın görüntüleme izni de açılır', async () => {
+    api.kaydet.mockResolvedValue(MUHASEBE)
     ciz()
     await screen.findByText('Muhasebe')
 
@@ -81,7 +119,7 @@ describe('RollerPage', () => {
     expect(api.kaydet).toHaveBeenCalledWith(null, {
       ad: 'Denetçi',
       aciklama: null,
-      izinler: ['efatura.disari_aktar'],
+      izinler: ['efatura.goruntule', 'efatura.disari_aktar'],
     })
   })
 
@@ -97,7 +135,7 @@ describe('RollerPage', () => {
     expect(api.kaydet).not.toHaveBeenCalled()
   })
 
-  it('düzenlemede mevcut izinleri açık gösterir ve kapatılanı çıkarır', async () => {
+  it('görüntüleme kapatılınca ekranın ek izinleri de kapanır', async () => {
     api.kaydet.mockResolvedValue(MUHASEBE)
     ciz()
     await screen.findByText('Muhasebe')
@@ -107,15 +145,38 @@ describe('RollerPage', () => {
     const pdf = within(dialog).getByRole('switch', { name: 'e-Fatura PDF görüntüleme' })
     expect(pdf).toBeChecked()
 
-    fireEvent.click(pdf)
+    fireEvent.click(
+      within(dialog).getByRole('switch', { name: 'e-Faturalar (Gelen/Giden) — Görüntüle' }),
+    )
+    expect(pdf).not.toBeChecked()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
 
     await waitFor(() => expect(api.kaydet).toHaveBeenCalledTimes(1))
-    expect(api.kaydet).toHaveBeenCalledWith(7, {
-      ad: 'Muhasebe',
-      aciklama: null,
-      izinler: ['efatura.goruntule'],
-    })
+    expect(api.kaydet).toHaveBeenCalledWith(7, { ad: 'Muhasebe', aciklama: null, izinler: [] })
+  })
+
+  it('backend reddederse doğrulama mesajını formda gösterir', async () => {
+    api.kaydet.mockRejectedValue(
+      Object.assign(new Error('422'), {
+        isAxiosError: true,
+        response: {
+          status: 422,
+          data: {
+            hatalar: { izinler: ['Sahip olmadığınız bir izni veremezsiniz.'] },
+          },
+        },
+      }),
+    )
+    ciz()
+    await screen.findByText('Muhasebe')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Sahip olmadığınız bir izni veremezsiniz.',
+    )
   })
 
   it('silmeyi onaydan sonra yapar', async () => {
@@ -131,5 +192,15 @@ describe('RollerPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Sil' }))
 
     await waitFor(() => expect(api.sil).toHaveBeenCalledWith(7))
+  })
+
+  it('yalnız görüntüleme izninde ekleme, düzenleme ve silme gizlidir', async () => {
+    ciz(['roller.goruntule'])
+
+    expect(await screen.findByText('Muhasebe')).toBeInTheDocument()
+    expect(screen.getByText('Bu ekranı yalnız görüntüleme yetkiniz var.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Yeni Rol' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Düzenle' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Sil' })).not.toBeInTheDocument()
   })
 })

@@ -64,6 +64,9 @@ return [
     'mail_sifre_hedef_degisti' => 'Sunucu, port, kullanıcı adı veya şifreleme değiştiğinde SMTP şifresi yeniden girilmelidir.',
     'mail_gonderilemedi' => 'Mail gönderilemedi: :detay',
 
+    // Yetki devri (YetkiSiniri)
+    'izin_verme_siniri' => 'Yalnız kendinizde olan izinleri verebilir ya da değiştirebilirsiniz.',
+
     // Satınalma
     'ilgili_cins_tanimsiz' => 'Bu ilgi konusu için arama kaynağı henüz tanımlanmadı.',
 

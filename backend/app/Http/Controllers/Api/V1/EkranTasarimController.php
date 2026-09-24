@@ -10,11 +10,10 @@ use App\Models\EkranTasarimi;
 use App\Services\EkranTasarimServisi;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 
 /**
- * Ekran tasarım motoru uçları. Okuma (form çizimi) herkese açıktır; tasarım
- * düzenleme yalnızca ERP sistem yöneticilerine.
+ * Ekran tasarım motoru uçları. Yayındaki düzen (form çizimi) herkese açıktır;
+ * taslak/sürümler ve düzenleme Ekran Tasarımı izinleriyle (routes/api.php).
  */
 final class EkranTasarimController extends Controller
 {
@@ -44,12 +43,24 @@ final class EkranTasarimController extends Controller
         ]);
     }
 
-    /** Tasarım editörü: üzerinde çalışılan taslak (yoksa yayındakinden açılır). */
+    /**
+     * Tasarım editörü: üzerinde çalışılan taslak (yoksa yayındakinden açılır).
+     * Yalnız görüntüleme izni olan taslak AÇMAZ; yayındaki düzeni görür.
+     */
     public function taslak(Request $request, string $ekran): JsonResponse
     {
-        $this->yoneticiOlmali($request);
         $katalog = EkranKataloglari::bul($ekran);
-        $taslak = $this->servis->taslakGetirVeyaAc($ekran, (int) $request->user()->id);
+        $yayindaSurum = EkranTasarimi::query()
+            ->where('ekran_anahtari', $ekran)
+            ->where('durum', EkranTasarimi::DURUM_YAYINDA)
+            ->value('surum');
+
+        if ($request->user()->can('ekran_tasarimi.guncelle')) {
+            $taslak = $this->servis->taslakGetirVeyaAc($ekran, (int) $request->user()->id);
+            [$duzen, $surum] = [$taslak->duzen, $taslak->surum];
+        } else {
+            [$duzen, $surum] = [$this->servis->yayindakiDuzen($ekran), $yayindaSurum];
+        }
 
         return response()->json([
             'data' => [
@@ -63,20 +74,15 @@ final class EkranTasarimController extends Controller
                 // Satır ızgarasının kolonları — hücrenin nasıl çizildiği kodda,
                 // hangi kolonların olduğu ve kilitleri burada
                 'satir_katalogu' => $this->servis->satirKatalogu(),
-                'duzen' => $taslak->duzen,
-                'surum' => $taslak->surum,
-                'yayinda_surum' => EkranTasarimi::query()
-                    ->where('ekran_anahtari', $ekran)
-                    ->where('durum', EkranTasarimi::DURUM_YAYINDA)
-                    ->value('surum'),
+                'duzen' => $duzen,
+                'surum' => $surum,
+                'yayinda_surum' => $yayindaSurum,
             ],
         ]);
     }
 
     public function taslagiKaydet(Request $request, string $ekran): JsonResponse
     {
-        $this->yoneticiOlmali($request);
-
         /** @var array{duzen: array<string, mixed>} $veri */
         $veri = $request->validate([
             'duzen' => ['required', 'array'],
@@ -95,18 +101,14 @@ final class EkranTasarimController extends Controller
 
     public function yayinla(Request $request, string $ekran): JsonResponse
     {
-        $this->yoneticiOlmali($request);
-
         $tasarim = $this->servis->yayinla($ekran, (int) $request->user()->id);
 
         return response()->json(['data' => ['duzen' => $tasarim->duzen, 'surum' => $tasarim->surum]]);
     }
 
     /** Sürüm geçmişi — geri almak için. */
-    public function surumler(Request $request, string $ekran): JsonResponse
+    public function surumler(string $ekran): JsonResponse
     {
-        $this->yoneticiOlmali($request);
-
         $surumler = EkranTasarimi::query()
             ->where('ekran_anahtari', $ekran)
             ->orderByDesc('surum')
@@ -118,16 +120,8 @@ final class EkranTasarimController extends Controller
 
     public function geriAl(Request $request, string $ekran, int $surum): JsonResponse
     {
-        $this->yoneticiOlmali($request);
-
         $taslak = $this->servis->surumuGeriAl($ekran, $surum, (int) $request->user()->id);
 
         return response()->json(['data' => ['duzen' => $taslak->duzen, 'surum' => $taslak->surum]]);
-    }
-
-    /** Tek yetki tanımı: AppServiceProvider `sistem-yonetimi` Gate'i. */
-    private function yoneticiOlmali(Request $request): void
-    {
-        Gate::forUser($request->user())->authorize('sistem-yonetimi');
     }
 }

@@ -12,6 +12,7 @@ import { Button } from '@/components/Button'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ErrorState } from '@/components/ErrorState'
 import { Input } from '@/components/Input'
+import { SaltOkunurUyarisi } from '@/components/SaltOkunurUyarisi'
 import {
   aktifOrtamDegistir,
   sqlBaglantiGuncelle,
@@ -22,6 +23,7 @@ import {
   type SqlBaglantiGovdesi,
   type SqlOrtam,
 } from '@/features/ayarlar/sqlApi'
+import { useIzin } from '@/hooks/useIzin'
 
 function baglantiSchemaOlustur(sifreZorunlu: boolean) {
   return z.object({
@@ -329,6 +331,7 @@ function AktifOrtamBolumu({
 
 export function SqlBaglantilariPage() {
   const { t } = useTranslation()
+  const guncelleyebilir = useIzin('sql_baglantilari.guncelle')
 
   const baglantilar = useQuery({
     queryKey: queryKeys.ayarlar.sqlBaglantilari,
@@ -341,6 +344,8 @@ export function SqlBaglantilariPage() {
         <h2 className="text-2xl font-bold">{t('ayarlar.sql.baslik')}</h2>
       </div>
       <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{t('ayarlar.sql.aciklama')}</p>
+
+      {guncelleyebilir ? null : <SaltOkunurUyarisi />}
 
       {baglantilar.isError ? (
         <div className="mt-4">
@@ -356,7 +361,8 @@ export function SqlBaglantilariPage() {
       ) : null}
 
       {baglantilar.isSuccess ? (
-        <>
+        // Yalnız görüntüleme izninde ortam seçimi, sınama ve kayıt pasiftir
+        <fieldset disabled={!guncelleyebilir} className="min-w-0">
           <AktifOrtamBolumu
             aktifOrtam={baglantilar.data.aktif_ortam}
             testVar={baglantilar.data.test !== null}
@@ -375,7 +381,7 @@ export function SqlBaglantilariPage() {
               tanim={baglantilar.data.canli}
             />
           </div>
-        </>
+        </fieldset>
       ) : null}
     </>
   )

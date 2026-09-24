@@ -386,14 +386,12 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
   ]
 
   const kolonlar: DataTableKolonu<EFatura>[] = [
-    ...secilebilirKolonlar.filter((kolon) => kolonGorunurlugu.gorunurMu(kolon.anahtar)),
     {
-      // İşlemler her zaman görünür (seçicide yok)
+      // İşlemler en solda ve her zaman görünür (seçicide yok) — kullanıcı isteği 2026-09-24
       anahtar: 'islemler',
       baslik: '',
-      hizala: 'sag',
       render: (f) => (
-        <div className="flex justify-end gap-2">
+        <div className="flex gap-2">
           <Button variant="secondary" onClick={() => setPencere({ tur: 'detay', fatura: f })}>
             {t('efatura.detay')}
           </Button>
@@ -405,6 +403,7 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
         </div>
       ),
     },
+    ...secilebilirKolonlar.filter((kolon) => kolonGorunurlugu.gorunurMu(kolon.anahtar)),
   ]
 
   const secenekler = liste.data?.secenekler

@@ -16,7 +16,7 @@ final class EntegratorBaglantiGuncelleRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('sistem-yonetimi') ?? false;
+        return $this->user()?->can('entegrator_baglantilari.guncelle') ?? false;
     }
 
     /**

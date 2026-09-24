@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import '@/i18n/i18n'
 import { AppProviders } from '@/providers/AppProviders'
+import { SahteOturum } from '@/test/SahteOturum'
 import { EkranTasarimAyarlariPage } from './EkranTasarimAyarlariPage'
 
 const kaydedilen = vi.fn()
@@ -91,7 +92,9 @@ const SAHTE_TASLAK = {
 function render() {
   const sonuc = rtlRender(
     <AppProviders>
-      <EkranTasarimAyarlariPage />
+      <SahteOturum izinler={['ekran_tasarimi.goruntule', 'ekran_tasarimi.guncelle']}>
+        <EkranTasarimAyarlariPage />
+      </SahteOturum>
     </AppProviders>,
   )
   fireEvent.click(screen.getByRole('button', { name: 'Tasarla' }))

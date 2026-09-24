@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EkranListesi } from './EkranListesi'
 import { SatirTasarimi } from './SatirTasarimi'
 import { ErrorState } from '@/components/ErrorState'
+import { SaltOkunurUyarisi } from '@/components/SaltOkunurUyarisi'
 import {
   ekranTaslaginiGetir,
   ekranTaslaginiKaydet,
@@ -29,10 +30,12 @@ import {
 import { SURUKLE_TURU, TasarimTuvali } from './TasarimTuvali'
 import type { EkranDuzeni, KatalogAlani } from '@/features/ekranTasarim/types'
 import { TASARLANABILIR_EKRANLAR } from '@/features/ekranTasarim/ekranlar'
+import { useIzin } from '@/hooks/useIzin'
 
 export function EkranTasarimAyarlariPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const guncelleyebilir = useIzin('ekran_tasarimi.guncelle')
   // null = ekran listesi; bir ekran seçilince editör açılır
   const [ekran, setEkran] = useState<string | null>(null)
   const [duzen, setDuzen] = useState<EkranDuzeni | null>(null)
@@ -104,6 +107,7 @@ export function EkranTasarimAyarlariPage() {
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           {t('tasarim.ekranSecAciklama')}
         </p>
+        {guncelleyebilir ? null : <SaltOkunurUyarisi />}
         <EkranListesi sec={setEkran} />
       </>
     )
@@ -137,21 +141,27 @@ export function EkranTasarimAyarlariPage() {
               {t('tasarim.henuzYayinlanmadi')}
             </span>
           )}
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={!duzen}
-            yukleniyor={kaydet.isPending}
-            onClick={() => duzen && kaydet.mutate(duzen)}
-          >
-            {t('tasarim.taslagiKaydet')}
-          </Button>
-          <Button type="button" disabled={!duzen} onClick={() => setYayinOnayi(true)}>
-            {t('tasarim.yayinla')}
-          </Button>
+          {guncelleyebilir ? (
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!duzen}
+                yukleniyor={kaydet.isPending}
+                onClick={() => duzen && kaydet.mutate(duzen)}
+              >
+                {t('tasarim.taslagiKaydet')}
+              </Button>
+              <Button type="button" disabled={!duzen} onClick={() => setYayinOnayi(true)}>
+                {t('tasarim.yayinla')}
+              </Button>
+            </>
+          ) : null}
         </div>
       </div>
       <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{t('tasarim.aciklama')}</p>
+
+      {guncelleyebilir ? null : <SaltOkunurUyarisi />}
 
       {taslak.isError ? (
         <div className="mt-4">
@@ -186,122 +196,125 @@ export function EkranTasarimAyarlariPage() {
         </div>
       ) : null}
 
-      {duzen && taslak.data && sekme === 'satirlar' ? (
-        <SatirTasarimi
-          katalog={taslak.data.satir_katalogu ?? []}
-          satirlar={duzen.satirlar ?? []}
-          birim={duzen.satir_genislik_birimi ?? 'px'}
-          degisti={(yeni) => setDuzen({ ...duzen, satirlar: yeni })}
-          birimDegisti={(birim) => setDuzen({ ...duzen, satir_genislik_birimi: birim })}
-        />
-      ) : null}
+      {/* Yalnız görüntüleme izninde editörün girişleri pasiftir; sekmeler açık kalır */}
+      <fieldset disabled={!guncelleyebilir} className="min-w-0">
+        {duzen && taslak.data && sekme === 'satirlar' ? (
+          <SatirTasarimi
+            katalog={taslak.data.satir_katalogu ?? []}
+            satirlar={duzen.satirlar ?? []}
+            birim={duzen.satir_genislik_birimi ?? 'px'}
+            degisti={(yeni) => setDuzen({ ...duzen, satirlar: yeni })}
+            birimDegisti={(birim) => setDuzen({ ...duzen, satir_genislik_birimi: birim })}
+          />
+        ) : null}
 
-      {duzen && taslak.data && sekme === 'baslik' ? (
-        <div className="mt-4 flex flex-col gap-4 xl:flex-row">
-          {/* Palet: tasarımda yeri olmayan alanlar */}
-          <aside
-            className="w-full shrink-0 rounded-xl border border-slate-200 bg-white p-4 xl:w-64 dark:border-slate-700 dark:bg-slate-900"
-            onDragOver={(olay) => olay.preventDefault()}
-            onDrop={(olay) => {
-              olay.preventDefault()
-              const ham =
-                olay.dataTransfer.getData(SURUKLE_TURU) || olay.dataTransfer.getData('text/plain')
-              if (!ham) {
-                return
-              }
-              const veri = JSON.parse(ham) as { alan: string; kaynak: string }
-              const katalog = katalogHaritasi.get(veri.alan)
-              if (veri.kaynak === 'tuval' && katalog && !katalog.kaldirilamaz) {
-                setDuzen(alanKaldir(duzen, veri.alan))
-                setSeciliAlan(null)
-              }
-            }}
-          >
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-              {t('tasarim.kullanilmayanAlanlar')}
-            </h3>
-            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-              {t('tasarim.paletAciklama')}
-            </p>
-            <div className="mt-3 space-y-2">
-              {kullanilmayan.length === 0 ? (
-                <p className="text-xs text-slate-400 dark:text-slate-500">
-                  {t('tasarim.tumAlanlarKullanimda')}
-                </p>
-              ) : null}
-              {kullanilmayan.map((alan) => (
-                <div
-                  key={alan.anahtar}
-                  draggable
-                  onDragStart={(olay) => {
-                    const veri = { alan: alan.anahtar, kaynak: 'palet' }
-                    olay.dataTransfer.setData(SURUKLE_TURU, JSON.stringify(veri))
-                    olay.dataTransfer.setData('text/plain', JSON.stringify(veri))
-                    olay.dataTransfer.effectAllowed = 'copy'
-                  }}
-                  className="cursor-grab rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-600 transition-colors hover:border-blue-400 hover:text-blue-700 active:cursor-grabbing dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                >
-                  {t(alan.etiket_anahtari)}
-                </div>
-              ))}
+        {duzen && taslak.data && sekme === 'baslik' ? (
+          <div className="mt-4 flex flex-col gap-4 xl:flex-row">
+            {/* Palet: tasarımda yeri olmayan alanlar */}
+            <aside
+              className="w-full shrink-0 rounded-xl border border-slate-200 bg-white p-4 xl:w-64 dark:border-slate-700 dark:bg-slate-900"
+              onDragOver={(olay) => olay.preventDefault()}
+              onDrop={(olay) => {
+                olay.preventDefault()
+                const ham =
+                  olay.dataTransfer.getData(SURUKLE_TURU) || olay.dataTransfer.getData('text/plain')
+                if (!ham) {
+                  return
+                }
+                const veri = JSON.parse(ham) as { alan: string; kaynak: string }
+                const katalog = katalogHaritasi.get(veri.alan)
+                if (veri.kaynak === 'tuval' && katalog && !katalog.kaldirilamaz) {
+                  setDuzen(alanKaldir(duzen, veri.alan))
+                  setSeciliAlan(null)
+                }
+              }}
+            >
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                {t('tasarim.kullanilmayanAlanlar')}
+              </h3>
+              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                {t('tasarim.paletAciklama')}
+              </p>
+              <div className="mt-3 space-y-2">
+                {kullanilmayan.length === 0 ? (
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                    {t('tasarim.tumAlanlarKullanimda')}
+                  </p>
+                ) : null}
+                {kullanilmayan.map((alan) => (
+                  <div
+                    key={alan.anahtar}
+                    draggable
+                    onDragStart={(olay) => {
+                      const veri = { alan: alan.anahtar, kaynak: 'palet' }
+                      olay.dataTransfer.setData(SURUKLE_TURU, JSON.stringify(veri))
+                      olay.dataTransfer.setData('text/plain', JSON.stringify(veri))
+                      olay.dataTransfer.effectAllowed = 'copy'
+                    }}
+                    className="cursor-grab rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-600 transition-colors hover:border-blue-400 hover:text-blue-700 active:cursor-grabbing dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                  >
+                    {t(alan.etiket_anahtari)}
+                  </div>
+                ))}
+              </div>
+
+              <OnayRoluSecimi
+                deger={duzen.onay_rol_id ?? null}
+                degisti={(rolId) => setDuzen({ ...duzen, onay_rol_id: rolId })}
+              />
+            </aside>
+
+            <div className="min-w-0 flex-1">
+              <TasarimTuvali
+                duzen={duzen}
+                bolumTanimlari={taslak.data.bolumler}
+                katalogHaritasi={katalogHaritasi}
+                seciliAlan={seciliAlan}
+                alanSecildi={setSeciliAlan}
+                birakildi={(alanAnahtari, bolumAnahtari, hedefIndeks) => {
+                  const katalog = katalogHaritasi.get(alanAnahtari)
+                  setDuzen(
+                    alanYerlestir(
+                      duzen,
+                      alanAnahtari,
+                      bolumAnahtari,
+                      hedefIndeks,
+                      katalog?.varsayilan_genislik ?? 6,
+                    ),
+                  )
+                  setSeciliAlan(alanAnahtari)
+                }}
+                bolumGenisligiDegisti={(bolumAnahtari, genislik) =>
+                  setDuzen(bolumGenisligiDegistir(duzen, bolumAnahtari, genislik))
+                }
+                bolumBasligiDegisti={(bolumAnahtari, baslik) =>
+                  setDuzen(bolumBasligiDegistir(duzen, bolumAnahtari, baslik))
+                }
+              />
             </div>
 
-            <OnayRoluSecimi
-              deger={duzen.onay_rol_id ?? null}
-              degisti={(rolId) => setDuzen({ ...duzen, onay_rol_id: rolId })}
-            />
-          </aside>
-
-          <div className="min-w-0 flex-1">
-            <TasarimTuvali
-              duzen={duzen}
-              bolumTanimlari={taslak.data.bolumler}
-              katalogHaritasi={katalogHaritasi}
-              seciliAlan={seciliAlan}
-              alanSecildi={setSeciliAlan}
-              birakildi={(alanAnahtari, bolumAnahtari, hedefIndeks) => {
-                const katalog = katalogHaritasi.get(alanAnahtari)
-                setDuzen(
-                  alanYerlestir(
-                    duzen,
-                    alanAnahtari,
-                    bolumAnahtari,
-                    hedefIndeks,
-                    katalog?.varsayilan_genislik ?? 6,
-                  ),
-                )
-                setSeciliAlan(alanAnahtari)
-              }}
-              bolumGenisligiDegisti={(bolumAnahtari, genislik) =>
-                setDuzen(bolumGenisligiDegistir(duzen, bolumAnahtari, genislik))
-              }
-              bolumBasligiDegisti={(bolumAnahtari, baslik) =>
-                setDuzen(bolumBasligiDegistir(duzen, bolumAnahtari, baslik))
-              }
-            />
+            <aside className="w-full shrink-0 xl:w-72">
+              {seciliKatalog && seciliDuzenAlani ? (
+                <AlanAyarPaneli
+                  katalog={seciliKatalog}
+                  duzen={seciliDuzenAlani}
+                  degisti={(degisiklik) =>
+                    setDuzen(alanGuncelle(duzen, seciliKatalog.anahtar, degisiklik))
+                  }
+                  kaldir={() => {
+                    setDuzen(alanKaldir(duzen, seciliKatalog.anahtar))
+                    setSeciliAlan(null)
+                  }}
+                />
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-400 dark:border-slate-700 dark:text-slate-500">
+                  {t('tasarim.alanSecin')}
+                </div>
+              )}
+            </aside>
           </div>
-
-          <aside className="w-full shrink-0 xl:w-72">
-            {seciliKatalog && seciliDuzenAlani ? (
-              <AlanAyarPaneli
-                katalog={seciliKatalog}
-                duzen={seciliDuzenAlani}
-                degisti={(degisiklik) =>
-                  setDuzen(alanGuncelle(duzen, seciliKatalog.anahtar, degisiklik))
-                }
-                kaldir={() => {
-                  setDuzen(alanKaldir(duzen, seciliKatalog.anahtar))
-                  setSeciliAlan(null)
-                }}
-              />
-            ) : (
-              <div className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-400 dark:border-slate-700 dark:text-slate-500">
-                {t('tasarim.alanSecin')}
-              </div>
-            )}
-          </aside>
-        </div>
-      ) : null}
+        ) : null}
+      </fieldset>
 
       <ConfirmDialog
         acik={yayinOnayi}

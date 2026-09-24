@@ -13,7 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Ayarlar → Alarm Kuralları (EFAT-13). `can:sistem-yonetimi` ile korunur.
+ * Ayarlar → Alarm Kuralları (EFAT-13). ekranın görüntüle/güncelle izinleriyle korunur.
  * Son bildirimler operatör görünürlüğü içindir: mail gitmese de sorun ekranda görünür.
  */
 final class AlarmKuraliController extends Controller

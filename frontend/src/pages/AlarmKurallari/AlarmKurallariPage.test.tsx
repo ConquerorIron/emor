@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/i18n/i18n'
 import type { AlarmKurallariYaniti } from '@/features/ayarlar/alarmApi'
 import { AppProviders } from '@/providers/AppProviders'
+import { SahteOturum } from '@/test/SahteOturum'
 
 import { AlarmKurallariPage } from './AlarmKurallariPage'
 
@@ -57,10 +58,12 @@ const YANIT: AlarmKurallariYaniti = {
   ],
 }
 
-function ciz() {
+function ciz(izinler = ['alarm_kurallari.goruntule', 'alarm_kurallari.guncelle']) {
   render(
     <AppProviders>
-      <AlarmKurallariPage />
+      <SahteOturum izinler={izinler}>
+        <AlarmKurallariPage />
+      </SahteOturum>
     </AppProviders>,
   )
 }

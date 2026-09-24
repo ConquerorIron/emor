@@ -6,13 +6,14 @@ export interface Kullanici {
   /** 'lokal': fallback admin; 'erp': ERP MSSQL'de doğrulanan kullanıcı */
   kaynak: 'lokal' | 'erp'
   /**
-   * ERP TOHOM_KULLANICI.SISTEM_YONETICISI yansıması — yönetim ekranlarını
-   * (ör. Ekran Tasarım Ayarları) açar. Her girişte tazelenir.
+   * ERP TOHOM_KULLANICI.SISTEM_YONETICISI yansıması — backend bu kullanıcıya
+   * tüm izinleri verir; arayüz kararları yalnız `izinler` ile verilir.
+   * Her girişte tazelenir.
    */
   sistem_yoneticisi: boolean
   /**
-   * Rollerden gelen izinler (sistem yöneticisinde tüm katalog) — menü ve rota
-   * koruması içindir; asıl denetim backend'dedir (EFAT-18).
+   * Rollerden gelen izinler (sistem yöneticisinde tüm katalog) — menü, rota
+   * koruması ve salt okunur ekranlar içindir; asıl denetim backend'dedir.
    */
   izinler: string[]
 }

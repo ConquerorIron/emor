@@ -13,6 +13,7 @@ import { DataTable, type DataTableKolonu } from '@/components/DataTable'
 import { ErrorState } from '@/components/ErrorState'
 import { Input } from '@/components/Input'
 import { Modal } from '@/components/Modal'
+import { SaltOkunurUyarisi } from '@/components/SaltOkunurUyarisi'
 import { MultiSelectField } from '@/components/SelectField'
 import { Switch } from '@/components/Switch'
 import {
@@ -24,13 +25,14 @@ import {
   type Rol,
   type YonetilenKullanici,
 } from '@/features/ayarlar/yetkiApi'
+import { useIzin } from '@/hooks/useIzin'
 
-// Backend kuralının aynısı: en az 10 karakter, harf ve rakam
+// Şifre serbesttir (kullanıcı isteği): kural yok, yalnız boş olamaz. Düzenlemede
+// boş bırakılırsa gönderilmez — mevcut şifre korunur (duzenleSemasi)
 const SIFRE = z
   .string()
-  .min(10, 'ayarlar.kullanicilar.dogrulama.sifreKural')
+  .min(1, 'ayarlar.kullanicilar.dogrulama.sifreZorunlu')
   .max(255, 'ayarlar.kullanicilar.dogrulama.cokUzun')
-  .refine((d) => /\p{L}/u.test(d) && /\d/.test(d), 'ayarlar.kullanicilar.dogrulama.sifreKural')
 
 const EPOSTA = z.union([z.literal(''), z.email('ayarlar.kullanicilar.dogrulama.epostaGecersiz')])
 
@@ -357,6 +359,7 @@ function Rozet({ renk, children }: { renk: 'mavi' | 'mor' | 'gri' | 'kirmizi'; c
 
 export function KullanicilarPage() {
   const { t } = useTranslation()
+  const guncelleyebilir = useIzin('kullanicilar.guncelle')
   const [arama, setArama] = useState('')
   // null: kapalı; 'yeni': lokal kullanıcı ekleme; kullanıcı: düzenleme
   const [formdaki, setFormdaki] = useState<YonetilenKullanici | 'yeni' | null>(null)
@@ -380,7 +383,7 @@ export function KullanicilarPage() {
       k.kullanici_adi.toLocaleLowerCase('tr').includes(aranan),
   )
 
-  const kolonlar: DataTableKolonu<YonetilenKullanici>[] = [
+  const tumKolonlar: DataTableKolonu<YonetilenKullanici>[] = [
     {
       anahtar: 'ad',
       baslik: t('ayarlar.kullanicilar.ad'),
@@ -436,6 +439,10 @@ export function KullanicilarPage() {
       ),
     },
   ]
+  // Yalnız görüntüleme izninde düzenleme kolonu çizilmez
+  const kolonlar = guncelleyebilir
+    ? tumKolonlar
+    : tumKolonlar.filter((kolon) => kolon.anahtar !== 'islemler')
 
   const hata = kullanicilar.error ?? roller.error
 
@@ -443,13 +450,17 @@ export function KullanicilarPage() {
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-2xl font-bold">{t('ayarlar.kullanicilar.baslik')}</h2>
-        <Button variant="mor" onClick={() => setFormdaki('yeni')} disabled={!roller.isSuccess}>
-          {t('ayarlar.kullanicilar.lokalEkle')}
-        </Button>
+        {guncelleyebilir ? (
+          <Button variant="mor" onClick={() => setFormdaki('yeni')} disabled={!roller.isSuccess}>
+            {t('ayarlar.kullanicilar.lokalEkle')}
+          </Button>
+        ) : null}
       </div>
       <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
         {t('ayarlar.kullanicilar.aciklama')}
       </p>
+
+      {guncelleyebilir ? null : <SaltOkunurUyarisi />}
 
       <div className="mt-4 max-w-sm">
         <Input

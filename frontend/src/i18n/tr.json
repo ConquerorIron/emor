@@ -29,7 +29,8 @@
     "sil": "Sil",
     "kolonlar": "Kolonlar ({{gorunen}}/{{toplam}})",
     "kolonSecimi": "Gösterilecek kolonlar",
-    "tumKolonlariGoster": "Tümünü göster"
+    "tumKolonlariGoster": "Tümünü göster",
+    "saltOkunur": "Bu ekranı yalnız görüntüleme yetkiniz var."
   },
   "nav": {
     "anasayfa": "Ana Sayfa",
@@ -395,7 +396,7 @@
         "kullaniciAdiBicimi": "Kullanıcı adı 3-64 karakter olmalı; yalnız harf, rakam, nokta, alt çizgi ve tire içerebilir.",
         "adZorunlu": "Ad soyad zorunludur.",
         "epostaGecersiz": "Geçerli bir e-posta adresi girin.",
-        "sifreKural": "Şifre en az 10 karakter olmalı, harf ve rakam içermelidir.",
+        "sifreZorunlu": "Şifre zorunludur.",
         "cokUzun": "En fazla 255 karakter olabilir."
       }
     },
@@ -491,6 +492,21 @@
     "YAZMA_HATASI": "Faturalar veritabanına yazılamadı."
   },
   "yetki": {
+    "goruntule": "Görüntüle",
+    "guncelle": "Güncelle",
+    "ekIzinler": "Ek izinler",
+    "ekranBaslik": "Ekran",
+    "ekran": {
+      "satinalma_talebi": "Satınalma Talebi",
+      "efatura": "e-Faturalar (Gelen/Giden)",
+      "sql_baglantilari": "SQL Bağlantıları",
+      "entegrator_baglantilari": "Entegratör Bağlantıları",
+      "mail_ayarlari": "Mail Ayarları",
+      "alarm_kurallari": "Alarm Kuralları",
+      "kullanicilar": "Kullanıcılar",
+      "roller": "Roller",
+      "ekran_tasarimi": "Ekran Tasarımı"
+    },
     "izin": {
       "efatura_goruntule": "e-Fatura listelerini görüntüleme",
       "efatura_pdf": "e-Fatura PDF görüntüleme",

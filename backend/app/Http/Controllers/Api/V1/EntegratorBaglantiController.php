@@ -20,7 +20,7 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Ayarlar → Entegratör Bağlantıları: Test/Canlı İzibiz tanımları + aktif ortam.
- * Tüm uçlar `can:sistem-yonetimi` ile korunur (routes/api.php); sınama ayrıca
+ * Tüm uçlar ekranın görüntüle/güncelle izinleriyle korunur (routes/api.php); sınama ayrıca
  * `throttle:entegrator-sina` ile sınırlıdır.
  */
 final class EntegratorBaglantiController extends Controller

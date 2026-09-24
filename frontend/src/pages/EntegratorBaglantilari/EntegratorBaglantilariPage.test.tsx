@@ -7,6 +7,7 @@ import type {
   EntegratorSinamaSonucu,
 } from '@/features/ayarlar/entegratorApi'
 import { AppProviders } from '@/providers/AppProviders'
+import { SahteOturum } from '@/test/SahteOturum'
 
 import { EntegratorBaglantilariPage } from './EntegratorBaglantilariPage'
 
@@ -59,10 +60,12 @@ function testKartiAdresi(): HTMLInputElement {
   return document.getElementById('entegrator-test-api-adresi') as HTMLInputElement
 }
 
-function ciz() {
+function ciz(izinler = ['entegrator_baglantilari.goruntule', 'entegrator_baglantilari.guncelle']) {
   render(
     <AppProviders>
-      <EntegratorBaglantilariPage />
+      <SahteOturum izinler={izinler}>
+        <EntegratorBaglantilariPage />
+      </SahteOturum>
     </AppProviders>,
   )
 }

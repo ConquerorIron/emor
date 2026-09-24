@@ -12,7 +12,7 @@ final class MailAyarGuncelleRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('sistem-yonetimi') ?? false;
+        return $this->user()?->can('mail_ayarlari.guncelle') ?? false;
     }
 
     /**

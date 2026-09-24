@@ -18,7 +18,7 @@ final class AlarmKuraliGuncelleRequest extends FormRequest
 
     public function authorize(): bool
     {
-        return $this->user()?->can('sistem-yonetimi') ?? false;
+        return $this->user()?->can('alarm_kurallari.guncelle') ?? false;
     }
 
     /**

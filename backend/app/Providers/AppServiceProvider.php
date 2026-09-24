@@ -33,9 +33,11 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Yönetim ekranlarının (SQL bağlantıları, ekran tasarımı…) TEK yetki
-        // tanımı. Bayrak ERP kullanıcılarında her girişte ERP'den tazelenir;
-        // lokal fallback admin'de seeder ile açıktır.
+        // ERP sistem yöneticisi: tüm izinlere sahiptir ve yetki devrinin
+        // sınırlarına takılmaz (yalnız kendi izinlerini dağıtabilme kuralı).
+        // Bayrak ERP kullanıcılarında her girişte ERP'den tazelenir; lokal
+        // fallback admin'de seeder ile açıktır. Ekranlar artık ekran izinleriyle
+        // korunur (App\Yetki\Izin::ekranlar).
         Gate::define('sistem-yonetimi', fn (User $user): bool => $user->sistem_yoneticisi === true);
 
         // Rol tabanlı izinler (EFAT-18): her katalog değeri aynı adla bir Gate.
@@ -43,6 +45,12 @@ class AppServiceProvider extends ServiceProvider
         foreach (Izin::cases() as $izin) {
             Gate::define($izin->value, fn (User $user): bool => in_array($izin->value, $user->izinler(), true));
         }
+
+        // Rol listesi Kullanıcılar ekranında rol atamak için de okunur
+        Gate::define('rol-listesi', fn (User $user): bool => array_intersect(
+            [Izin::RollerGoruntule->value, Izin::KullanicilarGoruntule->value],
+            $user->izinler(),
+        ) !== []);
 
         // Brute-force koruması: IP + kullanıcı adı bazlı
         RateLimiter::for('login', function (Request $request): Limit {
