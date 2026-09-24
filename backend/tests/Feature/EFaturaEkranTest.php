@@ -135,6 +135,23 @@ final class EFaturaEkranTest extends TestCase
             ->assertJsonPath('secenekler.para_birimleri', ['TRY', 'USD']);
     }
 
+    public function test_durum_secenekleri_kod_ve_turkce_aciklamayla_doner(): void
+    {
+        $tanim = $this->aktifTanim();
+        $this->fatura($tanim, ['durum' => 'RECEIVED', 'durum_aciklamasi' => 'Alındı']);
+        $this->fatura($tanim, ['durum' => 'ACCEPTED', 'durum_aciklamasi' => 'Kabul Edildi']);
+        $this->fatura($tanim, ['durum' => 'ACCEPTED', 'durum_aciklamasi' => 'Kabul Edildi']);
+        $this->fatura($tanim, ['durum' => 'NEW', 'durum_aciklamasi' => null]);
+
+        $this->actingAs($this->izinli('efatura.goruntule'))
+            ->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK)
+            ->assertJsonPath('secenekler.durumlar', [
+                ['deger' => 'ACCEPTED', 'aciklama' => 'Kabul Edildi'],
+                ['deger' => 'NEW', 'aciklama' => null],
+                ['deger' => 'RECEIVED', 'aciklama' => 'Alındı'],
+            ]);
+    }
+
     public function test_arama_gelen_faturada_gondericiyi_giden_faturada_aliciyi_arar(): void
     {
         $tanim = $this->aktifTanim();

@@ -65,7 +65,11 @@ export interface EFaturaListesi {
   data: EFatura[]
   meta: { current_page: number; last_page: number; total: number }
   ozet: ParaBirimiOzeti[]
-  secenekler: { durumlar: string[]; para_birimleri: string[] }
+  secenekler: {
+    /** İzibiz durum kodu + Türkçe açıklaması */
+    durumlar: { deger: string; aciklama: string | null }[]
+    para_birimleri: string[]
+  }
   kapsam: { ortam: 'test' | 'canli' }
 }
 

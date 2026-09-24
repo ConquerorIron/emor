@@ -32,6 +32,7 @@ import { bugunIso, gunFarki, tarihGoster, zamanGoster } from '@/utils/tarih'
 
 import { FaturaDetayi } from './FaturaDetayi'
 import { ILK_TARAMA_TARIHI, LISTE_AZAMI_GUN, tutarGoster } from './bicim'
+import { durumIsaretSinifi, durumSatirSinifi } from './durumRenkleri'
 import { PdfGoruntuleyici } from './PdfGoruntuleyici'
 import { SenkronDurumuPaneli } from './SenkronDurumuPaneli'
 
@@ -407,9 +408,10 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
   ]
 
   const secenekler = liste.data?.secenekler
+  // Türkçe açıklama, parantez içinde İzibiz kodu: "Kabul Edildi (ACCEPTED)"
   const durumSecenekleri: SecenekOgesi[] = (secenekler?.durumlar ?? []).map((d) => ({
-    value: d,
-    label: d,
+    value: d.deger,
+    label: d.aciklama ? `${d.aciklama} (${d.deger})` : d.deger,
   }))
   const paraSecenekleri: SecenekOgesi[] = (secenekler?.para_birimleri ?? []).map((p) => ({
     value: p,
@@ -477,6 +479,15 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
           id="efatura-durum"
           label={t('efatura.alan.durum')}
           options={durumSecenekleri}
+          secenekBicimi={(secenek) => (
+            <span className="inline-flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className={`size-3 shrink-0 rounded-full border ${durumIsaretSinifi(secenek.value)}`}
+              />
+              {secenek.label}
+            </span>
+          )}
           value={secili(durumSecenekleri, filtre.durum)}
           onChange={(secim) => filtreDegistir('durum', secim?.value ?? '')}
           placeholder={t('efatura.hepsi')}
@@ -554,6 +565,7 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
               satirAnahtari={(f) => f.id}
               yukleniyor={liste.isPending}
               ustKaydirma
+              satirSinifi={(f) => durumSatirSinifi(f.durum)}
               siralama={siralama}
               siralamaDegistir={(anahtar) => {
                 siralamaDegistir(anahtar)

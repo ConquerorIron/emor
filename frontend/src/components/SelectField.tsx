@@ -58,6 +58,8 @@ interface SelectFieldProps extends OrtakProps {
   yukleniyor?: boolean
   /** Kısa listelerde ilk harfle seçim gibi özel klavye davranışları için */
   tusaBasildi?: (olay: React.KeyboardEvent<HTMLDivElement>) => void
+  /** Seçeneğin görünümü (ör. renk işareti); arama yine `label` üzerinden yapılır */
+  secenekBicimi?: (secenek: SecenekOgesi) => React.ReactNode
 }
 
 export function SelectField({
@@ -75,6 +77,7 @@ export function SelectField({
   disabled = false,
   etiketGizli = false,
   tusaBasildi,
+  secenekBicimi,
 }: SelectFieldProps) {
   const { theme } = useTheme()
 
@@ -82,6 +85,7 @@ export function SelectField({
     <AlanSarici id={id} label={label} hata={hata} etiketGizli={etiketGizli}>
       <Select<SecenekOgesi, false>
         inputId={id}
+        formatOptionLabel={secenekBicimi}
         aria-invalid={hata ? true : undefined}
         value={value}
         onChange={onChange}

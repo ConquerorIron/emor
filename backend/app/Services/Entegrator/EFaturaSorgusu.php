@@ -118,7 +118,10 @@ final class EFaturaSorgusu
     /**
      * Filtre seçenekleri: seçilen tarih aralığında görülen durum ve para birimleri.
      *
-     * @return array{durumlar: list<string>, para_birimleri: list<string>}
+     * Durum, İzibiz'in kodu ve Türkçe açıklamasıyla döner (her kodun tek
+     * açıklaması var; boşsa null).
+     *
+     * @return array{durumlar: list<array{deger: string, aciklama: string|null}>, para_birimleri: list<string>}
      */
     public function secenekler(EntegratorBaglanti $tanim, FaturaYonu $yon, string $baslangic, string $bitis): array
     {
@@ -127,8 +130,19 @@ final class EFaturaSorgusu
             ->where('yon', $yon->value)
             ->whereBetween('belge_tarihi', [$baslangic, $bitis]);
 
-        /** @var list<string> $durumlar */
-        $durumlar = $taban->clone()->whereNotNull('durum')->distinct()->orderBy('durum')->pluck('durum')->all();
+        /** @var list<object{durum: string, aciklama: string|null}> $durumSatirlari */
+        $durumSatirlari = $taban->clone()
+            ->toBase()
+            ->whereNotNull('durum')
+            ->selectRaw('durum, max(durum_aciklamasi) as aciklama')
+            ->groupBy('durum')
+            ->orderBy('durum')
+            ->get()
+            ->all();
+        $durumlar = array_map(
+            fn (object $s): array => ['deger' => $s->durum, 'aciklama' => $s->aciklama],
+            $durumSatirlari,
+        );
         /** @var list<string> $paraBirimleri */
         $paraBirimleri = $taban->clone()->distinct()->orderBy('para_birimi')->pluck('para_birimi')->all();
 

@@ -30,6 +30,8 @@ interface DataTableProps<T> {
   secilebilir?: (satir: T) => boolean
   /** Geniş tabloda yatay kaydırma çubuğu tablonun üstünde de gösterilir (ikisi eş kayar). */
   ustKaydirma?: boolean
+  /** Satıra özel arka plan (hover dahil); undefined dönerse varsayılan görünüm */
+  satirSinifi?: (satir: T) => string | undefined
 }
 
 const hizaSiniflari: Record<NonNullable<DataTableKolonu<unknown>['hizala']>, string> = {
@@ -92,6 +94,7 @@ export function DataTable<T>({
   tumunuSec,
   secilebilir,
   ustKaydirma = false,
+  satirSinifi,
 }: DataTableProps<T>) {
   const { t } = useTranslation()
   const kapRef = useRef<HTMLDivElement>(null)
@@ -227,14 +230,13 @@ export function DataTable<T>({
               satirlar.map((satir) => {
                 const anahtar = satirAnahtari(satir)
                 const satirSecilebilir = secilebilir ? secilebilir(satir) : true
+                // Seçim vurgusu satıra özel renkten önce gelir
+                const zemin = seciliAnahtarlar?.has(anahtar)
+                  ? 'hover:bg-slate-50 dark:hover:bg-slate-800/50 bg-violet-50 dark:bg-violet-950/30'
+                  : (satirSinifi?.(satir) ?? 'hover:bg-slate-50 dark:hover:bg-slate-800/50')
 
                 return (
-                  <tr
-                    key={anahtar}
-                    className={`transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
-                      seciliAnahtarlar?.has(anahtar) ? 'bg-violet-50 dark:bg-violet-950/30' : ''
-                    }`}
-                  >
+                  <tr key={anahtar} className={`transition-colors ${zemin}`}>
                     {secimAcik ? (
                       <td className="w-10 border-r border-b border-slate-100 px-3 py-2 text-center dark:border-slate-800">
                         {satirSecilebilir ? (

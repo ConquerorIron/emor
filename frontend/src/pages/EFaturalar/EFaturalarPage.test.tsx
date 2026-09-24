@@ -79,7 +79,10 @@ const LISTE: EFaturaListesi = {
   data: [FATURA],
   meta: { current_page: 1, last_page: 1, total: 1 },
   ozet: [{ para_birimi: 'TRY', adet: 1, tutar: '1250.50', vergi_tutari: '208.42' }],
-  secenekler: { durumlar: ['RECEIVED'], para_birimleri: ['TRY'] },
+  secenekler: {
+    durumlar: [{ deger: 'RECEIVED', aciklama: 'Alındı' }],
+    para_birimleri: ['TRY'],
+  },
   kapsam: { ortam: 'test' },
 }
 
@@ -296,6 +299,48 @@ describe('EFaturalarPage', () => {
     await screen.findByText('Deniz Boya Ltd.')
     expect(basliklar()).not.toContain('İrsaliye No')
     expect(basliklar()).toContain('Sipariş No')
+  })
+
+  it('durum filtresi Türkçe açıklamayı, parantez içinde İzibiz kodunu gösterir', async () => {
+    ciz(['efatura.goruntule'])
+    await screen.findByText('Deniz Boya Ltd.')
+    const alan = document.querySelector<HTMLElement>('label[for="efatura-durum"]')!.parentElement!
+
+    fireEvent.keyDown(within(alan).getByRole('combobox'), { key: 'ArrowDown' })
+    // Menü body'ye taşınır (menuPortalTarget)
+    fireEvent.click(await screen.findByText('Alındı (RECEIVED)'))
+
+    await waitFor(() =>
+      expect(api.faturalar).toHaveBeenLastCalledWith(
+        'gelen',
+        expect.objectContaining({ durum: 'RECEIVED' }),
+        VARSAYILAN_SIRALAMA,
+        1,
+      ),
+    )
+  })
+
+  it('satırlar duruma göre açık renkle boyanır; reddedilen kırmızı, alınan renksiz', async () => {
+    api.faturalar.mockResolvedValue({
+      ...LISTE,
+      data: [
+        FATURA,
+        {
+          ...FATURA,
+          id: 12,
+          belge_no: 'ABC2026000000002',
+          gonderici_unvan: 'Reddedilen Ltd.',
+          durum: 'REJECTED',
+        },
+      ],
+    })
+    ciz(['efatura.goruntule'])
+
+    const reddedilen = (await screen.findByText('Reddedilen Ltd.')).closest('tr')!
+    const alinan = screen.getByText('Deniz Boya Ltd.').closest('tr')!
+
+    expect(reddedilen).toHaveClass('bg-red-50')
+    expect(alinan.className).not.toMatch(/bg-(red|emerald|amber)-50/)
   })
 
   it('alarm mailindeki bağlantı ERP okumadı filtresiyle açar', async () => {
