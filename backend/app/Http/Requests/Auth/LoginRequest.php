@@ -62,21 +62,29 @@ final class LoginRequest extends FormRequest
             $this->basarisiz();
         }
 
-        $user = User::query()->updateOrCreate(
-            ['kullanici_adi' => $erpKullanici['kullanici_adi'], 'kaynak' => User::KAYNAK_ERP],
-            [
-                'ad' => $erpKullanici['ad'],
-                'erp_kullanici_id' => $erpKullanici['erp_kullanici_id'],
-                // ERP'deki yetki her girişte tazelenir
-                'sistem_yoneticisi' => $erpKullanici['sistem_yoneticisi'],
-            ],
-        );
+        // Yalnız Kullanıcılar ekranında tanımlanmış (giriş izni verilmiş) ERP
+        // kullanıcıları girer (kullanıcı kararı 2026-09-24). İstisna: ERP sistem
+        // yöneticisi — ilk girişte tanımlanır, yoksa uygulama yöneticisiz kalabilirdi.
+        $user = User::query()
+            ->where('kaynak', User::KAYNAK_ERP)
+            ->where(fn ($q) => $q->where('erp_kullanici_id', $erpKullanici['erp_kullanici_id'])
+                ->orWhere('kullanici_adi', $erpKullanici['kullanici_adi']))
+            ->first();
 
-        // Yeni kayıtta DB default'ları (aktif_mi=true) modele yüklensin;
-        // mevcut pasif kullanıcı ise pasif kalır (girisYap engeller)
-        if ($user->wasRecentlyCreated) {
-            $user->refresh();
+        if ($user === null && ! $erpKullanici['sistem_yoneticisi']) {
+            throw ValidationException::withMessages([
+                'kullanici_adi' => __('auth.izin_yok'),
+            ]);
         }
+
+        $user ??= new User(['kaynak' => User::KAYNAK_ERP, 'aktif_mi' => true]);
+        $user->fill([
+            'kullanici_adi' => $erpKullanici['kullanici_adi'],
+            'ad' => $erpKullanici['ad'],
+            'erp_kullanici_id' => $erpKullanici['erp_kullanici_id'],
+            // ERP'deki yetki her girişte tazelenir
+            'sistem_yoneticisi' => $erpKullanici['sistem_yoneticisi'],
+        ])->save();
 
         return $this->girisYap($user);
     }

@@ -39,14 +39,14 @@ final class ErpLoginTest extends TestCase
                 return $this->sonuc;
             }
 
-            public function kullaniciVarMi(string $kullaniciAdi): bool
+            public function kullanicilar(): array
             {
-                return false;
+                return [];
             }
         });
     }
 
-    public function test_erp_kullanicisi_giris_yapar_ve_yerel_tabloya_yansitilir(): void
+    public function test_uygulamada_tanimlanmamis_erp_kullanicisi_dogru_sifreyle_de_giremez(): void
     {
         $this->sahteDogrulayici([
             'ad' => 'Fatih DEMİR',
@@ -55,20 +55,55 @@ final class ErpLoginTest extends TestCase
             'sistem_yoneticisi' => false,
         ]);
 
-        $yanit = $this->postJson('/api/v1/auth/login', [
+        $this->postJson('/api/v1/auth/login', [
             'kullanici_adi' => 'fatih.demir',
             'sifre' => 'dogru-sifre',
-        ]);
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('hatalar.kullanici_adi.0', 'Bu uygulamaya giriş izniniz tanımlanmamış. Yöneticinizle iletişime geçin.');
 
-        $yanit->assertOk()
+        $this->assertGuest();
+        $this->assertDatabaseMissing('users', ['kullanici_adi' => 'fatih.demir']);
+    }
+
+    public function test_tanimli_erp_kullanicisi_erp_sifresiyle_girer(): void
+    {
+        $this->sahteDogrulayici([
+            'ad' => 'Fatih DEMİR',
+            'kullanici_adi' => 'fatih.demir',
+            'erp_kullanici_id' => 33819,
+            'sistem_yoneticisi' => false,
+        ]);
+        User::factory()->erp()->create(['kullanici_adi' => 'fatih.demir', 'erp_kullanici_id' => 33819]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'kullanici_adi' => 'fatih.demir',
+            'sifre' => 'dogru-sifre',
+        ])
+            ->assertOk()
             ->assertJsonPath('data.ad', 'Fatih DEMİR')
             ->assertJsonPath('data.kaynak', 'erp');
+    }
+
+    public function test_tanimlanmamis_erp_sistem_yoneticisi_ilk_giriste_tanimlanir(): void
+    {
+        $this->sahteDogrulayici([
+            'ad' => 'Fatih DEMİR',
+            'kullanici_adi' => 'fatih.demir',
+            'erp_kullanici_id' => 33819,
+            'sistem_yoneticisi' => true,
+        ]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'kullanici_adi' => 'fatih.demir',
+            'sifre' => 'dogru-sifre',
+        ])->assertOk()->assertJsonPath('data.sistem_yoneticisi', true);
 
         $this->assertDatabaseHas('users', [
             'kullanici_adi' => 'fatih.demir',
             'kaynak' => 'erp',
             'erp_kullanici_id' => 33819,
-            'sistem_yoneticisi' => false,
+            'aktif_mi' => true,
         ]);
     }
 

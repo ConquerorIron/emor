@@ -7,12 +7,11 @@ namespace App\Http\Requests\Yetki;
 use App\Models\User;
 use App\Yetki\YetkiSiniri;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 /**
- * Ad/e-posta/şifre yalnız lokal kullanıcıda değişir (servis denetler);
- * aktiflik ve roller her kullanıcıda.
+ * Tanımlı kullanıcının giriş izni (aktif_mi) ve rolleri. Ad/şifre ERP'den
+ * gelir; bu ekrandan değişmez.
  */
 final class KullaniciGuncelleRequest extends FormRequest
 {
@@ -59,13 +58,7 @@ final class KullaniciGuncelleRequest extends FormRequest
      */
     public function rules(): array
     {
-        $hedef = $this->route('kullanici');
-
         return [
-            'ad' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'email' => ['sometimes', 'nullable', 'email', 'max:255', Rule::unique('users', 'email')->ignore($hedef instanceof User ? $hedef->id : null)],
-            // Şifre serbest: uzunluk/karakter kuralı yok (kullanıcı isteği 2026-09-24)
-            'sifre' => ['sometimes', 'nullable', 'string', 'max:255'],
             'aktif_mi' => ['sometimes', 'boolean'],
             'rol_idleri' => ['sometimes', 'array'],
             'rol_idleri.*' => ['integer', 'distinct', 'exists:roller,id'],

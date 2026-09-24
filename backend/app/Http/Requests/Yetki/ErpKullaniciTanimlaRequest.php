@@ -8,7 +8,11 @@ use App\Yetki\YetkiSiniri;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
-final class LokalKullaniciOlusturRequest extends FormRequest
+/**
+ * ERP kullanıcısını uygulamaya tanımlama: giriş izni + roller. Kişinin ERP'de
+ * var olduğu servis katmanında ERP'den denetlenir.
+ */
+final class ErpKullaniciTanimlaRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -21,13 +25,7 @@ final class LokalKullaniciOlusturRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Tekillik tüm kullanıcılar (ERP yansımaları dahil) arasında; ERP'deki
-            // henüz giriş yapmamış kullanıcılar serviste ERP'den denetlenir
-            'kullanici_adi' => ['required', 'string', 'regex:/^[A-Za-z0-9._-]{3,64}$/', 'unique:users,kullanici_adi'],
-            'ad' => ['required', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
-            // Şifre serbest: uzunluk/karakter kuralı yok (kullanıcı isteği 2026-09-24)
-            'sifre' => ['required', 'string', 'max:255'],
+            'erp_kullanici_id' => ['required', 'integer', 'min:1'],
             'aktif_mi' => ['sometimes', 'boolean'],
             'rol_idleri' => ['sometimes', 'array'],
             'rol_idleri.*' => ['integer', 'distinct', 'exists:roller,id'],
@@ -35,7 +33,7 @@ final class LokalKullaniciOlusturRequest extends FormRequest
     }
 
     /**
-     * Atanan roller, oluşturanın izinleri içinde kalmalı (YetkiSiniri).
+     * Atanan roller, tanımlayanın izinleri içinde kalmalı (YetkiSiniri).
      *
      * @return list<callable(Validator): void>
      */
@@ -54,16 +52,6 @@ final class LokalKullaniciOlusturRequest extends FormRequest
                     $validator->errors()->add('rol_idleri', __('hata.izin_verme_siniri'));
                 }
             },
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public function messages(): array
-    {
-        return [
-            'kullanici_adi.regex' => __('hata.kullanici_adi_bicimi'),
         ];
     }
 }

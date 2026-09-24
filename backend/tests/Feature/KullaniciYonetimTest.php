@@ -8,24 +8,31 @@ use App\Models\Rol;
 use App\Models\User;
 use App\Services\ErpKimlikDogrulayici;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Tests\Sahteler\SahteErpKimlikDogrulayici;
 use Tests\TestCase;
 
+/**
+ * Kullanıcılar ekranı (kullanıcı kararı 2026-09-24): ERP kullanıcıları
+ * listelenir; giriş izni ve roller uygulamada tanımlanır. Lokal kullanıcı yok.
+ */
 final class KullaniciYonetimTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const GUCLU_SIFRE = 'Guclu-Sifre-2026';
+    private const OZALP = ['erp_kullanici_id' => 501, 'kullanici_adi' => 'ozalp.doganalp', 'ad' => 'Özalp DOĞANALP', 'sistem_yoneticisi' => false];
+
+    private const ERP_YONETICI = ['erp_kullanici_id' => 502, 'kullanici_adi' => 'erp.admin', 'ad' => 'ERP Yönetici', 'sistem_yoneticisi' => true];
 
     /**
-     * @param  list<string>|null  $erpKullanicilari  null = ERP'ye ulaşılamıyor
+     * @param  list<array{erp_kullanici_id: int, kullanici_adi: string, ad: string, sistem_yoneticisi: bool}>|null  $erpKullanicilari  null = ERP'ye ulaşılamıyor
+     * @param  array{ad: string, kullanici_adi: string, erp_kullanici_id: int, sistem_yoneticisi: bool}|null  $dogrulanan
      */
-    private function erp(?array $erpKullanicilari = []): void
+    private function erp(?array $erpKullanicilari = [self::OZALP, self::ERP_YONETICI], ?array $dogrulanan = null): void
     {
-        $this->app->instance(ErpKimlikDogrulayici::class, new SahteErpKimlikDogrulayici($erpKullanicilari));
+        $this->app->instance(ErpKimlikDogrulayici::class, new SahteErpKimlikDogrulayici($erpKullanicilari, $dogrulanan));
     }
 
     private function yonetici(): User
@@ -37,190 +44,179 @@ final class KullaniciYonetimTest extends TestCase
     }
 
     /**
-     * @param  array<string, mixed>  $degisen
-     * @return array<string, mixed>
-     */
-    private function yeniKullanici(array $degisen = []): array
-    {
-        return [
-            'kullanici_adi' => 'dis.denetci',
-            'ad' => 'Dış Denetçi',
-            'email' => 'denetci@ornek.test',
-            'sifre' => self::GUCLU_SIFRE,
-            ...$degisen,
-        ];
-    }
-
-    /**
      * @return array<string, array{string, string}>
      */
-    public static function yoneticiUclari(): array
+    public static function yonetimUclari(): array
     {
         return [
             'liste' => ['GET', '/api/v1/ayarlar/kullanicilar'],
-            'oluşturma' => ['POST', '/api/v1/ayarlar/kullanicilar'],
+            'tanımlama' => ['POST', '/api/v1/ayarlar/kullanicilar'],
             'güncelleme' => ['PUT', '/api/v1/ayarlar/kullanicilar/1'],
         ];
     }
 
-    #[DataProvider('yoneticiUclari')]
+    #[DataProvider('yonetimUclari')]
     public function test_standart_kullanici_kullanici_yonetim_uclarinda_403_alir(string $yontem, string $url): void
     {
         $this->erp();
         $hedef = User::factory()->create(['id' => 1]);
         $this->actingAs(User::factory()->create());
 
-        $this->json($yontem, $url, [...$this->yeniKullanici(), 'aktif_mi' => false])->assertForbidden();
+        $this->json($yontem, $url, ['erp_kullanici_id' => 501, 'aktif_mi' => false])->assertForbidden();
 
         $this->assertTrue($hedef->refresh()->aktif_mi);
-        $this->assertDatabaseMissing('users', ['kullanici_adi' => 'dis.denetci']);
+        $this->assertDatabaseMissing('users', ['erp_kullanici_id' => 501]);
     }
 
-    public function test_lokal_kullanici_rolleriyle_acilir_ve_sifresiyle_giris_yapar(): void
+    public function test_liste_erp_kullanicilarini_uygulamadaki_tanimlariyla_birlestirir(): void
+    {
+        $this->erp();
+        $yonetici = $this->yonetici();
+        $rol = Rol::query()->create(['ad' => 'Muhasebe']);
+        $tanimli = User::factory()->erp()->create(['kullanici_adi' => 'erp.admin', 'erp_kullanici_id' => 502]);
+        $tanimli->roller()->attach($rol);
+
+        $yanit = $this->getJson('/api/v1/ayarlar/kullanicilar')
+            ->assertOk()
+            ->assertJsonPath('meta.erp_okunamadi', false);
+
+        $satirlar = collect($yanit->json('data'))->keyBy('kullanici_adi');
+        // Henüz tanımlanmamış ERP kullanıcısı: kaydı yok, giremez
+        $this->assertNull($satirlar['ozalp.doganalp']['id']);
+        $this->assertSame('Özalp DOĞANALP', $satirlar['ozalp.doganalp']['ad']);
+        $this->assertFalse($satirlar['ozalp.doganalp']['aktif_mi']);
+        // Tanımlı ERP kullanıcısı: rolleriyle
+        $this->assertSame($tanimli->id, $satirlar['erp.admin']['id']);
+        $this->assertSame([$rol->id], $satirlar['erp.admin']['rol_idleri']);
+        $this->assertTrue($satirlar['erp.admin']['sistem_yoneticisi']);
+        // ERP listesinde olmayan uygulama kullanıcısı (oturumdaki yönetici) da görünür
+        $this->assertTrue($satirlar[$yonetici->kullanici_adi]['pasif_yapilamaz']);
+        $this->assertArrayNotHasKey('sifre', $satirlar['ozalp.doganalp']);
+    }
+
+    public function test_erp_okunamazsa_liste_uygulamadaki_kullanicilarla_doner(): void
+    {
+        $this->erp(null);
+        $yonetici = $this->yonetici();
+
+        $this->getJson('/api/v1/ayarlar/kullanicilar')
+            ->assertOk()
+            ->assertJsonPath('meta.erp_okunamadi', true)
+            ->assertJsonPath('data.0.id', $yonetici->id);
+    }
+
+    public function test_erp_kullanicisi_izin_ve_rolle_tanimlanir_ve_erp_sifresiyle_girer(): void
+    {
+        $this->erp(dogrulanan: [...self::OZALP]);
+        $this->yonetici();
+        $rol = Rol::query()->create(['ad' => 'Muhasebe']);
+
+        $this->postJson('/api/v1/ayarlar/kullanicilar', ['erp_kullanici_id' => 501, 'aktif_mi' => true, 'rol_idleri' => [$rol->id]])
+            ->assertCreated()
+            ->assertJsonPath('data.kullanici_adi', 'ozalp.doganalp')
+            ->assertJsonPath('data.ad', 'Özalp DOĞANALP')
+            ->assertJsonPath('data.kaynak', 'erp')
+            ->assertJsonPath('data.aktif_mi', true)
+            ->assertJsonPath('data.rol_idleri', [$rol->id]);
+
+        $this->app['auth']->guard('web')->logout();
+        $this->postJson('/api/v1/auth/login', ['kullanici_adi' => 'ozalp.doganalp', 'sifre' => 'erp-sifresi'])
+            ->assertOk()
+            ->assertJsonPath('data.kullanici_adi', 'ozalp.doganalp');
+    }
+
+    public function test_izni_kaldirilan_erp_kullanicisi_giremez(): void
+    {
+        $this->erp(dogrulanan: [...self::OZALP]);
+        $this->yonetici();
+
+        $this->postJson('/api/v1/ayarlar/kullanicilar', ['erp_kullanici_id' => 501, 'aktif_mi' => false])->assertCreated();
+
+        $this->app['auth']->guard('web')->logout();
+        $this->postJson('/api/v1/auth/login', ['kullanici_adi' => 'ozalp.doganalp', 'sifre' => 'erp-sifresi'])
+            ->assertUnprocessable()
+            ->assertJsonPath('hatalar.kullanici_adi.0', 'Hesabınız pasif durumda. Yöneticinizle iletişime geçin.');
+    }
+
+    public function test_erpde_olmayan_kullanici_tanimlanamaz(): void
     {
         $this->erp();
         $this->yonetici();
-        $rol = Rol::query()->create(['ad' => 'Denetim']);
 
-        $this->postJson('/api/v1/ayarlar/kullanicilar', $this->yeniKullanici(['rol_idleri' => [$rol->id]]))
-            ->assertCreated()
-            ->assertJsonPath('data.kaynak', 'lokal')
-            ->assertJsonPath('data.sistem_yoneticisi', false)
-            ->assertJsonPath('data.rol_idleri', [$rol->id])
-            ->assertJsonMissingPath('data.password');
-
-        $kullanici = User::query()->where('kullanici_adi', 'dis.denetci')->firstOrFail();
-        $this->assertTrue(Hash::check(self::GUCLU_SIFRE, (string) $kullanici->password));
-
-        $this->app['auth']->guard('web')->logout();
-        $this->postJson('/api/v1/auth/login', ['kullanici_adi' => 'dis.denetci', 'sifre' => self::GUCLU_SIFRE])
-            ->assertOk()
-            ->assertJsonPath('data.kullanici_adi', 'dis.denetci');
-    }
-
-    public function test_erpde_var_olan_ad_ile_lokal_kullanici_acilamaz_buyuk_kucuk_harf_farki_onemsiz(): void
-    {
-        $this->erp(['DIS.DENETCI']);
-        $this->yonetici();
-
-        $this->postJson('/api/v1/ayarlar/kullanicilar', $this->yeniKullanici())
+        $this->postJson('/api/v1/ayarlar/kullanicilar', ['erp_kullanici_id' => 999])
             ->assertUnprocessable()
-            ->assertJsonPath('hatalar.kullanici_adi.0', "Bu kullanıcı adı ERP'de kayıtlı. ERP kullanıcıları kendi şifreleriyle giriş yapar; lokal kullanıcı açılamaz.");
-
-        $this->assertDatabaseMissing('users', ['kullanici_adi' => 'dis.denetci']);
+            ->assertJsonPath('hatalar.erp_kullanici_id.0', "Bu kullanıcı ERP'de bulunamadı.");
     }
 
-    public function test_erpye_ulasilamazsa_lokal_kullanici_acilmaz(): void
+    public function test_erpye_ulasilamazsa_tanimlama_yapilmaz(): void
     {
         $this->erp(null);
         $this->yonetici();
 
-        $this->postJson('/api/v1/ayarlar/kullanicilar', $this->yeniKullanici())
+        $this->postJson('/api/v1/ayarlar/kullanicilar', ['erp_kullanici_id' => 501])
             ->assertUnprocessable()
-            ->assertJsonValidationErrorFor('kullanici_adi', 'hatalar');
+            ->assertJsonValidationErrorFor('erp_kullanici_id', 'hatalar');
 
-        $this->assertDatabaseMissing('users', ['kullanici_adi' => 'dis.denetci']);
+        $this->assertDatabaseMissing('users', ['erp_kullanici_id' => 501]);
     }
 
-    /**
-     * @return array<string, array{array<string, mixed>, string}>
-     */
-    public static function gecersizKullanicilar(): array
-    {
-        return [
-            'boş şifre' => [['sifre' => ''], 'sifre'],
-            'kullanıcı adında boşluk' => [['kullanici_adi' => 'dis denetci'], 'kullanici_adi'],
-            'geçersiz e-posta' => [['email' => 'eposta-degil'], 'email'],
-        ];
-    }
-
-    /**
-     * @param  array<string, mixed>  $degisen
-     */
-    #[DataProvider('gecersizKullanicilar')]
-    public function test_gecersiz_lokal_kullanici_422_ile_reddedilir(array $degisen, string $alan): void
+    public function test_ayni_erp_kullanicisi_ikinci_kez_tanimlanamaz(): void
     {
         $this->erp();
         $this->yonetici();
+        User::factory()->erp()->create(['kullanici_adi' => 'ozalp.doganalp', 'erp_kullanici_id' => 501]);
 
-        $this->postJson('/api/v1/ayarlar/kullanicilar', $this->yeniKullanici($degisen))
+        $this->postJson('/api/v1/ayarlar/kullanicilar', ['erp_kullanici_id' => 501])
             ->assertUnprocessable()
-            ->assertJsonValidationErrorFor($alan, 'hatalar');
+            ->assertJsonPath('hatalar.erp_kullanici_id.0', 'Bu ERP kullanıcısı uygulamada zaten tanımlı.');
     }
 
-    public function test_var_olan_kullanici_adi_ikinci_kez_acilamaz(): void
+    public function test_yonetici_olmayan_erp_sistem_yoneticisini_tanimlayamaz(): void
     {
         $this->erp();
-        $this->yonetici();
-        User::factory()->erp()->create(['kullanici_adi' => 'dis.denetci']);
+        $kullanici = User::factory()->create();
+        $rol = Rol::query()->create(['ad' => 'Kullanıcı sorumlusu']);
+        DB::table('rol_izinleri')->insert([
+            ['rol_id' => $rol->id, 'izin' => 'kullanicilar.goruntule'],
+            ['rol_id' => $rol->id, 'izin' => 'kullanicilar.guncelle'],
+        ]);
+        $kullanici->roller()->attach($rol);
 
-        $this->postJson('/api/v1/ayarlar/kullanicilar', $this->yeniKullanici())
-            ->assertUnprocessable()
-            ->assertJsonValidationErrorFor('kullanici_adi', 'hatalar');
+        $this->actingAs($kullanici)
+            ->postJson('/api/v1/ayarlar/kullanicilar', ['erp_kullanici_id' => 502])
+            ->assertForbidden();
+        $this->actingAs($kullanici)
+            ->postJson('/api/v1/ayarlar/kullanicilar', ['erp_kullanici_id' => 501])
+            ->assertCreated();
     }
 
-    public function test_erp_kullanicisina_rol_atanir(): void
+    public function test_tanimli_kullanicinin_rolu_degisir_ad_ve_sifre_alanlari_yok_sayilir(): void
     {
         $this->erp();
         $this->yonetici();
         $rol = Rol::query()->create(['ad' => 'Muhasebe']);
-        $erpKullanici = User::factory()->erp()->create();
-
-        $this->putJson("/api/v1/ayarlar/kullanicilar/{$erpKullanici->id}", ['rol_idleri' => [$rol->id]])
-            ->assertOk()
-            ->assertJsonPath('data.rol_idleri', [$rol->id]);
-    }
-
-    public function test_erp_kullanicisinin_adi_ve_sifresi_bu_ekrandan_degismez(): void
-    {
-        $this->erp();
-        $this->yonetici();
         $erpKullanici = User::factory()->erp()->create(['ad' => 'ERP Adı']);
 
-        $this->putJson("/api/v1/ayarlar/kullanicilar/{$erpKullanici->id}", ['ad' => 'Başka Ad', 'sifre' => self::GUCLU_SIFRE])
-            ->assertUnprocessable();
+        $this->putJson("/api/v1/ayarlar/kullanicilar/{$erpKullanici->id}", ['rol_idleri' => [$rol->id], 'ad' => 'Başka Ad', 'sifre' => 'x'])
+            ->assertOk()
+            ->assertJsonPath('data.rol_idleri', [$rol->id]);
 
         $this->assertSame('ERP Adı', $erpKullanici->refresh()->ad);
         $this->assertNull($erpKullanici->password);
-    }
-
-    public function test_lokal_kullanicinin_sifresi_sifirlanir(): void
-    {
-        $this->erp();
-        $this->yonetici();
-        $lokal = User::factory()->create();
-
-        $this->putJson("/api/v1/ayarlar/kullanicilar/{$lokal->id}", ['sifre' => 'Yeni-Sifre-2026'])->assertOk();
-
-        $this->assertTrue(Hash::check('Yeni-Sifre-2026', (string) $lokal->refresh()->password));
-    }
-
-    /** Şifrede uzunluk/karakter kuralı yok (kullanıcı isteği 2026-09-24). */
-    public function test_sifre_serbesttir_tek_karakter_de_olabilir(): void
-    {
-        $this->erp();
-        $this->yonetici();
-
-        $this->postJson('/api/v1/ayarlar/kullanicilar', $this->yeniKullanici(['sifre' => 'a']))->assertCreated();
-        $lokal = User::query()->where('kullanici_adi', 'dis.denetci')->firstOrFail();
-        $this->assertTrue(Hash::check('a', (string) $lokal->password));
-
-        $this->putJson("/api/v1/ayarlar/kullanicilar/{$lokal->id}", ['sifre' => '1'])->assertOk();
-        $this->assertTrue(Hash::check('1', (string) $lokal->refresh()->password));
     }
 
     /** `boolean` kuralı 0 ve "0" değerini de kabul eder; kilit hepsinde çalışmalı. */
     #[TestWith([false])]
     #[TestWith([0])]
     #[TestWith(['0'])]
-    public function test_yonetici_kendini_pasife_alamaz(bool|int|string $pasif): void
+    public function test_yonetici_kendi_giris_iznini_kaldiramaz(bool|int|string $pasif): void
     {
         $this->erp();
         $yonetici = $this->yonetici();
 
         $this->putJson("/api/v1/ayarlar/kullanicilar/{$yonetici->id}", ['aktif_mi' => $pasif])
             ->assertUnprocessable()
-            ->assertJsonPath('hatalar.aktif_mi.0', 'Kendi hesabınızı pasife alamazsınız.');
+            ->assertJsonPath('hatalar.aktif_mi.0', 'Kendi giriş izninizi kaldıramazsınız.');
 
         $this->assertTrue($yonetici->refresh()->aktif_mi);
     }
@@ -242,11 +238,11 @@ final class KullaniciYonetimTest extends TestCase
         $this->assertTrue($yedek->refresh()->aktif_mi);
     }
 
-    public function test_pasife_alinan_kullanici_bir_sonraki_isteginde_disari_atilir(): void
+    public function test_izni_kaldirilan_kullanici_bir_sonraki_isteginde_disari_atilir(): void
     {
         $this->erp();
         $yonetici = $this->yonetici();
-        $hedef = User::factory()->create();
+        $hedef = User::factory()->erp()->create();
 
         $this->putJson("/api/v1/ayarlar/kullanicilar/{$hedef->id}", ['aktif_mi' => false])
             ->assertOk()
@@ -256,21 +252,5 @@ final class KullaniciYonetimTest extends TestCase
             ->assertForbidden()
             ->assertJsonPath('kod', 'HESAP_PASIF');
         $this->assertTrue($yonetici->refresh()->aktif_mi);
-    }
-
-    public function test_liste_rolleri_ve_pasife_alinamaz_bayragini_doner(): void
-    {
-        $this->erp();
-        $yonetici = $this->yonetici();
-        $rol = Rol::query()->create(['ad' => 'Muhasebe']);
-        $diger = User::factory()->erp()->create(['ad' => 'Zeynep']);
-        $diger->roller()->attach($rol);
-
-        $yanit = $this->getJson('/api/v1/ayarlar/kullanicilar')->assertOk();
-
-        $satirlar = collect($yanit->json('data'))->keyBy('id');
-        $this->assertSame([$rol->id], $satirlar[$diger->id]['rol_idleri']);
-        $this->assertFalse($satirlar[$diger->id]['pasif_yapilamaz']);
-        $this->assertTrue($satirlar[$yonetici->id]['pasif_yapilamaz']);
     }
 }

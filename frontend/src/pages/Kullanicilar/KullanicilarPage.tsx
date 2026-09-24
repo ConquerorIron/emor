@@ -1,10 +1,8 @@
-import { standardSchemaResolver } from '@hookform/resolvers/standard-schema'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { z } from 'zod'
 
 import { apiErrorKey, dogrulamaMesaji } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
@@ -17,71 +15,36 @@ import { SaltOkunurUyarisi } from '@/components/SaltOkunurUyarisi'
 import { MultiSelectField } from '@/components/SelectField'
 import { Switch } from '@/components/Switch'
 import {
+  erpKullanicisiTanimla,
   kullaniciGuncelle,
   kullanicilariGetir,
-  lokalKullaniciOlustur,
   rolleriGetir,
-  type KullaniciGuncelleGovdesi,
   type Rol,
   type YonetilenKullanici,
 } from '@/features/ayarlar/yetkiApi'
+import { useAuth } from '@/hooks/useAuth'
 import { useIzin } from '@/hooks/useIzin'
 
-// Şifre serbesttir (kullanıcı isteği): kural yok, yalnız boş olamaz. Düzenlemede
-// boş bırakılırsa gönderilmez — mevcut şifre korunur (duzenleSemasi)
-const SIFRE = z
-  .string()
-  .min(1, 'ayarlar.kullanicilar.dogrulama.sifreZorunlu')
-  .max(255, 'ayarlar.kullanicilar.dogrulama.cokUzun')
-
-const EPOSTA = z.union([z.literal(''), z.email('ayarlar.kullanicilar.dogrulama.epostaGecersiz')])
-
-const yeniSemasi = z.object({
-  kullanici_adi: z
-    .string()
-    .regex(/^[A-Za-z0-9._-]{3,64}$/, 'ayarlar.kullanicilar.dogrulama.kullaniciAdiBicimi'),
-  ad: z
-    .string()
-    .trim()
-    .min(1, 'ayarlar.kullanicilar.dogrulama.adZorunlu')
-    .max(255, 'ayarlar.kullanicilar.dogrulama.cokUzun'),
-  email: EPOSTA,
-  sifre: SIFRE,
-  rol_idleri: z.array(z.number()),
-})
-
-const duzenleSemasi = z.object({
-  ad: z.string().max(255, 'ayarlar.kullanicilar.dogrulama.cokUzun'),
-  email: EPOSTA,
-  sifre: z.union([z.literal(''), SIFRE]),
-  aktif_mi: z.boolean(),
-  rol_idleri: z.array(z.number()),
-})
-
-type YeniGirdisi = z.infer<typeof yeniSemasi>
-type DuzenleGirdisi = z.infer<typeof duzenleSemasi>
-
-function rolSecenekleri(roller: Rol[]) {
-  return roller.map((rol) => ({ value: String(rol.id), label: rol.ad }))
+interface DuzenleGirdisi {
+  aktif_mi: boolean
+  rol_idleri: number[]
 }
 
 function RolSecimi({
-  id,
   roller,
   deger,
   degistir,
 }: {
-  id: string
   roller: Rol[]
   deger: number[]
   degistir: (idler: number[]) => void
 }) {
   const { t } = useTranslation()
-  const secenekler = rolSecenekleri(roller)
+  const secenekler = roller.map((rol) => ({ value: String(rol.id), label: rol.ad }))
 
   return (
     <MultiSelectField
-      id={id}
+      id="duzenle-roller"
       label={t('ayarlar.kullanicilar.roller')}
       options={secenekler}
       value={secenekler.filter((secenek) => deger.includes(Number(secenek.value)))}
@@ -91,108 +54,10 @@ function RolSecimi({
   )
 }
 
-function HataKutusu({ mesaj }: { mesaj?: string }) {
-  return mesaj ? (
-    <p
-      role="alert"
-      className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
-    >
-      {mesaj}
-    </p>
-  ) : null
-}
-
-function YeniKullaniciFormu({ roller, kapat }: { roller: Rol[]; kapat: () => void }) {
-  const { t } = useTranslation()
-  const queryClient = useQueryClient()
-  const {
-    register,
-    control,
-    handleSubmit,
-    setError,
-    formState: { errors, isSubmitting },
-  } = useForm<YeniGirdisi>({
-    resolver: standardSchemaResolver(yeniSemasi),
-    defaultValues: { kullanici_adi: '', ad: '', email: '', sifre: '', rol_idleri: [] },
-  })
-
-  const olustur = useMutation({
-    mutationFn: (girdi: YeniGirdisi) =>
-      lokalKullaniciOlustur({ ...girdi, email: girdi.email === '' ? null : girdi.email }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.ayarlar.kullanicilar })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.ayarlar.roller })
-      toast.success(t('ayarlar.kullanicilar.olusturuldu'))
-      kapat()
-    },
-    onError: (error: unknown) => {
-      setError('root', { message: dogrulamaMesaji(error) ?? t(apiErrorKey(error)) })
-    },
-  })
-
-  const onSubmit = handleSubmit(async (girdi) => {
-    await olustur.mutateAsync(girdi).catch(() => undefined)
-  })
-  const alanHatasi = (anahtar?: string) => (anahtar ? t(anahtar) : undefined)
-
-  return (
-    <form onSubmit={(e) => void onSubmit(e)} noValidate className="space-y-4">
-      <p className="text-xs text-slate-500 dark:text-slate-400">
-        {t('ayarlar.kullanicilar.lokalAciklama')}
-      </p>
-      <Input
-        id="yeni-kullanici-adi"
-        label={t('ayarlar.kullanicilar.kullaniciAdi')}
-        autoComplete="off"
-        hata={alanHatasi(errors.kullanici_adi?.message)}
-        {...register('kullanici_adi')}
-      />
-      <Input
-        id="yeni-ad"
-        label={t('ayarlar.kullanicilar.ad')}
-        hata={alanHatasi(errors.ad?.message)}
-        {...register('ad')}
-      />
-      <Input
-        id="yeni-email"
-        type="email"
-        label={t('ayarlar.kullanicilar.email')}
-        hata={alanHatasi(errors.email?.message)}
-        {...register('email')}
-      />
-      <Input
-        id="yeni-sifre"
-        type="password"
-        autoComplete="new-password"
-        label={t('ayarlar.kullanicilar.sifre')}
-        hata={alanHatasi(errors.sifre?.message)}
-        {...register('sifre')}
-      />
-      <Controller
-        control={control}
-        name="rol_idleri"
-        render={({ field }) => (
-          <RolSecimi
-            id="yeni-roller"
-            roller={roller}
-            deger={field.value}
-            degistir={field.onChange}
-          />
-        )}
-      />
-      <HataKutusu mesaj={errors.root?.message} />
-      <div className="flex justify-end gap-3">
-        <Button type="button" variant="secondary" onClick={kapat}>
-          {t('ortak.iptal')}
-        </Button>
-        <Button type="submit" yukleniyor={isSubmitting}>
-          {isSubmitting ? t('ortak.kaydediliyor') : t('ortak.kaydet')}
-        </Button>
-      </div>
-    </form>
-  )
-}
-
+/**
+ * Giriş izni ve roller. Henüz tanımlanmamış ERP kullanıcısı kaydedilince
+ * uygulamaya tanımlanır (daha önce giriş yapmış olması gerekmez).
+ */
 function DuzenleFormu({
   kullanici,
   roller,
@@ -204,41 +69,24 @@ function DuzenleFormu({
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const lokal = kullanici.kaynak === 'lokal'
   const {
-    register,
     control,
     handleSubmit,
     setError,
     formState: { errors, isSubmitting },
   } = useForm<DuzenleGirdisi>({
-    resolver: standardSchemaResolver(duzenleSemasi),
     defaultValues: {
-      ad: kullanici.ad,
-      email: kullanici.email ?? '',
-      sifre: '',
-      aktif_mi: kullanici.aktif_mi,
+      // Tanımlanmamış kullanıcı düzenlenmeye açıldıysa amaç izin vermektir
+      aktif_mi: kullanici.id === null ? true : kullanici.aktif_mi,
       rol_idleri: kullanici.rol_idleri,
     },
   })
 
-  const guncelle = useMutation({
-    mutationFn: (girdi: DuzenleGirdisi) => {
-      const govde: KullaniciGuncelleGovdesi = {
-        aktif_mi: girdi.aktif_mi,
-        rol_idleri: girdi.rol_idleri,
-      }
-      // ERP kullanıcısının adı/e-postası/şifresi ERP'den gelir; gönderilmez
-      if (lokal) {
-        govde.ad = girdi.ad
-        govde.email = girdi.email === '' ? null : girdi.email
-        if (girdi.sifre !== '') {
-          govde.sifre = girdi.sifre
-        }
-      }
-
-      return kullaniciGuncelle(kullanici.id, govde)
-    },
+  const kaydet = useMutation({
+    mutationFn: (girdi: DuzenleGirdisi) =>
+      kullanici.id === null && kullanici.erp_kullanici_id !== null
+        ? erpKullanicisiTanimla({ erp_kullanici_id: kullanici.erp_kullanici_id, ...girdi })
+        : kullaniciGuncelle(kullanici.id ?? 0, girdi),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.ayarlar.kullanicilar })
       await queryClient.invalidateQueries({ queryKey: queryKeys.ayarlar.roller })
@@ -251,46 +99,18 @@ function DuzenleFormu({
   })
 
   const onSubmit = handleSubmit(async (girdi) => {
-    await guncelle.mutateAsync(girdi).catch(() => undefined)
+    await kaydet.mutateAsync(girdi).catch(() => undefined)
   })
-  const alanHatasi = (anahtar?: string) => (anahtar ? t(anahtar) : undefined)
 
   return (
     <form onSubmit={(e) => void onSubmit(e)} noValidate className="space-y-4">
-      <p className="text-sm text-slate-600 dark:text-slate-300">
-        <strong>{kullanici.kullanici_adi}</strong> —{' '}
-        {t(`ayarlar.kullanicilar.kaynak.${kullanici.kaynak}`)}
-      </p>
-
-      {lokal ? (
-        <>
-          <Input
-            id="duzenle-ad"
-            label={t('ayarlar.kullanicilar.ad')}
-            hata={alanHatasi(errors.ad?.message)}
-            {...register('ad')}
-          />
-          <Input
-            id="duzenle-email"
-            type="email"
-            label={t('ayarlar.kullanicilar.email')}
-            hata={alanHatasi(errors.email?.message)}
-            {...register('email')}
-          />
-          <Input
-            id="duzenle-sifre"
-            type="password"
-            autoComplete="new-password"
-            label={t('ayarlar.kullanicilar.yeniSifre')}
-            hata={alanHatasi(errors.sifre?.message)}
-            {...register('sifre')}
-          />
-        </>
-      ) : (
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+      <div className="text-sm text-slate-600 dark:text-slate-300">
+        <p className="font-semibold text-slate-800 dark:text-slate-100">{kullanici.ad}</p>
+        <p>{kullanici.kullanici_adi}</p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           {t('ayarlar.kullanicilar.erpBilgiNotu')}
         </p>
-      )}
+      </div>
 
       <Controller
         control={control}
@@ -298,7 +118,7 @@ function DuzenleFormu({
         render={({ field }) => (
           <Switch
             id="duzenle-aktif"
-            label={t('ayarlar.kullanicilar.aktif')}
+            label={t('ayarlar.kullanicilar.girisIzni')}
             checked={field.value}
             onChange={field.onChange}
             disabled={kullanici.pasif_yapilamaz}
@@ -315,12 +135,7 @@ function DuzenleFormu({
         control={control}
         name="rol_idleri"
         render={({ field }) => (
-          <RolSecimi
-            id="duzenle-roller"
-            roller={roller}
-            deger={field.value}
-            degistir={field.onChange}
-          />
+          <RolSecimi roller={roller} deger={field.value} degistir={field.onChange} />
         )}
       />
       {kullanici.sistem_yoneticisi ? (
@@ -329,7 +144,14 @@ function DuzenleFormu({
         </p>
       ) : null}
 
-      <HataKutusu mesaj={errors.root?.message} />
+      {errors.root?.message ? (
+        <p
+          role="alert"
+          className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
+        >
+          {errors.root.message}
+        </p>
+      ) : null}
       <div className="flex justify-end gap-3">
         <Button type="button" variant="secondary" onClick={kapat}>
           {t('ortak.iptal')}
@@ -351,20 +173,28 @@ function Rozet({ renk, children }: { renk: 'mavi' | 'mor' | 'gri' | 'kirmizi'; c
   }
 
   return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${siniflar[renk]}`}>
+    <span
+      className={`rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${siniflar[renk]}`}
+    >
       {children}
     </span>
   )
 }
 
+/**
+ * ERP kullanıcıları listelenir; hangilerinin uygulamaya girebileceği ve
+ * rolleri burada tanımlanır (kullanıcı kararı 2026-09-24). Giriş ERP
+ * şifresiyle yapılır; lokal kullanıcı açılmaz.
+ */
 export function KullanicilarPage() {
   const { t } = useTranslation()
+  const { user } = useAuth()
   const guncelleyebilir = useIzin('kullanicilar.guncelle')
   const [arama, setArama] = useState('')
-  // null: kapalı; 'yeni': lokal kullanıcı ekleme; kullanıcı: düzenleme
-  const [formdaki, setFormdaki] = useState<YonetilenKullanici | 'yeni' | null>(null)
+  const [yalnizIzinliler, setYalnizIzinliler] = useState(false)
+  const [formdaki, setFormdaki] = useState<YonetilenKullanici | null>(null)
 
-  const kullanicilar = useQuery({
+  const liste = useQuery({
     queryKey: queryKeys.ayarlar.kullanicilar,
     queryFn: kullanicilariGetir,
   })
@@ -376,12 +206,17 @@ export function KullanicilarPage() {
   )
 
   const aranan = arama.trim().toLocaleLowerCase('tr')
-  const gorunenler = (kullanicilar.data ?? []).filter(
+  const gorunenler = (liste.data?.kullanicilar ?? []).filter(
     (k) =>
-      aranan === '' ||
-      k.ad.toLocaleLowerCase('tr').includes(aranan) ||
-      k.kullanici_adi.toLocaleLowerCase('tr').includes(aranan),
+      (!yalnizIzinliler || k.aktif_mi) &&
+      (aranan === '' ||
+        k.ad.toLocaleLowerCase('tr').includes(aranan) ||
+        k.kullanici_adi.toLocaleLowerCase('tr').includes(aranan)),
   )
+
+  // Sistem yöneticisi hesabını yalnız sistem yöneticisi değiştirebilir (backend de denetler)
+  const duzenlenebilir = (k: YonetilenKullanici) =>
+    !k.erpde_yok && (!k.sistem_yoneticisi || user?.sistem_yoneticisi === true)
 
   const tumKolonlar: DataTableKolonu<YonetilenKullanici>[] = [
     {
@@ -395,13 +230,19 @@ export function KullanicilarPage() {
       ),
     },
     {
-      anahtar: 'kaynak',
-      baslik: t('ayarlar.kullanicilar.kaynakBaslik'),
+      anahtar: 'giris',
+      baslik: t('ayarlar.kullanicilar.giris'),
       render: (k) => (
         <div className="flex flex-wrap gap-1">
-          <Rozet renk={k.kaynak === 'erp' ? 'mavi' : 'gri'}>
-            {t(`ayarlar.kullanicilar.kaynak.${k.kaynak}`)}
-          </Rozet>
+          {k.aktif_mi ? (
+            <Rozet renk="mavi">{t('ayarlar.kullanicilar.izinli')}</Rozet>
+          ) : (
+            <Rozet renk="gri">{t('ayarlar.kullanicilar.izinYok')}</Rozet>
+          )}
+          {k.kaynak === 'lokal' ? (
+            <Rozet renk="gri">{t('ayarlar.kullanicilar.kaynak.lokal')}</Rozet>
+          ) : null}
+          {k.erpde_yok ? <Rozet renk="kirmizi">{t('ayarlar.kullanicilar.erpdeYok')}</Rozet> : null}
           {k.sistem_yoneticisi ? (
             <Rozet renk="mor">{t('ayarlar.kullanicilar.sistemYoneticisi')}</Rozet>
           ) : null}
@@ -419,24 +260,15 @@ export function KullanicilarPage() {
         ),
     },
     {
-      anahtar: 'durum',
-      baslik: t('ayarlar.kullanicilar.durum'),
-      render: (k) =>
-        k.aktif_mi ? (
-          <Rozet renk="mavi">{t('ayarlar.kullanicilar.aktif')}</Rozet>
-        ) : (
-          <Rozet renk="kirmizi">{t('ayarlar.kullanicilar.pasif')}</Rozet>
-        ),
-    },
-    {
       anahtar: 'islemler',
       baslik: '',
       hizala: 'sag',
-      render: (k) => (
-        <Button variant="turuncu" onClick={() => setFormdaki(k)} disabled={!roller.isSuccess}>
-          {t('ortak.duzenle')}
-        </Button>
-      ),
+      render: (k) =>
+        duzenlenebilir(k) ? (
+          <Button variant="turuncu" onClick={() => setFormdaki(k)} disabled={!roller.isSuccess}>
+            {t('ortak.duzenle')}
+          </Button>
+        ) : null,
     },
   ]
   // Yalnız görüntüleme izninde düzenleme kolonu çizilmez
@@ -444,31 +276,42 @@ export function KullanicilarPage() {
     ? tumKolonlar
     : tumKolonlar.filter((kolon) => kolon.anahtar !== 'islemler')
 
-  const hata = kullanicilar.error ?? roller.error
+  const hata = liste.error ?? roller.error
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-bold">{t('ayarlar.kullanicilar.baslik')}</h2>
-        {guncelleyebilir ? (
-          <Button variant="mor" onClick={() => setFormdaki('yeni')} disabled={!roller.isSuccess}>
-            {t('ayarlar.kullanicilar.lokalEkle')}
-          </Button>
-        ) : null}
-      </div>
+      <h2 className="text-2xl font-bold">{t('ayarlar.kullanicilar.baslik')}</h2>
       <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
         {t('ayarlar.kullanicilar.aciklama')}
       </p>
 
       {guncelleyebilir ? null : <SaltOkunurUyarisi />}
 
-      <div className="mt-4 max-w-sm">
-        <Input
-          id="kullanici-ara"
-          type="search"
-          label={t('ayarlar.kullanicilar.ara')}
-          value={arama}
-          onChange={(e) => setArama(e.target.value)}
+      {liste.data?.erpOkunamadi ? (
+        <p
+          role="alert"
+          className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+        >
+          {t('ayarlar.kullanicilar.erpOkunamadi')}
+        </p>
+      ) : null}
+
+      <div className="mt-4 flex flex-wrap items-end gap-4">
+        <div className="w-full max-w-sm">
+          <Input
+            id="kullanici-ara"
+            type="search"
+            label={t('ayarlar.kullanicilar.ara')}
+            value={arama}
+            onChange={(e) => setArama(e.target.value)}
+          />
+        </div>
+        <Switch
+          id="yalniz-izinliler"
+          label={t('ayarlar.kullanicilar.yalnizIzinliler')}
+          checked={yalnizIzinliler}
+          onChange={setYalnizIzinliler}
+          vurgulu={false}
         />
       </div>
 
@@ -477,7 +320,7 @@ export function KullanicilarPage() {
           <ErrorState
             mesaj={t(apiErrorKey(hata))}
             tekrarDene={() => {
-              void kullanicilar.refetch()
+              void liste.refetch()
               void roller.refetch()
             }}
           />
@@ -487,8 +330,8 @@ export function KullanicilarPage() {
           <DataTable
             kolonlar={kolonlar}
             satirlar={gorunenler}
-            satirAnahtari={(k) => k.id}
-            yukleniyor={kullanicilar.isPending}
+            satirAnahtari={(k) => k.id ?? `erp-${k.erp_kullanici_id ?? ''}`}
+            yukleniyor={liste.isPending}
           />
         </div>
       )}
@@ -496,16 +339,9 @@ export function KullanicilarPage() {
       <Modal
         acik={formdaki !== null}
         kapat={() => setFormdaki(null)}
-        baslik={
-          formdaki === 'yeni'
-            ? t('ayarlar.kullanicilar.lokalEkle')
-            : t('ayarlar.kullanicilar.duzenleBaslik')
-        }
+        baslik={t('ayarlar.kullanicilar.duzenleBaslik')}
       >
-        {formdaki === 'yeni' && roller.isSuccess ? (
-          <YeniKullaniciFormu roller={roller.data} kapat={() => setFormdaki(null)} />
-        ) : null}
-        {formdaki !== null && formdaki !== 'yeni' && roller.isSuccess ? (
+        {formdaki !== null && roller.isSuccess ? (
           <DuzenleFormu kullanici={formdaki} roller={roller.data} kapat={() => setFormdaki(null)} />
         ) : null}
       </Modal>

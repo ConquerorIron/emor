@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use Illuminate\Validation\ValidationException;
-use Throwable;
-
 /**
  * ERP kullanıcılarıyla giriş: kullanıcı adı/şifre, aktif ortamın MSSQL'indeki
  * VOHOM_ARAMA_KULLANICI view'ında doğrulanır; başarıda kullanıcı yerel tabloya
@@ -59,34 +56,37 @@ final class ErpKimlikDogrulama implements ErpKimlikDogrulayici
         }
 
         return [
-            'ad' => trim((string) $satir->UNVAN) !== '' ? trim((string) $satir->UNVAN) : $satir->KULLANICI_ADI,
+            'ad' => $this->ad($satir->UNVAN, $satir->KULLANICI_ADI),
             'kullanici_adi' => $satir->KULLANICI_ADI,
             'erp_kullanici_id' => (int) $satir->KULLANICI_ID,
             'sistem_yoneticisi' => (bool) ($satir->SISTEM_YONETICISI ?? false),
         ];
     }
 
-    public function kullaniciVarMi(string $kullaniciAdi): bool
+    /**
+     * Ad soyad, doğrulamadakiyle aynı kuraldan gelir (UNVAN; boşsa kullanıcı
+     * adı — kullanıcı kararı 2026-09-24). SIFRE kolonu seçilmez.
+     */
+    public function kullanicilar(): array
     {
-        if (! $this->yapilandirildi()) {
-            throw ValidationException::withMessages([
-                'kullanici_adi' => __('hata.erp_kullanici_denetlenemedi'),
-            ]);
-        }
+        /** @var list<object{KULLANICI_ID: int, UNVAN: string|null, KULLANICI_ADI: string, SISTEM_YONETICISI: int|bool|null}> $satirlar */
+        $satirlar = $this->mssql->baglan()->select(
+            'SELECT K.KULLANICI_ID, K.UNVAN, K.KULLANICI_ADI, TK.SISTEM_YONETICISI
+             FROM VOHOM_ARAMA_KULLANICI K
+                  LEFT JOIN TOHOM_KULLANICI TK ON TK.KULLANICI_ID = K.KULLANICI_ID
+             ORDER BY K.UNVAN',
+        );
 
-        try {
-            // SQL Server collation'ı genelde büyük/küçük harf duyarsızdır: "ALI"
-            // ile "ali" aynı ERP kullanıcısı sayılır — çakışma denetimi için doğru
-            $satir = $this->mssql->baglan()->selectOne(
-                'SELECT TOP 1 1 AS VAR FROM VOHOM_ARAMA_KULLANICI WHERE KULLANICI_ADI = ?',
-                [$kullaniciAdi],
-            );
-        } catch (Throwable) {
-            throw ValidationException::withMessages([
-                'kullanici_adi' => __('hata.erp_kullanici_denetlenemedi'),
-            ]);
-        }
+        return array_map(fn (object $satir): array => [
+            'erp_kullanici_id' => (int) $satir->KULLANICI_ID,
+            'kullanici_adi' => $satir->KULLANICI_ADI,
+            'ad' => $this->ad($satir->UNVAN, $satir->KULLANICI_ADI),
+            'sistem_yoneticisi' => (bool) ($satir->SISTEM_YONETICISI ?? false),
+        ], $satirlar);
+    }
 
-        return $satir !== null;
+    private function ad(?string $unvan, string $kullaniciAdi): string
+    {
+        return trim((string) $unvan) !== '' ? trim((string) $unvan) : $kullaniciAdi;
     }
 }

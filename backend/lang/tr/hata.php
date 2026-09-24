@@ -51,12 +51,11 @@ return [
     'alarm_alici_zorunlu' => 'Aktif kural için en az bir alıcı gerekir.',
 
     // Kullanıcı ve rol yönetimi (EFAT-18)
-    'erp_kullanici_denetlenemedi' => 'ERP\'ye ulaşılamadığı için kullanıcı adının ERP\'de olup olmadığı denetlenemedi; lokal kullanıcı açılmadı.',
-    'kullanici_adi_erpde_var' => 'Bu kullanıcı adı ERP\'de kayıtlı. ERP kullanıcıları kendi şifreleriyle giriş yapar; lokal kullanıcı açılamaz.',
-    'kullanici_adi_bicimi' => 'Kullanıcı adı 3–64 karakter olmalı; yalnız harf, rakam, nokta, alt çizgi ve tire içerebilir.',
-    'kendini_pasif_yapamaz' => 'Kendi hesabınızı pasife alamazsınız.',
-    'yedek_admin_pasif_yapilamaz' => 'Yedek (lokal) yönetici hesabı pasife alınamaz: ERP erişilemezken tek giriş yoludur.',
-    'erp_kullanici_bilgisi_ekrandan_degismez' => 'ERP kullanıcısının adı, e-postası ve şifresi ERP\'den gelir; bu ekrandan değiştirilemez.',
+    'erp_kullanici_denetlenemedi' => 'ERP\'ye ulaşılamadığı için kullanıcı ERP\'den okunamadı; tanımlama yapılmadı.',
+    'erp_kullanicisi_yok' => 'Bu kullanıcı ERP\'de bulunamadı.',
+    'kullanici_zaten_tanimli' => 'Bu ERP kullanıcısı uygulamada zaten tanımlı.',
+    'kendini_pasif_yapamaz' => 'Kendi giriş izninizi kaldıramazsınız.',
+    'yedek_admin_pasif_yapilamaz' => 'Yedek (lokal) yönetici hesabının giriş izni kaldırılamaz: ERP erişilemezken tek giriş yoludur.',
 
     // Mail (SMTP) ayarları
     'mail_ayari_yok' => 'Mail (SMTP) ayarı tanımlanmamış. Ayarlar → Mail (SMTP) ekranından tanımlayın.',

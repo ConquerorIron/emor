@@ -7,4 +7,5 @@ return [
     'password' => 'Girilen şifre hatalı.',
     'throttle' => 'Çok fazla giriş denemesi. :seconds saniye sonra tekrar deneyin.',
     'pasif' => 'Hesabınız pasif durumda. Yöneticinizle iletişime geçin.',
+    'izin_yok' => 'Bu uygulamaya giriş izniniz tanımlanmamış. Yöneticinizle iletişime geçin.',
 ];

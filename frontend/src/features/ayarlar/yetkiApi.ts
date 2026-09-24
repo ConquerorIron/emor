@@ -14,34 +14,42 @@ export interface RolGovdesi {
   izinler: string[]
 }
 
+/**
+ * Kullanıcılar ekranının satırı: ERP'deki kullanıcı + uygulamadaki tanımı.
+ * `id` null ise kişi henüz uygulamaya tanımlanmamıştır (giriş yapamaz).
+ */
 export interface YonetilenKullanici {
-  id: number
+  id: number | null
+  erp_kullanici_id: number | null
   ad: string
   kullanici_adi: string
-  email: string | null
   kaynak: 'lokal' | 'erp'
   sistem_yoneticisi: boolean
+  /** Uygulamaya giriş izni */
   aktif_mi: boolean
   rol_idleri: number[]
   /** Yedek (lokal) admin ya da oturumdaki kişinin kendisi */
   pasif_yapilamaz: boolean
+  /** Uygulamada tanımlı ama ERP'de artık bulunmuyor */
+  erpde_yok: boolean
 }
 
-export interface LokalKullaniciGovdesi {
-  kullanici_adi: string
-  ad: string
-  email: string | null
-  sifre: string
-  rol_idleri: number[]
+export interface KullaniciListesi {
+  kullanicilar: YonetilenKullanici[]
+  /** ERP okunamadı: yalnız uygulamada tanımlı kullanıcılar listelendi */
+  erpOkunamadi: boolean
 }
 
-/** ERP kullanıcısında ad/e-posta/şifre gönderilmez (ERP'den gelir). */
+/** Ad ve şifre ERP'den gelir; yalnız giriş izni ve roller değişir. */
 export interface KullaniciGuncelleGovdesi {
-  ad?: string
-  email?: string | null
-  sifre?: string
   aktif_mi?: boolean
   rol_idleri?: number[]
+}
+
+export interface ErpKullaniciTanimlaGovdesi {
+  erp_kullanici_id: number
+  aktif_mi: boolean
+  rol_idleri: number[]
 }
 
 /**
@@ -85,14 +93,17 @@ export async function rolSil(id: number): Promise<void> {
   await api.delete(`/api/v1/ayarlar/roller/${id}`)
 }
 
-export async function kullanicilariGetir(): Promise<YonetilenKullanici[]> {
-  const yanit = await api.get<{ data: YonetilenKullanici[] }>('/api/v1/ayarlar/kullanicilar')
+export async function kullanicilariGetir(): Promise<KullaniciListesi> {
+  const yanit = await api.get<{ data: YonetilenKullanici[]; meta: { erp_okunamadi: boolean } }>(
+    '/api/v1/ayarlar/kullanicilar',
+  )
 
-  return yanit.data.data
+  return { kullanicilar: yanit.data.data, erpOkunamadi: yanit.data.meta.erp_okunamadi }
 }
 
-export async function lokalKullaniciOlustur(
-  govde: LokalKullaniciGovdesi,
+/** ERP kullanıcısını uygulamaya tanımlar (giriş izni + roller). */
+export async function erpKullanicisiTanimla(
+  govde: ErpKullaniciTanimlaGovdesi,
 ): Promise<YonetilenKullanici> {
   const yanit = await api.post<{ data: YonetilenKullanici }>('/api/v1/ayarlar/kullanicilar', govde)
 
