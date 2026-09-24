@@ -27,7 +27,9 @@ final class AdminKullaniciSeeder extends Seeder
 
         User::query()->updateOrCreate(
             ['kullanici_adi' => $kullaniciAdi, 'kaynak' => User::KAYNAK_LOKAL],
-            ['ad' => 'Sistem Yöneticisi', 'password' => $sifre, 'aktif_mi' => true],
+            // Yönetim ekranları (SQL bağlantıları) ERP erişilemezken de bu
+            // hesapla açılabilmeli — sistem yöneticisi bayrağı açık
+            ['ad' => 'Sistem Yöneticisi', 'password' => $sifre, 'aktif_mi' => true, 'sistem_yoneticisi' => true],
         );
 
         $this->command?->info(sprintf("Lokal admin hazır: '%s'", $kullaniciAdi));

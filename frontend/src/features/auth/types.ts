@@ -10,4 +10,9 @@ export interface Kullanici {
    * (ör. Ekran Tasarım Ayarları) açar. Her girişte tazelenir.
    */
   sistem_yoneticisi: boolean
+  /**
+   * Rollerden gelen izinler (sistem yöneticisinde tüm katalog) — menü ve rota
+   * koruması içindir; asıl denetim backend'dedir (EFAT-18).
+   */
+  izinler: string[]
 }

@@ -26,6 +26,9 @@ final class UserResource extends JsonResource
             'kaynak' => $this->kaynak,
             // Yönetim ekranlarını (ör. Ekran Tasarım Ayarları) açan bayrak
             'sistem_yoneticisi' => $this->sistem_yoneticisi,
+            // Rollerden gelen izinler (sistem yöneticisinde tüm katalog) —
+            // frontend menü ve rota korumasında kullanır; asıl denetim backend'de
+            'izinler' => $this->izinler(),
         ];
     }
 }

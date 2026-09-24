@@ -19,4 +19,12 @@ interface ErpKimlikDogrulayici
      * @return array{ad: string, kullanici_adi: string, erp_kullanici_id: int, sistem_yoneticisi: bool}|null
      */
     public function dogrula(string $kullaniciAdi, string $sifre): ?array;
+
+    /**
+     * Kullanıcı adı ERP'de var mı? Lokal kullanıcı açılırken çakışma denetimi
+     * için (EFAT-18): giriş önce lokal kullanıcıya bakar, aynı adlı ERP
+     * kullanıcısı bir daha giremezdi. ERP'ye ulaşılamıyorsa "yok" DEMEZ,
+     * ValidationException fırlatır.
+     */
+    public function kullaniciVarMi(string $kullaniciAdi): bool;
 }

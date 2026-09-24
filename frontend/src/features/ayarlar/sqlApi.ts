@@ -25,7 +25,7 @@ export interface SqlBaglantiGovdesi {
   port: number | null
   veritabani: string
   kullanici_adi: string
-  /** Boş bırakılırsa gönderilmez — backend kayıtlı şifreyi korur */
+  /** Boş bırakılırsa gönderilmez — hedef değişmediyse backend kayıtlı şifreyi korur */
   sifre?: string
 }
 
@@ -35,6 +35,14 @@ export interface SinamaSonucu {
   kullanici: string
 }
 
+/** Header rozeti: her kullanıcıya açık, yalnız aktif ortamın adını döner. */
+export async function aktifOrtamGetir(): Promise<SqlOrtam | null> {
+  const yanit = await api.get<{ data: { aktif_ortam: SqlOrtam | null } }>('/api/v1/aktif-ortam')
+
+  return yanit.data.data.aktif_ortam
+}
+
+/** Yalnız sistem yöneticisi — diğer kullanıcılar 403 alır. */
 export async function sqlBaglantilariGetir(): Promise<SqlBaglantilar> {
   const yanit = await api.get<{ data: SqlBaglantilar }>('/api/v1/ayarlar/sql-baglantilari')
 
@@ -53,7 +61,10 @@ export async function sqlBaglantiGuncelle(
   return yanit.data.data
 }
 
-/** Kaydedilmemiş form değerleriyle de sınanabilir; boş şifre kayıtlıya düşer. */
+/**
+ * Kaydedilmemiş form değerleriyle de sınanabilir. Boş şifre yalnız hedef
+ * (sunucu, port, kullanıcı) kayıtlıyla aynıysa kayıtlı şifreye düşer.
+ */
 export async function sqlBaglantiSina(
   ortam: SqlOrtam,
   govde: Partial<SqlBaglantiGovdesi>,

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Illuminate\Validation\ValidationException;
+use Throwable;
+
 /**
  * ERP kullanıcılarıyla giriş: kullanıcı adı/şifre, aktif ortamın MSSQL'indeki
  * VOHOM_ARAMA_KULLANICI view'ında doğrulanır; başarıda kullanıcı yerel tabloya
@@ -61,5 +64,29 @@ final class ErpKimlikDogrulama implements ErpKimlikDogrulayici
             'erp_kullanici_id' => (int) $satir->KULLANICI_ID,
             'sistem_yoneticisi' => (bool) ($satir->SISTEM_YONETICISI ?? false),
         ];
+    }
+
+    public function kullaniciVarMi(string $kullaniciAdi): bool
+    {
+        if (! $this->yapilandirildi()) {
+            throw ValidationException::withMessages([
+                'kullanici_adi' => __('hata.erp_kullanici_denetlenemedi'),
+            ]);
+        }
+
+        try {
+            // SQL Server collation'ı genelde büyük/küçük harf duyarsızdır: "ALI"
+            // ile "ali" aynı ERP kullanıcısı sayılır — çakışma denetimi için doğru
+            $satir = $this->mssql->baglan()->selectOne(
+                'SELECT TOP 1 1 AS VAR FROM VOHOM_ARAMA_KULLANICI WHERE KULLANICI_ADI = ?',
+                [$kullaniciAdi],
+            );
+        } catch (Throwable) {
+            throw ValidationException::withMessages([
+                'kullanici_adi' => __('hata.erp_kullanici_denetlenemedi'),
+            ]);
+        }
+
+        return $satir !== null;
     }
 }

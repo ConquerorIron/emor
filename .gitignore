@@ -6,6 +6,19 @@
 *.pfx
 *.pem
 *.key
+# Entegratörden gelen ham mail — hesap şifresi içerir
+/docs/izibiz/mail.md
+# Postman environment export'ları kullanıcı adı/şifre/token taşır
+*.postman_environment.json
+# Windows indirme artığı (WSL ':' karakterini özel karaktere çevirdiği için
+# desen iki nokta içermez)
+*Zone.Identifier
 
 # Araç çıktıları
 /.ai-review/
+
+# Kökte skill kurulumunun bıraktığı Composer artıkları (laravel/boost).
+# Uygulamanın Composer dosyaları backend/ altındadır; bunlar etkilenmez.
+/vendor/
+/composer.json
+/composer.lock

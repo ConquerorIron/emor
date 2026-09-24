@@ -1,0 +1,520 @@
+{
+	"info": {
+		"_postman_id": "315d17ae-cd51-4b48-8ae9-6746d91f05b1",
+		"name": "Authentication API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "15924234"
+	},
+	"item": [
+		{
+			"name": "Authentication API",
+			"item": [
+				{
+					"name": "Müşteri Olarak Token Alma",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var res = pm.response.json();",
+									"pm.environment.set('accessToken', res.data.accessToken);",
+									"",
+									"pm.test(\"Status code is 200\", () => {",
+									"  pm.expect(pm.response.code).to.eql(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"{{username}}\",\n    \"password\": \"{{password}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/{{version}}/auth/token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"{{version}}",
+								"auth",
+								"token"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Müşteri Olarak Token Alma",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"username\": \"{{username}}\",\n    \"password\": \"{{password}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/{{version}}/auth/token",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"{{version}}",
+										"auth",
+										"token"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Server",
+									"value": "nginx/1.10.3"
+								},
+								{
+									"key": "Date",
+									"value": "Tue, 30 Mar 2021 18:55:21 GMT"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json;charset=UTF-8"
+								},
+								{
+									"key": "Transfer-Encoding",
+									"value": "chunked"
+								},
+								{
+									"key": "Connection",
+									"value": "keep-alive"
+								},
+								{
+									"key": "Expires",
+									"value": "0"
+								},
+								{
+									"key": "Cache-Control",
+									"value": "no-cache, no-store, max-age=0, must-revalidate"
+								},
+								{
+									"key": "X-XSS-Protection",
+									"value": "1; mode=block"
+								},
+								{
+									"key": "Pragma",
+									"value": "no-cache"
+								},
+								{
+									"key": "X-Frame-Options",
+									"value": "DENY"
+								},
+								{
+									"key": "X-Content-Type-Options",
+									"value": "nosniff"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"data\": {\n        \"accessToken\": \"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJpemliaXotZGV2Iiwicm9sZXMiOlsiY3VzdG9tZXJBZG1pbiIsImludm9pY2VVc2VyIiwiYXJjaGl2ZVVzZXIiLCJlTGVkZ2VyVXNlciIsImVhcmNoaXZlVXNlciIsInpSZXBvcnRVc2VyIiwicmVjb25jaWxhdGVVc2VyIiwiY3JlZGl0Tm90ZVVzZXIiLCJzbW1Vc2VyIiwiZWRlc3BhdGNoVXNlciJdLCJhdXRob3JpdGllcyI6WyJpbnZvaWNlTWFyayIsInJlY29uY2lsYXRlQ3JlYXRlIiwiZGVzcGF0Y2hMb2FkIiwibWVkdWxhSW52b2ljZVNlbmQiLCJpbnZvaWNlRG93bmxvYWQiLCJkZXNwYXRjaFJlc3BvbnNlUHJpbnQiLCJpbnZvaWNlQXJjaGl2ZSIsImRlc3BhdGNoT3V0R29pbmciLCJzbW1WaWV3IiwielJlcG9ydFJlcG9ydHMiLCJkZXNwYXRjaFJlc3BvbnNlQ3JlYXRlIiwiZWFyY2hpdmVJbnZvaWNlTG9hZCIsImludm9pY2VDcmVhdGUiLCJlTGVkZ2VyVmlldyIsInNtbVJlcG9ydHMiLCJhY2NvdW50RGV0YWlsIiwiY3JlZGl0Tm90ZVZpZXciLCJkZXNwYXRjaFJlc3BvbnNlSW5jb21pbmciLCJjcmVkaXROb3RlQ3JlYXRlIiwielJlcG9ydFNlbmQiLCJkZXNwYXRjaFNlbmQiLCJhZGRyZXNzQm9vayIsImNyZWRpdE5vdGVBcmNoaXZlIiwiZ2liVXNlckxpc3QiLCJlYXJjaGl2ZUludm9pY2VOb3RSZXBvcnQiLCJtZWR1bGFJbnZvaWNlVmlldyIsInNtbU5vdFJlcG9ydCIsImRlc3BhdGNoQXJjaGl2ZSIsImludm9pY2VMb2FkIiwielJlcG9ydENyZWF0ZSIsInNtbUNhbmNlbCIsImRlc3BhdGNoUmVzcG9uc2VPdXRHb2luZyIsImFyY2hpdmUiLCJjcmVkaXROb3RlVXBkYXRlIiwielJlcG9ydENhbmNlbCIsInJlY29uY2lsYXRlUGFnZVZpZXciLCJjcmVkaXROb3RlTWFyayIsImVhcmNoaXZlUmVwb3J0IiwiZGVzcGF0Y2hJbmNvbWluZyIsInJlY29uY2lsYXRlQ2FuY2VsIiwielJlcG9ydExvYWQiLCJpbnZvaWNlSW5jb21pbmciLCJkZXNwYXRjaFZpZXciLCJzbW1DcmVhdGUiLCJhY2Nlc3MiLCJyZWNvbmNpbGF0ZUxvYWQiLCJzbW1Mb2FkIiwiaW52b2ljZVNlbmQiLCJpbnZvaWNlT3V0Z29pbmciLCJzbW1BcmNoaXZlIiwiZGVzcGF0Y2hSZXNwb25zZU1hcmsiLCJpbnZvaWNlQXBwcm92ZSIsInpSZXBvcnRNYXJrIiwiY3JlZGl0Tm90ZUxvYWQiLCJzbW1NYXJrIiwic21tUHJpbnQiLCJlTGVkZ2VyQ2FuY2VsIiwiZGVzcGF0Y2hSZXNwb25zZUxvYWQiLCJlTGVkZ2VyTG9hZCIsImNyZWRpdE5vdGVSZXBvcnRzIiwiZGVzcGF0Y2hVcGRhdGUiLCJkZXNwYXRjaFJlc3BvbnNlVXBkYXRlIiwielJlcG9ydEFyY2hpdmUiLCJlRGVmdGVyIiwiZGVzcGF0Y2hQcmludCIsImludm9pY2VBcmNoaXZlSW5jb21pbmciLCJleHBvcnRJbnZvaWNlUGFnZSIsImRlc3BhdGNoTWFyayIsInpSZXBvcnRVcGRhdGUiLCJyZWNvbmNpbGF0ZVNlbmQiLCJleHBvcnRJbnZvaWNlU2VuZCIsImNyZWRpdE5vdGVQcmludCIsInNtbVNlbmQiLCJjcmVkaXROb3RlU2VuZCIsImludm9pY2VBcmNoaXZlRG93bmxvYWQiLCJjcmVkaXROb3RlQ2FuY2VsIiwiZGVzcGF0Y2hSZXNwb25zZVNlbmQiLCJlYXJjaGl2ZUludm9pY2VTZW5kIiwielJlcG9ydFByaW50Iiwic21tVXBkYXRlIiwiZWFyY2hpdmVJbnZvaWNlQ2FuY2VsIiwibWVkdWxhSW52b2ljZUxvYWQiLCJpbnZvaWNlIiwiaW52b2ljZUFyY2hpdmVMb2FkIiwic21tUmVwb3J0VmlldyIsInVzZXIiLCJ6UmVwb3J0VmlldyIsImFjY291bnQiLCJkZXNwYXRjaENyZWF0ZSIsImludm9pY2VBcmNoaXZlT3V0Z29pbmciXSwiY3VzdG9tZXJJZCI6NDAyMCwiYWNjb3VudElkIjo1MDQsInVzZXJJZCI6NzEwNzEsImFjY291bnRJZHMiOls1MDQsNzExMzEsNzExNzAsNzE0NzEsNzExNTAsNzExNTIsNzEyMzEsNzExNTEsNzE5MzEsNzIzMjMsNzQxNDFdLCJpYXQiOjE2MTcxMzA1MjEsImV4cCI6MTYxNzE3MzcyMX0.-wRRzShYzs7DQf0XgCWYKxdfJtHc2HpBcWNQIPuvYMY\",\n        \"validity\": \"2021-03-31 09:55:21\",\n        \"customerType\": \"C\"\n    },\n    \"error\": null\n}"
+						}
+					]
+				},
+				{
+					"name": "Müşteri Olarak Token Alma Copy",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var res = pm.response.json();",
+									"pm.environment.set('accessToken', res.data.accessToken);",
+									"",
+									"pm.test(\"Status code is 200\", () => {",
+									"  pm.expect(pm.response.code).to.eql(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"{{username}}\",\n    \"password\": \"{{password}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/{{version}}/auth/token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"{{version}}",
+								"auth",
+								"token"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Müşteri Olarak Token Alma",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"username\": \"{{username}}\",\n    \"password\": \"{{password}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/{{version}}/auth/token",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"{{version}}",
+										"auth",
+										"token"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Server",
+									"value": "nginx/1.10.3"
+								},
+								{
+									"key": "Date",
+									"value": "Tue, 30 Mar 2021 18:55:21 GMT"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json;charset=UTF-8"
+								},
+								{
+									"key": "Transfer-Encoding",
+									"value": "chunked"
+								},
+								{
+									"key": "Connection",
+									"value": "keep-alive"
+								},
+								{
+									"key": "Expires",
+									"value": "0"
+								},
+								{
+									"key": "Cache-Control",
+									"value": "no-cache, no-store, max-age=0, must-revalidate"
+								},
+								{
+									"key": "X-XSS-Protection",
+									"value": "1; mode=block"
+								},
+								{
+									"key": "Pragma",
+									"value": "no-cache"
+								},
+								{
+									"key": "X-Frame-Options",
+									"value": "DENY"
+								},
+								{
+									"key": "X-Content-Type-Options",
+									"value": "nosniff"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"data\": {\n        \"accessToken\": \"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJpemliaXotZGV2Iiwicm9sZXMiOlsiY3VzdG9tZXJBZG1pbiIsImludm9pY2VVc2VyIiwiYXJjaGl2ZVVzZXIiLCJlTGVkZ2VyVXNlciIsImVhcmNoaXZlVXNlciIsInpSZXBvcnRVc2VyIiwicmVjb25jaWxhdGVVc2VyIiwiY3JlZGl0Tm90ZVVzZXIiLCJzbW1Vc2VyIiwiZWRlc3BhdGNoVXNlciJdLCJhdXRob3JpdGllcyI6WyJpbnZvaWNlTWFyayIsInJlY29uY2lsYXRlQ3JlYXRlIiwiZGVzcGF0Y2hMb2FkIiwibWVkdWxhSW52b2ljZVNlbmQiLCJpbnZvaWNlRG93bmxvYWQiLCJkZXNwYXRjaFJlc3BvbnNlUHJpbnQiLCJpbnZvaWNlQXJjaGl2ZSIsImRlc3BhdGNoT3V0R29pbmciLCJzbW1WaWV3IiwielJlcG9ydFJlcG9ydHMiLCJkZXNwYXRjaFJlc3BvbnNlQ3JlYXRlIiwiZWFyY2hpdmVJbnZvaWNlTG9hZCIsImludm9pY2VDcmVhdGUiLCJlTGVkZ2VyVmlldyIsInNtbVJlcG9ydHMiLCJhY2NvdW50RGV0YWlsIiwiY3JlZGl0Tm90ZVZpZXciLCJkZXNwYXRjaFJlc3BvbnNlSW5jb21pbmciLCJjcmVkaXROb3RlQ3JlYXRlIiwielJlcG9ydFNlbmQiLCJkZXNwYXRjaFNlbmQiLCJhZGRyZXNzQm9vayIsImNyZWRpdE5vdGVBcmNoaXZlIiwiZ2liVXNlckxpc3QiLCJlYXJjaGl2ZUludm9pY2VOb3RSZXBvcnQiLCJtZWR1bGFJbnZvaWNlVmlldyIsInNtbU5vdFJlcG9ydCIsImRlc3BhdGNoQXJjaGl2ZSIsImludm9pY2VMb2FkIiwielJlcG9ydENyZWF0ZSIsInNtbUNhbmNlbCIsImRlc3BhdGNoUmVzcG9uc2VPdXRHb2luZyIsImFyY2hpdmUiLCJjcmVkaXROb3RlVXBkYXRlIiwielJlcG9ydENhbmNlbCIsInJlY29uY2lsYXRlUGFnZVZpZXciLCJjcmVkaXROb3RlTWFyayIsImVhcmNoaXZlUmVwb3J0IiwiZGVzcGF0Y2hJbmNvbWluZyIsInJlY29uY2lsYXRlQ2FuY2VsIiwielJlcG9ydExvYWQiLCJpbnZvaWNlSW5jb21pbmciLCJkZXNwYXRjaFZpZXciLCJzbW1DcmVhdGUiLCJhY2Nlc3MiLCJyZWNvbmNpbGF0ZUxvYWQiLCJzbW1Mb2FkIiwiaW52b2ljZVNlbmQiLCJpbnZvaWNlT3V0Z29pbmciLCJzbW1BcmNoaXZlIiwiZGVzcGF0Y2hSZXNwb25zZU1hcmsiLCJpbnZvaWNlQXBwcm92ZSIsInpSZXBvcnRNYXJrIiwiY3JlZGl0Tm90ZUxvYWQiLCJzbW1NYXJrIiwic21tUHJpbnQiLCJlTGVkZ2VyQ2FuY2VsIiwiZGVzcGF0Y2hSZXNwb25zZUxvYWQiLCJlTGVkZ2VyTG9hZCIsImNyZWRpdE5vdGVSZXBvcnRzIiwiZGVzcGF0Y2hVcGRhdGUiLCJkZXNwYXRjaFJlc3BvbnNlVXBkYXRlIiwielJlcG9ydEFyY2hpdmUiLCJlRGVmdGVyIiwiZGVzcGF0Y2hQcmludCIsImludm9pY2VBcmNoaXZlSW5jb21pbmciLCJleHBvcnRJbnZvaWNlUGFnZSIsImRlc3BhdGNoTWFyayIsInpSZXBvcnRVcGRhdGUiLCJyZWNvbmNpbGF0ZVNlbmQiLCJleHBvcnRJbnZvaWNlU2VuZCIsImNyZWRpdE5vdGVQcmludCIsInNtbVNlbmQiLCJjcmVkaXROb3RlU2VuZCIsImludm9pY2VBcmNoaXZlRG93bmxvYWQiLCJjcmVkaXROb3RlQ2FuY2VsIiwiZGVzcGF0Y2hSZXNwb25zZVNlbmQiLCJlYXJjaGl2ZUludm9pY2VTZW5kIiwielJlcG9ydFByaW50Iiwic21tVXBkYXRlIiwiZWFyY2hpdmVJbnZvaWNlQ2FuY2VsIiwibWVkdWxhSW52b2ljZUxvYWQiLCJpbnZvaWNlIiwiaW52b2ljZUFyY2hpdmVMb2FkIiwic21tUmVwb3J0VmlldyIsInVzZXIiLCJ6UmVwb3J0VmlldyIsImFjY291bnQiLCJkZXNwYXRjaENyZWF0ZSIsImludm9pY2VBcmNoaXZlT3V0Z29pbmciXSwiY3VzdG9tZXJJZCI6NDAyMCwiYWNjb3VudElkIjo1MDQsInVzZXJJZCI6NzEwNzEsImFjY291bnRJZHMiOls1MDQsNzExMzEsNzExNzAsNzE0NzEsNzExNTAsNzExNTIsNzEyMzEsNzExNTEsNzE5MzEsNzIzMjMsNzQxNDFdLCJpYXQiOjE2MTcxMzA1MjEsImV4cCI6MTYxNzE3MzcyMX0.-wRRzShYzs7DQf0XgCWYKxdfJtHc2HpBcWNQIPuvYMY\",\n        \"validity\": \"2021-03-31 09:55:21\",\n        \"customerType\": \"C\"\n    },\n    \"error\": null\n}"
+						}
+					]
+				},
+				{
+					"name": "Kanal Olarak Token Alma",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var res = pm.response.json();",
+									"pm.environment.set('accessToken', res.data.accessToken);",
+									"",
+									"pm.test(\"Status code is 200\", () => {",
+									"  pm.expect(pm.response.code).to.eql(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"{{channel-username}}\",\n    \"password\": \"{{channel-password}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/{{version}}/auth/token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"{{version}}",
+								"auth",
+								"token"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Kanal Olarak Token Alma",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"username\": \"{{channel-username}}\",\n    \"password\": \"{{channel-password}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/{{version}}/auth/token",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"{{version}}",
+										"auth",
+										"token"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Server",
+									"value": "nginx/1.10.3"
+								},
+								{
+									"key": "Date",
+									"value": "Tue, 30 Mar 2021 18:55:21 GMT"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json;charset=UTF-8"
+								},
+								{
+									"key": "Transfer-Encoding",
+									"value": "chunked"
+								},
+								{
+									"key": "Connection",
+									"value": "keep-alive"
+								},
+								{
+									"key": "Expires",
+									"value": "0"
+								},
+								{
+									"key": "Cache-Control",
+									"value": "no-cache, no-store, max-age=0, must-revalidate"
+								},
+								{
+									"key": "X-XSS-Protection",
+									"value": "1; mode=block"
+								},
+								{
+									"key": "Pragma",
+									"value": "no-cache"
+								},
+								{
+									"key": "X-Frame-Options",
+									"value": "DENY"
+								},
+								{
+									"key": "X-Content-Type-Options",
+									"value": "nosniff"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"data\": {\n        \"accessToken\": \"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJpemliaXota2FuYWwiLCJyb2xlcyI6WyJjaGFubmVsQWRtaW4iXSwiYXV0aG9yaXRpZXMiOlsiZ2liVXNlckxpc3QiLCJhY2Nlc3MiLCJkZWFsZXIiLCJjdXN0b21lclNlYXJjaCIsInVzZXIiLCJhY2NvdW50Il0sImN1c3RvbWVySWQiOjE3LCJhY2NvdW50SWQiOjQ5LCJ1c2VySWQiOjM1LCJhY2NvdW50SWRzIjpbNDldLCJpYXQiOjE2MzE1MzM2NjMsImV4cCI6MTYzMTU3Njg2M30.5kp74YyGdzhgdoSRbcmkWq94bg2l1dN6QqOJPlSKf7w\",\n        \"validity\": \"2021-09-14 02:47:43\",\n        \"customerType\": \"CH\"\n    },\n    \"error\": null\n}"
+						}
+					]
+				},
+				{
+					"name": "Token Uzatma",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var res = pm.response.json();",
+									"pm.environment.set('accessToken', res.data.accessToken);",
+									"",
+									"pm.test(\"Status code is 200\", () => {",
+									"  pm.expect(pm.response.code).to.eql(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/{{version}}/auth/token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"{{version}}",
+								"auth",
+								"token"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Token Uzatma",
+							"originalRequest": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{accessToken}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/{{version}}/auth/token",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"{{version}}",
+										"auth",
+										"token"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Server",
+									"value": "nginx/1.10.3"
+								},
+								{
+									"key": "Date",
+									"value": "Tue, 30 Mar 2021 20:04:29 GMT"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json;charset=UTF-8"
+								},
+								{
+									"key": "Transfer-Encoding",
+									"value": "chunked"
+								},
+								{
+									"key": "Connection",
+									"value": "keep-alive"
+								},
+								{
+									"key": "Expires",
+									"value": "0"
+								},
+								{
+									"key": "Cache-Control",
+									"value": "no-cache, no-store, max-age=0, must-revalidate"
+								},
+								{
+									"key": "X-XSS-Protection",
+									"value": "1; mode=block"
+								},
+								{
+									"key": "Pragma",
+									"value": "no-cache"
+								},
+								{
+									"key": "X-Frame-Options",
+									"value": "DENY"
+								},
+								{
+									"key": "X-Content-Type-Options",
+									"value": "nosniff"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"data\": {\n        \"accessToken\": \"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJpemliaXotZGV2Iiwicm9sZXMiOlsiY3VzdG9tZXJBZG1pbiIsImludm9pY2VVc2VyIiwiYXJjaGl2ZVVzZXIiLCJlTGVkZ2VyVXNlciIsImVhcmNoaXZlVXNlciIsInpSZXBvcnRVc2VyIiwicmVjb25jaWxhdGVVc2VyIiwiY3JlZGl0Tm90ZVVzZXIiLCJzbW1Vc2VyIiwiZWRlc3BhdGNoVXNlciJdLCJhdXRob3JpdGllcyI6WyJpbnZvaWNlTWFyayIsInJlY29uY2lsYXRlQ3JlYXRlIiwiZGVzcGF0Y2hMb2FkIiwibWVkdWxhSW52b2ljZVNlbmQiLCJpbnZvaWNlRG93bmxvYWQiLCJkZXNwYXRjaFJlc3BvbnNlUHJpbnQiLCJpbnZvaWNlQXJjaGl2ZSIsImRlc3BhdGNoT3V0R29pbmciLCJzbW1WaWV3IiwielJlcG9ydFJlcG9ydHMiLCJkZXNwYXRjaFJlc3BvbnNlQ3JlYXRlIiwiZWFyY2hpdmVJbnZvaWNlTG9hZCIsImludm9pY2VDcmVhdGUiLCJlTGVkZ2VyVmlldyIsInNtbVJlcG9ydHMiLCJhY2NvdW50RGV0YWlsIiwiY3JlZGl0Tm90ZVZpZXciLCJkZXNwYXRjaFJlc3BvbnNlSW5jb21pbmciLCJjcmVkaXROb3RlQ3JlYXRlIiwielJlcG9ydFNlbmQiLCJkZXNwYXRjaFNlbmQiLCJhZGRyZXNzQm9vayIsImNyZWRpdE5vdGVBcmNoaXZlIiwiZ2liVXNlckxpc3QiLCJlYXJjaGl2ZUludm9pY2VOb3RSZXBvcnQiLCJtZWR1bGFJbnZvaWNlVmlldyIsInNtbU5vdFJlcG9ydCIsImRlc3BhdGNoQXJjaGl2ZSIsImludm9pY2VMb2FkIiwielJlcG9ydENyZWF0ZSIsInNtbUNhbmNlbCIsImRlc3BhdGNoUmVzcG9uc2VPdXRHb2luZyIsImFyY2hpdmUiLCJjcmVkaXROb3RlVXBkYXRlIiwielJlcG9ydENhbmNlbCIsInJlY29uY2lsYXRlUGFnZVZpZXciLCJjcmVkaXROb3RlTWFyayIsImVhcmNoaXZlUmVwb3J0IiwiZGVzcGF0Y2hJbmNvbWluZyIsInJlY29uY2lsYXRlQ2FuY2VsIiwielJlcG9ydExvYWQiLCJpbnZvaWNlSW5jb21pbmciLCJkZXNwYXRjaFZpZXciLCJzbW1DcmVhdGUiLCJhY2Nlc3MiLCJyZWNvbmNpbGF0ZUxvYWQiLCJzbW1Mb2FkIiwiaW52b2ljZVNlbmQiLCJpbnZvaWNlT3V0Z29pbmciLCJzbW1BcmNoaXZlIiwiZGVzcGF0Y2hSZXNwb25zZU1hcmsiLCJpbnZvaWNlQXBwcm92ZSIsInpSZXBvcnRNYXJrIiwiY3JlZGl0Tm90ZUxvYWQiLCJzbW1NYXJrIiwic21tUHJpbnQiLCJlTGVkZ2VyQ2FuY2VsIiwiZGVzcGF0Y2hSZXNwb25zZUxvYWQiLCJlTGVkZ2VyTG9hZCIsImNyZWRpdE5vdGVSZXBvcnRzIiwiZGVzcGF0Y2hVcGRhdGUiLCJkZXNwYXRjaFJlc3BvbnNlVXBkYXRlIiwielJlcG9ydEFyY2hpdmUiLCJlRGVmdGVyIiwiZGVzcGF0Y2hQcmludCIsImludm9pY2VBcmNoaXZlSW5jb21pbmciLCJleHBvcnRJbnZvaWNlUGFnZSIsImRlc3BhdGNoTWFyayIsInpSZXBvcnRVcGRhdGUiLCJyZWNvbmNpbGF0ZVNlbmQiLCJleHBvcnRJbnZvaWNlU2VuZCIsImNyZWRpdE5vdGVQcmludCIsInNtbVNlbmQiLCJjcmVkaXROb3RlU2VuZCIsImludm9pY2VBcmNoaXZlRG93bmxvYWQiLCJjcmVkaXROb3RlQ2FuY2VsIiwiZGVzcGF0Y2hSZXNwb25zZVNlbmQiLCJlYXJjaGl2ZUludm9pY2VTZW5kIiwielJlcG9ydFByaW50Iiwic21tVXBkYXRlIiwiZWFyY2hpdmVJbnZvaWNlQ2FuY2VsIiwibWVkdWxhSW52b2ljZUxvYWQiLCJpbnZvaWNlIiwiaW52b2ljZUFyY2hpdmVMb2FkIiwic21tUmVwb3J0VmlldyIsInVzZXIiLCJ6UmVwb3J0VmlldyIsImFjY291bnQiLCJkZXNwYXRjaENyZWF0ZSIsImludm9pY2VBcmNoaXZlT3V0Z29pbmciXSwiY3VzdG9tZXJJZCI6NDAyMCwiYWNjb3VudElkIjo1MDQsInVzZXJJZCI6NzEwNzEsImFjY291bnRJZHMiOls1MDQsNzExMzEsNzExNzAsNzE0NzEsNzExNTAsNzExNTIsNzEyMzEsNzExNTEsNzE5MzEsNzIzMjMsNzQxNDFdLCJpYXQiOjE2MTcxMzQ2NjksImV4cCI6MTYxNzE3Nzg2OX0.3CIYZYVtby7uOXflyrkqC-l0m2bSuBOVK8WijASnthQ\",\n        \"validity\": \"2021-03-31 11:04:29\",\n        \"customerType\": \"C\"\n    },\n    \"error\": null\n}"
+						}
+					]
+				}
+			],
+			"description": "> Aşağıdaki REST APIler ile İzibiz sisteminde token üretme, üretilen token uzatma ve üretilen token silmek için kullanabilirsiniz.\n\n\n## PARAMETERLER\n\n|  PROPERTY     | SCHEMA        |DESCRIPTION |\n| ------------- |:-------------:|:-------------:|\n| username      | String        | İzibiz sistemin tanımlı olan kullanıcı adı |\n| password      | String        | İzibiz sistemin tanımlı olan şifreniz |\n\n## CEVAP\n\n> Başarılı cevap detayı\n\n|  PROPERTY  | SCHEMA |VALUE |\n| ------------- |:-------------:|:-------------:|\n| accessToken   | String  | Sistem tarafında üretilen token bilgisi    |\n| validity      | Date | Sistem tarafında üretilen token geçerlilik süresi     |\n| customerType    | String | Kullanıcın sistemde müşteri tipi    |\n\n## HATA KODLARI\n\n|  CODE  | MESSAGE |GROUP |\n| ------------- |:-------------:|:-------------:|\n| 100      | Yetkiniz bulunmamaktadır.     |AUTHENTICATION|\n| 101      | Geçersiz oturum bilgisi     |AUTHENTICATION|\n| 102      | Geçersiz kullanıcı adı veya şifre     |AUTHENTICATION|\n| 103      | Oturum süresi doldu     |AUTHENTICATION|\n| 104      | Kullanıcı aktif değildir     |AUTHENTICATION|"
+		}
+	]
+}

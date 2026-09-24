@@ -1,0 +1,93 @@
+import { api } from '@/api/client'
+
+import type { SqlOrtam } from './sqlApi'
+
+export type EntegratorOrtam = 'test' | 'canli'
+
+export interface EntegratorBaglanti {
+  id: number
+  saglayici: 'izibiz'
+  ortam: EntegratorOrtam
+  /** Ortamdan türetilir, düzenlenemez */
+  api_url: string
+  portal_url: string
+  kullanici_adi: string
+  vkn: string
+  posta_kutusu: string | null
+  gonderici_birim: string | null
+  aktif: boolean
+  sifre_dolu: boolean
+  updated_at: string | null
+}
+
+export interface EntegratorBaglantilar {
+  test: EntegratorBaglanti | null
+  canli: EntegratorBaglanti | null
+  aktif_ortam: EntegratorOrtam | null
+  /** SQL'in aktif ortamı — seçimler bağımsızdır, uyuşmazlık uyarı olarak gösterilir */
+  sql_aktif_ortam: SqlOrtam | null
+  ortam_uyumsuz: boolean
+}
+
+export interface EntegratorBaglantiGovdesi {
+  kullanici_adi: string
+  /** Boş bırakılırsa gönderilmez — kullanıcı adı değişmediyse backend kayıtlı şifreyi korur */
+  sifre?: string
+  vkn: string
+  posta_kutusu: string | null
+  gonderici_birim: string | null
+}
+
+export interface EntegratorSinamaSonucu {
+  musteri_tipi: string
+  /** ISO 8601 (UTC) — alınan token'ın geçerlilik sonu */
+  gecerlilik_bitis: string
+}
+
+/** Yalnız sistem yöneticisi — diğer kullanıcılar 403 alır. */
+export async function entegratorBaglantilariGetir(): Promise<EntegratorBaglantilar> {
+  const yanit = await api.get<{ data: EntegratorBaglantilar }>(
+    '/api/v1/ayarlar/entegrator-baglantilari',
+  )
+
+  return yanit.data.data
+}
+
+export async function entegratorBaglantiGuncelle(
+  ortam: EntegratorOrtam,
+  govde: EntegratorBaglantiGovdesi,
+): Promise<EntegratorBaglanti> {
+  const yanit = await api.put<{ data: EntegratorBaglanti }>(
+    `/api/v1/ayarlar/entegrator-baglantilari/${ortam}`,
+    govde,
+  )
+
+  return yanit.data.data
+}
+
+/**
+ * Kaydedilmemiş kullanıcı/şifreyle de sınanabilir. Boş şifre yalnız kullanıcı
+ * adı kayıtlıyla aynıysa kayıtlı şifreye düşer. Adres ortamdan türetilir.
+ */
+export async function entegratorBaglantiSina(
+  ortam: EntegratorOrtam,
+  govde: { kullanici_adi: string; sifre?: string },
+): Promise<EntegratorSinamaSonucu> {
+  const yanit = await api.post<{ data: EntegratorSinamaSonucu }>(
+    `/api/v1/ayarlar/entegrator-baglantilari/${ortam}/sina`,
+    govde,
+  )
+
+  return yanit.data.data
+}
+
+export async function entegratorAktifOrtamDegistir(
+  ortam: EntegratorOrtam,
+): Promise<EntegratorBaglanti> {
+  const yanit = await api.post<{ data: EntegratorBaglanti }>(
+    '/api/v1/ayarlar/entegrator-baglantilari/aktif',
+    { ortam },
+  )
+
+  return yanit.data.data
+}

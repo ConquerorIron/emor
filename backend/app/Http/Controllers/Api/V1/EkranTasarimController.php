@@ -10,7 +10,7 @@ use App\Models\EkranTasarimi;
 use App\Services\EkranTasarimServisi;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * Ekran tasarım motoru uçları. Okuma (form çizimi) herkese açıktır; tasarım
@@ -125,10 +125,9 @@ final class EkranTasarimController extends Controller
         return response()->json(['data' => ['duzen' => $taslak->duzen, 'surum' => $taslak->surum]]);
     }
 
+    /** Tek yetki tanımı: AppServiceProvider `sistem-yonetimi` Gate'i. */
     private function yoneticiOlmali(Request $request): void
     {
-        if ($request->user()?->sistem_yoneticisi !== true) {
-            throw new AccessDeniedHttpException;
-        }
+        Gate::forUser($request->user())->authorize('sistem-yonetimi');
     }
 }

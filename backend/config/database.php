@@ -97,6 +97,11 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // Oturum saat dilimi config/app.php 'timezone' ile AYNI olmalı: Laravel
+            // zamanı ekisiz ('Y-m-d H:i:s') yazar; oturum sunucu varsayılanında
+            // (ör. Europe/Istanbul) kalırsa timestamptz değerleri 3 saat kayık
+            // saklanır (EFAT-17'de PostgreSQL test DB'siyle yakalandı)
+            'timezone' => 'UTC',
         ],
 
         'sqlsrv' => [

@@ -24,7 +24,9 @@
     "son": "Last",
     "hepsi": "All",
     "tumunuSec": "Select all",
-    "satirSec": "Select row"
+    "satirSec": "Select row",
+    "duzenle": "Edit",
+    "sil": "Delete"
   },
   "nav": {
     "anasayfa": "Home",
@@ -32,7 +34,15 @@
     "satinalmaTalepleri": "Purchase Request",
     "ayarlar": "Settings",
     "sqlBaglantilari": "SQL Connections",
-    "ekranTasarimi": "Screen Designer"
+    "entegratorBaglantilari": "Integrator Connections",
+    "mailAyarlari": "Mail (SMTP)",
+    "ekranTasarimi": "Screen Designer",
+    "kullanicilar": "Users",
+    "roller": "Roles",
+    "efatura": "e-Invoice",
+    "gelenFaturalar": "Incoming Invoices",
+    "gidenFaturalar": "Outgoing Invoices",
+    "alarmKurallari": "Alert Rules"
   },
   "tasarim": {
     "baslik": "Screen Designer",
@@ -237,7 +247,7 @@
       "veritabani": "Database",
       "kullaniciAdi": "Username",
       "sifre": "Password",
-      "sifreNotu": "Leave blank to keep the saved password.",
+      "sifreNotu": "Leave blank to keep the saved password. Re-enter it if you change the server, port or username.",
       "kaydedildi": "{{ortam}} connection saved.",
       "aktifRozet": "Active",
       "sinaButon": "Test Connection",
@@ -259,6 +269,196 @@
         "kullaniciZorunlu": "Username is required.",
         "sifreZorunlu": "Password is required on first save."
       }
+    },
+    "mail": {
+      "baslik": "Mail (SMTP) Settings",
+      "aciklama": "SMTP server and sender details for mails sent by the application (alerts, notifications).",
+      "sunucuBaslik": "SMTP Server",
+      "sunucu": "Server",
+      "port": "Port",
+      "sifrelemeEtiket": "Encryption",
+      "sifreleme": {
+        "tls": "STARTTLS (recommended, 587)",
+        "ssl": "SSL/TLS (465)",
+        "yok": "None"
+      },
+      "kullaniciAdi": "Username",
+      "sifre": "Password",
+      "sifreNotu": "Password is saved. Leave blank to keep it. Re-enter it if you change the server, port, username or encryption.",
+      "sifreGirilmedi": "No password yet; mail cannot be sent while a username is set.",
+      "gonderenBaslik": "Sender",
+      "gonderenAdres": "Sender Address",
+      "gonderenAd": "Display Name",
+      "yonlendirmeAdresi": "Redirect Address (optional)",
+      "yonlendirmeAciklama": "If set, ALL mails sent by the application go only to this address, not to the real recipients. Use during testing.",
+      "yonlendirmeAktif": "Redirect is on: all mails go only to {{adres}}.",
+      "kaydedildi": "Mail settings saved.",
+      "testBaslik": "Test Mail",
+      "testAciklama": "Sends a test mail with the saved settings; unsaved changes are not used. SMTP acceptance does not guarantee delivery to the inbox.",
+      "testAlici": "Recipient",
+      "testGonder": "Send Test Mail",
+      "testGonderildi": "Test mail handed to the SMTP server: {{alici}}",
+      "dogrulama": {
+        "sunucuZorunlu": "Server is required.",
+        "sunucuGecersiz": "Enter only the host name (e.g. smtp.office365.com), without scheme, port or spaces.",
+        "portGecersiz": "Port must be a number between 1 and 65535.",
+        "epostaGecersiz": "Enter a valid e-mail address.",
+        "gonderenAdZorunlu": "Display name is required."
+      }
+    },
+    "entegrator": {
+      "baslik": "Integrator Connections",
+      "aciklama": "Test and Live account definitions of the e-Invoice integrator (İzibiz). Invoices are read from the active environment.",
+      "apiAdresi": "API address",
+      "kullaniciAdi": "Username",
+      "sifre": "Password",
+      "vkn": "Tax ID / National ID",
+      "postaKutusu": "Mailbox Alias",
+      "gondericiBirim": "Sender Unit Alias",
+      "sifreNotu": "Leave blank to keep the saved password. Re-enter it if you change the username.",
+      "kaydedildi": "{{ortam}} integrator connection saved.",
+      "sinamaBasarili": "Signed in to the integrator",
+      "tokenGecerlilik": "The session is valid until {{zaman}}.",
+      "sinamaKapsami": "This test only verifies the username and password; permission to read invoices is checked separately when listing.",
+      "secilmedi": "Not selected",
+      "sqlAktifOrtam": "Active SQL environment",
+      "entegratorAktifOrtam": "Active integrator environment",
+      "ortamUyumsuz": "Warning: ERP (SQL) and the integrator are in different environments. Reconciliation and alerts will use data from different environments; results may be misleading.",
+      "aktifOrtamBaslik": "Active Integrator Environment",
+      "aktifOrtamAciklama": "Applies to all users: invoices are read from the integrator account of the selected environment. Chosen independently of the SQL environment.",
+      "testSecimAciklama": "Invoices are read from the integrator's test account.",
+      "canliSecimAciklama": "Invoices are read from the real integrator account.",
+      "aktifYapildi": "Active integrator environment changed to {{ortam}}.",
+      "canliOnayBaslik": "Switch the integrator to Live?",
+      "canliOnayMesaj": "After this, invoices will be read from the real integrator account. Are you sure you want to continue?",
+      "dogrulama": {
+        "kullaniciZorunlu": "Username is required.",
+        "sifreZorunlu": "Password is required on first save.",
+        "vknGecersiz": "Tax ID must be 10 digits (national ID 11) and contain only digits.",
+        "urnGecersiz": "Alias must start with \"urn:mail:\"."
+      }
+    },
+    "roller": {
+      "baslik": "Roles",
+      "aciklamaMetni": "Roles group permissions; roles are assigned to users on the Users screen. System administrators already have every permission.",
+      "yeni": "New Role",
+      "duzenle": "Edit Role",
+      "ad": "Role Name",
+      "aciklama": "Description",
+      "izinler": "Permissions",
+      "izinYok": "No permissions",
+      "kullaniciSayisi": "Users",
+      "kaydedildi": "Role saved.",
+      "silindi": "Role deleted.",
+      "silOnayBaslik": "Delete role?",
+      "silOnayMesaj": "Role \"{{ad}}\" will be deleted; {{sayi}} user(s) will lose its permissions.",
+      "dogrulama": {
+        "adZorunlu": "Role name is required.",
+        "adCokUzun": "Role name can be at most 64 characters.",
+        "aciklamaCokUzun": "Description can be at most 255 characters."
+      }
+    },
+    "kullanicilar": {
+      "baslik": "Users",
+      "aciklama": "ERP users are added automatically on first login. Local users can be created for people outside the ERP. Users are never deleted, only deactivated.",
+      "lokalEkle": "Add Local User",
+      "lokalAciklama": "Local users are for people without an ERP account. It cannot be created if an ERP user with the same name exists.",
+      "duzenleBaslik": "Edit User",
+      "ara": "Search name or username",
+      "kullaniciAdi": "Username",
+      "ad": "Full Name",
+      "email": "E-mail",
+      "sifre": "Password",
+      "yeniSifre": "New Password (leave empty to keep)",
+      "roller": "Roles",
+      "rolSec": "Select roles…",
+      "kaynakBaslik": "Source",
+      "kaynak": {
+        "erp": "ERP",
+        "lokal": "Local"
+      },
+      "sistemYoneticisi": "System Administrator",
+      "durum": "Status",
+      "aktif": "Active",
+      "pasif": "Inactive",
+      "erpBilgiNotu": "This is an ERP user: name, e-mail and password come from the ERP and cannot be changed here.",
+      "pasifYapilamazNotu": "Your own account and the backup administrator account cannot be deactivated.",
+      "yoneticiNotu": "As a system administrator (ERP flag) this user already has every permission.",
+      "olusturuldu": "User created.",
+      "guncellendi": "User updated.",
+      "dogrulama": {
+        "kullaniciAdiBicimi": "Username must be 3-64 characters; only letters, digits, dot, underscore and dash.",
+        "adZorunlu": "Full name is required.",
+        "epostaGecersiz": "Enter a valid e-mail address.",
+        "sifreKural": "Password must be at least 10 characters and contain letters and digits.",
+        "cokUzun": "Can be at most 255 characters."
+      }
+    },
+    "alarm": {
+      "baslik": "Alert Rules",
+      "aciklama": "Mail alerts for e-Invoices. Rules are evaluated on the active integrator account; alerts of the test account go only to the redirect address on the Mail (SMTP) screen. Mails carry no invoice details, only counts and a link.",
+      "aktif": "Active",
+      "alicilar": "Recipients (comma separated)",
+      "kaydedildi": "{{ad}} rule saved.",
+      "parametre": {
+        "ardisik_hata": "Consecutive failed runs",
+        "gecikme_saat": "Longest time without update (hours)",
+        "gun": "Days to wait after arrival at İzibiz",
+        "saat": "Send time (HH:MM)"
+      },
+      "kural": {
+        "senkron_arizasi": {
+          "ad": "Sync failure",
+          "aciklama": "Technical alert when fetching from İzibiz fails repeatedly or data is not updated for the given time; a \"resolved\" mail when it recovers."
+        },
+        "gunluk_ozet": {
+          "ad": "Daily new invoice summary",
+          "aciklama": "Every day at the given time, counts and totals of incoming and outgoing invoices first seen the previous day."
+        },
+        "erp_okumadi": {
+          "ad": "Not read by ERP",
+          "aciklama": "Once a day, newly found incoming invoices that the ERP has not read although they reached İzibiz more than the given days ago. No alert when data is stale."
+        }
+      },
+      "dogrulama": {
+        "aliciZorunlu": "An active rule needs at least one recipient.",
+        "aliciGecersiz": "One of the recipients is not a valid e-mail address.",
+        "saatBicimi": "Time must be HH:MM (e.g. 08:30).",
+        "aralik": "Enter a whole number between {{en}} and {{cok}}."
+      },
+      "bildirim": {
+        "baslik": "Recent notifications",
+        "aciklamaMetni": "Failed or deliberately skipped notifications are listed too, so the reason for a missing mail is visible here.",
+        "zaman": "Created",
+        "kural": "Rule",
+        "durum": "Status",
+        "aciklama": "Details",
+        "gonderildi": "Sent",
+        "deneme": "attempt {{sayi}}",
+        "tur": {
+          "acildi": "Opened",
+          "cozuldu": "Resolved",
+          "ozet": "Summary"
+        },
+        "durumlar": {
+          "bekliyor": "Pending",
+          "gonderildi": "Sent",
+          "basarisiz": "Failed",
+          "atlandi": "Skipped"
+        },
+        "kodlar": {
+          "KURAL_PASIF": "Rule was disabled before sending.",
+          "ORTAM_DEGISTI": "Integrator environment changed before sending.",
+          "OLAY_KAPANDI": "The problem was resolved before sending.",
+          "ALICI_YOK": "The rule has no recipients.",
+          "TEST_YONLENDIRME_YOK": "Test account alert; not sent to real recipients because no redirect address is set on the Mail (SMTP) screen.",
+          "YENI_OLAY_YOK": "Evaluated; no new invoices to report.",
+          "SMTP_HATASI": "The SMTP server did not accept the mail; will retry.",
+          "MAIL_AYARI_EKSIK": "SMTP settings or password missing.",
+          "GONDERILEMEDI": "Could not be sent.",
+          "ACILIS_GONDERILMEDI": "Not sent because the opening mail of this problem was never sent."
+        }
+      }
     }
   },
   "hata": {
@@ -270,9 +470,105 @@
     "COK_FAZLA_ISTEK": "Too many requests; please wait a moment.",
     "BILINMEYEN": "An unexpected error occurred.",
     "HESAP_PASIF": "Your account has been deactivated.",
+    "ENTEGRATOR_ERISILEMEDI": "Could not reach the integrator. Check the network and try again.",
+    "ENTEGRATOR_KIMLIK_HATALI": "Integrator username or password is incorrect.",
+    "ENTEGRATOR_YANIT_GECERSIZ": "The integrator returned an unexpected response.",
+    "ENTEGRATOR_HATA": "The integrator rejected the request.",
+    "ENTEGRATOR_AKTIF_YOK": "No active integrator environment is selected.",
     "guncellendiBaslik": "Application updated",
     "guncellendiOtomatik": "A new version has been installed; it takes effect after a refresh.",
     "guncellendiElle": "Refresh the page to switch to the new version.",
-    "simdiYenile": "Refresh Now"
+    "simdiYenile": "Refresh Now",
+    "EFATURA_EXCEL_COK_BUYUK": "The filter matches more invoices than the Excel limit. Narrow the date range.",
+    "EFATURA_SENKRON_SURUYOR": "A manual sync is already queued or running.",
+    "EFATURA_SENKRON_KAPALI": "e-Invoice sync is disabled on the server.",
+    "BEKLENMEYEN_HATA": "An unexpected error occurred during sync (see server log).",
+    "YAZMA_HATASI": "Invoices could not be written to the database."
+  },
+  "yetki": {
+    "izin": {
+      "efatura_goruntule": "View e-Invoice lists",
+      "efatura_pdf": "View e-Invoice PDF",
+      "efatura_disari_aktar": "Export e-Invoice list to Excel",
+      "efatura_senkron": "Start e-Invoice sync manually"
+    }
+  },
+  "efatura": {
+    "baslik": {
+      "gelen": "Incoming e-Invoices",
+      "giden": "Outgoing e-Invoices"
+    },
+    "ortam": {
+      "test": "Test account",
+      "canli": "Live account"
+    },
+    "evet": "Yes",
+    "hayir": "No",
+    "bilinmiyor": "Unknown",
+    "hepsi": "All",
+    "baslangic": "From",
+    "bitis": "To",
+    "ara": "Search (no, ETTN, tax id, name)",
+    "excel": "Excel",
+    "detay": "Details",
+    "pdf": "PDF",
+    "detayBaslik": "Invoice {{no}}",
+    "pdfBaslik": "Invoice {{no}} — PDF",
+    "pdfYukleniyor": "Fetching the invoice from the integrator…",
+    "pdfIndir": "Download",
+    "pdfYeniSekme": "Open in new tab",
+    "erpOkunduNotu": "Integrator flag used by the ERP integration. This screen only shows it and never changes it.",
+    "ozetBaslik": "Summary",
+    "toplamFatura": "Total invoices",
+    "ozetGrup": "{{para}} · {{adet}} invoices",
+    "ozetVergi": "Tax: {{tutar}}",
+    "durumBaslik": "Sync status",
+    "veriZamani": "Last successful update: {{zaman}}",
+    "veriZamaniYok": "No successful sync covering today yet.",
+    "senkronKapali": "Scheduled sync is disabled on the server; the list is not updated automatically.",
+    "guncelDegil": "Data may be stale: no successful sync covering today in the last hour. Recent invoices may be missing.",
+    "ardisikHata": "Last {{sayi}} sync runs failed or were incomplete ({{neden}}, {{zaman}}).",
+    "alan": {
+      "belgeNo": "Invoice No",
+      "ettn": "ETTN",
+      "belgeTarihi": "Invoice Date",
+      "olusturmaZamani": "Received by İzibiz",
+      "tipSenaryo": "Type / Profile",
+      "gonderici": "Sender",
+      "alici": "Receiver",
+      "tutar": "Amount",
+      "vergi": "Tax",
+      "satirSayisi": "Line Count",
+      "durum": "Status",
+      "gibDurum": "GİB Status",
+      "yanit": "Response Note",
+      "erpOkundu": "ERP Read",
+      "portalOkundu": "Read on Portal",
+      "kaynakId": "İzibiz Id",
+      "sonGorulme": "Last Seen in Sync",
+      "paraBirimi": "Currency"
+    },
+    "dogrulama": {
+      "tarihZorunlu": "Enter start and end dates.",
+      "sira": "End date cannot be before start date.",
+      "cokGenis": "The date range can be at most {{gun}} days."
+    },
+    "senkron": {
+      "ac": "Sync Now",
+      "baslik": "Sync from İzibiz",
+      "aciklama": "Incoming and outgoing invoices in the selected range are re-read from İzibiz (at most {{gun}} days). The job runs in the background; this screen shows its status.",
+      "baslat": "Start Sync",
+      "kuyruga": "Sync queued.",
+      "sirada": "Manual sync is queued or running ({{baslangic}} – {{bitis}}).",
+      "calisiyor": "Sync is running…",
+      "dogrulama": {
+        "tarihZorunlu": "Enter start and end dates.",
+        "ilkTarihOncesi": "e-Invoices are tracked from {{tarih}}.",
+        "gelecek": "End date cannot be in the future.",
+        "sira": "End date cannot be before start date.",
+        "cokGenis": "The range can be at most {{gun}} days."
+      }
+    },
+    "durumAlinamadi": "Sync status could not be loaded; it is unknown whether the list is current."
   }
 }

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\AktifKullanici;
+use App\Services\Entegrator\EntegratorHatasi;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -25,6 +27,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Sanctum SPA: aynı domain'den gelen frontend istekleri session cookie ile doğrulanır
         $middleware->statefulApi();
+
+        // Pasife alınan kullanıcının oturumu her istekte denetlenir (EFAT-18)
+        $middleware->alias(['aktif' => AktifKullanici::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
@@ -64,6 +69,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (ThrottleRequestsException $e, Request $request): ?JsonResponse {
             return $request->is('api/*')
                 ? response()->json(['kod' => 'COK_FAZLA_ISTEK', 'mesaj' => __('hata.cok_fazla_istek')], 429, $e->getHeaders())
+                : null;
+        });
+
+        // Entegratör (İzibiz) hataları: kod + çevrilmiş mesaj; sağlayıcı gövdesi dönmez
+        $exceptions->render(function (EntegratorHatasi $e, Request $request): ?JsonResponse {
+            return $request->is('api/*')
+                ? response()->json(['kod' => $e->kod, 'mesaj' => $e->getMessage()], $e->httpDurumu)
                 : null;
         });
 

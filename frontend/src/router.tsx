@@ -1,7 +1,9 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 
+import { IzinAlani } from '@/components/IzinAlani'
 import { KorumaliAlan } from '@/components/KorumaliAlan'
 import { UygulamaHatasi } from '@/components/UygulamaHatasi'
+import { YoneticiAlani } from '@/components/YoneticiAlani'
 import { AuthLayout } from '@/layouts/AuthLayout'
 import { DashboardPage } from '@/pages/Dashboard/DashboardPage'
 import { LoginPage } from '@/pages/Login/LoginPage'
@@ -31,18 +33,74 @@ export const router = createBrowserRouter([
         }),
       },
       {
-        path: 'ayarlar/ekran-tasarimi',
-        lazy: async () => ({
-          Component: (await import('@/pages/EkranTasarimAyarlari/EkranTasarimAyarlariPage'))
-            .EkranTasarimAyarlariPage,
-        }),
+        // e-Fatura (EFAT-11): görüntüleme izni olanlar (backend de denetler)
+        element: <IzinAlani izin="efatura.goruntule" />,
+        children: [
+          {
+            path: 'efatura/gelen',
+            lazy: async () => ({
+              Component: (await import('@/pages/EFaturalar/EFaturalarPage')).GelenFaturalarPage,
+            }),
+          },
+          {
+            path: 'efatura/giden',
+            lazy: async () => ({
+              Component: (await import('@/pages/EFaturalar/EFaturalarPage')).GidenFaturalarPage,
+            }),
+          },
+        ],
       },
       {
-        path: 'ayarlar/sql-baglantilari',
-        lazy: async () => ({
-          Component: (await import('@/pages/SqlBaglantilari/SqlBaglantilariPage'))
-            .SqlBaglantilariPage,
-        }),
+        // Yönetim ekranları: yalnız sistem yöneticisi (backend de denetler)
+        element: <YoneticiAlani />,
+        children: [
+          {
+            path: 'ayarlar/ekran-tasarimi',
+            lazy: async () => ({
+              Component: (await import('@/pages/EkranTasarimAyarlari/EkranTasarimAyarlariPage'))
+                .EkranTasarimAyarlariPage,
+            }),
+          },
+          {
+            path: 'ayarlar/sql-baglantilari',
+            lazy: async () => ({
+              Component: (await import('@/pages/SqlBaglantilari/SqlBaglantilariPage'))
+                .SqlBaglantilariPage,
+            }),
+          },
+          {
+            path: 'ayarlar/kullanicilar',
+            lazy: async () => ({
+              Component: (await import('@/pages/Kullanicilar/KullanicilarPage')).KullanicilarPage,
+            }),
+          },
+          {
+            path: 'ayarlar/roller',
+            lazy: async () => ({
+              Component: (await import('@/pages/Roller/RollerPage')).RollerPage,
+            }),
+          },
+          {
+            path: 'ayarlar/alarm-kurallari',
+            lazy: async () => ({
+              Component: (await import('@/pages/AlarmKurallari/AlarmKurallariPage'))
+                .AlarmKurallariPage,
+            }),
+          },
+          {
+            path: 'ayarlar/mail',
+            lazy: async () => ({
+              Component: (await import('@/pages/MailAyarlari/MailAyarlariPage')).MailAyarlariPage,
+            }),
+          },
+          {
+            path: 'ayarlar/entegrator-baglantilari',
+            lazy: async () => ({
+              Component: (await import('@/pages/EntegratorBaglantilari/EntegratorBaglantilariPage'))
+                .EntegratorBaglantilariPage,
+            }),
+          },
+        ],
       },
     ],
   },

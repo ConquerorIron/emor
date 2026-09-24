@@ -52,6 +52,19 @@ final class SqlBaglanti extends Model
     protected $hidden = ['sifre'];
 
     /**
+     * Kayıtlı şifre yalnız kayıtlı hedefe (sunucu + port + kullanıcı) gönderilir.
+     * Hedef değişiyorsa şifre yeniden girilmelidir; aksi halde formdan yazılan
+     * başka bir sunucuya kayıtlı MSSQL şifresi iletilmiş olur. Veritabanı adı
+     * aynı sunucuda kaldığı için hedef sayılmaz.
+     */
+    public function hedefFarkli(string $sunucu, ?int $port, string $kullaniciAdi): bool
+    {
+        return strcasecmp(trim($sunucu), trim($this->sunucu)) !== 0
+            || $port !== $this->port
+            || trim($kullaniciAdi) !== trim($this->kullanici_adi);
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array

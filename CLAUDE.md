@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # ERP Web
 
 Şirketteki exe tabanlı ERP uygulamasına (Meyer — MSSQL) modern bir web arayüzü.
@@ -13,6 +15,18 @@ SQL bağlantı tanımları vb.).
 - `ornek/puantaj/` — REFERANS proje: tüm frontend/backend pattern'leri buradan alınır
   (sidebar layout, component kütüphanesi, API hata sözleşmesi, Türkçe adlandırma).
   Değiştirilmez, sadece örnek alınır.
+
+## Claude Code için skill konumu
+
+AGENTS.md içindeki ortak proje ve skill kullanım kurallarını uygula.
+
+Bu projede skill'leri proje kökündeki .claude/skills/ dizininden oku.
+Her skill için ilgili SKILL.md dosyasını ve onun yönlendirdiği
+gerekli destek dosyalarını kullan.
+
+Bir skill dosyası bulunamazsa bunu açıkça bildir.
+Dosyayı okumadan skill'in uygulandığını iddia etme.
+
 
 ## Kritik mimari kararlar
 

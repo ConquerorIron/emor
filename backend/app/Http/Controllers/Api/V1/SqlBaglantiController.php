@@ -11,11 +11,13 @@ use App\Models\SqlBaglanti;
 use App\Services\MssqlBaglantiServisi;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
  * Ayarlar → SQL Bağlantıları: Test/Canlı MSSQL tanımları + global aktif ortam.
+ * `aktifOrtam` dışındaki uçlar `can:sistem-yonetimi` ile korunur (routes/api.php).
  */
 final class SqlBaglantiController extends Controller
 {
@@ -40,13 +42,34 @@ final class SqlBaglantiController extends Controller
         ]);
     }
 
+    /**
+     * Header rozeti için: oturum açmış her kullanıcıya yalnız aktif ortamın
+     * adı döner — bağlantı ayrıntısı (sunucu, kullanıcı) yönetici uçlarındadır.
+     */
+    public function aktifOrtam(): JsonResponse
+    {
+        return response()->json([
+            'data' => ['aktif_ortam' => $this->servis->aktif()?->ortam],
+        ]);
+    }
+
     public function guncelle(SqlBaglantiGuncelleRequest $request, string $ortam): JsonResponse
     {
         /** @var array{sunucu: string, port?: int|null, veritabani: string, kullanici_adi: string, sifre?: string|null} $veri */
         $veri = $request->validated();
 
+        $tanim = $this->servis->guncelle($ortam, $veri);
+
+        // Değişiklik kaydı — şifrenin kendisi değil, yalnız değişip değişmediği yazılır
+        Log::info('SQL bağlantı tanımı güncellendi', [
+            'ortam' => $ortam,
+            'kullanici_id' => $request->user()?->id,
+            'sunucu' => $tanim->sunucu,
+            'sifre_degisti' => ($veri['sifre'] ?? '') !== '',
+        ]);
+
         // PUT idempotent güncelleme: ilk kayıtta da 200 döner (MailAyarController deseni)
-        return (new SqlBaglantiResource($this->servis->guncelle($ortam, $veri)))
+        return (new SqlBaglantiResource($tanim))
             ->response()
             ->setStatusCode(200);
     }
@@ -68,19 +91,35 @@ final class SqlBaglantiController extends Controller
 
         $kayitli = SqlBaglanti::query()->where('ortam', $ortam)->first();
 
-        $tanim = $kayitli ?? new SqlBaglanti(['ortam' => $ortam]);
-        $tanim->sunucu = $veri['sunucu'] ?? $tanim->sunucu ?? '';
-        $tanim->port = $veri['port'] ?? $kayitli?->port;
-        $tanim->veritabani = $veri['veritabani'] ?? $tanim->veritabani ?? '';
-        $tanim->kullanici_adi = $veri['kullanici_adi'] ?? $tanim->kullanici_adi ?? '';
+        $sunucu = $veri['sunucu'] ?? $kayitli?->sunucu ?? '';
+        $port = array_key_exists('port', $veri) ? $veri['port'] : $kayitli?->port;
+        $kullaniciAdi = $veri['kullanici_adi'] ?? $kayitli?->kullanici_adi ?? '';
 
         $sifre = $veri['sifre'] ?? null;
-        if ($sifre !== null && $sifre !== '') {
-            $tanim->sifre = $sifre;
-        } elseif ($kayitli === null) {
+        $sifreBos = $sifre === null || $sifre === '';
+
+        if ($sifreBos && $kayitli === null) {
             throw ValidationException::withMessages([
                 'sifre' => __('hata.sql_sifre_zorunlu'),
             ]);
+        }
+
+        // Kıyas kayıtlı model değiştirilmeden yapılır: aşağıdaki atamalar
+        // aynı nesnenin üstüne yazar
+        if ($sifreBos && $kayitli !== null && $kayitli->hedefFarkli($sunucu, $port, $kullaniciAdi)) {
+            throw ValidationException::withMessages([
+                'sifre' => __('hata.sql_sifre_hedef_degisti'),
+            ]);
+        }
+
+        $tanim = $kayitli ?? new SqlBaglanti(['ortam' => $ortam]);
+        $tanim->sunucu = $sunucu;
+        $tanim->port = $port;
+        $tanim->veritabani = $veri['veritabani'] ?? $tanim->veritabani ?? '';
+        $tanim->kullanici_adi = $kullaniciAdi;
+
+        if (! $sifreBos) {
+            $tanim->sifre = $sifre;
         }
 
         if ($tanim->sunucu === '' || $tanim->veritabani === '' || $tanim->kullanici_adi === '') {
@@ -100,6 +139,11 @@ final class SqlBaglantiController extends Controller
         ]);
 
         $tanim = $this->servis->aktifYap($veri['ortam']);
+
+        Log::info('Aktif SQL ortamı değiştirildi', [
+            'ortam' => $tanim->ortam,
+            'kullanici_id' => $request->user()?->id,
+        ]);
 
         return response()->json(['data' => new SqlBaglantiResource($tanim)]);
     }

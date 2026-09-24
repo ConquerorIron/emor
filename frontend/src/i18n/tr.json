@@ -24,7 +24,9 @@
     "son": "Son",
     "hepsi": "Hepsi",
     "tumunuSec": "Tümünü seç",
-    "satirSec": "Satırı seç"
+    "satirSec": "Satırı seç",
+    "duzenle": "Düzenle",
+    "sil": "Sil"
   },
   "nav": {
     "anasayfa": "Ana Sayfa",
@@ -32,7 +34,15 @@
     "satinalmaTalepleri": "Satınalma Talebi",
     "ayarlar": "Ayarlar",
     "sqlBaglantilari": "SQL Bağlantıları",
-    "ekranTasarimi": "Ekran Tasarım Ayarları"
+    "entegratorBaglantilari": "Entegratör Bağlantıları",
+    "mailAyarlari": "Mail (SMTP)",
+    "ekranTasarimi": "Ekran Tasarım Ayarları",
+    "kullanicilar": "Kullanıcılar",
+    "roller": "Roller",
+    "efatura": "e-Fatura",
+    "gelenFaturalar": "Gelen Faturalar",
+    "gidenFaturalar": "Giden Faturalar",
+    "alarmKurallari": "Alarm Kuralları"
   },
   "tasarim": {
     "baslik": "Ekran Tasarım Ayarları",
@@ -237,7 +247,7 @@
       "veritabani": "Veritabanı",
       "kullaniciAdi": "Kullanıcı Adı",
       "sifre": "Şifre",
-      "sifreNotu": "Şifreyi değiştirmeyecekseniz boş bırakın; kayıtlı şifre korunur.",
+      "sifreNotu": "Şifreyi değiştirmeyecekseniz boş bırakın; kayıtlı şifre korunur. Sunucu, port veya kullanıcı adını değiştirirseniz şifreyi yeniden girin.",
       "kaydedildi": "{{ortam}} bağlantı tanımı kaydedildi.",
       "aktifRozet": "Aktif",
       "sinaButon": "Bağlantıyı Sına",
@@ -259,6 +269,196 @@
         "kullaniciZorunlu": "Kullanıcı adı zorunludur.",
         "sifreZorunlu": "İlk kayıtta şifre zorunludur."
       }
+    },
+    "mail": {
+      "baslik": "Mail (SMTP) Ayarları",
+      "aciklama": "Uygulamanın göndereceği maillerin (alarmlar, bildirimler) SMTP sunucusu ve gönderen bilgileri.",
+      "sunucuBaslik": "SMTP Sunucusu",
+      "sunucu": "Sunucu",
+      "port": "Port",
+      "sifrelemeEtiket": "Şifreleme",
+      "sifreleme": {
+        "tls": "STARTTLS (önerilen, 587)",
+        "ssl": "SSL/TLS (465)",
+        "yok": "Şifresiz"
+      },
+      "kullaniciAdi": "Kullanıcı Adı",
+      "sifre": "Şifre",
+      "sifreNotu": "Şifre kayıtlı. Değiştirmeyecekseniz boş bırakın. Sunucu, port, kullanıcı adı veya şifrelemeyi değiştirirseniz şifreyi yeniden girin.",
+      "sifreGirilmedi": "Şifre henüz girilmedi; kullanıcı adı doluysa mail gönderilemez.",
+      "gonderenBaslik": "Gönderen",
+      "gonderenAdres": "Gönderen Adresi",
+      "gonderenAd": "Görünen Ad",
+      "yonlendirmeAdresi": "Yönlendirme Adresi (isteğe bağlı)",
+      "yonlendirmeAciklama": "Doluysa uygulamanın gönderdiği TÜM mailler yalnız bu adrese gider; asıl alıcılara gitmez. Test döneminde kullanın.",
+      "yonlendirmeAktif": "Yönlendirme açık: tüm mailler yalnız {{adres}} adresine gidiyor.",
+      "kaydedildi": "Mail ayarları kaydedildi.",
+      "testBaslik": "Test Maili",
+      "testAciklama": "Kayıtlı ayarlarla bir test maili gönderir; kaydedilmemiş değişiklikler kullanılmaz. SMTP'nin kabul etmesi, mailin alıcı kutusuna ulaştığı anlamına gelmez.",
+      "testAlici": "Alıcı",
+      "testGonder": "Test Maili Gönder",
+      "testGonderildi": "Test maili SMTP sunucusuna iletildi: {{alici}}",
+      "dogrulama": {
+        "sunucuZorunlu": "Sunucu adı zorunludur.",
+        "sunucuGecersiz": "Yalnız sunucu adı girin (ör. smtp.office365.com); şema, port veya boşluk olmadan.",
+        "portGecersiz": "Port 1–65535 arasında bir sayı olmalıdır.",
+        "epostaGecersiz": "Geçerli bir e-posta adresi girin.",
+        "gonderenAdZorunlu": "Görünen ad zorunludur."
+      }
+    },
+    "entegrator": {
+      "baslik": "Entegratör Bağlantıları",
+      "aciklama": "e-Fatura entegratörünün (İzibiz) Test ve Canlı hesap tanımları. Faturalar aktif seçilen ortamdan okunur.",
+      "apiAdresi": "API adresi",
+      "kullaniciAdi": "Kullanıcı Adı",
+      "sifre": "Şifre",
+      "vkn": "VKN / TCKN",
+      "postaKutusu": "Posta Kutusu Etiketi",
+      "gondericiBirim": "Gönderici Birim Etiketi",
+      "sifreNotu": "Şifreyi değiştirmeyecekseniz boş bırakın; kayıtlı şifre korunur. Kullanıcı adını değiştirirseniz şifreyi yeniden girin.",
+      "kaydedildi": "{{ortam}} entegratör tanımı kaydedildi.",
+      "sinamaBasarili": "Entegratöre giriş başarılı",
+      "tokenGecerlilik": "Alınan oturum {{zaman}} tarihine kadar geçerli.",
+      "sinamaKapsami": "Bu sınama yalnız kullanıcı adı ve şifreyi doğrular; fatura okuma yetkisi listeleme sırasında ayrıca denetlenir.",
+      "secilmedi": "Seçilmedi",
+      "sqlAktifOrtam": "SQL aktif ortamı",
+      "entegratorAktifOrtam": "Entegratör aktif ortamı",
+      "ortamUyumsuz": "Dikkat: ERP (SQL) ve entegratör farklı ortamlarda. Karşılaştırma ve alarmlar farklı ortamların verisini kullanır; sonuçlar yanıltıcı olabilir.",
+      "aktifOrtamBaslik": "Aktif Entegratör Ortamı",
+      "aktifOrtamAciklama": "Tüm kullanıcılar için geçerlidir: faturalar seçilen ortamın entegratör hesabından okunur. SQL ortamından bağımsız seçilir.",
+      "testSecimAciklama": "Faturalar entegratörün test hesabından okunur.",
+      "canliSecimAciklama": "Faturalar gerçek entegratör hesabından okunur.",
+      "aktifYapildi": "Aktif entegratör ortamı {{ortam}} olarak değiştirildi.",
+      "canliOnayBaslik": "Canlı entegratöre geçilsin mi?",
+      "canliOnayMesaj": "Bu işlemden sonra faturalar gerçek entegratör hesabından okunur. Devam etmek istediğinize emin misiniz?",
+      "dogrulama": {
+        "kullaniciZorunlu": "Kullanıcı adı zorunludur.",
+        "sifreZorunlu": "İlk kayıtta şifre zorunludur.",
+        "vknGecersiz": "VKN 10, TCKN 11 haneli olmalı ve yalnız rakam içermelidir.",
+        "urnGecersiz": "Etiket \"urn:mail:\" ile başlamalıdır."
+      }
+    },
+    "roller": {
+      "baslik": "Roller",
+      "aciklamaMetni": "Roller izinleri gruplar; kullanıcılara Kullanıcılar ekranından rol atanır. Sistem yöneticileri tüm izinlere zaten sahiptir.",
+      "yeni": "Yeni Rol",
+      "duzenle": "Rolü Düzenle",
+      "ad": "Rol Adı",
+      "aciklama": "Açıklama",
+      "izinler": "İzinler",
+      "izinYok": "İzin yok",
+      "kullaniciSayisi": "Kullanıcı",
+      "kaydedildi": "Rol kaydedildi.",
+      "silindi": "Rol silindi.",
+      "silOnayBaslik": "Rol silinsin mi?",
+      "silOnayMesaj": "\"{{ad}}\" rolü silinecek; {{sayi}} kullanıcı bu rolün izinlerini kaybedecek.",
+      "dogrulama": {
+        "adZorunlu": "Rol adı zorunludur.",
+        "adCokUzun": "Rol adı en fazla 64 karakter olabilir.",
+        "aciklamaCokUzun": "Açıklama en fazla 255 karakter olabilir."
+      }
+    },
+    "kullanicilar": {
+      "baslik": "Kullanıcılar",
+      "aciklama": "ERP kullanıcıları ilk girişte otomatik eklenir. ERP dışındaki kişiler için lokal kullanıcı açılabilir. Kullanıcı silinmez, pasif yapılır.",
+      "lokalEkle": "Lokal Kullanıcı Ekle",
+      "lokalAciklama": "Lokal kullanıcı ERP hesabı olmayan kişiler içindir. ERP'de aynı adla bir kullanıcı varsa açılamaz.",
+      "duzenleBaslik": "Kullanıcıyı Düzenle",
+      "ara": "Ad veya kullanıcı adı ara",
+      "kullaniciAdi": "Kullanıcı Adı",
+      "ad": "Ad Soyad",
+      "email": "E-posta",
+      "sifre": "Şifre",
+      "yeniSifre": "Yeni Şifre (değiştirmeyecekseniz boş bırakın)",
+      "roller": "Roller",
+      "rolSec": "Rol seçin…",
+      "kaynakBaslik": "Kaynak",
+      "kaynak": {
+        "erp": "ERP",
+        "lokal": "Lokal"
+      },
+      "sistemYoneticisi": "Sistem Yöneticisi",
+      "durum": "Durum",
+      "aktif": "Aktif",
+      "pasif": "Pasif",
+      "erpBilgiNotu": "Bu bir ERP kullanıcısıdır: adı, e-postası ve şifresi ERP'den gelir, burada değiştirilemez.",
+      "pasifYapilamazNotu": "Kendi hesabınız ve yedek yönetici hesabı pasif yapılamaz.",
+      "yoneticiNotu": "Sistem yöneticisi olduğu için (ERP'deki bayrak) tüm izinlere zaten sahiptir.",
+      "olusturuldu": "Kullanıcı oluşturuldu.",
+      "guncellendi": "Kullanıcı güncellendi.",
+      "dogrulama": {
+        "kullaniciAdiBicimi": "Kullanıcı adı 3-64 karakter olmalı; yalnız harf, rakam, nokta, alt çizgi ve tire içerebilir.",
+        "adZorunlu": "Ad soyad zorunludur.",
+        "epostaGecersiz": "Geçerli bir e-posta adresi girin.",
+        "sifreKural": "Şifre en az 10 karakter olmalı, harf ve rakam içermelidir.",
+        "cokUzun": "En fazla 255 karakter olabilir."
+      }
+    },
+    "alarm": {
+      "baslik": "Alarm Kuralları",
+      "aciklama": "e-Fatura için mail alarmları. Kurallar aktif entegratör hesabında değerlendirilir; test hesabının alarmları yalnız Mail (SMTP) ekranındaki yönlendirme adresine gider. Maillerde fatura ayrıntısı yoktur, yalnız sayılar ve ekran bağlantısı.",
+      "aktif": "Aktif",
+      "alicilar": "Alıcılar (virgülle ayırın)",
+      "kaydedildi": "{{ad}} kuralı kaydedildi.",
+      "parametre": {
+        "ardisik_hata": "Art arda hatalı çalışma sayısı",
+        "gecikme_saat": "Güncellenmeden geçen en uzun süre (saat)",
+        "gun": "İzibiz'e ulaştıktan sonra beklenecek gün",
+        "saat": "Gönderim saati (SS:DD)"
+      },
+      "kural": {
+        "senkron_arizasi": {
+          "ad": "Senkron arızası",
+          "aciklama": "İzibiz'den çekme art arda başarısız olursa ya da veri belirtilen süredir güncellenmezse teknik alarm; düzelince \"çözüldü\" maili."
+        },
+        "gunluk_ozet": {
+          "ad": "Günlük yeni fatura özeti",
+          "aciklama": "Her gün belirtilen saatte, önceki gün ilk kez görülen gelen ve giden faturaların adet ve tutar özeti."
+        },
+        "erp_okumadi": {
+          "ad": "ERP okumadı uyarısı",
+          "aciklama": "Gelen fatura İzibiz'e ulaşalı belirtilen günden fazla olduğu hâlde ERP okumadıysa, günde bir kez yeni olanlar bildirilir. Veri güncel değilse uyarı üretilmez."
+        }
+      },
+      "dogrulama": {
+        "aliciZorunlu": "Aktif kural için en az bir alıcı gerekir.",
+        "aliciGecersiz": "Alıcılardan biri geçerli bir e-posta adresi değil.",
+        "saatBicimi": "Saat SS:DD biçiminde olmalı (ör. 08:30).",
+        "aralik": "{{en}} ile {{cok}} arasında tam sayı girin."
+      },
+      "bildirim": {
+        "baslik": "Son bildirimler",
+        "aciklamaMetni": "Gönderilemeyen ya da bilerek atlanan bildirimler de burada görünür; mail gelmediğinde nedeni buradan anlaşılır.",
+        "zaman": "Oluşturulma",
+        "kural": "Kural",
+        "durum": "Durum",
+        "aciklama": "Açıklama",
+        "gonderildi": "Gönderildi",
+        "deneme": "{{sayi}}. deneme",
+        "tur": {
+          "acildi": "Açıldı",
+          "cozuldu": "Çözüldü",
+          "ozet": "Özet"
+        },
+        "durumlar": {
+          "bekliyor": "Bekliyor",
+          "gonderildi": "Gönderildi",
+          "basarisiz": "Başarısız",
+          "atlandi": "Atlandı"
+        },
+        "kodlar": {
+          "KURAL_PASIF": "Kural gönderimden önce kapatıldı.",
+          "ORTAM_DEGISTI": "Entegratör ortamı gönderimden önce değişti.",
+          "OLAY_KAPANDI": "Sorun gönderimden önce düzeldi.",
+          "ALICI_YOK": "Kuralda alıcı yok.",
+          "TEST_YONLENDIRME_YOK": "Test hesabı alarmı; Mail (SMTP) ekranında yönlendirme adresi olmadığı için gerçek alıcılara gönderilmedi.",
+          "YENI_OLAY_YOK": "Değerlendirildi; yeni bildirilecek fatura yok.",
+          "SMTP_HATASI": "SMTP sunucusu maili kabul etmedi; yeniden denenecek.",
+          "MAIL_AYARI_EKSIK": "SMTP ayarı ya da şifresi eksik.",
+          "GONDERILEMEDI": "Gönderilemedi.",
+          "ACILIS_GONDERILMEDI": "Sorunun açılış maili gönderilmediği için çözüldü maili de gönderilmedi."
+        }
+      }
     }
   },
   "hata": {
@@ -270,9 +470,105 @@
     "COK_FAZLA_ISTEK": "Çok fazla istek gönderildi; lütfen biraz bekleyin.",
     "BILINMEYEN": "Beklenmeyen bir hata oluştu.",
     "HESAP_PASIF": "Hesabınız pasife alındı.",
+    "ENTEGRATOR_ERISILEMEDI": "Entegratöre ulaşılamadı. Ağ bağlantısını kontrol edip tekrar deneyin.",
+    "ENTEGRATOR_KIMLIK_HATALI": "Entegratör kullanıcı adı veya şifresi hatalı.",
+    "ENTEGRATOR_YANIT_GECERSIZ": "Entegratörden beklenmeyen bir yanıt geldi.",
+    "ENTEGRATOR_HATA": "Entegratör isteği reddetti.",
+    "ENTEGRATOR_AKTIF_YOK": "Aktif entegratör ortamı seçilmemiş.",
     "guncellendiBaslik": "Uygulama güncellendi",
     "guncellendiOtomatik": "Yeni sürüm yüklendi; sayfa yenilenince geçerli olur.",
     "guncellendiElle": "Sayfayı yenileyerek yeni sürüme geçebilirsiniz.",
-    "simdiYenile": "Şimdi Yenile"
+    "simdiYenile": "Şimdi Yenile",
+    "EFATURA_EXCEL_COK_BUYUK": "Seçilen filtrede Excel sınırından fazla fatura var. Tarih aralığını daraltın.",
+    "EFATURA_SENKRON_SURUYOR": "Elle başlatılan bir senkron zaten sırada ya da çalışıyor.",
+    "EFATURA_SENKRON_KAPALI": "e-Fatura senkronu sunucuda kapatılmış.",
+    "BEKLENMEYEN_HATA": "Senkronda beklenmeyen bir hata oluştu (sunucu kaydına bakın).",
+    "YAZMA_HATASI": "Faturalar veritabanına yazılamadı."
+  },
+  "yetki": {
+    "izin": {
+      "efatura_goruntule": "e-Fatura listelerini görüntüleme",
+      "efatura_pdf": "e-Fatura PDF görüntüleme",
+      "efatura_disari_aktar": "e-Fatura listesini Excel'e aktarma",
+      "efatura_senkron": "e-Fatura senkronunu elle başlatma"
+    }
+  },
+  "efatura": {
+    "baslik": {
+      "gelen": "Gelen e-Faturalar",
+      "giden": "Giden e-Faturalar"
+    },
+    "ortam": {
+      "test": "Test hesabı",
+      "canli": "Canlı hesap"
+    },
+    "evet": "Evet",
+    "hayir": "Hayır",
+    "bilinmiyor": "Bilinmiyor",
+    "hepsi": "Hepsi",
+    "baslangic": "Başlangıç",
+    "bitis": "Bitiş",
+    "ara": "Ara (no, ETTN, VKN, unvan)",
+    "excel": "Excel",
+    "detay": "Detay",
+    "pdf": "PDF",
+    "detayBaslik": "Fatura {{no}}",
+    "pdfBaslik": "Fatura {{no}} — PDF",
+    "pdfYukleniyor": "Fatura aslı entegratörden alınıyor…",
+    "pdfIndir": "İndir",
+    "pdfYeniSekme": "Yeni sekmede aç",
+    "erpOkunduNotu": "Entegratördeki bayraktır; ERP entegrasyonu kullanır. Bu ekran yalnız gösterir, değiştirmez.",
+    "ozetBaslik": "Özet",
+    "toplamFatura": "Toplam fatura",
+    "ozetGrup": "{{para}} · {{adet}} fatura",
+    "ozetVergi": "Vergi: {{tutar}}",
+    "durumBaslik": "Senkron durumu",
+    "veriZamani": "Son başarılı güncelleme: {{zaman}}",
+    "veriZamaniYok": "Bugünü kapsayan başarılı bir senkron henüz yok.",
+    "senkronKapali": "Zamanlanmış senkron sunucuda kapalı; liste kendiliğinden güncellenmiyor.",
+    "guncelDegil": "Veri güncel olmayabilir: son bir saatte bugünü kapsayan başarılı senkron yok. Yakın tarihli faturalar eksik görünebilir.",
+    "ardisikHata": "Son {{sayi}} senkron başarısız ya da eksik bitti ({{neden}}, {{zaman}}).",
+    "alan": {
+      "belgeNo": "Fatura No",
+      "ettn": "ETTN",
+      "belgeTarihi": "Fatura Tarihi",
+      "olusturmaZamani": "İzibiz'e Ulaşma",
+      "tipSenaryo": "Tip / Senaryo",
+      "gonderici": "Gönderici",
+      "alici": "Alıcı",
+      "tutar": "Tutar",
+      "vergi": "Vergi",
+      "satirSayisi": "Satır Sayısı",
+      "durum": "Durum",
+      "gibDurum": "GİB Durumu",
+      "yanit": "Yanıt Açıklaması",
+      "erpOkundu": "ERP Okudu",
+      "portalOkundu": "Portalda Okundu",
+      "kaynakId": "İzibiz Kimliği",
+      "sonGorulme": "Son Senkronda Görülme",
+      "paraBirimi": "Para Birimi"
+    },
+    "dogrulama": {
+      "tarihZorunlu": "Başlangıç ve bitiş tarihini girin.",
+      "sira": "Bitiş tarihi başlangıçtan önce olamaz.",
+      "cokGenis": "Tarih aralığı en fazla {{gun}} gün olabilir."
+    },
+    "senkron": {
+      "ac": "Şimdi Senkronla",
+      "baslik": "İzibiz'den Senkronla",
+      "aciklama": "Seçilen aralıktaki gelen ve giden faturalar İzibiz'den yeniden okunur (en fazla {{gun}} gün). İş arka planda çalışır; bu ekran durumunu gösterir.",
+      "baslat": "Senkronu Başlat",
+      "kuyruga": "Senkron sıraya alındı.",
+      "sirada": "Elle senkron sırada ya da çalışıyor ({{baslangic}} – {{bitis}}).",
+      "calisiyor": "Senkron çalışıyor…",
+      "dogrulama": {
+        "tarihZorunlu": "Başlangıç ve bitiş tarihini girin.",
+        "ilkTarihOncesi": "e-Faturalar {{tarih}} tarihinden itibaren izlenir.",
+        "gelecek": "Bitiş tarihi bugünden sonra olamaz.",
+        "sira": "Bitiş tarihi başlangıçtan önce olamaz.",
+        "cokGenis": "Aralık en fazla {{gun}} gün olabilir."
+      }
+    },
+    "durumAlinamadi": "Senkron durumu alınamadı; listenin güncel olup olmadığı bilinmiyor."
   }
 }

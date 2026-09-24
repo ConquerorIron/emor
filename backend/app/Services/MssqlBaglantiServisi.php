@@ -47,6 +47,8 @@ final class MssqlBaglantiServisi
      */
     public function guncelle(string $ortam, array $veri): SqlBaglanti
     {
+        $this->dsnAlanlariniDogrula($veri['sunucu'], $veri['veritabani']);
+
         return DB::transaction(function () use ($ortam, $veri): SqlBaglanti {
             $baglanti = SqlBaglanti::query()
                 ->where('ortam', $ortam)
@@ -55,9 +57,18 @@ final class MssqlBaglantiServisi
 
             $sifre = $veri['sifre'] ?? null;
 
-            if (! $baglanti->exists && ($sifre === null || $sifre === '')) {
+            $sifreBos = $sifre === null || $sifre === '';
+
+            if (! $baglanti->exists && $sifreBos) {
                 throw ValidationException::withMessages([
                     'sifre' => __('hata.sql_sifre_zorunlu'),
+                ]);
+            }
+
+            if ($baglanti->exists && $sifreBos
+                && $baglanti->hedefFarkli($veri['sunucu'], $veri['port'] ?? null, $veri['kullanici_adi'])) {
+                throw ValidationException::withMessages([
+                    'sifre' => __('hata.sql_sifre_hedef_degisti'),
                 ]);
             }
 
@@ -185,11 +196,23 @@ final class MssqlBaglantiServisi
         ];
     }
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** Laravel DSN değerlerini doğrudan birleştirir; ek bağlantı seçeneği eklenemez. */
+    private function dsnAlanlariniDogrula(string $sunucu, string $veritabani): void
+    {
+        foreach (['sunucu' => $sunucu, 'veritabani' => $veritabani] as $alan => $deger) {
+            if (preg_match('/[;{}\x00-\x1F\x7F]/', $deger) === 1) {
+                throw ValidationException::withMessages([
+                    $alan => __('hata.sql_dsn_karakter'),
+                ]);
+            }
+        }
+    }
+
+    /** @return array<string, mixed> */
     private function baglantiConfig(SqlBaglanti $tanim): array
     {
+        $this->dsnAlanlariniDogrula($tanim->sunucu, $tanim->veritabani);
+
         $config = [
             'driver' => 'sqlsrv',
             'host' => $tanim->sunucu,

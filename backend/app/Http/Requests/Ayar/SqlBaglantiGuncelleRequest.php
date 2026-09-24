@@ -10,7 +10,9 @@ final class SqlBaglantiGuncelleRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        // Rota da `can:sistem-yonetimi` ile korunur; istek başka bir rotada
+        // kullanılırsa yetkisiz kalmasın diye burada da denetlenir
+        return $this->user()?->can('sistem-yonetimi') ?? false;
     }
 
     /**

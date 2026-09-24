@@ -38,6 +38,11 @@ final class ErpLoginTest extends TestCase
             {
                 return $this->sonuc;
             }
+
+            public function kullaniciVarMi(string $kullaniciAdi): bool
+            {
+                return false;
+            }
         });
     }
 

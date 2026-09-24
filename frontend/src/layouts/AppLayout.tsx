@@ -8,7 +8,7 @@ import { queryKeys } from '@/api/queryKeys'
 import { CevrimdisiBanner } from '@/components/CevrimdisiBanner'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { sqlBaglantilariGetir } from '@/features/ayarlar/sqlApi'
+import { aktifOrtamGetir } from '@/features/ayarlar/sqlApi'
 import { useAuth } from '@/hooks/useAuth'
 
 import { NavIkon } from './navIkonlari'
@@ -22,6 +22,8 @@ interface NavOgesi {
   end?: boolean
   /** Yalnız ERP sistem yöneticilerine görünür */
   yoneticiye?: boolean
+  /** Yalnız bu izne sahip kullanıcılara görünür (EFAT-18) */
+  izin?: string
 }
 
 interface NavGrubu {
@@ -39,9 +41,21 @@ const NAV_GRUPLARI: NavGrubu[] = [
     ogeler: [{ to: '/satinalma/talep', ad: 'satinalmaTalepleri' }],
   },
   {
+    baslikAnahtari: 'nav.efatura',
+    ogeler: [
+      { to: '/efatura/gelen', ad: 'gelenFaturalar', izin: 'efatura.goruntule' },
+      { to: '/efatura/giden', ad: 'gidenFaturalar', izin: 'efatura.goruntule' },
+    ],
+  },
+  {
     baslikAnahtari: 'nav.ayarlar',
     ogeler: [
-      { to: '/ayarlar/sql-baglantilari', ad: 'sqlBaglantilari' },
+      { to: '/ayarlar/sql-baglantilari', ad: 'sqlBaglantilari', yoneticiye: true },
+      { to: '/ayarlar/entegrator-baglantilari', ad: 'entegratorBaglantilari', yoneticiye: true },
+      { to: '/ayarlar/mail', ad: 'mailAyarlari', yoneticiye: true },
+      { to: '/ayarlar/alarm-kurallari', ad: 'alarmKurallari', yoneticiye: true },
+      { to: '/ayarlar/kullanicilar', ad: 'kullanicilar', yoneticiye: true },
+      { to: '/ayarlar/roller', ad: 'roller', yoneticiye: true },
       { to: '/ayarlar/ekran-tasarimi', ad: 'ekranTasarimi', yoneticiye: true },
     ],
   },
@@ -61,12 +75,22 @@ export function AppLayout() {
   }, [pathname])
 
   // Header'da aktif ortam rozeti: Test'te miyiz Canlı'da mı her ekranda görünür
-  const baglantilar = useQuery({
-    queryKey: queryKeys.ayarlar.sqlBaglantilari,
-    queryFn: sqlBaglantilariGetir,
+  // (bağlantı ayrıntısı değil, yalnız ortam adı — herkese açık uç)
+  const aktifOrtamSorgusu = useQuery({
+    queryKey: queryKeys.ayarlar.aktifOrtam,
+    queryFn: aktifOrtamGetir,
     staleTime: 60_000,
   })
-  const aktifOrtam = baglantilar.data?.aktif_ortam ?? null
+  const aktifOrtam = aktifOrtamSorgusu.data ?? null
+
+  // Kullanıcının göremediği öğeler ve hiç öğesi kalmayan gruplar çizilmez
+  const gorunurMu = (oge: NavOgesi): boolean =>
+    (!oge.yoneticiye || user?.sistem_yoneticisi === true) &&
+    (oge.izin === undefined || (user?.izinler.includes(oge.izin) ?? false))
+  const gorunurGruplar = NAV_GRUPLARI.map((grup) => ({
+    ...grup,
+    ogeler: grup.ogeler.filter(gorunurMu),
+  })).filter((grup) => grup.ogeler.length > 0)
 
   const darDegistir = () => {
     setDar((onceki) => {
@@ -130,7 +154,7 @@ export function AppLayout() {
         </div>
 
         <nav className={`flex-1 space-y-1 overflow-y-auto py-4 ${dar ? 'px-2' : 'px-3'}`}>
-          {NAV_GRUPLARI.map((grup, indeks) => (
+          {gorunurGruplar.map((grup, indeks) => (
             <div key={grup.baslikAnahtari ?? indeks} className={indeks === 0 ? '' : 'pt-4'}>
               {grup.baslikAnahtari && !dar ? (
                 <p className="px-3 pb-1 text-xs font-semibold tracking-wide text-slate-400 uppercase dark:text-slate-500">
@@ -140,20 +164,18 @@ export function AppLayout() {
               {grup.baslikAnahtari && dar ? (
                 <div className="mx-2 mb-1 border-t border-slate-200 dark:border-slate-700" />
               ) : null}
-              {grup.ogeler
-                .filter((oge) => !oge.yoneticiye || user?.sistem_yoneticisi === true)
-                .map((oge) => (
-                  <NavLink
-                    key={oge.to}
-                    to={oge.to}
-                    end={oge.end}
-                    className={navLinkSinifi}
-                    title={dar ? t(`nav.${oge.ad}`) : undefined}
-                  >
-                    <NavIkon ad={oge.ad} />
-                    {dar ? null : <span className="truncate">{t(`nav.${oge.ad}`)}</span>}
-                  </NavLink>
-                ))}
+              {grup.ogeler.map((oge) => (
+                <NavLink
+                  key={oge.to}
+                  to={oge.to}
+                  end={oge.end}
+                  className={navLinkSinifi}
+                  title={dar ? t(`nav.${oge.ad}`) : undefined}
+                >
+                  <NavIkon ad={oge.ad} />
+                  {dar ? null : <span className="truncate">{t(`nav.${oge.ad}`)}</span>}
+                </NavLink>
+              ))}
             </div>
           ))}
         </nav>

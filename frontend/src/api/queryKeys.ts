@@ -8,6 +8,24 @@ export const queryKeys = {
   },
   ayarlar: {
     sqlBaglantilari: ['ayarlar', 'sqlBaglantilari'],
+    // sqlBaglantilari'nın altında: o anahtarın invalidation'ı rozeti de tazeler
+    aktifOrtam: ['ayarlar', 'sqlBaglantilari', 'aktifOrtam'],
+    entegratorBaglantilari: ['ayarlar', 'entegratorBaglantilari'],
+    mail: ['ayarlar', 'mail'],
+    izinler: ['ayarlar', 'izinler'],
+    roller: ['ayarlar', 'roller'],
+    kullanicilar: ['ayarlar', 'kullanicilar'],
+    alarmKurallari: ['ayarlar', 'alarmKurallari'],
+  },
+  // e-Fatura (EFAT-11): entegratör ortamı değişince ['efatura'] ile hepsi tazelenir
+  efatura: {
+    hepsi: ['efatura'],
+    durum: ['efatura', 'durum'],
+    /** Yöne ait tüm liste sayfaları (senkron/ortam değişiminde tazelenir) */
+    yonListeleri: (yon: string) => ['efatura', 'liste', yon] as const,
+    liste: (yon: string, parametreler: Record<string, unknown>) =>
+      ['efatura', 'liste', yon, parametreler] as const,
+    pdf: (faturaId: number) => ['efatura', 'pdf', faturaId] as const,
   },
   /** Ekran tasarım motoru — formu çizen yayındaki düzen */
   ekranTasarimi: (ekran: string) => ['ekranTasarimi', ekran] as const,
