@@ -150,6 +150,28 @@ Test hesabında yalnız GET ile yoklama:
   toplam sayıları ve sayfalama sırasında eklenen kayıtların davranışı.
 - PDF/HTML/XML erişimi ve yan etkileri, yalnız S10'da istenirse incelenecek.
 
+## İzibiz Developer Portal (2026-09-24)
+
+`https://efaturatest.izibiz.com.tr/api-docs/` içeriği girişsiz okunur (sayfanın
+"Giriş Yap"ı yalnız şirkete özel ek içerik içindir). E-Fatura API v1: 14 uç,
+v2: 16 uç. Bizim için anlamlı olanlar:
+
+- **Liste (`GET /v1/einvoices/{inbox|outbox}`):** belgede yanıt alanlarının
+  anlamı yazmıyor; örnek yanıt bizim aldığımızla birebir aynı. `sortProperty`
+  için belgede `createDate`/`deliveryDate` yazıyor; kullandığımız `id` de
+  uygulanıyor (canlıda tek GET ile doğrulandı: `sort=desc` ile id'ler azalan).
+- **Vergi istisna kodu:** liste/detay yanıtında yok; yalnız UBL'de
+  (`cac:TaxCategory/cbc:TaxExemptionReasonCode`). İzibiz desteğinin önerdiği
+  tekil uç `GET /v1/einvoices/inbox/{id}/preview/ubl`; belgede ayrıca toplu
+  `POST /v1/einvoices/inbox/download/{format}` (gövdede id listesi) var — gövde
+  ve yanıt biçimi ile okundu bayraklarına etkisi belgelenmemiş. Kullanıcı kararı:
+  fatura başına istek yok; kod ERP'den (`TOHOM_E_FATURA.VERGI_ISTISNA_KODU`).
+- **Kurallar ("Dikkat edilmesi gereken hususlar"):** zamanlayıcı en az 15 dk
+  (bizde 15 dk); tek çağrıda en çok 100 fatura (bizde pageSize 100); tekil durum
+  sorgusu en az 4 saatte bir (bizde tekil sorgu yok, yalnız liste); okundu
+  işaretleme (MarkInvoice / read-flag) mevcut ERP entegrasyonunun işi — biz
+  çağırmayız.
+
 ## Uygulamaya etkisi
 
 Belge tarihi ile ERP kayıt/işlenme tarihinin aynı olduğu varsayılmamalı.
