@@ -14,6 +14,8 @@ interface PaginationProps {
   disabled?: boolean
   /** Sayfa boyutu seçicisini gizler (ör. modal içi küçük listeler). */
   boyutSecici?: boolean
+  /** Aynı sayfada birden fazla sayfalama (tablo üstü + altı) varsa seçici kimliği ayrı olmalı */
+  boyutSeciciId?: string
 }
 
 const butonSinifi =
@@ -26,11 +28,15 @@ export function Pagination({
   sayfaDegistir,
   disabled = false,
   boyutSecici = true,
+  boyutSeciciId = 'sayfa-boyutu',
 }: PaginationProps) {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const queryClient = useQueryClient()
-  const [boyut, setBoyut] = useState(sayfaBoyutuOku)
+  // Boyut ortak tercihten her çizimde okunur: tablonun üstündeki ve altındaki
+  // sayfalama aynı değeri gösterir (biri değişince diğeri eski kalmaz)
+  const [, yenidenCiz] = useState(0)
+  const boyut = sayfaBoyutuOku()
 
   const ogeler = useMemo<(number | '...')[]>(() => {
     if (toplamSayfa <= 7) {
@@ -70,7 +76,7 @@ export function Pagination({
   // değişince 1. sayfaya dönülür ve tüm liste sorguları tazelenir
   const boyutDegistir = (yeni: number): void => {
     sayfaBoyutuYaz(yeni)
-    setBoyut(yeni)
+    yenidenCiz((n) => n + 1)
     sayfaDegistir(1)
     void queryClient.invalidateQueries()
   }
@@ -79,14 +85,14 @@ export function Pagination({
     <div className="flex flex-wrap items-center justify-end gap-2">
       {boyutSecici ? (
         <label
-          htmlFor="sayfa-boyutu"
+          htmlFor={boyutSeciciId}
           className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300"
         >
           {t('ortak.sayfaBoyutu')}
           {/* Selectbox'lar her zaman react-select (kullanıcı kuralı 2026-07-11 — rules.md §2) */}
           <div className="w-24">
             <Select<SecenekOgesi, false>
-              inputId="sayfa-boyutu"
+              inputId={boyutSeciciId}
               value={boyutSecenekleri.find((oge) => oge.value === String(boyut)) ?? null}
               onChange={(secim) => {
                 if (secim) {

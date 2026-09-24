@@ -111,6 +111,8 @@ final class EFaturaEkranTest extends TestCase
             ->assertJsonPath('data.0.id', $beklenen->id)
             ->assertJsonPath('data.0.tutar', '1250.5000')
             ->assertJsonPath('meta.total', 1)
+            // sayfa_boyutu gönderilmezse varsayılan 50 (frontend ile aynı)
+            ->assertJsonPath('meta.per_page', 50)
             ->assertJsonPath('kapsam.ortam', 'test');
     }
 

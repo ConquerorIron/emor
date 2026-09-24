@@ -8,10 +8,16 @@ const ANAHTAR = 'erp.sayfaBoyutu'
 
 export const SAYFA_BOYUTLARI = [25, 50, 100, 200, 0] as const
 
-export const VARSAYILAN_BOYUT = 25
+export const VARSAYILAN_BOYUT = 50
 
 export function sayfaBoyutuOku(): number {
-  const ham = Number(localStorage.getItem(ANAHTAR))
+  const kayitli = localStorage.getItem(ANAHTAR)
+  // Kayıt yokken Number(null) = 0 ("Hepsi") olurdu; tercih yoksa varsayılan
+  if (kayitli === null || kayitli.trim() === '') {
+    return VARSAYILAN_BOYUT
+  }
+
+  const ham = Number(kayitli)
 
   return (SAYFA_BOYUTLARI as readonly number[]).includes(ham) ? ham : VARSAYILAN_BOYUT
 }

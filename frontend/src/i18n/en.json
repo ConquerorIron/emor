@@ -569,6 +569,7 @@
         "cokGenis": "The range can be at most {{gun}} days."
       }
     },
-    "durumAlinamadi": "Sync status could not be loaded; it is unknown whether the list is current."
+    "durumAlinamadi": "Sync status could not be loaded; it is unknown whether the list is current.",
+    "guncelleniyor": "Updating…"
   }
 }

@@ -183,8 +183,11 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
     oncekiTazelikIzi.current = tazelikIzi
   }, [tazelikIzi, queryClient, yon])
 
-  // Filtre değişince önceki sonuç yeni filtreninmiş gibi gösterilmez
+  // Filtre/sıralama değişince yeni sonuç gelene kadar önceki sonuç yerinde
+  // kalır (tablo silinip yeniden çizilmez) ama soluk ve "güncelleniyor"
+  // işaretlidir — yeni filtreninmiş gibi sunulmaz, Excel bu arada kapalıdır
   const eskiVeri = liste.isPlaceholderData
+  const eskiVeriSinifi = `transition-opacity ${eskiVeri ? 'opacity-50' : ''}`
 
   const excelAl = async () => {
     setExcelSuruyor(true)
@@ -387,17 +390,34 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
         </div>
       ) : (
         <>
-          {liste.data && !eskiVeri ? (
-            <div className="mt-4">
+          {liste.data ? (
+            <div className={`mt-4 ${eskiVeriSinifi}`}>
               <OzetKartlari ozet={liste.data.ozet} toplam={liste.data.meta.total} />
             </div>
           ) : null}
-          <div className="mt-4" aria-busy={liste.isFetching}>
+          {eskiVeri ? (
+            <p role="status" className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              {t('efatura.guncelleniyor')}
+            </p>
+          ) : null}
+          {liste.data ? (
+            // Uzun listede alta inmeden sayfa değiştirilebilsin (altta da aynısı var)
+            <div className="mt-4">
+              <Pagination
+                sayfa={liste.data.meta.current_page}
+                toplamSayfa={liste.data.meta.last_page}
+                sayfaDegistir={setSayfa}
+                disabled={liste.isFetching}
+                boyutSeciciId="sayfa-boyutu-ust"
+              />
+            </div>
+          ) : null}
+          <div className={`mt-4 ${eskiVeriSinifi}`} aria-busy={liste.isFetching}>
             <DataTable
               kolonlar={kolonlar}
               satirlar={liste.data?.data ?? []}
               satirAnahtari={(f) => f.id}
-              yukleniyor={liste.isPending || eskiVeri}
+              yukleniyor={liste.isPending}
               siralama={siralama}
               siralamaDegistir={(anahtar) => {
                 siralamaDegistir(anahtar)
@@ -412,6 +432,7 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
                 toplamSayfa={liste.data.meta.last_page}
                 sayfaDegistir={setSayfa}
                 disabled={liste.isFetching}
+                boyutSeciciId="sayfa-boyutu-alt"
               />
             </div>
           ) : null}

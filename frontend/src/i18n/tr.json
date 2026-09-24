@@ -569,6 +569,7 @@
         "cokGenis": "Aralık en fazla {{gun}} gün olabilir."
       }
     },
-    "durumAlinamadi": "Senkron durumu alınamadı; listenin güncel olup olmadığı bilinmiyor."
+    "durumAlinamadi": "Senkron durumu alınamadı; listenin güncel olup olmadığı bilinmiyor.",
+    "guncelleniyor": "Güncelleniyor…"
   }
 }

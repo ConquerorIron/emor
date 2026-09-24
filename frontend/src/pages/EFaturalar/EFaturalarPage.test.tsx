@@ -160,7 +160,8 @@ describe('EFaturalarPage', () => {
     ciz(['efatura.goruntule'])
     await screen.findByText('Deniz Boya Ltd.')
 
-    fireEvent.click(screen.getByRole('button', { name: '2' }))
+    // Tablonun üstündeki sayfalamadan
+    fireEvent.click(screen.getAllByRole('button', { name: '2' })[0])
     await waitFor(() =>
       expect(api.faturalar).toHaveBeenLastCalledWith('gelen', expect.anything(), null, 2),
     )
@@ -179,8 +180,8 @@ describe('EFaturalarPage', () => {
     )
   })
 
-  it('filtre değişirken önceki sonucun toplamını yeni filtreninmiş gibi göstermez', async () => {
-    ciz(['efatura.goruntule'])
+  it('filtre değişirken tabloyu silmez; önceki sonucu güncelleniyor diye işaretler ve Excel’i kapatır', async () => {
+    ciz(['efatura.goruntule', 'efatura.disari_aktar'])
     await screen.findByText('Deniz Boya Ltd.')
     let bitir!: (liste: typeof LISTE) => void
     api.faturalar.mockImplementation(
@@ -191,12 +192,34 @@ describe('EFaturalarPage', () => {
       target: { value: 'baska' },
     })
 
-    await waitFor(() => expect(screen.queryByLabelText('Özet')).not.toBeInTheDocument())
-    expect(screen.queryByText('Deniz Boya Ltd.')).not.toBeInTheDocument()
-    expect(screen.getByText('Yükleniyor…')).toBeInTheDocument()
+    // Önceki satırlar yerinde kalır (tablo kaybolup yeniden çizilmez)...
+    expect(await screen.findByText('Güncelleniyor…')).toBeInTheDocument()
+    expect(screen.getByText('Deniz Boya Ltd.')).toBeInTheDocument()
+    expect(screen.queryByText('Yükleniyor…')).not.toBeInTheDocument()
+    // ...ama yeni filtreninmiş gibi kullanılamaz
+    expect(screen.getByRole('button', { name: 'Excel' })).toBeDisabled()
 
     bitir({ ...LISTE, data: [], meta: { current_page: 1, last_page: 1, total: 0 }, ozet: [] })
-    expect(await screen.findByLabelText('Özet')).toHaveTextContent('0')
+
+    await waitFor(() => expect(screen.queryByText('Güncelleniyor…')).not.toBeInTheDocument())
+    expect(screen.queryByText('Deniz Boya Ltd.')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Özet')).toHaveTextContent('0')
+  })
+
+  it('sayfalama tablonun üstünde ve altında var; varsayılan 50, biri değişince diğeri de değişir', async () => {
+    ciz(['efatura.goruntule'])
+    await screen.findByText('Deniz Boya Ltd.')
+    const ust = document.querySelector<HTMLElement>('label[for="sayfa-boyutu-ust"]')!
+    const alt = document.querySelector<HTMLElement>('label[for="sayfa-boyutu-alt"]')!
+
+    expect(within(ust).getByText('50')).toBeInTheDocument()
+    expect(within(alt).getByText('50')).toBeInTheDocument()
+
+    fireEvent.keyDown(within(ust).getByRole('combobox'), { key: 'ArrowDown' })
+    fireEvent.click(await within(ust).findByText('100'))
+
+    await waitFor(() => expect(within(alt).getByText('100')).toBeInTheDocument())
+    expect(localStorage.getItem('erp.sayfaBoyutu')).toBe('100')
   })
 
   it('alarm mailindeki bağlantı ERP okumadı filtresiyle açar', async () => {

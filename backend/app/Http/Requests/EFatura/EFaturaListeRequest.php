@@ -75,7 +75,8 @@ final class EFaturaListeRequest extends FormRequest
     /** "Hepsi" (0) da sayfalıdır; üst sınır kötüye kullanımı keser. */
     public function sayfaBoyutu(): int
     {
-        $boyut = $this->integer('sayfa_boyutu', 25);
+        // Varsayılan frontend'deki VARSAYILAN_BOYUT ile aynı (utils/sayfaBoyutu.ts)
+        $boyut = $this->integer('sayfa_boyutu', 50);
 
         return $boyut === 0 ? 1000 : $boyut;
     }
