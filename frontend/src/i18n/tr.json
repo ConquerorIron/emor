@@ -623,8 +623,14 @@
         "islendi": "İşlendi",
         "havuzda": "Havuzda (muhasebeleşmemiş)",
         "yok": "ERP'de yok",
-        "bilinmiyor": "Kontrol edilmedi"
+        "bilinmiyor": "Kontrol edilmedi",
+        "islenmemis": "İşlenmeyenlerin hepsi"
       }
+    },
+    "hizliFiltre": {
+      "baslik": "Hızlı filtreler",
+      "erpIslenmeyenler": "ERP İşlenmeyenler",
+      "istisnalilar": "Vergi İstisnası Olanlar"
     }
   }
 }

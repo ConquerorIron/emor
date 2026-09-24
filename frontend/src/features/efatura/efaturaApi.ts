@@ -71,6 +71,9 @@ export interface EFaturaListesi {
     /** İzibiz durum kodu + Türkçe açıklaması */
     durumlar: { deger: string; aciklama: string | null }[]
     para_birimleri: string[]
+    /** Seçili aralıktaki fatura tipleri ve vergi istisna kodları */
+    tipler: string[]
+    istisna_kodlari: string[]
   }
   kapsam: { ortam: 'test' | 'canli' }
 }
@@ -83,7 +86,8 @@ export type ErpOkunduFiltresi = '' | 'evet' | 'hayir' | 'bilinmiyor'
  */
 export type EmorDurumu = 'islendi' | 'havuzda' | 'yok'
 
-export type EmorFiltresi = '' | EmorDurumu | 'bilinmiyor'
+/** islenmemis: "İşlendi" yazmayanların hepsi (hızlı filtre) */
+export type EmorFiltresi = '' | EmorDurumu | 'bilinmiyor' | 'islenmemis'
 
 export interface EFaturaFiltresi {
   baslangic: string
@@ -93,6 +97,10 @@ export interface EFaturaFiltresi {
   erp_okundu: ErpOkunduFiltresi
   emor: EmorFiltresi
   para_birimi: string
+  tip: string
+  istisna_kodu: string
+  /** Hızlı filtre: vergi istisna kodu olanlar */
+  istisnali: '' | 'evet'
 }
 
 export interface Siralama {
@@ -135,7 +143,16 @@ export interface SenkronDurumu {
 /** Boş filtreler gönderilmez; sayfa boyutu interceptor'dan gelir (`page` varken). */
 function parametreler(filtre: EFaturaFiltresi, siralama: Siralama | null): Record<string, string> {
   const sonuc: Record<string, string> = { baslangic: filtre.baslangic, bitis: filtre.bitis }
-  for (const anahtar of ['ara', 'durum', 'erp_okundu', 'emor', 'para_birimi'] as const) {
+  for (const anahtar of [
+    'ara',
+    'durum',
+    'erp_okundu',
+    'emor',
+    'para_birimi',
+    'tip',
+    'istisna_kodu',
+    'istisnali',
+  ] as const) {
     const deger = filtre[anahtar].trim()
     if (deger !== '') {
       sonuc[anahtar] = deger

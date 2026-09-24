@@ -297,6 +297,49 @@ final class EFaturaEkranTest extends TestCase
             ->assertUnprocessable();
     }
 
+    public function test_hizli_filtreler_islenmeyenleri_ve_istisnalilari_suzer(): void
+    {
+        $tanim = $this->aktifTanim();
+        $this->fatura($tanim, ['emor_durumu' => 'islendi']);
+        $havuzda = $this->fatura($tanim, ['emor_durumu' => 'havuzda', 'vergi_istisna_kodu' => '351']);
+        $yok = $this->fatura($tanim, ['emor_durumu' => 'yok']);
+        $bilinmiyor = $this->fatura($tanim);
+        $kullanici = $this->izinli('efatura.goruntule');
+        $idler = fn (string $sorgu): array => array_column(
+            $this->actingAs($kullanici)->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK.'&sirala=belge_no&yon=asc&'.$sorgu)->assertOk()->json('data'),
+            'id',
+        );
+
+        // "İşlendi" yazmayanların hepsi (kontrol edilmemiş dahil)
+        $this->assertEqualsCanonicalizing([$havuzda->id, $yok->id, $bilinmiyor->id], $idler('emor=islenmemis'));
+        $this->assertSame([$havuzda->id], $idler('istisnali=evet'));
+        $this->assertSame([$havuzda->id], $idler('emor=islenmemis&istisnali=evet'));
+    }
+
+    public function test_tip_ve_istisna_kodu_filtreleri_ve_secenekleri(): void
+    {
+        $tanim = $this->aktifTanim();
+        $istisna = $this->fatura($tanim, ['fatura_tipi' => 'ISTISNA', 'vergi_istisna_kodu' => '318']);
+        $this->fatura($tanim, ['fatura_tipi' => 'ISTISNA', 'vergi_istisna_kodu' => '351']);
+        $this->fatura($tanim, ['fatura_tipi' => 'SATIS']);
+        // Seçili aralık dışındaki değer seçeneklere girmez
+        $this->fatura($tanim, ['fatura_tipi' => 'IADE', 'vergi_istisna_kodu' => '999', 'belge_tarihi' => '2026-03-01']);
+        $kullanici = $this->izinli('efatura.goruntule');
+
+        $this->actingAs($kullanici)
+            ->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK)
+            ->assertJsonPath('secenekler.tipler', ['ISTISNA', 'SATIS'])
+            ->assertJsonPath('secenekler.istisna_kodlari', ['318', '351']);
+
+        $this->actingAs($kullanici)
+            ->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK.'&tip=ISTISNA&istisna_kodu=318')
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $istisna->id);
+        $this->actingAs($kullanici)
+            ->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK.'&istisnali=hayir')
+            ->assertUnprocessable();
+    }
+
     public function test_izinsiz_siralama_kolonu_422_doner(): void
     {
         $this->aktifTanim();

@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
  * Kapsam her zaman tek entegratör tanımı + yöndür (test ve canlı hesabın
  * faturaları karışmaz). Sıralama kolonları allow-list'tir.
  *
- * @phpstan-type Filtre array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, emor?: string|null, para_birimi?: string|null}
+ * @phpstan-type Filtre array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null}
  */
 final class EFaturaSorgusu
 {
@@ -74,12 +74,28 @@ final class EFaturaSorgusu
             default => null,
         };
 
-        // eMOR: islendi | havuzda | yok (EmorDurumu), bilinmiyor = henüz kontrol edilmedi
+        // eMOR: islendi | havuzda | yok (EmorDurumu), bilinmiyor = henüz kontrol
+        // edilmedi, islenmemis = "İşlendi" yazmayanların hepsi (hızlı filtre)
         match ($filtre['emor'] ?? null) {
             null => null,
             'bilinmiyor' => $sorgu->whereNull('emor_durumu'),
+            'islenmemis' => $sorgu->where(fn (Builder $q) => $q->whereNull('emor_durumu')
+                ->orWhere('emor_durumu', '!=', EmorDurumu::Islendi->value)),
             default => $sorgu->where('emor_durumu', $filtre['emor']),
         };
+
+        if (($filtre['tip'] ?? null) !== null) {
+            $sorgu->where('fatura_tipi', $filtre['tip']);
+        }
+
+        if (($filtre['istisna_kodu'] ?? null) !== null) {
+            $sorgu->where('vergi_istisna_kodu', $filtre['istisna_kodu']);
+        }
+
+        // Hızlı filtre: vergi istisna kodu olanlar
+        if (($filtre['istisnali'] ?? null) === 'evet') {
+            $sorgu->whereNotNull('vergi_istisna_kodu');
+        }
 
         return $sorgu;
     }
@@ -156,7 +172,7 @@ final class EFaturaSorgusu
      * Durum, İzibiz'in kodu ve Türkçe açıklamasıyla döner (her kodun tek
      * açıklaması var; boşsa null).
      *
-     * @return array{durumlar: list<array{deger: string, aciklama: string|null}>, para_birimleri: list<string>}
+     * @return array{durumlar: list<array{deger: string, aciklama: string|null}>, para_birimleri: list<string>, tipler: list<string>, istisna_kodlari: list<string>}
      */
     public function secenekler(EntegratorBaglanti $tanim, FaturaYonu $yon, string $baslangic, string $bitis): array
     {
@@ -181,7 +197,17 @@ final class EFaturaSorgusu
         /** @var list<string> $paraBirimleri */
         $paraBirimleri = $taban->clone()->distinct()->orderBy('para_birimi')->pluck('para_birimi')->all();
 
-        return ['durumlar' => $durumlar, 'para_birimleri' => $paraBirimleri];
+        /** @var list<string> $tipler */
+        $tipler = $taban->clone()->whereNotNull('fatura_tipi')->distinct()->orderBy('fatura_tipi')->pluck('fatura_tipi')->all();
+        /** @var list<string> $istisnaKodlari */
+        $istisnaKodlari = $taban->clone()->whereNotNull('vergi_istisna_kodu')->distinct()->orderBy('vergi_istisna_kodu')->pluck('vergi_istisna_kodu')->all();
+
+        return [
+            'durumlar' => $durumlar,
+            'para_birimleri' => $paraBirimleri,
+            'tipler' => $tipler,
+            'istisna_kodlari' => $istisnaKodlari,
+        ];
     }
 
     /**

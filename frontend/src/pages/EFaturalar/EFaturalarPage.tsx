@@ -45,11 +45,20 @@ const BOS_FILTRE: Omit<EFaturaFiltresi, 'bitis'> = {
   erp_okundu: '',
   emor: '',
   para_birimi: '',
+  tip: '',
+  istisna_kodu: '',
+  istisnali: '',
 }
 
 const ERP_FILTRELERI: readonly ErpOkunduFiltresi[] = ['evet', 'hayir', 'bilinmiyor']
 
-const EMOR_FILTRELERI: readonly EmorFiltresi[] = ['islendi', 'havuzda', 'yok', 'bilinmiyor']
+const EMOR_FILTRELERI: readonly EmorFiltresi[] = [
+  'islendi',
+  'islenmemis',
+  'havuzda',
+  'yok',
+  'bilinmiyor',
+]
 
 /** Alarm mailindeki bağlantı (?erp_okundu=hayir) listeyi o filtreyle açar. */
 function adrestekiErpFiltresi(): ErpOkunduFiltresi {
@@ -161,6 +170,32 @@ function EmorRozeti({ deger }: { deger: EmorDurumu | null }) {
     >
       {t(`efatura.emor.${deger}`)}
     </span>
+  )
+}
+
+/** Hızlı filtre düğmesi: basılıyken dolu mavi, tekrar basınca kapanır. */
+function HizliFiltre({
+  aktif,
+  onClick,
+  children,
+}: {
+  aktif: boolean
+  onClick: () => void
+  children: string
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={aktif}
+      onClick={onClick}
+      className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+        aktif
+          ? 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700 dark:border-blue-500 dark:bg-blue-600'
+          : 'border-slate-300 text-slate-700 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-blue-950 dark:hover:text-blue-300'
+      }`}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -453,6 +488,14 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
   const emorSecenekleri: SecenekOgesi[] = EMOR_FILTRELERI.filter(
     (d) => gelen || d !== 'havuzda',
   ).map((d) => ({ value: d, label: t(`efatura.emor.filtre.${d}`) }))
+  const tipSecenekleri: SecenekOgesi[] = (secenekler?.tipler ?? []).map((d) => ({
+    value: d,
+    label: d,
+  }))
+  const istisnaSecenekleri: SecenekOgesi[] = (secenekler?.istisna_kodlari ?? []).map((d) => ({
+    value: d,
+    label: d,
+  }))
   const erpSecenekleri: SecenekOgesi[] = ERP_FILTRELERI.map((d) => ({
     value: d,
     label: t(`efatura.${d}`),
@@ -480,6 +523,31 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
         ) : null}
       </div>
 
+      {/* Hızlı filtreler (kullanıcı isteği 2026-09-24): tekrar basınca kapanır */}
+      <div
+        className="mt-3 flex flex-wrap items-center gap-2"
+        role="group"
+        aria-label={t('efatura.hizliFiltre.baslik')}
+      >
+        <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+          {t('efatura.hizliFiltre.baslik')}
+        </span>
+        <HizliFiltre
+          aktif={filtre.emor === 'islenmemis'}
+          onClick={() => filtreDegistir('emor', filtre.emor === 'islenmemis' ? '' : 'islenmemis')}
+        >
+          {t('efatura.hizliFiltre.erpIslenmeyenler')}
+        </HizliFiltre>
+        {gelen ? (
+          <HizliFiltre
+            aktif={filtre.istisnali === 'evet'}
+            onClick={() => filtreDegistir('istisnali', filtre.istisnali === 'evet' ? '' : 'evet')}
+          >
+            {t('efatura.hizliFiltre.istisnalilar')}
+          </HizliFiltre>
+        ) : null}
+      </div>
+
       <div className="mt-4">
         {durum.data ? <SenkronDurumuPaneli yon={yon} durum={durum.data} /> : null}
         {durum.isError ? (
@@ -488,78 +556,117 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
         ) : null}
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-        <TarihInput
-          id="efatura-baslangic"
-          label={t('efatura.baslangic')}
-          value={filtre.baslangic}
-          onChange={(deger) => filtreDegistir('baslangic', deger)}
-          hata={tarihHatasi !== null ? t(tarihHatasi, { gun: LISTE_AZAMI_GUN }) : undefined}
-        />
-        <TarihInput
-          id="efatura-bitis"
-          label={t('efatura.bitis')}
-          value={filtre.bitis}
-          onChange={(deger) => filtreDegistir('bitis', deger)}
-          hata={tarihHatasi !== null ? t(tarihHatasi, { gun: LISTE_AZAMI_GUN }) : undefined}
-        />
-        <Input
-          id="efatura-ara"
-          type="search"
-          label={t('efatura.ara')}
-          maxLength={100}
-          value={filtre.ara}
-          onChange={(olay) => filtreDegistir('ara', olay.target.value)}
-        />
-        <SelectField
-          id="efatura-durum"
-          label={t('efatura.alan.durum')}
-          options={durumSecenekleri}
-          secenekBicimi={(secenek) => (
-            <span className="inline-flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className={`size-3 shrink-0 rounded-full border ${durumIsaretSinifi(secenek.value)}`}
-              />
-              {secenek.label}
-            </span>
-          )}
-          value={secili(durumSecenekleri, filtre.durum)}
-          onChange={(secim) => filtreDegistir('durum', secim?.value ?? '')}
-          placeholder={t('efatura.hepsi')}
-          isClearable
-        />
-        <SelectField
-          id="efatura-erp"
-          label={t('efatura.alan.erpOkundu')}
-          options={erpSecenekleri}
-          value={secili(erpSecenekleri, filtre.erp_okundu)}
-          onChange={(secim) =>
-            filtreDegistir('erp_okundu', (secim?.value ?? '') as ErpOkunduFiltresi)
-          }
-          placeholder={t('efatura.hepsi')}
-          isClearable
-          isSearchable={false}
-        />
-        <SelectField
-          id="efatura-emor"
-          label={t('efatura.kolon.emor')}
-          options={emorSecenekleri}
-          value={secili(emorSecenekleri, filtre.emor)}
-          onChange={(secim) => filtreDegistir('emor', (secim?.value ?? '') as EmorFiltresi)}
-          placeholder={t('efatura.hepsi')}
-          isClearable
-          isSearchable={false}
-        />
-        <SelectField
-          id="efatura-para"
-          label={t('efatura.alan.paraBirimi')}
-          options={paraSecenekleri}
-          value={secili(paraSecenekleri, filtre.para_birimi)}
-          onChange={(secim) => filtreDegistir('para_birimi', secim?.value ?? '')}
-          placeholder={t('efatura.hepsi')}
-          isClearable
-        />
+      {/* Kısa değerli alanlar dar (tarih, ERP okudu, para birimi); sığmayan alta geçer */}
+      <div className="mt-4 flex flex-wrap items-start gap-3">
+        <div className="w-full sm:w-36">
+          <TarihInput
+            id="efatura-baslangic"
+            label={t('efatura.baslangic')}
+            value={filtre.baslangic}
+            onChange={(deger) => filtreDegistir('baslangic', deger)}
+            hata={tarihHatasi !== null ? t(tarihHatasi, { gun: LISTE_AZAMI_GUN }) : undefined}
+          />
+        </div>
+        <div className="w-full sm:w-36">
+          <TarihInput
+            id="efatura-bitis"
+            label={t('efatura.bitis')}
+            value={filtre.bitis}
+            onChange={(deger) => filtreDegistir('bitis', deger)}
+            hata={tarihHatasi !== null ? t(tarihHatasi, { gun: LISTE_AZAMI_GUN }) : undefined}
+          />
+        </div>
+        <div className="w-full sm:min-w-64 sm:flex-1">
+          <Input
+            id="efatura-ara"
+            type="search"
+            label={t('efatura.ara')}
+            maxLength={100}
+            value={filtre.ara}
+            onChange={(olay) => filtreDegistir('ara', olay.target.value)}
+          />
+        </div>
+        <div className="w-full sm:w-60">
+          <SelectField
+            id="efatura-durum"
+            label={t('efatura.alan.durum')}
+            options={durumSecenekleri}
+            secenekBicimi={(secenek) => (
+              <span className="inline-flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className={`size-3 shrink-0 rounded-full border ${durumIsaretSinifi(secenek.value)}`}
+                />
+                {secenek.label}
+              </span>
+            )}
+            value={secili(durumSecenekleri, filtre.durum)}
+            onChange={(secim) => filtreDegistir('durum', secim?.value ?? '')}
+            placeholder={t('efatura.hepsi')}
+            isClearable
+          />
+        </div>
+        <div className="w-full sm:w-36">
+          <SelectField
+            id="efatura-tip"
+            label={t('efatura.kolon.tip')}
+            options={tipSecenekleri}
+            value={secili(tipSecenekleri, filtre.tip)}
+            onChange={(secim) => filtreDegistir('tip', secim?.value ?? '')}
+            placeholder={t('efatura.hepsi')}
+            isClearable
+          />
+        </div>
+        {gelen ? (
+          <div className="w-full sm:w-40">
+            <SelectField
+              id="efatura-istisna"
+              label={t('efatura.kolon.vergiIstisnaKodu')}
+              options={istisnaSecenekleri}
+              value={secili(istisnaSecenekleri, filtre.istisna_kodu)}
+              onChange={(secim) => filtreDegistir('istisna_kodu', secim?.value ?? '')}
+              placeholder={t('efatura.hepsi')}
+              isClearable
+            />
+          </div>
+        ) : null}
+        <div className="w-full sm:w-36">
+          <SelectField
+            id="efatura-erp"
+            label={t('efatura.alan.erpOkundu')}
+            options={erpSecenekleri}
+            value={secili(erpSecenekleri, filtre.erp_okundu)}
+            onChange={(secim) =>
+              filtreDegistir('erp_okundu', (secim?.value ?? '') as ErpOkunduFiltresi)
+            }
+            placeholder={t('efatura.hepsi')}
+            isClearable
+            isSearchable={false}
+          />
+        </div>
+        <div className="w-full sm:w-52">
+          <SelectField
+            id="efatura-emor"
+            label={t('efatura.kolon.emor')}
+            options={emorSecenekleri}
+            value={secili(emorSecenekleri, filtre.emor)}
+            onChange={(secim) => filtreDegistir('emor', (secim?.value ?? '') as EmorFiltresi)}
+            placeholder={t('efatura.hepsi')}
+            isClearable
+            isSearchable={false}
+          />
+        </div>
+        <div className="w-full sm:w-28">
+          <SelectField
+            id="efatura-para"
+            label={t('efatura.alan.paraBirimi')}
+            options={paraSecenekleri}
+            value={secili(paraSecenekleri, filtre.para_birimi)}
+            onChange={(secim) => filtreDegistir('para_birimi', secim?.value ?? '')}
+            placeholder={t('efatura.hepsi')}
+            isClearable
+          />
+        </div>
       </div>
 
       {tarihHatasi !== null ? (

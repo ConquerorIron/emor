@@ -623,8 +623,14 @@
         "islendi": "Processed",
         "havuzda": "In pool (not accounted)",
         "yok": "Not in ERP",
-        "bilinmiyor": "Not checked"
+        "bilinmiyor": "Not checked",
+        "islenmemis": "All not processed"
       }
+    },
+    "hizliFiltre": {
+      "baslik": "Quick filters",
+      "erpIslenmeyenler": "Not processed in ERP",
+      "istisnalilar": "With tax exemption"
     }
   }
 }

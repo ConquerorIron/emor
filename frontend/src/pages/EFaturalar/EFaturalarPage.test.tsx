@@ -88,6 +88,8 @@ const LISTE: EFaturaListesi = {
   secenekler: {
     durumlar: [{ deger: 'RECEIVED', aciklama: 'Alındı' }],
     para_birimleri: ['TRY'],
+    tipler: ['ISTISNA', 'SATIS'],
+    istisna_kodlari: ['318', '351'],
   },
   kapsam: { ortam: 'test' },
 }
@@ -413,6 +415,58 @@ describe('EFaturalarPage', () => {
         'gelen',
         expect.anything(),
         { anahtar: 'emor', yon: 'asc' },
+        1,
+      ),
+    )
+  })
+
+  it('hızlı filtreler işlenmeyenleri ve istisnalıları ister, tekrar basınca kapanır', async () => {
+    ciz(['efatura.goruntule'])
+    await screen.findByText('Deniz Boya Ltd.')
+    const grup = screen.getByRole('group', { name: 'Hızlı filtreler' })
+    const islenmeyenler = within(grup).getByRole('button', { name: 'ERP İşlenmeyenler' })
+
+    fireEvent.click(islenmeyenler)
+    fireEvent.click(within(grup).getByRole('button', { name: 'Vergi İstisnası Olanlar' }))
+
+    await waitFor(() =>
+      expect(api.faturalar).toHaveBeenLastCalledWith(
+        'gelen',
+        expect.objectContaining({ emor: 'islenmemis', istisnali: 'evet' }),
+        VARSAYILAN_SIRALAMA,
+        1,
+      ),
+    )
+    expect(islenmeyenler).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(islenmeyenler)
+    await waitFor(() =>
+      expect(api.faturalar).toHaveBeenLastCalledWith(
+        'gelen',
+        expect.objectContaining({ emor: '', istisnali: 'evet' }),
+        VARSAYILAN_SIRALAMA,
+        1,
+      ),
+    )
+    expect(islenmeyenler).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('tip ve vergi istisna kodu seçenekleri listedeki değerlerden gelir', async () => {
+    ciz(['efatura.goruntule'])
+    await screen.findByText('Deniz Boya Ltd.')
+    const alan = (id: string) =>
+      document.querySelector<HTMLElement>(`label[for="${id}"]`)!.parentElement!
+
+    fireEvent.keyDown(within(alan('efatura-tip')).getByRole('combobox'), { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByText('ISTISNA'))
+    fireEvent.keyDown(within(alan('efatura-istisna')).getByRole('combobox'), { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByText('351'))
+
+    await waitFor(() =>
+      expect(api.faturalar).toHaveBeenLastCalledWith(
+        'gelen',
+        expect.objectContaining({ tip: 'ISTISNA', istisna_kodu: '351' }),
+        VARSAYILAN_SIRALAMA,
         1,
       ),
     )
