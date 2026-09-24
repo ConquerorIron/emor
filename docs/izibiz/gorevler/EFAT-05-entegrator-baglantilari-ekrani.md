@@ -72,6 +72,18 @@ bu incelemede yapılmadı.
 2026-09-24 (Claude, kullanıcı isteği): API adresi artık ekrandan tanımlanır.
 
 - Test ve canlı için ayrı adres girilebilir. Adres
-   kolonunda saklanır (yeni migration). Boş
+  `entegrator_baglantilari.api_url` kolonunda saklanır (yeni migration). Boş
   bırakılırsa ortamın config'teki varsayılan adresi kullanılır.
-- Önceki adres
+- Önceki "adres sabit" kararının amacı korundu: kayıtlı şifre yabancı bir
+  sunucuya gönderilmesin. Bu yüzden:
+  - Yalnız `https://alan-adı[:port]` kabul edilir; yol, sorgu ve kullanıcı
+    bilgisi reddedilir.
+  - Alan adı `config/entegrator.php` → `izinli_alan_adlari` listesinde olmalı
+    (şimdilik `izibiz.com.tr` ve alt alan adları). Sonek hilesi
+    (`izibiz.com.tr.saldirgan.example`) reddedilir.
+  - Adres değişince (boşaltmak dahil) kayıtlı şifre yeniden istenir. Kimlik
+    sürümü artar ve eski token önbellekten silinir.
+  - Sınama ucu formdaki yeni adrese kayıtlı şifreyi göndermez.
+- Portal adresi hâlâ türetilir; yalnız bilgi amaçlı gösterilir, çağrı yapılmaz.
+- Testler: backend `EntegratorBaglantiTest` genişletildi (toplam 308 test,
+  SQLite + PostgreSQL). Frontend sayfa testleri güncellendi (188).
