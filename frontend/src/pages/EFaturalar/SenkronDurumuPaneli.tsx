@@ -8,7 +8,12 @@ import { queryKeys } from '@/api/queryKeys'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
 import { TarihInput } from '@/components/TarihInput'
-import { type FaturaYonu, type SenkronDurumu, senkronBaslat } from '@/features/efatura/efaturaApi'
+import {
+  type FaturaYonu,
+  type SenkronDurumu,
+  erpSenkronla,
+  senkronBaslat,
+} from '@/features/efatura/efaturaApi'
 import { useIzin } from '@/hooks/useIzin'
 import { bugunIso, gunEkle, gunFarki, tarihGoster, zamanGoster } from '@/utils/tarih'
 
@@ -132,6 +137,38 @@ function SenkronFormu({ kapat }: { kapat: () => void }) {
 }
 
 /**
+ * "ERP Senkronla": eMOR kolonunu hemen tazeler — ERP'deki işlenmiş faturalar
+ * (TOHOM_FATURA) ile entegratör ETTN'leri eşleştirilir. Aynı iş 5 dakikada bir
+ * kendiliğinden de çalışır.
+ */
+function ErpSenkronDugmesi() {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+
+  const eslestir = useMutation({
+    mutationFn: erpSenkronla,
+    onSuccess: async (sonuc) => {
+      toast.success(t('efatura.erpSenkron.tamam', { ...sonuc }))
+      await queryClient.invalidateQueries({ queryKey: queryKeys.efatura.yonListeleri('gelen') })
+    },
+    onError: (error: unknown) => {
+      toast.error(dogrulamaMesaji(error) ?? t(apiErrorKey(error)))
+    },
+  })
+
+  return (
+    <Button
+      variant="secondary"
+      onClick={() => eslestir.mutate()}
+      yukleniyor={eslestir.isPending}
+      title={t('efatura.erpSenkron.aciklama')}
+    >
+      {t('efatura.erpSenkron.ac')}
+    </Button>
+  )
+}
+
+/**
  * Verinin nereden (Test/Canlı) ve ne zamana kadar geldiğini gösterir; eski
  * veri "güncel" gibi sunulmaz. Senkron hataları iş verisinden ayrı gösterilir.
  */
@@ -163,14 +200,17 @@ export function SenkronDurumuPaneli({ yon, durum }: { yon: FaturaYonu; durum: Se
             : t('efatura.veriZamaniYok')}
         </span>
         {senkronIzni ? (
-          <Button
-            variant="secondary"
-            className="ml-auto"
-            onClick={() => setFormAcik(true)}
-            disabled={durum.ortam === null || durum.manuel_istek !== null}
-          >
-            {t('efatura.senkron.ac')}
-          </Button>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setFormAcik(true)}
+              disabled={durum.ortam === null || durum.manuel_istek !== null}
+            >
+              {t('efatura.senkron.ac')}
+            </Button>
+            {/* eMOR yalnız gelen faturada (ERP'ye işlendi mi) */}
+            {yon === 'gelen' ? <ErpSenkronDugmesi /> : null}
+          </div>
         ) : null}
       </div>
 

@@ -9,14 +9,17 @@ use App\Http\Requests\EFatura\EFaturaSenkronRequest;
 use App\Jobs\EFaturaManuelSenkron;
 use App\Models\EFaturaSenkronCalismasi;
 use App\Services\Entegrator\EFaturaDurumServisi;
+use App\Services\Entegrator\EmorIslenmeServisi;
 use App\Services\Entegrator\EntegratorHatasi;
 use App\Services\Entegrator\FaturaYonu;
 use App\Services\EntegratorBaglantiServisi;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 /**
@@ -28,6 +31,28 @@ final class EFaturaSenkronController extends Controller
         private readonly EntegratorBaglantiServisi $baglantilar,
         private readonly EFaturaDurumServisi $durum,
     ) {}
+
+    /**
+     * "ERP Senkronla": eMOR kolonunu hemen tazeler (5 dakikalık efatura:emor
+     * komutunun elle hali). ERP'den yalnız SELECT yapılır; okunamazsa
+     * bayraklar değişmez. Aktif ERP ortamı yoksa 422 (MssqlBaglantiServisi).
+     */
+    public function erpEslestir(Request $request, EmorIslenmeServisi $emor): JsonResponse
+    {
+        try {
+            $sonuc = $emor->tazele();
+        } catch (ValidationException $hata) {
+            throw $hata;
+        } catch (Throwable $hata) {
+            Log::warning('eMOR elle tazelenemedi: ERP okunamadı', ['hata' => $hata->getMessage()]);
+
+            return response()->json(['kod' => 'ERP_OKUNAMADI', 'mesaj' => __('hata.erp_okunamadi')], 502);
+        }
+
+        Log::info('eMOR elle tazelendi', ['kullanici_id' => $request->user()?->id, ...$sonuc]);
+
+        return response()->json(['data' => $sonuc]);
+    }
 
     /**
      * Aktif ortam, yön başına veri zamanı/güncellik, süren ve son çalışma.

@@ -64,6 +64,9 @@ return [
     'mail_sifre_hedef_degisti' => 'Sunucu, port, kullanıcı adı veya şifreleme değiştiğinde SMTP şifresi yeniden girilmelidir.',
     'mail_gonderilemedi' => 'Mail gönderilemedi: :detay',
 
+    // ERP Senkronla (eMOR)
+    'erp_okunamadi' => 'ERP okunamadı; eMOR bilgisi değiştirilmedi. Biraz sonra tekrar deneyin.',
+
     // Yetki devri (YetkiSiniri)
     'izin_verme_siniri' => 'Yalnız kendinizde olan izinleri verebilir ya da değiştirebilirsiniz.',
 

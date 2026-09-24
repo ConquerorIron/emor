@@ -489,7 +489,8 @@
     "EFATURA_SENKRON_SURUYOR": "A manual sync is already queued or running.",
     "EFATURA_SENKRON_KAPALI": "e-Invoice sync is disabled on the server.",
     "BEKLENMEYEN_HATA": "An unexpected error occurred during sync (see server log).",
-    "YAZMA_HATASI": "Invoices could not be written to the database."
+    "YAZMA_HATASI": "Invoices could not be written to the database.",
+    "ERP_OKUNAMADI": "Could not read the ERP; eMOR was not changed. Please try again shortly."
   },
   "yetki": {
     "goruntule": "View",
@@ -575,7 +576,7 @@
       "cokGenis": "The date range can be at most {{gun}} days."
     },
     "senkron": {
-      "ac": "Sync Now",
+      "ac": "Sync with integrator",
       "baslik": "Sync from İzibiz",
       "aciklama": "Incoming and outgoing invoices in the selected range are re-read from İzibiz (at most {{gun}} days). The job runs in the background; this screen shows its status.",
       "baslat": "Start Sync",
@@ -617,6 +618,11 @@
     },
     "emorIslendi": "Processed",
     "emorIslenmedi": "Not processed",
-    "emorBilinmiyor": "Not checked in ERP yet"
+    "emorBilinmiyor": "Not checked in ERP yet",
+    "erpSenkron": {
+      "ac": "Sync with ERP",
+      "aciklama": "Checks now whether incoming invoices are processed in the ERP (TOHOM_FATURA) and updates the eMOR column. Also runs automatically every 5 minutes.",
+      "tamam": "eMOR updated: {{islendi}} processed, {{islenmedi}} not processed ({{degisen}} changed)."
+    }
   }
 }

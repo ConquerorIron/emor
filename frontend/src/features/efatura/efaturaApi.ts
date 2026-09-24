@@ -161,6 +161,19 @@ export async function senkronBaslat(aralik: { baslangic: string; bitis: string }
   await api.post('/api/v1/efatura/senkron', aralik)
 }
 
+export interface ErpSenkronSonucu {
+  islendi: number
+  islenmedi: number
+  degisen: number
+}
+
+/** "ERP Senkronla": gelen faturaların eMOR (ERP'ye işlendi mi) bilgisini hemen tazeler. */
+export async function erpSenkronla(): Promise<ErpSenkronSonucu> {
+  const yanit = await api.post<{ data: ErpSenkronSonucu }>('/api/v1/efatura/erp-senkron')
+
+  return yanit.data.data
+}
+
 /**
  * Blob yanıtlı isteklerde hata gövdesi de Blob gelir; `kod` alanı okunabilsin
  * diye JSON'a çevrilip hataya geri yazılır (apiErrorKey sözleşmesi).

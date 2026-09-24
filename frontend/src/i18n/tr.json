@@ -489,7 +489,8 @@
     "EFATURA_SENKRON_SURUYOR": "Elle başlatılan bir senkron zaten sırada ya da çalışıyor.",
     "EFATURA_SENKRON_KAPALI": "e-Fatura senkronu sunucuda kapatılmış.",
     "BEKLENMEYEN_HATA": "Senkronda beklenmeyen bir hata oluştu (sunucu kaydına bakın).",
-    "YAZMA_HATASI": "Faturalar veritabanına yazılamadı."
+    "YAZMA_HATASI": "Faturalar veritabanına yazılamadı.",
+    "ERP_OKUNAMADI": "ERP okunamadı; eMOR bilgisi değiştirilmedi. Biraz sonra tekrar deneyin."
   },
   "yetki": {
     "goruntule": "Görüntüle",
@@ -575,7 +576,7 @@
       "cokGenis": "Tarih aralığı en fazla {{gun}} gün olabilir."
     },
     "senkron": {
-      "ac": "Şimdi Senkronla",
+      "ac": "Entegratör Senkronla",
       "baslik": "İzibiz'den Senkronla",
       "aciklama": "Seçilen aralıktaki gelen ve giden faturalar İzibiz'den yeniden okunur (en fazla {{gun}} gün). İş arka planda çalışır; bu ekran durumunu gösterir.",
       "baslat": "Senkronu Başlat",
@@ -617,6 +618,11 @@
     },
     "emorIslendi": "İşlendi",
     "emorIslenmedi": "İşlenmedi",
-    "emorBilinmiyor": "ERP henüz kontrol edilmedi"
+    "emorBilinmiyor": "ERP henüz kontrol edilmedi",
+    "erpSenkron": {
+      "ac": "ERP Senkronla",
+      "aciklama": "Gelen faturaların ERP'ye (TOHOM_FATURA) işlenip işlenmediğini şimdi kontrol eder; eMOR kolonu güncellenir. 5 dakikada bir kendiliğinden de yapılır.",
+      "tamam": "eMOR güncellendi: {{islendi}} işlendi, {{islenmedi}} işlenmedi ({{degisen}} değişti)."
+    }
   }
 }

@@ -6,9 +6,11 @@ namespace Tests\Feature;
 
 use App\Models\EFatura;
 use App\Models\EntegratorBaglanti;
+use App\Models\Rol;
 use App\Models\User;
 use App\Services\ErpFaturaKaynagi;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Tests\TestCase;
@@ -89,6 +91,45 @@ final class EFaturaEmorTest extends TestCase
         $this->assertTrue($fatura->fresh()->emor_islendi);
         $this->assertNull($bos->fresh()->emor_islendi);
         Log::shouldHaveReceived('warning')->once();
+    }
+
+    public function test_erp_senkronla_dugmesi_emoru_hemen_tazeler(): void
+    {
+        $tanim = EntegratorBaglanti::factory()->aktif()->create();
+        $fatura = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => self::ISLENMIS]);
+        $this->erp([self::ISLENMIS]);
+
+        $this->actingAs(User::factory()->yonetici()->create())
+            ->postJson('/api/v1/efatura/erp-senkron')
+            ->assertOk()
+            ->assertExactJson(['data' => ['islendi' => 1, 'islenmedi' => 0, 'degisen' => 1]]);
+
+        $this->assertTrue($fatura->fresh()->emor_islendi);
+    }
+
+    public function test_erp_senkronla_erp_okunamazsa_502_doner_ve_bayrak_degismez(): void
+    {
+        $tanim = EntegratorBaglanti::factory()->aktif()->create();
+        $fatura = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_islendi' => true]);
+        $this->erp(new RuntimeException('bağlantı zaman aşımı'));
+
+        $this->actingAs(User::factory()->yonetici()->create())
+            ->postJson('/api/v1/efatura/erp-senkron')
+            ->assertStatus(502)
+            ->assertJsonPath('kod', 'ERP_OKUNAMADI');
+
+        $this->assertTrue($fatura->fresh()->emor_islendi);
+    }
+
+    public function test_erp_senkronla_senkron_izni_ister(): void
+    {
+        $kullanici = User::factory()->create();
+        $rol = Rol::query()->create(['ad' => 'Görüntüleyici']);
+        DB::table('rol_izinleri')->insert(['rol_id' => $rol->id, 'izin' => 'efatura.goruntule']);
+        $kullanici->roller()->attach($rol);
+        $this->erp([]);
+
+        $this->actingAs($kullanici)->postJson('/api/v1/efatura/erp-senkron')->assertForbidden();
     }
 
     public function test_liste_emor_bayragini_doner(): void

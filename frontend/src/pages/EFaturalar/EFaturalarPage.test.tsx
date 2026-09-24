@@ -18,7 +18,11 @@ const api = vi.hoisted(() => ({
   senkron: vi.fn(),
   excel: vi.fn(),
   pdf: vi.fn(),
+  erp: vi.fn(),
 }))
+
+const toastlar = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+vi.mock('sonner', () => ({ toast: toastlar }))
 
 vi.mock('@/features/efatura/efaturaApi', () => ({
   faturalariGetir: api.faturalar,
@@ -26,6 +30,7 @@ vi.mock('@/features/efatura/efaturaApi', () => ({
   senkronBaslat: api.senkron,
   excelIndir: api.excel,
   pdfGetir: api.pdf,
+  erpSenkronla: api.erp,
 }))
 
 const FATURA: EFatura = {
@@ -173,7 +178,7 @@ describe('EFaturalarPage', () => {
 
     expect(screen.queryByRole('button', { name: 'PDF' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Excel' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Şimdi Senkronla' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Entegratör Senkronla' })).not.toBeInTheDocument()
   })
 
   it('başka sayfadayken arama yapılınca gecikmeyle ve 1. sayfadan uygular', async () => {
@@ -472,12 +477,36 @@ describe('EFaturalarPage', () => {
     expect(birak).toHaveBeenCalledTimes(olustur.mock.calls.length)
   })
 
+  it('ERP Senkronla eMOR’u tazeler, sonucu bildirir ve listeyi yeniden okur', async () => {
+    api.erp.mockResolvedValue({ islendi: 5, islenmedi: 2, degisen: 1 })
+    ciz(TUM_IZINLER)
+    await screen.findByText('Deniz Boya Ltd.')
+    const okumaSayisi = api.faturalar.mock.calls.length
+
+    fireEvent.click(screen.getByRole('button', { name: 'ERP Senkronla' }))
+
+    await waitFor(() =>
+      expect(toastlar.success).toHaveBeenCalledWith(
+        'eMOR güncellendi: 5 işlendi, 2 işlenmedi (1 değişti).',
+      ),
+    )
+    expect(api.erp).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(api.faturalar.mock.calls.length).toBeGreaterThan(okumaSayisi))
+  })
+
+  it('senkron izni olmayan ERP Senkronla düğmesini görmez', async () => {
+    ciz(['efatura.goruntule'])
+    await screen.findByText('Deniz Boya Ltd.')
+
+    expect(screen.queryByRole('button', { name: 'ERP Senkronla' })).not.toBeInTheDocument()
+  })
+
   it('elle senkronu seçilen aralıkla başlatır', async () => {
     api.senkron.mockResolvedValue(undefined)
     ciz(TUM_IZINLER)
     await screen.findByText('Deniz Boya Ltd.')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Şimdi Senkronla' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Entegratör Senkronla' }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Senkronu Başlat' }))
 
@@ -495,7 +524,7 @@ describe('EFaturalarPage', () => {
     ciz(TUM_IZINLER)
     await screen.findByText('Deniz Boya Ltd.')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Şimdi Senkronla' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Entegratör Senkronla' }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.change(within(dialog).getByLabelText('Başlangıç'), {
       target: { value: '01.01.2026' },
@@ -511,7 +540,7 @@ describe('EFaturalarPage', () => {
     ciz(TUM_IZINLER)
     await screen.findByText('Deniz Boya Ltd.')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Şimdi Senkronla' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Entegratör Senkronla' }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.change(within(dialog).getByLabelText('Başlangıç'), {
       target: { value: '31.12.2025' },
@@ -539,6 +568,6 @@ describe('EFaturalarPage', () => {
     expect(
       await screen.findByText('Elle senkron sırada ya da çalışıyor (01.09.2026 – 23.09.2026).'),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Şimdi Senkronla' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Entegratör Senkronla' })).toBeDisabled()
   })
 })

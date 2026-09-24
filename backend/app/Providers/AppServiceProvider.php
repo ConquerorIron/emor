@@ -83,5 +83,10 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('efatura-excel', function (Request $request): Limit {
             return Limit::perMinute(5)->by($request->user()?->id ?? $request->ip());
         });
+
+        // ERP Senkronla: her basış ERP'de tüm işlenmiş fatura ETTN'lerini okur
+        RateLimiter::for('efatura-erp', function (Request $request): Limit {
+            return Limit::perMinute(6)->by($request->user()?->id ?? $request->ip());
+        });
     }
 }

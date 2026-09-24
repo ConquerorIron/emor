@@ -122,6 +122,10 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/efatura/senkron', [EFaturaSenkronController::class, 'baslat'])
                 ->middleware('can:efatura.senkron')
                 ->name('efatura.senkron');
+            // "ERP Senkronla": eMOR (ERP'ye işlendi mi) hemen tazelenir
+            Route::post('/efatura/erp-senkron', [EFaturaSenkronController::class, 'erpEslestir'])
+                ->middleware(['can:efatura.senkron', 'throttle:efatura-erp'])
+                ->name('efatura.erp-senkron');
         });
 
         // Header'daki Test/Canlı rozeti — her kullanıcıya yalnız ortam adı döner
