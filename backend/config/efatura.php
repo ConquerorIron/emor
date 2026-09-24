@@ -41,4 +41,9 @@ return [
     // Birikmiş faturalar bu hızla (saatte ~800 fatura) yavaşça okunur.
     'istisna_parti_boyutu' => 50,
     'istisna_azami_istek' => 4,
+
+    // ERP'de boş olan vergi istisna kodu entegratördekiyle doldurulsun mu
+    // (TOHOM_E_FATURA'ya doğrudan UPDATE; yalnız boş koda). Varsayılan KAPALI:
+    // sunucuda yazılacak liste kullanıcıya onaylatıldıktan sonra .env ile açılır.
+    'erp_istisna_kodu_yaz' => (bool) env('EFATURA_ERP_ISTISNA_YAZ', false),
 ];

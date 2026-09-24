@@ -7,6 +7,8 @@ namespace App\Providers;
 use App\Models\User;
 use App\Services\ErpFaturaKaynagi;
 use App\Services\ErpFaturaSorgusu;
+use App\Services\ErpIstisnaKoduYazici;
+use App\Services\ErpIstisnaKoduYazimi;
 use App\Services\ErpKimlikDogrulama;
 use App\Services\ErpKimlikDogrulayici;
 use App\Yetki\Izin;
@@ -28,6 +30,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(
             ErpFaturaKaynagi::class,
             ErpFaturaSorgusu::class,
+        );
+
+        $this->app->bind(
+            ErpIstisnaKoduYazici::class,
+            ErpIstisnaKoduYazimi::class,
         );
     }
 

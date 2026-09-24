@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Services\Entegrator\EmorIslenmeServisi;
+use App\Services\Entegrator\ErpIstisnaKoduAktarimi;
 use App\Services\Entegrator\FaturaYonu;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -14,16 +15,18 @@ use Throwable;
 
 /**
  * eMOR kolonunu tazeler: gelen ve giden e-faturaların aktif ERP ortamında
- * karşılığı var mı (EmorIslenmeServisi). ERP'den yalnız okuma yapılır. Bir
- * yön okunamazsa diğeri yine tazelenir; komut başarısız döner.
+ * karşılığı var mı (EmorIslenmeServisi). Bir yön okunamazsa diğeri yine
+ * tazelenir; komut başarısız döner. ERP'ye tek yazım: boş vergi istisna kodu
+ * entegratördekiyle doldurulur (ErpIstisnaKoduAktarimi, kullanıcı kararı 2026-09-24).
  */
 #[Signature('efatura:emor')]
 #[Description('e-Faturaların ERP\'de karşılığı olup olmadığını (eMOR) tazeler')]
 final class EFaturaEmor extends Command
 {
-    public function handle(EmorIslenmeServisi $servis): int
+    public function handle(EmorIslenmeServisi $servis, ErpIstisnaKoduAktarimi $aktarim): int
     {
         $basarisiz = false;
+        $gelenOkundu = false;
 
         foreach (FaturaYonu::cases() as $yon) {
             try {
@@ -37,6 +40,7 @@ final class EFaturaEmor extends Command
                 continue;
             }
 
+            $gelenOkundu = $gelenOkundu || $yon === FaturaYonu::Gelen;
             $this->line(sprintf(
                 'eMOR %s: işlendi %d, havuzda %d, yok %d, değişen %d',
                 $yon->value,
@@ -45,6 +49,25 @@ final class EFaturaEmor extends Command
                 $sonuc['yok'],
                 $sonuc['degisen'],
             ));
+        }
+
+        // ERP'de boş olan istisna kodu entegratördekiyle doldurulur — yalnız
+        // ERP taze okunduysa (havuz bilgisi güncel) ve anahtar açıksa
+        if ($gelenOkundu && config('efatura.erp_istisna_kodu_yaz')) {
+            try {
+                $aktarilan = $aktarim->aktar();
+                $this->line(sprintf(
+                    'İstisna kodu ERP\'ye: %d yazıldı, %d uzun olduğu için atlandı, %d yazılmadı',
+                    $aktarilan['yazilan'],
+                    $aktarilan['uzun'],
+                    $aktarilan['yazilmayan'],
+                ));
+            } catch (Throwable $hata) {
+                // Yetki/erişim sorunu eMOR'u etkilemez; bir sonraki çalışma yeniden dener
+                Log::warning('İstisna kodu ERP\'ye yazılamadı', ['hata' => $hata->getMessage()]);
+                $this->error('İstisna kodu ERP\'ye yazılamadı (yetki/erişim); eMOR etkilenmedi.');
+                $basarisiz = true;
+            }
         }
 
         return $basarisiz ? self::FAILURE : self::SUCCESS;
