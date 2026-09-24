@@ -17,4 +17,13 @@ interface ErpFaturaKaynagi
      * @return list<string>
      */
     public function islenmisGelenEttnler(): array;
+
+    /**
+     * ERP'nin gönderilen e-fatura listesi (fatura + gider yansıtma). ETTN
+     * gider yansıtmada boş olabilir; o zaman belge no + alıcı VKN'si kullanılır.
+     * ERP'ye ulaşılamazsa istisna fırlatır.
+     *
+     * @return list<array{ettn: string|null, belge_no: string, vkn: string}>
+     */
+    public function gonderilenFaturalar(): array;
 }

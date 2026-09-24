@@ -19,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -39,8 +40,11 @@ final class EFaturaSenkronController extends Controller
      */
     public function erpEslestir(Request $request, EmorIslenmeServisi $emor): JsonResponse
     {
+        /** @var array{yon: string} $veri */
+        $veri = $request->validate(['yon' => ['required', Rule::enum(FaturaYonu::class)]]);
+
         try {
-            $sonuc = $emor->tazele();
+            $sonuc = $emor->tazele(FaturaYonu::from($veri['yon']));
         } catch (ValidationException $hata) {
             throw $hata;
         } catch (Throwable $hata) {

@@ -15,7 +15,10 @@ use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Tests\TestCase;
 
-/** eMOR kolonu: gelen fatura ERP'ye (TOHOM_FATURA.E_FATURA_ETTN) işlenmiş mi. */
+/**
+ * eMOR kolonu: e-faturanın ERP'de karşılığı var mı. Gelen: TOHOM_FATURA
+ * E_FATURA_ETTN; giden: ERP_GONDERILEN_E_FATURA_LISTESI (ETTN, yoksa belge no + VKN).
+ */
 final class EFaturaEmorTest extends TestCase
 {
     use RefreshDatabase;
@@ -23,98 +26,149 @@ final class EFaturaEmorTest extends TestCase
     private const ISLENMIS = 'eeb4f1a9-9bc7-4576-beb6-00000000000a';
 
     /**
-     * @param  list<string>|RuntimeException  $sonuc
+     * @param  list<string>|RuntimeException  $gelen
+     * @param  list<array{ettn: string|null, belge_no: string, vkn: string}>|RuntimeException  $giden
      */
-    private function erp(array|RuntimeException $sonuc): void
+    private function erp(array|RuntimeException $gelen, array|RuntimeException $giden = []): void
     {
-        $this->app->instance(ErpFaturaKaynagi::class, new class($sonuc) implements ErpFaturaKaynagi
+        $this->app->instance(ErpFaturaKaynagi::class, new class($gelen, $giden) implements ErpFaturaKaynagi
         {
-            /** @param list<string>|RuntimeException $sonuc */
-            public function __construct(private readonly array|RuntimeException $sonuc) {}
+            /**
+             * @param  list<string>|RuntimeException  $gelen
+             * @param  list<array{ettn: string|null, belge_no: string, vkn: string}>|RuntimeException  $giden
+             */
+            public function __construct(
+                private readonly array|RuntimeException $gelen,
+                private readonly array|RuntimeException $giden,
+            ) {}
 
             public function islenmisGelenEttnler(): array
             {
-                if ($this->sonuc instanceof RuntimeException) {
-                    throw $this->sonuc;
-                }
+                return $this->gelen instanceof RuntimeException ? throw $this->gelen : $this->gelen;
+            }
 
-                return $this->sonuc;
+            public function gonderilenFaturalar(): array
+            {
+                return $this->giden instanceof RuntimeException ? throw $this->giden : $this->giden;
             }
         });
     }
 
+    private function tanim(): EntegratorBaglanti
+    {
+        return EntegratorBaglanti::factory()->aktif()->create();
+    }
+
     public function test_erpde_ettni_olan_gelen_fatura_islendi_digerleri_islenmedi_olur(): void
     {
-        $tanim = EntegratorBaglanti::factory()->aktif()->create();
+        $tanim = $this->tanim();
         // İzibiz ETTN'i küçük harfle saklanır; ERP büyük harf dönebilir
         $islenmis = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => self::ISLENMIS]);
         $islenmemis = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id]);
-        $giden = EFatura::factory()->giden()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => 'aaaaaaaa-0000-0000-0000-000000000001']);
-        $this->erp([strtoupper(self::ISLENMIS), 'aaaaaaaa-0000-0000-0000-000000000001']);
+        $this->erp([strtoupper(self::ISLENMIS)]);
 
         $this->artisan('efatura:emor')
-            ->expectsOutput('eMOR: işlendi 1, işlenmedi 1, değişen 2')
+            ->expectsOutput('eMOR gelen: işlendi 1, işlenmedi 1, değişen 2')
+            ->expectsOutput('eMOR giden: işlendi 0, işlenmedi 0, değişen 0')
             ->assertSuccessful();
 
         $this->assertTrue($islenmis->fresh()->emor_islendi);
         $this->assertFalse($islenmemis->fresh()->emor_islendi);
-        // Giden faturalar bu kontrolün kapsamı dışında
-        $this->assertNull($giden->fresh()->emor_islendi);
+    }
+
+    public function test_giden_fatura_ettn_ile_ya_da_ettnsiz_erp_satirinda_belge_no_ve_vkn_ile_eslesir(): void
+    {
+        $tanim = $this->tanim();
+        $giden = fn (array $alanlar): EFatura => EFatura::factory()->giden()->create(['entegrator_baglanti_id' => $tanim->id, ...$alanlar]);
+        $ettnIle = $giden(['ettn' => self::ISLENMIS]);
+        $noVknIle = $giden(['belge_no' => 'INS2026000000250', 'alici_vkn' => '0730433545']);
+        // ERP satırında ETTN VAR ve farklı: belge no aynı olsa da eşleşmez
+        $celisen = $giden(['belge_no' => 'KUR2026000000001', 'alici_vkn' => '1111111111']);
+        $yok = $giden([]);
+        // Gelen faturalar giden listesinden etkilenmez
+        $gelen = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => self::ISLENMIS]);
+
+        $this->erp([], [
+            ['ettn' => strtoupper(self::ISLENMIS), 'belge_no' => 'ABC', 'vkn' => '9'],
+            ['ettn' => null, 'belge_no' => 'ins2026000000250', 'vkn' => '0730433545'],
+            ['ettn' => 'ffffffff-0000-0000-0000-000000000001', 'belge_no' => 'KUR2026000000001', 'vkn' => '1111111111'],
+        ]);
+
+        $this->artisan('efatura:emor')
+            ->expectsOutput('eMOR giden: işlendi 2, işlenmedi 2, değişen 4')
+            ->assertSuccessful();
+
+        $this->assertTrue($ettnIle->fresh()->emor_islendi);
+        $this->assertTrue($noVknIle->fresh()->emor_islendi);
+        $this->assertFalse($celisen->fresh()->emor_islendi);
+        $this->assertFalse($yok->fresh()->emor_islendi);
+        $this->assertFalse($gelen->fresh()->emor_islendi);
     }
 
     public function test_erpden_silinen_fatura_islenmedi_olur_ve_degismeyen_satir_yazilmaz(): void
     {
-        $tanim = EntegratorBaglanti::factory()->aktif()->create();
+        $tanim = $this->tanim();
         $fatura = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => self::ISLENMIS]);
 
         $this->erp([self::ISLENMIS]);
-        $this->artisan('efatura:emor')->expectsOutput('eMOR: işlendi 1, işlenmedi 0, değişen 1');
-        $this->artisan('efatura:emor')->expectsOutput('eMOR: işlendi 1, işlenmedi 0, değişen 0');
+        $this->artisan('efatura:emor')->expectsOutput('eMOR gelen: işlendi 1, işlenmedi 0, değişen 1');
+        $this->artisan('efatura:emor')->expectsOutput('eMOR gelen: işlendi 1, işlenmedi 0, değişen 0');
 
         $this->erp([]);
-        $this->artisan('efatura:emor')->expectsOutput('eMOR: işlendi 0, işlenmedi 1, değişen 1');
+        $this->artisan('efatura:emor')->expectsOutput('eMOR gelen: işlendi 0, işlenmedi 1, değişen 1');
 
         $this->assertFalse($fatura->fresh()->emor_islendi);
     }
 
-    public function test_erp_okunamazsa_bayraklar_degismez_ve_komut_basarisiz_doner(): void
+    public function test_bir_yon_okunamazsa_bayraklari_degismez_digeri_tazelenir_komut_basarisiz_doner(): void
     {
-        $tanim = EntegratorBaglanti::factory()->aktif()->create();
-        $fatura = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => self::ISLENMIS, 'emor_islendi' => true]);
-        $bos = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id]);
+        $tanim = $this->tanim();
+        $gelen = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => self::ISLENMIS, 'emor_islendi' => true]);
+        $giden = EFatura::factory()->giden()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => self::ISLENMIS]);
         Log::spy();
-        $this->erp(new RuntimeException('bağlantı zaman aşımı'));
+        $this->erp(new RuntimeException('bağlantı zaman aşımı'), [['ettn' => self::ISLENMIS, 'belge_no' => 'X', 'vkn' => '1']]);
 
         $this->artisan('efatura:emor')->assertFailed();
 
         // "Okunamadı" asla "işlenmedi" sayılmaz
-        $this->assertTrue($fatura->fresh()->emor_islendi);
-        $this->assertNull($bos->fresh()->emor_islendi);
+        $this->assertTrue($gelen->fresh()->emor_islendi);
+        $this->assertTrue($giden->fresh()->emor_islendi);
         Log::shouldHaveReceived('warning')->once();
     }
 
-    public function test_erp_senkronla_dugmesi_emoru_hemen_tazeler(): void
+    public function test_erp_senkronla_dugmesi_secilen_yonun_emorunu_hemen_tazeler(): void
     {
-        $tanim = EntegratorBaglanti::factory()->aktif()->create();
-        $fatura = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => self::ISLENMIS]);
-        $this->erp([self::ISLENMIS]);
+        $tanim = $this->tanim();
+        $gelen = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => self::ISLENMIS]);
+        $giden = EFatura::factory()->giden()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => self::ISLENMIS]);
+        $this->erp([self::ISLENMIS], [['ettn' => self::ISLENMIS, 'belge_no' => 'X', 'vkn' => '1']]);
 
         $this->actingAs(User::factory()->yonetici()->create())
-            ->postJson('/api/v1/efatura/erp-senkron')
+            ->postJson('/api/v1/efatura/erp-senkron', ['yon' => 'giden'])
             ->assertOk()
             ->assertExactJson(['data' => ['islendi' => 1, 'islenmedi' => 0, 'degisen' => 1]]);
 
-        $this->assertTrue($fatura->fresh()->emor_islendi);
+        $this->assertTrue($giden->fresh()->emor_islendi);
+        $this->assertNull($gelen->fresh()->emor_islendi);
+    }
+
+    public function test_erp_senkronla_yon_ister(): void
+    {
+        $this->erp([]);
+
+        $this->actingAs(User::factory()->yonetici()->create())
+            ->postJson('/api/v1/efatura/erp-senkron', ['yon' => 'yanlis'])
+            ->assertUnprocessable();
     }
 
     public function test_erp_senkronla_erp_okunamazsa_502_doner_ve_bayrak_degismez(): void
     {
-        $tanim = EntegratorBaglanti::factory()->aktif()->create();
+        $tanim = $this->tanim();
         $fatura = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_islendi' => true]);
         $this->erp(new RuntimeException('bağlantı zaman aşımı'));
 
         $this->actingAs(User::factory()->yonetici()->create())
-            ->postJson('/api/v1/efatura/erp-senkron')
+            ->postJson('/api/v1/efatura/erp-senkron', ['yon' => 'gelen'])
             ->assertStatus(502)
             ->assertJsonPath('kod', 'ERP_OKUNAMADI');
 
@@ -129,16 +183,15 @@ final class EFaturaEmorTest extends TestCase
         $kullanici->roller()->attach($rol);
         $this->erp([]);
 
-        $this->actingAs($kullanici)->postJson('/api/v1/efatura/erp-senkron')->assertForbidden();
+        $this->actingAs($kullanici)->postJson('/api/v1/efatura/erp-senkron', ['yon' => 'gelen'])->assertForbidden();
     }
 
     public function test_liste_emor_bayragini_doner(): void
     {
-        $tanim = EntegratorBaglanti::factory()->aktif()->create();
+        $tanim = $this->tanim();
         EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_islendi' => true]);
-        $kullanici = User::factory()->create(['sistem_yoneticisi' => true]);
 
-        $this->actingAs($kullanici)
+        $this->actingAs(User::factory()->yonetici()->create())
             ->getJson('/api/v1/efatura/gelen/faturalar?baslangic=2026-01-01&bitis=2026-01-31')
             ->assertOk()
             ->assertJsonPath('data.0.emor_islendi', true);

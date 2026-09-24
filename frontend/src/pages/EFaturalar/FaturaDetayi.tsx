@@ -17,10 +17,23 @@ function Satir({ etiket, children }: { etiket: string; children: ReactNode }) {
   )
 }
 
-function Taraf({ unvan, vkn }: { unvan: string | null; vkn: string | null }) {
+/**
+ * Taraf unvanı yoksa (şahıs, TCKN) ad soyadı gösterilir; ikisi de varsa ad
+ * soyad unvanın altında durur.
+ */
+function Taraf({
+  unvan,
+  adSoyad,
+  vkn,
+}: {
+  unvan: string | null
+  adSoyad: string | null
+  vkn: string | null
+}) {
   return (
     <>
-      {unvan ?? '—'}
+      {unvan ?? adSoyad ?? '—'}
+      {unvan && adSoyad ? <span className="block">{adSoyad}</span> : null}
       {vkn ? <span className="block text-xs text-slate-500 dark:text-slate-400">{vkn}</span> : null}
     </>
   )
@@ -52,10 +65,14 @@ export function FaturaDetayi({ fatura }: { fatura: EFatura }) {
         {[fatura.fatura_tipi, fatura.senaryo].filter(Boolean).join(' / ') || '—'}
       </Satir>
       <Satir etiket={t('efatura.alan.gonderici')}>
-        <Taraf unvan={fatura.gonderici_unvan} vkn={fatura.gonderici_vkn} />
+        <Taraf
+          unvan={fatura.gonderici_unvan}
+          adSoyad={fatura.gonderici_ad_soyad}
+          vkn={fatura.gonderici_vkn}
+        />
       </Satir>
       <Satir etiket={t('efatura.alan.alici')}>
-        <Taraf unvan={fatura.alici_unvan} vkn={fatura.alici_vkn} />
+        <Taraf unvan={fatura.alici_unvan} adSoyad={fatura.alici_ad_soyad} vkn={fatura.alici_vkn} />
       </Satir>
       <Satir etiket={t('efatura.alan.tutar')}>
         {tutarGoster(fatura.tutar)} {fatura.para_birimi}
@@ -85,7 +102,6 @@ export function FaturaDetayi({ fatura }: { fatura: EFatura }) {
       ) : null}
       {(
         [
-          ['efatura.kolon.adSoyad', fatura.gonderici_ad_soyad ?? fatura.alici_ad_soyad],
           ['efatura.kolon.gondericiBilgisi', fatura.gonderici_etiketi],
           ['efatura.kolon.aliciBilgisi', fatura.alici_etiketi],
           ['efatura.kolon.irsaliyeNo', fatura.irsaliye_no],
@@ -108,15 +124,13 @@ export function FaturaDetayi({ fatura }: { fatura: EFatura }) {
           </Satir>
         ) : null,
       )}
-      {fatura.yon === 'gelen' ? (
-        <Satir etiket={t('efatura.kolon.emor')}>
-          {fatura.emor_islendi === null
-            ? t('efatura.emorBilinmiyor')
-            : fatura.emor_islendi
-              ? t('efatura.emorIslendi')
-              : t('efatura.emorIslenmedi')}
-        </Satir>
-      ) : null}
+      <Satir etiket={t('efatura.kolon.emor')}>
+        {fatura.emor_islendi === null
+          ? t('efatura.emorBilinmiyor')
+          : fatura.emor_islendi
+            ? t('efatura.emorIslendi')
+            : t('efatura.emorIslenmedi')}
+      </Satir>
       <Satir etiket={t('efatura.alan.erpOkundu')}>
         {bayrak(fatura.erp_okundu)}
         <span className="block text-xs text-slate-500 dark:text-slate-400">

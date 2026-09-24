@@ -451,6 +451,22 @@ describe('EFaturalarPage', () => {
     expect(within(dialog).getByText(/Bu ekran yalnız gösterir, değiştirmez/)).toBeInTheDocument()
   })
 
+  it('detayda unvanı olmayan göndericinin ad soyadını gösterir', async () => {
+    api.faturalar.mockResolvedValue({
+      ...LISTE,
+      data: [{ ...FATURA, gonderici_unvan: null, gonderici_ad_soyad: 'ASLI AKTAY' }],
+    })
+    ciz(['efatura.goruntule'])
+    await screen.findByText('ABC2026000000001')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Detay' }))
+    const dialog = await screen.findByRole('dialog')
+
+    const gonderici = within(dialog).getByText('Gönderici').closest('div') as HTMLElement
+    expect(within(gonderici).getByText('ASLI AKTAY')).toBeInTheDocument()
+    expect(within(gonderici).getByText(FATURA.gonderici_vkn as string)).toBeInTheDocument()
+  })
+
   it('PDF penceresi fatura aslını gösterir, açıkken adresi bırakmaz, kapanınca bırakır', async () => {
     let sayac = 0
     const olustur = vi.fn(() => `blob:efatura-${++sayac}`)
@@ -490,7 +506,7 @@ describe('EFaturalarPage', () => {
         'eMOR güncellendi: 5 işlendi, 2 işlenmedi (1 değişti).',
       ),
     )
-    expect(api.erp).toHaveBeenCalledTimes(1)
+    expect(api.erp).toHaveBeenCalledExactlyOnceWith('gelen')
     await waitFor(() => expect(api.faturalar.mock.calls.length).toBeGreaterThan(okumaSayisi))
   })
 

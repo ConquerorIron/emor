@@ -609,7 +609,7 @@
     "emorBilinmiyor": "Not checked in ERP yet",
     "erpSenkron": {
       "ac": "Sync with ERP",
-      "aciklama": "Checks now whether incoming invoices are processed in the ERP (TOHOM_FATURA) and updates the eMOR column. Also runs automatically every 5 minutes.",
+      "aciklama": "Checks now whether the invoices in this list exist in the ERP (incoming: TOHOM_FATURA, outgoing: sent e-invoice list) and updates the eMOR column. Also runs automatically every 5 minutes.",
       "tamam": "eMOR updated: {{islendi}} processed, {{islenmedi}} not processed ({{degisen}} changed)."
     }
   }

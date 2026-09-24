@@ -167,9 +167,9 @@ export interface ErpSenkronSonucu {
   degisen: number
 }
 
-/** "ERP Senkronla": gelen faturaların eMOR (ERP'ye işlendi mi) bilgisini hemen tazeler. */
-export async function erpSenkronla(): Promise<ErpSenkronSonucu> {
-  const yanit = await api.post<{ data: ErpSenkronSonucu }>('/api/v1/efatura/erp-senkron')
+/** "ERP Senkronla": yönün eMOR (ERP'de karşılığı var mı) bilgisini hemen tazeler. */
+export async function erpSenkronla(yon: FaturaYonu): Promise<ErpSenkronSonucu> {
+  const yanit = await api.post<{ data: ErpSenkronSonucu }>('/api/v1/efatura/erp-senkron', { yon })
 
   return yanit.data.data
 }

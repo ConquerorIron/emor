@@ -137,19 +137,19 @@ function SenkronFormu({ kapat }: { kapat: () => void }) {
 }
 
 /**
- * "ERP Senkronla": eMOR kolonunu hemen tazeler — ERP'deki işlenmiş faturalar
- * (TOHOM_FATURA) ile entegratör ETTN'leri eşleştirilir. Aynı iş 5 dakikada bir
- * kendiliğinden de çalışır.
+ * "ERP Senkronla": bu yönün eMOR kolonunu hemen tazeler — ERP'deki faturalar
+ * (gelen: TOHOM_FATURA, giden: gönderilen e-fatura listesi) ile entegratör
+ * ETTN'leri eşleştirilir. Aynı iş 5 dakikada bir kendiliğinden de çalışır.
  */
-function ErpSenkronDugmesi() {
+function ErpSenkronDugmesi({ yon }: { yon: FaturaYonu }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
 
   const eslestir = useMutation({
-    mutationFn: erpSenkronla,
+    mutationFn: () => erpSenkronla(yon),
     onSuccess: async (sonuc) => {
       toast.success(t('efatura.erpSenkron.tamam', { ...sonuc }))
-      await queryClient.invalidateQueries({ queryKey: queryKeys.efatura.yonListeleri('gelen') })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.efatura.yonListeleri(yon) })
     },
     onError: (error: unknown) => {
       toast.error(dogrulamaMesaji(error) ?? t(apiErrorKey(error)))
@@ -208,8 +208,7 @@ export function SenkronDurumuPaneli({ yon, durum }: { yon: FaturaYonu; durum: Se
             >
               {t('efatura.senkron.ac')}
             </Button>
-            {/* eMOR yalnız gelen faturada (ERP'ye işlendi mi) */}
-            {yon === 'gelen' ? <ErpSenkronDugmesi /> : null}
+            <ErpSenkronDugmesi yon={yon} />
           </div>
         ) : null}
       </div>

@@ -28,4 +28,20 @@ final class ErpFaturaSorgusu implements ErpFaturaKaynagi
 
         return array_map(fn (object $satir): string => $satir->E_FATURA_ETTN, $satirlar);
     }
+
+    /**
+     * ERP_GONDERILEN_E_FATURA_LISTESI (parametresiz; tanımı yalnız SELECT —
+     * 2026-09-24'te okunarak doğrulandı). nchar alanlar boşlukla dolu gelir.
+     */
+    public function gonderilenFaturalar(): array
+    {
+        /** @var list<object{E_FATURA_ETTN: string|null, BELGE_NO: string|null, VERGI_KIMLIK_NO: string|null}> $satirlar */
+        $satirlar = $this->mssql->baglan()->select('EXEC ERP_GONDERILEN_E_FATURA_LISTESI');
+
+        return array_map(fn (object $satir): array => [
+            'ettn' => ($ettn = trim((string) $satir->E_FATURA_ETTN)) !== '' ? $ettn : null,
+            'belge_no' => trim((string) $satir->BELGE_NO),
+            'vkn' => trim((string) $satir->VERGI_KIMLIK_NO),
+        ], $satirlar);
+    }
 }

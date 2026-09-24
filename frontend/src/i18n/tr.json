@@ -609,7 +609,7 @@
     "emorBilinmiyor": "ERP henüz kontrol edilmedi",
     "erpSenkron": {
       "ac": "ERP Senkronla",
-      "aciklama": "Gelen faturaların ERP'ye (TOHOM_FATURA) işlenip işlenmediğini şimdi kontrol eder; eMOR kolonu güncellenir. 5 dakikada bir kendiliğinden de yapılır.",
+      "aciklama": "Bu listedeki faturaların ERP'de karşılığı olup olmadığını şimdi kontrol eder (gelen: TOHOM_FATURA, giden: gönderilen e-fatura listesi); eMOR kolonu güncellenir. 5 dakikada bir kendiliğinden de yapılır.",
       "tamam": "eMOR güncellendi: {{islendi}} işlendi, {{islenmedi}} işlenmedi ({{degisen}} değişti)."
     }
   }

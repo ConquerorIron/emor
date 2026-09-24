@@ -245,17 +245,13 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
 
   // Kullanıcı isteği (2026-09-24) sırasıyla; hepsi göster/gizle seçilebilir
   const secilebilirKolonlar: DataTableKolonu<EFatura>[] = [
-    // ERP'ye işlenmiş mi (TOHOM_FATURA) — yalnız gelen faturada
-    ...(gelen
-      ? [
-          {
-            anahtar: 'emor',
-            baslik: t('efatura.kolon.emor'),
-            hizala: 'orta' as const,
-            render: (f: EFatura) => <EmorRozeti deger={f.emor_islendi} />,
-          },
-        ]
-      : []),
+    // ERP'de karşılığı var mı (gelen: TOHOM_FATURA, giden: gönderilen e-fatura listesi)
+    {
+      anahtar: 'emor',
+      baslik: t('efatura.kolon.emor'),
+      hizala: 'orta',
+      render: (f) => <EmorRozeti deger={f.emor_islendi} />,
+    },
     {
       anahtar: 'belge_no',
       baslik: t('efatura.kolon.faturaNo'),
