@@ -69,7 +69,11 @@ const FATURA: EFatura = {
   teslim_ref: null,
   harici_aktarim: null,
   mail_durumu: null,
+  emor_islendi: true,
 }
+
+/** Gelen faturalar kullanıcı henüz sıralamadıysa en son alınan üstte açılır */
+const VARSAYILAN_SIRALAMA = { anahtar: 'olusturma_zamani', yon: 'desc' }
 
 const LISTE: EFaturaListesi = {
   data: [FATURA],
@@ -151,7 +155,7 @@ describe('EFaturalarPage', () => {
     expect(api.faturalar).toHaveBeenCalledWith(
       'gelen',
       expect.objectContaining({ baslangic: '2026-01-01', bitis: bugunIso() }),
-      null,
+      VARSAYILAN_SIRALAMA,
       1,
     )
     const ozet = screen.getByLabelText('Özet')
@@ -180,10 +184,15 @@ describe('EFaturalarPage', () => {
     // Tablonun üstündeki sayfalamadan
     fireEvent.click(screen.getAllByRole('button', { name: '2' })[0])
     await waitFor(() =>
-      expect(api.faturalar).toHaveBeenLastCalledWith('gelen', expect.anything(), null, 2),
+      expect(api.faturalar).toHaveBeenLastCalledWith(
+        'gelen',
+        expect.anything(),
+        VARSAYILAN_SIRALAMA,
+        2,
+      ),
     )
 
-    fireEvent.change(screen.getByLabelText('Ara (no, ETTN, VKN, unvan)'), {
+    fireEvent.change(screen.getByLabelText('Ara (no, ETTN, VKN, unvan, ad soyad, tip)'), {
       target: { value: 'deniz' },
     })
 
@@ -192,7 +201,7 @@ describe('EFaturalarPage', () => {
         expect(api.faturalar).toHaveBeenLastCalledWith(
           'gelen',
           expect.objectContaining({ ara: 'deniz' }),
-          null,
+          VARSAYILAN_SIRALAMA,
           1,
         ),
       { timeout: ARAMA_BEKLEME },
@@ -207,7 +216,7 @@ describe('EFaturalarPage', () => {
       () => new Promise<typeof LISTE>((resolve) => (bitir = resolve)),
     )
 
-    fireEvent.change(screen.getByLabelText('Ara (no, ETTN, VKN, unvan)'), {
+    fireEvent.change(screen.getByLabelText('Ara (no, ETTN, VKN, unvan, ad soyad, tip)'), {
       target: { value: 'baska' },
     })
 
@@ -250,9 +259,10 @@ describe('EFaturalarPage', () => {
     await screen.findByText('Deniz Boya Ltd.')
     // Sıralanabilir başlıklardaki ok simgesi hariç
     const basliklar = () =>
-      screen.getAllByRole('columnheader').map((th) => th.textContent?.replace(/[↕↑↓]/g, ''))
+      screen.getAllByRole('columnheader').map((th) => th.textContent?.replace(/[↕▲▼]/g, ''))
 
-    expect(basliklar().slice(0, 9)).toEqual([
+    expect(basliklar().slice(0, 10)).toEqual([
+      'eMOR',
       'Fatura No',
       'Tarih',
       'VKN/TCKN',
@@ -265,6 +275,13 @@ describe('EFaturalarPage', () => {
     ])
     expect(screen.getByText('IRS2026000000007')).toBeInTheDocument()
     expect(screen.getByText('urn:mail:defaultpk@tersane.com')).toBeInTheDocument()
+    // ERP'ye işlenmiş fatura (TOHOM_FATURA eşleşmesi)
+    expect(screen.getByText('İşlendi')).toBeInTheDocument()
+    // Açılışta Alınma Zamanı'na göre yeniden eskiye sıralı
+    expect(screen.getByRole('columnheader', { name: /Alınma Zamanı/ })).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    )
 
     fireEvent.click(screen.getByRole('button', { name: /^Kolonlar/ }))
     fireEvent.click(await screen.findByRole('switch', { name: 'İrsaliye No' }))
@@ -289,7 +306,7 @@ describe('EFaturalarPage', () => {
     expect(api.faturalar).toHaveBeenCalledWith(
       'gelen',
       expect.objectContaining({ erp_okundu: 'hayir' }),
-      null,
+      VARSAYILAN_SIRALAMA,
       1,
     )
   })
@@ -365,7 +382,7 @@ describe('EFaturalarPage', () => {
     expect(api.excel).toHaveBeenCalledWith(
       'gelen',
       expect.objectContaining({ baslangic: '2026-01-01', bitis: bugunIso() }),
-      null,
+      VARSAYILAN_SIRALAMA,
     )
   })
 

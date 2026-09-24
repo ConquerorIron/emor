@@ -1,0 +1,31 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services;
+
+/**
+ * Aktif ERP ortamının TOHOM_FATURA tablosundan işlenmiş gelen faturalar.
+ *
+ * TIP = 0 alış faturası, IADE_FATURASI_TIPI dolu olanlar iade (kullanıcı
+ * tanımı 2026-09-24). E_FATURA_ETTN, İzibiz'deki fatura ETTN'idir; keşifte
+ * (canlı hesap) 3.697 ETTN'in 3.696'sı eşleşti. Yalnız tek kolon okunur.
+ */
+final class ErpFaturaSorgusu implements ErpFaturaKaynagi
+{
+    public function __construct(
+        private readonly MssqlBaglantiServisi $mssql,
+    ) {}
+
+    public function islenmisGelenEttnler(): array
+    {
+        /** @var list<object{E_FATURA_ETTN: string}> $satirlar */
+        $satirlar = $this->mssql->baglan()->select(
+            'SELECT DISTINCT E_FATURA_ETTN
+             FROM TOHOM_FATURA
+             WHERE TIP = 0 AND IADE_FATURASI_TIPI IS NULL AND E_FATURA_ETTN IS NOT NULL',
+        );
+
+        return array_map(fn (object $satir): string => $satir->E_FATURA_ETTN, $satirlar);
+    }
+}

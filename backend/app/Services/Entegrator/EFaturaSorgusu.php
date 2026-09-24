@@ -35,14 +35,17 @@ final class EFaturaSorgusu
         $ara = trim((string) ($filtre['ara'] ?? ''));
         if ($ara !== '') {
             [$karsiVkn, $karsiUnvan] = $this->karsiKolonlar($yon);
+            $karsiAdSoyad = $yon === FaturaYonu::Gelen ? 'gonderici_ad_soyad' : 'alici_ad_soyad';
             $desen = '%'.$ara.'%';
 
             // Değer bağlanır; joker karakterler yalnız aramayı genişletir
-            $sorgu->where(function (Builder $q) use ($desen, $karsiVkn, $karsiUnvan): void {
+            $sorgu->where(function (Builder $q) use ($desen, $karsiVkn, $karsiUnvan, $karsiAdSoyad): void {
                 $q->whereLike('belge_no', $desen)
                     ->orWhereLike('ettn', $desen)
                     ->orWhereLike($karsiVkn, $desen)
-                    ->orWhereLike($karsiUnvan, $desen);
+                    ->orWhereLike($karsiUnvan, $desen)
+                    ->orWhereLike($karsiAdSoyad, $desen)
+                    ->orWhereLike('fatura_tipi', $desen);
             });
         }
 

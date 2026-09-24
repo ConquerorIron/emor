@@ -45,6 +45,7 @@ final class EFaturaResource extends JsonResource
             'gib_durum_kodu' => $this->getAttribute('gib_durum_kodu'),
             'gib_durum_aciklamasi' => $this->getAttribute('gib_durum_aciklamasi'),
             'erp_okundu' => $this->erp_okundu,
+            'emor_islendi' => $this->emor_islendi,
             'okundu' => $this->getAttribute('okundu'),
             'yanit_aciklamasi' => $this->getAttribute('yanit_aciklamasi'),
             'gonderici_ad_soyad' => $this->getAttribute('gonderici_ad_soyad'),

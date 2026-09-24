@@ -513,7 +513,7 @@
     "hepsi": "All",
     "baslangic": "From",
     "bitis": "To",
-    "ara": "Search (no, ETTN, tax id, name)",
+    "ara": "Search (no, ETTN, tax id, title, full name, type)",
     "excel": "Excel",
     "detay": "Details",
     "pdf": "PDF",
@@ -596,7 +596,11 @@
       "gcbTarihi": "Customs Date",
       "gondericiBilgisi": "Sender Alias (GB)",
       "aliciBilgisi": "Receiver Alias (PK)",
-      "portalNotu": "Portal Note"
-    }
+      "portalNotu": "Portal Note",
+      "emor": "eMOR"
+    },
+    "emorIslendi": "Processed",
+    "emorIslenmedi": "Not processed",
+    "emorBilinmiyor": "Not checked in ERP yet"
   }
 }

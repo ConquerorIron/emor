@@ -31,6 +31,8 @@ export interface EFatura {
   gib_durum_aciklamasi: string | null
   /** İzibiz'in ERP okundu bayrağı — yalnız gösterilir, bu uygulama değiştirmez */
   erp_okundu: boolean | null
+  /** ERP'ye (TOHOM_FATURA) işlendi mi; null = henüz kontrol edilmedi. Yalnız gelen. */
+  emor_islendi: boolean | null
   okundu: boolean | null
   yanit_aciklamasi: string | null
   son_gorulme: string | null

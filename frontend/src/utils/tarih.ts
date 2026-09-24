@@ -23,8 +23,11 @@ export function tarihGoster(iso: string | null | undefined): string {
   return `${eslesme[3]}.${eslesme[2]}.${eslesme[1]}`
 }
 
-/** ISO zaman damgasını GG.AA.YYYY SS:DD gösterir (yerel saat). */
-export function zamanGoster(iso: string | null | undefined): string {
+/** ISO zaman damgasını GG.AA.YYYY SS:DD (istenirse :ss) gösterir (yerel saat). */
+export function zamanGoster(
+  iso: string | null | undefined,
+  { saniye = false }: { saniye?: boolean } = {},
+): string {
   if (!iso) {
     return '—'
   }
@@ -34,7 +37,9 @@ export function zamanGoster(iso: string | null | undefined): string {
     return iso
   }
 
-  return `${iki(zaman.getDate())}.${iki(zaman.getMonth() + 1)}.${zaman.getFullYear()} ${iki(zaman.getHours())}:${iki(zaman.getMinutes())}`
+  const saat = `${iki(zaman.getHours())}:${iki(zaman.getMinutes())}${saniye ? `:${iki(zaman.getSeconds())}` : ''}`
+
+  return `${iki(zaman.getDate())}.${iki(zaman.getMonth() + 1)}.${zaman.getFullYear()} ${saat}`
 }
 
 /** Rakam dizisini GG.AA.YYYY maskesine oturtur (yazarken noktalar otomatik eklenir). */

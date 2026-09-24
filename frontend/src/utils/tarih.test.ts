@@ -27,6 +27,10 @@ describe('zamanGoster', () => {
     )
   })
 
+  it('istenirse saniyeyi de gösterir', () => {
+    expect(zamanGoster('2026-09-27T10:30:07+03:00', { saniye: true })).toMatch(/ \d\d:\d\d:07$/)
+  })
+
   it('boşta tire döner', () => {
     expect(zamanGoster(null)).toBe('—')
   })

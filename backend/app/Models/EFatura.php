@@ -23,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property CarbonImmutable $belge_tarihi
  * @property string $tutar
  * @property bool|null $erp_okundu
+ * @property bool|null $emor_islendi ERP'ye işlendi mi (null: henüz kontrol edilmedi)
  */
 final class EFatura extends Model
 {
@@ -56,6 +57,7 @@ final class EFatura extends Model
             'satir_sayisi' => 'integer',
             'gib_durum_kodu' => 'integer',
             'erp_okundu' => 'boolean',
+            'emor_islendi' => 'boolean',
             'okundu' => 'boolean',
             'siparis_tarihi' => 'immutable_date',
             'harici_aktarim' => 'boolean',

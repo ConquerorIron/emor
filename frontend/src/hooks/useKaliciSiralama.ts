@@ -25,10 +25,17 @@ function oku(depoAnahtari: string): TabloSiralamasi | null {
  * 2026-07-07): kullanıcı en son neye göre sıraladıysa sayfa tekrar açıldığında
  * aynı sıralamayla gelir. Geçersiz/bozuk kayıt sessizce yok sayılır — backend
  * whitelist'i zaten bilinmeyen kolonu varsayılan sıralamaya düşürür.
+ *
+ * `varsayilan`: kullanıcı henüz hiç sıralamadıysa açılıştaki sıralama.
  */
-export function useKaliciSiralama(sayfaAnahtari: string) {
+export function useKaliciSiralama(
+  sayfaAnahtari: string,
+  varsayilan: TabloSiralamasi | null = null,
+) {
   const depoAnahtari = `erp.siralama.${sayfaAnahtari}`
-  const [siralama, setSiralama] = useState<TabloSiralamasi | null>(() => oku(depoAnahtari))
+  const [siralama, setSiralama] = useState<TabloSiralamasi | null>(
+    () => oku(depoAnahtari) ?? varsayilan,
+  )
 
   const siralamaDegistir = (anahtar: string) => {
     setSiralama((onceki) => {

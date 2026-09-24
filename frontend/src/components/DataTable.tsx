@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface TabloSiralamasi {
@@ -28,6 +28,8 @@ interface DataTableProps<T> {
   tumunuSec?: (seciliMi: boolean) => void
   /** Satır seçilebilir mi (ör. kullanıcı kendi hesabını toplu silemez). */
   secilebilir?: (satir: T) => boolean
+  /** Geniş tabloda yatay kaydırma çubuğu tablonun üstünde de gösterilir (ikisi eş kayar). */
+  ustKaydirma?: boolean
 }
 
 const hizaSiniflari: Record<NonNullable<DataTableKolonu<unknown>['hizala']>, string> = {
@@ -89,8 +91,44 @@ export function DataTable<T>({
   secimDegistir,
   tumunuSec,
   secilebilir,
+  ustKaydirma = false,
 }: DataTableProps<T>) {
   const { t } = useTranslation()
+  const kapRef = useRef<HTMLDivElement>(null)
+  const ustRef = useRef<HTMLDivElement>(null)
+  // Tablonun kaydırılabilir genişliği; taşma yoksa üst çubuk çizilmez
+  const [tasanGenislik, setTasanGenislik] = useState<number | null>(null)
+
+  useEffect(() => {
+    const kap = kapRef.current
+    if (!ustKaydirma || !kap || typeof ResizeObserver === 'undefined') {
+      return
+    }
+
+    const olc = () => setTasanGenislik(kap.scrollWidth > kap.clientWidth ? kap.scrollWidth : null)
+    olc()
+
+    // Kolon göster/gizle ve pencere boyutu değişince yeniden ölçülür
+    const gozlemci = new ResizeObserver(olc)
+    gozlemci.observe(kap)
+    if (kap.firstElementChild) {
+      gozlemci.observe(kap.firstElementChild)
+    }
+
+    return () => gozlemci.disconnect()
+  }, [ustKaydirma])
+
+  // Değer aynıysa tarayıcı scroll olayı üretmez: iki çubuk birbirini döngüye sokmaz
+  const esle = (kaynak: HTMLDivElement | null, hedef: HTMLDivElement | null) => {
+    if (kaynak && hedef && hedef.scrollLeft !== kaynak.scrollLeft) {
+      hedef.scrollLeft = kaynak.scrollLeft
+    }
+  }
+
+  // Üst çubuk sonradan belirdiğinde tablonun o anki konumundan başlar
+  useEffect(() => {
+    esle(kapRef.current, ustRef.current)
+  }, [tasanGenislik])
 
   const secimAcik = seciliAnahtarlar !== undefined && secimDegistir !== undefined
   const secilebilenler = secimAcik
@@ -102,109 +140,126 @@ export function DataTable<T>({
   const kolonSayisi = kolonlar.length + (secimAcik ? 1 : 0)
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-      <table className="w-full border-collapse text-sm">
-        <thead className="bg-slate-50 dark:bg-slate-800/60">
-          <tr>
-            {secimAcik ? (
-              <th className="w-10 border-r border-b border-slate-200 px-3 py-2 text-center dark:border-slate-700">
-                {tumunuSec ? (
-                  <SecimDugmesi
-                    secili={hepsiSecili}
-                    etiket={t('ortak.tumunuSec')}
-                    onClick={() => tumunuSec(!hepsiSecili)}
-                  />
-                ) : null}
-              </th>
-            ) : null}
-            {kolonlar.map((kolon) => {
-              const siralanabilir = kolon.siralamaAnahtari !== undefined && siralamaDegistir
-              const aktif = siralama?.anahtar === kolon.siralamaAnahtari
-
-              return (
-                <th
-                  key={kolon.anahtar}
-                  aria-sort={
-                    aktif ? (siralama?.yon === 'asc' ? 'ascending' : 'descending') : undefined
-                  }
-                  className={`border-r border-b border-slate-200 px-3 py-2 font-semibold whitespace-nowrap text-slate-700 last:border-r-0 dark:border-slate-700 dark:text-slate-200 ${hizaSiniflari[kolon.hizala ?? 'sol']}`}
-                >
-                  {siralanabilir ? (
-                    <button
-                      type="button"
-                      onClick={() => siralamaDegistir(kolon.siralamaAnahtari ?? '')}
-                      className="inline-flex cursor-pointer items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400"
-                    >
-                      {kolon.baslik}
-                      <span aria-hidden="true" className={aktif ? '' : 'opacity-30'}>
-                        {aktif ? (siralama?.yon === 'asc' ? '▲' : '▼') : '↕'}
-                      </span>
-                    </button>
-                  ) : (
-                    kolon.baslik
-                  )}
-                </th>
-              )
-            })}
-          </tr>
-        </thead>
-        <tbody className="bg-white dark:bg-slate-900">
-          {yukleniyor ? (
+    <>
+      {tasanGenislik !== null ? (
+        <div
+          ref={ustRef}
+          data-testid="ust-kaydirma"
+          aria-hidden="true"
+          onScroll={() => esle(ustRef.current, kapRef.current)}
+          className="mb-1 overflow-x-auto"
+        >
+          <div style={{ width: tasanGenislik, height: 1 }} />
+        </div>
+      ) : null}
+      <div
+        ref={kapRef}
+        onScroll={() => esle(kapRef.current, ustRef.current)}
+        className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700"
+      >
+        <table className="w-full border-collapse text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-800/60">
             <tr>
-              <td
-                colSpan={kolonSayisi}
-                className="px-4 py-10 text-center text-slate-500 dark:text-slate-400"
-              >
-                {t('ortak.yukleniyor')}
-              </td>
-            </tr>
-          ) : null}
-          {!yukleniyor && satirlar.length === 0 ? (
-            <tr>
-              <td
-                colSpan={kolonSayisi}
-                className="px-4 py-10 text-center text-slate-500 dark:text-slate-400"
-              >
-                {t('ortak.kayitBulunamadi')}
-              </td>
-            </tr>
-          ) : null}
-          {!yukleniyor &&
-            satirlar.map((satir) => {
-              const anahtar = satirAnahtari(satir)
-              const satirSecilebilir = secilebilir ? secilebilir(satir) : true
-
-              return (
-                <tr
-                  key={anahtar}
-                  className={`transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
-                    seciliAnahtarlar?.has(anahtar) ? 'bg-violet-50 dark:bg-violet-950/30' : ''
-                  }`}
-                >
-                  {secimAcik ? (
-                    <td className="w-10 border-r border-b border-slate-100 px-3 py-2 text-center dark:border-slate-800">
-                      {satirSecilebilir ? (
-                        <SecimDugmesi
-                          secili={seciliAnahtarlar.has(anahtar)}
-                          etiket={t('ortak.satirSec')}
-                          onClick={() => secimDegistir(anahtar)}
-                        />
-                      ) : null}
-                    </td>
+              {secimAcik ? (
+                <th className="w-10 border-r border-b border-slate-200 px-3 py-2 text-center dark:border-slate-700">
+                  {tumunuSec ? (
+                    <SecimDugmesi
+                      secili={hepsiSecili}
+                      etiket={t('ortak.tumunuSec')}
+                      onClick={() => tumunuSec(!hepsiSecili)}
+                    />
                   ) : null}
-                  {kolonlar.map((kolon) => (
-                    <td
-                      key={kolon.anahtar}
-                      className={`border-r border-b border-slate-100 px-3 py-2 last:border-r-0 dark:border-slate-800 ${hizaSiniflari[kolon.hizala ?? 'sol']}`}
-                    >
-                      {kolon.render(satir)}
-                    </td>
-                  ))}
-                </tr>
-              )
-            })}
-        </tbody>
-      </table>
-    </div>
+                </th>
+              ) : null}
+              {kolonlar.map((kolon) => {
+                const siralanabilir = kolon.siralamaAnahtari !== undefined && siralamaDegistir
+                const aktif = siralama?.anahtar === kolon.siralamaAnahtari
+
+                return (
+                  <th
+                    key={kolon.anahtar}
+                    aria-sort={
+                      aktif ? (siralama?.yon === 'asc' ? 'ascending' : 'descending') : undefined
+                    }
+                    className={`border-r border-b border-slate-200 px-3 py-2 font-semibold whitespace-nowrap text-slate-700 last:border-r-0 dark:border-slate-700 dark:text-slate-200 ${hizaSiniflari[kolon.hizala ?? 'sol']}`}
+                  >
+                    {siralanabilir ? (
+                      <button
+                        type="button"
+                        onClick={() => siralamaDegistir(kolon.siralamaAnahtari ?? '')}
+                        className="inline-flex cursor-pointer items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400"
+                      >
+                        {kolon.baslik}
+                        <span aria-hidden="true" className={aktif ? '' : 'opacity-30'}>
+                          {aktif ? (siralama?.yon === 'asc' ? '▲' : '▼') : '↕'}
+                        </span>
+                      </button>
+                    ) : (
+                      kolon.baslik
+                    )}
+                  </th>
+                )
+              })}
+            </tr>
+          </thead>
+          <tbody className="bg-white dark:bg-slate-900">
+            {yukleniyor ? (
+              <tr>
+                <td
+                  colSpan={kolonSayisi}
+                  className="px-4 py-10 text-center text-slate-500 dark:text-slate-400"
+                >
+                  {t('ortak.yukleniyor')}
+                </td>
+              </tr>
+            ) : null}
+            {!yukleniyor && satirlar.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={kolonSayisi}
+                  className="px-4 py-10 text-center text-slate-500 dark:text-slate-400"
+                >
+                  {t('ortak.kayitBulunamadi')}
+                </td>
+              </tr>
+            ) : null}
+            {!yukleniyor &&
+              satirlar.map((satir) => {
+                const anahtar = satirAnahtari(satir)
+                const satirSecilebilir = secilebilir ? secilebilir(satir) : true
+
+                return (
+                  <tr
+                    key={anahtar}
+                    className={`transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
+                      seciliAnahtarlar?.has(anahtar) ? 'bg-violet-50 dark:bg-violet-950/30' : ''
+                    }`}
+                  >
+                    {secimAcik ? (
+                      <td className="w-10 border-r border-b border-slate-100 px-3 py-2 text-center dark:border-slate-800">
+                        {satirSecilebilir ? (
+                          <SecimDugmesi
+                            secili={seciliAnahtarlar.has(anahtar)}
+                            etiket={t('ortak.satirSec')}
+                            onClick={() => secimDegistir(anahtar)}
+                          />
+                        ) : null}
+                      </td>
+                    ) : null}
+                    {kolonlar.map((kolon) => (
+                      <td
+                        key={kolon.anahtar}
+                        className={`border-r border-b border-slate-100 px-3 py-2 last:border-r-0 dark:border-slate-800 ${hizaSiniflari[kolon.hizala ?? 'sol']}`}
+                      >
+                        {kolon.render(satir)}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })}
+          </tbody>
+        </table>
+      </div>
+    </>
   )
 }

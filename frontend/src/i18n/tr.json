@@ -513,7 +513,7 @@
     "hepsi": "Hepsi",
     "baslangic": "Başlangıç",
     "bitis": "Bitiş",
-    "ara": "Ara (no, ETTN, VKN, unvan)",
+    "ara": "Ara (no, ETTN, VKN, unvan, ad soyad, tip)",
     "excel": "Excel",
     "detay": "Detay",
     "pdf": "PDF",
@@ -596,7 +596,11 @@
       "gcbTarihi": "GÇB Tarihi",
       "gondericiBilgisi": "Gönderici Bilgisi (GB)",
       "aliciBilgisi": "Alıcı Bilgisi (PK)",
-      "portalNotu": "Portal Notu"
-    }
+      "portalNotu": "Portal Notu",
+      "emor": "eMOR"
+    },
+    "emorIslendi": "İşlendi",
+    "emorIslenmedi": "İşlenmedi",
+    "emorBilinmiyor": "ERP henüz kontrol edilmedi"
   }
 }

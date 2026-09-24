@@ -154,6 +154,29 @@ final class EFaturaEkranTest extends TestCase
             ->assertJsonPath('data.0.id', $giden->id);
     }
 
+    public function test_arama_fatura_tipini_ve_karsi_tarafin_ad_soyadini_da_arar(): void
+    {
+        $tanim = $this->aktifTanim();
+        $kisi = $this->fatura($tanim, ['gonderici_ad_soyad' => 'Ayşe Yılmaz', 'alici_ad_soyad' => 'Mehmet Kaya']);
+        $iade = $this->fatura($tanim, ['fatura_tipi' => 'IADE']);
+        $kullanici = $this->izinli('efatura.goruntule');
+
+        $this->actingAs($kullanici)
+            ->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK.'&ara=Yılmaz')
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $kisi->id);
+
+        // Gelen faturada karşı taraf göndericidir; alıcının adıyla bulunmaz
+        $this->actingAs($kullanici)
+            ->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK.'&ara=Kaya')
+            ->assertJsonCount(0, 'data');
+
+        $this->actingAs($kullanici)
+            ->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK.'&ara=IADE')
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $iade->id);
+    }
+
     public function test_siralama_izinli_kolona_gore_yapilir(): void
     {
         $tanim = $this->aktifTanim();

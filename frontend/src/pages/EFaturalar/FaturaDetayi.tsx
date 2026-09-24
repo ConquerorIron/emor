@@ -46,7 +46,7 @@ export function FaturaDetayi({ fatura }: { fatura: EFatura }) {
         {fatura.belge_saati ? ` ${fatura.belge_saati}` : ''}
       </Satir>
       <Satir etiket={t('efatura.alan.olusturmaZamani')}>
-        {zamanGoster(fatura.olusturma_zamani)}
+        {zamanGoster(fatura.olusturma_zamani, { saniye: true })}
       </Satir>
       <Satir etiket={t('efatura.alan.tipSenaryo')}>
         {[fatura.fatura_tipi, fatura.senaryo].filter(Boolean).join(' / ') || '—'}
@@ -108,6 +108,15 @@ export function FaturaDetayi({ fatura }: { fatura: EFatura }) {
           </Satir>
         ) : null,
       )}
+      {fatura.yon === 'gelen' ? (
+        <Satir etiket={t('efatura.kolon.emor')}>
+          {fatura.emor_islendi === null
+            ? t('efatura.emorBilinmiyor')
+            : fatura.emor_islendi
+              ? t('efatura.emorIslendi')
+              : t('efatura.emorIslenmedi')}
+        </Satir>
+      ) : null}
       <Satir etiket={t('efatura.alan.erpOkundu')}>
         {bayrak(fatura.erp_okundu)}
         <span className="block text-xs text-slate-500 dark:text-slate-400">

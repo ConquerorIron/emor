@@ -128,6 +128,25 @@ function ErpRozeti({ deger }: { deger: boolean | null }) {
   )
 }
 
+/** İşlendiyse rozet; işlenmediyse boş; henüz kontrol edilmediyse (null) soluk tire. */
+function EmorRozeti({ deger }: { deger: boolean | null }) {
+  const { t } = useTranslation()
+
+  if (deger === null) {
+    return (
+      <span className="text-slate-400" title={t('efatura.emorBilinmiyor')}>
+        —
+      </span>
+    )
+  }
+
+  return deger ? (
+    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+      {t('efatura.emorIslendi')}
+    </span>
+  ) : null
+}
+
 type AcikPencere = { tur: 'detay' | 'pdf'; fatura: EFatura } | null
 
 export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
@@ -144,7 +163,11 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
   const [sayfa, setSayfa] = useState(1)
   const [pencere, setPencere] = useState<AcikPencere>(null)
   const [excelSuruyor, setExcelSuruyor] = useState(false)
-  const { siralama, siralamaDegistir } = useKaliciSiralama(`efatura-${yon}`)
+  // Gelen faturalar açılışta en son alınan üstte (kullanıcı isteği 2026-09-24)
+  const { siralama, siralamaDegistir } = useKaliciSiralama(
+    `efatura-${yon}`,
+    yon === 'gelen' ? { anahtar: 'olusturma_zamani', yon: 'desc' } : null,
+  )
   const kolonGorunurlugu = useKolonGorunurlugu(`efatura-${yon}`)
 
   // Arama yazarken her tuşta istek atılmaz; diğer filtreler anında uygulanır
@@ -221,6 +244,17 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
 
   // Kullanıcı isteği (2026-09-24) sırasıyla; hepsi göster/gizle seçilebilir
   const secilebilirKolonlar: DataTableKolonu<EFatura>[] = [
+    // ERP'ye işlenmiş mi (TOHOM_FATURA) — yalnız gelen faturada
+    ...(gelen
+      ? [
+          {
+            anahtar: 'emor',
+            baslik: t('efatura.kolon.emor'),
+            hizala: 'orta' as const,
+            render: (f: EFatura) => <EmorRozeti deger={f.emor_islendi} />,
+          },
+        ]
+      : []),
     {
       anahtar: 'belge_no',
       baslik: t('efatura.kolon.faturaNo'),
@@ -270,7 +304,11 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
       anahtar: 'olusturma_zamani',
       baslik: t('efatura.kolon.alinmaZamani'),
       siralamaAnahtari: 'olusturma_zamani',
-      render: (f) => <span className="whitespace-nowrap">{zamanGoster(f.olusturma_zamani)}</span>,
+      render: (f) => (
+        <span className="whitespace-nowrap">
+          {zamanGoster(f.olusturma_zamani, { saniye: true })}
+        </span>
+      ),
     },
     {
       anahtar: 'irsaliye_no',
@@ -515,6 +553,7 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
               satirlar={liste.data?.data ?? []}
               satirAnahtari={(f) => f.id}
               yukleniyor={liste.isPending}
+              ustKaydirma
               siralama={siralama}
               siralamaDegistir={(anahtar) => {
                 siralamaDegistir(anahtar)

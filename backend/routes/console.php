@@ -21,6 +21,11 @@ Schedule::command('efatura:alarmlar')
     ->everyFifteenMinutes()
     ->withoutOverlapping(30);
 
+// eMOR kolonu: gelen faturalar ERP'ye (TOHOM_FATURA) işlenmiş mi — yalnız SELECT
+Schedule::command('efatura:emor')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10);
+
 // Durum tazeleme: son 45 günün belge tarihli faturaları (kabul/red/GİB durumu)
 Schedule::command('efatura:senkron --gun=45')
     ->dailyAt('03:15')
