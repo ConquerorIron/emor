@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
  * Kapsam her zaman tek entegratör tanımı + yöndür (test ve canlı hesabın
  * faturaları karışmaz). Sıralama kolonları allow-list'tir.
  *
- * @phpstan-type Filtre array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null}
+ * @phpstan-type Filtre array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null}
  */
 final class EFaturaSorgusu
 {
@@ -35,7 +35,9 @@ final class EFaturaSorgusu
         $sorgu = EFatura::query()
             ->where('entegrator_baglanti_id', $tanim->id)
             ->where('yon', $yon->value)
-            ->whereBetween('belge_tarihi', [$filtre['baslangic'], $filtre['bitis']]);
+            ->whereBetween('belge_tarihi', [$filtre['baslangic'], $filtre['bitis']])
+            // Gizlenen (bize ait olmayan) faturalar istenmedikçe gelmez; özet ve Excel de
+            ->when(($filtre['gizlenenler'] ?? null) !== 'dahil', fn (Builder $q) => $q->whereNull('gizlenme_zamani'));
 
         $ara = trim((string) ($filtre['ara'] ?? ''));
         if ($ara !== '') {
@@ -217,6 +219,8 @@ final class EFaturaSorgusu
             'para_birimleri' => $paraBirimleri,
             'tipler' => $tipler,
             'istisna_kodlari' => $istisnaKodlari,
+            // "Gizlenenleri de göster" anahtarının yanındaki sayı
+            'gizlenen_adet' => $taban->clone()->whereNotNull('gizlenme_zamani')->count(),
         ];
     }
 

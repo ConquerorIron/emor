@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\EFatura\EFaturaGizlemeRequest;
 use App\Http\Requests\EFatura\EFaturaListeRequest;
 use App\Http\Resources\EFaturaResource;
 use App\Models\EFatura;
@@ -43,6 +44,7 @@ final class EFaturaController extends Controller
 
         $sorgu = $this->sorgu->filtrele($tanim, $faturaYonu, $filtre);
         $sayfa = $this->sorgu->sirala($sorgu->clone(), $faturaYonu, $request->input('sirala'), $request->input('yon'))
+            ->with('gizleyen:id,ad')
             ->paginate($request->sayfaBoyutu());
 
         return EFaturaResource::collection($sayfa)
@@ -137,6 +139,24 @@ final class EFaturaController extends Controller
             'Content-Security-Policy' => 'sandbox',
             'X-Belge-Kaynagi' => $kaynak,
         ]);
+    }
+
+    /**
+     * Faturayı listede gizler ya da listeye geri alır (kullanıcı isteği
+     * 2026-09-24): aynı VKN'yi paylaşan şirketlerden birine kesilip bizim posta
+     * kutumuza düşen fatura silinmez. Zaten gizliyse ilk gizleme bilgisi korunur.
+     */
+    public function gizle(EFaturaGizlemeRequest $request, int $fatura): EFaturaResource
+    {
+        $kayit = $this->aktifHesabinFaturasi($this->aktifTanim(), $fatura);
+
+        if (! $request->boolean('gizli')) {
+            $kayit->update(['gizlenme_zamani' => null, 'gizleyen_id' => null]);
+        } elseif ($kayit->gizlenme_zamani === null) {
+            $kayit->update(['gizlenme_zamani' => now(), 'gizleyen_id' => $request->user()?->id]);
+        }
+
+        return new EFaturaResource($kayit->load('gizleyen:id,ad'));
     }
 
     /**

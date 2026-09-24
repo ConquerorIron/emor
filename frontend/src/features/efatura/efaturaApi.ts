@@ -56,6 +56,11 @@ export interface EFatura {
   teslim_ref: string | null
   harici_aktarim: boolean | null
   mail_durumu: string | null
+  /** Listede gizlendi mi (bize ait değil — ör. yanlış posta kutusu); silinmez */
+  gizli: boolean
+  gizlenme_zamani: string | null
+  /** Gizleyen kullanıcının adı */
+  gizleyen: string | null
 }
 
 export interface ParaBirimiOzeti {
@@ -76,6 +81,8 @@ export interface EFaturaListesi {
     /** Seçili aralıktaki fatura tipleri ve vergi istisna kodları */
     tipler: string[]
     istisna_kodlari: string[]
+    /** Aralıktaki gizlenen fatura sayısı ("Gizlenenleri de göster" yanında) */
+    gizlenen_adet: number
   }
   kapsam: { ortam: 'test' | 'canli' }
 }
@@ -105,6 +112,8 @@ export interface EFaturaFiltresi {
   istisna_kodu: string
   /** Hızlı filtre: vergi istisna kodu olanlar */
   istisnali: '' | 'evet'
+  /** Boş: gizlenenler listede yok; dahil: onlar da gelir */
+  gizlenenler: '' | 'dahil'
 }
 
 export interface Siralama {
@@ -156,6 +165,7 @@ function parametreler(filtre: EFaturaFiltresi, siralama: Siralama | null): Recor
     'tip',
     'istisna_kodu',
     'istisnali',
+    'gizlenenler',
   ] as const) {
     const deger = filtre[anahtar].trim()
     if (deger !== '') {
@@ -199,6 +209,15 @@ export interface ErpSenkronSonucu {
   havuzda: number
   yok: number
   degisen: number
+}
+
+/** Faturayı listede gizler ya da listeye geri alır; güncel faturayı döner. */
+export async function gizliligiDegistir(faturaId: number, gizli: boolean): Promise<EFatura> {
+  const yanit = await api.put<{ data: EFatura }>(`/api/v1/efatura/faturalar/${faturaId}/gizli`, {
+    gizli,
+  })
+
+  return yanit.data.data
 }
 
 /** "ERP Senkronla": yönün eMOR (ERP'de karşılığı var mı) bilgisini hemen tazeler. */

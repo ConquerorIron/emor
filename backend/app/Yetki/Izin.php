@@ -22,6 +22,7 @@ enum Izin: string
     case EfaturaPdf = 'efatura.pdf';
     case EfaturaDisariAktar = 'efatura.disari_aktar';
     case EfaturaSenkron = 'efatura.senkron';
+    case EfaturaGizle = 'efatura.gizle';
 
     case SqlBaglantilariGoruntule = 'sql_baglantilari.goruntule';
     case SqlBaglantilariGuncelle = 'sql_baglantilari.guncelle';
@@ -54,7 +55,7 @@ enum Izin: string
 
     /**
      * Roller ekranındaki matris — sol menü sırasıyla. e-Fatura'nın
-     * "güncelle"si elle senkrondur; PDF ve Excel ek izinlerdir.
+     * "güncelle"si elle senkrondur; PDF, Excel ve gizleme ek izinlerdir.
      *
      * @return list<array{ekran: string, goruntule: string, guncelle: string|null, ekler: list<string>}>
      */
@@ -69,7 +70,7 @@ enum Izin: string
 
         return [
             $ekran('satinalma_talebi', self::SatinalmaTalebiGoruntule, self::SatinalmaTalebiGuncelle),
-            $ekran('efatura', self::EfaturaGoruntule, self::EfaturaSenkron, self::EfaturaPdf, self::EfaturaDisariAktar),
+            $ekran('efatura', self::EfaturaGoruntule, self::EfaturaSenkron, self::EfaturaPdf, self::EfaturaDisariAktar, self::EfaturaGizle),
             $ekran('sql_baglantilari', self::SqlBaglantilariGoruntule, self::SqlBaglantilariGuncelle),
             $ekran('entegrator_baglantilari', self::EntegratorBaglantilariGoruntule, self::EntegratorBaglantilariGuncelle),
             $ekran('mail_ayarlari', self::MailAyarlariGoruntule, self::MailAyarlariGuncelle),

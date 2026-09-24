@@ -134,6 +134,12 @@ export function FaturaDetayi({ fatura }: { fatura: EFatura }) {
           </span>
         </Satir>
       ) : null}
+      {fatura.gizli ? (
+        <Satir etiket={t('efatura.gizleme.alan')}>
+          {fatura.gizlenme_zamani ? zamanGoster(fatura.gizlenme_zamani) : '—'}
+          {fatura.gizleyen ? ` — ${fatura.gizleyen}` : ''}
+        </Satir>
+      ) : null}
       <Satir etiket={t('efatura.kolon.emor')}>
         {fatura.emor_durumu === null
           ? t('efatura.emor.bilinmiyor')

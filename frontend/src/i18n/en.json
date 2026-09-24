@@ -506,7 +506,8 @@
       "efatura_goruntule": "View e-Invoice lists",
       "efatura_pdf": "View e-Invoice PDF/XML",
       "efatura_disari_aktar": "Export e-Invoice list to Excel",
-      "efatura_senkron": "Start e-Invoice sync manually"
+      "efatura_senkron": "Start e-Invoice sync manually",
+      "efatura_gizle": "Hide / restore e-invoices in the list"
     }
   },
   "efatura": {
@@ -649,6 +650,18 @@
       "istisnalilar": "With tax exemption",
       "havuzdaOlmayanlar": "Not in ERP pool"
     },
-    "istisnaFarkli": "Exemption code differs between the integrator and the ERP"
+    "istisnaFarkli": "Exemption code differs between the integrator and the ERP",
+    "gizleme": {
+      "gizle": "Hide",
+      "geriAl": "Restore to list",
+      "aciklama": "Hide the invoice if it is not ours (e.g. issued to another of our companies with the same tax id and delivered to the wrong mailbox). It is not deleted; it stays at the integrator and can be restored.",
+      "gizliAciklama": "This invoice is hidden from the list. Restoring shows it again.",
+      "gizlendi": "Invoice hidden; it appears only when \"Show hidden too\" is on.",
+      "geriAlindi": "Invoice restored to the list.",
+      "goster": "Show hidden too ({{adet}})",
+      "rozet": "Hidden",
+      "rozetAciklama": "Hidden from the list — {{kisi}}",
+      "alan": "Hidden"
+    }
   }
 }

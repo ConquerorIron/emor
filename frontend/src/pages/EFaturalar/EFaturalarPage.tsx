@@ -13,6 +13,7 @@ import { KolonSecici } from '@/components/KolonSecici'
 import { Modal } from '@/components/Modal'
 import { Pagination } from '@/components/Pagination'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
+import { Switch } from '@/components/Switch'
 import { TarihInput } from '@/components/TarihInput'
 import {
   type EFatura,
@@ -33,6 +34,7 @@ import { useKolonGorunurlugu } from '@/hooks/useKolonGorunurlugu'
 import { bugunIso, gunFarki, tarihGoster, zamanGoster } from '@/utils/tarih'
 
 import { FaturaDetayi } from './FaturaDetayi'
+import { GizlemeDugmesi } from './GizlemeDugmesi'
 import { ILK_TARAMA_TARIHI, LISTE_AZAMI_GUN, tutarGoster } from './bicim'
 import { durumIsaretSinifi, durumSatirSinifi } from './durumRenkleri'
 import { istisnaKoduFarkli } from './istisna'
@@ -49,7 +51,11 @@ const BOS_FILTRE: Omit<EFaturaFiltresi, 'bitis'> = {
   tip: '',
   istisna_kodu: '',
   istisnali: '',
+  gizlenenler: '',
 }
+
+/** Gizlenen fatura "Gizlenenleri de göster" açıkken soluk görünür */
+const GIZLI_SATIR = 'opacity-55'
 
 const ERP_FILTRELERI: readonly ErpOkunduFiltresi[] = ['evet', 'hayir', 'bilinmiyor']
 
@@ -229,6 +235,7 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
   const queryClient = useQueryClient()
   const pdfIzni = useIzin('efatura.pdf')
   const excelIzni = useIzin('efatura.disari_aktar')
+  const gizlemeIzni = useIzin('efatura.gizle')
 
   const [filtre, setFiltre] = useState<EFaturaFiltresi>(() => ({
     ...BOS_FILTRE,
@@ -501,6 +508,14 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
               {t('efatura.pdf')}
             </Button>
           ) : null}
+          {f.gizli ? (
+            <span
+              className="self-center rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+              title={t('efatura.gizleme.rozetAciklama', { kisi: f.gizleyen ?? '—' })}
+            >
+              {t('efatura.gizleme.rozet')}
+            </span>
+          ) : null}
         </div>
       ),
     },
@@ -588,6 +603,17 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
           >
             {t('efatura.hizliFiltre.istisnalilar')}
           </HizliFiltre>
+        ) : null}
+        {gelen ? (
+          // Gizlenen (bize ait olmayan) faturalar açılışta listede yok (kullanıcı isteği 2026-09-24)
+          <div className="ml-auto">
+            <Switch
+              id={`efatura-gizlenenler-${yon}`}
+              label={t('efatura.gizleme.goster', { adet: secenekler?.gizlenen_adet ?? 0 })}
+              checked={filtre.gizlenenler === 'dahil'}
+              onChange={(acik) => filtreDegistir('gizlenenler', acik ? 'dahil' : '')}
+            />
+          </div>
         ) : null}
       </div>
 
@@ -761,7 +787,7 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
               satirAnahtari={(f) => f.id}
               yukleniyor={liste.isPending}
               ustKaydirma
-              satirSinifi={(f) => durumSatirSinifi(f.durum)}
+              satirSinifi={(f) => (f.gizli ? GIZLI_SATIR : durumSatirSinifi(f.durum))}
               siralama={siralama}
               siralamaDegistir={(anahtar) => {
                 siralamaDegistir(anahtar)
@@ -796,6 +822,12 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
         boyut={pencere?.tur === 'pdf' ? 'devasa' : 'genis'}
       >
         {pencere?.tur === 'detay' ? <FaturaDetayi fatura={pencere.fatura} /> : null}
+        {pencere?.tur === 'detay' && gelen && gizlemeIzni ? (
+          <GizlemeDugmesi
+            fatura={pencere.fatura}
+            degisti={(fatura) => setPencere({ tur: 'detay', fatura })}
+          />
+        ) : null}
         {pencere?.tur === 'pdf' ? <PdfGoruntuleyici fatura={pencere.fatura} /> : null}
       </Modal>
     </>

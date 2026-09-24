@@ -123,6 +123,10 @@ Route::prefix('v1')->group(function (): void {
                 ->whereNumber('fatura')
                 ->middleware(['can:efatura.pdf', 'throttle:efatura-pdf'])
                 ->name('efatura.faturalar.xml');
+            Route::put('/efatura/faturalar/{fatura}/gizli', [EFaturaController::class, 'gizle'])
+                ->whereNumber('fatura')
+                ->middleware('can:efatura.gizle')
+                ->name('efatura.faturalar.gizle');
             Route::post('/efatura/senkron', [EFaturaSenkronController::class, 'baslat'])
                 ->middleware('can:efatura.senkron')
                 ->name('efatura.senkron');

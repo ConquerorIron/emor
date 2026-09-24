@@ -506,7 +506,8 @@
       "efatura_goruntule": "e-Fatura listelerini görüntüleme",
       "efatura_pdf": "e-Fatura PDF/XML görüntüleme",
       "efatura_disari_aktar": "e-Fatura listesini Excel'e aktarma",
-      "efatura_senkron": "e-Fatura senkronunu elle başlatma"
+      "efatura_senkron": "e-Fatura senkronunu elle başlatma",
+      "efatura_gizle": "e-Faturayı listede gizleme / geri alma"
     }
   },
   "efatura": {
@@ -649,6 +650,18 @@
       "istisnalilar": "Vergi İstisnası Olanlar",
       "havuzdaOlmayanlar": "Havuzda Olmayanlar"
     },
-    "istisnaFarkli": "Entegratördeki ve ERP'deki istisna kodu farklı"
+    "istisnaFarkli": "Entegratördeki ve ERP'deki istisna kodu farklı",
+    "gizleme": {
+      "gizle": "Gizle",
+      "geriAl": "Listeye geri al",
+      "aciklama": "Fatura bize ait değilse (ör. aynı VKN'deki başka şirketimize kesilip yanlış posta kutusuna düşmüşse) gizleyin. Silinmez; entegratörde durur, istendiğinde listeye geri alınır.",
+      "gizliAciklama": "Bu fatura listede gizli. Geri alındığında listede yeniden görünür.",
+      "gizlendi": "Fatura gizlendi; listede yalnız \"Gizlenenleri de göster\" açıkken görünür.",
+      "geriAlindi": "Fatura listeye geri alındı.",
+      "goster": "Gizlenenleri de göster ({{adet}})",
+      "rozet": "Gizli",
+      "rozetAciklama": "Listede gizlendi — {{kisi}}",
+      "alan": "Gizlendi"
+    }
   }
 }

@@ -68,7 +68,7 @@ final class RolTest extends TestCase
                 'ekran' => 'efatura',
                 'goruntule' => 'efatura.goruntule',
                 'guncelle' => 'efatura.senkron',
-                'ekler' => ['efatura.pdf', 'efatura.disari_aktar'],
+                'ekler' => ['efatura.pdf', 'efatura.disari_aktar', 'efatura.gizle'],
             ]);
     }
 

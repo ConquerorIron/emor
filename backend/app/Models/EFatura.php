@@ -13,7 +13,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * İzibiz'den okunan e-Fatura özeti (EFAT-10). Kayıtlar yalnız senkron servisi
- * tarafından upsert edilir; ekrandan düzenlenmez.
+ * tarafından upsert edilir; ekrandan yalnız gizleme alanları değişir (senkron
+ * bunlara dokunmaz).
  *
  * @property int $id
  * @property int $entegrator_baglanti_id
@@ -25,6 +26,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $tutar
  * @property bool|null $erp_okundu
  * @property EmorDurumu|null $emor_durumu ERP'deki aşama (null: henüz kontrol edilmedi)
+ * @property CarbonImmutable|null $gizlenme_zamani null: listede görünür
+ * @property int|null $gizleyen_id
  */
 final class EFatura extends Model
 {
@@ -42,6 +45,14 @@ final class EFatura extends Model
     public function entegratorBaglanti(): BelongsTo
     {
         return $this->belongsTo(EntegratorBaglanti::class);
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function gizleyen(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'gizleyen_id');
     }
 
     /**
@@ -67,6 +78,7 @@ final class EFatura extends Model
             'izibiz_ubl_hata' => 'integer',
             'ilk_gorulme' => 'immutable_datetime',
             'son_gorulme' => 'immutable_datetime',
+            'gizlenme_zamani' => 'immutable_datetime',
         ];
     }
 }

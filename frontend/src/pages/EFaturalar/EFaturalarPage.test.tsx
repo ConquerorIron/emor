@@ -19,6 +19,7 @@ const api = vi.hoisted(() => ({
   excel: vi.fn(),
   pdf: vi.fn(),
   xml: vi.fn(),
+  gizlilik: vi.fn(),
   erp: vi.fn(),
 }))
 
@@ -32,6 +33,7 @@ vi.mock('@/features/efatura/efaturaApi', () => ({
   excelIndir: api.excel,
   pdfGetir: api.pdf,
   xmlIndir: api.xml,
+  gizliligiDegistir: api.gizlilik,
   erpSenkronla: api.erp,
 }))
 
@@ -79,6 +81,9 @@ const FATURA: EFatura = {
   emor_durumu: 'islendi',
   vergi_istisna_kodu: '318',
   izibiz_istisna_kodu: '351',
+  gizli: false,
+  gizlenme_zamani: null,
+  gizleyen: null,
 }
 
 /** Gelen faturalar kullanıcı henüz sıralamadıysa en son alınan üstte açılır */
@@ -93,6 +98,7 @@ const LISTE: EFaturaListesi = {
     para_birimleri: ['TRY'],
     tipler: ['ISTISNA', 'SATIS'],
     istisna_kodlari: ['318', '351'],
+    gizlenen_adet: 2,
   },
   kapsam: { ortam: 'test' },
 }
@@ -678,6 +684,63 @@ describe('EFaturalarPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'XML İndir' }))
     await waitFor(() => expect(api.xml).toHaveBeenCalledTimes(2))
     expect(toastlar.error).toHaveBeenCalledTimes(1)
+  })
+
+  it('detaydan fatura gizlenir, pencere güncellenir, liste yeniden okunur; izin yoksa düğme yok', async () => {
+    api.gizlilik.mockResolvedValue({
+      ...FATURA,
+      gizli: true,
+      gizlenme_zamani: '2026-09-24T13:00:00+00:00',
+      gizleyen: 'Deneme',
+    })
+    ciz([...TUM_IZINLER, 'efatura.gizle'])
+    await screen.findByText('Deniz Boya Ltd.')
+    const okumaSayisi = api.faturalar.mock.calls.length
+
+    fireEvent.click(screen.getByRole('button', { name: 'Detay' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Gizle' }))
+
+    await waitFor(() =>
+      expect(toastlar.success).toHaveBeenCalledWith(
+        'Fatura gizlendi; listede yalnız "Gizlenenleri de göster" açıkken görünür.',
+      ),
+    )
+    expect(api.gizlilik).toHaveBeenCalledWith(11, true)
+    // Pencere güncel faturayı gösterir: artık geri alınabilir
+    expect(
+      await within(dialog).findByRole('button', { name: 'Listeye geri al' }),
+    ).toBeInTheDocument()
+    expect(within(dialog).getByText(/Deneme/)).toBeInTheDocument()
+    await waitFor(() => expect(api.faturalar.mock.calls.length).toBeGreaterThan(okumaSayisi))
+  })
+
+  it('gizleme izni yoksa detayda Gizle düğmesi yok', async () => {
+    ciz(TUM_IZINLER)
+    await screen.findByText('Deniz Boya Ltd.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Detay' }))
+    const dialog = await screen.findByRole('dialog')
+
+    expect(within(dialog).queryByRole('button', { name: 'Gizle' })).not.toBeInTheDocument()
+  })
+
+  it('"Gizlenenleri de göster" açılınca liste gizlenenlerle istenir, gizli satır işaretlenir', async () => {
+    ciz(TUM_IZINLER)
+    await screen.findByText('Deniz Boya Ltd.')
+    api.faturalar.mockResolvedValue({ ...LISTE, data: [{ ...FATURA, gizli: true }] })
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Gizlenenleri de göster (2)' }))
+
+    await waitFor(() =>
+      expect(api.faturalar).toHaveBeenLastCalledWith(
+        'gelen',
+        expect.objectContaining({ gizlenenler: 'dahil' }),
+        expect.anything(),
+        1,
+      ),
+    )
+    expect(await screen.findByText('Gizli')).toBeInTheDocument()
   })
 
   it('ERP Senkronla eMOR’u tazeler, sonucu bildirir ve listeyi yeniden okur', async () => {

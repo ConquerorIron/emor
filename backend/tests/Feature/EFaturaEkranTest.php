@@ -84,11 +84,13 @@ final class EFaturaEkranTest extends TestCase
             'excel' => ['get', '/api/v1/efatura/gelen/faturalar/excel?'.self::ARALIK, 'efatura.goruntule'],
             'pdf' => ['get', '/api/v1/efatura/faturalar/1/pdf', 'efatura.goruntule'],
             'xml' => ['get', '/api/v1/efatura/faturalar/1/xml', 'efatura.goruntule'],
+            'gizle' => ['put', '/api/v1/efatura/faturalar/1/gizli', 'efatura.goruntule'],
             'senkron' => ['post', '/api/v1/efatura/senkron', 'efatura.goruntule'],
             // İşlem izni tek başına yetmez: görüntüleme izni de gerekir
             'excel, görüntüleme izni olmadan' => ['get', '/api/v1/efatura/gelen/faturalar/excel?'.self::ARALIK, 'efatura.disari_aktar'],
             'pdf, görüntüleme izni olmadan' => ['get', '/api/v1/efatura/faturalar/1/pdf', 'efatura.pdf'],
             'xml, görüntüleme izni olmadan' => ['get', '/api/v1/efatura/faturalar/1/xml', 'efatura.pdf'],
+            'gizle, görüntüleme izni olmadan' => ['put', '/api/v1/efatura/faturalar/1/gizli', 'efatura.gizle'],
             'senkron, görüntüleme izni olmadan' => ['post', '/api/v1/efatura/senkron', 'efatura.senkron'],
         ];
     }
@@ -651,6 +653,86 @@ final class EFaturaEkranTest extends TestCase
         Http::assertSent(fn (Request $istek) => $istek->url() === 'https://apitest.izibiz.com.tr/v1/einvoices/outbox/download/ubl'
             && $istek->method() === 'POST'
             && $istek->data() === [['id' => 4242]]);
+    }
+
+    // --- Gizleme -----------------------------------------------------------------
+
+    public function test_gizlenen_fatura_varsayilan_listede_yok_istenince_gelir_ve_listeye_geri_alinir(): void
+    {
+        $this->travelTo('2026-09-24 13:00:00');
+        $tanim = $this->aktifTanim();
+        $bizimDegil = $this->fatura($tanim, ['belge_no' => 'YNL2026000000001', 'tutar' => '100.0000']);
+        $this->fatura($tanim, ['belge_no' => 'GLN2026000000001', 'tutar' => '50.0000']);
+        $kullanici = $this->izinli('efatura.goruntule', 'efatura.gizle');
+
+        $this->actingAs($kullanici)
+            ->putJson("/api/v1/efatura/faturalar/{$bizimDegil->id}/gizli", ['gizli' => true])
+            ->assertOk()
+            ->assertJsonPath('data.gizli', true)
+            ->assertJsonPath('data.gizlenme_zamani', '2026-09-24T13:00:00+00:00')
+            ->assertJsonPath('data.gizleyen', $kullanici->ad);
+        $this->assertSame($kullanici->id, $bizimDegil->fresh()->gizleyen_id);
+
+        // Varsayılan: gizlenen listede, özette yok; sayısı anahtarın yanında
+        $this->actingAs($kullanici)
+            ->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK)
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.belge_no', 'GLN2026000000001')
+            ->assertJsonPath('ozet.0.adet', 1)
+            ->assertJsonPath('secenekler.gizlenen_adet', 1);
+
+        $this->actingAs($kullanici)
+            ->getJson('/api/v1/efatura/gelen/faturalar?gizlenenler=dahil&sirala=belge_no&yon=desc&'.self::ARALIK)
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.gizli', true)
+            ->assertJsonPath('data.0.gizleyen', $kullanici->ad)
+            ->assertJsonPath('data.1.gizli', false);
+
+        $this->actingAs($kullanici)
+            ->putJson("/api/v1/efatura/faturalar/{$bizimDegil->id}/gizli", ['gizli' => false])
+            ->assertOk()
+            ->assertJsonPath('data.gizli', false)
+            ->assertJsonPath('data.gizleyen', null);
+
+        $this->actingAs($kullanici)
+            ->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK)
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('secenekler.gizlenen_adet', 0);
+    }
+
+    public function test_zaten_gizli_fatura_yeniden_gizlenince_ilk_gizleme_bilgisi_korunur(): void
+    {
+        $this->travelTo('2026-09-24 13:00:00');
+        $tanim = $this->aktifTanim();
+        $ilk = $this->izinli('efatura.goruntule', 'efatura.gizle');
+        $fatura = $this->fatura($tanim, ['gizlenme_zamani' => now()->subHour(), 'gizleyen_id' => $ilk->id]);
+
+        $this->actingAs(User::factory()->yonetici()->create())
+            ->putJson("/api/v1/efatura/faturalar/{$fatura->id}/gizli", ['gizli' => true])
+            ->assertOk()
+            ->assertJsonPath('data.gizlenme_zamani', '2026-09-24T12:00:00+00:00')
+            ->assertJsonPath('data.gizleyen', $ilk->ad);
+    }
+
+    public function test_gizleme_degeri_zorunludur_ve_baska_hesabin_faturasi_404_doner(): void
+    {
+        $tanim = $this->aktifTanim();
+        $fatura = $this->fatura($tanim);
+        $baskaHesabin = $this->fatura(EntegratorBaglanti::factory()->canli()->create());
+        $kullanici = $this->izinli('efatura.goruntule', 'efatura.gizle');
+
+        $this->actingAs($kullanici)
+            ->putJson("/api/v1/efatura/faturalar/{$fatura->id}/gizli", [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrorFor('gizli', 'hatalar');
+
+        $this->actingAs($kullanici)
+            ->putJson("/api/v1/efatura/faturalar/{$baskaHesabin->id}/gizli", ['gizli' => true])
+            ->assertNotFound()
+            ->assertJsonPath('kod', 'BULUNAMADI');
+        $this->assertNull($baskaHesabin->fresh()->gizlenme_zamani);
     }
 
     // --- Durum -----------------------------------------------------------------

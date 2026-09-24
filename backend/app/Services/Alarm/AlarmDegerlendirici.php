@@ -226,6 +226,8 @@ final class AlarmDegerlendirici
             ->where('entegrator_baglanti_id', $tanim->id)
             ->where('yon', FaturaYonu::Gelen->value)
             ->where('erp_okundu', false)
+            // Gizlenen fatura bize ait değil (yanlış posta kutusu): ERP'nin okuması beklenmez
+            ->whereNull('gizlenme_zamani')
             ->where('son_gorulme', '>=', $taze)
             ->where('olusturma_zamani', '<=', $simdi->subDays($gun))
             ->where('belge_tarihi', '>=', (string) config('entegrator.izibiz.ilk_tarama_tarihi'))
@@ -313,12 +315,14 @@ final class AlarmDegerlendirici
 
         $cozulenler = [];
         foreach (array_chunk(array_keys($faturaOlaylari), 1000) as $parti) {
-            $faturalar = EFatura::query()->whereIn('id', $parti)->get(['id', 'erp_okundu', 'son_gorulme'])->keyBy('id');
+            $faturalar = EFatura::query()->whereIn('id', $parti)->get(['id', 'erp_okundu', 'son_gorulme', 'gizlenme_zamani'])->keyBy('id');
 
             foreach ($parti as $faturaId) {
                 $fatura = $faturalar->get($faturaId);
 
+                // Gizlenen fatura bize ait değil: olayı kapanır
                 if ($fatura === null
+                    || $fatura->gizlenme_zamani !== null
                     || ($fatura->erp_okundu === true && $fatura->getAttribute('son_gorulme')?->gte($taze))) {
                     $cozulenler[] = $faturaOlaylari[$faturaId];
                 }

@@ -67,6 +67,10 @@ final class EFaturaResource extends JsonResource
             'harici_aktarim' => $this->getAttribute('harici_aktarim'),
             'mail_durumu' => $this->getAttribute('mail_durumu'),
             'son_gorulme' => $this->getAttribute('son_gorulme')?->toIso8601String(),
+            'gizli' => $this->gizlenme_zamani !== null,
+            'gizlenme_zamani' => $this->gizlenme_zamani?->toIso8601String(),
+            // Yalnız yüklendiyse (liste/gizleme ucu eager load eder): satır başına sorgu yok
+            'gizleyen' => $this->relationLoaded('gizleyen') ? $this->gizleyen?->ad : null,
         ];
     }
 }

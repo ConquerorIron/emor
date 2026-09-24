@@ -255,6 +255,26 @@ final class AlarmTest extends TestCase
         $this->assertSame(1, AlarmOlayi::query()->where('durum', AlarmOlayi::ACIK)->count());
     }
 
+    public function test_erp_okumadi_gizlenen_fatura_icin_olay_acmaz_acik_olayi_kapanir(): void
+    {
+        $this->travelTo('2026-09-23 07:00:00');
+        $tanim = $this->tanim();
+        $kural = $this->kural(AlarmKurali::ERP_OKUMADI, ['gun' => 2, 'saat' => '09:00']);
+        $this->guncelVeri($tanim);
+        $alanlar = ['entegrator_baglanti_id' => $tanim->id, 'erp_okundu' => false, 'olusturma_zamani' => '2026-09-10 10:00:00', 'belge_tarihi' => '2026-09-10', 'son_gorulme' => now()];
+        // Bize ait değil (yanlış posta kutusu), gizlendi
+        EFatura::factory()->create([...$alanlar, 'gizlenme_zamani' => now()->subDay()]);
+        // Olayı açıkken gizlendi
+        $sonradanGizlenen = EFatura::factory()->create([...$alanlar, 'gizlenme_zamani' => now()]);
+        AlarmOlayi::query()->create(['alarm_kurali_id' => $kural->id, 'entegrator_baglanti_id' => $tanim->id, 'anahtar' => 'fatura:'.$sonradanGizlenen->id, 'durum' => AlarmOlayi::ACIK, 'acildi' => now()->subDays(5)]);
+
+        $this->assertSame([], $this->degerlendir());
+        $bildirim = AlarmBildirimi::query()->sole();
+
+        $this->assertSame([0, 0, 1], [$bildirim->ayrinti['yeni_adet'], $bildirim->ayrinti['acik_adet'], $bildirim->ayrinti['cozulen_adet']]);
+        $this->assertSame(0, AlarmOlayi::query()->where('durum', AlarmOlayi::ACIK)->count());
+    }
+
     /** Gece DOCUMENT senkronu faturaları yeniden okudu (son_gorulme şimdi). */
     private function faturalarTazelendi(EntegratorBaglanti $tanim): void
     {
