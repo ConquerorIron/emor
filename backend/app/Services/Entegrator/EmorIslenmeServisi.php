@@ -13,8 +13,10 @@ use App\Services\ErpFaturaKaynagi;
  * etkilenmez; filtre/sıralama/Excel aynı veriden çalışır); efatura:emor
  * komutu 5 dakikada bir tazeler, "ERP Senkronla" düğmesi hemen.
  *
- * - Gelen: TOHOM_FATURA'daki alış faturasının E_FATURA_ETTN'i → işlendi;
- *   değilse TOHOM_E_FATURA havuzunda (UUID) → havuzda; ikisi de değilse yok.
+ * - Gelen: alış faturasının (TOHOM_FATURA) ya da harcama belgesinin
+ *   (TOHOM_HARCAMA_BELGESI) E_FATURA_ETTN'i → işlendi; değilse ETTN'siz elle
+ *   girilmiş kayıtta fatura no + gönderen VKN birlikte → elle işlendi; değilse
+ *   TOHOM_E_FATURA havuzunda (UUID) → havuzda; hiçbiri değilse yok.
  * - Giden: ERP_GONDERILEN_E_FATURA_LISTESI; önce ETTN, ERP satırında ETTN
  *   yoksa (gider yansıtma) belge no + alıcı VKN'si. İki tarafta da ETTN varsa
  *   belge no ile eşleştirilmez (kullanıcı kuralı: yalnız fatura no ile olmaz).
@@ -42,25 +44,26 @@ final class EmorIslenmeServisi
     ) {}
 
     /**
-     * @return array{islendi: int, havuzda: int, yok: int, degisen: int}
+     * @return array{islendi: int, elle_islendi: int, havuzda: int, yok: int, degisen: int}
      */
     public function tazele(FaturaYonu $yon): array
     {
         $gelen = $yon === FaturaYonu::Gelen;
-        // Gelen: [muhasebeleşmiş ETTN'ler, havuz ETTN => ERP bilgileri]
+        // Gelen: [muhasebeleşmiş ETTN'ler, elle işlenmiş no+VKN'ler, havuz ETTN => ERP bilgileri]
         $islenmis = $gelen ? $this->kume($this->erp->islenmisGelenEttnler()) : null;
+        $elleIslenmis = $gelen ? $this->noVknKumesi($this->erp->islenmisGelenBelgeler()) : null;
         $havuz = $gelen ? $this->havuz() : null;
         $gidenIslendiMi = $gelen ? null : $this->gidenEslestirici();
 
         /** @var array<string, array<string, list<int>>> $degisenler kolon => yeni değer ('' = null) => id'ler */
         $degisenler = ['emor_durumu' => [], ...array_fill_keys(array_keys(self::HAVUZ_KOLONLARI), [])];
-        $sayac = ['islendi' => 0, 'havuzda' => 0, 'yok' => 0];
+        $sayac = ['islendi' => 0, 'elle_islendi' => 0, 'havuzda' => 0, 'yok' => 0];
 
         EFatura::query()
             ->where('yon', $yon->value)
-            ->select(['id', 'ettn', 'belge_no', 'alici_vkn', 'emor_durumu', ...array_keys(self::HAVUZ_KOLONLARI)])
+            ->select(['id', 'ettn', 'belge_no', 'gonderici_vkn', 'alici_vkn', 'emor_durumu', ...array_keys(self::HAVUZ_KOLONLARI)])
             ->lazyById(self::PARCA)
-            ->each(function (EFatura $fatura) use ($islenmis, $havuz, $gidenIslendiMi, &$degisenler, &$sayac): void {
+            ->each(function (EFatura $fatura) use ($islenmis, $elleIslenmis, $havuz, $gidenIslendiMi, &$degisenler, &$sayac): void {
                 $ettn = $this->ettn($fatura->ettn);
 
                 if ($gidenIslendiMi !== null) {
@@ -68,6 +71,7 @@ final class EmorIslenmeServisi
                 } else {
                     $durum = match (true) {
                         isset($islenmis[$ettn]) => EmorDurumu::Islendi,
+                        isset($elleIslenmis[$this->noVkn($fatura->belge_no, (string) $fatura->getAttribute('gonderici_vkn'))]) => EmorDurumu::ElleIslendi,
                         array_key_exists($ettn, $havuz ?? []) => EmorDurumu::Havuzda,
                         default => EmorDurumu::Yok,
                     };
@@ -121,6 +125,22 @@ final class EmorIslenmeServisi
     private function kume(array $ettnler): array
     {
         return array_fill_keys(array_map($this->ettn(...), $ettnler), true);
+    }
+
+    /**
+     * @param  list<array{belge_no: string, vkn: string}>  $belgeler
+     * @return array<string, true>
+     */
+    private function noVknKumesi(array $belgeler): array
+    {
+        $kume = [];
+        foreach ($belgeler as $belge) {
+            if (trim($belge['belge_no']) !== '' && trim($belge['vkn']) !== '') {
+                $kume[$this->noVkn($belge['belge_no'], $belge['vkn'])] = true;
+            }
+        }
+
+        return $kume;
     }
 
     /**

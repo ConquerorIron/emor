@@ -74,13 +74,13 @@ final class EFaturaSorgusu
             default => null,
         };
 
-        // eMOR: islendi | havuzda | yok (EmorDurumu), bilinmiyor = henüz kontrol
-        // edilmedi, islenmemis = "İşlendi" yazmayanların hepsi (hızlı filtre)
+        // eMOR: islendi | elle_islendi | havuzda | yok (EmorDurumu), bilinmiyor = henüz
+        // kontrol edilmedi, islenmemis = işlendi (elle dahil) olmayanların hepsi (hızlı filtre)
         match ($filtre['emor'] ?? null) {
             null => null,
             'bilinmiyor' => $sorgu->whereNull('emor_durumu'),
             'islenmemis' => $sorgu->where(fn (Builder $q) => $q->whereNull('emor_durumu')
-                ->orWhere('emor_durumu', '!=', EmorDurumu::Islendi->value)),
+                ->orWhereNotIn('emor_durumu', [EmorDurumu::Islendi->value, EmorDurumu::ElleIslendi->value])),
             default => $sorgu->where('emor_durumu', $filtre['emor']),
         };
 
@@ -135,7 +135,7 @@ final class EFaturaSorgusu
 
         if ($sutun === 'emor_durumu') {
             // Aşama sırası (alfabetik değil): işlendi > havuzda > yok
-            $sorgu->orderByRaw("CASE emor_durumu WHEN 'islendi' THEN 3 WHEN 'havuzda' THEN 2 ELSE 1 END {$yonu}");
+            $sorgu->orderByRaw("CASE emor_durumu WHEN 'islendi' THEN 4 WHEN 'elle_islendi' THEN 3 WHEN 'havuzda' THEN 2 ELSE 1 END {$yonu}");
         } else {
             $sorgu->orderBy($sutun, $yonu);
         }

@@ -36,7 +36,7 @@ final class ErpIstisnaKoduAktarimi
             ->where('yon', FaturaYonu::Gelen->value)
             ->whereNotNull('izibiz_istisna_kodu')
             ->whereNull('vergi_istisna_kodu')
-            ->whereIn('emor_durumu', [EmorDurumu::Havuzda->value, EmorDurumu::Islendi->value])
+            ->whereIn('emor_durumu', [EmorDurumu::Havuzda->value, EmorDurumu::Islendi->value, EmorDurumu::ElleIslendi->value])
             ->get(['id', 'belge_no', 'ettn', 'izibiz_istisna_kodu']);
 
         foreach ($adaylar as $fatura) {

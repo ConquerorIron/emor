@@ -620,20 +620,23 @@
     },
     "erpSenkron": {
       "ac": "ERP Senkronla",
-      "aciklama": "Bu listedeki faturaların ERP'de karşılığı olup olmadığını şimdi kontrol eder (gelen: TOHOM_FATURA, giden: gönderilen e-fatura listesi); eMOR kolonu güncellenir. 5 dakikada bir kendiliğinden de yapılır.",
-      "tamam": "eMOR güncellendi: {{islendi}} işlendi, {{havuzda}} havuzda, {{yok}} ERP'de yok ({{degisen}} değişti)."
+      "aciklama": "Bu listedeki faturaların ERP'de karşılığı olup olmadığını şimdi kontrol eder (gelen: TOHOM_FATURA ve TOHOM_HARCAMA_BELGESI, giden: gönderilen e-fatura listesi); eMOR kolonu güncellenir. 5 dakikada bir kendiliğinden de yapılır.",
+      "tamam": "eMOR güncellendi: {{islendi}} işlendi, {{elle_islendi}} elle işlendi, {{havuzda}} havuzda, {{yok}} ERP'de yok ({{degisen}} değişti)."
     },
     "emor": {
       "islendi": "İşlendi",
+      "elle_islendi": "İşlendi (elle)",
       "havuzda": "Havuzda",
       "yok": "ERP'de yok",
       "bilinmiyor": "ERP henüz kontrol edilmedi",
       "aciklama": {
-        "islendi": "Muhasebeye kabul edilmiş (TOHOM_FATURA)",
+        "islendi": "Muhasebeye kabul edilmiş (TOHOM_FATURA / TOHOM_HARCAMA_BELGESI, ETTN ile)",
+        "elle_islendi": "ERP'ye e-fatura eşleştirilmeden elle girilmiş: ETTN yok, fatura no ve VKN ile bulundu",
         "havuzda": "ERP entegratörden almış (TOHOM_E_FATURA), henüz muhasebeleşmemiş"
       },
       "filtre": {
         "islendi": "İşlendi",
+        "elle_islendi": "İşlendi (elle, ETTN'siz)",
         "havuzda": "Havuzda (muhasebeleşmemiş)",
         "yok": "ERP'de yok",
         "bilinmiyor": "Kontrol edilmedi",

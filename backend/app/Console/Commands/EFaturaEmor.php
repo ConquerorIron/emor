@@ -42,9 +42,10 @@ final class EFaturaEmor extends Command
 
             $gelenOkundu = $gelenOkundu || $yon === FaturaYonu::Gelen;
             $this->line(sprintf(
-                'eMOR %s: işlendi %d, havuzda %d, yok %d, değişen %d',
+                'eMOR %s: işlendi %d, elle işlendi %d, havuzda %d, yok %d, değişen %d',
                 $yon->value,
                 $sonuc['islendi'],
+                $sonuc['elle_islendi'],
                 $sonuc['havuzda'],
                 $sonuc['yok'],
                 $sonuc['degisen'],

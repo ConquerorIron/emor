@@ -681,7 +681,7 @@ describe('EFaturalarPage', () => {
   })
 
   it('ERP Senkronla eMOR’u tazeler, sonucu bildirir ve listeyi yeniden okur', async () => {
-    api.erp.mockResolvedValue({ islendi: 5, havuzda: 3, yok: 2, degisen: 1 })
+    api.erp.mockResolvedValue({ islendi: 5, elle_islendi: 4, havuzda: 3, yok: 2, degisen: 1 })
     ciz(TUM_IZINLER)
     await screen.findByText('Deniz Boya Ltd.')
     const okumaSayisi = api.faturalar.mock.calls.length
@@ -690,7 +690,7 @@ describe('EFaturalarPage', () => {
 
     await waitFor(() =>
       expect(toastlar.success).toHaveBeenCalledWith(
-        "eMOR güncellendi: 5 işlendi, 3 havuzda, 2 ERP'de yok (1 değişti).",
+        "eMOR güncellendi: 5 işlendi, 4 elle işlendi, 3 havuzda, 2 ERP'de yok (1 değişti).",
       ),
     )
     expect(api.erp).toHaveBeenCalledExactlyOnceWith('gelen')

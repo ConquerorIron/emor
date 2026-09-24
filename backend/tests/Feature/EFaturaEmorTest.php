@@ -30,21 +30,29 @@ final class EFaturaEmorTest extends TestCase
      * @param  list<string>|RuntimeException  $gelen
      * @param  list<array{ettn: string|null, belge_no: string, vkn: string}>|RuntimeException  $giden
      * @param  array<string, array{istisna_kodu: string|null, gonderici_etiketi: string|null, alici_etiketi: string|null}>  $havuz  TOHOM_E_FATURA: ETTN => ERP bilgileri
+     * @param  list<array{belge_no: string, vkn: string}>  $belgeler  TOHOM_FATURA / TOHOM_HARCAMA_BELGESI: fatura no + VKN
      */
-    private function erp(array|RuntimeException $gelen, array|RuntimeException $giden = [], array $havuz = []): void
+    private function erp(array|RuntimeException $gelen, array|RuntimeException $giden = [], array $havuz = [], array $belgeler = []): void
     {
-        $this->app->instance(ErpFaturaKaynagi::class, new class($gelen, $giden, $havuz) implements ErpFaturaKaynagi
+        $this->app->instance(ErpFaturaKaynagi::class, new class($gelen, $giden, $havuz, $belgeler) implements ErpFaturaKaynagi
         {
             /**
              * @param  list<string>|RuntimeException  $gelen
              * @param  list<array{ettn: string|null, belge_no: string, vkn: string}>|RuntimeException  $giden
              * @param  array<string, array{istisna_kodu: string|null, gonderici_etiketi: string|null, alici_etiketi: string|null}>  $havuz
+             * @param  list<array{belge_no: string, vkn: string}>  $belgeler
              */
             public function __construct(
                 private readonly array|RuntimeException $gelen,
                 private readonly array|RuntimeException $giden,
                 private readonly array $havuz,
+                private readonly array $belgeler,
             ) {}
+
+            public function islenmisGelenBelgeler(): array
+            {
+                return $this->belgeler;
+            }
 
             public function islenmisGelenEttnler(): array
             {
@@ -77,8 +85,8 @@ final class EFaturaEmorTest extends TestCase
         $this->erp([strtoupper(self::ISLENMIS)]);
 
         $this->artisan('efatura:emor')
-            ->expectsOutput('eMOR gelen: işlendi 1, havuzda 0, yok 1, değişen 2')
-            ->expectsOutput('eMOR giden: işlendi 0, havuzda 0, yok 0, değişen 0')
+            ->expectsOutput('eMOR gelen: işlendi 1, elle işlendi 0, havuzda 0, yok 1, değişen 2')
+            ->expectsOutput('eMOR giden: işlendi 0, elle işlendi 0, havuzda 0, yok 0, değişen 0')
             ->assertSuccessful();
 
         $this->assertSame(EmorDurumu::Islendi, $islenmis->fresh()->emor_durumu);
@@ -104,7 +112,7 @@ final class EFaturaEmorTest extends TestCase
         ]);
 
         $this->artisan('efatura:emor')
-            ->expectsOutput('eMOR giden: işlendi 2, havuzda 0, yok 2, değişen 4')
+            ->expectsOutput('eMOR giden: işlendi 2, elle işlendi 0, havuzda 0, yok 2, değişen 4')
             ->assertSuccessful();
 
         $this->assertSame(EmorDurumu::Islendi, $ettnIle->fresh()->emor_durumu);
@@ -129,13 +137,60 @@ final class EFaturaEmorTest extends TestCase
         ]);
 
         $this->artisan('efatura:emor')
-            ->expectsOutput('eMOR gelen: işlendi 1, havuzda 1, yok 1, değişen 3')
+            ->expectsOutput('eMOR gelen: işlendi 1, elle işlendi 0, havuzda 1, yok 1, değişen 3')
             ->assertSuccessful();
 
         $this->assertSame(EmorDurumu::Islendi, $islendi->fresh()->emor_durumu);
         $this->assertSame(EmorDurumu::Havuzda, $havuzda->fresh()->emor_durumu);
         $this->assertSame('351', $havuzda->fresh()->vergi_istisna_kodu);
         $this->assertSame(EmorDurumu::Yok, $yok->fresh()->emor_durumu);
+    }
+
+    public function test_ettnsiz_elle_islenmis_fatura_no_ve_vkn_birlikte_eslesince_elle_islendi_olur(): void
+    {
+        $tanim = $this->tanim();
+        $fatura = fn (string $no, string $vkn, string $ettn): EFatura => EFatura::factory()->create([
+            'entegrator_baglanti_id' => $tanim->id, 'belge_no' => $no, 'gonderici_vkn' => $vkn, 'ettn' => $ettn,
+        ]);
+        // ETTN ile işlenmiş olan elle eşleşmeye bakılmadan işlendi
+        $ettnIle = $fatura('ABC2026000000001', '1111111111', self::ISLENMIS);
+        // Havuzdan silinip elle girilmiş (numara ERP'de küçük harf ve boşluklu)
+        $elle = $fatura('ABC2026000000002', '1111111111', 'eeb4f1a9-9bc7-4576-beb6-00000000000b');
+        // Havuzda duruyor ama elle işlenmiş: elle işlendi havuzdan önce gelir
+        $havuzdaElle = $fatura('ABC2026000000003', '2222222222', 'eeb4f1a9-9bc7-4576-beb6-00000000000c');
+        // Aynı numara başka firmanın: VKN tutmadıkça eşleşmez
+        $baskaFirma = $fatura('ABC2026000000004', '3333333333', 'eeb4f1a9-9bc7-4576-beb6-00000000000d');
+        $this->erp([self::ISLENMIS], havuz: [
+            'eeb4f1a9-9bc7-4576-beb6-00000000000c' => $this->havuzKaydi(),
+        ], belgeler: [
+            ['belge_no' => 'ABC2026000000001', 'vkn' => '1111111111'],
+            ['belge_no' => ' abc2026000000002 ', 'vkn' => '1111111111'],
+            ['belge_no' => 'ABC2026000000003', 'vkn' => '2222222222'],
+            ['belge_no' => 'ABC2026000000004', 'vkn' => '9999999999'],
+        ]);
+
+        $this->artisan('efatura:emor')
+            ->expectsOutput('eMOR gelen: işlendi 1, elle işlendi 2, havuzda 0, yok 1, değişen 4')
+            ->assertSuccessful();
+
+        $this->assertSame(EmorDurumu::Islendi, $ettnIle->fresh()->emor_durumu);
+        $this->assertSame(EmorDurumu::ElleIslendi, $elle->fresh()->emor_durumu);
+        $this->assertSame(EmorDurumu::ElleIslendi, $havuzdaElle->fresh()->emor_durumu);
+        $this->assertSame(EmorDurumu::Yok, $baskaFirma->fresh()->emor_durumu);
+    }
+
+    public function test_islenmeyenler_filtresi_elle_islenenleri_de_islenmis_sayar(): void
+    {
+        $tanim = $this->tanim();
+        $yok = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'yok']);
+        EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'elle_islendi']);
+        EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'islendi']);
+
+        $this->actingAs(User::factory()->yonetici()->create())
+            ->getJson('/api/v1/efatura/gelen/faturalar?baslangic=2026-01-01&bitis=2026-01-31&emor=islenmemis')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $yok->id);
     }
 
     public function test_gelen_faturanin_vergi_istisna_kodu_erpden_ettn_ile_yazilir_ve_kalkinca_silinir(): void
@@ -203,11 +258,11 @@ final class EFaturaEmorTest extends TestCase
         $fatura = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => self::ISLENMIS]);
 
         $this->erp([self::ISLENMIS]);
-        $this->artisan('efatura:emor')->expectsOutput('eMOR gelen: işlendi 1, havuzda 0, yok 0, değişen 1');
-        $this->artisan('efatura:emor')->expectsOutput('eMOR gelen: işlendi 1, havuzda 0, yok 0, değişen 0');
+        $this->artisan('efatura:emor')->expectsOutput('eMOR gelen: işlendi 1, elle işlendi 0, havuzda 0, yok 0, değişen 1');
+        $this->artisan('efatura:emor')->expectsOutput('eMOR gelen: işlendi 1, elle işlendi 0, havuzda 0, yok 0, değişen 0');
 
         $this->erp([]);
-        $this->artisan('efatura:emor')->expectsOutput('eMOR gelen: işlendi 0, havuzda 0, yok 1, değişen 1');
+        $this->artisan('efatura:emor')->expectsOutput('eMOR gelen: işlendi 0, elle işlendi 0, havuzda 0, yok 1, değişen 1');
 
         $this->assertSame(EmorDurumu::Yok, $fatura->fresh()->emor_durumu);
     }
@@ -238,7 +293,7 @@ final class EFaturaEmorTest extends TestCase
         $this->actingAs(User::factory()->yonetici()->create())
             ->postJson('/api/v1/efatura/erp-senkron', ['yon' => 'giden'])
             ->assertOk()
-            ->assertExactJson(['data' => ['islendi' => 1, 'havuzda' => 0, 'yok' => 0, 'degisen' => 1]]);
+            ->assertExactJson(['data' => ['islendi' => 1, 'elle_islendi' => 0, 'havuzda' => 0, 'yok' => 0, 'degisen' => 1]]);
 
         $this->assertSame(EmorDurumu::Islendi, $giden->fresh()->emor_durumu);
         $this->assertNull($gelen->fresh()->emor_durumu);

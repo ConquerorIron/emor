@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Services;
 
 /**
- * Aktif ERP ortamının TOHOM_FATURA tablosundan işlenmiş gelen faturalar.
+ * Aktif ERP ortamında işlenmiş gelen faturalar: TOHOM_FATURA (alış faturası)
+ * ve TOHOM_HARCAMA_BELGESI (harcama belgesi).
  *
- * TIP = 0 alış faturası, IADE_FATURASI_TIPI dolu olanlar iade (kullanıcı
- * tanımı 2026-09-24). E_FATURA_ETTN, İzibiz'deki fatura ETTN'idir; keşifte
+ * TOHOM_FATURA: TIP = 0 alış faturası, IADE_FATURASI_TIPI dolu olanlar iade.
+ * TOHOM_HARCAMA_BELGESI: TIP = 0 alış, 1 gider yansıtma (satış) — kullanıcı
+ * tanımları 2026-09-24. E_FATURA_ETTN, İzibiz'deki fatura ETTN'idir; keşifte
  * (canlı hesap) 3.697 ETTN'in 3.696'sı eşleşti. Yalnız tek kolon okunur.
  */
 final class ErpFaturaSorgusu implements ErpFaturaKaynagi
@@ -21,12 +23,40 @@ final class ErpFaturaSorgusu implements ErpFaturaKaynagi
     {
         /** @var list<object{E_FATURA_ETTN: string}> $satirlar */
         $satirlar = $this->mssql->baglan()->select(
-            'SELECT DISTINCT E_FATURA_ETTN
+            'SELECT E_FATURA_ETTN
              FROM TOHOM_FATURA
-             WHERE TIP = 0 AND IADE_FATURASI_TIPI IS NULL AND E_FATURA_ETTN IS NOT NULL',
+             WHERE TIP = 0 AND IADE_FATURASI_TIPI IS NULL AND E_FATURA_ETTN IS NOT NULL
+             UNION
+             SELECT E_FATURA_ETTN
+             FROM TOHOM_HARCAMA_BELGESI
+             WHERE TIP = 0 AND E_FATURA_ETTN IS NOT NULL',
         );
 
         return array_map(fn (object $satir): string => $satir->E_FATURA_ETTN, $satirlar);
+    }
+
+    /**
+     * Yalnız iki kolon okunur. nchar alanlar boşlukla dolu gelir.
+     */
+    public function islenmisGelenBelgeler(): array
+    {
+        /** @var list<object{BELGE_NO: string, VKN: string}> $satirlar */
+        $satirlar = $this->mssql->baglan()->select(
+            "SELECT LTRIM(RTRIM(FATURA_NO)) AS BELGE_NO, LTRIM(RTRIM(VERGI_KIMLIK_NO)) AS VKN
+             FROM TOHOM_FATURA
+             WHERE TIP = 0 AND IADE_FATURASI_TIPI IS NULL
+               AND ISNULL(FATURA_NO, '') <> '' AND ISNULL(VERGI_KIMLIK_NO, '') <> ''
+             UNION
+             SELECT LTRIM(RTRIM(BELGE_NO)), LTRIM(RTRIM(VERGI_KIMLIK_NO))
+             FROM TOHOM_HARCAMA_BELGESI
+             WHERE TIP = 0
+               AND ISNULL(BELGE_NO, '') <> '' AND ISNULL(VERGI_KIMLIK_NO, '') <> ''",
+        );
+
+        return array_map(fn (object $satir): array => [
+            'belge_no' => (string) $satir->BELGE_NO,
+            'vkn' => (string) $satir->VKN,
+        ], $satirlar);
     }
 
     /**

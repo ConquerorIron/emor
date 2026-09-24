@@ -83,12 +83,14 @@ export interface EFaturaListesi {
 export type ErpOkunduFiltresi = '' | 'evet' | 'hayir' | 'bilinmiyor'
 
 /**
- * eMOR: islendi = muhasebeleşmiş (gelen: TOHOM_FATURA), havuzda = ERP almış ama
- * muhasebeleşmemiş (TOHOM_E_FATURA), yok = ERP'de karşılığı yok.
+ * eMOR: islendi = muhasebeleşmiş (gelen: TOHOM_FATURA / TOHOM_HARCAMA_BELGESI,
+ * ETTN ile), elle_islendi = e-fatura eşleştirilmeden elle girilmiş (fatura no +
+ * VKN ile bulundu), havuzda = ERP almış ama muhasebeleşmemiş (TOHOM_E_FATURA),
+ * yok = ERP'de karşılığı yok.
  */
-export type EmorDurumu = 'islendi' | 'havuzda' | 'yok'
+export type EmorDurumu = 'islendi' | 'elle_islendi' | 'havuzda' | 'yok'
 
-/** islenmemis: "İşlendi" yazmayanların hepsi (hızlı filtre) */
+/** islenmemis: işlendi (elle dahil) olmayanların hepsi (hızlı filtre) */
 export type EmorFiltresi = '' | EmorDurumu | 'bilinmiyor' | 'islenmemis'
 
 export interface EFaturaFiltresi {
@@ -193,6 +195,7 @@ export async function senkronBaslat(aralik: { baslangic: string; bitis: string }
 
 export interface ErpSenkronSonucu {
   islendi: number
+  elle_islendi: number
   havuzda: number
   yok: number
   degisen: number

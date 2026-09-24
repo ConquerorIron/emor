@@ -138,7 +138,7 @@ export function FaturaDetayi({ fatura }: { fatura: EFatura }) {
         {fatura.emor_durumu === null
           ? t('efatura.emor.bilinmiyor')
           : t(`efatura.emor.${fatura.emor_durumu}`)}
-        {fatura.emor_durumu === 'islendi' || fatura.emor_durumu === 'havuzda' ? (
+        {fatura.emor_durumu !== null && fatura.emor_durumu !== 'yok' ? (
           <span className="block text-xs text-slate-500 dark:text-slate-400">
             {t(`efatura.emor.aciklama.${fatura.emor_durumu}`)}
           </span>

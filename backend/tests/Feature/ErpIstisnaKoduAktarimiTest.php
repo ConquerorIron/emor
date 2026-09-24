@@ -52,6 +52,11 @@ final class ErpIstisnaKoduAktarimiTest extends TestCase
                 return [];
             }
 
+            public function islenmisGelenBelgeler(): array
+            {
+                return [];
+            }
+
             public function havuzdakiGelenler(): array
             {
                 return array_map(fn (?string $kod): array => ['istisna_kodu' => $kod, 'gonderici_etiketi' => null, 'alici_etiketi' => null], $this->havuz);

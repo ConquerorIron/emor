@@ -11,8 +11,14 @@ namespace App\Services\Entegrator;
  */
 enum EmorDurumu: string
 {
-    /** Muhasebeye kabul edilmiş (gelen: TOHOM_FATURA, giden: gönderilen listesi) */
+    /** Muhasebeye kabul edilmiş (gelen: TOHOM_FATURA / TOHOM_HARCAMA_BELGESI ETTN ile, giden: gönderilen listesi) */
     case Islendi = 'islendi';
+
+    /**
+     * Gelen: ERP'ye e-fatura eşleştirilmeden elle girilmiş — ETTN yok, fatura
+     * no + VKN TOHOM_FATURA ya da TOHOM_HARCAMA_BELGESI'nde (kullanıcı kuralı 2026-09-24)
+     */
+    case ElleIslendi = 'elle_islendi';
 
     /** ERP almış (TOHOM_E_FATURA), henüz muhasebeleşmemiş — yalnız gelen */
     case Havuzda = 'havuzda';
@@ -20,11 +26,12 @@ enum EmorDurumu: string
     /** ERP'de karşılığı yok */
     case Yok = 'yok';
 
-    /** Liste sıralaması: işlendi > havuzda > yok (kontrol edilmemiş en sonda) */
+    /** Liste sıralaması: işlendi > elle işlendi > havuzda > yok (kontrol edilmemiş en sonda) */
     public function sira(): int
     {
         return match ($this) {
-            self::Islendi => 3,
+            self::Islendi => 4,
+            self::ElleIslendi => 3,
             self::Havuzda => 2,
             self::Yok => 1,
         };
