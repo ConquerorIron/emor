@@ -45,12 +45,14 @@ final class ErpFaturaSorgusu implements ErpFaturaKaynagi
             "SELECT LTRIM(RTRIM(FATURA_NO)) AS BELGE_NO, LTRIM(RTRIM(VERGI_KIMLIK_NO)) AS VKN
              FROM TOHOM_FATURA
              WHERE TIP = 0 AND IADE_FATURASI_TIPI IS NULL
-               AND ISNULL(FATURA_NO, '') <> '' AND ISNULL(VERGI_KIMLIK_NO, '') <> ''
+               AND E_FATURA_ETTN IS NULL
+               AND COALESCE(FATURA_NO, '') <> '' AND COALESCE(VERGI_KIMLIK_NO, '') <> ''
              UNION
              SELECT LTRIM(RTRIM(BELGE_NO)), LTRIM(RTRIM(VERGI_KIMLIK_NO))
              FROM TOHOM_HARCAMA_BELGESI
              WHERE TIP = 0
-               AND ISNULL(BELGE_NO, '') <> '' AND ISNULL(VERGI_KIMLIK_NO, '') <> ''",
+               AND E_FATURA_ETTN IS NULL
+               AND COALESCE(BELGE_NO, '') <> '' AND COALESCE(VERGI_KIMLIK_NO, '') <> ''",
         );
 
         return array_map(fn (object $satir): array => [

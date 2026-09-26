@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Entegrator;
 
 use App\Models\EFatura;
+use App\Services\EntegratorBaglantiServisi;
 use App\Services\ErpFaturaKaynagi;
 
 /**
@@ -41,6 +42,7 @@ final class EmorIslenmeServisi
 
     public function __construct(
         private readonly ErpFaturaKaynagi $erp,
+        private readonly EntegratorBaglantiServisi $baglantilar,
     ) {}
 
     /**
@@ -48,6 +50,11 @@ final class EmorIslenmeServisi
      */
     public function tazele(FaturaYonu $yon): array
     {
+        $tanim = $this->baglantilar->aktif();
+        if ($tanim === null) {
+            return ['islendi' => 0, 'elle_islendi' => 0, 'havuzda' => 0, 'yok' => 0, 'degisen' => 0];
+        }
+
         $gelen = $yon === FaturaYonu::Gelen;
         // Gelen: [muhasebeleşmiş ETTN'ler, elle işlenmiş no+VKN'ler, havuz ETTN => ERP bilgileri]
         $islenmis = $gelen ? $this->kume($this->erp->islenmisGelenEttnler()) : null;
@@ -60,6 +67,7 @@ final class EmorIslenmeServisi
         $sayac = ['islendi' => 0, 'elle_islendi' => 0, 'havuzda' => 0, 'yok' => 0];
 
         EFatura::query()
+            ->where('entegrator_baglanti_id', $tanim->id)
             ->where('yon', $yon->value)
             ->select(['id', 'ettn', 'belge_no', 'gonderici_vkn', 'alici_vkn', 'emor_durumu', ...array_keys(self::HAVUZ_KOLONLARI)])
             ->lazyById(self::PARCA)

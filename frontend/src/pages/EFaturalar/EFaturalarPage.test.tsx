@@ -741,6 +741,27 @@ describe('EFaturalarPage', () => {
     expect(within(dialog).queryByRole('button', { name: 'Gizle' })).not.toBeInTheDocument()
   })
 
+  it('geciken gizleme yanıtı kullanıcının kapattığı pencereyi yeniden açmaz', async () => {
+    let tamamla!: (fatura: EFatura) => void
+    api.gizlilik.mockReturnValue(
+      new Promise<EFatura>((resolve) => {
+        tamamla = resolve
+      }),
+    )
+    ciz([...TUM_IZINLER, 'efatura.gizle'])
+    await screen.findByText('Deniz Boya Ltd.')
+    fireEvent.click(screen.getByRole('button', { name: 'Detay' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Gizle' }))
+    await waitFor(() => expect(api.gizlilik).toHaveBeenCalledTimes(1))
+    fireEvent.keyDown(dialog, { key: 'Escape', code: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+    tamamla({ ...FATURA, gizli: true })
+    await waitFor(() => expect(toastlar.success).toHaveBeenCalled())
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
   it('"Gizlenenleri de göster" açılınca liste gizlenenlerle istenir, gizli satır işaretlenir', async () => {
     ciz(TUM_IZINLER)
     await screen.findByText('Deniz Boya Ltd.')

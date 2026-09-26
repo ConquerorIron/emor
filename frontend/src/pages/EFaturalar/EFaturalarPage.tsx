@@ -857,7 +857,13 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
         {pencere?.tur === 'detay' && gelen && gizlemeIzni ? (
           <GizlemeDugmesi
             fatura={pencere.fatura}
-            degisti={(fatura) => setPencere({ tur: 'detay', fatura })}
+            degisti={(fatura) =>
+              setPencere((onceki) =>
+                onceki?.tur === 'detay' && onceki.fatura.id === fatura.id
+                  ? { tur: 'detay', fatura }
+                  : onceki,
+              )
+            }
           />
         ) : null}
         {pencere?.tur === 'pdf' ? <PdfGoruntuleyici fatura={pencere.fatura} /> : null}

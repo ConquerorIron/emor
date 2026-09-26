@@ -42,6 +42,32 @@ final class EkranYetkisiTest extends TestCase
         return $rol;
     }
 
+    public function test_yonetici_olmayan_kendinden_yetkili_pasif_hesabi_rol_gondermeden_de_acamaz(): void
+    {
+        $veren = $this->izinli(['kullanicilar.goruntule', 'kullanicilar.guncelle']);
+        $hedef = $this->izinli(['sql_baglantilari.goruntule', 'sql_baglantilari.guncelle']);
+        $hedef->update(['aktif_mi' => false]);
+
+        $this->actingAs($veren)->putJson("/api/v1/ayarlar/kullanicilar/{$hedef->id}", ['aktif_mi' => true])
+            ->assertUnprocessable()
+            ->assertJsonPath('hatalar.aktif_mi.0', 'Yalnız kendinizde olan izinleri verebilir ya da değiştirebilirsiniz.');
+        $this->assertFalse($hedef->fresh()->aktif_mi);
+
+        $this->actingAs(User::factory()->yonetici()->create())
+            ->putJson("/api/v1/ayarlar/kullanicilar/{$hedef->id}", ['aktif_mi' => true])->assertOk();
+        $this->assertTrue($hedef->fresh()->aktif_mi);
+    }
+
+    public function test_yonetici_olmayan_kendi_yetki_sinirindaki_pasif_hesabi_acabilir(): void
+    {
+        $veren = $this->izinli(['kullanicilar.goruntule', 'kullanicilar.guncelle', 'efatura.goruntule']);
+        $hedef = $this->izinli(['efatura.goruntule']);
+        $hedef->update(['aktif_mi' => false]);
+
+        $this->actingAs($veren)->putJson("/api/v1/ayarlar/kullanicilar/{$hedef->id}", ['aktif_mi' => true])->assertOk();
+        $this->assertTrue($hedef->fresh()->aktif_mi);
+    }
+
     /**
      * [ekran, okuma ucu, yazma ucu (metot, adres)]
      *

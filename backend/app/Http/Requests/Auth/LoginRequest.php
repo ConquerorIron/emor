@@ -67,11 +67,17 @@ final class LoginRequest extends FormRequest
         // yöneticisi — ilk girişte tanımlanır, yoksa uygulama yöneticisiz kalabilirdi.
         $user = User::query()
             ->where('kaynak', User::KAYNAK_ERP)
-            ->where(fn ($q) => $q->where('erp_kullanici_id', $erpKullanici['erp_kullanici_id'])
-                ->orWhere('kullanici_adi', $erpKullanici['kullanici_adi']))
+            ->where('erp_kullanici_id', $erpKullanici['erp_kullanici_id'])
             ->first();
 
-        if ($user === null && ! $erpKullanici['sistem_yoneticisi']) {
+        // Kullanıcı adı ERP'de başka bir kişiye verilebilir; izinler yalnız
+        // kalıcı ERP kimliğine aittir. Ad çakışması eski hesabı devralamaz.
+        $adBaskasinda = User::query()
+            ->where('kullanici_adi', $erpKullanici['kullanici_adi'])
+            ->when($user !== null, fn ($q) => $q->whereKeyNot($user->id))
+            ->exists();
+
+        if ($adBaskasinda || ($user === null && ! $erpKullanici['sistem_yoneticisi'])) {
             throw ValidationException::withMessages([
                 'kullanici_adi' => __('auth.izin_yok'),
             ]);

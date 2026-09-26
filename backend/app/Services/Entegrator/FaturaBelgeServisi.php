@@ -8,6 +8,8 @@ use App\Models\EFatura;
 use App\Models\EntegratorBaglanti;
 use App\Services\ErpBelgeArsivi;
 use Closure;
+use DOMDocument;
+use DOMXPath;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
@@ -58,13 +60,13 @@ final class FaturaBelgeServisi
     {
         $erpdeki = $this->erpden($fatura, fn (string $ettn): ?string => $this->erp->xml($ettn));
 
-        if ($erpdeki !== null && trim($erpdeki) !== '') {
+        if ($erpdeki !== null && $this->faturaninXmli($erpdeki, $fatura->ettn)) {
             return ['icerik' => $this->bildirimli($erpdeki), 'kaynak' => 'erp'];
         }
 
         $zip = $this->izibiz->ublIndir($tanim, FaturaYonu::from($fatura->yon), [(int) $fatura->kaynak_id]);
 
-        return ['icerik' => $this->bildirimli($this->zipIcindekiXml($zip)), 'kaynak' => 'entegrator'];
+        return ['icerik' => $this->bildirimli($this->zipIcindekiXml($zip, $fatura->ettn)), 'kaynak' => 'entegrator'];
     }
 
     /**
@@ -97,7 +99,27 @@ final class FaturaBelgeServisi
         return str_starts_with(ltrim($govde), '<?xml') ? $govde : self::XML_BILDIRIMI."\n".$govde;
     }
 
-    private function zipIcindekiXml(string $zipIcerigi): string
+    private function faturaninXmli(string $xml, string $ettn): bool
+    {
+        if (trim($xml) === '') {
+            return false;
+        }
+
+        $belge = new DOMDocument;
+        // Dış varlıklar açılmaz; yalnız belgenin kendi UUID'si karşılaştırılır.
+        if (! @$belge->loadXML($xml, LIBXML_NONET) || $belge->doctype !== null
+            || $belge->documentElement?->localName !== 'Invoice'
+            || $belge->documentElement?->namespaceURI !== 'urn:oasis:names:specification:ubl:schema:xsd:Invoice-2') {
+            return false;
+        }
+
+        $xpath = new DOMXPath($belge);
+        $xpath->registerNamespace('cbc', 'urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2');
+
+        return strcasecmp(trim((string) $xpath->evaluate('string(/*/cbc:UUID)')), trim($ettn)) === 0;
+    }
+
+    private function zipIcindekiXml(string $zipIcerigi, string $ettn): string
     {
         $yol = tempnam(sys_get_temp_dir(), 'izibiz-ubl-');
         if ($yol === false) {
@@ -111,14 +133,23 @@ final class FaturaBelgeServisi
                 throw EntegratorHatasi::yanitGecersiz();
             }
 
-            $xml = $zip->numFiles > 0 ? (string) $zip->getFromIndex(0) : '';
-            $zip->close();
+            try {
+                for ($i = 0; $i < $zip->numFiles; $i++) {
+                    $ad = $zip->getNameIndex($i);
+                    if (! is_string($ad) || ! str_ends_with(strtolower($ad), '.xml')) {
+                        continue;
+                    }
 
-            if (trim($xml) === '') {
-                throw EntegratorHatasi::yanitGecersiz();
+                    $xml = $zip->getFromIndex($i);
+                    if (is_string($xml) && $this->faturaninXmli($xml, $ettn)) {
+                        return $xml;
+                    }
+                }
+            } finally {
+                $zip->close();
             }
 
-            return $xml;
+            throw EntegratorHatasi::yanitGecersiz();
         } finally {
             @unlink($yol);
         }

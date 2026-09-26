@@ -95,6 +95,9 @@ final class EFaturaSorgusu
         if (($filtre['istisna_kodu'] ?? null) !== null) {
             $kod = $filtre['istisna_kodu'];
             $sorgu->where(fn (Builder $q) => $q->where('vergi_istisna_kodu', $kod)
+                ->orWhereLike('vergi_istisna_kodu', $kod.',%')
+                ->orWhereLike('vergi_istisna_kodu', '%,'.$kod)
+                ->orWhereLike('vergi_istisna_kodu', '%,'.$kod.',%')
                 ->orWhere('izibiz_istisna_kodu', $kod)
                 ->orWhereLike('izibiz_istisna_kodu', $kod.',%')
                 ->orWhereLike('izibiz_istisna_kodu', '%,'.$kod)
@@ -208,12 +211,12 @@ final class EFaturaSorgusu
 
         /** @var list<string> $tipler */
         $tipler = $taban->clone()->whereNotNull('fatura_tipi')->distinct()->orderBy('fatura_tipi')->pluck('fatura_tipi')->all();
-        // İki kaynağın kodları birleşik; entegratördeki virgüllü değerler ayrılır
+        // İki kaynağın kodları birleşik; her ikisindeki virgüllü değerler ayrılır
         $istisnaKodlari = collect([
             ...$taban->clone()->whereNotNull('vergi_istisna_kodu')->distinct()->pluck('vergi_istisna_kodu'),
-            ...$taban->clone()->whereNotNull('izibiz_istisna_kodu')->distinct()->pluck('izibiz_istisna_kodu')
-                ->flatMap(fn (string $kodlar): array => explode(',', $kodlar)),
-        ])->map(fn (string $kod): string => trim($kod))->filter()->unique()->sort()->values()->all();
+            ...$taban->clone()->whereNotNull('izibiz_istisna_kodu')->distinct()->pluck('izibiz_istisna_kodu'),
+        ])->flatMap(fn (string $kodlar): array => explode(',', $kodlar))
+            ->map(fn (string $kod): string => trim($kod))->filter()->unique()->sort()->values()->all();
 
         return [
             'durumlar' => $durumlar,

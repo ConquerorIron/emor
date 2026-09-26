@@ -177,4 +177,19 @@ final class ErpIstisnaKoduAktarimiTest extends TestCase
 
         $this->assertSame([], $this->yazilanlar);
     }
+
+    public function test_pasif_entegratorun_istisna_kodu_aktif_erpye_yazilmaz(): void
+    {
+        EntegratorBaglanti::factory()->aktif()->create();
+        $pasif = EntegratorBaglanti::factory()->canli()->create();
+        $fatura = $this->fatura($pasif, 'aaaaaaaa-0000-0000-0000-000000000001', [
+            'izibiz_istisna_kodu' => '305', 'emor_durumu' => 'havuzda',
+        ]);
+        $this->erp([$fatura->ettn => null]);
+
+        $this->artisan('efatura:emor')->assertSuccessful();
+
+        $this->assertSame([], $this->yazilanlar);
+        $this->assertNull($fatura->fresh()->vergi_istisna_kodu);
+    }
 }

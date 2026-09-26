@@ -85,6 +85,36 @@ final class ErpLoginTest extends TestCase
             ->assertJsonPath('data.kaynak', 'erp');
     }
 
+    public function test_ayni_adi_alan_baska_erp_kimligi_eski_hesabi_devralamaz(): void
+    {
+        $eski = User::factory()->erp()->create(['kullanici_adi' => 'devredilen', 'erp_kullanici_id' => 41]);
+
+        foreach ([false, true] as $yonetici) {
+            $this->sahteDogrulayici([
+                'ad' => 'Başka kişi', 'kullanici_adi' => 'devredilen',
+                'erp_kullanici_id' => 42, 'sistem_yoneticisi' => $yonetici,
+            ]);
+
+            $this->postJson('/api/v1/auth/login', ['kullanici_adi' => 'devredilen', 'sifre' => 'dogru'])
+                ->assertUnprocessable();
+            $this->assertGuest();
+            $this->assertSame(41, $eski->fresh()->erp_kullanici_id);
+        }
+    }
+
+    public function test_erp_kullanici_adi_degisse_de_ayni_kimlikle_girebilir(): void
+    {
+        $user = User::factory()->erp()->create(['kullanici_adi' => 'eski.ad', 'erp_kullanici_id' => 41]);
+        $this->sahteDogrulayici([
+            'ad' => 'Aynı kişi', 'kullanici_adi' => 'yeni.ad',
+            'erp_kullanici_id' => 41, 'sistem_yoneticisi' => false,
+        ]);
+
+        $this->postJson('/api/v1/auth/login', ['kullanici_adi' => 'yeni.ad', 'sifre' => 'dogru'])->assertOk();
+        $this->assertAuthenticatedAs($user);
+        $this->assertSame('yeni.ad', $user->fresh()->kullanici_adi);
+    }
+
     public function test_tanimlanmamis_erp_sistem_yoneticisi_ilk_giriste_tanimlanir(): void
     {
         $this->sahteDogrulayici([

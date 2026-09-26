@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Entegrator;
 
 use App\Models\EFatura;
+use App\Services\EntegratorBaglantiServisi;
 use App\Services\ErpIstisnaKoduYazici;
 use Illuminate\Support\Facades\Log;
 
@@ -23,6 +24,7 @@ final class ErpIstisnaKoduAktarimi
 
     public function __construct(
         private readonly ErpIstisnaKoduYazici $yazici,
+        private readonly EntegratorBaglantiServisi $baglantilar,
     ) {}
 
     /**
@@ -31,13 +33,19 @@ final class ErpIstisnaKoduAktarimi
     public function aktar(): array
     {
         $sonuc = ['yazilan' => 0, 'uzun' => 0, 'yazilmayan' => 0];
+        $tanim = $this->baglantilar->aktif();
+        if ($tanim === null) {
+            return $sonuc;
+        }
 
         $adaylar = EFatura::query()
+            ->where('entegrator_baglanti_id', $tanim->id)
             ->where('yon', FaturaYonu::Gelen->value)
             ->whereNotNull('izibiz_istisna_kodu')
             ->whereNull('vergi_istisna_kodu')
             ->whereIn('emor_durumu', [EmorDurumu::Havuzda->value, EmorDurumu::Islendi->value, EmorDurumu::ElleIslendi->value])
-            ->get(['id', 'belge_no', 'ettn', 'izibiz_istisna_kodu']);
+            ->select(['id', 'belge_no', 'ettn', 'izibiz_istisna_kodu'])
+            ->lazyById(500);
 
         foreach ($adaylar as $fatura) {
             $kod = trim((string) $fatura->getAttribute('izibiz_istisna_kodu'));

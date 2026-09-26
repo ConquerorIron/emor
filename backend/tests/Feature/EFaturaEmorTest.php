@@ -7,12 +7,16 @@ namespace Tests\Feature;
 use App\Models\EFatura;
 use App\Models\EntegratorBaglanti;
 use App\Models\Rol;
+use App\Models\SqlBaglanti;
 use App\Models\User;
 use App\Services\Entegrator\EmorDurumu;
 use App\Services\ErpFaturaKaynagi;
+use App\Services\ErpFaturaSorgusu;
+use Illuminate\Database\SQLiteConnection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use PDO;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -74,6 +78,51 @@ final class EFaturaEmorTest extends TestCase
     private function tanim(): EntegratorBaglanti
     {
         return EntegratorBaglanti::factory()->aktif()->create();
+    }
+
+    public function test_gercek_belge_sorgusu_ettnli_kaydi_elle_eslestirme_adayi_yapmaz(): void
+    {
+        // Dış ERP sınırında bellek veritabanı: üretim SELECT'i gerçekten
+        // çalışır; sorgu metni veya query builder taklit edilmez.
+        $erp = new SQLiteConnection(new PDO('sqlite::memory:'));
+        foreach (['TOHOM_FATURA' => 'FATURA_NO', 'TOHOM_HARCAMA_BELGESI' => 'BELGE_NO'] as $tablo => $no) {
+            $erp->statement("CREATE TABLE {$tablo} (TIP INTEGER, IADE_FATURASI_TIPI INTEGER, E_FATURA_ETTN TEXT, {$no} TEXT, VERGI_KIMLIK_NO TEXT)");
+            $erp->table($tablo)->insert([
+                ['TIP' => 0, 'E_FATURA_ETTN' => null, $no => ' ELLE-'.$tablo.' ', 'VERGI_KIMLIK_NO' => ' 1234567890 '],
+                ['TIP' => 0, 'E_FATURA_ETTN' => self::ISLENMIS, $no => 'ETTNLI-'.$tablo, 'VERGI_KIMLIK_NO' => '1234567890'],
+            ]);
+        }
+        SqlBaglanti::query()->create([
+            'ortam' => 'test', 'sunucu' => 'erp.invalid', 'veritabani' => 'test',
+            'kullanici_adi' => 'test', 'sifre' => 'sentetik', 'aktif' => true,
+        ]);
+        DB::extend('sqlsrv', fn () => $erp);
+
+        try {
+            $belgeler = $this->app->make(ErpFaturaSorgusu::class)->islenmisGelenBelgeler();
+            $this->assertEqualsCanonicalizing([
+                ['belge_no' => 'ELLE-TOHOM_FATURA', 'vkn' => '1234567890'],
+                ['belge_no' => 'ELLE-TOHOM_HARCAMA_BELGESI', 'vkn' => '1234567890'],
+            ], $belgeler);
+        } finally {
+            DB::purge('erp');
+            DB::forgetExtension('sqlsrv');
+        }
+    }
+
+    public function test_erp_yalniz_aktif_entegratorun_faturalarini_tazeler(): void
+    {
+        $aktif = $this->tanim();
+        $pasif = EntegratorBaglanti::factory()->canli()->create();
+        $fatura = EFatura::factory()->create(['entegrator_baglanti_id' => $aktif->id, 'ettn' => self::ISLENMIS]);
+        $diger = EFatura::factory()->create(['entegrator_baglanti_id' => $pasif->id, 'ettn' => self::ISLENMIS, 'vergi_istisna_kodu' => '351']);
+        $this->erp([self::ISLENMIS]);
+
+        $this->artisan('efatura:emor')->assertSuccessful();
+
+        $this->assertSame('islendi', $fatura->fresh()->emor_durumu->value);
+        $this->assertNull($diger->fresh()->emor_durumu);
+        $this->assertSame('351', $diger->fresh()->vergi_istisna_kodu);
     }
 
     public function test_erpde_ettni_olan_gelen_fatura_islendi_digerleri_islenmedi_olur(): void

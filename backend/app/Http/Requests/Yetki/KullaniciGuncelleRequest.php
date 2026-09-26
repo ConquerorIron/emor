@@ -36,18 +36,25 @@ final class KullaniciGuncelleRequest extends FormRequest
         return [
             function (Validator $validator): void {
                 $hedef = $this->route('kullanici');
-                if ($validator->errors()->isNotEmpty() || ! $this->has('rol_idleri') || ! $hedef instanceof User) {
+                if ($validator->errors()->isNotEmpty() || ! $hedef instanceof User) {
                     return;
                 }
 
-                /** @var list<int> $yeni */
-                $yeni = array_map('intval', (array) $this->input('rol_idleri'));
                 /** @var list<int> $mevcut */
                 $mevcut = $hedef->roller()->pluck('roller.id')->all();
+                /** @var list<int> $yeni */
+                $yeni = $this->has('rol_idleri') ? array_map('intval', (array) $this->input('rol_idleri')) : $mevcut;
                 $degisen = array_values([...array_diff($yeni, $mevcut), ...array_diff($mevcut, $yeni)]);
 
                 if (YetkiSiniri::asanRolIzinleri($this->user(), $degisen) !== []) {
                     $validator->errors()->add('rol_idleri', __('hata.izin_verme_siniri'));
+                }
+
+                // Pasif hesabı açmak da mevcut rollerine erişim vermektir;
+                // rol_idleri gönderilmese bile aynı yetki sınırı uygulanır.
+                if (! $hedef->aktif_mi && $this->boolean('aktif_mi')
+                    && YetkiSiniri::asanRolIzinleri($this->user(), $yeni) !== []) {
+                    $validator->errors()->add('aktif_mi', __('hata.izin_verme_siniri'));
                 }
             },
         ];

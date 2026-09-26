@@ -66,6 +66,20 @@ final class EFaturaEkranTest extends TestCase
 
     // --- Yetki -----------------------------------------------------------------
 
+    public function test_erpdeki_coklu_istisna_kodlari_ayri_secenek_ve_filtre_olarak_kullanilir(): void
+    {
+        $tanim = $this->aktifTanim();
+        $fatura = $this->fatura($tanim, ['vergi_istisna_kodu' => '308,351', 'izibiz_istisna_kodu' => null]);
+        $this->fatura($tanim, ['vergi_istisna_kodu' => '1351', 'izibiz_istisna_kodu' => null]);
+
+        $this->actingAs($this->izinli('efatura.goruntule'))
+            ->getJson('/api/v1/efatura/gelen/faturalar?istisna_kodu=351&'.self::ARALIK)
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $fatura->id)
+            ->assertJsonPath('secenekler.istisna_kodlari', ['308', '351', '1351']);
+    }
+
     public function test_oturumsuz_liste_istegi_401_doner(): void
     {
         $this->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK)
@@ -670,7 +684,8 @@ final class EFaturaEkranTest extends TestCase
     {
         $fatura = $this->fatura($this->aktifTanim(), ['ettn' => 'aaaaaaaa-0000-0000-0000-000000000001', 'belge_no' => 'GLN2026000000001']);
         // ERP XML'i bildirimsiz saklar
-        $this->erpArsivi(xmller: ['aaaaaaaa-0000-0000-0000-000000000001' => '<Invoice><cbc:ID>İŞ</cbc:ID></Invoice>']);
+        $xml = $this->ubl($fatura->ettn);
+        $this->erpArsivi(xmller: [$fatura->ettn => $xml]);
         Http::preventStrayRequests();
         Http::fake();
 
@@ -680,7 +695,7 @@ final class EFaturaEkranTest extends TestCase
             ->assertHeader('Content-Type', 'application/xml; charset=UTF-8')
             ->assertHeader('Content-Disposition', 'attachment; filename="GLN2026000000001.xml"')
             ->assertHeader('X-Belge-Kaynagi', 'erp')
-            ->assertContent("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Invoice><cbc:ID>İŞ</cbc:ID></Invoice>");
+            ->assertContent("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n".$xml);
 
         Http::assertNothingSent();
     }
@@ -690,7 +705,7 @@ final class EFaturaEkranTest extends TestCase
         $this->travelTo('2026-09-23 11:24:41');
         $fatura = $this->fatura($this->aktifTanim(), ['yon' => 'giden', 'kaynak_id' => 4242]);
         $this->erpArsivi();
-        $xml = '<?xml version="1.0" encoding="UTF-8"?><Invoice/>';
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>'.$this->ubl($fatura->ettn);
         $yol = (string) tempnam(sys_get_temp_dir(), 'test-ubl-');
         $zip = new ZipArchive;
         $zip->open($yol, ZipArchive::OVERWRITE);
@@ -716,6 +731,57 @@ final class EFaturaEkranTest extends TestCase
         Http::assertSent(fn (Request $istek) => $istek->url() === 'https://apitest.izibiz.com.tr/v1/einvoices/outbox/download/ubl'
             && $istek->method() === 'POST'
             && $istek->data() === [['id' => 4242]]);
+    }
+
+    private function ubl(string $ettn): string
+    {
+        return '<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"><cbc:UUID>'.$ettn.'</cbc:UUID><cbc:ID>İŞ</cbc:ID></Invoice>';
+    }
+
+    /** @param array<string, string> $dosyalar */
+    private function sahteUblZip(array $dosyalar): void
+    {
+        $this->travelTo('2026-09-23 11:24:41');
+        $yol = (string) tempnam(sys_get_temp_dir(), 'test-ubl-');
+        $zip = new ZipArchive;
+        $zip->open($yol, ZipArchive::OVERWRITE);
+        foreach ($dosyalar as $ad => $icerik) {
+            $zip->addFromString($ad, $icerik);
+        }
+        $zip->close();
+        $icerik = (string) file_get_contents($yol);
+        unlink($yol);
+        Http::preventStrayRequests();
+        Http::fake([
+            'apitest.izibiz.com.tr/v1/auth/token' => Http::response(['data' => ['accessToken' => 'erisim-token', 'validity' => '2026-09-24 02:24:41', 'customerType' => 'C'], 'error' => null]),
+            'apitest.izibiz.com.tr/v1/einvoices/inbox/download/ubl' => Http::response(['data' => ['content' => base64_encode($icerik)], 'error' => null]),
+        ]);
+    }
+
+    public function test_xml_erpde_baska_faturaysa_zipteki_dogru_ettnli_belge_indirilir(): void
+    {
+        $fatura = $this->fatura($this->aktifTanim());
+        $baskaXml = $this->ubl('bbbbbbbb-0000-0000-0000-000000000001');
+        $this->erpArsivi(xmller: [$fatura->ettn => $baskaXml]);
+        $dogruXml = $this->ubl(strtoupper($fatura->ettn));
+        $this->sahteUblZip(['klasor/' => '', 'baska.xml' => $baskaXml, 'dogru.xml' => $dogruXml]);
+
+        $this->actingAs($this->izinli('efatura.goruntule', 'efatura.pdf'))
+            ->get("/api/v1/efatura/faturalar/{$fatura->id}/xml")
+            ->assertOk()
+            ->assertHeader('X-Belge-Kaynagi', 'entegrator')
+            ->assertContent("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n".$dogruXml);
+    }
+
+    public function test_gecersiz_xml_ve_eslesmeyen_zip_basarili_belge_gibi_donmez(): void
+    {
+        $fatura = $this->fatura($this->aktifTanim());
+        $this->erpArsivi(xmller: [$fatura->ettn => '<bozuk']);
+        $this->sahteUblZip(['baska.xml' => $this->ubl('bbbbbbbb-0000-0000-0000-000000000001')]);
+
+        $this->actingAs($this->izinli('efatura.goruntule', 'efatura.pdf'))
+            ->getJson("/api/v1/efatura/faturalar/{$fatura->id}/xml")
+            ->assertStatus(502);
     }
 
     // --- Gizleme -----------------------------------------------------------------
