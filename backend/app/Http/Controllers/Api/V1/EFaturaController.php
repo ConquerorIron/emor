@@ -160,11 +160,24 @@ final class EFaturaController extends Controller
     {
         $kayit = $this->aktifHesabinFaturasi($this->aktifTanim(), $fatura);
 
-        if (! $request->boolean('gizli')) {
+        // Yanlış posta kutusu yalnız gelen faturada olur; giden gizlenmez
+        if ($kayit->yon !== FaturaYonu::Gelen->value) {
+            throw new NotFoundHttpException;
+        }
+
+        $gizli = $request->boolean('gizli');
+        if (! $gizli) {
             $kayit->update(['gizlenme_zamani' => null, 'gizleyen_id' => null]);
         } elseif ($kayit->gizlenme_zamani === null) {
             $kayit->update(['gizlenme_zamani' => now(), 'gizleyen_id' => $request->user()?->id]);
         }
+
+        // Liste, özet, Excel ve alarmı etkiler: kim ne zaman yaptı izi kalır
+        Log::channel('denetim')->info($gizli ? 'e-Fatura gizlendi' : 'e-Fatura listeye geri alındı', [
+            'kullanici_id' => $request->user()?->id,
+            'fatura_id' => $kayit->id,
+            'belge_no' => $kayit->belge_no,
+        ]);
 
         return new EFaturaResource($kayit->load('gizleyen:id,ad'));
     }

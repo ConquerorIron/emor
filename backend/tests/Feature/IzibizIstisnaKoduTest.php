@@ -9,6 +9,7 @@ use App\Models\EntegratorBaglanti;
 use App\Models\User;
 use App\Services\Entegrator\FaturaYonu;
 use App\Services\Entegrator\IzibizIstemcisi;
+use App\Services\Entegrator\IzibizIstisnaKoduServisi;
 use App\Services\ErpBelgeArsivi;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -244,6 +245,37 @@ final class IzibizIstisnaKoduTest extends TestCase
 
         $this->assertSame([[405], [404]], $this->istenenler);
         $this->assertSame('351', $yeni->fresh()->izibiz_istisna_kodu);
+    }
+
+    public function test_erpdeki_xmli_okunamayan_fatura_gunde_bir_denenir(): void
+    {
+        $tanim = EntegratorBaglanti::factory()->aktif()->create();
+        $fatura = $this->fatura($tanim, 601, [], '318');
+        $this->sahteIzibiz();
+        // Havuzda ama XML'i başka bir faturanın
+        $this->erpHavuzu([$fatura->ettn => $this->ubl('BBBBBBBB-0000-0000-0000-000000000601', '318')]);
+
+        $this->artisan('efatura:istisna-kodlari')->assertSuccessful();
+
+        $this->assertNull($fatura->fresh()->izibiz_ubl_okundu);
+        $this->assertNotNull($fatura->fresh()->izibiz_ubl_son_deneme);
+        // Aynı gün ne ERP'den yeniden ne İzibiz'den okunur
+        $this->assertSame([], $this->istenenler);
+    }
+
+    public function test_doctypeli_ubl_okunmaz(): void
+    {
+        $xml = '<?xml version="1.0"?><!DOCTYPE Invoice [<!ENTITY x "318">]>'
+            .substr($this->ubl('AAAAAAAA-0000-0000-0000-000000000701', '318'), strlen('<?xml version="1.0" encoding="UTF-8"?>'));
+        $yol = (string) tempnam(sys_get_temp_dir(), 'zip');
+        $zip = new ZipArchive;
+        $zip->open($yol, ZipArchive::OVERWRITE);
+        $zip->addFromString('F701.xml', $xml);
+        $zip->close();
+        $icerik = (string) file_get_contents($yol);
+        unlink($yol);
+
+        $this->assertSame([], app(IzibizIstisnaKoduServisi::class)->kodlariAyikla($icerik));
     }
 
     public function test_erpye_ulasilamazsa_yeni_fatura_beklemeden_izibizden_okunur(): void

@@ -23,13 +23,13 @@ final class ErpFaturaSorgusu implements ErpFaturaKaynagi
     {
         /** @var list<object{E_FATURA_ETTN: string}> $satirlar */
         $satirlar = $this->mssql->baglan()->select(
-            'SELECT E_FATURA_ETTN
+            "SELECT E_FATURA_ETTN
              FROM TOHOM_FATURA
-             WHERE TIP = 0 AND IADE_FATURASI_TIPI IS NULL AND E_FATURA_ETTN IS NOT NULL
+             WHERE TIP = 0 AND IADE_FATURASI_TIPI IS NULL AND NULLIF(LTRIM(RTRIM(E_FATURA_ETTN)), '') IS NOT NULL
              UNION
              SELECT E_FATURA_ETTN
              FROM TOHOM_HARCAMA_BELGESI
-             WHERE TIP = 0 AND E_FATURA_ETTN IS NOT NULL',
+             WHERE TIP = 0 AND NULLIF(LTRIM(RTRIM(E_FATURA_ETTN)), '') IS NOT NULL",
         );
 
         return array_map(fn (object $satir): string => $satir->E_FATURA_ETTN, $satirlar);
@@ -45,13 +45,13 @@ final class ErpFaturaSorgusu implements ErpFaturaKaynagi
             "SELECT LTRIM(RTRIM(FATURA_NO)) AS BELGE_NO, LTRIM(RTRIM(VERGI_KIMLIK_NO)) AS VKN
              FROM TOHOM_FATURA
              WHERE TIP = 0 AND IADE_FATURASI_TIPI IS NULL
-               AND E_FATURA_ETTN IS NULL
+               AND NULLIF(LTRIM(RTRIM(E_FATURA_ETTN)), '') IS NULL
                AND COALESCE(FATURA_NO, '') <> '' AND COALESCE(VERGI_KIMLIK_NO, '') <> ''
              UNION
              SELECT LTRIM(RTRIM(BELGE_NO)), LTRIM(RTRIM(VERGI_KIMLIK_NO))
              FROM TOHOM_HARCAMA_BELGESI
              WHERE TIP = 0
-               AND E_FATURA_ETTN IS NULL
+               AND NULLIF(LTRIM(RTRIM(E_FATURA_ETTN)), '') IS NULL
                AND COALESCE(BELGE_NO, '') <> '' AND COALESCE(VERGI_KIMLIK_NO, '') <> ''",
         );
 

@@ -284,6 +284,14 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
     placeholderData: keepPreviousData,
   })
 
+  // Son sayfadaki son fatura gizlenince (ya da kayıtlar azalınca) boş sayfada kalınmaz
+  const sonSayfa = liste.isPlaceholderData ? undefined : liste.data?.meta.last_page
+  useEffect(() => {
+    if (sonSayfa !== undefined && sayfa > Math.max(sonSayfa, 1)) {
+      setSayfa(Math.max(sonSayfa, 1))
+    }
+  }, [sonSayfa, sayfa])
+
   // Sunucudaki veri değiştiğinde liste tazelenir: aktif ortam değişti (başka
   // sekme/yönetici), yeni bir senkron bitti (veri zamanı ilerledi) ya da
   // elle/zamanlanmış senkron sürüyor↔bitti. Yoklama arasına düşen kısa
@@ -564,8 +572,9 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
     label: p,
   }))
   // Giden faturada havuz aşaması yok
+  // Havuz ve elle eşleştirme yalnız gelen faturada olur
   const emorSecenekleri: SecenekOgesi[] = EMOR_FILTRELERI.filter(
-    (d) => gelen || d !== 'havuzda',
+    (d) => gelen || (d !== 'havuzda' && d !== 'elle_islendi'),
   ).map((d) => ({ value: d, label: t(`efatura.emor.filtre.${d}`) }))
   const tipSecenekleri: SecenekOgesi[] = (secenekler?.tipler ?? []).map((d) => ({
     value: d,
@@ -596,7 +605,12 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
             onClick={() => void excelAl(excelKolonlari)}
             title={t('efatura.excelAciklama')}
             yukleniyor={excelSuruyor}
-            disabled={tarihHatasi !== null || eskiVeri || (liste.data?.meta.total ?? 0) === 0}
+            disabled={
+              tarihHatasi !== null ||
+              eskiVeri ||
+              (liste.data?.meta.total ?? 0) === 0 ||
+              excelKolonlari.length === 0
+            }
           >
             {t('efatura.excel')}
           </Button>

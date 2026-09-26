@@ -23,9 +23,11 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Sleep;
+use Mockery;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Tests\TestCase;
 use ZipArchive;
@@ -283,9 +285,12 @@ final class EFaturaEkranTest extends TestCase
     public function test_arama_siparis_irsaliye_ve_zarf_durumunda_da_arar(): void
     {
         $tanim = $this->aktifTanim();
-        $siparis = $this->fatura($tanim, ['siparis_no' => 'SIP-4242']);
-        $irsaliye = $this->fatura($tanim, ['irsaliye_no' => 'IRS-7777']);
-        $zarf = $this->fatura($tanim, ['gib_durum_kodu' => 1215, 'gib_durum_aciklamasi' => 'ALICIDAN YANIT BEKLENIYOR']);
+        // Numara ve ETTN sabit: factory'nin rastgele değerleri aranan rakamları
+        // (4242, 1215) tesadüfen içerip başka faturayı buldurmasın (kararsız testti)
+        $sabit = fn (int $i): array => ['belge_no' => "ABC202600000000{$i}", 'ettn' => "aaaaaaaa-0000-0000-0000-00000000000{$i}"];
+        $siparis = $this->fatura($tanim, ['siparis_no' => 'SIP-4242', ...$sabit(1)]);
+        $irsaliye = $this->fatura($tanim, ['irsaliye_no' => 'IRS-7777', ...$sabit(2)]);
+        $zarf = $this->fatura($tanim, ['gib_durum_kodu' => 1215, 'gib_durum_aciklamasi' => 'ALICIDAN YANIT BEKLENIYOR', ...$sabit(3)]);
         $kullanici = $this->izinli('efatura.goruntule');
         $bulunan = fn (string $ara): array => array_column(
             $this->actingAs($kullanici)->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK.'&ara='.urlencode($ara))->json('data'),
@@ -829,6 +834,32 @@ final class EFaturaEkranTest extends TestCase
             ->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK)
             ->assertJsonCount(2, 'data')
             ->assertJsonPath('secenekler.gizlenen_adet', 0);
+    }
+
+    public function test_giden_fatura_gizlenemez(): void
+    {
+        $fatura = $this->fatura($this->aktifTanim(), ['yon' => 'giden']);
+
+        $this->actingAs($this->izinli('efatura.goruntule', 'efatura.gizle'))
+            ->putJson("/api/v1/efatura/faturalar/{$fatura->id}/gizli", ['gizli' => true])
+            ->assertNotFound();
+
+        $this->assertNull($fatura->fresh()->gizlenme_zamani);
+    }
+
+    public function test_gizleme_ve_geri_alma_denetim_loguna_yazilir(): void
+    {
+        $fatura = $this->fatura($this->aktifTanim(), ['belge_no' => 'YNL2026000000001']);
+        $kullanici = $this->izinli('efatura.goruntule', 'efatura.gizle');
+        $denetim = Mockery::spy(LoggerInterface::class);
+        Log::shouldReceive('channel')->with('denetim')->andReturn($denetim);
+
+        $this->actingAs($kullanici)->putJson("/api/v1/efatura/faturalar/{$fatura->id}/gizli", ['gizli' => true])->assertOk();
+        $this->actingAs($kullanici)->putJson("/api/v1/efatura/faturalar/{$fatura->id}/gizli", ['gizli' => false])->assertOk();
+
+        $baglam = ['kullanici_id' => $kullanici->id, 'fatura_id' => $fatura->id, 'belge_no' => 'YNL2026000000001'];
+        $denetim->shouldHaveReceived('info')->with('e-Fatura gizlendi', $baglam)->once();
+        $denetim->shouldHaveReceived('info')->with('e-Fatura listeye geri alındı', $baglam)->once();
     }
 
     public function test_zaten_gizli_fatura_yeniden_gizlenince_ilk_gizleme_bilgisi_korunur(): void

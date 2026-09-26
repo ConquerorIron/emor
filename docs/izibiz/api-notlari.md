@@ -109,7 +109,10 @@ metin** (`"5.155.262,20"` — binlik `.`, ondalık `,`; float'a çevrilmez),
 - **ASLA kullanılmayacak uçlar (kullanıcı teyidi 2026-09-23: `erpReadFlag`'i ERP kullanıyor; bayrak yalnız gösterilir ve raporlanır):** `POST /v1/einvoices/inbox/erp-read-flag/{READ|UNREAD}`
   ve `portal-read-flag` — mevcut ERP entegrasyonu yeni gelen faturaları
   `erpReadFlag` ile izliyor (teyit edildi); bu modül bu bayraklara dokunmaz. İstemci veri için yalnız GET yapar (`IzibizIstemcisi::getJson`); tek POST token alımıdır. Kabul/red,
-  gönderme ve `POST .../download/*` (toplu indirme) da kullanılmaz.
+  gönderme kullanılmaz. Tek istisna `POST .../download/ubl` (toplu UBL indirme):
+  istisna kodu için ve ERP havuzunda olmayan faturanın XML'i için kullanılır;
+  okundu bayraklarını değiştirmediği test hesabında ölçüldü (2026-09-24,
+  `IzibizIstemcisi::ublIndir`).
 
 ## e-Fatura uçları keşfi — export öncesi (2026-09-23, Claude)
 

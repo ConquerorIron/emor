@@ -731,6 +731,70 @@ describe('EFaturalarPage', () => {
     await waitFor(() => expect(api.faturalar.mock.calls.length).toBeGreaterThan(okumaSayisi))
   })
 
+  it('tüm kolonlar gizliyse Excel kapalıdır', async () => {
+    localStorage.setItem(
+      'erp.kolonlar.efatura-gelen',
+      JSON.stringify([
+        'erp_okundu',
+        'emor',
+        'belge_no',
+        'belge_tarihi',
+        'karsi_vkn',
+        'karsi_unvan',
+        'karsi_ad_soyad',
+        'fatura_tipi',
+        'izibiz_istisna_kodu',
+        'vergi_istisna_kodu',
+        'tutar',
+        'para_birimi',
+        'olusturma_zamani',
+        'irsaliye_no',
+        'siparis_no',
+        'durum',
+        'zarf_durumu',
+        'yanit_aciklamasi',
+        'gtb_ref_no',
+        'gcb_tescil_no',
+        'gcb_tarihi',
+        'gonderici_etiketi',
+        'alici_etiketi',
+        'portal_notu',
+        'ettn',
+        'senaryo',
+        'vergi_tutari',
+      ]),
+    )
+    ciz(TUM_IZINLER)
+    await screen.findAllByRole('row')
+
+    expect(await screen.findByRole('button', { name: 'Excel' })).toBeDisabled()
+  })
+
+  it('son sayfa boşalınca (ör. son fatura gizlenince) son dolu sayfaya dönülür', async () => {
+    api.faturalar.mockResolvedValue({
+      ...LISTE,
+      meta: { current_page: 1, last_page: 3, total: 120 },
+    })
+    ciz(['efatura.goruntule'])
+    await screen.findByText('Deniz Boya Ltd.')
+
+    api.faturalar.mockResolvedValue({
+      ...LISTE,
+      data: [],
+      meta: { current_page: 3, last_page: 2, total: 100 },
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: '3' })[0])
+
+    await waitFor(() =>
+      expect(api.faturalar).toHaveBeenLastCalledWith(
+        'gelen',
+        expect.anything(),
+        expect.anything(),
+        2,
+      ),
+    )
+  })
+
   it('gizleme izni yoksa detayda Gizle düğmesi yok', async () => {
     ciz(TUM_IZINLER)
     await screen.findByText('Deniz Boya Ltd.')

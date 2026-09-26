@@ -56,7 +56,7 @@ final class EFaturaEmor extends Command
         // ERP taze okunduysa (havuz bilgisi güncel) ve anahtar açıksa
         if ($gelenOkundu && config('efatura.erp_istisna_kodu_yaz')) {
             try {
-                $aktarilan = $aktarim->aktar();
+                $aktarilan = $aktarim->aktar($servis->sonHavuzEttnleri() ?? []);
                 $this->line(sprintf(
                     'İstisna kodu ERP\'ye: %d yazıldı, %d uzun olduğu için atlandı, %d yazılmadı',
                     $aktarilan['yazilan'],

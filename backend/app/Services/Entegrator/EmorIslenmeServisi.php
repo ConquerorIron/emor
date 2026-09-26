@@ -40,10 +40,25 @@ final class EmorIslenmeServisi
         'erp_alici_etiketi' => 'alici_etiketi',
     ];
 
+    /** @var array<string, true>|null Son gelen tazelemesinde okunan havuz ETTN'leri (küçük harf) */
+    private ?array $sonHavuz = null;
+
     public function __construct(
         private readonly ErpFaturaKaynagi $erp,
         private readonly EntegratorBaglantiServisi $baglantilar,
     ) {}
+
+    /**
+     * Bu nesnenin son gelen tazelemesinde ERP havuzunda (TOHOM_E_FATURA)
+     * görülen ETTN'ler; henüz okunmadıysa null. İstisna kodu aktarımı ERP'ye
+     * yalnız bunlar için yazar (havuzda olmayana UPDATE boşa gider).
+     *
+     * @return array<string, true>|null
+     */
+    public function sonHavuzEttnleri(): ?array
+    {
+        return $this->sonHavuz;
+    }
 
     /**
      * @return array{islendi: int, elle_islendi: int, havuzda: int, yok: int, degisen: int}
@@ -60,6 +75,9 @@ final class EmorIslenmeServisi
         $islenmis = $gelen ? $this->kume($this->erp->islenmisGelenEttnler()) : null;
         $elleIslenmis = $gelen ? $this->noVknKumesi($this->erp->islenmisGelenBelgeler()) : null;
         $havuz = $gelen ? $this->havuz() : null;
+        if ($havuz !== null) {
+            $this->sonHavuz = array_fill_keys(array_keys($havuz), true);
+        }
         $gidenIslendiMi = $gelen ? null : $this->gidenEslestirici();
 
         /** @var array<string, array<string, list<int>>> $degisenler kolon => yeni değer ('' = null) => id'ler */

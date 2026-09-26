@@ -13,8 +13,9 @@ use Illuminate\Support\Facades\Log;
  * Entegratördeki (UBL) vergi istisna kodu ERP'de boşsa ERP'ye yazılır
  * (kullanıcı kararı 2026-09-24: entegratördeki bilgi esas; ERP'deki bazen eksik).
  *
- * Aday: gelen fatura, entegratörde kod var, ERP'deki kodu boş ve fatura ERP
- * havuzunda (TOHOM_E_FATURA'da satırı var — eMOR havuzda/işlendi). Birden çok
+ * Aday: aktif hesabın gelen faturası, entegratörde kod var, ERP'deki kodu boş
+ * ve fatura ERP havuzunda (TOHOM_E_FATURA'da satırı var — aynı çalışmada eMOR'un
+ * okuduğu havuzdan; elle işlenip havuzdan silinmiş faturaya UPDATE atılmaz). Birden çok
  * kod virgülle olduğu gibi yazılır (kullanıcı kararı; alan nchar(50) — daha uzunu
  * atlanır). Dolu ERP koduna asla dokunulmaz (koşul UPDATE'in içinde). Her yazım loglanır.
  */
@@ -28,9 +29,10 @@ final class ErpIstisnaKoduAktarimi
     ) {}
 
     /**
+     * @param  array<string, true>  $havuzEttnleri  küçük harf ETTN => true (EmorIslenmeServisi::sonHavuzEttnleri)
      * @return array{yazilan: int, uzun: int, yazilmayan: int}
      */
-    public function aktar(): array
+    public function aktar(array $havuzEttnleri): array
     {
         $sonuc = ['yazilan' => 0, 'uzun' => 0, 'yazilmayan' => 0];
         $tanim = $this->baglantilar->aktif();
@@ -48,6 +50,10 @@ final class ErpIstisnaKoduAktarimi
             ->lazyById(500);
 
         foreach ($adaylar as $fatura) {
+            if (! isset($havuzEttnleri[mb_strtolower(trim($fatura->ettn))])) {
+                continue;
+            }
+
             $kod = trim((string) $fatura->getAttribute('izibiz_istisna_kodu'));
 
             // ERP alanı nchar(50): sığmayan kod kesilerek yazılmaz

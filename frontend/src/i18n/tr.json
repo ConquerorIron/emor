@@ -527,7 +527,7 @@
     "bitis": "Bitiş",
     "ara": "Ara (no, ETTN, VKN, unvan, ad soyad, tip, sipariş, irsaliye, zarf durumu)",
     "excel": "Excel",
-    "excelAciklama": "Tablonun o anki hâlini aktarır: bu sayfadaki kayıtlar, görünen kolonlar. Tüm kayıtlar için sayfa boyutundan \"Hepsi\"ni seçin.",
+    "excelAciklama": "Tablonun o anki hâlini aktarır: bu sayfadaki kayıtlar, görünen kolonlar. Daha fazla kayıt için sayfa boyutundan \"Hepsi\"ni seçin (sayfa başına en fazla 1000 kayıt).",
     "detay": "Detay",
     "pdf": "PDF",
     "detayBaslik": "Fatura {{no}}",

@@ -140,6 +140,11 @@ final class FaturaBelgeServisi
                         continue;
                     }
 
+                    // Tek UBL en fazla birkaç MB; aşırı büyük girdi belleğe alınmaz
+                    if (($zip->statIndex($i)['size'] ?? 0) > 20 * 1024 * 1024) {
+                        continue;
+                    }
+
                     $xml = $zip->getFromIndex($i);
                     if (is_string($xml) && $this->faturaninXmli($xml, $ettn)) {
                         return $xml;

@@ -33,7 +33,7 @@ export function Button({
   return (
     <button
       type={type}
-      disabled={disabled ?? yukleniyor}
+      disabled={disabled || yukleniyor}
       className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${varyantlar[variant]} ${className}`}
       {...props}
     >

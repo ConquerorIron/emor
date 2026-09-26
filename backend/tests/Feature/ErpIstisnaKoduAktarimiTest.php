@@ -39,17 +39,21 @@ final class ErpIstisnaKoduAktarimiTest extends TestCase
      *
      * @param  array<string, string|null>  $havuzKodlari  ETTN => ERP'deki kod
      * @param  list<string>  $erpDoluDiyor  yazmaya "satır dolu/yok" cevabı verilecek ETTN'ler
+     * @param  list<string>  $islenmis  TOHOM_FATURA / TOHOM_HARCAMA_BELGESI'nde ETTN'i olanlar
      */
-    private function erp(array $havuzKodlari, array $erpDoluDiyor = [], ?RuntimeException $yazimHatasi = null): void
+    private function erp(array $havuzKodlari, array $erpDoluDiyor = [], ?RuntimeException $yazimHatasi = null, array $islenmis = []): void
     {
-        $this->app->instance(ErpFaturaKaynagi::class, new class($havuzKodlari) implements ErpFaturaKaynagi
+        $this->app->instance(ErpFaturaKaynagi::class, new class($havuzKodlari, $islenmis) implements ErpFaturaKaynagi
         {
-            /** @param array<string, string|null> $havuz */
-            public function __construct(private readonly array $havuz) {}
+            /**
+             * @param  array<string, string|null>  $havuz
+             * @param  list<string>  $islenmis
+             */
+            public function __construct(private readonly array $havuz, private readonly array $islenmis) {}
 
             public function islenmisGelenEttnler(): array
             {
-                return [];
+                return $this->islenmis;
             }
 
             public function islenmisGelenBelgeler(): array
@@ -141,6 +145,21 @@ final class ErpIstisnaKoduAktarimiTest extends TestCase
         // Birden çok kod virgülle olduğu gibi (kullanıcı kararı)
         $this->assertSame('308,351', $cokKodlu->fresh()->vergi_istisna_kodu);
         $this->assertNull($entegratordeYok->fresh()->vergi_istisna_kodu);
+    }
+
+    public function test_islenmis_ama_havuzdan_silinmis_faturaya_erpye_update_gonderilmez(): void
+    {
+        $tanim = EntegratorBaglanti::factory()->aktif()->create();
+        // Muhasebeye işlenmiş (ETTN ile) ama TOHOM_E_FATURA'dan silinmiş
+        $fatura = $this->fatura($tanim, 'aaaaaaaa-0000-0000-0000-000000000001', ['izibiz_istisna_kodu' => '305']);
+        $this->erp([], islenmis: ['aaaaaaaa-0000-0000-0000-000000000001']);
+
+        $this->artisan('efatura:emor')
+            ->expectsOutput('İstisna kodu ERP\'ye: 0 yazıldı, 0 uzun olduğu için atlandı, 0 yazılmadı')
+            ->assertSuccessful();
+
+        $this->assertSame('islendi', $fatura->fresh()->emor_durumu->value);
+        $this->assertSame([], $this->yazilanlar);
     }
 
     public function test_erp_bu_arada_doldurduysa_yazilmaz_ve_bizdeki_kod_degismez(): void

@@ -46,6 +46,9 @@ final class IzibizIstisnaKoduServisi
     /** ERP sorgusu başına fatura: kodlu XML'ler (~320 KB) bellekte birlikte durur */
     private const ERP_PARTI = 50;
 
+    /** ZIP içindeki tek UBL için üst sınır (en büyük gerçek UBL ~1,5 MB; 2026-09-24 ölçümü) */
+    private const AZAMI_UBL_BAYT = 20 * 1024 * 1024;
+
     public function __construct(
         private readonly IzibizIstemcisi $istemci,
         private readonly ErpBelgeArsivi $erp,
@@ -133,7 +136,11 @@ final class IzibizIstisnaKoduServisi
      */
     private function erpdenOku(EntegratorBaglanti $tanim, array &$sonuc): bool
     {
-        $adaylar = $this->adaylar($tanim)->pluck('ettn', 'id');
+        // ERP'deki XML'i okunamayan fatura günde bir denenir (her 15 dakikada ~320 KB okunmaz)
+        $adaylar = $this->adaylar($tanim)
+            ->where(fn (Builder $q) => $q->whereNull('izibiz_ubl_son_deneme')
+                ->orWhere('izibiz_ubl_son_deneme', '<', CarbonImmutable::now()->subDay()))
+            ->pluck('ettn', 'id');
 
         try {
             foreach ($adaylar->chunk(self::ERP_PARTI) as $parti) {
@@ -155,6 +162,7 @@ final class IzibizIstisnaKoduServisi
                         // Okunamayan ya da başka faturanın XML'i: İzibiz'e kalır
                         if ($xmlEttn !== $anahtar) {
                             Log::warning('ERP arşivindeki UBL okunamadı', ['ettn' => $ettn]);
+                            EFatura::query()->whereKey($id)->update(['izibiz_ubl_son_deneme' => $simdi]);
 
                             continue;
                         }
@@ -231,7 +239,8 @@ final class IzibizIstisnaKoduServisi
 
             $kodlar = [];
             for ($i = 0; $i < $zip->numFiles; $i++) {
-                $xml = (string) $zip->getFromIndex($i);
+                $boyut = $zip->statIndex($i)['size'] ?? 0;
+                $xml = $boyut <= self::AZAMI_UBL_BAYT ? (string) $zip->getFromIndex($i) : '';
                 [$ettn, $kod] = $this->ublOku($xml);
 
                 if ($ettn !== null) {
@@ -255,7 +264,8 @@ final class IzibizIstisnaKoduServisi
     {
         $belge = new DOMDocument;
         // Dış varlık yüklenmez (XXE); ağ erişimi kapalı
-        if (! @$belge->loadXML($xml, LIBXML_NONET | LIBXML_NOBLANKS)) {
+        // DOCTYPE'lı belge reddedilir: UBL'de yoktur, varlık tanımı taşıyabilir
+        if (! @$belge->loadXML($xml, LIBXML_NONET | LIBXML_NOBLANKS) || $belge->doctype !== null) {
             return [null, null];
         }
 
