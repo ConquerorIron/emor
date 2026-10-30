@@ -242,12 +242,38 @@ abstract class IcmalIceAktarimi
             $kolonlar[] = ['alan' => $alan, 'baslik' => $basliklar[0], 'tur' => $tur, 'basamak' => static::SAYILAR[$alan][0] ?? 0];
 
             if ($alan === 'tarih') {
-                $kolonlar[] = ['alan' => 'yil', 'baslik' => 'YIL', 'tur' => 'yil', 'basamak' => 0];
-                $kolonlar[] = ['alan' => 'ay', 'baslik' => 'AY', 'tur' => 'ay', 'basamak' => 0];
+                $kolonlar[] = ['alan' => 'yil', 'baslik' => $this->excelBasligi('yil'), 'tur' => 'yil', 'basamak' => 0];
+                $kolonlar[] = ['alan' => 'ay', 'baslik' => $this->excelBasligi('ay'), 'tur' => 'ay', 'basamak' => 0];
             }
         }
 
         return $kolonlar;
+    }
+
+    /**
+     * Alanın Excel başlığı: kabul edilen ilk başlık (tarihten türetilenler YIL / AY).
+     */
+    public function excelBasligi(string $alan): string
+    {
+        return static::KOLONLAR[$alan][0] ?? match ($alan) {
+            'yil' => 'YIL',
+            'ay' => 'AY',
+            default => Metin::buyukHarf(str_replace('_', ' ', $alan)),
+        };
+    }
+
+    /**
+     * Sabit seçenek değerinin Excel etiketi ('hab' → 'HAB'); seçenek alanı değilse değer.
+     */
+    public function secenekEtiketi(string $alan, mixed $deger): mixed
+    {
+        $enum = static::SECENEKLER[$alan] ?? null;
+
+        if ($enum === null || ! is_string($deger)) {
+            return $deger;
+        }
+
+        return $enum::tryFrom($deger)?->etiket() ?? $deger;
     }
 
     /**

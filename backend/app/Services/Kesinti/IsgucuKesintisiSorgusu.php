@@ -33,6 +33,9 @@ final class IsgucuKesintisiSorgusu extends IcmalSorgusu
         'tarih' => ['yil', 'ay', 'proje', 'para_birimi'],
     ];
 
-    /** Toplam satırlarında ve özetlerde tutarlarla birlikte toplanır */
-    protected const EK_TOPLAMLAR = ['miktar_saat'];
+    /** Tablonun altındaki / üstündeki toplam satırlarında tutarlarla birlikte toplanır */
+    protected const EK_TOPLAMLAR = ['miktar_saat', 'miktar_yevmiye'];
+
+    /** Özet sekmelerinde tutarlarla birlikte toplanır (kullanıcının sekme tarifi) */
+    protected const PIVOT_TOPLAMLARI = ['miktar_saat'];
 }

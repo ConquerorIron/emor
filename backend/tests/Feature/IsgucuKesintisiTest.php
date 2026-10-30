@@ -118,7 +118,11 @@ final class IsgucuKesintisiTest extends TestCase
             ->assertOk()
             ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
-        $sayfa = IOFactory::load($yanit->baseResponse->getFile()->getPathname())->getActiveSheet();
+        $kitap = IOFactory::load($yanit->baseResponse->getFile()->getPathname());
+        // Ekrandaki sekmeler sekme sekme; açılışta Data sayfası
+        $this->assertSame(['Data', 'Taşeron', 'Yansıtma Türü', 'Proje', 'Vasfı', 'Mesai Türü', 'Tarih'], $kitap->getSheetNames());
+        $sayfa = $kitap->getActiveSheet();
+        $this->assertSame('Data', $sayfa->getTitle());
         $satirlar = $sayfa->toArray(null, false, false);
         $basliklar = $satirlar[0];
 
@@ -137,6 +141,14 @@ final class IsgucuKesintisiTest extends TestCase
         // Formül gibi görünen metin formül olarak yazılmaz
         $this->assertSame('=KOMUT()', $satir['ADI SOYADI']);
         $this->assertSame('s', $sayfa->getCell('I2')->getDataType());
+
+        // Özet sayfası: aynı filtre, gruplar + satır sayısı + toplamlar; altında para birimi TOPLAM satırı
+        $tarih = $kitap->getSheetByName('Tarih')?->toArray(null, false, false) ?? [];
+        $this->assertSame(['YIL', 'AY', 'PROJE', 'PARA BİRİMİ', 'SATIR SAYISI', 'MİKTAR (SAAT)', 'TOPLAM TUTAR', 'İPTAL EDİLEN TUTAR', 'YANSITILAN TUTAR', 'KESİLEN TUTAR', 'KALAN TUTAR'], $tarih[0]);
+        $this->assertSame([2026, 'Mart'], [(int) $tarih[1][0], $tarih[1][1]]);
+        $this->assertSame(['TOPLAM', 'TL', 1, 2562.15], [$tarih[2][0], $tarih[2][3], (int) $tarih[2][4], (float) $tarih[2][6]]);
+        $this->assertCount(3, $tarih);
+        $this->assertSame('HAB', $kitap->getSheetByName('Yansıtma Türü')?->getCell('A2')->getValue());
     }
 
     public function test_ozet_sekmeleri_filtredeki_satirlari_gruplayip_toplar(): void
@@ -203,10 +215,10 @@ final class IsgucuKesintisiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.*.adi_soyadi', ['Ali', 'Cem', 'Zeki'])
             ->assertJsonPath('meta.total', 3)
-            // Para birimine göre toplamlar: miktar (saat) + 5 tutar (tablonun altı / üstü)
+            // Para birimine göre toplamlar: miktar (saat / yevmiye) + 5 tutar (tablonun altı / üstü)
             ->assertJsonPath('ozet', [
-                ['para_birimi' => 'TL', 'satir_sayisi' => 2, 'miktar_saat' => '16.00', 'toplam_tutar' => '150.50', 'iptal_edilen_tutar' => '0.00', 'yansitilan_tutar' => '5124.30', 'kesilen_tutar' => '5124.30', 'kalan_tutar' => '10.00'],
-                ['para_birimi' => 'USD', 'satir_sayisi' => 1, 'miktar_saat' => '8.00', 'toplam_tutar' => '7.00', 'iptal_edilen_tutar' => '0.00', 'yansitilan_tutar' => '2562.15', 'kesilen_tutar' => '2562.15', 'kalan_tutar' => '0.00'],
+                ['para_birimi' => 'TL', 'satir_sayisi' => 2, 'miktar_saat' => '16.00', 'miktar_yevmiye' => '2.00', 'toplam_tutar' => '150.50', 'iptal_edilen_tutar' => '0.00', 'yansitilan_tutar' => '5124.30', 'kesilen_tutar' => '5124.30', 'kalan_tutar' => '10.00'],
+                ['para_birimi' => 'USD', 'satir_sayisi' => 1, 'miktar_saat' => '8.00', 'miktar_yevmiye' => '1.00', 'toplam_tutar' => '7.00', 'iptal_edilen_tutar' => '0.00', 'yansitilan_tutar' => '2562.15', 'kesilen_tutar' => '2562.15', 'kalan_tutar' => '0.00'],
             ]);
 
         // İlişkili tanım koduna göre sıralama

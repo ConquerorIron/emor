@@ -57,7 +57,8 @@ abstract class IcmalSatiriController extends Controller
 
     /**
      * Filtredeki tüm satırlar, tüm kolonlar (gizliler dahil), listedeki sırayla
-     * .xlsx olarak (kullanıcı isteği 2026-10-30).
+     * .xlsx olarak; ekranın özet sekmeleri de aynı filtreyle sekme başına ayrı
+     * sayfa (kullanıcı istekleri 2026-10-30).
      */
     protected function excelAktar(IcmalListeRequest $request, IcmalIceAktarimi $aktarim, IcmalExcelAktarici $aktarici, string $baslik, string $dosyaAdi): BinaryFileResponse|JsonResponse
     {
@@ -71,10 +72,18 @@ abstract class IcmalSatiriController extends Controller
             ], 422);
         }
 
+        $pivotlar = array_map(fn (string $pivot): array => [
+            'ad' => __("kesinti.excel.pivot.{$pivot}"),
+            'gruplar' => $this->sorgu::pivotGruplari($pivot),
+            'toplamlar' => $this->sorgu::pivotToplamlari(),
+            'satirlar' => $this->sorgu->pivot($sorgu, $pivot),
+        ], $this->sorgu::pivotlar());
+
         $yol = $aktarici->olustur(
             $this->sorgu->sirala($sorgu->clone(), $request->input('sirala'), $request->input('yon')),
-            $aktarim->excelKolonlari(),
+            $aktarim,
             $baslik,
+            $pivotlar,
         );
 
         return response()

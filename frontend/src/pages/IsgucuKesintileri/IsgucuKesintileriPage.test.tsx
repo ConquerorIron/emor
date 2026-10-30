@@ -97,6 +97,7 @@ const LISTE = {
       satir_sayisi: 1,
       // Sayfadaki değil filtredeki tüm satırların toplamı
       miktar_saat: '8.00',
+      miktar_yevmiye: '5.00',
       toplam_tutar: '2562.15',
       iptal_edilen_tutar: '0.00',
       yansitilan_tutar: '2562.15',
@@ -157,9 +158,10 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
     expect(screen.getByText('27.03.2026')).toBeInTheDocument()
     expect(screen.getAllByText('2.562,15').length).toBeGreaterThan(0)
     expect(screen.getByLabelText('Para birimine göre toplamlar')).toHaveTextContent('562,15')
-    // Tablonun üstünde ve altında para birimine göre toplam satırı (miktar saat + tutarlar)
+    // Tablonun üstünde ve altında para birimine göre toplam satırı (miktar saat / yevmiye + tutarlar)
     expect(screen.getAllByText('Toplam')).toHaveLength(2)
     expect(screen.getAllByText('8,00')).toHaveLength(2)
+    expect(screen.getAllByText('5,00')).toHaveLength(2)
     // Kolonlar Excel / kopyala-yapıştır sırasında; tarihin sağında türetilen Yıl ve Ay
     const basliklar = screen
       .getAllByRole('columnheader')

@@ -59,12 +59,20 @@ abstract class IcmalSorgusu
     protected const PIVOTLAR = [];
 
     /**
-     * Tutarlara ek toplanan sayı kolonları (ör. İşgücü'nde miktar saat): liste
-     * toplamlarında (ozet) ve pivotlarda. 5 tutar her zaman toplanır.
+     * Liste toplamlarında (ozet: tablonun altı / üstü) tutarlara ek toplanan
+     * sayı kolonları (ör. İşgücü'nde miktar saat / yevmiye). 5 tutar her zaman.
      *
      * @var list<string>
      */
     protected const EK_TOPLAMLAR = [];
+
+    /**
+     * Pivotlarda tutarlara ek toplanan sayı kolonları (kullanıcının sekme
+     * tarifindeki kolonlar). 5 tutar her zaman.
+     *
+     * @var list<string>
+     */
+    protected const PIVOT_TOPLAMLARI = [];
 
     /** Pivotta tanım alanının tablosu ve yabancı anahtarı (kod ile gruplanır) */
     private const PIVOT_TANIMLARI = [
@@ -184,6 +192,26 @@ abstract class IcmalSorgusu
     }
 
     /**
+     * Pivotun gruplanan alanları, sırasıyla.
+     *
+     * @return list<string>
+     */
+    public static function pivotGruplari(string $pivot): array
+    {
+        return static::PIVOTLAR[$pivot];
+    }
+
+    /**
+     * Pivotlarda toplanan sayı kolonları (ek toplamlar + 5 tutar).
+     *
+     * @return list<string>
+     */
+    public static function pivotToplamlari(): array
+    {
+        return [...static::PIVOT_TOPLAMLARI, ...self::TUTARLAR];
+    }
+
+    /**
      * Filtredeki satırların pivotu: gruplanan alanlar (tanımlar koduyla,
      * taşeron adıyla birlikte) + satır sayısı + toplamlar, gruplara göre sıralı.
      *
@@ -194,7 +222,7 @@ abstract class IcmalSorgusu
     {
         $tablo = static::TABLO;
         $gruplar = static::PIVOTLAR[$pivot];
-        $toplamlar = [...static::EK_TOPLAMLAR, ...self::TUTARLAR];
+        $toplamlar = self::pivotToplamlari();
         $taban = $sorgu->clone()->toBase();
         $secimler = [];
         $gruplama = [];
