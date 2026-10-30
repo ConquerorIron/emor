@@ -497,7 +497,7 @@
     "ERP_OKUMA_YETKISI_YOK": "ERP veritabanı kullanıcısının bu veriyi okuma yetkisi yok. Veritabanı yöneticisinden okuma (SELECT) yetkisi isteyin.",
     "ERP_OKUMA_HATASI": "ERP okunamadı. Biraz sonra tekrar deneyin.",
     "KAYIT_KULLANILIYOR": "Bu kayıt kesinti satırlarında kullanıldığı için silinemez.",
-    "ICE_AKTARIM_HATALI": "Dosyada hatalı satırlar var; hiçbir satır kaydedilmedi. Önizlemedeki hataları düzeltip tekrar yükleyin."
+    "ICE_AKTARIM_HATALI": "Hatalı satırlar var; hiçbir satır kaydedilmedi. Aşağıdaki hataları düzeltip tekrar kaydedin."
   },
   "yetki": {
     "goruntule": "Görüntüle",
@@ -866,7 +866,7 @@
       "iceAktarim": {
         "ac": "Excel'den Aktar",
         "baslik": "Excel'den Aktar",
-        "aciklama": "Excel dosyasını seçin ya da satırları Excel'den kopyalayıp yapıştırın (başlık satırıyla birlikte kopyalamanız önerilir). Kolonlar başlık adlarından tanınır. Önce önizleyin; tek bir hatalı satır bile varsa hiçbir satır kaydedilmez.",
+        "aciklama": "Excel dosyasını seçin ya da satırları Excel'den kopyalayıp yapıştırın (başlık satırıyla birlikte kopyalamanız önerilir). Kolonlar başlık adlarından tanınır. Doğrudan kaydedebilir ya da önce önizleyebilirsiniz; tek bir hatalı satır bile varsa hiçbir satır kaydedilmez ve hatalar aşağıda listelenir.",
         "kaynak": {
           "dosya": "Excel Dosyası",
           "metin": "Kopyala-Yapıştır"
@@ -960,7 +960,6 @@
     "yapistirma": {
       "etiket": "Yapıştırma tablosu",
       "satirSayisi": "{{sayi}} dolu satır",
-      "satirEkle": "10 Satır Ekle",
       "temizle": "Temizle",
       "ipucu": "Excel'de satırları seçip kopyalayın, tabloya tıklayıp Ctrl+V ile yapıştırın. Başlık satırıyla kopyalarsanız kolonlar adlarından eşlenir (Excel'deki sıra önemsiz); başlıksız kopyalarsanız seçili hücreden başlayarak yerleşir. Hücreye tıklayıp düzeltebilirsiniz: Enter alt hücreye, Tab sağ hücreye geçer."
     }

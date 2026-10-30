@@ -1,3 +1,5 @@
+import { isAxiosError } from 'axios'
+
 import { api } from '@/api/client'
 
 /** Seçim listesi kaydı (tür, taşeron, proje, para birimi) */
@@ -132,6 +134,20 @@ export interface IcmalApi<T extends IcmalSatiri> {
   yuklemeler: () => Promise<KesintiYuklemesi[]>
   /** Partiyi satırlarıyla birlikte geri alır */
   geriAl: (id: number) => Promise<void>
+}
+
+/**
+ * Kayıt hatalı satırlar yüzünden reddedildiyse (ICE_AKTARIM_HATALI) sunucunun
+ * doğrulama sonucu — önizleme gibi gösterilir. Başka bir hataysa null.
+ */
+export function reddedilenAktarim(error: unknown): IceAktarimOnizlemesi | null {
+  if (!isAxiosError(error) || error.response?.status !== 422) {
+    return null
+  }
+
+  const govde = error.response.data as { kod?: string; data?: IceAktarimOnizlemesi } | undefined
+
+  return govde?.kod === 'ICE_AKTARIM_HATALI' && govde.data ? govde.data : null
 }
 
 export async function kesintiSecenekleriniGetir(): Promise<KesintiSecenekleri> {

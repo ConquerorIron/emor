@@ -14,11 +14,12 @@ import { Switch } from '@/components/Switch'
 import { tarihGoster } from '@/utils/tarih'
 
 import { tutarGoster } from './bicim'
-import type {
-  IceAktarimGirdisi,
-  IceAktarimOnizlemesi,
-  IcmalSatiri,
-  OnizlemeSatiri,
+import {
+  reddedilenAktarim,
+  type IceAktarimGirdisi,
+  type IceAktarimOnizlemesi,
+  type IcmalSatiri,
+  type OnizlemeSatiri,
 } from './icmalApi'
 import { basamak, type IcmalTanimi } from './icmalTanimi'
 import { ToplamOzeti } from './ToplamOzeti'
@@ -242,15 +243,22 @@ function AktarimIcerigi<T extends IcmalSatiri>({
       toast.success(t('kesinti.icmal.iceAktarim.kaydedildi', { sayi: yukleme.satir_sayisi }))
       kapat()
     },
-    onError: (error: unknown) => toast.error(t(apiErrorKey(error))),
+    onError: (error: unknown) => {
+      // Önizlemesiz kayıt reddedildiyse hatalar önizlemedeki gibi gösterilir
+      setOnizleme(reddedilenAktarim(error))
+      toast.error(t(apiErrorKey(error)))
+    },
   })
 
+  // Önizleme şart değil (sunucu kayıtta aynı doğrulamayı yapar); yalnız hatası
+  // bilinen girdi kaydedilemez
   const kaydedilebilir =
-    onizleme !== null &&
-    onizleme.hata === null &&
-    onizleme.eksik_kolonlar.length === 0 &&
-    onizleme.hatalar.length === 0 &&
-    onizleme.satirlar.length > 0
+    girdi !== null &&
+    (onizleme === null ||
+      (onizleme.hata === null &&
+        onizleme.eksik_kolonlar.length === 0 &&
+        onizleme.hatalar.length === 0 &&
+        onizleme.satirlar.length > 0))
 
   const sekme = (deger: 'dosya' | 'metin') => (
     <button
@@ -348,7 +356,9 @@ function AktarimIcerigi<T extends IcmalSatiri>({
             }
           }}
         >
-          {t('kesinti.icmal.iceAktarim.kaydet', { sayi: onizleme?.satirlar.length ?? 0 })}
+          {onizleme === null
+            ? t('ortak.kaydet')
+            : t('kesinti.icmal.iceAktarim.kaydet', { sayi: onizleme.satirlar.length })}
         </Button>
       </div>
     </div>

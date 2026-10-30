@@ -497,7 +497,7 @@
     "ERP_OKUMA_YETKISI_YOK": "The ERP database user is not allowed to read this data. Ask the database administrator for SELECT permission.",
     "ERP_OKUMA_HATASI": "ERP could not be read. Please try again shortly.",
     "KAYIT_KULLANILIYOR": "This record is used by deduction rows and cannot be deleted.",
-    "ICE_AKTARIM_HATALI": "The file has invalid rows; nothing was saved. Fix the errors in the preview and upload again."
+    "ICE_AKTARIM_HATALI": "There are invalid rows; nothing was saved. Fix the errors listed below and save again."
   },
   "yetki": {
     "goruntule": "View",
@@ -866,7 +866,7 @@
       "iceAktarim": {
         "ac": "Import from Excel",
         "baslik": "Import from Excel",
-        "aciklama": "Select the Excel file or copy rows from Excel and paste them (copying the header row is recommended). Columns are recognised by header names. Preview first; if even one row is invalid, nothing is saved.",
+        "aciklama": "Select the Excel file or copy rows from Excel and paste them (copying the header row is recommended). Columns are recognised by header names. You can save directly or preview first; if even one row is invalid, nothing is saved and the errors are listed below.",
         "kaynak": {
           "dosya": "Excel File",
           "metin": "Copy & Paste"
@@ -960,7 +960,6 @@
     "yapistirma": {
       "etiket": "Paste table",
       "satirSayisi": "{{sayi}} filled rows",
-      "satirEkle": "Add 10 Rows",
       "temizle": "Clear",
       "ipucu": "Select and copy rows in Excel, click the table and paste with Ctrl+V. If you copy the header row, columns are matched by name (Excel order does not matter); without it, rows are placed starting at the selected cell. Click a cell to correct it: Enter moves down, Tab moves right."
     }

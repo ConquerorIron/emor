@@ -121,9 +121,13 @@ final class IsgucuIceAktarimTest extends TestCase
             'yansitma_turu:gecersiz_secenek:%50 TMC-%50 HAB:1:6',
         ], $hatalar);
 
+        // Önizlemesiz kayıt da reddedilir; yanıt hataları önizlemedeki gibi taşır (ekran gösterir)
         $this->postJson(self::KAYDET, ['metin' => $metin])
             ->assertUnprocessable()
-            ->assertJsonPath('kod', 'ICE_AKTARIM_HATALI');
+            ->assertJsonPath('kod', 'ICE_AKTARIM_HATALI')
+            ->assertJsonCount(5, 'data.hatalar')
+            ->assertJsonCount(5, 'data.satirlar')
+            ->assertJsonPath('data.satirlar.1.hatali', true);
 
         $this->assertDatabaseCount('isgucu_kesintileri', 0);
         $this->assertDatabaseCount('kesinti_yuklemeleri', 0);

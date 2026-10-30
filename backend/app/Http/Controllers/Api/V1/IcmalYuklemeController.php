@@ -63,7 +63,11 @@ abstract class IcmalYuklemeController extends Controller
         return response()->json(['data' => Arr::except($this->incele($request), 'kayitlar')]);
     }
 
-    /** Hatasızsa tüm satırları tek parti olarak kaydeder; tek hata bile varsa hiçbirini. */
+    /**
+     * Hatasızsa tüm satırları tek parti olarak kaydeder; tek hata bile varsa
+     * hiçbirini. Önizleme şart değildir (kullanıcı kararı 2026-10-30): red
+     * yanıtı önizlemeyle aynı sonucu taşır, ekran hataları oradan gösterir.
+     */
     protected function kayit(IcmalIceAktarRequest $request): JsonResponse
     {
         $sonuc = $this->incele($request);
@@ -72,7 +76,7 @@ abstract class IcmalYuklemeController extends Controller
             return response()->json([
                 'kod' => 'ICE_AKTARIM_HATALI',
                 'mesaj' => __('hata.ice_aktarim_hatali'),
-                'data' => Arr::except($sonuc, ['kayitlar', 'satirlar']),
+                'data' => Arr::except($sonuc, 'kayitlar'),
             ], 422);
         }
 

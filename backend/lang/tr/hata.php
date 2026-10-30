@@ -77,7 +77,7 @@ return [
     'proje_kod_tekrar' => 'Bu kod başka bir projede kullanılıyor.',
     'para_birimi_kod_tekrar' => 'Bu kod başka bir para biriminde kullanılıyor.',
     'kayit_kullaniliyor' => 'Bu kayıt kesinti satırlarında kullanıldığı için silinemez.',
-    'ice_aktarim_hatali' => 'Dosyada hatalı satırlar var; hiçbir satır kaydedilmedi. Önizlemedeki hataları düzeltip tekrar yükleyin.',
+    'ice_aktarim_hatali' => 'Hatalı satırlar var; hiçbir satır kaydedilmedi. Hataları düzeltip tekrar kaydedin.',
 
     // ERP okuma (App\Services\ErpOkumaHatasi)
     'erp_canli_tanimsiz' => 'Canlı ERP bağlantısı tanımlanmamış. Ayarlar → SQL Bağlantıları ekranından Canlı ortamı tanımlayın.',

@@ -250,6 +250,47 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
     )
   })
 
+  it('önizlemeden doğrudan kaydeder; reddedilirse hatalar önizlemedeki gibi gösterilir', async () => {
+    api.aktar.mockRejectedValueOnce(
+      Object.assign(new Error('422'), {
+        isAxiosError: true,
+        response: {
+          status: 422,
+          data: {
+            kod: 'ICE_AKTARIM_HATALI',
+            data: {
+              hata: null,
+              eksik_kolonlar: [],
+              satirlar: [{ satir: 1, hatali: true, taseron: 'YOK' }],
+              hatalar: [
+                { alan: 'taseron', deger: 'YOK', kod: 'bulunamadi', adet: 1, satirlar: [1] },
+              ],
+              toplamlar: [],
+            } satisfies IceAktarimOnizlemesi,
+          },
+        },
+      }),
+    )
+    ciz()
+
+    fireEvent.click(await screen.findByRole('button', { name: "Excel'den Aktar" }))
+    const dialog = await screen.findByRole('dialog')
+    // Girdi yokken kaydedilecek bir şey yok
+    expect(within(dialog).getByRole('button', { name: 'Kaydet' })).toBeDisabled()
+    expect(within(dialog).queryByRole('button', { name: '10 Satır Ekle' })).not.toBeInTheDocument()
+
+    fireEvent.click(within(dialog).getByRole('tab', { name: 'Kopyala-Yapıştır' }))
+    const tablo = await within(dialog).findByRole('grid', { name: 'Yapıştırma tablosu' })
+    fireEvent.paste(tablo, { clipboardData: { getData: () => 'İŞGÜCÜ\tYOK' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+
+    expect(await within(dialog).findByText('Tanımlarda bu kod yok')).toBeInTheDocument()
+    expect(api.onizle).not.toHaveBeenCalled()
+    expect(api.aktar).toHaveBeenCalledWith({ metin: 'İŞGÜCÜ\tYOK\t' })
+    // Hatası bilinen girdi düzeltilene kadar kaydedilemez
+    expect(within(dialog).getByRole('button', { name: 'Kaydet (1 satır)' })).toBeDisabled()
+  })
+
   it('yapıştırılan hücreye tıklanıp düzeltilen değer önizlemeye gider', async () => {
     api.onizle.mockResolvedValue({
       hata: null,

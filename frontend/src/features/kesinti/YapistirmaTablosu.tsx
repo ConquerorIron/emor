@@ -114,13 +114,6 @@ export function YapistirmaTablosu({
           <Button
             type="button"
             variant="secondary"
-            onClick={() => degistir([...satirlar, ...bosSatirlar(kolonlar.length, 10)])}
-          >
-            {t('kesinti.yapistirma.satirEkle')}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
             onClick={() => {
               degistir(bosSatirlar(kolonlar.length))
               setSecili(null)
