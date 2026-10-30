@@ -57,6 +57,11 @@ const NAV_GRUPLARI: NavGrubu[] = [
         ad: 'kampMalzemeKesintileri',
         izin: 'kamp_malzeme_kesintileri.goruntule',
       },
+      {
+        to: '/kesinti/makina-ekipman',
+        ad: 'makinaEkipmanKesintileri',
+        izin: 'makina_ekipman_kesintileri.goruntule',
+      },
     ],
   },
   {

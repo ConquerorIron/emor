@@ -140,6 +140,19 @@ export const router = createBrowserRouter([
         ],
       },
       {
+        element: <IzinAlani izin="makina_ekipman_kesintileri.goruntule" />,
+        children: [
+          {
+            path: 'kesinti/makina-ekipman',
+            lazy: async () => ({
+              Component: (
+                await import('@/pages/MakinaEkipmanKesintileri/MakinaEkipmanKesintileriPage')
+              ).MakinaEkipmanKesintileriPage,
+            }),
+          },
+        ],
+      },
+      {
         element: <IzinAlani izin="ekran_tasarimi.goruntule" />,
         children: [
           {

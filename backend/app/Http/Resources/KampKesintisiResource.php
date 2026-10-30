@@ -19,6 +19,7 @@ final class KampKesintisiResource extends IcmalSatiriResource
         return [
             'oda_tipi' => $this->oda_tipi,
             'toplam_oda' => $this->toplam_oda,
+            'birim_fiyat' => $this->birim_fiyat,
         ];
     }
 }

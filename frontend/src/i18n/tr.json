@@ -50,6 +50,7 @@
     "isgucuKesintileri": "İşgücü Kesintileri",
     "kampKesintileri": "Kamp Kesintileri",
     "kampMalzemeKesintileri": "Kamp Malzeme Kesintileri",
+    "makinaEkipmanKesintileri": "Makina Ekipman Kesintileri",
     "kesintiTurleri": "Kesinti Türleri",
     "projeler": "Projeler",
     "firmalar": "Firmalar",
@@ -511,6 +512,7 @@
       "isgucu_kesintileri": "İşgücü Kesintileri",
       "kamp_kesintileri": "Kamp Kesintileri",
       "kamp_malzeme_kesintileri": "Kamp Malzeme Kesintileri",
+      "makina_ekipman_kesintileri": "Makina Ekipman Kesintileri",
       "kesinti_turleri": "Kesinti Türleri",
       "projeler": "Projeler",
       "firmalar": "Firmalar",
@@ -824,7 +826,9 @@
       "miktar": "Miktar",
       "birim": "Birim",
       "oda_tipi": "Oda Tipi",
-      "toplam_oda": "Toplam Oda"
+      "toplam_oda": "Toplam Oda",
+      "makina_tanimi": "Makina Tanımı",
+      "disiplin": "Disiplin"
     },
     "secenek": {
       "vasif": {
@@ -858,7 +862,8 @@
         "personel": "Personel",
         "is": "İş",
         "tutarlar": "Miktar ve Tutarlar",
-        "malzeme": "Malzeme"
+        "malzeme": "Malzeme",
+        "makina": "Makina"
       },
       "dogrulama": {
         "zorunlu": "Bu alan zorunludur.",
@@ -931,6 +936,10 @@
       "baslik": "Kamp Malzeme Kesintileri",
       "aciklamaMetni": "Taşeronlara yansıtılan kamp malzeme kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
     },
+    "makinaEkipman": {
+      "baslik": "Makina Ekipman Kesintileri",
+      "aciklamaMetni": "Taşeronlara yansıtılan makina ve ekipman kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
+    },
     "erpAktarim": {
       "okunuyor": "Canlı ERP okunuyor…",
       "ozet": "{{yeni}} yeni, {{guncellenecek}} güncellenecek, {{eslesecek}} elle açılmış kayıtla eşleşecek, {{aktarilamaz}} aktarılamaz. {{ayni}} kayıt zaten güncel.",
@@ -972,7 +981,8 @@
     "icmaller": {
       "isgucu": "İşgücü Kesintileri",
       "kamp": "Kamp Kesintileri",
-      "kamp_malzeme": "Kamp Malzeme Kesintileri"
+      "kamp_malzeme": "Kamp Malzeme Kesintileri",
+      "makina_ekipman": "Makina Ekipman Kesintileri"
     }
   }
 }

@@ -3,7 +3,7 @@ import { isAxiosError } from 'axios'
 import { api } from '@/api/client'
 
 /** Kesinti türünün bağlanabileceği icmal ekranları (backend KesintiYuklemesi::ICMALLER) */
-export const ICMALLER = ['isgucu', 'kamp', 'kamp_malzeme'] as const
+export const ICMALLER = ['isgucu', 'kamp', 'kamp_malzeme', 'makina_ekipman'] as const
 
 export type Icmal = (typeof ICMALLER)[number]
 
@@ -45,7 +45,6 @@ export interface IcmalSatiri {
   mahal: string | null
   tarih: string
   kaynak_firma: string | null
-  birim_fiyat: string
   toplam_tutar: string
   iptal_edilen_tutar: string
   /** Elle girişte hesaplanır, Excel'den olduğu gibi gelir */

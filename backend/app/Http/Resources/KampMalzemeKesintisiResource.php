@@ -18,6 +18,7 @@ final class KampMalzemeKesintisiResource extends IcmalSatiriResource
     {
         return [
             'urun_tanimi' => $this->urun_tanimi,
+            'birim_fiyat' => $this->birim_fiyat,
             'miktar' => $this->miktar,
             'birim' => $this->birim,
         ];

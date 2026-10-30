@@ -27,6 +27,7 @@ final class IsgucuKesintisiResource extends IcmalSatiriResource
             'aktivite' => $this->aktivite,
             'miktar_saat' => $this->miktar_saat,
             'miktar_yevmiye' => $this->miktar_yevmiye,
+            'birim_fiyat' => $this->birim_fiyat,
         ];
     }
 }

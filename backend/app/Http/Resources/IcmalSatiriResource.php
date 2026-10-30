@@ -50,7 +50,6 @@ abstract class IcmalSatiriResource extends JsonResource
             'tarih' => $this->tarih->format('Y-m-d'),
             'kaynak_firma' => $this->kaynak_firma,
             ...$this->alanlar(),
-            'birim_fiyat' => $this->birim_fiyat,
             'toplam_tutar' => $this->toplam_tutar,
             'iptal_edilen_tutar' => $this->iptal_edilen_tutar,
             'yansitilan_tutar' => $this->yansitilan_tutar,

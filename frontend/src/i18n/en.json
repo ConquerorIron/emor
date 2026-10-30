@@ -50,6 +50,7 @@
     "isgucuKesintileri": "Labour Deductions",
     "kampKesintileri": "Camp Deductions",
     "kampMalzemeKesintileri": "Camp Material Deductions",
+    "makinaEkipmanKesintileri": "Machinery & Equipment Deductions",
     "kesintiTurleri": "Deduction Types",
     "projeler": "Projects",
     "firmalar": "Companies",
@@ -511,6 +512,7 @@
       "isgucu_kesintileri": "Labour Deductions",
       "kamp_kesintileri": "Camp Deductions",
       "kamp_malzeme_kesintileri": "Camp Material Deductions",
+      "makina_ekipman_kesintileri": "Machinery & Equipment Deductions",
       "kesinti_turleri": "Deduction Types",
       "projeler": "Projects",
       "firmalar": "Companies",
@@ -824,7 +826,9 @@
       "miktar": "Quantity",
       "birim": "Unit",
       "oda_tipi": "Room Type",
-      "toplam_oda": "Total Rooms"
+      "toplam_oda": "Total Rooms",
+      "makina_tanimi": "Machine",
+      "disiplin": "Discipline"
     },
     "secenek": {
       "vasif": {
@@ -858,7 +862,8 @@
         "personel": "Personnel",
         "is": "Work",
         "tutarlar": "Quantities and Amounts",
-        "malzeme": "Material"
+        "malzeme": "Material",
+        "makina": "Machine"
       },
       "dogrulama": {
         "zorunlu": "This field is required.",
@@ -931,6 +936,10 @@
       "baslik": "Camp Material Deductions",
       "aciklamaMetni": "Camp material deductions charged to subcontractors. Rows can be entered manually or imported from Excel; each import is kept as an upload and can be undone."
     },
+    "makinaEkipman": {
+      "baslik": "Machinery & Equipment Deductions",
+      "aciklamaMetni": "Machinery and equipment deductions charged to subcontractors. Rows can be entered manually or imported from Excel; each import is kept as an upload and can be undone."
+    },
     "erpAktarim": {
       "okunuyor": "Reading the live ERP…",
       "ozet": "{{yeni}} new, {{guncellenecek}} to update, {{eslesecek}} to link with a manual record, {{aktarilamaz}} cannot be imported. {{ayni}} records are already up to date.",
@@ -972,7 +981,8 @@
     "icmaller": {
       "isgucu": "Labour Deductions",
       "kamp": "Camp Deductions",
-      "kamp_malzeme": "Camp Material Deductions"
+      "kamp_malzeme": "Camp Material Deductions",
+      "makina_ekipman": "Machinery & Equipment Deductions"
     }
   }
 }

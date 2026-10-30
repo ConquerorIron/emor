@@ -120,7 +120,12 @@ class AppServiceProvider extends ServiceProvider
         // Kesinti icmal formlarının seçim listeleri: icmal ekranını gören herkes okur
         // (yeni icmal ekranı eklendikçe görüntüleme izni buraya eklenir)
         Gate::define('kesinti-secenekleri', fn (User $user): bool => array_intersect(
-            [Izin::IsgucuKesintileriGoruntule->value, Izin::KampKesintileriGoruntule->value, Izin::KampMalzemeKesintileriGoruntule->value],
+            [
+                Izin::IsgucuKesintileriGoruntule->value,
+                Izin::KampKesintileriGoruntule->value,
+                Izin::KampMalzemeKesintileriGoruntule->value,
+                Izin::MakinaEkipmanKesintileriGoruntule->value,
+            ],
             $user->izinler(),
         ) !== []);
 

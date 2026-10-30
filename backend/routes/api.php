@@ -21,6 +21,8 @@ use App\Http\Controllers\Api\V1\KesintiSecenekController;
 use App\Http\Controllers\Api\V1\KesintiTuruController;
 use App\Http\Controllers\Api\V1\KullaniciController;
 use App\Http\Controllers\Api\V1\MailAyarController;
+use App\Http\Controllers\Api\V1\MakinaEkipmanKesintisiController;
+use App\Http\Controllers\Api\V1\MakinaEkipmanYuklemeController;
 use App\Http\Controllers\Api\V1\ParaBirimiController;
 use App\Http\Controllers\Api\V1\ProjeController;
 use App\Http\Controllers\Api\V1\RolController;
@@ -264,6 +266,35 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('/kesinti/kamp/yuklemeler/{yukleme}', [KampYuklemeController::class, 'destroy'])
                 ->whereNumber('yukleme')
                 ->name('kesinti.kamp.yuklemeler.destroy');
+        });
+
+        // Kesinti Yönetimi → Makina Ekipman Kesintileri (İşgücü ile aynı akış)
+        Route::middleware('can:makina_ekipman_kesintileri.goruntule')->group(function (): void {
+            Route::get('/kesinti/makina-ekipman', [MakinaEkipmanKesintisiController::class, 'index'])
+                ->name('kesinti.makina-ekipman');
+            Route::get('/kesinti/makina-ekipman/yuklemeler', [MakinaEkipmanYuklemeController::class, 'index'])
+                ->name('kesinti.makina-ekipman.yuklemeler');
+        });
+        Route::middleware('can:makina_ekipman_kesintileri.guncelle')->group(function (): void {
+            Route::post('/kesinti/makina-ekipman', [MakinaEkipmanKesintisiController::class, 'store'])
+                ->name('kesinti.makina-ekipman.store');
+            Route::put('/kesinti/makina-ekipman/{kesinti}', [MakinaEkipmanKesintisiController::class, 'update'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.makina-ekipman.update');
+            Route::delete('/kesinti/makina-ekipman/{kesinti}', [MakinaEkipmanKesintisiController::class, 'destroy'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.makina-ekipman.destroy');
+            Route::get('/kesinti/makina-ekipman/yuklemeler/kolonlar', [MakinaEkipmanYuklemeController::class, 'kolonlar'])
+                ->name('kesinti.makina-ekipman.yuklemeler.kolonlar');
+            Route::post('/kesinti/makina-ekipman/yuklemeler/onizle', [MakinaEkipmanYuklemeController::class, 'onizle'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.makina-ekipman.yuklemeler.onizle');
+            Route::post('/kesinti/makina-ekipman/yuklemeler', [MakinaEkipmanYuklemeController::class, 'store'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.makina-ekipman.yuklemeler.store');
+            Route::delete('/kesinti/makina-ekipman/yuklemeler/{yukleme}', [MakinaEkipmanYuklemeController::class, 'destroy'])
+                ->whereNumber('yukleme')
+                ->name('kesinti.makina-ekipman.yuklemeler.destroy');
         });
 
         // Kesinti Yönetimi → Kamp Malzeme Kesintileri (İşgücü ile aynı akış)

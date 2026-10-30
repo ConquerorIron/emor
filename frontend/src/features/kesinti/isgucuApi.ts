@@ -18,6 +18,7 @@ export interface IsgucuKesintisi extends IcmalSatiri {
   aktivite: string | null
   miktar_saat: string
   miktar_yevmiye: string
+  birim_fiyat: string
 }
 
 export const isgucuApi = icmalApi<IsgucuKesintisi>('isgucu')
