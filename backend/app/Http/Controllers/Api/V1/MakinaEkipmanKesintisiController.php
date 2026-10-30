@@ -9,9 +9,12 @@ use App\Http\Requests\Kesinti\MakinaEkipmanKesintisiListeRequest;
 use App\Http\Resources\IcmalSatiriResource;
 use App\Http\Resources\MakinaEkipmanKesintisiResource;
 use App\Models\MakinaEkipmanKesintisi;
+use App\Services\Kesinti\IcmalExcelAktarici;
+use App\Services\Kesinti\MakinaEkipmanIceAktarimi;
 use App\Services\Kesinti\MakinaEkipmanKesintisiSorgusu;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Kesinti Yönetimi → Makina Ekipman Kesintileri (akış: IcmalSatiriController).
@@ -29,6 +32,11 @@ final class MakinaEkipmanKesintisiController extends IcmalSatiriController
     public function index(MakinaEkipmanKesintisiListeRequest $request): JsonResponse
     {
         return $this->liste($request);
+    }
+
+    public function excel(MakinaEkipmanKesintisiListeRequest $request, MakinaEkipmanIceAktarimi $aktarim, IcmalExcelAktarici $aktarici): BinaryFileResponse|JsonResponse
+    {
+        return $this->excelAktar($request, $aktarim, $aktarici, 'Makina Ekipman Kesintileri', 'makina-ekipman-kesintileri.xlsx');
     }
 
     public function store(MakinaEkipmanKesintisiKaydetRequest $request): JsonResponse

@@ -201,8 +201,11 @@ final class IceAktarimTablosu
         return checkdate($ay, $gun, $yil) ? sprintf('%04d-%02d-%02d', $yil, $ay, $gun) : false;
     }
 
-    /** Bellek sınırı yalnız düşükse yükseltilir (sınırsız ya da daha yüksekse dokunulmaz). */
-    private static function bellekSiniriniYukselt(): void
+    /**
+     * Bellek sınırı yalnız düşükse yükseltilir (sınırsız ya da daha yüksekse
+     * dokunulmaz). Excel'e aktarım da kullanır.
+     */
+    public static function bellekSiniriniYukselt(): void
     {
         $mevcut = trim((string) ini_get('memory_limit'));
 

@@ -9,9 +9,12 @@ use App\Http\Requests\Kesinti\IsgucuKesintisiListeRequest;
 use App\Http\Resources\IcmalSatiriResource;
 use App\Http\Resources\IsgucuKesintisiResource;
 use App\Models\IsgucuKesintisi;
+use App\Services\Kesinti\IcmalExcelAktarici;
+use App\Services\Kesinti\IsgucuIceAktarimi;
 use App\Services\Kesinti\IsgucuKesintisiSorgusu;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Kesinti Yönetimi → İşgücü Kesintileri (akış: IcmalSatiriController).
@@ -29,6 +32,11 @@ final class IsgucuKesintisiController extends IcmalSatiriController
     public function index(IsgucuKesintisiListeRequest $request): JsonResponse
     {
         return $this->liste($request);
+    }
+
+    public function excel(IsgucuKesintisiListeRequest $request, IsgucuIceAktarimi $aktarim, IcmalExcelAktarici $aktarici): BinaryFileResponse|JsonResponse
+    {
+        return $this->excelAktar($request, $aktarim, $aktarici, 'İşgücü Kesintileri', 'isgucu-kesintileri.xlsx');
     }
 
     public function store(IsgucuKesintisiKaydetRequest $request): JsonResponse

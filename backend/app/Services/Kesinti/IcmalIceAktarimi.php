@@ -221,6 +221,36 @@ abstract class IcmalIceAktarimi
     }
 
     /**
+     * Excel'e aktarımın kolonları: yapıştırma sırası (KOLONLAR) ve tarihin hemen
+     * sağında tarihten türetilen Yıl / Ay (veritabanında yok). Başlık, kabul
+     * edilen ilk başlıktır: indirilen dosya olduğu gibi geri yüklenebilir.
+     *
+     * @return list<array{alan: string, baslik: string, tur: string, basamak: int}>
+     */
+    public function excelKolonlari(): array
+    {
+        $kolonlar = [];
+
+        foreach (static::KOLONLAR as $alan => $basliklar) {
+            $tur = match (true) {
+                in_array($alan, ['kesinti_turu', 'taseron', 'proje', 'para_birimi'], true) => 'tanim',
+                $alan === 'tarih' => 'tarih',
+                isset(static::SAYILAR[$alan]) => 'sayi',
+                isset(static::SECENEKLER[$alan]) => 'secenek',
+                default => 'metin',
+            };
+            $kolonlar[] = ['alan' => $alan, 'baslik' => $basliklar[0], 'tur' => $tur, 'basamak' => static::SAYILAR[$alan][0] ?? 0];
+
+            if ($alan === 'tarih') {
+                $kolonlar[] = ['alan' => 'yil', 'baslik' => 'YIL', 'tur' => 'yil', 'basamak' => 0];
+                $kolonlar[] = ['alan' => 'ay', 'baslik' => 'AY', 'tur' => 'ay', 'basamak' => 0];
+            }
+        }
+
+        return $kolonlar;
+    }
+
+    /**
      * Kod karşılaştırma anahtarı: Türkçe büyük harf, fazla boşluk tek boşluk.
      */
     public static function kodAnahtari(string $kod): string

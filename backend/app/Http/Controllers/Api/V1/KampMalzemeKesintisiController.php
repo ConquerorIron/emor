@@ -9,9 +9,12 @@ use App\Http\Requests\Kesinti\KampMalzemeKesintisiListeRequest;
 use App\Http\Resources\IcmalSatiriResource;
 use App\Http\Resources\KampMalzemeKesintisiResource;
 use App\Models\KampMalzemeKesintisi;
+use App\Services\Kesinti\IcmalExcelAktarici;
+use App\Services\Kesinti\KampMalzemeIceAktarimi;
 use App\Services\Kesinti\KampMalzemeKesintisiSorgusu;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Kesinti Yönetimi → Kamp Malzeme Kesintileri (akış: IcmalSatiriController).
@@ -29,6 +32,11 @@ final class KampMalzemeKesintisiController extends IcmalSatiriController
     public function index(KampMalzemeKesintisiListeRequest $request): JsonResponse
     {
         return $this->liste($request);
+    }
+
+    public function excel(KampMalzemeKesintisiListeRequest $request, KampMalzemeIceAktarimi $aktarim, IcmalExcelAktarici $aktarici): BinaryFileResponse|JsonResponse
+    {
+        return $this->excelAktar($request, $aktarim, $aktarici, 'Kamp Malzeme Kesintileri', 'kamp-malzeme-kesintileri.xlsx');
     }
 
     public function store(KampMalzemeKesintisiKaydetRequest $request): JsonResponse

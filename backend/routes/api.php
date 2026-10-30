@@ -216,6 +216,9 @@ Route::prefix('v1')->group(function (): void {
                 ->name('kesinti.isgucu');
             Route::get('/kesinti/isgucu/yuklemeler', [IsgucuYuklemeController::class, 'index'])
                 ->name('kesinti.isgucu.yuklemeler');
+            Route::get('/kesinti/isgucu/excel', [IsgucuKesintisiController::class, 'excel'])
+                ->middleware('throttle:kesinti-excel')
+                ->name('kesinti.isgucu.excel');
         });
         Route::middleware('can:isgucu_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/isgucu', [IsgucuKesintisiController::class, 'store'])
@@ -245,6 +248,9 @@ Route::prefix('v1')->group(function (): void {
                 ->name('kesinti.kamp');
             Route::get('/kesinti/kamp/yuklemeler', [KampYuklemeController::class, 'index'])
                 ->name('kesinti.kamp.yuklemeler');
+            Route::get('/kesinti/kamp/excel', [KampKesintisiController::class, 'excel'])
+                ->middleware('throttle:kesinti-excel')
+                ->name('kesinti.kamp.excel');
         });
         Route::middleware('can:kamp_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/kamp', [KampKesintisiController::class, 'store'])
@@ -274,6 +280,9 @@ Route::prefix('v1')->group(function (): void {
                 ->name('kesinti.makina-ekipman');
             Route::get('/kesinti/makina-ekipman/yuklemeler', [MakinaEkipmanYuklemeController::class, 'index'])
                 ->name('kesinti.makina-ekipman.yuklemeler');
+            Route::get('/kesinti/makina-ekipman/excel', [MakinaEkipmanKesintisiController::class, 'excel'])
+                ->middleware('throttle:kesinti-excel')
+                ->name('kesinti.makina-ekipman.excel');
         });
         Route::middleware('can:makina_ekipman_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/makina-ekipman', [MakinaEkipmanKesintisiController::class, 'store'])
@@ -303,6 +312,9 @@ Route::prefix('v1')->group(function (): void {
                 ->name('kesinti.kamp-malzeme');
             Route::get('/kesinti/kamp-malzeme/yuklemeler', [KampMalzemeYuklemeController::class, 'index'])
                 ->name('kesinti.kamp-malzeme.yuklemeler');
+            Route::get('/kesinti/kamp-malzeme/excel', [KampMalzemeKesintisiController::class, 'excel'])
+                ->middleware('throttle:kesinti-excel')
+                ->name('kesinti.kamp-malzeme.excel');
         });
         Route::middleware('can:kamp_malzeme_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/kamp-malzeme', [KampMalzemeKesintisiController::class, 'store'])

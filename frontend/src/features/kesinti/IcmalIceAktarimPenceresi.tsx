@@ -100,7 +100,8 @@ function OnizlemeSonucu<T extends IcmalSatiri>({
           } satisfies DataTableKolonu<OnizlemeSatiri>,
         ]
       : []),
-    ...tanim.onizleme.map((alan): DataTableKolonu<OnizlemeSatiri> => {
+    // Excel / kopyala-yapıştır sırası; satır kaydırılmaz (kolon veri kadar geniş)
+    ...tanim.kolonlar.map((alan): DataTableKolonu<OnizlemeSatiri> => {
       const tur = tanim.alanlar[alan]
       const sayiMi = tur.tur === 'sayi' || tur.tur === 'hesap'
 
@@ -111,14 +112,14 @@ function OnizlemeSonucu<T extends IcmalSatiri>({
         render: (satir) => {
           const deger = String(satir[alan] ?? '')
 
-          if (tur.tur === 'tarih') {
-            return tarihGoster(deger)
-          }
-
-          return sayiMi ? (
-            <span className="tabular-nums">{tutarGoster(deger, basamak(tur))}</span>
-          ) : (
-            deger
+          return (
+            <span className={`whitespace-nowrap ${sayiMi ? 'tabular-nums' : ''}`}>
+              {tur.tur === 'tarih'
+                ? tarihGoster(deger)
+                : sayiMi
+                  ? tutarGoster(deger, basamak(tur))
+                  : deger}
+            </span>
           )
         },
       }
@@ -352,11 +353,11 @@ function AktarimIcerigi<T extends IcmalSatiri>({
         />
       )}
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-3">
         <Button
           type="button"
           variant="secondary"
-          disabled={girdi === null}
+          disabled={girdi === null || kaydet.isPending}
           yukleniyor={onizle.isPending}
           onClick={() => {
             if (girdi !== null) {
@@ -365,6 +366,21 @@ function AktarimIcerigi<T extends IcmalSatiri>({
           }}
         >
           {t('kesinti.icmal.iceAktarim.onizle')}
+        </Button>
+        {/* Tek adımda: sunucu kayıtta aynı kontrolü yapar; hata yoksa kaydeder,
+            varsa hiçbir satırı yazmaz ve hatalar Kontrol Et'teki gibi listelenir */}
+        <Button
+          type="button"
+          variant="mor"
+          disabled={girdi === null || onizle.isPending}
+          yukleniyor={kaydet.isPending}
+          onClick={() => {
+            if (girdi !== null) {
+              kaydet.mutate(girdi)
+            }
+          }}
+        >
+          {t('kesinti.icmal.iceAktarim.kontrolVeAktar')}
         </Button>
       </div>
 

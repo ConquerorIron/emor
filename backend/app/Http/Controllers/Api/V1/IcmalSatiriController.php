@@ -7,10 +7,13 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Kesinti\IcmalListeRequest;
 use App\Http\Resources\IcmalSatiriResource;
+use App\Services\Kesinti\IcmalExcelAktarici;
+use App\Services\Kesinti\IcmalIceAktarimi;
 use App\Services\Kesinti\IcmalSorgusu;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Kesinti icmali satırları: liste (filtre, sıralama, sayfa, para birimine
@@ -21,6 +24,9 @@ use Illuminate\Http\Response;
 abstract class IcmalSatiriController extends Controller
 {
     private const ILISKILER = ['kesintiTuru:id,kod,ad', 'firma:id,kod,ad', 'proje:id,kod,ad', 'paraBirimi:id,kod,ad'];
+
+    /** Excel'e aktarımda en fazla satır (bellek; ~2.400 satırlık İşgücü icmalinin katları) */
+    private const EXCEL_SINIRI = 50000;
 
     /** @var class-string<IcmalSatiriResource> */
     protected const RESOURCE = IcmalSatiriResource::class;
@@ -39,6 +45,36 @@ abstract class IcmalSatiriController extends Controller
         return (static::RESOURCE)::collection($sayfa)
             ->additional(['ozet' => $this->sorgu->ozet($sorgu)])
             ->response();
+    }
+
+    /**
+     * Filtredeki tüm satırlar, tüm kolonlar (gizliler dahil), listedeki sırayla
+     * .xlsx olarak (kullanıcı isteği 2026-10-30).
+     */
+    protected function excelAktar(IcmalListeRequest $request, IcmalIceAktarimi $aktarim, IcmalExcelAktarici $aktarici, string $baslik, string $dosyaAdi): BinaryFileResponse|JsonResponse
+    {
+        $sorgu = $this->sorgu->filtrele($request->filtre());
+        $adet = $sorgu->count();
+
+        if ($adet > self::EXCEL_SINIRI) {
+            return response()->json([
+                'kod' => 'KESINTI_EXCEL_COK_BUYUK',
+                'mesaj' => __('hata.kesinti_excel_cok_buyuk', ['adet' => $adet, 'sinir' => self::EXCEL_SINIRI]),
+            ], 422);
+        }
+
+        $yol = $aktarici->olustur(
+            $this->sorgu->sirala($sorgu->clone(), $request->input('sirala'), $request->input('yon')),
+            $aktarim->excelKolonlari(),
+            $baslik,
+        );
+
+        return response()
+            ->download($yol, $dosyaAdi, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Cache-Control' => 'private, no-store',
+            ])
+            ->deleteFileAfterSend();
     }
 
     /**

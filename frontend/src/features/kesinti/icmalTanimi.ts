@@ -23,6 +23,9 @@ export type AlanTuru =
   | { tur: 'sayi'; basamak: number }
   /** Yansıtılan / kalan: elle girişte hesaplanır, gönderilmez */
   | { tur: 'hesap' }
+  /** Tarihten türetilir, yalnız listede (veritabanında / Excel yapıştırmada yok) */
+  | { tur: 'yil' }
+  | { tur: 'ay' }
 
 /** Form bölümündeki alan; geniş alan iki kolon kaplar */
 export type FormAlani = string | { alan: string; genis: true }
@@ -40,10 +43,12 @@ export interface IcmalTanimi<T extends IcmalSatiri> {
   icmal: Icmal
   api: IcmalApi<T>
   alanlar: Record<string, AlanTuru>
-  /** Liste kolonlarının sırası (sıralama anahtarı = alan adı) */
-  liste: string[]
-  /** İçe aktarım önizlemesinde gösterilen kolonlar (hepsi yüklemeden sonra listede) */
-  onizleme: string[]
+  /**
+   * Kolonların Excel / kopyala-yapıştır sırası (backend aktarımının KOLONLAR'ı
+   * ile aynı). Liste ve kontrol tablosu bu sırayla çizilir (kullanıcı kararı
+   * 2026-10-30); liste tarihin hemen sağına Yıl ve Ay ekler.
+   */
+  kolonlar: string[]
   /** Form bölümleri: başlık çeviri anahtarı + alanlar */
   form: { baslik: string; alanlar: FormAlani[] }[]
   /** Silme onayında satırı tanıtan metin (ör. adı soyadı, ürün) */
@@ -61,6 +66,8 @@ export const ORTAK_ALANLAR: Record<string, AlanTuru> = {
   proje: { tur: 'tanim' },
   mahal: { tur: 'metin', sinir: 200 },
   tarih: { tur: 'tarih' },
+  yil: { tur: 'yil' },
+  ay: { tur: 'ay' },
   kaynak_firma: { tur: 'metin', sinir: 200 },
   birim_fiyat: { tur: 'sayi', basamak: 4 },
   para_birimi: { tur: 'tanim' },
@@ -90,6 +97,16 @@ export function alanDegeri(satir: IcmalSatiri, alan: string): unknown {
 /** Satırdaki tanım (tür, taşeron, proje, para birimi) */
 export function satirTanimi(satir: IcmalSatiri, alan: TanimAlani): KesintiTanimi {
   return satir[TANIMLAR[alan].iliski] as KesintiTanimi
+}
+
+/** Liste kolonları: yapıştırma sırası, tarihin hemen sağında Yıl ve Ay */
+export function listeKolonlari(kolonlar: string[]): string[] {
+  return kolonlar.flatMap((alan) => (alan === 'tarih' ? ['tarih', 'yil', 'ay'] : [alan]))
+}
+
+/** "2026-03-27" → ayın adı, arayüz dilinde ("Mart") */
+export function ayAdi(tarih: string, dil: string): string {
+  return new Date(`${tarih.slice(0, 10)}T00:00:00`).toLocaleString(dil, { month: 'long' })
 }
 
 /** Hesaplanan ve sayı alanlarının ondalık basamağı */

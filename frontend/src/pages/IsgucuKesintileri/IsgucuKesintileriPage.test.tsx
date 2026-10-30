@@ -19,6 +19,7 @@ const api = vi.hoisted(() => ({
   yuklemeler: vi.fn(),
   geriAl: vi.fn(),
   kolonlar: vi.fn(),
+  excel: vi.fn(),
 }))
 
 vi.mock('@/features/kesinti/icmalApi', async (importOriginal) => ({
@@ -37,6 +38,7 @@ vi.mock('@/features/kesinti/isgucuApi', async (importOriginal) => ({
     yuklemeler: api.yuklemeler,
     geriAl: api.geriAl,
     kolonlar: api.kolonlar,
+    excel: api.excel,
   },
 }))
 
@@ -147,11 +149,25 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
     expect(screen.getByText('27.03.2026')).toBeInTheDocument()
     expect(screen.getAllByText('2.562,15').length).toBeGreaterThan(0)
     expect(screen.getByLabelText('Para birimine göre toplamlar')).toHaveTextContent('562,15')
-    // Yansıtma türü taşeronun hemen sağında (kullanıcı kararı)
+    // Kolonlar Excel / kopyala-yapıştır sırasında; tarihin sağında türetilen Yıl ve Ay
     const basliklar = screen
       .getAllByRole('columnheader')
       .map((baslik) => baslik.textContent.replace(/[▲▼↕]/g, ''))
-    expect(basliklar.indexOf('Yansıtma Türü')).toBe(basliklar.indexOf('Taşeron') + 1)
+    expect(basliklar.slice(0, 11)).toEqual([
+      'Kesinti Türü',
+      'Taşeron',
+      'Yansıtma Türü',
+      'Proje',
+      'Mahal',
+      'Tarih',
+      'Yıl',
+      'Ay',
+      'Kaynak Firma',
+      'Kaynak Fiş No',
+      'Adı Soyadı',
+    ])
+    expect(screen.getByText('2026')).toBeInTheDocument()
+    expect(screen.getByText('Mart')).toBeInTheDocument()
     // Varsayılan sıra: tarih, yeniden eskiye
     expect(api.liste).toHaveBeenLastCalledWith(
       expect.anything(),
@@ -168,6 +184,96 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
         1,
       ),
     )
+  })
+
+  it("Excel'e Aktar ekrandaki filtre ve sıralamayla tüm satırları indirir", async () => {
+    api.excel.mockResolvedValue(undefined)
+    ciz(['isgucu_kesintileri.goruntule'])
+    await screen.findByText('FIRAT AKYILDIZ')
+
+    fireEvent.change(screen.getByLabelText('Ara'), { target: { value: 'akyıldız' } })
+    // Excel, ekranda listelenen filtreyle alınır (arama gecikmeli uygulanır)
+    await waitFor(() =>
+      expect(api.liste).toHaveBeenLastCalledWith(
+        expect.objectContaining({ ara: 'akyıldız' }),
+        expect.anything(),
+        1,
+      ),
+    )
+    fireEvent.click(screen.getByRole('button', { name: "Excel'e Aktar" }))
+
+    await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
+    expect(api.excel).toHaveBeenCalledWith(
+      expect.objectContaining({ ara: 'akyıldız' }),
+      { anahtar: 'tarih', yon: 'desc' },
+      'İşgücü Kesintileri.xlsx',
+    )
+  })
+
+  it('Kontrol Et & Aktar hatasız girdiyi tek adımda kaydeder', async () => {
+    api.aktar.mockResolvedValue({
+      id: 4,
+      kaynak: 'yapistirma',
+      dosya_adi: null,
+      satir_sayisi: 1,
+      yukleyen: 'Deneme',
+      olusturma_zamani: '2026-10-30T09:00:00Z',
+    })
+    ciz()
+
+    fireEvent.click(await screen.findByRole('button', { name: "Excel'den Aktar" }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('tab', { name: 'Kopyala-Yapıştır' }))
+    const tablo = await within(dialog).findByRole('grid', { name: 'Yapıştırma tablosu' })
+    fireEvent.paste(tablo, { clipboardData: { getData: () => 'İŞGÜCÜ\tHAB' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kontrol Et & Aktar' }))
+
+    await waitFor(() => expect(api.aktar).toHaveBeenCalledWith({ metin: 'İŞGÜCÜ\tHAB\t' }))
+    expect(api.onizle).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('Kontrol Et & Aktar hatalı girdide hiçbir satırı yazmaz, hataları satır satır gösterir', async () => {
+    api.aktar.mockRejectedValue(
+      Object.assign(new Error('422'), {
+        isAxiosError: true,
+        response: {
+          status: 422,
+          data: {
+            kod: 'ICE_AKTARIM_HATALI',
+            data: {
+              hata: null,
+              eksik_kolonlar: [],
+              satirlar: [
+                {
+                  satir: 1,
+                  hatali: true,
+                  taseron: 'YOK',
+                  satir_hatalari: [{ alan: 'taseron', kod: 'bulunamadi' }],
+                },
+              ],
+              hatalar: [
+                { alan: 'taseron', deger: 'YOK', kod: 'bulunamadi', adet: 1, satirlar: [1] },
+              ],
+              toplamlar: [],
+            } satisfies IceAktarimOnizlemesi,
+          },
+        },
+      }),
+    )
+    ciz()
+
+    fireEvent.click(await screen.findByRole('button', { name: "Excel'den Aktar" }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('tab', { name: 'Kopyala-Yapıştır' }))
+    const tablo = await within(dialog).findByRole('grid', { name: 'Yapıştırma tablosu' })
+    fireEvent.paste(tablo, { clipboardData: { getData: () => 'İŞGÜCÜ\tYOK' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kontrol Et & Aktar' }))
+
+    expect(
+      await within(dialog).findByText('Taşeron: Tanımlarda bu kod yok (YOK)'),
+    ).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Kaydet (1 satır)' })).toBeDisabled()
   })
 
   it('düzenlemede yansıtılan ve kalan tutarı hesaplar, bunları göndermez', async () => {

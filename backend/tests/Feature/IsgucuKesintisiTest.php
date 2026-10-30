@@ -11,8 +11,10 @@ use App\Models\ParaBirimi;
 use App\Models\Proje;
 use App\Models\Rol;
 use App\Models\User;
+use App\Services\Kesinti\IsgucuIceAktarimi;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -104,6 +106,37 @@ final class IsgucuKesintisiTest extends TestCase
             ->assertJsonValidationErrorFor($alan, 'hatalar');
 
         $this->assertDatabaseCount('isgucu_kesintileri', 0);
+    }
+
+    public function test_excele_aktarim_filtredeki_tum_satirlari_tum_kolonlarla_yapistirma_sirasinda_verir(): void
+    {
+        $tmc = Firma::factory()->create(['kod' => 'TMC KABA']);
+        IsgucuKesintisi::factory()->create(['firma_id' => $tmc->id, 'adi_soyadi' => '=KOMUT()', 'tarih' => '2026-03-27', 'birim_fiyat' => '2562.1521']);
+        IsgucuKesintisi::factory()->create(['adi_soyadi' => 'Başka Taşeron']);
+
+        $yanit = $this->get(self::ADRES.'/excel?'.http_build_query(['firma_id' => $tmc->id]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $sayfa = IOFactory::load($yanit->baseResponse->getFile()->getPathname())->getActiveSheet();
+        $satirlar = $sayfa->toArray(null, false, false);
+        $basliklar = $satirlar[0];
+
+        // Yapıştırma sırası + tarihin hemen sağında Yıl / Ay; başlıklar içe aktarımın standart adları
+        $beklenen = array_map(fn (array $b): string => $b[0], array_values(IsgucuIceAktarimi::KOLONLAR));
+        array_splice($beklenen, array_search('TARİH', $beklenen, true) + 1, 0, ['YIL', 'AY']);
+        $this->assertSame($beklenen, $basliklar);
+
+        $this->assertCount(2, $satirlar, 'Filtre dışındaki satır aktarılmaz');
+        $satir = array_combine($basliklar, $satirlar[1]);
+        $this->assertSame('TMC KABA', $satir['TAŞERON ADI']);
+        $this->assertSame('HAB', $satir['YANSITMA TÜRÜ']);
+        $this->assertSame(2026, (int) $satir['YIL']);
+        $this->assertSame('Mart', $satir['AY']);
+        $this->assertSame(2562.1521, (float) $satir['BİRİM FİYAT']);
+        // Formül gibi görünen metin formül olarak yazılmaz
+        $this->assertSame('=KOMUT()', $satir['ADI SOYADI']);
+        $this->assertSame('s', $sayfa->getCell('I2')->getDataType());
     }
 
     public function test_baska_ekrana_bagli_kesinti_turuyle_satir_girilemez(): void

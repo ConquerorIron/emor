@@ -34,7 +34,9 @@ import { IcmalIceAktarimPenceresi } from './IcmalIceAktarimPenceresi'
 import { IcmalYuklemelerPenceresi } from './IcmalYuklemelerPenceresi'
 import {
   alanDegeri,
+  ayAdi,
   basamak,
+  listeKolonlari,
   satirTanimi,
   type AlanTuru,
   type IcmalTanimi,
@@ -57,7 +59,7 @@ function tanimSecenekleri(liste: KesintiTanimi[] | undefined) {
  * yüklemeler. Kolonlar ve sıraları icmal tanımından gelir.
  */
 export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTanimi<T> }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const guncelleyebilir = useIzin(`${tanim.izin}.guncelle`)
   const [filtre, setFiltre] = useState<IcmalFiltresi>(BOS_FILTRE)
@@ -100,6 +102,13 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
     onSettled: () => setSilinecek(null),
   })
 
+  // Filtredeki tüm satırlar, gizli kolonlar dahil tüm kolonlar (kullanıcı isteği)
+  const excel = useMutation({
+    mutationFn: () =>
+      tanim.api.excel(sorguFiltresi, siralama, `${t(`kesinti.${tanim.anahtar}.baslik`)}.xlsx`),
+    onError: (error: unknown) => toast.error(t(apiErrorKey(error))),
+  })
+
   const filtreDegistir = <K extends keyof IcmalFiltresi>(alan: K, deger: IcmalFiltresi[K]) => {
     setFiltre((onceki) => ({ ...onceki, [alan]: deger }))
     setSayfa(1)
@@ -112,7 +121,7 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
   const firmaSecenekleri = tanimSecenekleri(secenekler.data?.firmalar)
   const projeSecenekleri = tanimSecenekleri(secenekler.data?.projeler)
 
-  const hucre = (satir: T, alan: string, tur: AlanTuru) => {
+  const hucreIcerigi = (satir: T, alan: string, tur: AlanTuru) => {
     switch (tur.tur) {
       case 'tanim': {
         const kayit = satirTanimi(satir, alan as TanimAlani)
@@ -120,13 +129,13 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
         return alan === 'taseron' ? <strong title={kayit.ad}>{kayit.kod}</strong> : kayit.kod
       }
       case 'tarih':
-        return <span className="whitespace-nowrap">{tarihGoster(satir.tarih)}</span>
+        return tarihGoster(satir.tarih)
+      case 'yil':
+        return satir.tarih.slice(0, 4)
+      case 'ay':
+        return ayAdi(satir.tarih, i18n.language)
       case 'secenek':
-        return (
-          <span className="whitespace-nowrap">
-            {t(`kesinti.secenek.${alan}.${String(alanDegeri(satir, alan))}`)}
-          </span>
-        )
+        return t(`kesinti.secenek.${alan}.${String(alanDegeri(satir, alan))}`)
       case 'sayi':
       case 'hesap':
         return (
@@ -146,15 +155,21 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
     }
   }
 
-  const tumKolonlar: DataTableKolonu<T>[] = tanim.liste.map((alan) => {
+  // Kolon sırası Excel / kopyala-yapıştır sırası; tarihin sağında türetilen Yıl ve Ay
+  const tumKolonlar: DataTableKolonu<T>[] = listeKolonlari(tanim.kolonlar).map((alan) => {
     const tur = tanim.alanlar[alan]
+    // Yıl / Ay veritabanında yok: sunucuda sıralanamaz
+    const turetilmis = tur.tur === 'yil' || tur.tur === 'ay'
 
     return {
       anahtar: alan,
       baslik: t(`kesinti.alan.${alan}`),
-      siralamaAnahtari: alan,
+      siralamaAnahtari: turetilmis ? undefined : alan,
       hizala: tur.tur === 'sayi' || tur.tur === 'hesap' ? 'sag' : undefined,
-      render: (satir) => hucre(satir, alan, tur),
+      // Veri ne kadar genişse kolon o kadar (kullanıcı isteği): satır kaydırılmaz
+      render: (satir) => (
+        <span className="whitespace-nowrap">{hucreIcerigi(satir, alan, tur)}</span>
+      ),
     }
   })
   const islemKolonu: DataTableKolonu<T> = {
@@ -192,6 +207,9 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-2xl font-bold">{t(`kesinti.${tanim.anahtar}.baslik`)}</h2>
         <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" yukleniyor={excel.isPending} onClick={() => excel.mutate()}>
+            {t('kesinti.icmal.excelAktar')}
+          </Button>
           <Button variant="secondary" onClick={() => setYuklemelerAcik(true)}>
             {t('kesinti.icmal.yuklemeler.baslik')}
           </Button>

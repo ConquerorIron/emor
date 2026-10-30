@@ -499,7 +499,8 @@
     "ERP_OKUMA_YETKISI_YOK": "ERP veritabanı kullanıcısının bu veriyi okuma yetkisi yok. Veritabanı yöneticisinden okuma (SELECT) yetkisi isteyin.",
     "ERP_OKUMA_HATASI": "ERP okunamadı. Biraz sonra tekrar deneyin.",
     "KAYIT_KULLANILIYOR": "Bu kayıt kesinti satırlarında kullanıldığı için silinemez.",
-    "ICE_AKTARIM_HATALI": "Hatalı satırlar var; hiçbir satır kaydedilmedi. Aşağıdaki hataları düzeltip tekrar kontrol edin."
+    "ICE_AKTARIM_HATALI": "Hatalı satırlar var; hiçbir satır kaydedilmedi. Aşağıdaki hataları düzeltip tekrar kontrol edin.",
+    "KESINTI_EXCEL_COK_BUYUK": "Seçilen filtrede Excel sınırından fazla satır var. Filtreyi daraltın."
   },
   "yetki": {
     "goruntule": "Görüntüle",
@@ -803,6 +804,8 @@
       "proje": "Proje",
       "mahal": "Mahal",
       "tarih": "Tarih",
+      "yil": "Yıl",
+      "ay": "Ay",
       "kaynak_firma": "Kaynak Firma",
       "kaynak_fis_no": "Kaynak Fiş No",
       "adi_soyadi": "Adı Soyadı",
@@ -882,6 +885,7 @@
         },
         "dosyaSec": "Excel dosyası (.xlsx)",
         "onizle": "Kontrol Et",
+        "kontrolVeAktar": "Kontrol Et & Aktar",
         "kaydet": "Kaydet ({{sayi}} satır)",
         "kaydedildi": "{{sayi}} satır aktarıldı.",
         "dosyaHatasi": {
@@ -922,7 +926,8 @@
         "geriAlindi": "Yükleme geri alındı; {{sayi}} satır silindi.",
         "geriAlOnayBaslik": "Yükleme geri alınsın mı?",
         "geriAlOnayMesaj": "{{zaman}} yüklemesi ve {{sayi}} satırı silinecek."
-      }
+      },
+      "excelAktar": "Excel'e Aktar"
     },
     "isgucu": {
       "baslik": "İşgücü Kesintileri",

@@ -1,6 +1,7 @@
 import { isAxiosError } from 'axios'
 
 import { api } from '@/api/client'
+import { blobHatasiniCoz, dosyayiIndir } from '@/api/indirme'
 
 /** Kesinti türünün bağlanabileceği icmal ekranları (backend KesintiYuklemesi::ICMALLER) */
 export const ICMALLER = ['isgucu', 'kamp', 'kamp_malzeme', 'makina_ekipman'] as const
@@ -139,6 +140,8 @@ export type Siralama = { anahtar: string; yon: 'asc' | 'desc' } | null
 /** Bir icmal ekranının uçları (hepsi /api/v1/kesinti/<yol> altında aynı düzende) */
 export interface IcmalApi<T extends IcmalSatiri> {
   listele: (filtre: IcmalFiltresi, siralama: Siralama, sayfa: number) => Promise<IcmalListesi<T>>
+  /** Filtredeki tüm satırlar, tüm kolonlar (gizliler dahil) .xlsx olarak indirilir */
+  excel: (filtre: IcmalFiltresi, siralama: Siralama, dosyaAdi: string) => Promise<void>
   kaydet: (id: number | null, govde: IcmalGovdesi) => Promise<T>
   sil: (id: number) => Promise<void>
   kolonlar: () => Promise<IceAktarimKolonu[]>
@@ -183,27 +186,47 @@ function aktarimGovdesi(girdi: IceAktarimGirdisi): FormData {
   return govde
 }
 
+/** Liste filtresi ve sıralaması sorgu parametresi olarak (boş filtreler gönderilmez) */
+function listeParametreleri(
+  filtre: IcmalFiltresi,
+  siralama: Siralama,
+): Record<string, string | number> {
+  const params: Record<string, string | number> = {}
+
+  for (const [anahtar, deger] of Object.entries(filtre)) {
+    if (deger !== '') {
+      params[anahtar] = deger
+    }
+  }
+
+  if (siralama) {
+    params.sirala = siralama.anahtar
+    params.yon = siralama.yon
+  }
+
+  return params
+}
+
 export function icmalApi<T extends IcmalSatiri>(yol: string): IcmalApi<T> {
   const adres = `/api/v1/kesinti/${yol}`
 
   return {
     listele: async (filtre, siralama, sayfa) => {
-      const params: Record<string, string | number> = { page: sayfa }
-
-      for (const [anahtar, deger] of Object.entries(filtre)) {
-        if (deger !== '') {
-          params[anahtar] = deger
-        }
-      }
-
-      if (siralama) {
-        params.sirala = siralama.anahtar
-        params.yon = siralama.yon
-      }
-
-      const yanit = await api.get<IcmalListesi<T>>(adres, { params })
+      const yanit = await api.get<IcmalListesi<T>>(adres, {
+        params: { ...listeParametreleri(filtre, siralama), page: sayfa },
+      })
 
       return yanit.data
+    },
+    excel: async (filtre, siralama, dosyaAdi) => {
+      const yanit = await api
+        .get<Blob>(`${adres}/excel`, {
+          params: listeParametreleri(filtre, siralama),
+          responseType: 'blob',
+        })
+        .catch(blobHatasiniCoz)
+
+      dosyayiIndir(yanit.data, dosyaAdi)
     },
     kaydet: async (id, govde) => {
       const yanit =

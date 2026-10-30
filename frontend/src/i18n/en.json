@@ -499,7 +499,8 @@
     "ERP_OKUMA_YETKISI_YOK": "The ERP database user is not allowed to read this data. Ask the database administrator for SELECT permission.",
     "ERP_OKUMA_HATASI": "ERP could not be read. Please try again shortly.",
     "KAYIT_KULLANILIYOR": "This record is used by deduction rows and cannot be deleted.",
-    "ICE_AKTARIM_HATALI": "There are invalid rows; nothing was saved. Fix the errors below and check again."
+    "ICE_AKTARIM_HATALI": "There are invalid rows; nothing was saved. Fix the errors below and check again.",
+    "KESINTI_EXCEL_COK_BUYUK": "The selected filter has more rows than the Excel limit. Narrow the filter."
   },
   "yetki": {
     "goruntule": "View",
@@ -803,6 +804,8 @@
       "proje": "Project",
       "mahal": "Area",
       "tarih": "Date",
+      "yil": "Year",
+      "ay": "Month",
       "kaynak_firma": "Source Company",
       "kaynak_fis_no": "Source Slip No",
       "adi_soyadi": "Full Name",
@@ -882,6 +885,7 @@
         },
         "dosyaSec": "Excel file (.xlsx)",
         "onizle": "Check",
+        "kontrolVeAktar": "Check & Import",
         "kaydet": "Save ({{sayi}} rows)",
         "kaydedildi": "{{sayi}} rows imported.",
         "dosyaHatasi": {
@@ -922,7 +926,8 @@
         "geriAlindi": "Upload undone; {{sayi}} rows deleted.",
         "geriAlOnayBaslik": "Undo upload?",
         "geriAlOnayMesaj": "The upload from {{zaman}} and its {{sayi}} rows will be deleted."
-      }
+      },
+      "excelAktar": "Export to Excel"
     },
     "isgucu": {
       "baslik": "Labour Deductions",

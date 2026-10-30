@@ -134,6 +134,11 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(20)->by($request->user()?->id ?? $request->ip());
         });
 
+        // Kesinti icmali → Excel'e Aktar: filtredeki tüm satırlar bellekte yazılır
+        RateLimiter::for('kesinti-excel', function (Request $request): Limit {
+            return Limit::perMinute(10)->by($request->user()?->id ?? $request->ip());
+        });
+
         // Projeler / Firmalar → ERP'den Getir: önizleme + kayıt, ikisi de canlı ERP'yi okur
         RateLimiter::for('erp-aktarim', function (Request $request): Limit {
             return Limit::perMinute(10)->by($request->user()?->id ?? $request->ip());

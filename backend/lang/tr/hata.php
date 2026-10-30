@@ -74,6 +74,7 @@ return [
 
     // Kesinti Yönetimi
     'kesinti_turu_kod_tekrar' => 'Bu kod başka bir kesinti türünde kullanılıyor.',
+    'kesinti_excel_cok_buyuk' => 'Seçilen filtrede :adet satır var; Excel çıktısı en fazla :sinir satır olabilir. Filtreyi daraltın.',
     'kesinti_turu_baska_ekranin' => 'Bu kesinti türü bu ekrana bağlı değil (Kesinti Türleri → Ekran).',
     'proje_kod_tekrar' => 'Bu kod başka bir projede kullanılıyor.',
     'para_birimi_kod_tekrar' => 'Bu kod başka bir para biriminde kullanılıyor.',

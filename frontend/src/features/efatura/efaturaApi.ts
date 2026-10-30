@@ -1,6 +1,5 @@
-import { isAxiosError } from 'axios'
-
 import { api } from '@/api/client'
+import { blobHatasiniCoz, dosyayiIndir } from '@/api/indirme'
 
 export type FaturaYonu = 'gelen' | 'giden'
 
@@ -227,22 +226,6 @@ export async function erpSenkronla(yon: FaturaYonu): Promise<ErpSenkronSonucu> {
   return yanit.data.data
 }
 
-/**
- * Blob yanıtlı isteklerde hata gövdesi de Blob gelir; `kod` alanı okunabilsin
- * diye JSON'a çevrilip hataya geri yazılır (apiErrorKey sözleşmesi).
- */
-async function blobHatasiniCoz(error: unknown): Promise<never> {
-  if (isAxiosError(error) && error.response?.data instanceof Blob) {
-    try {
-      error.response.data = JSON.parse(await error.response.data.text()) as unknown
-    } catch {
-      // JSON değilse durum koduna göre çevrilir
-    }
-  }
-
-  throw error
-}
-
 /** Excel'e aktarılan ekran kolonu: anahtar + ekrandaki başlık */
 export interface ExcelKolonu {
   anahtar: string
@@ -274,18 +257,6 @@ export async function excelIndir(
     .catch(blobHatasiniCoz)
 
   dosyayiIndir(yanit.data, `efatura-${yon}-${filtre.baslangic}-${filtre.bitis}.xlsx`)
-}
-
-function dosyayiIndir(icerik: Blob, ad: string): void {
-  const adres = URL.createObjectURL(icerik)
-  const baglanti = document.createElement('a')
-  baglanti.href = adres
-  baglanti.download = ad
-  document.body.appendChild(baglanti)
-  baglanti.click()
-  baglanti.remove()
-  // Bazı tarayıcılar indirmeyi click'ten sonra başlatır; adres hemen bırakılmaz
-  window.setTimeout(() => URL.revokeObjectURL(adres), 60_000)
 }
 
 /** Fatura aslının nereden okunduğu (sunucu X-Belge-Kaynagi başlığıyla bildirir). */
