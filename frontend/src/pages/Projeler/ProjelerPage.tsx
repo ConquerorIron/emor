@@ -15,11 +15,18 @@ import { ErrorState } from '@/components/ErrorState'
 import { Input } from '@/components/Input'
 import { Modal } from '@/components/Modal'
 import { SaltOkunurUyarisi } from '@/components/SaltOkunurUyarisi'
-import { projeKaydet, projeleriGetir, projeSil, type Proje } from '@/features/kesinti/projeApi'
+import { Degisim, ErpAktarimPenceresi } from '@/features/kesinti/ErpAktarimPenceresi'
+import {
+  erpProjeleriniAktar,
+  erpProjeleriniGetir,
+  projeKaydet,
+  projeleriGetir,
+  projeSil,
+  type ErpProjeSatiri,
+  type Proje,
+} from '@/features/kesinti/projeApi'
 import { useIzin } from '@/hooks/useIzin'
 import { buyukHarfKaydi } from '@/utils/metin'
-
-import { ErpAktarimPenceresi } from './ErpAktarimPenceresi'
 
 /** Backend sınırlarıyla aynı (ProjeKaydetRequest) */
 const projeSemasi = z.object({
@@ -174,6 +181,23 @@ export function ProjelerPage() {
     ? tumKolonlar
     : tumKolonlar.filter((kolon) => kolon.anahtar !== 'islemler')
 
+  const erpKolonlari: DataTableKolonu<ErpProjeSatiri>[] = [
+    {
+      anahtar: 'kod',
+      baslik: t('kesinti.projeler.kod'),
+      render: (satir) => (
+        <strong>
+          <Degisim eski={satir.mevcut?.kod} yeni={satir.kod} />
+        </strong>
+      ),
+    },
+    {
+      anahtar: 'ad',
+      baslik: t('kesinti.projeler.ad'),
+      render: (satir) => <Degisim eski={satir.mevcut?.ad} yeni={satir.ad} />,
+    },
+  ]
+
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -224,7 +248,19 @@ export function ProjelerPage() {
         ) : null}
       </Modal>
 
-      <ErpAktarimPenceresi acik={erpAcik} kapat={() => setErpAcik(false)} />
+      <ErpAktarimPenceresi
+        acik={erpAcik}
+        kapat={() => setErpAcik(false)}
+        baslik={t('kesinti.projeler.erpBaslik')}
+        tanim={{
+          sorguAnahtari: queryKeys.kesinti.erpProjeleri,
+          getir: erpProjeleriniGetir,
+          aktar: erpProjeleriniAktar,
+          listeAnahtari: queryKeys.kesinti.projeler,
+          kolonlar: erpKolonlari,
+          aramaMetni: (satir) => `${satir.kod} ${satir.ad}`,
+        }}
+      />
 
       <ConfirmDialog
         acik={silinecek !== null}

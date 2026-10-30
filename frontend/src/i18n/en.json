@@ -49,6 +49,7 @@
     "kesinti": "Deduction Management",
     "kesintiTurleri": "Deduction Types",
     "projeler": "Projects",
+    "firmalar": "Companies",
     "alarmKurallari": "Alert Rules"
   },
   "tasarim": {
@@ -502,6 +503,7 @@
       "efatura": "e-Invoices (Incoming/Outgoing)",
       "kesinti_turleri": "Deduction Types",
       "projeler": "Projects",
+      "firmalar": "Companies",
       "sql_baglantilari": "SQL Connections",
       "entegrator_baglantilari": "Integrator Connections",
       "mail_ayarlari": "Mail Settings",
@@ -709,6 +711,7 @@
       "kaynakElle": "Manual",
       "kaynakErp": "ERP",
       "erpdenGetir": "Fetch from ERP",
+      "erpBaslik": "Fetch Projects from ERP",
       "erpProjesiUyarisi": "This project was imported from ERP. Changes made here will be listed for update to the ERP value when fetched from ERP again.",
       "kaydedildi": "Project saved.",
       "silindi": "Project deleted.",
@@ -719,34 +722,74 @@
         "kodCokUzun": "Project code can be at most 50 characters.",
         "adZorunlu": "Project name is required.",
         "adCokUzun": "Project name can be at most 200 characters."
+      }
+    },
+    "firmalar": {
+      "baslik": "Companies",
+      "aciklamaMetni": "Subcontractor companies subject to deductions. They can be created manually or imported from the live ERP; ERP companies are matched by GUID or tax number.",
+      "yeni": "New Company",
+      "duzenle": "Edit Company",
+      "kod": "Company Code",
+      "ad": "Company Name",
+      "vkn": "Tax Number",
+      "vergiDairesi": "Tax Office",
+      "eposta": "E-mail",
+      "gsm": "Mobile",
+      "kaynak": "Source",
+      "kaynakElle": "Manual",
+      "kaynakErp": "ERP",
+      "ara": "Search",
+      "kayitSayisi": "{{sayi}} companies",
+      "erpdenGetir": "Fetch from ERP",
+      "erpBaslik": "Fetch Subcontractors from ERP",
+      "erpFirmasiUyarisi": "This company was imported from ERP. Changes made here will be listed for update to the ERP value when fetched from ERP again.",
+      "kaydedildi": "Company saved.",
+      "silindi": "Company deleted.",
+      "silOnayBaslik": "Delete company?",
+      "silOnayMesaj": "Company \"{{kod}} — {{ad}}\" will be deleted.",
+      "dogrulama": {
+        "kodZorunlu": "Company code is required.",
+        "kodCokUzun": "Company code can be at most 50 characters.",
+        "adZorunlu": "Company name is required.",
+        "adCokUzun": "Company name can be at most 200 characters.",
+        "vknCokUzun": "Tax number can be at most 20 characters.",
+        "vergiDairesiCokUzun": "Tax office can be at most 100 characters.",
+        "epostaCokUzun": "E-mail can be at most 255 characters.",
+        "gsmCokUzun": "Mobile number can be at most 30 characters."
+      }
+    },
+    "erpAktarim": {
+      "okunuyor": "Reading the live ERP…",
+      "ozet": "{{yeni}} new, {{guncellenecek}} to update, {{eslesecek}} to link with a manual record, {{aktarilamaz}} cannot be imported. {{ayni}} records are already up to date.",
+      "hepsiGuncel": "All ERP records are already up to date; nothing to import.",
+      "ara": "Search",
+      "durumBaslik": "Status",
+      "aciklamaBaslik": "Note",
+      "aktar": "Import Selected ({{sayi}})",
+      "aktarildi": "{{eklenen}} records added, {{guncellenen}} updated, {{eslesen}} linked.",
+      "durum": {
+        "yeni": "New",
+        "guncellenecek": "Update",
+        "eslesecek": "Link",
+        "ayni": "Up to date",
+        "cakisma": "Conflict",
+        "gecersiz": "Cannot import"
       },
-      "erp": {
-        "baslik": "Fetch Projects from ERP",
-        "okunuyor": "Reading projects from the live ERP…",
-        "ozet": "{{yeni}} new, {{guncellenecek}} to update, {{eslesecek}} to link with a manual project, {{aktarilamaz}} cannot be imported. {{ayni}} projects are already up to date.",
-        "hepsiGuncel": "All ERP projects are already up to date; nothing to import.",
-        "durumBaslik": "Status",
-        "aciklamaBaslik": "Note",
-        "aktar": "Import Selected ({{sayi}})",
-        "aktarildi": "{{eklenen}} projects added, {{guncellenen}} updated, {{eslesen}} linked.",
-        "durum": {
-          "yeni": "New",
-          "guncellenecek": "Update",
-          "eslesecek": "Link",
-          "ayni": "Up to date",
-          "cakisma": "Conflict",
-          "gecersiz": "Cannot import"
-        },
-        "neden": {
-          "guid_gecersiz": "The GUID in ERP is invalid.",
-          "kod_bos": "Project code is empty in ERP.",
-          "ad_bos": "Project name is empty in ERP.",
-          "kod_uzun": "Project code exceeds 50 characters.",
-          "ad_uzun": "Project name exceeds 200 characters.",
-          "guid_tekrar": "The same GUID appears in more than one ERP row.",
-          "kod_tekrar": "The same code is used by more than one ERP project.",
-          "kod_baska_projede": "This code is used by another project in the application."
-        }
+      "neden": {
+        "guid_gecersiz": "The GUID in ERP is invalid.",
+        "kod_bos": "Code is empty in ERP.",
+        "ad_bos": "Name is empty in ERP.",
+        "kod_uzun": "Code exceeds 50 characters.",
+        "ad_uzun": "Name exceeds 200 characters.",
+        "vergi_kimlik_no_uzun": "Tax number exceeds 20 characters.",
+        "vergi_dairesi_uzun": "Tax office exceeds 100 characters.",
+        "eposta_uzun": "E-mail exceeds 255 characters.",
+        "gsm_no_uzun": "Mobile number exceeds 30 characters.",
+        "guid_tekrar": "The same GUID appears in more than one ERP row.",
+        "kod_tekrar": "The same code is used by more than one ERP record.",
+        "vkn_tekrar": "The same tax number is used by more than one ERP company.",
+        "kod_baska_kayitta": "This code is used by another record in the application.",
+        "vkn_baska_firmada": "This tax number belongs to another company in the application."
       }
     }
   }

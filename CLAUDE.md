@@ -34,9 +34,13 @@ Dosyayı okumadan skill'in uygulandığını iddia etme.
   olmayan, uygulamanın kendi modülüdür. Verisi (kesinti türleri, Excel icmalleri)
   PostgreSQL'de tutulur; "ERP verisi bizde tutulmaz" kuralı bu modüle uygulanmaz.
   Kendi ekranları ve izinleri (`kesinti_turleri.*` …) vardır. Her icmal ekranının
-  kolonları kodda sabittir (arayüzden kolon eklenmez). Projeler, global aktif
-  ortamdan bağımsız olarak HER ZAMAN canlı ERP'den aktarılır (ERP GUID'i ile bağ;
-  `App\Services\Kesinti\ErpProjeSorgusu`).
+  kolonları kodda sabittir (arayüzden kolon eklenmez). Projeler ve firmalar
+  (taşeronlar), global aktif ortamdan bağımsız olarak HER ZAMAN canlı ERP'den
+  aktarılır (`App\Services\CanliErp`, ortak akış `Kesinti\ErpAktarimi`).
+  Kaynaklar kullanıcının ERP'de açtığı `WEB_ERP_PROJE_LISTESI` /
+  `WEB_ERP_TASERON_LISTESI` view'larıdır — `erp` kullanıcısı ham TOHOM_*
+  tablolarını okuyamaz; yeni ERP verisi gerekirse kullanıcıdan WEB_ERP_* view'ı
+  istenir. Bağ ERP GUID'i ile (firmalarda VKN de).
 - **Test/Canlı ortamlar**: MSSQL bağlantı tanımları (test + canli) PostgreSQL'de
   `sql_baglantilari` tablosunda, şifreler encrypted cast ile. GLOBAL tek aktif
   ortam vardır (kısmi unique indeks garantiler). Store proc çalıştıracak HER modül
@@ -51,7 +55,10 @@ Dosyayı okumadan skill'in uygulandığını iddia etme.
   "kaydı yapan" olarak kullanılacak). Fallback: `kaynak=lokal` admin (seeder, .env:
   ERP_ADMIN_KULLANICI/ERP_ADMIN_SIFRE).
 - **Test MSSQL**: 10.2.30.41:1433, veritabanı FD_hom (SQL Server 2019) —
-  Ayarlar ekranında "test" ortamı olarak kayıtlı ve aktif. Canlı tanımı henüz girilmedi.
+  Ayarlar ekranında "test" ortamı olarak kayıtlı ve aktif (lokal). Production
+  sunucusunda canlı ortam (aynı sunucu, veritabanı Hab_hom) tanımlı ve AKTİF.
+  `erp` SQL kullanıcısının yetkileri dardır: okunmayan tablo/view için
+  SQL Server 229 ("SELECT permission was denied") döner.
 - **API hata sözleşmesi**: her hata gövdesi makine okunur `kod` alanı taşır
   (bootstrap/app.php); frontend `api/errors.ts` ile i18n'e çevirir.
 - **PHP MSSQL sürücüsü**: WSL'de pecl sqlsrv/pdo_sqlsrv 5.13.2 (PHP 8.5 için

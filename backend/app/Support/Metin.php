@@ -18,4 +18,13 @@ final class Metin
     {
         return mb_strtoupper(str_replace(['i', 'ı'], ['İ', 'I'], $metin), 'UTF-8');
     }
+
+    /**
+     * Tüm boşluklar atılır — ERP'deki VKN'lerde görülen bölünmez boşluk
+     * (U+00A0) dahil; trim() ve \s yalnız ASCII boşluğu yakalar.
+     */
+    public static function bosluksuz(string $metin): string
+    {
+        return (string) preg_replace('/[\s\p{Z}]+/u', '', $metin);
+    }
 }

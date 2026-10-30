@@ -49,6 +49,7 @@
     "kesinti": "Kesinti Yönetimi",
     "kesintiTurleri": "Kesinti Türleri",
     "projeler": "Projeler",
+    "firmalar": "Firmalar",
     "alarmKurallari": "Alarm Kuralları"
   },
   "tasarim": {
@@ -502,6 +503,7 @@
       "efatura": "e-Faturalar (Gelen/Giden)",
       "kesinti_turleri": "Kesinti Türleri",
       "projeler": "Projeler",
+      "firmalar": "Firmalar",
       "sql_baglantilari": "SQL Bağlantıları",
       "entegrator_baglantilari": "Entegratör Bağlantıları",
       "mail_ayarlari": "Mail Ayarları",
@@ -709,6 +711,7 @@
       "kaynakElle": "Elle",
       "kaynakErp": "ERP",
       "erpdenGetir": "ERP'den Getir",
+      "erpBaslik": "ERP'den Projeleri Getir",
       "erpProjesiUyarisi": "Bu proje ERP'den aktarıldı. Burada yaptığınız değişiklik, ERP'den yeniden getirildiğinde ERP'deki değere güncellenmek üzere listelenir.",
       "kaydedildi": "Proje kaydedildi.",
       "silindi": "Proje silindi.",
@@ -719,34 +722,74 @@
         "kodCokUzun": "Proje kodu en fazla 50 karakter olabilir.",
         "adZorunlu": "Proje adı zorunludur.",
         "adCokUzun": "Proje adı en fazla 200 karakter olabilir."
+      }
+    },
+    "firmalar": {
+      "baslik": "Firmalar",
+      "aciklamaMetni": "Kesinti yapılacak taşeron firmalar. Elle açılabilir ya da canlı ERP'den aktarılabilir; ERP firmasıyla eşleşme GUID ya da vergi kimlik numarasıyla yapılır.",
+      "yeni": "Yeni Firma",
+      "duzenle": "Firmayı Düzenle",
+      "kod": "Firma Kodu",
+      "ad": "Firma Adı",
+      "vkn": "Vergi Kimlik No",
+      "vergiDairesi": "Vergi Dairesi",
+      "eposta": "E-posta",
+      "gsm": "GSM",
+      "kaynak": "Kaynak",
+      "kaynakElle": "Elle",
+      "kaynakErp": "ERP",
+      "ara": "Ara",
+      "kayitSayisi": "{{sayi}} firma",
+      "erpdenGetir": "ERP'den Getir",
+      "erpBaslik": "ERP'den Taşeronları Getir",
+      "erpFirmasiUyarisi": "Bu firma ERP'den aktarıldı. Burada yaptığınız değişiklik, ERP'den yeniden getirildiğinde ERP'deki değere güncellenmek üzere listelenir.",
+      "kaydedildi": "Firma kaydedildi.",
+      "silindi": "Firma silindi.",
+      "silOnayBaslik": "Firma silinsin mi?",
+      "silOnayMesaj": "\"{{kod}} — {{ad}}\" firması silinecek.",
+      "dogrulama": {
+        "kodZorunlu": "Firma kodu zorunludur.",
+        "kodCokUzun": "Firma kodu en fazla 50 karakter olabilir.",
+        "adZorunlu": "Firma adı zorunludur.",
+        "adCokUzun": "Firma adı en fazla 200 karakter olabilir.",
+        "vknCokUzun": "Vergi kimlik numarası en fazla 20 karakter olabilir.",
+        "vergiDairesiCokUzun": "Vergi dairesi en fazla 100 karakter olabilir.",
+        "epostaCokUzun": "E-posta en fazla 255 karakter olabilir.",
+        "gsmCokUzun": "GSM en fazla 30 karakter olabilir."
+      }
+    },
+    "erpAktarim": {
+      "okunuyor": "Canlı ERP okunuyor…",
+      "ozet": "{{yeni}} yeni, {{guncellenecek}} güncellenecek, {{eslesecek}} elle açılmış kayıtla eşleşecek, {{aktarilamaz}} aktarılamaz. {{ayni}} kayıt zaten güncel.",
+      "hepsiGuncel": "ERP'deki tüm kayıtlar zaten güncel; aktarılacak bir şey yok.",
+      "ara": "Ara",
+      "durumBaslik": "Durum",
+      "aciklamaBaslik": "Açıklama",
+      "aktar": "Seçilenleri Aktar ({{sayi}})",
+      "aktarildi": "{{eklenen}} kayıt eklendi, {{guncellenen}} güncellendi, {{eslesen}} eşleşti.",
+      "durum": {
+        "yeni": "Yeni",
+        "guncellenecek": "Güncellenecek",
+        "eslesecek": "Eşleşecek",
+        "ayni": "Güncel",
+        "cakisma": "Çakışma",
+        "gecersiz": "Aktarılamaz"
       },
-      "erp": {
-        "baslik": "ERP'den Projeleri Getir",
-        "okunuyor": "Canlı ERP'deki projeler okunuyor…",
-        "ozet": "{{yeni}} yeni, {{guncellenecek}} güncellenecek, {{eslesecek}} elle açılmış projeyle eşleşecek, {{aktarilamaz}} aktarılamaz. {{ayni}} proje zaten güncel.",
-        "hepsiGuncel": "ERP'deki tüm projeler zaten güncel; aktarılacak bir şey yok.",
-        "durumBaslik": "Durum",
-        "aciklamaBaslik": "Açıklama",
-        "aktar": "Seçilenleri Aktar ({{sayi}})",
-        "aktarildi": "{{eklenen}} proje eklendi, {{guncellenen}} güncellendi, {{eslesen}} eşleşti.",
-        "durum": {
-          "yeni": "Yeni",
-          "guncellenecek": "Güncellenecek",
-          "eslesecek": "Eşleşecek",
-          "ayni": "Güncel",
-          "cakisma": "Çakışma",
-          "gecersiz": "Aktarılamaz"
-        },
-        "neden": {
-          "guid_gecersiz": "ERP'deki GUID geçersiz.",
-          "kod_bos": "ERP'de proje kodu boş.",
-          "ad_bos": "ERP'de proje adı boş.",
-          "kod_uzun": "Proje kodu 50 karakteri aşıyor.",
-          "ad_uzun": "Proje adı 200 karakteri aşıyor.",
-          "guid_tekrar": "ERP'de aynı GUID birden fazla satırda.",
-          "kod_tekrar": "ERP'de aynı kod birden fazla projede.",
-          "kod_baska_projede": "Bu kod uygulamada başka bir projede kullanılıyor."
-        }
+      "neden": {
+        "guid_gecersiz": "ERP'deki GUID geçersiz.",
+        "kod_bos": "ERP'de kod boş.",
+        "ad_bos": "ERP'de ad boş.",
+        "kod_uzun": "Kod 50 karakteri aşıyor.",
+        "ad_uzun": "Ad 200 karakteri aşıyor.",
+        "vergi_kimlik_no_uzun": "Vergi kimlik numarası 20 karakteri aşıyor.",
+        "vergi_dairesi_uzun": "Vergi dairesi 100 karakteri aşıyor.",
+        "eposta_uzun": "E-posta 255 karakteri aşıyor.",
+        "gsm_no_uzun": "GSM 30 karakteri aşıyor.",
+        "guid_tekrar": "ERP'de aynı GUID birden fazla satırda.",
+        "kod_tekrar": "ERP'de aynı kod birden fazla kayıtta.",
+        "vkn_tekrar": "ERP'de aynı vergi kimlik numarası birden fazla firmada.",
+        "kod_baska_kayitta": "Bu kod uygulamada başka bir kayıtta kullanılıyor.",
+        "vkn_baska_firmada": "Bu vergi kimlik numarası uygulamada başka bir firmada kayıtlı."
       }
     }
   }

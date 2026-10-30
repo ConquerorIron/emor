@@ -30,8 +30,10 @@ export const queryKeys = {
   kesinti: {
     turler: ['kesinti', 'turler'],
     projeler: ['kesinti', 'projeler'],
-    // ERP önizlemesi her açılışta taze okunur (önbelleğe güvenilmez)
+    firmalar: ['kesinti', 'firmalar'],
+    // ERP önizlemeleri her açılışta taze okunur (önbelleğe güvenilmez)
     erpProjeleri: ['kesinti', 'erpProjeleri'],
+    erpFirmalari: ['kesinti', 'erpFirmalari'],
   },
   /** Ekran tasarım motoru — formu çizen yayındaki düzen */
   ekranTasarimi: (ekran: string) => ['ekranTasarimi', ekran] as const,

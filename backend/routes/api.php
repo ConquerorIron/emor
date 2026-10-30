@@ -8,7 +8,9 @@ use App\Http\Controllers\Api\V1\EFaturaController;
 use App\Http\Controllers\Api\V1\EFaturaSenkronController;
 use App\Http\Controllers\Api\V1\EkranTasarimController;
 use App\Http\Controllers\Api\V1\EntegratorBaglantiController;
+use App\Http\Controllers\Api\V1\ErpFirmaController;
 use App\Http\Controllers\Api\V1\ErpProjeController;
+use App\Http\Controllers\Api\V1\FirmaController;
 use App\Http\Controllers\Api\V1\KesintiTuruController;
 use App\Http\Controllers\Api\V1\KullaniciController;
 use App\Http\Controllers\Api\V1\MailAyarController;
@@ -170,11 +172,33 @@ Route::prefix('v1')->group(function (): void {
                 ->whereNumber('proje')
                 ->name('kesinti.projeler.destroy');
             Route::get('/kesinti/projeler/erp', [ErpProjeController::class, 'index'])
-                ->middleware('throttle:erp-proje')
+                ->middleware('throttle:erp-aktarim')
                 ->name('kesinti.projeler.erp');
             Route::post('/kesinti/projeler/erp', [ErpProjeController::class, 'store'])
-                ->middleware('throttle:erp-proje')
+                ->middleware('throttle:erp-aktarim')
                 ->name('kesinti.projeler.erp.store');
+        });
+
+        // Kesinti Yönetimi → Firmalar (taşeronlar): elle tanım + canlı ERP'den
+        // aktarım (eşleşme GUID ya da VKN ile)
+        Route::get('/kesinti/firmalar', [FirmaController::class, 'index'])
+            ->middleware('can:firmalar.goruntule')
+            ->name('kesinti.firmalar');
+        Route::middleware('can:firmalar.guncelle')->group(function (): void {
+            Route::post('/kesinti/firmalar', [FirmaController::class, 'store'])
+                ->name('kesinti.firmalar.store');
+            Route::put('/kesinti/firmalar/{firma}', [FirmaController::class, 'update'])
+                ->whereNumber('firma')
+                ->name('kesinti.firmalar.update');
+            Route::delete('/kesinti/firmalar/{firma}', [FirmaController::class, 'destroy'])
+                ->whereNumber('firma')
+                ->name('kesinti.firmalar.destroy');
+            Route::get('/kesinti/firmalar/erp', [ErpFirmaController::class, 'index'])
+                ->middleware('throttle:erp-aktarim')
+                ->name('kesinti.firmalar.erp');
+            Route::post('/kesinti/firmalar/erp', [ErpFirmaController::class, 'store'])
+                ->middleware('throttle:erp-aktarim')
+                ->name('kesinti.firmalar.erp.store');
         });
 
         // Header'daki Test/Canlı rozeti — her kullanıcıya yalnız ortam adı döner

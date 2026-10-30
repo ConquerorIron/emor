@@ -110,7 +110,7 @@ final class ErpProjeAktarimTest extends TestCase
 
         $yanit = $this->getJson(self::ADRES)->assertOk()->assertJsonCount(9, 'data');
 
-        /** @var list<array{guid: string, kod: string, durum: string, neden: string|null, mevcut_ad: string|null}> $satirlar */
+        /** @var list<array{guid: string, kod: string, durum: string, neden: string|null, mevcut: array{kod: string, ad: string}|null}> $satirlar */
         $satirlar = $yanit->json('data');
         $durumlar = array_map(fn (array $satir): string => "{$satir['kod']}:{$satir['durum']}:".($satir['neden'] ?? '-'), $satirlar);
 
@@ -118,7 +118,7 @@ final class ErpProjeAktarimTest extends TestCase
             'A1:ayni:-',
             'B1:guncellenecek:-',
             'C1:eslesecek:-',
-            'D1:cakisma:kod_baska_projede',
+            'D1:cakisma:kod_baska_kayitta',
             'E1:yeni:-',
             'F1:gecersiz:kod_tekrar',
             'F1:gecersiz:kod_tekrar',
@@ -127,9 +127,10 @@ final class ErpProjeAktarimTest extends TestCase
         ], $durumlar);
 
         $degisen = $satirlar[1];
-        $this->assertSame('Eski Ad', $degisen['mevcut_ad']);
+        $this->assertSame(['kod' => 'B1', 'ad' => 'Eski Ad'], $degisen['mevcut']);
         $this->assertSame(self::G_ELLE_ACILMIS, $satirlar[2]['guid']);
-        $this->assertArrayNotHasKey('proje_id', $degisen);
+        $this->assertNull($satirlar[4]['mevcut']);
+        $this->assertArrayNotHasKey('kayit_id', $degisen);
     }
 
     public function test_aktarim_yalniz_secilen_ve_uygulanabilir_projeleri_erpdeki_veriyle_kaydeder(): void

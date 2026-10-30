@@ -24,7 +24,7 @@ final class ErpProjeController extends Controller
     public function index(): JsonResponse
     {
         return response()->json([
-            'data' => array_map(fn (array $satir): array => Arr::except($satir, 'proje_id'), $this->aktarim->onizle()),
+            'data' => array_map(fn (array $satir): array => Arr::except($satir, 'kayit_id'), $this->aktarim->onizle()),
         ]);
     }
 

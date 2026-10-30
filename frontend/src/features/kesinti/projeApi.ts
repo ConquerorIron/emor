@@ -1,5 +1,7 @@
 import { api } from '@/api/client'
 
+import type { ErpAktarimSatiri, ErpAktarimSonucu } from './erpAktarim'
+
 /** Proje (Kesinti Yönetimi). Elle açılır ya da canlı ERP'den aktarılır. */
 export interface Proje {
   id: number
@@ -14,41 +16,13 @@ export interface ProjeGovdesi {
   ad: string
 }
 
-/**
- * ERP projesinin aktarımda ne olacağı (backend ErpProjeAktarimi):
- * yeni → eklenir, guncellenecek → kod/ad ERP'deki gibi olur, eslesecek →
- * elle açılmış aynı kodlu proje ERP'ye bağlanır, ayni → değişiklik yok,
- * cakisma / gecersiz → aktarılamaz (neden alanında).
- */
-export type ErpProjeDurumu =
-  'yeni' | 'guncellenecek' | 'eslesecek' | 'ayni' | 'cakisma' | 'gecersiz'
-
-export interface ErpProjeSatiri {
-  /** ERP sırası — satır anahtarı (GUID tekrar edebilir) */
-  sira: number
-  guid: string
+/** ERP projesi ve aktarımda ne olacağı */
+export interface ErpProjeSatiri extends ErpAktarimSatiri {
   kod: string
   ad: string
-  durum: ErpProjeDurumu
-  neden: string | null
   /** Eşleşen projenin uygulamadaki hâli */
-  mevcut_kod: string | null
-  mevcut_ad: string | null
+  mevcut: { kod: string; ad: string } | null
 }
-
-export interface ErpAktarimSonucu {
-  eklenen: number
-  guncellenen: number
-  eslesen: number
-  atlanan: number
-}
-
-/** Seçilip aktarılabilen durumlar */
-export const AKTARILABILIR_DURUMLAR: readonly ErpProjeDurumu[] = [
-  'yeni',
-  'guncellenecek',
-  'eslesecek',
-]
 
 export async function projeleriGetir(): Promise<Proje[]> {
   const yanit = await api.get<{ data: Proje[] }>('/api/v1/kesinti/projeler')

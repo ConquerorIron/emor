@@ -46,16 +46,15 @@ function satir(
     ad: `${kod} Adı`,
     durum,
     neden: null,
-    mevcut_kod: null,
-    mevcut_ad: null,
+    mevcut: null,
     ...ek,
   }
 }
 
 const ONIZLEME: ErpProjeSatiri[] = [
   satir(0, 'A01', 'ayni'),
-  satir(1, 'B01', 'guncellenecek', { mevcut_kod: 'B01', mevcut_ad: 'Eski Ad', ad: 'Yeni Ad' }),
-  satir(2, 'Z10', 'eslesecek', { mevcut_kod: 'Z10', mevcut_ad: 'Zone 10' }),
+  satir(1, 'B01', 'guncellenecek', { mevcut: { kod: 'B01', ad: 'Eski Ad' }, ad: 'Yeni Ad' }),
+  satir(2, 'Z10', 'eslesecek', { mevcut: { kod: 'Z10', ad: 'Zone 10' } }),
   satir(3, 'E01', 'yeni'),
   satir(4, 'F01', 'gecersiz', { neden: 'kod_tekrar' }),
 ]
@@ -117,12 +116,12 @@ describe('ProjelerPage', () => {
 
     expect(
       await within(dialog).findByText(
-        '1 yeni, 1 güncellenecek, 1 elle açılmış projeyle eşleşecek, 1 aktarılamaz. 1 proje zaten güncel.',
+        '1 yeni, 1 güncellenecek, 1 elle açılmış kayıtla eşleşecek, 1 aktarılamaz. 1 kayıt zaten güncel.',
       ),
     ).toBeInTheDocument()
     // Güncel olan satır listelenmez; aktarılamayanın nedeni görünür
     expect(within(dialog).queryByText('A01')).not.toBeInTheDocument()
-    expect(within(dialog).getByText("ERP'de aynı kod birden fazla projede.")).toBeInTheDocument()
+    expect(within(dialog).getByText("ERP'de aynı kod birden fazla kayıtta.")).toBeInTheDocument()
     expect(within(dialog).getByText('Eski Ad')).toBeInTheDocument()
 
     // Eşleşecek satırın seçimi kaldırılır

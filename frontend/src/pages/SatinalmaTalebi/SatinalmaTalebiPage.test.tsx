@@ -169,7 +169,9 @@ async function formuAc() {
   await screen.findByText('Talep Bilgileri')
 }
 
-describe('SatinalmaTalebiPage', () => {
+// Ağır form: tek başına ~2 sn süren testler tüm takım yük altındayken 5 sn
+// varsayılan sınırını aralıklı aşıyordu (ilk çizim 5,4 sn ölçüldü)
+describe('SatinalmaTalebiPage', { timeout: 15_000 }, () => {
   afterEach(cleanup)
   beforeEach(() => {
     localStorage.clear()

@@ -52,6 +52,7 @@ const NAV_GRUPLARI: NavGrubu[] = [
     ogeler: [
       { to: '/kesinti/turler', ad: 'kesintiTurleri', izin: 'kesinti_turleri.goruntule' },
       { to: '/kesinti/projeler', ad: 'projeler', izin: 'projeler.goruntule' },
+      { to: '/kesinti/firmalar', ad: 'firmalar', izin: 'firmalar.goruntule' },
     ],
   },
   {

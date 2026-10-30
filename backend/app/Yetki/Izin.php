@@ -30,6 +30,9 @@ enum Izin: string
     case ProjelerGoruntule = 'projeler.goruntule';
     case ProjelerGuncelle = 'projeler.guncelle';
 
+    case FirmalarGoruntule = 'firmalar.goruntule';
+    case FirmalarGuncelle = 'firmalar.guncelle';
+
     case SqlBaglantilariGoruntule = 'sql_baglantilari.goruntule';
     case SqlBaglantilariGuncelle = 'sql_baglantilari.guncelle';
 
@@ -79,6 +82,7 @@ enum Izin: string
             $ekran('efatura', self::EfaturaGoruntule, self::EfaturaSenkron, self::EfaturaPdf, self::EfaturaDisariAktar, self::EfaturaGizle),
             $ekran('kesinti_turleri', self::KesintiTurleriGoruntule, self::KesintiTurleriGuncelle),
             $ekran('projeler', self::ProjelerGoruntule, self::ProjelerGuncelle),
+            $ekran('firmalar', self::FirmalarGoruntule, self::FirmalarGuncelle),
             $ekran('sql_baglantilari', self::SqlBaglantilariGoruntule, self::SqlBaglantilariGuncelle),
             $ekran('entegrator_baglantilari', self::EntegratorBaglantilariGoruntule, self::EntegratorBaglantilariGuncelle),
             $ekran('mail_ayarlari', self::MailAyarlariGoruntule, self::MailAyarlariGuncelle),

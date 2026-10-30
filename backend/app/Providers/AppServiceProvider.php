@@ -13,6 +13,8 @@ use App\Services\ErpIstisnaKoduYazici;
 use App\Services\ErpIstisnaKoduYazimi;
 use App\Services\ErpKimlikDogrulama;
 use App\Services\ErpKimlikDogrulayici;
+use App\Services\Kesinti\ErpFirmaKaynagi;
+use App\Services\Kesinti\ErpFirmaSorgusu;
 use App\Services\Kesinti\ErpProjeKaynagi;
 use App\Services\Kesinti\ErpProjeSorgusu;
 use App\Yetki\Izin;
@@ -49,6 +51,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(
             ErpProjeKaynagi::class,
             ErpProjeSorgusu::class,
+        );
+
+        $this->app->bind(
+            ErpFirmaKaynagi::class,
+            ErpFirmaSorgusu::class,
         );
     }
 
@@ -110,8 +117,8 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(6)->by($request->user()?->id ?? $request->ip());
         });
 
-        // Projeler → ERP'den Getir: önizleme + kayıt, ikisi de canlı ERP'yi okur
-        RateLimiter::for('erp-proje', function (Request $request): Limit {
+        // Projeler / Firmalar → ERP'den Getir: önizleme + kayıt, ikisi de canlı ERP'yi okur
+        RateLimiter::for('erp-aktarim', function (Request $request): Limit {
             return Limit::perMinute(10)->by($request->user()?->id ?? $request->ip());
         });
     }
