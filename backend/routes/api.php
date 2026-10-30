@@ -220,6 +220,8 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('/kesinti/isgucu/{kesinti}', [IsgucuKesintisiController::class, 'destroy'])
                 ->whereNumber('kesinti')
                 ->name('kesinti.isgucu.destroy');
+            Route::get('/kesinti/isgucu/yuklemeler/kolonlar', [IsgucuYuklemeController::class, 'kolonlar'])
+                ->name('kesinti.isgucu.yuklemeler.kolonlar');
             Route::post('/kesinti/isgucu/yuklemeler/onizle', [IsgucuYuklemeController::class, 'onizle'])
                 ->middleware('throttle:kesinti-ice-aktarim')
                 ->name('kesinti.isgucu.yuklemeler.onizle');

@@ -1,7 +1,7 @@
 import { standardSchemaResolver } from '@hookform/resolvers/standard-schema'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -16,6 +16,7 @@ import { Input } from '@/components/Input'
 import { Modal } from '@/components/Modal'
 import { Pagination } from '@/components/Pagination'
 import { SaltOkunurUyarisi } from '@/components/SaltOkunurUyarisi'
+import { Switch } from '@/components/Switch'
 import { Degisim, ErpAktarimPenceresi } from '@/features/kesinti/ErpAktarimPenceresi'
 import {
   erpFirmalariniAktar,
@@ -50,6 +51,7 @@ const firmaSemasi = z.object({
   vergi_dairesi: z.string().trim().max(100, 'kesinti.firmalar.dogrulama.vergiDairesiCokUzun'),
   eposta: z.string().trim().max(255, 'kesinti.firmalar.dogrulama.epostaCokUzun'),
   gsm_no: z.string().trim().max(30, 'kesinti.firmalar.dogrulama.gsmCokUzun'),
+  firmamiz: z.boolean(),
 })
 
 type FirmaGirdisi = z.infer<typeof firmaSemasi>
@@ -59,12 +61,22 @@ function bosIseNull(deger: string): string | null {
   return deger === '' ? null : deger
 }
 
-function FirmaFormu({ firma, kapat }: { firma: Firma | null; kapat: () => void }) {
+function FirmaFormu({
+  firma,
+  mevcutFirmamiz,
+  kapat,
+}: {
+  firma: Firma | null
+  /** Şu an "firmamız" işaretli firma (varsa) */
+  mevcutFirmamiz: Firma | null
+  kapat: () => void
+}) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
 
   const {
     register,
+    control,
     handleSubmit,
     setError,
     formState: { errors, isSubmitting },
@@ -77,8 +89,13 @@ function FirmaFormu({ firma, kapat }: { firma: Firma | null; kapat: () => void }
       vergi_dairesi: firma?.vergi_dairesi ?? '',
       eposta: firma?.eposta ?? '',
       gsm_no: firma?.gsm_no ?? '',
+      firmamiz: firma?.firmamiz ?? false,
     },
   })
+  const firmamizIsaretli = useWatch({ control, name: 'firmamiz' })
+  // İşaret başka bir firmadan bu firmaya geçecekse kaydetmeden önce söylenir
+  const isaretGececek =
+    firmamizIsaretli && mevcutFirmamiz !== null && mevcutFirmamiz.id !== firma?.id
 
   const kaydet = useMutation({
     mutationFn: (girdi: FirmaGirdisi) =>
@@ -89,6 +106,7 @@ function FirmaFormu({ firma, kapat }: { firma: Firma | null; kapat: () => void }
         vergi_dairesi: bosIseNull(girdi.vergi_dairesi),
         eposta: bosIseNull(girdi.eposta),
         gsm_no: bosIseNull(girdi.gsm_no),
+        firmamiz: girdi.firmamiz,
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.kesinti.firmalar })
@@ -166,6 +184,35 @@ function FirmaFormu({ firma, kapat }: { firma: Firma | null; kapat: () => void }
           hata={hata(errors.gsm_no?.message)}
           {...register('gsm_no')}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Controller
+          control={control}
+          name="firmamiz"
+          render={({ field }) => (
+            <Switch
+              id="firma-firmamiz"
+              label={t('kesinti.firmalar.firmamiz')}
+              checked={field.value}
+              onChange={field.onChange}
+            />
+          )}
+        />
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          {t('kesinti.firmalar.firmamizAciklama')}
+        </p>
+        {isaretGececek ? (
+          <p
+            role="status"
+            className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+          >
+            {t('kesinti.firmalar.firmamizDegisecek', {
+              kod: mevcutFirmamiz.kod,
+              ad: mevcutFirmamiz.ad,
+            })}
+          </p>
+        ) : null}
       </div>
 
       {errors.root?.message ? (
@@ -261,6 +308,11 @@ export function FirmalarPage() {
       render: (firma) => (
         <span className="inline-flex items-center gap-2">
           <strong>{firma.kod}</strong>
+          {firma.firmamiz ? (
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+              {t('kesinti.firmalar.firmamiz')}
+            </span>
+          ) : null}
           {tekrarlananKodlar.has(trBuyukHarf(firma.kod)) ? (
             <span
               className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-amber-800 dark:bg-amber-950 dark:text-amber-300"
@@ -445,6 +497,7 @@ export function FirmalarPage() {
         {formdaki !== null ? (
           <FirmaFormu
             firma={formdaki === 'yeni' ? null : formdaki}
+            mevcutFirmamiz={tumFirmalar.find((kayit) => kayit.firmamiz) ?? null}
             kapat={() => setFormdaki(null)}
           />
         ) : null}

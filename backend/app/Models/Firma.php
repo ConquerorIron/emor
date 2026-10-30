@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $eposta
  * @property string|null $gsm_no
  * @property string|null $erp_guid ERP firmasının GUID'i (küçük harf); elle açılanda null
+ * @property bool $firmamiz Firmamız (HAB); yalnız tek firma
  */
 final class Firma extends Model
 {
@@ -28,5 +29,20 @@ final class Firma extends Model
 
     protected $table = 'firmalar';
 
-    protected $fillable = ['kod', 'ad', 'vergi_kimlik_no', 'vergi_dairesi', 'eposta', 'gsm_no', 'erp_guid'];
+    protected $fillable = ['kod', 'ad', 'vergi_kimlik_no', 'vergi_dairesi', 'eposta', 'gsm_no', 'erp_guid', 'firmamiz'];
+
+    /** Kaydedilmemiş modelde de veritabanı varsayılanıyla aynı */
+    protected $attributes = [
+        'firmamiz' => false,
+    ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'firmamiz' => 'boolean',
+        ];
+    }
 }

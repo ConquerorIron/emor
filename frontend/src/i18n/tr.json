@@ -764,7 +764,10 @@
         "gsmCokUzun": "GSM en fazla 30 karakter olabilir."
       },
       "kodTekrar": "Kod tekrar",
-      "kodTekrarAciklama": "Bu kod birden fazla firmada. Excel'deki firma adı koda göre eşleştiği için kodları ayırın."
+      "kodTekrarAciklama": "Bu kod birden fazla firmada. Excel'deki firma adı koda göre eşleştiği için kodları ayırın.",
+      "firmamiz": "Firmamız",
+      "firmamizAciklama": "Kendi firmamızı (ör. HAB) belirtir; ERP'nin taşeron listesinde olmadığı için elle açılır. Yalnız tek firma işaretlenebilir.",
+      "firmamizDegisecek": "Şu an firmamız: \"{{kod}} — {{ad}}\". Bu firmayı işaretlerseniz onun işareti kalkar."
     },
     "paraBirimleri": {
       "baslik": "Para Birimleri",
@@ -859,8 +862,6 @@
           "metin": "Kopyala-Yapıştır"
         },
         "dosyaSec": "Excel dosyası (.xlsx)",
-        "yapistir": "Excel'den kopyalanan satırlar",
-        "yapistirIpucu": "Excel'de satırları (başlık satırıyla birlikte) seçip kopyalayın, buraya yapıştırın.",
         "onizle": "Önizle",
         "kaydet": "Kaydet ({{sayi}} satır)",
         "kaydedildi": "{{sayi}} satır aktarıldı.",
@@ -933,6 +934,13 @@
         "kod_tekrar": "ERP'de aynı kod birden fazla kayıtta.",
         "kod_baska_kayitta": "Bu kod uygulamada başka bir kayıtta kullanılıyor."
       }
+    },
+    "yapistirma": {
+      "etiket": "Yapıştırma tablosu",
+      "satirSayisi": "{{sayi}} dolu satır",
+      "satirEkle": "10 Satır Ekle",
+      "temizle": "Temizle",
+      "ipucu": "Excel'de satırları seçip kopyalayın, tabloya tıklayıp Ctrl+V ile yapıştırın. Başlık satırıyla kopyalarsanız kolonlar adlarından eşlenir (Excel'deki sıra önemsiz); başlıksız kopyalarsanız seçili hücreden başlayarak yerleşir. Hücreye tıklayıp düzeltebilirsiniz: Enter alt hücreye, Tab sağ hücreye geçer."
     }
   }
 }

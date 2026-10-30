@@ -9,9 +9,11 @@ use App\Http\Requests\Kesinti\FirmaKaydetRequest;
 use App\Http\Resources\FirmaResource;
 use App\Models\Firma;
 use App\Support\KayitSilme;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Kesinti Yönetimi → Firmalar (taşeronlar). `firmalar.goruntule` /
@@ -27,16 +29,36 @@ final class FirmaController extends Controller
 
     public function store(FirmaKaydetRequest $request): JsonResponse
     {
-        $firma = Firma::query()->create($request->validated());
+        $firma = $this->kaydet(new Firma, $request->validated());
 
         return FirmaResource::make($firma)->response()->setStatusCode(201);
     }
 
     public function update(FirmaKaydetRequest $request, Firma $firma): FirmaResource
     {
-        $firma->update($request->validated());
+        return FirmaResource::make($this->kaydet($firma, $request->validated()));
+    }
 
-        return FirmaResource::make($firma);
+    /**
+     * Yalnız tek firma "firmamız" olabilir: işaretlenen firmaya geçer, öncekinin
+     * işareti kalkar (aynı işlemde; kısmi benzersiz indeks de garanti eder).
+     *
+     * @param  array<string, mixed>  $veri
+     */
+    private function kaydet(Firma $firma, array $veri): Firma
+    {
+        return DB::transaction(function () use ($firma, $veri): Firma {
+            if (($veri['firmamiz'] ?? false) === true) {
+                Firma::query()
+                    ->where('firmamiz', true)
+                    ->when($firma->exists, fn (Builder $q) => $q->whereKeyNot($firma->getKey()))
+                    ->update(['firmamiz' => false]);
+            }
+
+            $firma->fill($veri)->save();
+
+            return $firma;
+        });
     }
 
     public function destroy(Firma $firma): Response

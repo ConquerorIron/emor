@@ -177,6 +177,27 @@ final class IsgucuIceAktarimTest extends TestCase
         ]);
     }
 
+    public function test_yapistirma_tablosu_kolonlari_standart_sirayla_ve_kabul_edilen_basliklarla_doner(): void
+    {
+        $this->getJson(self::KAYDET.'/kolonlar')
+            ->assertOk()
+            ->assertJsonCount(24, 'data')
+            ->assertJsonPath('data.0', ['alan' => 'kesinti_turu', 'basliklar' => ['KESİNTİ TÜRÜ']])
+            ->assertJsonPath('data.1.basliklar', ['TAŞERON ADI', 'TAŞERON', 'KESİNTİ YAPILACAK FİRMA']);
+    }
+
+    public function test_basliksiz_yapistirma_standart_kolon_sirasiyla_okunur_ve_satir_numaralari_korunur(): void
+    {
+        // Yapıştırma tablosu başlıksız gönderir; aradaki boş satır numaralamayı kaydırmaz
+        $metin = implode("\n", [implode("\t", self::satir()), '', implode("\t", self::satir(['taseron' => 'YOK FİRMA']))]);
+
+        $this->postJson(self::ONIZLE, ['metin' => $metin])
+            ->assertOk()
+            ->assertJsonCount(2, 'data.satirlar')
+            ->assertJsonPath('data.satirlar.0.satir', 1)
+            ->assertJsonPath('data.hatalar.0.satirlar', [3]);
+    }
+
     public function test_zorunlu_kolon_eksikse_hangi_kolonlar_oldugu_doner(): void
     {
         $metin = "KESİNTİ TÜRÜ\tTAŞERON ADI\tPROJE\tTARİH\nİŞGÜCÜ\tHAB\tZONE 10\t27.03.2026";

@@ -35,6 +35,10 @@ final class FirmaKaydetRequest extends FormRequest
             $vkn = Metin::bosluksuz($vkn);
             $this->merge(['vergi_kimlik_no' => $vkn === '' ? null : $vkn]);
         }
+
+        if ($this->has('firmamiz')) {
+            $this->merge(['firmamiz' => $this->boolean('firmamiz')]);
+        }
     }
 
     /**
@@ -52,6 +56,8 @@ final class FirmaKaydetRequest extends FormRequest
             'vergi_dairesi' => ['nullable', 'string', 'max:100'],
             'eposta' => ['nullable', 'string', 'max:255'],
             'gsm_no' => ['nullable', 'string', 'max:30'],
+            // Gönderilmezse değişmez; işaretlenirse önceki "firmamız"ın işareti kalkar
+            'firmamiz' => ['sometimes', 'boolean'],
         ];
     }
 }

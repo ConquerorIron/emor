@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -7,10 +7,12 @@ import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
 import { Button } from '@/components/Button'
 import { DataTable, type DataTableKolonu } from '@/components/DataTable'
+import { ErrorState } from '@/components/ErrorState'
 import { Modal } from '@/components/Modal'
 import { Pagination } from '@/components/Pagination'
 import { Switch } from '@/components/Switch'
 import {
+  isgucuAktarimKolonlariniGetir,
   isgucuIceAktar,
   isgucuOnizle,
   type IceAktarimGirdisi,
@@ -18,6 +20,8 @@ import {
   type KesintiToplami,
   type OnizlemeSatiri,
 } from '@/features/kesinti/isgucuApi'
+import { YapistirmaTablosu } from '@/features/kesinti/YapistirmaTablosu'
+import { bosSatirlar, sekmeliMetin, type YapistirmaKolonu } from '@/features/kesinti/yapistirma'
 import { tarihGoster } from '@/utils/tarih'
 
 import { tutarGoster } from './bicim'
@@ -241,12 +245,30 @@ function AktarimIcerigi({ kapat }: { kapat: () => void }) {
   const queryClient = useQueryClient()
   const [kaynak, setKaynak] = useState<'dosya' | 'metin'>('dosya')
   const [dosya, setDosya] = useState<File | null>(null)
-  const [metin, setMetin] = useState('')
+  // Yapıştırma tablosunun hücreleri; kolonlar gelene kadar boş tablo
+  const [hucreler, setHucreler] = useState<string[][] | null>(null)
   // Girdi değişince önceki önizleme geçersizdir
   const [onizleme, setOnizleme] = useState<IceAktarimOnizlemesi | null>(null)
 
+  // Tablo başlıkları ve kabul edilen başlık adları backend'in kolon tanımından
+  const kolonSorgusu = useQuery({
+    queryKey: queryKeys.kesinti.isgucuKolonlari,
+    queryFn: isgucuAktarimKolonlariniGetir,
+    staleTime: Infinity,
+  })
+  const kolonlar: YapistirmaKolonu[] = (kolonSorgusu.data ?? []).map((kolon) => ({
+    ...kolon,
+    etiket: t(`kesinti.isgucu.alan.${kolon.alan}`),
+  }))
+  const tablo = hucreler ?? bosSatirlar(kolonlar.length)
+  const metin = kolonlar.length > 0 ? sekmeliMetin(tablo) : ''
+
   const girdi: IceAktarimGirdisi | null =
     kaynak === 'dosya' ? (dosya ? { dosya } : null) : metin.trim() !== '' ? { metin } : null
+  // Önizleme satır numaraları tablonunkilerle aynı (başlıksız, standart sırayla gönderilir)
+  const hataliSatirlar = new Set(
+    (onizleme?.satirlar ?? []).filter((satir) => satir.hatali).map((satir) => satir.satir),
+  )
 
   const onizle = useMutation({
     mutationFn: (secilen: IceAktarimGirdisi) => isgucuOnizle(secilen),
@@ -319,23 +341,23 @@ function AktarimIcerigi({ kapat }: { kapat: () => void }) {
             className="mt-1 block w-full text-sm file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-semibold dark:file:bg-slate-800"
           />
         </div>
+      ) : kolonSorgusu.error ? (
+        <ErrorState
+          mesaj={t(apiErrorKey(kolonSorgusu.error))}
+          tekrarDene={() => void kolonSorgusu.refetch()}
+        />
+      ) : kolonlar.length === 0 ? (
+        <p className="py-6 text-center text-sm text-slate-500">{t('ortak.yukleniyor')}</p>
       ) : (
-        <div>
-          <label htmlFor="isgucu-metin" className="text-sm font-semibold">
-            {t('kesinti.isgucu.iceAktarim.yapistir')}
-          </label>
-          <textarea
-            id="isgucu-metin"
-            rows={6}
-            value={metin}
-            onChange={(olay) => {
-              setMetin(olay.target.value)
-              setOnizleme(null)
-            }}
-            placeholder={t('kesinti.isgucu.iceAktarim.yapistirIpucu')}
-            className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-xs dark:border-slate-700 dark:bg-slate-900"
-          />
-        </div>
+        <YapistirmaTablosu
+          kolonlar={kolonlar}
+          satirlar={tablo}
+          degistir={(yeni) => {
+            setHucreler(yeni)
+            setOnizleme(null)
+          }}
+          hataliSatirlar={hataliSatirlar}
+        />
       )}
 
       <div className="flex justify-end">

@@ -28,6 +28,7 @@ final class FirmaResource extends JsonResource
             'gsm_no' => $this->gsm_no,
             // Doluysa firma ERP'den aktarılmıştır
             'erp_guid' => $this->erp_guid,
+            'firmamiz' => $this->firmamiz,
         ];
     }
 }

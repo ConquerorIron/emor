@@ -124,6 +124,20 @@ export interface KesintiYuklemesi {
   olusturma_zamani: string
 }
 
+/** İçe aktarım kolonu: standart sıra ve kabul edilen başlık adları (backend tanımı) */
+export interface IceAktarimKolonu {
+  alan: string
+  basliklar: string[]
+}
+
+export async function isgucuAktarimKolonlariniGetir(): Promise<IceAktarimKolonu[]> {
+  const yanit = await api.get<{ data: IceAktarimKolonu[] }>(
+    '/api/v1/kesinti/isgucu/yuklemeler/kolonlar',
+  )
+
+  return yanit.data.data
+}
+
 /** Excel dosyası ya da yapıştırılan metin */
 export type IceAktarimGirdisi = { dosya: File } | { metin: string }
 

@@ -764,7 +764,10 @@
         "gsmCokUzun": "Mobile number can be at most 30 characters."
       },
       "kodTekrar": "Duplicate code",
-      "kodTekrarAciklama": "This code is used by more than one company. Excel rows match companies by code, so make the codes distinct."
+      "kodTekrarAciklama": "This code is used by more than one company. Excel rows match companies by code, so make the codes distinct.",
+      "firmamiz": "Our Company",
+      "firmamizAciklama": "Marks our own company (e.g. HAB); created manually as it is not in the ERP subcontractor list. Only one company can be marked.",
+      "firmamizDegisecek": "Our company is currently \"{{kod}} — {{ad}}\". Marking this company will remove that mark."
     },
     "paraBirimleri": {
       "baslik": "Currencies",
@@ -859,8 +862,6 @@
           "metin": "Copy & Paste"
         },
         "dosyaSec": "Excel file (.xlsx)",
-        "yapistir": "Rows copied from Excel",
-        "yapistirIpucu": "Select the rows in Excel (with the header row), copy and paste here.",
         "onizle": "Preview",
         "kaydet": "Save ({{sayi}} rows)",
         "kaydedildi": "{{sayi}} rows imported.",
@@ -933,6 +934,13 @@
         "kod_tekrar": "The same code is used by more than one ERP record.",
         "kod_baska_kayitta": "This code is used by another record in the application."
       }
+    },
+    "yapistirma": {
+      "etiket": "Paste table",
+      "satirSayisi": "{{sayi}} filled rows",
+      "satirEkle": "Add 10 Rows",
+      "temizle": "Clear",
+      "ipucu": "Select and copy rows in Excel, click the table and paste with Ctrl+V. If you copy the header row, columns are matched by name (Excel order does not matter); without it, rows are placed starting at the selected cell. Click a cell to correct it: Enter moves down, Tab moves right."
     }
   }
 }

@@ -38,6 +38,7 @@ export const queryKeys = {
     isgucuListesi: (parametreler: Record<string, unknown>) =>
       ['kesinti', 'isgucu', 'liste', parametreler] as const,
     isgucuYuklemeleri: ['kesinti', 'isgucu', 'yuklemeler'],
+    isgucuKolonlari: ['kesinti', 'isgucu', 'kolonlar'],
     // ERP önizlemeleri her açılışta taze okunur (önbelleğe güvenilmez)
     erpProjeleri: ['kesinti', 'erpProjeleri'],
     erpFirmalari: ['kesinti', 'erpFirmalari'],

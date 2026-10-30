@@ -17,6 +17,13 @@ export interface Firma extends FirmaBilgileri {
   id: number
   /** Doluysa firma ERP'den aktarılmıştır */
   erp_guid: string | null
+  /** Firmamız (HAB); yalnız tek firma işaretli olabilir */
+  firmamiz: boolean
+}
+
+/** Formun gönderdiği alanlar: işaretlenirse önceki "firmamız"ın işareti kalkar */
+export interface FirmaGovdesi extends FirmaBilgileri {
+  firmamiz: boolean
 }
 
 /** ERP taşeronu ve aktarımda ne olacağı */
@@ -31,7 +38,7 @@ export async function firmalariGetir(): Promise<Firma[]> {
   return yanit.data.data
 }
 
-export async function firmaKaydet(id: number | null, govde: FirmaBilgileri): Promise<Firma> {
+export async function firmaKaydet(id: number | null, govde: FirmaGovdesi): Promise<Firma> {
   const yanit =
     id === null
       ? await api.post<{ data: Firma }>('/api/v1/kesinti/firmalar', govde)

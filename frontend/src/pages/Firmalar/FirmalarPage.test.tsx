@@ -35,6 +35,7 @@ function firma(id: number, ad: string, ek: Partial<Firma> = {}): Firma {
     eposta: null,
     gsm_no: null,
     erp_guid: null,
+    firmamiz: false,
     ...ek,
   }
 }
@@ -143,6 +144,7 @@ describe('FirmalarPage', { timeout: 15_000 }, () => {
       vergi_dairesi: null,
       eposta: null,
       gsm_no: null,
+      firmamiz: false,
     })
   })
 
@@ -180,6 +182,31 @@ describe('FirmalarPage', { timeout: 15_000 }, () => {
 
     await waitFor(() => expect(api.erpAktar).toHaveBeenCalledTimes(1))
     expect(api.erpAktar).toHaveBeenCalledWith(['00000002-0000-4000-8000-000000000000'])
+  })
+
+  it('firmamız işaretlenirse mevcut firmamızın işaretinin kalkacağı söylenir ve işaret gönderilir', async () => {
+    api.firmalar.mockResolvedValue([
+      firma(1, 'ESKİ FİRMAMIZ', { kod: 'ESKİ', firmamiz: true }),
+      ...FIRMALAR.slice(1),
+    ])
+    api.kaydet.mockResolvedValue(firma(99, 'HAB', { kod: 'HAB', firmamiz: true }))
+    ciz()
+    expect(await screen.findByText('ESKİ FİRMAMIZ')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Yeni Firma' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Firma Kodu'), { target: { value: 'hab' } })
+    fireEvent.change(within(dialog).getByLabelText('Firma Adı'), { target: { value: 'HAB' } })
+    fireEvent.click(within(dialog).getByRole('switch', { name: 'Firmamız' }))
+
+    expect(within(dialog).getByRole('status')).toHaveTextContent('ESKİ — ESKİ FİRMAMIZ')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+
+    await waitFor(() => expect(api.kaydet).toHaveBeenCalledTimes(1))
+    expect(api.kaydet).toHaveBeenCalledWith(
+      null,
+      expect.objectContaining({ kod: 'HAB', firmamiz: true }),
+    )
   })
 
   it('yalnız görüntüleme izninde ekleme, ERP aktarımı, düzenleme ve silme sunulmaz', async () => {

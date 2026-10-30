@@ -41,6 +41,19 @@ final class IsgucuYuklemeController extends Controller
         );
     }
 
+    /**
+     * İçe aktarım kolonları, standart sırayla: yapıştırma tablosu başlıkları
+     * ve kabul edilen başlık adları (tek kaynak: IsgucuIceAktarimi::KOLONLAR).
+     */
+    public function kolonlar(): JsonResponse
+    {
+        return response()->json(['data' => array_map(
+            fn (string $alan, array $basliklar): array => ['alan' => $alan, 'basliklar' => $basliklar],
+            array_keys(IsgucuIceAktarimi::KOLONLAR),
+            array_values(IsgucuIceAktarimi::KOLONLAR),
+        )]);
+    }
+
     /** Yazmadan doğrular: hata özeti, satırlar ve para birimine göre toplamlar. */
     public function onizle(IsgucuIceAktarRequest $request): JsonResponse
     {

@@ -21,6 +21,7 @@ const api = vi.hoisted(() => ({
   aktar: vi.fn(),
   yuklemeler: vi.fn(),
   geriAl: vi.fn(),
+  kolonlar: vi.fn(),
 }))
 
 vi.mock('@/features/kesinti/isgucuApi', async (importOriginal) => ({
@@ -33,6 +34,7 @@ vi.mock('@/features/kesinti/isgucuApi', async (importOriginal) => ({
   isgucuIceAktar: api.aktar,
   isgucuYuklemeleriniGetir: api.yuklemeler,
   isgucuYuklemesiniGeriAl: api.geriAl,
+  isgucuAktarimKolonlariniGetir: api.kolonlar,
 }))
 
 const SECENEKLER: KesintiSecenekleri = {
@@ -97,13 +99,20 @@ function ciz(izinler = ['isgucu_kesintileri.goruntule', 'isgucu_kesintileri.gunc
   )
 }
 
-async function aktarimiAc(metin: string) {
+/** Kolon tanımı: standart sıra + kabul edilen başlık adları (backend'den) */
+const KOLONLAR = [
+  { alan: 'kesinti_turu', basliklar: ['KESİNTİ TÜRÜ'] },
+  { alan: 'taseron', basliklar: ['TAŞERON ADI', 'KESİNTİ YAPILACAK FİRMA'] },
+  { alan: 'adi_soyadi', basliklar: ['ADI SOYADI'] },
+]
+
+/** Excel'den kopyalanmış metni yapıştırma tablosuna Ctrl+V ile yapıştırır */
+async function aktarimiAc(pano: string) {
   fireEvent.click(await screen.findByRole('button', { name: "Excel'den Aktar" }))
   const dialog = await screen.findByRole('dialog')
   fireEvent.click(within(dialog).getByRole('tab', { name: 'Kopyala-Yapıştır' }))
-  fireEvent.change(within(dialog).getByLabelText("Excel'den kopyalanan satırlar"), {
-    target: { value: metin },
-  })
+  const tablo = await within(dialog).findByRole('grid', { name: 'Yapıştırma tablosu' })
+  fireEvent.paste(tablo, { clipboardData: { getData: () => pano } })
   fireEvent.click(within(dialog).getByRole('button', { name: 'Önizle' }))
 
   return dialog
@@ -115,6 +124,7 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
     api.secenekler.mockResolvedValue(SECENEKLER)
     api.liste.mockResolvedValue(LISTE)
     api.yuklemeler.mockResolvedValue([])
+    api.kolonlar.mockResolvedValue(KOLONLAR)
   })
 
   afterEach(() => {
@@ -190,15 +200,16 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
     api.onizle.mockResolvedValue(onizleme)
     ciz()
 
-    const dialog = await aktarimiAc('KESİNTİ TÜRÜ\tTAŞERON ADI\nİŞGÜCÜ\tYOK')
+    const dialog = await aktarimiAc('İŞGÜCÜ\tYOK')
 
     expect(await within(dialog).findByText('Tanımlarda bu kod yok')).toBeInTheDocument()
     expect(within(dialog).getByText('2207')).toBeInTheDocument()
-    expect(api.onizle).toHaveBeenCalledWith({ metin: 'KESİNTİ TÜRÜ\tTAŞERON ADI\nİŞGÜCÜ\tYOK' })
+    // Başlıksız yapıştırma ilk hücreden standart sırayla yerleşir, sunucuya başlıksız gider
+    expect(api.onizle).toHaveBeenCalledWith({ metin: 'İŞGÜCÜ\tYOK\t' })
     expect(within(dialog).getByRole('button', { name: 'Kaydet (1 satır)' })).toBeDisabled()
   })
 
-  it('hatasız önizlemeden sonra aynı girdiyle kaydeder', async () => {
+  it('başlıklı yapıştırmada kolonlar adlarından eşlenir; hatasız önizlemeden sonra aynı girdiyle kaydeder', async () => {
     api.onizle.mockResolvedValue({
       hata: null,
       eksik_kolonlar: [],
@@ -216,13 +227,39 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
     })
     ciz()
 
-    const dialog = await aktarimiAc('başlık\tsatır')
+    // Bugünkü Excel'in sırası ve adlarıyla, fazladan HAKEDİŞ kolonu ve Windows satır sonuyla
+    const dialog = await aktarimiAc(
+      'ADI - SOYADI\tKESİNTİ YAPILACAK FİRMA\tHAKEDİŞ\tKESİNTİ TÜRÜ\r\nFIRAT AKYILDIZ\tHAB\t3-ARA\tİŞGÜCÜ\r\n',
+    )
+    expect(within(dialog).getByText('FIRAT AKYILDIZ')).toBeInTheDocument()
     expect(
       await within(dialog).findByText('1 satır hatasız, kaydedilmeye hazır.'),
     ).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet (1 satır)' }))
 
-    await waitFor(() => expect(api.aktar).toHaveBeenCalledWith({ metin: 'başlık\tsatır' }))
+    await waitFor(() =>
+      expect(api.aktar).toHaveBeenCalledWith({ metin: 'İŞGÜCÜ\tHAB\tFIRAT AKYILDIZ' }),
+    )
+  })
+
+  it('yapıştırılan hücreye tıklanıp düzeltilen değer önizlemeye gider', async () => {
+    api.onizle.mockResolvedValue({
+      hata: null,
+      eksik_kolonlar: [],
+      satirlar: [],
+      hatalar: [],
+      toplamlar: [],
+    } satisfies IceAktarimOnizlemesi)
+    ciz()
+
+    const dialog = await aktarimiAc('İŞGÜCÜ\tYOK')
+    await waitFor(() => expect(api.onizle).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(within(dialog).getByText('YOK'))
+    fireEvent.change(within(dialog).getByLabelText('Taşeron 1'), { target: { value: 'HAB' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Önizle' }))
+
+    await waitFor(() => expect(api.onizle).toHaveBeenLastCalledWith({ metin: 'İŞGÜCÜ\tHAB\t' }))
   })
 
   it('yalnız görüntüleme izninde ekleme, aktarım, düzenleme ve geri alma sunulmaz', async () => {

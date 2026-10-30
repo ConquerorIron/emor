@@ -41,6 +41,7 @@ final class FirmaTest extends TestCase
             ->assertJsonPath('data.0', [
                 'id' => $firma->id, 'kod' => '1234567890', 'ad' => 'Aktaş Hafriyat', 'vergi_kimlik_no' => '1234567890',
                 'vergi_dairesi' => 'Beyoğlu', 'eposta' => 'info@aktas.test', 'gsm_no' => '0532 000 00 00', 'erp_guid' => $firma->erp_guid,
+                'firmamiz' => false,
             ])
             ->assertJsonPath('data.1.ad', 'Zirve İnşaat');
     }
@@ -114,6 +115,30 @@ final class FirmaTest extends TestCase
             ->assertJsonPath('data.kod', 'MFK');
 
         $this->assertDatabaseCount('firmalar', 2);
+    }
+
+    public function test_firmamiz_isareti_yalniz_tek_firmada_kalir_ve_gonderilmezse_degismez(): void
+    {
+        $eski = Firma::factory()->create(['kod' => 'ESKİ', 'firmamiz' => true]);
+
+        $this->postJson(self::ADRES, ['kod' => 'hab', 'ad' => 'HAB', 'firmamiz' => true])
+            ->assertCreated()
+            ->assertJsonPath('data.kod', 'HAB')
+            ->assertJsonPath('data.firmamiz', true);
+
+        $hab = Firma::query()->where('kod', 'HAB')->sole();
+        $this->assertFalse($eski->fresh()?->firmamiz);
+        $this->assertSame([$hab->id], Firma::query()->where('firmamiz', true)->pluck('id')->all());
+
+        // Alan gönderilmeden düzenleme işareti korur
+        $this->putJson(self::ADRES."/{$hab->id}", ['kod' => 'HAB', 'ad' => 'HAB İnşaat'])
+            ->assertOk()
+            ->assertJsonPath('data.firmamiz', true);
+
+        $this->putJson(self::ADRES."/{$hab->id}", ['kod' => 'HAB', 'ad' => 'HAB İnşaat', 'firmamiz' => false])
+            ->assertOk()
+            ->assertJsonPath('data.firmamiz', false);
+        $this->assertSame(0, Firma::query()->where('firmamiz', true)->count());
     }
 
     public function test_guncelleme_erp_bagini_korur(): void
