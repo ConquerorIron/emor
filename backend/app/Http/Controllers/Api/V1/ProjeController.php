@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Kesinti\ProjeKaydetRequest;
 use App\Http\Resources\ProjeResource;
 use App\Models\Proje;
+use App\Support\KayitSilme;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -39,7 +40,7 @@ final class ProjeController extends Controller
 
     public function destroy(Proje $proje): Response
     {
-        $proje->delete();
+        KayitSilme::sil($proje);
 
         return response()->noContent();
     }

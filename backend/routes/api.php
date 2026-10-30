@@ -11,9 +11,13 @@ use App\Http\Controllers\Api\V1\EntegratorBaglantiController;
 use App\Http\Controllers\Api\V1\ErpFirmaController;
 use App\Http\Controllers\Api\V1\ErpProjeController;
 use App\Http\Controllers\Api\V1\FirmaController;
+use App\Http\Controllers\Api\V1\IsgucuKesintisiController;
+use App\Http\Controllers\Api\V1\IsgucuYuklemeController;
+use App\Http\Controllers\Api\V1\KesintiSecenekController;
 use App\Http\Controllers\Api\V1\KesintiTuruController;
 use App\Http\Controllers\Api\V1\KullaniciController;
 use App\Http\Controllers\Api\V1\MailAyarController;
+use App\Http\Controllers\Api\V1\ParaBirimiController;
 use App\Http\Controllers\Api\V1\ProjeController;
 use App\Http\Controllers\Api\V1\RolController;
 use App\Http\Controllers\Api\V1\SatinalmaTalebiController;
@@ -177,6 +181,54 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/kesinti/projeler/erp', [ErpProjeController::class, 'store'])
                 ->middleware('throttle:erp-aktarim')
                 ->name('kesinti.projeler.erp.store');
+        });
+
+        // Kesinti Yönetimi → Para Birimleri (Excel'deki PARA BİRİMİ koduyla eşleşir)
+        Route::get('/kesinti/para-birimleri', [ParaBirimiController::class, 'index'])
+            ->middleware('can:para_birimleri.goruntule')
+            ->name('kesinti.para-birimleri');
+        Route::middleware('can:para_birimleri.guncelle')->group(function (): void {
+            Route::post('/kesinti/para-birimleri', [ParaBirimiController::class, 'store'])
+                ->name('kesinti.para-birimleri.store');
+            Route::put('/kesinti/para-birimleri/{paraBirimi}', [ParaBirimiController::class, 'update'])
+                ->whereNumber('paraBirimi')
+                ->name('kesinti.para-birimleri.update');
+            Route::delete('/kesinti/para-birimleri/{paraBirimi}', [ParaBirimiController::class, 'destroy'])
+                ->whereNumber('paraBirimi')
+                ->name('kesinti.para-birimleri.destroy');
+        });
+
+        // Kesinti icmal formlarının seçim listeleri (tür, taşeron, proje, para birimi)
+        Route::get('/kesinti/secenekler', [KesintiSecenekController::class, 'index'])
+            ->middleware('can:kesinti-secenekleri')
+            ->name('kesinti.secenekler');
+
+        // Kesinti Yönetimi → İşgücü Kesintileri: liste + elle giriş + Excel/yapıştırma
+        // içe aktarımı (her yükleme bir parti; parti satırlarıyla geri alınır)
+        Route::middleware('can:isgucu_kesintileri.goruntule')->group(function (): void {
+            Route::get('/kesinti/isgucu', [IsgucuKesintisiController::class, 'index'])
+                ->name('kesinti.isgucu');
+            Route::get('/kesinti/isgucu/yuklemeler', [IsgucuYuklemeController::class, 'index'])
+                ->name('kesinti.isgucu.yuklemeler');
+        });
+        Route::middleware('can:isgucu_kesintileri.guncelle')->group(function (): void {
+            Route::post('/kesinti/isgucu', [IsgucuKesintisiController::class, 'store'])
+                ->name('kesinti.isgucu.store');
+            Route::put('/kesinti/isgucu/{kesinti}', [IsgucuKesintisiController::class, 'update'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.isgucu.update');
+            Route::delete('/kesinti/isgucu/{kesinti}', [IsgucuKesintisiController::class, 'destroy'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.isgucu.destroy');
+            Route::post('/kesinti/isgucu/yuklemeler/onizle', [IsgucuYuklemeController::class, 'onizle'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.isgucu.yuklemeler.onizle');
+            Route::post('/kesinti/isgucu/yuklemeler', [IsgucuYuklemeController::class, 'store'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.isgucu.yuklemeler.store');
+            Route::delete('/kesinti/isgucu/yuklemeler/{yukleme}', [IsgucuYuklemeController::class, 'destroy'])
+                ->whereNumber('yukleme')
+                ->name('kesinti.isgucu.yuklemeler.destroy');
         });
 
         // Kesinti Yönetimi → Firmalar (taşeronlar): elle tanım + canlı ERP'den

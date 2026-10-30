@@ -31,6 +31,13 @@ export const queryKeys = {
     turler: ['kesinti', 'turler'],
     projeler: ['kesinti', 'projeler'],
     firmalar: ['kesinti', 'firmalar'],
+    paraBirimleri: ['kesinti', 'paraBirimleri'],
+    // Formların seçim listeleri: tanım ekranlarında değişince tazelenir (['kesinti'] altında)
+    secenekler: ['kesinti', 'secenekler'],
+    isgucuListeleri: ['kesinti', 'isgucu', 'liste'],
+    isgucuListesi: (parametreler: Record<string, unknown>) =>
+      ['kesinti', 'isgucu', 'liste', parametreler] as const,
+    isgucuYuklemeleri: ['kesinti', 'isgucu', 'yuklemeler'],
     // ERP önizlemeleri her açılışta taze okunur (önbelleğe güvenilmez)
     erpProjeleri: ['kesinti', 'erpProjeleri'],
     erpFirmalari: ['kesinti', 'erpFirmalari'],

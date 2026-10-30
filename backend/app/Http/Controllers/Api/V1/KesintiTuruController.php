@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Kesinti\KesintiTuruKaydetRequest;
 use App\Http\Resources\KesintiTuruResource;
 use App\Models\KesintiTuru;
+use App\Support\KayitSilme;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -39,7 +40,7 @@ final class KesintiTuruController extends Controller
 
     public function destroy(KesintiTuru $kesintiTuru): Response
     {
-        $kesintiTuru->delete();
+        KayitSilme::sil($kesintiTuru);
 
         return response()->noContent();
     }

@@ -41,6 +41,14 @@ Dosyayı okumadan skill'in uygulandığını iddia etme.
   `WEB_ERP_TASERON_LISTESI` view'larıdır — `erp` kullanıcısı ham TOHOM_*
   tablolarını okuyamaz; yeni ERP verisi gerekirse kullanıcıdan WEB_ERP_* view'ı
   istenir. Bağ ERP GUID'i ile (firmalarda VKN de).
+- **Kesinti icmal ekranları** (ilki İşgücü Kesintileri, Excel SAYFASI başına bir
+  ekran): her biri kendi tablosunda, ortak kolonlar (firma_id, proje_id,
+  para_birimi_id, 5 tutar) aynı adla. İçe aktarım = Excel dosyası ya da
+  kopyala-yapıştır → önizleme (hatalar nedenine göre gruplu) → hatasızsa tek
+  "parti" (`kesinti_yuklemeleri`, satırlar cascade ile geri alınır). Okuyucu
+  ortak: `Kesinti\IceAktarimTablosu` (başlığı adından tanır, en çok kolonu
+  eşleşen satır; TR sayı/tarih, "-" = 0). Tanımlar KOD ile eşleşir; kullanılan
+  tanım silinmez (`App\Support\KayitSilme` → 409 KAYIT_KULLANILIYOR).
 - **Test/Canlı ortamlar**: MSSQL bağlantı tanımları (test + canli) PostgreSQL'de
   `sql_baglantilari` tablosunda, şifreler encrypted cast ile. GLOBAL tek aktif
   ortam vardır (kısmi unique indeks garantiler). Store proc çalıştıracak HER modül

@@ -47,9 +47,11 @@
     "gelenFaturalar": "Gelen Faturalar",
     "gidenFaturalar": "Giden Faturalar",
     "kesinti": "Kesinti Yönetimi",
+    "isgucuKesintileri": "İşgücü Kesintileri",
     "kesintiTurleri": "Kesinti Türleri",
     "projeler": "Projeler",
     "firmalar": "Firmalar",
+    "paraBirimleri": "Para Birimleri",
     "alarmKurallari": "Alarm Kuralları"
   },
   "tasarim": {
@@ -491,7 +493,9 @@
     "ERP_OKUNAMADI": "ERP okunamadı; eMOR bilgisi değiştirilmedi. Biraz sonra tekrar deneyin.",
     "ERP_CANLI_TANIMSIZ": "Canlı ERP bağlantısı tanımlanmamış. Ayarlar → SQL Bağlantıları ekranından Canlı ortamı tanımlayın.",
     "ERP_OKUMA_YETKISI_YOK": "ERP veritabanı kullanıcısının bu veriyi okuma yetkisi yok. Veritabanı yöneticisinden okuma (SELECT) yetkisi isteyin.",
-    "ERP_OKUMA_HATASI": "ERP okunamadı. Biraz sonra tekrar deneyin."
+    "ERP_OKUMA_HATASI": "ERP okunamadı. Biraz sonra tekrar deneyin.",
+    "KAYIT_KULLANILIYOR": "Bu kayıt kesinti satırlarında kullanıldığı için silinemez.",
+    "ICE_AKTARIM_HATALI": "Dosyada hatalı satırlar var; hiçbir satır kaydedilmedi. Önizlemedeki hataları düzeltip tekrar yükleyin."
   },
   "yetki": {
     "goruntule": "Görüntüle",
@@ -501,9 +505,11 @@
     "ekran": {
       "satinalma_talebi": "Satınalma Talebi",
       "efatura": "e-Faturalar (Gelen/Giden)",
+      "isgucu_kesintileri": "İşgücü Kesintileri",
       "kesinti_turleri": "Kesinti Türleri",
       "projeler": "Projeler",
       "firmalar": "Firmalar",
+      "para_birimleri": "Para Birimleri",
       "sql_baglantilari": "SQL Bağlantıları",
       "entegrator_baglantilari": "Entegratör Bağlantıları",
       "mail_ayarlari": "Mail Ayarları",
@@ -759,6 +765,142 @@
       },
       "kodTekrar": "Kod tekrar",
       "kodTekrarAciklama": "Bu kod birden fazla firmada. Excel'deki firma adı koda göre eşleştiği için kodları ayırın."
+    },
+    "paraBirimleri": {
+      "baslik": "Para Birimleri",
+      "aciklamaMetni": "Kesinti satırlarının para birimleri. Excel'deki \"PARA BİRİMİ\" değeri koduyla eşleşir.",
+      "yeni": "Yeni Para Birimi",
+      "duzenle": "Para Birimini Düzenle",
+      "kod": "Kod",
+      "ad": "Ad",
+      "kaydedildi": "Para birimi kaydedildi.",
+      "silindi": "Para birimi silindi.",
+      "silOnayBaslik": "Para birimi silinsin mi?",
+      "silOnayMesaj": "\"{{kod}} — {{ad}}\" para birimi silinecek.",
+      "dogrulama": {
+        "kodZorunlu": "Kod zorunludur.",
+        "kodCokUzun": "Kod en fazla 10 karakter olabilir.",
+        "adZorunlu": "Ad zorunludur.",
+        "adCokUzun": "Ad en fazla 50 karakter olabilir."
+      }
+    },
+    "isgucu": {
+      "baslik": "İşgücü Kesintileri",
+      "aciklamaMetni": "Taşeronlara yansıtılan işgücü kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir.",
+      "yeni": "Yeni Kayıt",
+      "duzenle": "Kaydı Düzenle",
+      "kaydedildi": "Kayıt kaydedildi.",
+      "silindi": "Kayıt silindi.",
+      "silOnayBaslik": "Kayıt silinsin mi?",
+      "silOnayMesaj": "{{tarih}} tarihli \"{{ad}}\" satırı silinecek.",
+      "ara": "Ara",
+      "baslangic": "Başlangıç",
+      "bitis": "Bitiş",
+      "toplamlar": "Para birimine göre toplamlar",
+      "satirSayisi": "{{sayi}} satır",
+      "hesapAciklamasi": "Yansıtılan = Toplam − İptal, Kalan = Yansıtılan − Kesilen olarak hesaplanır.",
+      "alan": {
+        "kesinti_turu": "Kesinti Türü",
+        "taseron": "Taşeron",
+        "proje": "Proje",
+        "mahal": "Mahal",
+        "tarih": "Tarih",
+        "kaynak_firma": "Kaynak Firma",
+        "kaynak_fis_no": "Kaynak Fiş No",
+        "adi_soyadi": "Adı Soyadı",
+        "vasif": "Vasfı",
+        "mesai_turu": "Mesai Türü",
+        "yansitma_turu": "Yansıtma Türü",
+        "tanim": "Tanım",
+        "gorev": "Görev",
+        "departman": "Departman",
+        "aktivite": "Aktivite",
+        "miktar_saat": "Miktar (Saat)",
+        "miktar_yevmiye": "Miktar (Yevmiye)",
+        "birim_fiyat": "Birim Fiyat",
+        "para_birimi": "Para Birimi",
+        "toplam_tutar": "Toplam Tutar",
+        "iptal_edilen_tutar": "İptal Edilen Tutar",
+        "yansitilan_tutar": "Yansıtılan Tutar",
+        "kesilen_tutar": "Kesilen Tutar",
+        "kalan_tutar": "Kalan Tutar"
+      },
+      "secenek": {
+        "vasif": {
+          "nitelikli": "NİTELİKLİ",
+          "niteliksiz": "NİTELİKSİZ"
+        },
+        "mesai_turu": {
+          "normal": "NORMAL MESAİ",
+          "fazla": "FAZLA MESAİ"
+        },
+        "yansitma_turu": {
+          "hab": "HAB",
+          "taseron": "TAŞERON"
+        }
+      },
+      "bolum": {
+        "kesinti": "Kesinti",
+        "personel": "Personel",
+        "is": "İş",
+        "tutarlar": "Miktar ve Tutarlar"
+      },
+      "dogrulama": {
+        "zorunlu": "Bu alan zorunludur.",
+        "cokUzun200": "En fazla 200 karakter olabilir.",
+        "cokUzun50": "En fazla 50 karakter olabilir."
+      },
+      "iceAktarim": {
+        "ac": "Excel'den Aktar",
+        "baslik": "Excel'den Aktar",
+        "aciklama": "Excel dosyasını seçin ya da satırları Excel'den kopyalayıp yapıştırın (başlık satırıyla birlikte kopyalamanız önerilir). Kolonlar başlık adlarından tanınır. Önce önizleyin; tek bir hatalı satır bile varsa hiçbir satır kaydedilmez.",
+        "kaynak": {
+          "dosya": "Excel Dosyası",
+          "metin": "Kopyala-Yapıştır"
+        },
+        "dosyaSec": "Excel dosyası (.xlsx)",
+        "yapistir": "Excel'den kopyalanan satırlar",
+        "yapistirIpucu": "Excel'de satırları (başlık satırıyla birlikte) seçip kopyalayın, buraya yapıştırın.",
+        "onizle": "Önizle",
+        "kaydet": "Kaydet ({{sayi}} satır)",
+        "kaydedildi": "{{sayi}} satır aktarıldı.",
+        "dosyaHatasi": {
+          "dosya_okunamadi": "Dosya okunamadı. Geçerli bir Excel (.xlsx) dosyası seçin.",
+          "baslik_bulunamadi": "Başlık satırı bulunamadı. İlk 20 satırda kolon başlıkları (Kesinti Türü, Taşeron Adı, Proje…) olmalı.",
+          "satir_yok": "Başlık satırının altında aktarılacak satır yok."
+        },
+        "eksikKolonlar": "Zorunlu kolonlar bulunamadı: {{kolonlar}}",
+        "hataliDosya": "{{sayi}} satırda hata var; düzeltilene kadar hiçbir satır kaydedilmez. Hatalar nedenine göre gruplandı:",
+        "hatasiz": "{{sayi}} satır hatasız, kaydedilmeye hazır.",
+        "alanBaslik": "Kolon",
+        "degerBaslik": "Değer",
+        "nedenBaslik": "Neden",
+        "satirSayisiBaslik": "Satır",
+        "ornekSatirlarBaslik": "Örnek Excel satırları",
+        "excelSatiri": "Satır",
+        "yalnizHatali": "Yalnız hatalı satırlar",
+        "hataKodu": {
+          "zorunlu": "Boş bırakılamaz",
+          "bulunamadi": "Tanımlarda bu kod yok",
+          "birden_fazla": "Bu kod birden fazla firmada; Firmalar ekranında kodları ayırın",
+          "gecersiz_secenek": "Geçersiz seçenek",
+          "gecersiz_tarih": "Geçersiz tarih",
+          "gecersiz_sayi": "Geçersiz sayı",
+          "cok_uzun": "Çok uzun"
+        }
+      },
+      "yuklemeler": {
+        "baslik": "Yüklemeler",
+        "aciklama": "Excel aktarımları. Yanlış bir yükleme, satırlarıyla birlikte geri alınabilir; elle girilen satırlar etkilenmez.",
+        "zaman": "Zaman",
+        "yukleyen": "Yükleyen",
+        "kaynak": "Kaynak",
+        "satirSayisi": "Satır",
+        "geriAl": "Geri Al",
+        "geriAlindi": "Yükleme geri alındı; {{sayi}} satır silindi.",
+        "geriAlOnayBaslik": "Yükleme geri alınsın mı?",
+        "geriAlOnayMesaj": "{{zaman}} yüklemesi ve {{sayi}} satırı silinecek."
+      }
     },
     "erpAktarim": {
       "okunuyor": "Canlı ERP okunuyor…",

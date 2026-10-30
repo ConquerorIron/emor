@@ -47,9 +47,11 @@
     "gelenFaturalar": "Incoming Invoices",
     "gidenFaturalar": "Outgoing Invoices",
     "kesinti": "Deduction Management",
+    "isgucuKesintileri": "Labour Deductions",
     "kesintiTurleri": "Deduction Types",
     "projeler": "Projects",
     "firmalar": "Companies",
+    "paraBirimleri": "Currencies",
     "alarmKurallari": "Alert Rules"
   },
   "tasarim": {
@@ -491,7 +493,9 @@
     "ERP_OKUNAMADI": "Could not read the ERP; eMOR was not changed. Please try again shortly.",
     "ERP_CANLI_TANIMSIZ": "No live ERP connection is defined. Define the Live environment under Settings → SQL Connections.",
     "ERP_OKUMA_YETKISI_YOK": "The ERP database user is not allowed to read this data. Ask the database administrator for SELECT permission.",
-    "ERP_OKUMA_HATASI": "ERP could not be read. Please try again shortly."
+    "ERP_OKUMA_HATASI": "ERP could not be read. Please try again shortly.",
+    "KAYIT_KULLANILIYOR": "This record is used by deduction rows and cannot be deleted.",
+    "ICE_AKTARIM_HATALI": "The file has invalid rows; nothing was saved. Fix the errors in the preview and upload again."
   },
   "yetki": {
     "goruntule": "View",
@@ -501,9 +505,11 @@
     "ekran": {
       "satinalma_talebi": "Purchase Request",
       "efatura": "e-Invoices (Incoming/Outgoing)",
+      "isgucu_kesintileri": "Labour Deductions",
       "kesinti_turleri": "Deduction Types",
       "projeler": "Projects",
       "firmalar": "Companies",
+      "para_birimleri": "Currencies",
       "sql_baglantilari": "SQL Connections",
       "entegrator_baglantilari": "Integrator Connections",
       "mail_ayarlari": "Mail Settings",
@@ -759,6 +765,142 @@
       },
       "kodTekrar": "Duplicate code",
       "kodTekrarAciklama": "This code is used by more than one company. Excel rows match companies by code, so make the codes distinct."
+    },
+    "paraBirimleri": {
+      "baslik": "Currencies",
+      "aciklamaMetni": "Currencies of deduction rows. The Excel \"PARA BİRİMİ\" value matches by code.",
+      "yeni": "New Currency",
+      "duzenle": "Edit Currency",
+      "kod": "Code",
+      "ad": "Name",
+      "kaydedildi": "Currency saved.",
+      "silindi": "Currency deleted.",
+      "silOnayBaslik": "Delete currency?",
+      "silOnayMesaj": "Currency \"{{kod}} — {{ad}}\" will be deleted.",
+      "dogrulama": {
+        "kodZorunlu": "Code is required.",
+        "kodCokUzun": "Code can be at most 10 characters.",
+        "adZorunlu": "Name is required.",
+        "adCokUzun": "Name can be at most 50 characters."
+      }
+    },
+    "isgucu": {
+      "baslik": "Labour Deductions",
+      "aciklamaMetni": "Labour deductions charged to subcontractors. Rows can be entered manually or imported from Excel; each import is kept as an upload and can be undone.",
+      "yeni": "New Row",
+      "duzenle": "Edit Row",
+      "kaydedildi": "Row saved.",
+      "silindi": "Row deleted.",
+      "silOnayBaslik": "Delete row?",
+      "silOnayMesaj": "The \"{{ad}}\" row dated {{tarih}} will be deleted.",
+      "ara": "Search",
+      "baslangic": "From",
+      "bitis": "To",
+      "toplamlar": "Totals by currency",
+      "satirSayisi": "{{sayi}} rows",
+      "hesapAciklamasi": "Charged = Total − Cancelled, Remaining = Charged − Deducted.",
+      "alan": {
+        "kesinti_turu": "Deduction Type",
+        "taseron": "Subcontractor",
+        "proje": "Project",
+        "mahal": "Area",
+        "tarih": "Date",
+        "kaynak_firma": "Source Company",
+        "kaynak_fis_no": "Source Slip No",
+        "adi_soyadi": "Full Name",
+        "vasif": "Qualification",
+        "mesai_turu": "Shift Type",
+        "yansitma_turu": "Charged To",
+        "tanim": "Definition",
+        "gorev": "Task",
+        "departman": "Department",
+        "aktivite": "Activity",
+        "miktar_saat": "Quantity (Hours)",
+        "miktar_yevmiye": "Quantity (Days)",
+        "birim_fiyat": "Unit Price",
+        "para_birimi": "Currency",
+        "toplam_tutar": "Total Amount",
+        "iptal_edilen_tutar": "Cancelled Amount",
+        "yansitilan_tutar": "Charged Amount",
+        "kesilen_tutar": "Deducted Amount",
+        "kalan_tutar": "Remaining Amount"
+      },
+      "secenek": {
+        "vasif": {
+          "nitelikli": "QUALIFIED",
+          "niteliksiz": "UNQUALIFIED"
+        },
+        "mesai_turu": {
+          "normal": "REGULAR",
+          "fazla": "OVERTIME"
+        },
+        "yansitma_turu": {
+          "hab": "HAB",
+          "taseron": "SUBCONTRACTOR"
+        }
+      },
+      "bolum": {
+        "kesinti": "Deduction",
+        "personel": "Personnel",
+        "is": "Work",
+        "tutarlar": "Quantities and Amounts"
+      },
+      "dogrulama": {
+        "zorunlu": "This field is required.",
+        "cokUzun200": "Can be at most 200 characters.",
+        "cokUzun50": "Can be at most 50 characters."
+      },
+      "iceAktarim": {
+        "ac": "Import from Excel",
+        "baslik": "Import from Excel",
+        "aciklama": "Select the Excel file or copy rows from Excel and paste them (copying the header row is recommended). Columns are recognised by header names. Preview first; if even one row is invalid, nothing is saved.",
+        "kaynak": {
+          "dosya": "Excel File",
+          "metin": "Copy & Paste"
+        },
+        "dosyaSec": "Excel file (.xlsx)",
+        "yapistir": "Rows copied from Excel",
+        "yapistirIpucu": "Select the rows in Excel (with the header row), copy and paste here.",
+        "onizle": "Preview",
+        "kaydet": "Save ({{sayi}} rows)",
+        "kaydedildi": "{{sayi}} rows imported.",
+        "dosyaHatasi": {
+          "dosya_okunamadi": "The file could not be read. Select a valid Excel (.xlsx) file.",
+          "baslik_bulunamadi": "Header row not found. Column headers (Kesinti Türü, Taşeron Adı, Proje…) must be within the first 20 rows.",
+          "satir_yok": "There are no rows below the header row."
+        },
+        "eksikKolonlar": "Required columns not found: {{kolonlar}}",
+        "hataliDosya": "{{sayi}} rows have errors; nothing is saved until they are fixed. Errors grouped by cause:",
+        "hatasiz": "{{sayi}} rows are valid and ready to save.",
+        "alanBaslik": "Column",
+        "degerBaslik": "Value",
+        "nedenBaslik": "Cause",
+        "satirSayisiBaslik": "Rows",
+        "ornekSatirlarBaslik": "Sample Excel rows",
+        "excelSatiri": "Row",
+        "yalnizHatali": "Invalid rows only",
+        "hataKodu": {
+          "zorunlu": "Cannot be empty",
+          "bulunamadi": "No definition with this code",
+          "birden_fazla": "This code belongs to more than one company; make the codes distinct on the Companies screen",
+          "gecersiz_secenek": "Invalid option",
+          "gecersiz_tarih": "Invalid date",
+          "gecersiz_sayi": "Invalid number",
+          "cok_uzun": "Too long"
+        }
+      },
+      "yuklemeler": {
+        "baslik": "Uploads",
+        "aciklama": "Excel imports. A wrong upload can be undone together with its rows; manually entered rows are not affected.",
+        "zaman": "Time",
+        "yukleyen": "Uploaded by",
+        "kaynak": "Source",
+        "satirSayisi": "Rows",
+        "geriAl": "Undo",
+        "geriAlindi": "Upload undone; {{sayi}} rows deleted.",
+        "geriAlOnayBaslik": "Undo upload?",
+        "geriAlOnayMesaj": "The upload from {{zaman}} and its {{sayi}} rows will be deleted."
+      }
     },
     "erpAktarim": {
       "okunuyor": "Reading the live ERP…",

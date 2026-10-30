@@ -92,6 +92,30 @@ export const router = createBrowserRouter([
         ],
       },
       {
+        element: <IzinAlani izin="para_birimleri.goruntule" />,
+        children: [
+          {
+            path: 'kesinti/para-birimleri',
+            lazy: async () => ({
+              Component: (await import('@/pages/ParaBirimleri/ParaBirimleriPage'))
+                .ParaBirimleriPage,
+            }),
+          },
+        ],
+      },
+      {
+        element: <IzinAlani izin="isgucu_kesintileri.goruntule" />,
+        children: [
+          {
+            path: 'kesinti/isgucu',
+            lazy: async () => ({
+              Component: (await import('@/pages/IsgucuKesintileri/IsgucuKesintileriPage'))
+                .IsgucuKesintileriPage,
+            }),
+          },
+        ],
+      },
+      {
         element: <IzinAlani izin="ekran_tasarimi.goruntule" />,
         children: [
           {

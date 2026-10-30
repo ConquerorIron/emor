@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Kesinti\FirmaKaydetRequest;
 use App\Http\Resources\FirmaResource;
 use App\Models\Firma;
+use App\Support\KayitSilme;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -40,7 +41,7 @@ final class FirmaController extends Controller
 
     public function destroy(Firma $firma): Response
     {
-        $firma->delete();
+        KayitSilme::sil($firma);
 
         return response()->noContent();
     }

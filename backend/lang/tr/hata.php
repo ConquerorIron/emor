@@ -75,6 +75,9 @@ return [
     // Kesinti Yönetimi
     'kesinti_turu_kod_tekrar' => 'Bu kod başka bir kesinti türünde kullanılıyor.',
     'proje_kod_tekrar' => 'Bu kod başka bir projede kullanılıyor.',
+    'para_birimi_kod_tekrar' => 'Bu kod başka bir para biriminde kullanılıyor.',
+    'kayit_kullaniliyor' => 'Bu kayıt kesinti satırlarında kullanıldığı için silinemez.',
+    'ice_aktarim_hatali' => 'Dosyada hatalı satırlar var; hiçbir satır kaydedilmedi. Önizlemedeki hataları düzeltip tekrar yükleyin.',
 
     // ERP okuma (App\Services\ErpOkumaHatasi)
     'erp_canli_tanimsiz' => 'Canlı ERP bağlantısı tanımlanmamış. Ayarlar → SQL Bağlantıları ekranından Canlı ortamı tanımlayın.',

@@ -117,6 +117,18 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(6)->by($request->user()?->id ?? $request->ip());
         });
 
+        // Kesinti icmal formlarının seçim listeleri: icmal ekranını gören herkes okur
+        // (yeni icmal ekranı eklendikçe görüntüleme izni buraya eklenir)
+        Gate::define('kesinti-secenekleri', fn (User $user): bool => array_intersect(
+            [Izin::IsgucuKesintileriGoruntule->value],
+            $user->izinler(),
+        ) !== []);
+
+        // Kesinti icmali içe aktarımı: önizleme + kayıt, Excel okuma pahalı
+        RateLimiter::for('kesinti-ice-aktarim', function (Request $request): Limit {
+            return Limit::perMinute(20)->by($request->user()?->id ?? $request->ip());
+        });
+
         // Projeler / Firmalar → ERP'den Getir: önizleme + kayıt, ikisi de canlı ERP'yi okur
         RateLimiter::for('erp-aktarim', function (Request $request): Limit {
             return Limit::perMinute(10)->by($request->user()?->id ?? $request->ip());

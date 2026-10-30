@@ -33,6 +33,12 @@ enum Izin: string
     case FirmalarGoruntule = 'firmalar.goruntule';
     case FirmalarGuncelle = 'firmalar.guncelle';
 
+    case ParaBirimleriGoruntule = 'para_birimleri.goruntule';
+    case ParaBirimleriGuncelle = 'para_birimleri.guncelle';
+
+    case IsgucuKesintileriGoruntule = 'isgucu_kesintileri.goruntule';
+    case IsgucuKesintileriGuncelle = 'isgucu_kesintileri.guncelle';
+
     case SqlBaglantilariGoruntule = 'sql_baglantilari.goruntule';
     case SqlBaglantilariGuncelle = 'sql_baglantilari.guncelle';
 
@@ -80,9 +86,11 @@ enum Izin: string
         return [
             $ekran('satinalma_talebi', self::SatinalmaTalebiGoruntule, self::SatinalmaTalebiGuncelle),
             $ekran('efatura', self::EfaturaGoruntule, self::EfaturaSenkron, self::EfaturaPdf, self::EfaturaDisariAktar, self::EfaturaGizle),
+            $ekran('isgucu_kesintileri', self::IsgucuKesintileriGoruntule, self::IsgucuKesintileriGuncelle),
             $ekran('kesinti_turleri', self::KesintiTurleriGoruntule, self::KesintiTurleriGuncelle),
             $ekran('projeler', self::ProjelerGoruntule, self::ProjelerGuncelle),
             $ekran('firmalar', self::FirmalarGoruntule, self::FirmalarGuncelle),
+            $ekran('para_birimleri', self::ParaBirimleriGoruntule, self::ParaBirimleriGuncelle),
             $ekran('sql_baglantilari', self::SqlBaglantilariGoruntule, self::SqlBaglantilariGuncelle),
             $ekran('entegrator_baglantilari', self::EntegratorBaglantilariGoruntule, self::EntegratorBaglantilariGuncelle),
             $ekran('mail_ayarlari', self::MailAyarlariGoruntule, self::MailAyarlariGuncelle),
