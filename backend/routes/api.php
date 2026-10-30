@@ -351,6 +351,10 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/kesinti/firmalar', [FirmaController::class, 'index'])
             ->middleware('can:firmalar.goruntule')
             ->name('kesinti.firmalar');
+        // Excel'e Aktar: ekranda süzülüp sıralanmış firmaların kimlikleri gövdede (POST)
+        Route::post('/kesinti/firmalar/excel', [FirmaController::class, 'excel'])
+            ->middleware(['can:firmalar.goruntule', 'throttle:kesinti-excel'])
+            ->name('kesinti.firmalar.excel');
         Route::middleware('can:firmalar.guncelle')->group(function (): void {
             Route::post('/kesinti/firmalar', [FirmaController::class, 'store'])
                 ->name('kesinti.firmalar.store');

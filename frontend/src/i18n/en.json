@@ -778,7 +778,8 @@
       "kodTekrarAciklama": "This code is used by more than one company. Excel rows match companies by code, so make the codes distinct.",
       "firmamiz": "Our Company",
       "firmamizAciklama": "Marks our own company (e.g. HAB); created manually as it is not in the ERP subcontractor list. Only one company can be marked.",
-      "firmamizDegisecek": "Our company is currently \"{{kod}} — {{ad}}\". Marking this company will remove that mark."
+      "firmamizDegisecek": "Our company is currently \"{{kod}} — {{ad}}\". Marking this company will remove that mark.",
+      "excelAktar": "Export to Excel"
     },
     "paraBirimleri": {
       "baslik": "Currencies",

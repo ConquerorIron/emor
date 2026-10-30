@@ -778,7 +778,8 @@
       "kodTekrarAciklama": "Bu kod birden fazla firmada. Excel'deki firma adı koda göre eşleştiği için kodları ayırın.",
       "firmamiz": "Firmamız",
       "firmamizAciklama": "Kendi firmamızı (ör. HAB) belirtir; ERP'nin taşeron listesinde olmadığı için elle açılır. Yalnız tek firma işaretlenebilir.",
-      "firmamizDegisecek": "Şu an firmamız: \"{{kod}} — {{ad}}\". Bu firmayı işaretlerseniz onun işareti kalkar."
+      "firmamizDegisecek": "Şu an firmamız: \"{{kod}} — {{ad}}\". Bu firmayı işaretlerseniz onun işareti kalkar.",
+      "excelAktar": "Excel'e Aktar"
     },
     "paraBirimleri": {
       "baslik": "Para Birimleri",

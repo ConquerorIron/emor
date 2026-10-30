@@ -17,4 +17,23 @@ return [
             'tarih' => 'Tarih',
         ],
     ],
+
+    // Firmalar → Excel'e Aktar: ekrandaki kolon adlarıyla, sırasıyla
+    'firmalar_excel' => [
+        'baslik' => 'Firmalar',
+        'kolonlar' => [
+            'kod' => 'Firma Kodu',
+            'ad' => 'Firma Adı',
+            'vergi_kimlik_no' => 'Vergi Kimlik No',
+            'vergi_dairesi' => 'Vergi Dairesi',
+            'eposta' => 'E-posta',
+            'gsm_no' => 'GSM',
+            'kaynak' => 'Kaynak',
+            'firmamiz' => 'Firmamız',
+            'erp_guid' => 'ERP GUID',
+        ],
+        'erp' => 'ERP',
+        'elle' => 'Elle',
+        'evet' => 'Evet',
+    ],
 ];

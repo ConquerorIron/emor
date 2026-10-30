@@ -1,4 +1,5 @@
 import { api } from '@/api/client'
+import { blobHatasiniCoz, dosyayiIndir } from '@/api/indirme'
 
 import type { ErpAktarimSatiri, ErpAktarimSonucu } from './erpAktarim'
 
@@ -30,6 +31,19 @@ export interface FirmaGovdesi extends FirmaBilgileri {
 export interface ErpFirmaSatiri extends ErpAktarimSatiri, FirmaBilgileri {
   /** Eşleşen (GUID ya da VKN ile) firmanın uygulamadaki hâli */
   mevcut: FirmaBilgileri | null
+}
+
+/**
+ * Ekranda aranıp sıralanmış firmaların tamamı (sayfa değil), tüm kolonlarla,
+ * ekrandaki sırayla .xlsx olarak indirilir. Arama / sıralama tarayıcıda
+ * yapıldığı için sıra, gönderilen kimliklerin sırasıdır.
+ */
+export async function firmalariExceleAktar(idler: number[], dosyaAdi: string): Promise<void> {
+  const yanit = await api
+    .post<Blob>('/api/v1/kesinti/firmalar/excel', { idler }, { responseType: 'blob' })
+    .catch(blobHatasiniCoz)
+
+  dosyayiIndir(yanit.data, dosyaAdi)
 }
 
 export async function firmalariGetir(): Promise<Firma[]> {

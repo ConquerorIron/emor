@@ -22,6 +22,7 @@ import {
   erpFirmalariniAktar,
   erpFirmalariniGetir,
   firmaKaydet,
+  firmalariExceleAktar,
   firmalariGetir,
   firmaSil,
   type ErpFirmaSatiri,
@@ -289,6 +290,16 @@ export function FirmalarPage() {
     gsm: (firma) => firma.gsm_no,
     kaynak: (firma) => (firma.erp_guid === null ? 0 : 1),
   })
+  // Ekrandaki arama ve sıralamayla tüm firmalar (yalnız bu sayfa değil), tüm kolonlar
+  const excel = useMutation({
+    mutationFn: () =>
+      firmalariExceleAktar(
+        siraliFirmalar.map((firma) => firma.id),
+        `${t('kesinti.firmalar.baslik')}.xlsx`,
+      ),
+    onError: (error: unknown) => toast.error(t(apiErrorKey(error))),
+  })
+
   const toplamSayfa = Math.max(1, Math.ceil(suzulenler.length / SAYFA_BOYUTU))
   // Silme sonrası liste kısalınca boş sayfada kalınmaz
   const gecerliSayfa = Math.min(sayfa, toplamSayfa)
@@ -422,16 +433,26 @@ export function FirmalarPage() {
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-2xl font-bold">{t('kesinti.firmalar.baslik')}</h2>
-        {guncelleyebilir ? (
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => setErpAcik(true)}>
-              {t('kesinti.firmalar.erpdenGetir')}
-            </Button>
-            <Button variant="mor" onClick={() => setFormdaki('yeni')}>
-              {t('kesinti.firmalar.yeni')}
-            </Button>
-          </div>
-        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            disabled={!firmalar.isSuccess}
+            yukleniyor={excel.isPending}
+            onClick={() => excel.mutate()}
+          >
+            {t('kesinti.firmalar.excelAktar')}
+          </Button>
+          {guncelleyebilir ? (
+            <>
+              <Button variant="secondary" onClick={() => setErpAcik(true)}>
+                {t('kesinti.firmalar.erpdenGetir')}
+              </Button>
+              <Button variant="mor" onClick={() => setFormdaki('yeni')}>
+                {t('kesinti.firmalar.yeni')}
+              </Button>
+            </>
+          ) : null}
+        </div>
       </div>
       <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
         {t('kesinti.firmalar.aciklamaMetni')}

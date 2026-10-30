@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Kesinti\FirmaExcelRequest;
 use App\Http\Requests\Kesinti\FirmaKaydetRequest;
 use App\Http\Resources\FirmaResource;
 use App\Models\Firma;
+use App\Services\Kesinti\FirmaExcelAktarici;
 use App\Support\KayitSilme;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Kesinti Yönetimi → Firmalar (taşeronlar). `firmalar.goruntule` /
@@ -25,6 +28,17 @@ final class FirmaController extends Controller
     public function index(): AnonymousResourceCollection
     {
         return FirmaResource::collection(Firma::query()->orderBy('ad')->get());
+    }
+
+    /** Ekranda aranıp sıralanmış firmaların tamamı, tüm kolonlar, ekrandaki sırayla .xlsx */
+    public function excel(FirmaExcelRequest $request, FirmaExcelAktarici $aktarici): BinaryFileResponse
+    {
+        return response()
+            ->download($aktarici->olustur($request->idler()), 'firmalar.xlsx', [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Cache-Control' => 'private, no-store',
+            ])
+            ->deleteFileAfterSend();
     }
 
     public function store(FirmaKaydetRequest $request): JsonResponse

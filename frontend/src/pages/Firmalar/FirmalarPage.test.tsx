@@ -14,10 +14,12 @@ const api = vi.hoisted(() => ({
   sil: vi.fn(),
   erpOnizleme: vi.fn(),
   erpAktar: vi.fn(),
+  excel: vi.fn(),
 }))
 
 vi.mock('@/features/kesinti/firmaApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/features/kesinti/firmaApi')>()),
+  firmalariExceleAktar: api.excel,
   firmalariGetir: api.firmalar,
   firmaKaydet: api.kaydet,
   firmaSil: api.sil,
@@ -118,6 +120,24 @@ describe('FirmalarPage', { timeout: 15_000 }, () => {
     expect(await screen.findByText('1 firma')).toBeInTheDocument()
     expect(screen.getByText('AKTAŞ HAFRİYAT')).toBeInTheDocument()
     expect(screen.queryByText('Firma 59')).not.toBeInTheDocument()
+  })
+
+  it("Excel'e Aktar ekrandaki arama ve sıralamayla tüm firmaları (sayfa değil) gönderir", async () => {
+    api.excel.mockResolvedValue(undefined)
+    ciz(['firmalar.goruntule'])
+    await screen.findByText('AKTAŞ HAFRİYAT')
+
+    // Ad'a göre azalan; "firma 0" araması 10 firmaya düşer (Firma 00…09)
+    fireEvent.click(screen.getByRole('button', { name: 'Firma Adı' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Firma Adı' }))
+    fireEvent.change(screen.getByLabelText('Ara'), { target: { value: 'firma 0' } })
+    expect(await screen.findByText('10 firma')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: "Excel'e Aktar" }))
+
+    await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
+    // Firma 09 → id 11, …, Firma 00 → id 2
+    expect(api.excel).toHaveBeenCalledWith([11, 10, 9, 8, 7, 6, 5, 4, 3, 2], 'Firmalar.xlsx')
   })
 
   it('yeni firmayı kodu büyük harfe çevirip boş isteğe bağlı alanları null göndererek kaydeder', async () => {

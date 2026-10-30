@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Models\Firma;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -157,5 +158,36 @@ final class FirmaTest extends TestCase
         $this->deleteJson(self::ADRES."/{$firma->id}")->assertNoContent();
 
         $this->assertModelMissing($firma);
+    }
+
+    public function test_excele_aktarim_ekrandaki_firmalari_ekrandaki_sirayla_tum_kolonlarla_verir(): void
+    {
+        $hab = Firma::factory()->create(['kod' => 'HAB', 'ad' => 'HAB Otel', 'vergi_kimlik_no' => '0123456789', 'erp_guid' => null, 'firmamiz' => true]);
+        $mfk = Firma::factory()->create(['kod' => 'MFK', 'ad' => '=HYPERLINK("x")', 'gsm_no' => null]);
+        Firma::factory()->create(['kod' => 'EKRANDA YOK']);
+
+        $yanit = $this->post(self::ADRES.'/excel', ['idler' => [$mfk->id, $hab->id]], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $sayfa = IOFactory::load($yanit->baseResponse->getFile()->getPathname())->getActiveSheet();
+        $satirlar = $sayfa->toArray(null, false, false);
+
+        $this->assertSame(['Firma Kodu', 'Firma Adı', 'Vergi Kimlik No', 'Vergi Dairesi', 'E-posta', 'GSM', 'Kaynak', 'Firmamız', 'ERP GUID'], $satirlar[0]);
+        // Yalnız gönderilen firmalar, gönderilen (ekrandaki) sırayla
+        $this->assertSame(['MFK', 'HAB'], array_column(array_slice($satirlar, 1), 0));
+        // VKN baştaki sıfırıyla metin; formül gibi görünen ad formül olmaz
+        $this->assertSame(['HAB', 'HAB Otel', '0123456789'], array_slice($satirlar[2], 0, 3));
+        $this->assertSame(['Elle', 'Evet'], array_slice($satirlar[2], 6, 2));
+        $this->assertSame('s', $sayfa->getCell('B2')->getDataType());
+    }
+
+    public function test_firmalar_izni_olmayan_excele_aktaramaz(): void
+    {
+        $firma = Firma::factory()->create();
+
+        $this->actingAs(User::factory()->create())
+            ->postJson(self::ADRES.'/excel', ['idler' => [$firma->id]])
+            ->assertForbidden();
     }
 }
