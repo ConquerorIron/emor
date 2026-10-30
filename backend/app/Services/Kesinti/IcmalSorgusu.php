@@ -59,11 +59,12 @@ abstract class IcmalSorgusu
     protected const PIVOTLAR = [];
 
     /**
-     * Pivotlarda toplanan sayı kolonları (5 tutar her zaman eklenir).
+     * Tutarlara ek toplanan sayı kolonları (ör. İşgücü'nde miktar saat): liste
+     * toplamlarında (ozet) ve pivotlarda. 5 tutar her zaman toplanır.
      *
      * @var list<string>
      */
-    protected const PIVOT_TOPLAMLARI = [];
+    protected const EK_TOPLAMLAR = [];
 
     /** Pivotta tanım alanının tablosu ve yabancı anahtarı (kod ile gruplanır) */
     private const PIVOT_TANIMLARI = [
@@ -144,17 +145,18 @@ abstract class IcmalSorgusu
     }
 
     /**
-     * Filtredeki satırların para birimine göre toplamları.
+     * Filtredeki satırların para birimine göre toplamları (ekranda tablonun
+     * altında ve üstünde toplam satırları): ek toplamlar + 5 tutar.
      *
      * @param  Builder<Model>  $sorgu
-     * @return list<array{para_birimi: string, satir_sayisi: int, toplam_tutar: string, iptal_edilen_tutar: string, yansitilan_tutar: string, kesilen_tutar: string, kalan_tutar: string}>
+     * @return list<array<string, int|string>>
      */
     public function ozet(Builder $sorgu): array
     {
         $tablo = static::TABLO;
-        $toplamlar = implode(', ', array_map(fn (string $alan): string => "SUM({$tablo}.{$alan}) AS {$alan}", self::TUTARLAR));
+        $alanlar = [...static::EK_TOPLAMLAR, ...self::TUTARLAR];
+        $toplamlar = implode(', ', array_map(fn (string $alan): string => "SUM({$tablo}.{$alan}) AS {$alan}", $alanlar));
 
-        /** @var list<array{para_birimi: string, satir_sayisi: int, toplam_tutar: string, iptal_edilen_tutar: string, yansitilan_tutar: string, kesilen_tutar: string, kalan_tutar: string}> */
         return $sorgu->clone()
             ->join('para_birimleri', 'para_birimleri.id', '=', "{$tablo}.para_birimi_id")
             ->groupBy('para_birimleri.kod')
@@ -165,7 +167,7 @@ abstract class IcmalSorgusu
             ->map(fn (object $satir): array => [
                 'para_birimi' => (string) $satir->para_birimi,
                 'satir_sayisi' => (int) $satir->satir_sayisi,
-                ...array_combine(self::TUTARLAR, array_map(fn (string $alan): string => number_format((float) $satir->{$alan}, 2, '.', ''), self::TUTARLAR)),
+                ...array_combine($alanlar, array_map(fn (string $alan): string => number_format((float) $satir->{$alan}, 2, '.', ''), $alanlar)),
             ])
             ->values()
             ->all();
@@ -192,7 +194,7 @@ abstract class IcmalSorgusu
     {
         $tablo = static::TABLO;
         $gruplar = static::PIVOTLAR[$pivot];
-        $toplamlar = [...static::PIVOT_TOPLAMLARI, ...self::TUTARLAR];
+        $toplamlar = [...static::EK_TOPLAMLAR, ...self::TUTARLAR];
         $taban = $sorgu->clone()->toBase();
         $secimler = [];
         $gruplama = [];

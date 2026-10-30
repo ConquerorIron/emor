@@ -930,7 +930,8 @@
       "excelAktar": "Excel'e Aktar",
       "sekmeler": "Görünümler",
       "sekmeData": "Data",
-      "pivotSatirSayisi": "Satır Sayısı"
+      "pivotSatirSayisi": "Satır Sayısı",
+      "toplamSatiri": "Toplam"
     },
     "isgucu": {
       "baslik": "İşgücü Kesintileri",

@@ -75,6 +75,8 @@ export interface KesintiToplami {
   yansitilan_tutar: string
   kesilen_tutar: string
   kalan_tutar: string
+  /** İcmale özgü ek toplamlar (ör. İşgücü'nde miktar_saat) */
+  [alan: string]: string | number
 }
 
 export interface IcmalListesi<T extends IcmalSatiri> {

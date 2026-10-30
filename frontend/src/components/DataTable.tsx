@@ -32,6 +32,18 @@ interface DataTableProps<T> {
   ustKaydirma?: boolean
   /** Satıra özel arka plan (hover dahil); undefined dönerse varsayılan görünüm */
   satirSinifi?: (satir: T) => string | undefined
+  /**
+   * Başlığın hemen altında ve tablonun en altında tekrarlanan toplam satırları
+   * (ör. para birimine göre). Hücreler kolon anahtarıyla verilir; değeri
+   * olmayan kolon boş kalır, etiket ilk kolona yazılır.
+   */
+  toplamSatirlari?: ToplamSatiri[]
+}
+
+export interface ToplamSatiri {
+  anahtar: string
+  etiket: ReactNode
+  hucreler: Record<string, ReactNode>
 }
 
 const hizaSiniflari: Record<NonNullable<DataTableKolonu<unknown>['hizala']>, string> = {
@@ -95,6 +107,7 @@ export function DataTable<T>({
   secilebilir,
   ustKaydirma = false,
   satirSinifi,
+  toplamSatirlari = [],
 }: DataTableProps<T>) {
   const { t } = useTranslation()
   const kapRef = useRef<HTMLDivElement>(null)
@@ -141,6 +154,29 @@ export function DataTable<T>({
     secilebilenler.length > 0 &&
     secilebilenler.every((satir) => seciliAnahtarlar?.has(satirAnahtari(satir)))
   const kolonSayisi = kolonlar.length + (secimAcik ? 1 : 0)
+
+  // Toplamlar veri gelmeden ya da boş tabloda çizilmez
+  const toplamlariCiz = (konum: 'ust' | 'alt') =>
+    !yukleniyor && satirlar.length > 0
+      ? toplamSatirlari.map((toplam) => (
+          <tr
+            key={`${konum}-${toplam.anahtar}`}
+            className="bg-slate-100 font-semibold text-slate-800 dark:bg-slate-800 dark:text-slate-100"
+          >
+            {secimAcik ? (
+              <td className="border-r border-b border-slate-200 dark:border-slate-700" />
+            ) : null}
+            {kolonlar.map((kolon, sira) => (
+              <td
+                key={kolon.anahtar}
+                className={`border-r border-b border-slate-200 px-3 py-2 whitespace-nowrap last:border-r-0 dark:border-slate-700 ${hizaSiniflari[kolon.hizala ?? 'sol']}`}
+              >
+                {toplam.hucreler[kolon.anahtar] ?? (sira === 0 ? toplam.etiket : null)}
+              </td>
+            ))}
+          </tr>
+        ))
+      : null
 
   return (
     <>
@@ -204,6 +240,7 @@ export function DataTable<T>({
                 )
               })}
             </tr>
+            {toplamlariCiz('ust')}
           </thead>
           <tbody className="bg-white dark:bg-slate-900">
             {yukleniyor ? (
@@ -260,6 +297,7 @@ export function DataTable<T>({
                 )
               })}
           </tbody>
+          {toplamSatirlari.length > 0 ? <tfoot>{toplamlariCiz('alt')}</tfoot> : null}
         </table>
       </div>
     </>

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
-import { DataTable, type DataTableKolonu } from '@/components/DataTable'
+import { DataTable, type DataTableKolonu, type ToplamSatiri } from '@/components/DataTable'
 import { ErrorState } from '@/components/ErrorState'
 import { siralaUygula } from '@/components/SiralanabilirBaslik'
 import { useKaliciSiralama } from '@/hooks/useKaliciSiralama'
@@ -17,6 +17,10 @@ type Pivot = NonNullable<IcmalTanimi<IcmalSatiri>['pivotlar']>[number]
 /**
  * Özet (pivot) sekmesi: listeyle aynı filtredeki satırlar sekmenin alanlarına
  * göre gruplanır, sayılar toplanır (sunucuda). Kolonlara göre ekranda sıralanır.
+ *
+ * Sekme başına ayrı çizilmelidir (`key={pivot.anahtar}`): filtre değişirken
+ * önceki sonuç ekranda kalır, ama başka sekmenin satırları bu sekmenin
+ * kolonlarıyla gösterilmemeli ve sıralama tercihi sekmeden sekmeye taşınmamalı.
  */
 export function IcmalPivotTablosu<T extends IcmalSatiri>({
   tanim,
@@ -33,7 +37,9 @@ export function IcmalPivotTablosu<T extends IcmalSatiri>({
   const sonuc = useQuery({
     queryKey: queryKeys.kesinti.icmalPivotu(tanim.anahtar, pivot.anahtar, { ...filtre }),
     queryFn: () => tanim.api.pivot(pivot.anahtar, filtre),
-    placeholderData: keepPreviousData,
+    // Yalnız aynı sekmenin önceki sonucu (filtre değişirken) yer tutar
+    placeholderData: (onceki, oncekiSorgu) =>
+      oncekiSorgu?.queryKey[4] === pivot.anahtar ? keepPreviousData(onceki) : undefined,
   })
 
   if (sonuc.error) {
@@ -45,7 +51,7 @@ export function IcmalPivotTablosu<T extends IcmalSatiri>({
   const grupHucresi = (satir: PivotSatiri, alan: string) => {
     const deger = satir[alan]
 
-    if (deger === null || deger === '') {
+    if (deger === undefined || deger === null || deger === '') {
       return <span className="text-slate-400">—</span>
     }
 
@@ -114,7 +120,54 @@ export function IcmalPivotTablosu<T extends IcmalSatiri>({
         siralama={siralama}
         siralamaDegistir={siralamaDegistir}
         ustKaydirma
+        toplamSatirlari={pivotToplamlari(
+          sonuc.data ?? [],
+          pivot.toplamlar,
+          t('kesinti.icmal.toplamSatiri'),
+        )}
       />
     </div>
   )
+}
+
+/**
+ * Tablonun altında ve üstünde para birimine göre toplamlar: grupların
+ * toplamları kuruş üzerinden toplanır (float yuvarlaması olmasın).
+ */
+function pivotToplamlari(
+  satirlar: PivotSatiri[],
+  alanlar: string[],
+  etiket: string,
+): ToplamSatiri[] {
+  const paraBirimleri = new Map<string, { satir: number; kurus: Record<string, number> }>()
+
+  for (const satir of satirlar) {
+    const kod = String(satir.para_birimi ?? '')
+    const toplam = paraBirimleri.get(kod) ?? { satir: 0, kurus: {} }
+    toplam.satir += satir.satir_sayisi
+
+    for (const alan of alanlar) {
+      toplam.kurus[alan] = (toplam.kurus[alan] ?? 0) + Math.round(Number(satir[alan] ?? 0) * 100)
+    }
+    paraBirimleri.set(kod, toplam)
+  }
+
+  return [...paraBirimleri.entries()]
+    .sort(([a], [b]) => a.localeCompare(b, 'tr'))
+    .map(([kod, toplam]) => ({
+      anahtar: kod,
+      etiket,
+      hucreler: {
+        para_birimi: kod,
+        satir_sayisi: <span className="tabular-nums">{toplam.satir.toLocaleString('tr-TR')}</span>,
+        ...Object.fromEntries(
+          alanlar.map((alan) => [
+            alan,
+            <span key={alan} className="tabular-nums">
+              {tutarGoster((toplam.kurus[alan] ?? 0) / 100)}
+            </span>,
+          ]),
+        ),
+      },
+    }))
 }

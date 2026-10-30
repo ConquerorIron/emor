@@ -1,8 +1,12 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import '@/i18n/i18n'
-import type { IceAktarimOnizlemesi, KesintiSecenekleri } from '@/features/kesinti/icmalApi'
+import type {
+  IceAktarimOnizlemesi,
+  KesintiSecenekleri,
+  PivotSatiri,
+} from '@/features/kesinti/icmalApi'
 import type { IsgucuKesintisi } from '@/features/kesinti/isgucuApi'
 import { AppProviders } from '@/providers/AppProviders'
 import { SahteOturum } from '@/test/SahteOturum'
@@ -91,6 +95,8 @@ const LISTE = {
     {
       para_birimi: 'TL',
       satir_sayisi: 1,
+      // Sayfadaki değil filtredeki tüm satırların toplamı
+      miktar_saat: '8.00',
       toplam_tutar: '2562.15',
       iptal_edilen_tutar: '0.00',
       yansitilan_tutar: '2562.15',
@@ -151,6 +157,9 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
     expect(screen.getByText('27.03.2026')).toBeInTheDocument()
     expect(screen.getAllByText('2.562,15').length).toBeGreaterThan(0)
     expect(screen.getByLabelText('Para birimine göre toplamlar')).toHaveTextContent('562,15')
+    // Tablonun üstünde ve altında para birimine göre toplam satırı (miktar saat + tutarlar)
+    expect(screen.getAllByText('Toplam')).toHaveLength(2)
+    expect(screen.getAllByText('8,00')).toHaveLength(2)
     // Kolonlar Excel / kopyala-yapıştır sırasında; tarihin sağında türetilen Yıl ve Ay
     const basliklar = screen
       .getAllByRole('columnheader')
@@ -223,8 +232,9 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Tarih' }))
 
     expect(await screen.findByText('Mart')).toBeInTheDocument()
-    expect(screen.getByText('3,50')).toBeInTheDocument()
-    expect(screen.getByText('50,25')).toBeInTheDocument()
+    // Grup satırı + üstteki ve alttaki para birimi toplamı
+    expect(screen.getAllByText('3,50')).toHaveLength(3)
+    expect(screen.getAllByText('50,25')).toHaveLength(3)
     expect(api.pivot).toHaveBeenCalledWith('tarih', expect.objectContaining({ ara: '' }))
     // Satır listesi bu sekmede çizilmez
     expect(screen.queryByText('FIRAT AKYILDIZ')).not.toBeInTheDocument()
@@ -233,6 +243,53 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
       .map((baslik) => baslik.textContent.replace(/[▲▼↕]/g, ''))
     expect(basliklar.slice(0, 4)).toEqual(['Yıl', 'Ay', 'Proje', 'Para Birimi'])
     expect(basliklar).toContain('Miktar (Saat)')
+  })
+
+  it('sekme değişince önceki sekmenin satırları yeni sekmenin kolonlarıyla gösterilmez', async () => {
+    const tutarlar = {
+      miktar_saat: '0.00',
+      toplam_tutar: '1.00',
+      iptal_edilen_tutar: '0.00',
+      yansitilan_tutar: '1.00',
+      kesilen_tutar: '1.00',
+      kalan_tutar: '0.00',
+    }
+    const ortak = { proje: 'ZONE 10', para_birimi: 'TL', ...tutarlar }
+    let yansitmaGelsin: (satirlar: PivotSatiri[]) => void = () => undefined
+    api.pivot.mockImplementation((pivot: string) =>
+      pivot === 'taseron'
+        ? Promise.resolve([
+            { taseron: 'HAB', taseron_ad: 'HAB', satir_sayisi: 2207, ...ortak },
+            { taseron: 'TMC KABA', taseron_ad: 'TMC Yapı', satir_sayisi: 172, ...ortak },
+          ])
+        : new Promise<PivotSatiri[]>((coz) => {
+            yansitmaGelsin = coz
+          }),
+    )
+    ciz()
+    await screen.findByText('FIRAT AKYILDIZ')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Taşeron' }))
+    expect(await screen.findByText('TMC KABA')).toBeInTheDocument()
+
+    // Yeni sekmenin özeti gelene kadar önceki sekmenin satırları yer tutmaz
+    fireEvent.click(screen.getByRole('tab', { name: 'Yansıtma Türü' }))
+    expect(screen.queryByText('TMC KABA')).not.toBeInTheDocument()
+    expect(screen.queryByText(/undefined/)).not.toBeInTheDocument()
+
+    act(() =>
+      yansitmaGelsin([
+        { yansitma_turu: 'hab', satir_sayisi: 2244, ...ortak },
+        { yansitma_turu: 'taseron', satir_sayisi: 135, ...ortak },
+      ]),
+    )
+
+    expect(await screen.findByText('TAŞERON')).toBeInTheDocument()
+    expect(screen.queryByText(/undefined/)).not.toBeInTheDocument()
+    // Başlık + üst toplam + iki grup + alt toplam; önceki sekmeden kalan satır yok
+    expect(screen.getAllByRole('row')).toHaveLength(5)
+    // Toplam satırı iki grubun toplamı (2.244 + 135)
+    expect(screen.getAllByText('2.379')).toHaveLength(2)
   })
 
   it("Excel'e Aktar ekrandaki filtre ve sıralamayla tüm satırları indirir", async () => {

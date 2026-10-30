@@ -7,7 +7,7 @@ import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
 import { Button } from '@/components/Button'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { DataTable, type DataTableKolonu } from '@/components/DataTable'
+import { DataTable, type DataTableKolonu, type ToplamSatiri } from '@/components/DataTable'
 import { ErrorState } from '@/components/ErrorState'
 import { Input } from '@/components/Input'
 import { KolonSecici } from '@/components/KolonSecici'
@@ -191,6 +191,26 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
       </div>
     ),
   }
+  // Tablonun altında ve üstünde para birimine göre toplamlar (sayfanın değil,
+  // filtredeki tüm satırların): miktar / tutar kolonlarının hizasında
+  const listeToplamlari: ToplamSatiri[] = (liste.data?.ozet ?? []).map((toplam) => ({
+    anahtar: toplam.para_birimi,
+    etiket: t('kesinti.icmal.toplamSatiri'),
+    hucreler: {
+      para_birimi: toplam.para_birimi,
+      ...Object.fromEntries(
+        Object.entries(toplam)
+          .filter(([alan]) => alan !== 'para_birimi' && alan !== 'satir_sayisi')
+          .map(([alan, deger]) => [
+            alan,
+            <span key={alan} className="tabular-nums">
+              {tutarGoster(String(deger), basamak(tanim.alanlar[alan] ?? { tur: 'hesap' }))}
+            </span>,
+          ]),
+      ),
+    },
+  }))
+
   const gorunenKolonlar = tumKolonlar.filter((kolon) => kolonGorunurlugu.gorunurMu(kolon.anahtar))
   // Yalnız görüntüleme izninde düzenle/sil kolonu çizilmez
   const kolonlar = guncelleyebilir ? [...gorunenKolonlar, islemKolonu] : gorunenKolonlar
@@ -320,7 +340,13 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
           ) : null}
           {seciliPivot ? (
             <div className="mt-4">
-              <IcmalPivotTablosu tanim={tanim} pivot={seciliPivot} filtre={sorguFiltresi} />
+              {/* Sekme başına ayrı: önceki sekmenin satırları / sıralaması taşınmaz */}
+              <IcmalPivotTablosu
+                key={seciliPivot.anahtar}
+                tanim={tanim}
+                pivot={seciliPivot}
+                filtre={sorguFiltresi}
+              />
             </div>
           ) : (
             <>
@@ -342,6 +368,7 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
                   siralama={siralama}
                   siralamaDegistir={siralamaDegistir}
                   ustKaydirma
+                  toplamSatirlari={listeToplamlari}
                 />
               </div>
               <div className="mt-3">{sayfalama('alt')}</div>

@@ -203,9 +203,10 @@ final class IsgucuKesintisiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.*.adi_soyadi', ['Ali', 'Cem', 'Zeki'])
             ->assertJsonPath('meta.total', 3)
+            // Para birimine göre toplamlar: miktar (saat) + 5 tutar (tablonun altı / üstü)
             ->assertJsonPath('ozet', [
-                ['para_birimi' => 'TL', 'satir_sayisi' => 2, 'toplam_tutar' => '150.50', 'iptal_edilen_tutar' => '0.00', 'yansitilan_tutar' => '5124.30', 'kesilen_tutar' => '5124.30', 'kalan_tutar' => '10.00'],
-                ['para_birimi' => 'USD', 'satir_sayisi' => 1, 'toplam_tutar' => '7.00', 'iptal_edilen_tutar' => '0.00', 'yansitilan_tutar' => '2562.15', 'kesilen_tutar' => '2562.15', 'kalan_tutar' => '0.00'],
+                ['para_birimi' => 'TL', 'satir_sayisi' => 2, 'miktar_saat' => '16.00', 'toplam_tutar' => '150.50', 'iptal_edilen_tutar' => '0.00', 'yansitilan_tutar' => '5124.30', 'kesilen_tutar' => '5124.30', 'kalan_tutar' => '10.00'],
+                ['para_birimi' => 'USD', 'satir_sayisi' => 1, 'miktar_saat' => '8.00', 'toplam_tutar' => '7.00', 'iptal_edilen_tutar' => '0.00', 'yansitilan_tutar' => '2562.15', 'kesilen_tutar' => '2562.15', 'kalan_tutar' => '0.00'],
             ]);
 
         // İlişkili tanım koduna göre sıralama

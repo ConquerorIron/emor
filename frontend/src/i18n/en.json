@@ -930,7 +930,8 @@
       "excelAktar": "Export to Excel",
       "sekmeler": "Views",
       "sekmeData": "Data",
-      "pivotSatirSayisi": "Rows"
+      "pivotSatirSayisi": "Rows",
+      "toplamSatiri": "Total"
     },
     "isgucu": {
       "baslik": "Labour Deductions",
