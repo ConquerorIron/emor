@@ -104,20 +104,16 @@ final class FirmaTest extends TestCase
         $this->assertDatabaseCount('firmalar', 0);
     }
 
-    public function test_kod_ve_vkn_baska_firmada_kullanilamaz_ama_firma_kendi_degerleriyle_guncellenir(): void
+    public function test_ayni_kod_ve_vkn_birden_fazla_firmada_olabilir(): void
     {
-        $firma = Firma::factory()->create(['kod' => 'MFK', 'vergi_kimlik_no' => '1111111111']);
+        // ERP'de aynı firmanın birden fazla kartı aynı kodu ve VKN'yi taşır
+        Firma::factory()->create(['kod' => 'MFK', 'vergi_kimlik_no' => '6201046150']);
 
-        $this->postJson(self::ADRES, ['kod' => 'mfk', 'ad' => 'Başka', 'vergi_kimlik_no' => '1111111111'])
-            ->assertUnprocessable()
-            ->assertJsonPath('hatalar.kod.0', 'Bu kod başka bir firmada kullanılıyor.')
-            ->assertJsonPath('hatalar.vergi_kimlik_no.0', 'Bu vergi kimlik numarası başka bir firmada kayıtlı.');
+        $this->postJson(self::ADRES, ['kod' => 'mfk', 'ad' => 'MFK Personel Destek', 'vergi_kimlik_no' => '6201046150'])
+            ->assertCreated()
+            ->assertJsonPath('data.kod', 'MFK');
 
-        $this->putJson(self::ADRES."/{$firma->id}", ['kod' => 'MFK', 'ad' => 'MFK Yapı', 'vergi_kimlik_no' => '1111111111'])
-            ->assertOk()
-            ->assertJsonPath('data.ad', 'MFK Yapı');
-
-        $this->assertDatabaseCount('firmalar', 1);
+        $this->assertDatabaseCount('firmalar', 2);
     }
 
     public function test_guncelleme_erp_bagini_korur(): void

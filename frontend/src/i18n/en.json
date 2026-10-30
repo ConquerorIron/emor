@@ -756,7 +756,9 @@
         "vergiDairesiCokUzun": "Tax office can be at most 100 characters.",
         "epostaCokUzun": "E-mail can be at most 255 characters.",
         "gsmCokUzun": "Mobile number can be at most 30 characters."
-      }
+      },
+      "kodTekrar": "Duplicate code",
+      "kodTekrarAciklama": "This code is used by more than one company. Excel rows match companies by code, so make the codes distinct."
     },
     "erpAktarim": {
       "okunuyor": "Reading the live ERP…",
@@ -787,9 +789,7 @@
         "gsm_no_uzun": "Mobile number exceeds 30 characters.",
         "guid_tekrar": "The same GUID appears in more than one ERP row.",
         "kod_tekrar": "The same code is used by more than one ERP record.",
-        "vkn_tekrar": "The same tax number is used by more than one ERP company.",
-        "kod_baska_kayitta": "This code is used by another record in the application.",
-        "vkn_baska_firmada": "This tax number belongs to another company in the application."
+        "kod_baska_kayitta": "This code is used by another record in the application."
       }
     }
   }

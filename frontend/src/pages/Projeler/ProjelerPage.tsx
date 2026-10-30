@@ -25,7 +25,9 @@ import {
   type ErpProjeSatiri,
   type Proje,
 } from '@/features/kesinti/projeApi'
+import { siralaUygula } from '@/components/SiralanabilirBaslik'
 import { useIzin } from '@/hooks/useIzin'
+import { useKaliciSiralama } from '@/hooks/useKaliciSiralama'
 import { buyukHarfKaydi } from '@/utils/metin'
 
 /** Backend sınırlarıyla aynı (ProjeKaydetRequest) */
@@ -128,6 +130,11 @@ export function ProjelerPage() {
   const [erpAcik, setErpAcik] = useState(false)
 
   const projeler = useQuery({ queryKey: queryKeys.kesinti.projeler, queryFn: projeleriGetir })
+  // Kolon başlığına tıklayınca sıralanır; tercih tarayıcıda hatırlanır
+  const { siralama, siralamaDegistir } = useKaliciSiralama('projeler')
+  const siraliProjeler = siralaUygula(projeler.data ?? [], siralama, {
+    kaynak: (proje) => (proje.erp_guid === null ? 0 : 1),
+  })
 
   const sil = useMutation({
     mutationFn: (proje: Proje) => projeSil(proje.id),
@@ -143,12 +150,19 @@ export function ProjelerPage() {
     {
       anahtar: 'kod',
       baslik: t('kesinti.projeler.kod'),
+      siralamaAnahtari: 'kod',
       render: (proje) => <strong>{proje.kod}</strong>,
     },
-    { anahtar: 'ad', baslik: t('kesinti.projeler.ad'), render: (proje) => proje.ad },
+    {
+      anahtar: 'ad',
+      baslik: t('kesinti.projeler.ad'),
+      siralamaAnahtari: 'ad',
+      render: (proje) => proje.ad,
+    },
     {
       anahtar: 'kaynak',
       baslik: t('kesinti.projeler.kaynak'),
+      siralamaAnahtari: 'kaynak',
       render: (proje) =>
         proje.erp_guid === null ? (
           <span className="text-slate-500 dark:text-slate-400">
@@ -228,9 +242,11 @@ export function ProjelerPage() {
         ) : (
           <DataTable
             kolonlar={kolonlar}
-            satirlar={projeler.data ?? []}
+            satirlar={siraliProjeler}
             satirAnahtari={(proje) => proje.id}
             yukleniyor={projeler.isPending}
+            siralama={siralama}
+            siralamaDegistir={siralamaDegistir}
           />
         )}
       </div>

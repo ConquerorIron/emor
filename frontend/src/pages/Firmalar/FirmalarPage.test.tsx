@@ -77,7 +77,9 @@ function ciz(izinler = ['firmalar.goruntule', 'firmalar.guncelle']) {
   )
 }
 
-describe('FirmalarPage', () => {
+// 50 satırlık tablo + soğuk açılış: tüm takım yük altındayken ilk test 5 sn
+// varsayılan sınırını aşıyordu
+describe('FirmalarPage', { timeout: 15_000 }, () => {
   beforeEach(() => {
     api.firmalar.mockResolvedValue(FIRMALAR)
   })
@@ -85,6 +87,20 @@ describe('FirmalarPage', () => {
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()
+    // Sıralama tercihi tarayıcıda saklanır; testler birbirini etkilemesin
+    localStorage.clear()
+  })
+
+  it('kolon başlığına göre sıralama sayfalamadan önce tüm listeye uygulanır', async () => {
+    ciz()
+    await screen.findByText('AKTAŞ HAFRİYAT')
+
+    // Ad'a göre azalan: 2. sayfadaki son firma ilk sayfanın başına gelir
+    fireEvent.click(screen.getByRole('button', { name: 'Firma Adı' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Firma Adı' }))
+
+    expect(await screen.findByText('Firma 59')).toBeInTheDocument()
+    expect(screen.queryByText('AKTAŞ HAFRİYAT')).not.toBeInTheDocument()
   })
 
   it('firmaları 50şerli sayfalar ve Türkçe büyük/küçük harf duyarsız arar', async () => {

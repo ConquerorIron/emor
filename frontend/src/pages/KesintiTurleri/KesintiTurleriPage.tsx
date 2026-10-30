@@ -23,7 +23,9 @@ import {
   kesintiTurleriniGetir,
   type KesintiTuru,
 } from '@/features/kesinti/kesintiTuruApi'
+import { siralaUygula } from '@/components/SiralanabilirBaslik'
 import { useIzin } from '@/hooks/useIzin'
+import { useKaliciSiralama } from '@/hooks/useKaliciSiralama'
 import { buyukHarfKaydi } from '@/utils/metin'
 
 /** Backend sınırlarıyla aynı (KesintiTuruKaydetRequest) */
@@ -179,6 +181,11 @@ export function KesintiTurleriPage() {
   const [silinecek, setSilinecek] = useState<KesintiTuru | null>(null)
 
   const turler = useQuery({ queryKey: queryKeys.kesinti.turler, queryFn: kesintiTurleriniGetir })
+  // Kolon başlığına tıklayınca sıralanır; tercih tarayıcıda hatırlanır
+  const { siralama, siralamaDegistir } = useKaliciSiralama('kesintiTurleri')
+  const siraliTurler = siralaUygula(turler.data ?? [], siralama, {
+    kdv_orani: (tur) => Number(tur.kdv_orani),
+  })
 
   const sil = useMutation({
     mutationFn: (tur: KesintiTuru) => kesintiTuruSil(tur.id),
@@ -194,18 +201,26 @@ export function KesintiTurleriPage() {
     {
       anahtar: 'kod',
       baslik: t('kesinti.turler.kod'),
+      siralamaAnahtari: 'kod',
       render: (tur) => <strong>{tur.kod}</strong>,
     },
-    { anahtar: 'ad', baslik: t('kesinti.turler.ad'), render: (tur) => tur.ad },
+    {
+      anahtar: 'ad',
+      baslik: t('kesinti.turler.ad'),
+      siralamaAnahtari: 'ad',
+      render: (tur) => tur.ad,
+    },
     {
       anahtar: 'kdv_orani',
       baslik: t('kesinti.turler.kdvOrani'),
+      siralamaAnahtari: 'kdv_orani',
       hizala: 'sag',
       render: (tur) => <span className="tabular-nums">{kdvGoster(tur.kdv_orani)}</span>,
     },
     {
       anahtar: 'aciklama',
       baslik: t('kesinti.turler.aciklama'),
+      siralamaAnahtari: 'aciklama',
       render: (tur) =>
         tur.aciklama === null ? (
           <span className="text-slate-400">—</span>
@@ -259,9 +274,11 @@ export function KesintiTurleriPage() {
         ) : (
           <DataTable
             kolonlar={kolonlar}
-            satirlar={turler.data ?? []}
+            satirlar={siraliTurler}
             satirAnahtari={(tur) => tur.id}
             yukleniyor={turler.isPending}
+            siralama={siralama}
+            siralamaDegistir={siralamaDegistir}
           />
         )}
       </div>

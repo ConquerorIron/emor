@@ -13,9 +13,9 @@ use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
- * Firmalar → ERP'den Getir: GUID ya da VKN ile eşleşme, önizleme durumları
- * ve seçilenlerin aktarımı. Ortak akış (seçim, ERP hataları, canlı tanımı)
- * ErpProjeAktarimTest'te sınanır.
+ * Firmalar → ERP'den Getir: kimlik GUID, VKN ile eşleşme yalnız tek adayla,
+ * kod uygulamaya ait (ERP aktarımı ezmez). Ortak akış (seçim, ERP hataları,
+ * canlı tanımı) ErpProjeAktarimTest'te sınanır.
  */
 final class ErpFirmaAktarimTest extends TestCase
 {
@@ -29,11 +29,13 @@ final class ErpFirmaAktarimTest extends TestCase
 
     private const G_VKN_ILE = '33333333-3333-4333-8333-333333333333';
 
-    private const G_VKN_BASKA_ERPDE = '44444444-4444-4444-8444-444444444444';
+    private const G_BASKA_KART = '44444444-4444-4444-8444-444444444444';
 
-    private const G_KOD_CAKISAN = '55555555-5555-4555-8555-555555555555';
+    private const G_YENI = '55555555-5555-4555-8555-555555555555';
 
-    private const G_YENI = '66666666-6666-4666-8666-666666666666';
+    private const G_IKIZ_1 = '66666666-6666-4666-8666-666666666666';
+
+    private const G_IKIZ_2 = '77777777-7777-4777-8777-777777777777';
 
     protected function setUp(): void
     {
@@ -73,71 +75,72 @@ final class ErpFirmaAktarimTest extends TestCase
 
     private function karisikDurum(): void
     {
-        Firma::factory()->create(['kod' => 'A1', 'ad' => 'A Aynı', 'vergi_kimlik_no' => '1000000001', 'erp_guid' => self::G_AYNI]);
-        Firma::factory()->create(['kod' => 'B1', 'ad' => 'B Değişen', 'vergi_kimlik_no' => '1000000002', 'erp_guid' => self::G_DEGISEN]);
-        // Elle açılmış, kodu ERP'dekinden farklı: VKN ile bağlanır
+        // Kodu uygulamada Excel'e göre değiştirilmiş; başka bilgisi ERP ile aynı
+        Firma::factory()->create(['kod' => 'A-KISA', 'ad' => 'A Aynı', 'vergi_kimlik_no' => '1000000001', 'erp_guid' => self::G_AYNI]);
+        Firma::factory()->create(['kod' => 'B-KISA', 'ad' => 'B Değişen', 'vergi_kimlik_no' => '1000000002', 'erp_guid' => self::G_DEGISEN]);
+        // Elle açılmış, tek aday: VKN ile bağlanır
         Firma::factory()->create(['kod' => 'ELLE-C', 'ad' => 'C Elle', 'vergi_kimlik_no' => '1000000003', 'erp_guid' => null]);
-        // Aynı VKN başka bir ERP firmasına bağlı
-        Firma::factory()->create(['kod' => 'D1', 'ad' => 'D Başka', 'vergi_kimlik_no' => '1000000004', 'erp_guid' => '99999999-9999-4999-8999-999999999999']);
-        Firma::factory()->create(['kod' => 'E1', 'ad' => 'E Kodu Dolu', 'vergi_kimlik_no' => '1000000005', 'erp_guid' => null]);
+        // Aynı VKN'li başka bir ERP kartı zaten var: yeni kart ayrı firma olarak gelir
+        Firma::factory()->create(['kod' => 'D1', 'ad' => 'D Ana Kart', 'vergi_kimlik_no' => '1000000004', 'erp_guid' => '99999999-9999-4999-8999-999999999999']);
+        // ERP'de VKN iki kartta: tek aday olmadığından elle açılan bağlanmaz
+        Firma::factory()->create(['kod' => 'ELLE-G', 'ad' => 'G Elle', 'vergi_kimlik_no' => '3000000000', 'erp_guid' => null]);
 
         $this->erpFirmalari([
             self::erpFirmasi('A1', 'A Aynı', self::G_AYNI, '1000000001'),
             self::erpFirmasi('B1', 'B Değişen', self::G_DEGISEN, '1000000002', ['eposta' => 'yeni@b.test']),
             // VKN'de bölünmez boşluk: temizlenip eşleşir
             self::erpFirmasi('C1', 'C ERP', self::G_VKN_ILE, "1000000003\u{00A0}", ['vergi_dairesi' => 'Kadıköy']),
-            self::erpFirmasi('D2', 'D ERP', self::G_VKN_BASKA_ERPDE, '1000000004'),
-            self::erpFirmasi('E1', 'E ERP', self::G_KOD_CAKISAN, '2000000005'),
+            self::erpFirmasi('D1', 'D Makine Kartı', self::G_BASKA_KART, '1000000004'),
             self::erpFirmasi('F1', 'F Yeni', self::G_YENI, 'GBN155HD11', ['gsm_no' => '0532']),
-            self::erpFirmasi('G1', 'G Tekrar 1', '77777777-7777-4777-8777-777777777777', '3000000000'),
-            self::erpFirmasi('G2', 'G Tekrar 2', '88888888-8888-4888-8888-888888888888', '3000000000'),
+            self::erpFirmasi('G1', 'G İkiz 1', self::G_IKIZ_1, '3000000000'),
+            self::erpFirmasi('G1', 'G İkiz 2', self::G_IKIZ_2, '3000000000'),
             self::erpFirmasi('H1', str_repeat('H', 201), 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', null),
         ]);
     }
 
-    public function test_onizleme_guid_ya_da_vkn_ile_eslesmeyi_ve_cakismalari_gosterir(): void
+    public function test_onizleme_guid_ve_tek_adayli_vkn_ile_eslesir_tekrarlayan_kod_ve_vkn_engel_olmaz(): void
     {
         $this->karisikDurum();
 
-        /** @var list<array{kod: string, durum: string, neden: string|null, mevcut: array<string, string|null>|null, vergi_kimlik_no: string|null}> $satirlar */
-        $satirlar = $this->getJson(self::ADRES)->assertOk()->assertJsonCount(9, 'data')->json('data');
+        /** @var list<array{ad: string, durum: string, neden: string|null, mevcut: array<string, string|null>|null}> $satirlar */
+        $satirlar = $this->getJson(self::ADRES)->assertOk()->assertJsonCount(8, 'data')->json('data');
         $durumlar = [];
         foreach ($satirlar as $satir) {
-            $durumlar[$satir['kod']] = $satir['durum'].':'.($satir['neden'] ?? '-');
+            $durumlar[mb_substr($satir['ad'], 0, 14)] = $satir['durum'].':'.($satir['neden'] ?? '-');
         }
 
         $this->assertSame([
-            'A1' => 'ayni:-',
-            'B1' => 'guncellenecek:-',
-            'C1' => 'eslesecek:-',
-            'D2' => 'cakisma:vkn_baska_firmada',
-            'E1' => 'cakisma:kod_baska_kayitta',
-            'F1' => 'yeni:-',
-            'G1' => 'gecersiz:vkn_tekrar',
-            'G2' => 'gecersiz:vkn_tekrar',
-            'H1' => 'gecersiz:ad_uzun',
+            'A Aynı' => 'ayni:-',
+            'B Değişen' => 'guncellenecek:-',
+            'C ERP' => 'eslesecek:-',
+            'D Makine Kartı' => 'yeni:-',
+            'F Yeni' => 'yeni:-',
+            'G İkiz 1' => 'yeni:-',
+            'G İkiz 2' => 'yeni:-',
+            str_repeat('H', 14) => 'gecersiz:ad_uzun',
         ], $durumlar);
 
-        $eslesen = array_values(array_filter($satirlar, fn (array $satir): bool => $satir['kod'] === 'C1'))[0];
-        $this->assertSame('1000000003', $eslesen['vergi_kimlik_no']);
+        $eslesen = $satirlar[2];
         $this->assertSame('ELLE-C', $eslesen['mevcut']['kod'] ?? null);
     }
 
-    public function test_aktarim_secilenleri_erpdeki_bilgilerle_kaydeder_ve_vkn_ile_eslesen_firmayi_baglar(): void
+    public function test_aktarim_erp_bilgilerini_yazar_ama_uygulamadaki_kodu_ezmez(): void
     {
         $this->karisikDurum();
 
-        $this->postJson(self::ADRES, ['guidler' => [self::G_DEGISEN, self::G_VKN_ILE, self::G_YENI, self::G_KOD_CAKISAN]])
+        $this->postJson(self::ADRES, ['guidler' => [self::G_DEGISEN, self::G_VKN_ILE, self::G_YENI, self::G_BASKA_KART, self::G_IKIZ_1, self::G_IKIZ_2]])
             ->assertOk()
-            ->assertJsonPath('data', ['eklenen' => 1, 'guncellenen' => 1, 'eslesen' => 1, 'atlanan' => 1]);
+            ->assertJsonPath('data', ['eklenen' => 4, 'guncellenen' => 1, 'eslesen' => 1, 'atlanan' => 0]);
 
-        $this->assertDatabaseHas('firmalar', ['kod' => 'B1', 'eposta' => 'yeni@b.test', 'erp_guid' => self::G_DEGISEN]);
-        // Elle açılan firma ERP'ye bağlanır, kodu ve bilgileri ERP'deki olur
-        $this->assertDatabaseHas('firmalar', ['kod' => 'C1', 'ad' => 'C ERP', 'vergi_kimlik_no' => '1000000003', 'vergi_dairesi' => 'Kadıköy', 'erp_guid' => self::G_VKN_ILE]);
-        $this->assertDatabaseMissing('firmalar', ['kod' => 'ELLE-C']);
-        $this->assertDatabaseHas('firmalar', ['kod' => 'F1', 'vergi_kimlik_no' => 'GBN155HD11', 'gsm_no' => '0532', 'erp_guid' => self::G_YENI]);
-        $this->assertDatabaseHas('firmalar', ['kod' => 'E1', 'ad' => 'E Kodu Dolu', 'erp_guid' => null]);
-        $this->assertDatabaseCount('firmalar', 6);
+        // Güncellenen ve eşleşen firmanın kodu uygulamadaki gibi kalır
+        $this->assertDatabaseHas('firmalar', ['kod' => 'B-KISA', 'eposta' => 'yeni@b.test', 'erp_guid' => self::G_DEGISEN]);
+        $this->assertDatabaseHas('firmalar', ['kod' => 'ELLE-C', 'ad' => 'C ERP', 'vergi_kimlik_no' => '1000000003', 'vergi_dairesi' => 'Kadıköy', 'erp_guid' => self::G_VKN_ILE]);
+        // Yeni gelen firma ERP koduyla açılır; aynı kod ve VKN başka kartta da olabilir
+        $this->assertDatabaseHas('firmalar', ['kod' => 'D1', 'ad' => 'D Makine Kartı', 'erp_guid' => self::G_BASKA_KART]);
+        $this->assertDatabaseHas('firmalar', ['kod' => 'F1', 'vergi_kimlik_no' => 'GBN155HD11', 'erp_guid' => self::G_YENI]);
+        $this->assertSame(2, Firma::query()->where('kod', 'G1')->where('vergi_kimlik_no', '3000000000')->count());
+        $this->assertDatabaseHas('firmalar', ['kod' => 'ELLE-G', 'erp_guid' => null]);
+        $this->assertDatabaseCount('firmalar', 9);
     }
 
     public function test_yalniz_goruntuleme_izniyle_erp_aktarimi_yapilamaz(): void

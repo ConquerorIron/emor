@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Kesinti;
 
-use App\Models\Firma;
 use App\Support\Metin;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 /**
  * Firmayı elle oluşturma ve güncelleme. ERP bağı (erp_guid) yalnız ERP
@@ -40,31 +38,20 @@ final class FirmaKaydetRequest extends FormRequest
     }
 
     /**
+     * Kod ve VKN tekrar edebilir (ERP'de aynı firmanın birden fazla kartı);
+     * Excel eşleşmesinde kodun tek firmaya düşmesi aktarımda denetlenir.
+     *
      * @return array<string, list<mixed>>
      */
     public function rules(): array
     {
-        $firma = $this->route('firma');
-        $haric = $firma instanceof Firma ? $firma->id : null;
-
         return [
-            'kod' => ['required', 'string', 'max:50', Rule::unique('firmalar', 'kod')->ignore($haric)],
+            'kod' => ['required', 'string', 'max:50'],
             'ad' => ['required', 'string', 'max:200'],
-            'vergi_kimlik_no' => ['nullable', 'string', 'max:20', Rule::unique('firmalar', 'vergi_kimlik_no')->ignore($haric)],
+            'vergi_kimlik_no' => ['nullable', 'string', 'max:20'],
             'vergi_dairesi' => ['nullable', 'string', 'max:100'],
             'eposta' => ['nullable', 'string', 'max:255'],
             'gsm_no' => ['nullable', 'string', 'max:30'],
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public function messages(): array
-    {
-        return [
-            'kod.unique' => __('hata.firma_kod_tekrar'),
-            'vergi_kimlik_no.unique' => __('hata.firma_vkn_tekrar'),
         ];
     }
 }

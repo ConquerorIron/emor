@@ -26,7 +26,9 @@ import {
   type ErpFirmaSatiri,
   type Firma,
 } from '@/features/kesinti/firmaApi'
+import { siralaUygula } from '@/components/SiralanabilirBaslik'
 import { useIzin } from '@/hooks/useIzin'
+import { useKaliciSiralama } from '@/hooks/useKaliciSiralama'
 import { buyukHarfKaydi, trBuyukHarf } from '@/utils/metin'
 
 /** Canlıda ~1.700 taşeron var: liste istemcide süzülür ve sayfalanır */
@@ -210,18 +212,40 @@ export function FirmalarPage() {
     onSettled: () => setSilinecek(null),
   })
 
+  // Kolon başlığına tıklayınca sıralanır (tercih hatırlanır); yeni sıra 1. sayfadan başlar
+  const { siralama, siralamaDegistir: kaliciSiralamaDegistir } = useKaliciSiralama('firmalar')
+  const siralamaDegistir = (anahtar: string) => {
+    kaliciSiralamaDegistir(anahtar)
+    setSayfa(1)
+  }
+
   const aranan = trBuyukHarf(ara.trim())
   const tumFirmalar = firmalar.data ?? []
+  // Excel'deki firma adı koda göre eşleşir: birden fazla firmada geçen kod uyarılır
+  const kodSayilari = new Map<string, number>()
+  for (const firma of tumFirmalar) {
+    const kod = trBuyukHarf(firma.kod)
+    kodSayilari.set(kod, (kodSayilari.get(kod) ?? 0) + 1)
+  }
+  const tekrarlananKodlar = new Set(
+    [...kodSayilari].filter(([, sayi]) => sayi > 1).map(([kod]) => kod),
+  )
   const suzulenler =
     aranan === ''
       ? tumFirmalar
       : tumFirmalar.filter((firma) =>
           trBuyukHarf(`${firma.kod} ${firma.ad} ${firma.vergi_kimlik_no ?? ''}`).includes(aranan),
         )
+  // Sıralama sayfalamadan önce, süzülmüş listenin tamamına uygulanır
+  const siraliFirmalar = siralaUygula(suzulenler, siralama, {
+    vkn: (firma) => firma.vergi_kimlik_no,
+    gsm: (firma) => firma.gsm_no,
+    kaynak: (firma) => (firma.erp_guid === null ? 0 : 1),
+  })
   const toplamSayfa = Math.max(1, Math.ceil(suzulenler.length / SAYFA_BOYUTU))
   // Silme sonrası liste kısalınca boş sayfada kalınmaz
   const gecerliSayfa = Math.min(sayfa, toplamSayfa)
-  const sayfadakiler = suzulenler.slice(
+  const sayfadakiler = siraliFirmalar.slice(
     (gecerliSayfa - 1) * SAYFA_BOYUTU,
     gecerliSayfa * SAYFA_BOYUTU,
   )
@@ -232,32 +256,55 @@ export function FirmalarPage() {
   const tumKolonlar: DataTableKolonu<Firma>[] = [
     {
       anahtar: 'kod',
+      siralamaAnahtari: 'kod',
       baslik: t('kesinti.firmalar.kod'),
-      render: (firma) => <strong>{firma.kod}</strong>,
+      render: (firma) => (
+        <span className="inline-flex items-center gap-2">
+          <strong>{firma.kod}</strong>
+          {tekrarlananKodlar.has(trBuyukHarf(firma.kod)) ? (
+            <span
+              className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+              title={t('kesinti.firmalar.kodTekrarAciklama')}
+            >
+              {t('kesinti.firmalar.kodTekrar')}
+            </span>
+          ) : null}
+        </span>
+      ),
     },
-    { anahtar: 'ad', baslik: t('kesinti.firmalar.ad'), render: (firma) => firma.ad },
+    {
+      anahtar: 'ad',
+      baslik: t('kesinti.firmalar.ad'),
+      siralamaAnahtari: 'ad',
+      render: (firma) => firma.ad,
+    },
     {
       anahtar: 'vkn',
+      siralamaAnahtari: 'vkn',
       baslik: t('kesinti.firmalar.vkn'),
       render: (firma) => bosIseTire(firma.vergi_kimlik_no),
     },
     {
       anahtar: 'vergi_dairesi',
+      siralamaAnahtari: 'vergi_dairesi',
       baslik: t('kesinti.firmalar.vergiDairesi'),
       render: (firma) => bosIseTire(firma.vergi_dairesi),
     },
     {
       anahtar: 'eposta',
+      siralamaAnahtari: 'eposta',
       baslik: t('kesinti.firmalar.eposta'),
       render: (firma) => bosIseTire(firma.eposta),
     },
     {
       anahtar: 'gsm',
+      siralamaAnahtari: 'gsm',
       baslik: t('kesinti.firmalar.gsm'),
       render: (firma) => bosIseTire(firma.gsm_no),
     },
     {
       anahtar: 'kaynak',
+      siralamaAnahtari: 'kaynak',
       baslik: t('kesinti.firmalar.kaynak'),
       render: (firma) =>
         firma.erp_guid === null ? (
@@ -296,9 +343,8 @@ export function FirmalarPage() {
       anahtar: 'kod',
       baslik: t('kesinti.firmalar.kod'),
       render: (satir) => (
-        <strong>
-          <Degisim eski={satir.mevcut?.kod} yeni={satir.kod} />
-        </strong>
+        // Kod uygulamaya aittir: aktarım ezmez, eşleşen firmanın kodu kalır
+        <strong>{satir.mevcut?.kod ?? satir.kod}</strong>
       ),
     },
     {
@@ -373,6 +419,8 @@ export function FirmalarPage() {
               satirlar={sayfadakiler}
               satirAnahtari={(firma) => firma.id}
               yukleniyor={firmalar.isPending}
+              siralama={siralama}
+              siralamaDegistir={siralamaDegistir}
             />
           </div>
           {toplamSayfa > 1 ? (

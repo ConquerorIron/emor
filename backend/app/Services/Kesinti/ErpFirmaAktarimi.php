@@ -8,19 +8,24 @@ use App\Models\Firma;
 use App\Support\Metin;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection as Koleksiyon;
 
 /**
  * Canlı ERP taşeronlarını `firmalar` tablosuna aktarır (akış: ErpAktarimi).
+ * Kullanıcı kararları 2026-10-30:
  *
- * Eşleşme GUID ya da VKN ile (kullanıcı kararı 2026-10-30): GUID'i tutan
- * firma yoksa, henüz ERP'ye bağlanmamış aynı VKN'li firma ERP firmasına
- * bağlanır. Kod ve VKN uygulamada benzersizdir; başka bir firmada olan
- * değer çakışma sayılır ve aktarılmaz.
+ * - Firmanın kimliği yalnız ERP GUID'idir; ERP'de aynı firmanın birden fazla
+ *   kartı aynı kodu ve VKN'yi taşıyabilir (MFK KOÇ'un 4 kartı).
+ * - GUID'i tutan firma yoksa VKN ile eşleşilir, ama YALNIZ tek aday varsa:
+ *   ERP'de o VKN tek satırda ve uygulamada tek, henüz ERP'ye bağlanmamış
+ *   firmada olmalı. Aksi hâlde kayıt yeni firma olarak gelir.
+ * - Kod uygulamaya aittir: Excel'le eşleşsin diye burada düzenlenir. ERP kodu
+ *   yalnız firma ilk aktarılırken alınır; sonraki aktarımlar kodu ezmez.
  */
 final class ErpFirmaAktarimi extends ErpAktarimi
 {
-    /** Firma bilgisi alanları ve firmalar tablosundaki sınırları */
-    private const ALANLAR = [
+    /** Alan sınırları (firmalar tablosu) */
+    private const SINIRLAR = [
         'kod' => 50,
         'ad' => 200,
         'vergi_kimlik_no' => 20,
@@ -28,6 +33,9 @@ final class ErpFirmaAktarimi extends ErpAktarimi
         'eposta' => 255,
         'gsm_no' => 30,
     ];
+
+    /** ERP'nin sahip olduğu, aktarımda güncellenen bilgiler (kod hariç) */
+    private const ERP_BILGILERI = ['ad', 'vergi_kimlik_no', 'vergi_dairesi', 'eposta', 'gsm_no'];
 
     public function __construct(
         private readonly ErpFirmaKaynagi $kaynak,
@@ -54,32 +62,27 @@ final class ErpFirmaAktarimi extends ErpAktarimi
             'gsm_no' => self::bosIseNull($satir['gsm_no']),
         ], $erpSatirlari);
 
-        // ERP içinde tekrarlanan GUID/VKN/kodun hangisinin doğru olduğu bilinemez: aktarılmaz
-        $sayilar = [
-            'guid' => array_count_values(array_column($satirlar, 'guid')),
-            'kod' => array_count_values(array_column($satirlar, 'kod')),
-            'vergi_kimlik_no' => array_count_values(array_filter(array_column($satirlar, 'vergi_kimlik_no'), fn (?string $vkn): bool => $vkn !== null)),
-        ];
+        $guidSayisi = array_count_values(array_column($satirlar, 'guid'));
+        $erpVknSayisi = array_count_values(array_filter(array_column($satirlar, 'vergi_kimlik_no'), fn (?string $vkn): bool => $vkn !== null));
 
         $firmalar = Firma::query()->get();
         $guidIle = $firmalar->whereNotNull('erp_guid')->keyBy('erp_guid');
-        $kodIle = $firmalar->keyBy('kod');
-        $vknIle = $firmalar->whereNotNull('vergi_kimlik_no')->keyBy('vergi_kimlik_no');
+        $vknIle = $firmalar->whereNotNull('vergi_kimlik_no')->groupBy('vergi_kimlik_no');
 
         $plan = [];
 
         foreach ($satirlar as $sira => $satir) {
-            $neden = $this->gecersizlikNedeni($satir, $sayilar);
-            [$durum, $hedef, $cakisma] = $neden === null
-                ? $this->durum($satir, $guidIle, $kodIle, $vknIle)
-                : [self::GECERSIZ, null, null];
+            $neden = $this->gecersizlikNedeni($satir, $guidSayisi);
+            [$durum, $hedef] = $neden === null
+                ? $this->durum($satir, $guidIle, $vknIle, $erpVknSayisi)
+                : [self::GECERSIZ, null];
 
             $plan[] = [
                 'sira' => $sira,
                 ...$satir,
                 'durum' => $durum,
-                'neden' => $neden ?? $cakisma,
-                'mevcut' => $hedef === null ? null : $hedef->only(array_keys(self::ALANLAR)),
+                'neden' => $neden,
+                'mevcut' => $hedef?->only(['kod', ...self::ERP_BILGILERI]),
                 'kayit_id' => $hedef?->id,
             ];
         }
@@ -91,10 +94,10 @@ final class ErpFirmaAktarimi extends ErpAktarimi
 
     protected function uygula(array $satir): void
     {
-        $bilgiler = Arr::only($satir, array_keys(self::ALANLAR));
+        $bilgiler = Arr::only($satir, self::ERP_BILGILERI);
 
         match ($satir['durum']) {
-            self::YENI => Firma::query()->create([...$bilgiler, 'erp_guid' => $satir['guid']]),
+            self::YENI => Firma::query()->create([...$bilgiler, 'kod' => $satir['kod'], 'erp_guid' => $satir['guid']]),
             self::GUNCELLENECEK => Firma::query()->whereKey($satir['kayit_id'])->update($bilgiler),
             self::ESLESECEK => Firma::query()->whereKey($satir['kayit_id'])->update([...$bilgiler, 'erp_guid' => $satir['guid']]),
         };
@@ -102,9 +105,9 @@ final class ErpFirmaAktarimi extends ErpAktarimi
 
     /**
      * @param  array<string, string|null>  $satir
-     * @param  array{guid: array<array-key, int>, kod: array<array-key, int>, vergi_kimlik_no: array<array-key, int>}  $sayilar
+     * @param  array<array-key, int>  $guidSayisi
      */
-    private function gecersizlikNedeni(array $satir, array $sayilar): ?string
+    private function gecersizlikNedeni(array $satir, array $guidSayisi): ?string
     {
         if (! self::gecerliGuid((string) $satir['guid'])) {
             return 'guid_gecersiz';
@@ -118,62 +121,44 @@ final class ErpFirmaAktarimi extends ErpAktarimi
             return 'ad_bos';
         }
 
-        foreach (self::ALANLAR as $alan => $sinir) {
+        foreach (self::SINIRLAR as $alan => $sinir) {
             if (mb_strlen((string) $satir[$alan]) > $sinir) {
                 return "{$alan}_uzun";
             }
         }
 
-        return match (true) {
-            $sayilar['guid'][$satir['guid']] > 1 => 'guid_tekrar',
-            $satir['vergi_kimlik_no'] !== null && $sayilar['vergi_kimlik_no'][$satir['vergi_kimlik_no']] > 1 => 'vkn_tekrar',
-            $sayilar['kod'][$satir['kod']] > 1 => 'kod_tekrar',
-            default => null,
-        };
+        return $guidSayisi[$satir['guid']] > 1 ? 'guid_tekrar' : null;
     }
 
     /**
      * @param  array<string, string|null>  $satir
      * @param  Collection<array-key, Firma>  $guidIle
-     * @param  Collection<array-key, Firma>  $kodIle
-     * @param  Collection<array-key, Firma>  $vknIle
-     * @return array{0: string, 1: Firma|null, 2: string|null} [durum, eşleşen firma, çakışma nedeni]
+     * @param  Koleksiyon<array-key, Collection<int, Firma>>  $vknIle
+     * @param  array<array-key, int>  $erpVknSayisi
+     * @return array{0: string, 1: Firma|null} [durum, eşleşen firma]
      */
-    private function durum(array $satir, Collection $guidIle, Collection $kodIle, Collection $vknIle): array
+    private function durum(array $satir, Collection $guidIle, Koleksiyon $vknIle, array $erpVknSayisi): array
     {
         $mevcut = $guidIle->get($satir['guid']);
-        $kodSahibi = $kodIle->get($satir['kod']);
-        $vknSahibi = $satir['vergi_kimlik_no'] === null ? null : $vknIle->get($satir['vergi_kimlik_no']);
 
-        // GUID eşleşmezse VKN: yalnız henüz ERP'ye bağlanmamış firma bağlanabilir
-        if ($mevcut === null && $vknSahibi?->erp_guid !== null) {
-            return [self::CAKISMA, null, 'vkn_baska_firmada'];
-        }
-
-        $hedef = $mevcut ?? $vknSahibi;
-
-        if ($kodSahibi !== null && $kodSahibi->id !== $hedef?->id) {
-            return [self::CAKISMA, $hedef, 'kod_baska_kayitta'];
-        }
-
-        if ($hedef === null) {
-            return [self::YENI, null, null];
-        }
-
-        if ($vknSahibi !== null && $vknSahibi->id !== $hedef->id) {
-            return [self::CAKISMA, $hedef, 'vkn_baska_firmada'];
-        }
-
-        if ($mevcut === null) {
-            return [self::ESLESECEK, $hedef, null];
-        }
-
-        foreach (array_keys(self::ALANLAR) as $alan) {
-            if ($mevcut->{$alan} !== $satir[$alan]) {
-                return [self::GUNCELLENECEK, $mevcut, null];
+        if ($mevcut !== null) {
+            foreach (self::ERP_BILGILERI as $alan) {
+                if ($mevcut->{$alan} !== $satir[$alan]) {
+                    return [self::GUNCELLENECEK, $mevcut];
+                }
             }
+
+            return [self::AYNI, $mevcut];
         }
 
-        return [self::AYNI, $mevcut, null];
+        $vkn = $satir['vergi_kimlik_no'];
+        $adaylar = $vkn === null ? null : $vknIle->get($vkn);
+
+        // VKN ile bağ yalnız tek aday varsa: ERP'de tek satır, uygulamada tek bağsız firma
+        if ($adaylar !== null && $erpVknSayisi[$vkn] === 1 && $adaylar->count() === 1 && $adaylar->first()?->erp_guid === null) {
+            return [self::ESLESECEK, $adaylar->first()];
+        }
+
+        return [self::YENI, null];
     }
 }

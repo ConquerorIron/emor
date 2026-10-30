@@ -75,8 +75,6 @@ return [
     // Kesinti Yönetimi
     'kesinti_turu_kod_tekrar' => 'Bu kod başka bir kesinti türünde kullanılıyor.',
     'proje_kod_tekrar' => 'Bu kod başka bir projede kullanılıyor.',
-    'firma_kod_tekrar' => 'Bu kod başka bir firmada kullanılıyor.',
-    'firma_vkn_tekrar' => 'Bu vergi kimlik numarası başka bir firmada kayıtlı.',
 
     // ERP okuma (App\Services\ErpOkumaHatasi)
     'erp_canli_tanimsiz' => 'Canlı ERP bağlantısı tanımlanmamış. Ayarlar → SQL Bağlantıları ekranından Canlı ortamı tanımlayın.',

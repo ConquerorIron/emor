@@ -756,7 +756,9 @@
         "vergiDairesiCokUzun": "Vergi dairesi en fazla 100 karakter olabilir.",
         "epostaCokUzun": "E-posta en fazla 255 karakter olabilir.",
         "gsmCokUzun": "GSM en fazla 30 karakter olabilir."
-      }
+      },
+      "kodTekrar": "Kod tekrar",
+      "kodTekrarAciklama": "Bu kod birden fazla firmada. Excel'deki firma adı koda göre eşleştiği için kodları ayırın."
     },
     "erpAktarim": {
       "okunuyor": "Canlı ERP okunuyor…",
@@ -787,9 +789,7 @@
         "gsm_no_uzun": "GSM 30 karakteri aşıyor.",
         "guid_tekrar": "ERP'de aynı GUID birden fazla satırda.",
         "kod_tekrar": "ERP'de aynı kod birden fazla kayıtta.",
-        "vkn_tekrar": "ERP'de aynı vergi kimlik numarası birden fazla firmada.",
-        "kod_baska_kayitta": "Bu kod uygulamada başka bir kayıtta kullanılıyor.",
-        "vkn_baska_firmada": "Bu vergi kimlik numarası uygulamada başka bir firmada kayıtlı."
+        "kod_baska_kayitta": "Bu kod uygulamada başka bir kayıtta kullanılıyor."
       }
     }
   }
