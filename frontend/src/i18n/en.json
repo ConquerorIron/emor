@@ -832,7 +832,8 @@
       "oda_tipi": "Room Type",
       "toplam_oda": "Total Rooms",
       "makina_tanimi": "Machine",
-      "disiplin": "Discipline"
+      "disiplin": "Discipline",
+      "makina": "Machine"
     },
     "secenek": {
       "vasif": {

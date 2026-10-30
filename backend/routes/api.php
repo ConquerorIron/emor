@@ -291,6 +291,10 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/kesinti/makina-ekipman/excel', [MakinaEkipmanKesintisiController::class, 'excel'])
                 ->middleware('throttle:kesinti-excel')
                 ->name('kesinti.makina-ekipman.excel');
+            // Özet sekmeleri (taşeron, yansıtma türü, proje, makina, disiplin, tarih)
+            Route::get('/kesinti/makina-ekipman/pivot/{pivot}', [MakinaEkipmanKesintisiController::class, 'pivot'])
+                ->where('pivot', '[a-z_]+')
+                ->name('kesinti.makina-ekipman.pivot');
         });
         Route::middleware('can:makina_ekipman_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/makina-ekipman', [MakinaEkipmanKesintisiController::class, 'store'])

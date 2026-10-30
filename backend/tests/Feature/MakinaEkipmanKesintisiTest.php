@@ -12,6 +12,7 @@ use App\Models\Proje;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -94,6 +95,31 @@ final class MakinaEkipmanKesintisiTest extends TestCase
             ->assertJsonValidationErrorFor($alan, 'hatalar');
 
         $this->assertDatabaseCount('makina_ekipman_kesintileri', 0);
+    }
+
+    public function test_ozet_sekmeleri_makina_ve_disipline_gore_gruplar_excel_ayni_sayfalari_verir(): void
+    {
+        $proje = Proje::factory()->create(['kod' => 'ZONE 10']);
+        $ortak = ['proje_id' => $proje->id, 'iptal_edilen_tutar' => '0.00', 'yansitilan_tutar' => '0.00', 'kesilen_tutar' => '0.00', 'kalan_tutar' => '0.00'];
+        MakinaEkipmanKesintisi::factory()->create([...$ortak, 'makina_tanimi' => 'JCB', 'disiplin' => 'HAFRİYAT', 'toplam_tutar' => '100.00']);
+        MakinaEkipmanKesintisi::factory()->create([...$ortak, 'makina_tanimi' => 'JCB', 'disiplin' => null, 'toplam_tutar' => '50.00']);
+        MakinaEkipmanKesintisi::factory()->create([...$ortak, 'makina_tanimi' => 'VİNÇ', 'disiplin' => 'HAFRİYAT', 'toplam_tutar' => '10.00']);
+
+        $this->getJson(self::ADRES.'/pivot/makina')
+            ->assertOk()
+            ->assertJsonPath('data.*.makina_tanimi', ['JCB', 'VİNÇ'])
+            ->assertJsonPath('data.0.toplam_tutar', '150.00')
+            // Yalnız 5 tutar toplanır
+            ->assertJsonMissingPath('data.0.miktar_saat');
+        // Disiplini boş satırlar kendi grubunda
+        $this->getJson(self::ADRES.'/pivot/disiplin')
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+
+        $yanit = $this->get(self::ADRES.'/excel')->assertOk();
+        $kitap = IOFactory::load($yanit->baseResponse->getFile()->getPathname());
+        $this->assertSame(['Data', 'Taşeron', 'Yansıtma Türü', 'Proje', 'Makina', 'Disiplin', 'Tarih'], $kitap->getSheetNames());
+        $this->assertSame('MAKİNA TANIMI', $kitap->getSheetByName('Makina')?->getCell('A1')->getValue());
     }
 
     public function test_yapistirma_kolonlari_kullanicinin_sirasinda(): void

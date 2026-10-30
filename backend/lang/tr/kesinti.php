@@ -14,6 +14,8 @@ return [
             'proje' => 'Proje',
             'vasif' => 'Vasfı',
             'mesai_turu' => 'Mesai Türü',
+            'makina' => 'Makina',
+            'disiplin' => 'Disiplin',
             'tarih' => 'Tarih',
         ],
     ],

@@ -287,7 +287,6 @@ export function FirmalarPage() {
   // Sıralama sayfalamadan önce, süzülmüş listenin tamamına uygulanır
   const siraliFirmalar = siralaUygula(suzulenler, siralama, {
     vkn: (firma) => firma.vergi_kimlik_no,
-    gsm: (firma) => firma.gsm_no,
     kaynak: (firma) => (firma.erp_guid === null ? 0 : 1),
   })
   // Ekrandaki arama ve sıralamayla tüm firmalar (yalnız bu sayfa değil), tüm kolonlar
@@ -339,7 +338,8 @@ export function FirmalarPage() {
       anahtar: 'ad',
       baslik: t('kesinti.firmalar.ad'),
       siralamaAnahtari: 'ad',
-      render: (firma) => firma.ad,
+      // GSM kalkınca açılan yer adın tek satırda okunmasına gider
+      render: (firma) => <span className="whitespace-nowrap">{firma.ad}</span>,
     },
     {
       anahtar: 'vkn',
@@ -353,17 +353,13 @@ export function FirmalarPage() {
       baslik: t('kesinti.firmalar.vergiDairesi'),
       render: (firma) => bosIseTire(firma.vergi_dairesi),
     },
+    // GSM tabloda gösterilmez (kullanıcı isteği 2026-10-30: yer kaplıyor, firma
+    // adına yer kalsın); formda ve Excel çıktısında durur
     {
       anahtar: 'eposta',
       siralamaAnahtari: 'eposta',
       baslik: t('kesinti.firmalar.eposta'),
       render: (firma) => bosIseTire(firma.eposta),
-    },
-    {
-      anahtar: 'gsm',
-      siralamaAnahtari: 'gsm',
-      baslik: t('kesinti.firmalar.gsm'),
-      render: (firma) => bosIseTire(firma.gsm_no),
     },
     {
       anahtar: 'kaynak',
@@ -494,6 +490,8 @@ export function FirmalarPage() {
               yukleniyor={firmalar.isPending}
               siralama={siralama}
               siralamaDegistir={siralamaDegistir}
+              // Çok kolonlu liste: yazı bir boy küçük (kullanıcı isteği)
+              yaziBoyutu="kucuk"
             />
           </div>
           {toplamSayfa > 1 ? (

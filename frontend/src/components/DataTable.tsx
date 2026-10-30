@@ -38,6 +38,8 @@ interface DataTableProps<T> {
    * olmayan kolon boş kalır, etiket ilk kolona yazılır.
    */
   toplamSatirlari?: ToplamSatiri[]
+  /** Yazı boyutu: 'kucuk' bir boy küçük (çok kolonlu tanım listeleri) */
+  yaziBoyutu?: 'normal' | 'kucuk'
 }
 
 export interface ToplamSatiri {
@@ -108,6 +110,7 @@ export function DataTable<T>({
   ustKaydirma = false,
   satirSinifi,
   toplamSatirlari = [],
+  yaziBoyutu = 'normal',
 }: DataTableProps<T>) {
   const { t } = useTranslation()
   const kapRef = useRef<HTMLDivElement>(null)
@@ -196,7 +199,9 @@ export function DataTable<T>({
         onScroll={() => esle(kapRef.current, ustRef.current)}
         className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700"
       >
-        <table className="w-full border-collapse text-sm">
+        <table
+          className={`w-full border-collapse ${yaziBoyutu === 'kucuk' ? 'text-xs' : 'text-sm'}`}
+        >
           <thead className="bg-slate-50 dark:bg-slate-800/60">
             <tr>
               {secimAcik ? (

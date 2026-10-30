@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
   secenekler: vi.fn(),
   liste: vi.fn(),
   kaydet: vi.fn(),
+  pivot: vi.fn(),
 }))
 
 vi.mock('@/features/kesinti/icmalApi', async (importOriginal) => ({
@@ -31,6 +32,7 @@ vi.mock('@/features/kesinti/makinaEkipmanApi', async (importOriginal) => ({
     yuklemeler: vi.fn().mockResolvedValue([]),
     geriAl: vi.fn(),
     kolonlar: vi.fn(),
+    pivot: api.pivot,
   },
 }))
 
@@ -116,6 +118,46 @@ describe('MakinaEkipmanKesintileriPage', { timeout: 15_000 }, () => {
       'Para Birimi',
       'Toplam Tutar',
     ])
+    expect(basliklar).not.toContain('Birim Fiyat')
+  })
+
+  it('özet sekmeleri: Makina sekmesi makina tanımına göre gruplar, yalnız tutarları toplar', async () => {
+    api.pivot.mockResolvedValue([
+      {
+        makina_tanimi: 'JCB',
+        proje: 'ZONE 10',
+        para_birimi: 'TL',
+        satir_sayisi: 2,
+        toplam_tutar: '150.00',
+        iptal_edilen_tutar: '0.00',
+        yansitilan_tutar: '150.00',
+        kesilen_tutar: '100.00',
+        kalan_tutar: '50.00',
+      },
+    ])
+    await screen.findByText('30 TON EKSKAVATÖR KOVALI')
+
+    const sekmeler = within(screen.getByRole('tablist', { name: 'Görünümler' }))
+      .getAllByRole('tab')
+      .map((sekme) => sekme.textContent)
+    expect(sekmeler).toEqual([
+      'Data',
+      'Taşeron',
+      'Yansıtma Türü',
+      'Proje',
+      'Makina',
+      'Disiplin',
+      'Tarih',
+    ])
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Makina' }))
+
+    expect(await screen.findByText('JCB')).toBeInTheDocument()
+    expect(api.pivot).toHaveBeenCalledWith('makina', expect.anything())
+    const basliklar = screen
+      .getAllByRole('columnheader')
+      .map((baslik) => baslik.textContent.replace(/[▲▼↕]/g, ''))
+    expect(basliklar.slice(0, 4)).toEqual(['Makina Tanımı', 'Proje', 'Para Birimi', 'Satır Sayısı'])
     expect(basliklar).not.toContain('Birim Fiyat')
   })
 

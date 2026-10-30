@@ -34,6 +34,11 @@ final class MakinaEkipmanKesintisiController extends IcmalSatiriController
         return $this->liste($request);
     }
 
+    public function pivot(MakinaEkipmanKesintisiListeRequest $request, string $pivot): JsonResponse
+    {
+        return $this->pivotla($request, $pivot);
+    }
+
     public function excel(MakinaEkipmanKesintisiListeRequest $request, MakinaEkipmanIceAktarimi $aktarim, IcmalExcelAktarici $aktarici): BinaryFileResponse|JsonResponse
     {
         return $this->excelAktar($request, $aktarim, $aktarici, 'Makina Ekipman Kesintileri', 'makina-ekipman-kesintileri.xlsx');

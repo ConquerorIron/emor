@@ -111,6 +111,8 @@ describe('FirmalarPage', { timeout: 15_000 }, () => {
 
     expect(await screen.findByText('AKTAŞ HAFRİYAT')).toBeInTheDocument()
     expect(screen.getByText('61 firma')).toBeInTheDocument()
+    // GSM tabloda gösterilmez (formda ve Excel'de durur)
+    expect(screen.queryByRole('columnheader', { name: /GSM/ })).not.toBeInTheDocument()
     expect(screen.queryByText('Firma 59')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '2' }))

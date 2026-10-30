@@ -37,6 +37,24 @@ const MAKINA_EKIPMAN_ICMALI: IcmalTanimi<MakinaEkipmanKesintisi> = {
     'kesilen_tutar',
     'kalan_tutar',
   ],
+  // Özet sekmeleri (kullanıcı isteği 2026-10-30; backend MakinaEkipmanKesintisiSorgusu::PIVOTLAR)
+  pivotlar: [
+    { anahtar: 'taseron', gruplar: ['taseron', 'proje', 'para_birimi'] },
+    { anahtar: 'yansitma_turu', gruplar: ['yansitma_turu', 'proje', 'para_birimi'] },
+    { anahtar: 'proje', gruplar: ['proje', 'para_birimi'] },
+    { anahtar: 'makina', gruplar: ['makina_tanimi', 'proje', 'para_birimi'] },
+    { anahtar: 'disiplin', gruplar: ['disiplin', 'proje', 'para_birimi'] },
+    { anahtar: 'tarih', gruplar: ['yil', 'ay', 'proje', 'para_birimi'] },
+  ].map((pivot) => ({
+    ...pivot,
+    toplamlar: [
+      'toplam_tutar',
+      'iptal_edilen_tutar',
+      'yansitilan_tutar',
+      'kesilen_tutar',
+      'kalan_tutar',
+    ],
+  })),
   form: [
     {
       baslik: 'kesinti.icmal.bolum.kesinti',
