@@ -8,6 +8,8 @@
 *.key
 # Entegratörden gelen ham mail — hesap şifresi içerir
 /docs/izibiz/mail.md
+# Kesinti modülü örnek Excel'leri — gerçek personel adı, firma ve tutar içerir
+/excel/
 # Postman environment export'ları kullanıcı adı/şifre/token taşır
 *.postman_environment.json
 # Windows indirme artığı (WSL ':' karakterini özel karaktere çevirdiği için

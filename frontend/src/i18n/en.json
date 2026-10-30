@@ -46,6 +46,8 @@
     "efatura": "e-Invoice",
     "gelenFaturalar": "Incoming Invoices",
     "gidenFaturalar": "Outgoing Invoices",
+    "kesinti": "Deduction Management",
+    "kesintiTurleri": "Deduction Types",
     "alarmKurallari": "Alert Rules"
   },
   "tasarim": {
@@ -494,6 +496,7 @@
     "ekran": {
       "satinalma_talebi": "Purchase Request",
       "efatura": "e-Invoices (Incoming/Outgoing)",
+      "kesinti_turleri": "Deduction Types",
       "sql_baglantilari": "SQL Connections",
       "entegrator_baglantilari": "Integrator Connections",
       "mail_ayarlari": "Mail Settings",
@@ -525,7 +528,7 @@
     "hepsi": "All",
     "baslangic": "From",
     "bitis": "To",
-    "ara": "Search (no, ETTN, tax id, title, full name, type, order, despatch, envelope status)",
+    "ara": "Search",
     "excel": "Excel",
     "excelAciklama": "Exports the table as shown: the records on this page and the visible columns. For more records choose \"All\" as page size (at most 1000 records per page).",
     "detay": "Details",
@@ -666,6 +669,29 @@
       "rozet": "Hidden",
       "rozetAciklama": "Hidden from the list — {{kisi}}",
       "alan": "Hidden"
+    }
+  },
+  "kesinti": {
+    "turler": {
+      "baslik": "Deduction Types",
+      "aciklamaMetni": "Types of deductions applied to subcontractors. Excel summaries are linked to these types.",
+      "yeni": "New Deduction Type",
+      "duzenle": "Edit Deduction Type",
+      "kod": "Code",
+      "ad": "Name",
+      "kdvOrani": "VAT Rate",
+      "aciklama": "Description",
+      "kaydedildi": "Deduction type saved.",
+      "silindi": "Deduction type deleted.",
+      "silOnayBaslik": "Delete deduction type?",
+      "silOnayMesaj": "Deduction type \"{{kod}} — {{ad}}\" will be deleted.",
+      "dogrulama": {
+        "kodZorunlu": "Code is required.",
+        "kodCokUzun": "Code can be at most 20 characters.",
+        "adZorunlu": "Name is required.",
+        "adCokUzun": "Name can be at most 100 characters.",
+        "kdvAralik": "VAT rate must be between 0 and 100."
+      }
     }
   }
 }

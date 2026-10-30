@@ -77,6 +77,7 @@ final class EkranYetkisiTest extends TestCase
     {
         return [
             'satınalma talebi' => ['satinalma_talebi', '/api/v1/satinalma/ozellikler', 'post', '/api/v1/satinalma/talepler'],
+            'kesinti türleri' => ['kesinti_turleri', '/api/v1/kesinti/turler', 'post', '/api/v1/kesinti/turler'],
             'SQL bağlantıları' => ['sql_baglantilari', '/api/v1/ayarlar/sql-baglantilari', 'put', '/api/v1/ayarlar/sql-baglantilari/test'],
             'entegratör bağlantıları' => ['entegrator_baglantilari', '/api/v1/ayarlar/entegrator-baglantilari', 'put', '/api/v1/ayarlar/entegrator-baglantilari/test'],
             'mail ayarları' => ['mail_ayarlari', '/api/v1/ayarlar/mail', 'put', '/api/v1/ayarlar/mail'],

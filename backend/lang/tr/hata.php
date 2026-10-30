@@ -72,6 +72,9 @@ return [
     // Satınalma
     'ilgili_cins_tanimsiz' => 'Bu ilgi konusu için arama kaynağı henüz tanımlanmadı.',
 
+    // Kesinti Yönetimi
+    'kesinti_turu_kod_tekrar' => 'Bu kod başka bir kesinti türünde kullanılıyor.',
+
     // Ekran tasarım motoru
     'ekran_tanimsiz' => 'Böyle bir tasarlanabilir ekran yok.',
     'tasarim_taslak_yok' => 'Yayınlanacak taslak bulunamadı.',

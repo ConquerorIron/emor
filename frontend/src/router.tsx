@@ -58,6 +58,18 @@ export const router = createBrowserRouter([
         ],
       },
       {
+        element: <IzinAlani izin="kesinti_turleri.goruntule" />,
+        children: [
+          {
+            path: 'kesinti/turler',
+            lazy: async () => ({
+              Component: (await import('@/pages/KesintiTurleri/KesintiTurleriPage'))
+                .KesintiTurleriPage,
+            }),
+          },
+        ],
+      },
+      {
         element: <IzinAlani izin="ekran_tasarimi.goruntule" />,
         children: [
           {

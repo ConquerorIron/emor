@@ -27,6 +27,9 @@ export const queryKeys = {
       ['efatura', 'liste', yon, parametreler] as const,
     pdf: (faturaId: number) => ['efatura', 'pdf', faturaId] as const,
   },
+  kesinti: {
+    turler: ['kesinti', 'turler'],
+  },
   /** Ekran tasarım motoru — formu çizen yayındaki düzen */
   ekranTasarimi: (ekran: string) => ['ekranTasarimi', ekran] as const,
   ekranTaslagi: (ekran: string) => ['ekranTaslagi', ekran] as const,

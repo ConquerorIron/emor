@@ -212,14 +212,9 @@ describe('EFaturalarPage', () => {
       ),
     )
 
-    fireEvent.change(
-      screen.getByLabelText(
-        'Ara (no, ETTN, VKN, unvan, ad soyad, tip, sipariş, irsaliye, zarf durumu)',
-      ),
-      {
-        target: { value: 'deniz' },
-      },
-    )
+    fireEvent.change(screen.getByLabelText('Ara'), {
+      target: { value: 'deniz' },
+    })
 
     await waitFor(
       () =>
@@ -241,14 +236,9 @@ describe('EFaturalarPage', () => {
       () => new Promise<typeof LISTE>((resolve) => (bitir = resolve)),
     )
 
-    fireEvent.change(
-      screen.getByLabelText(
-        'Ara (no, ETTN, VKN, unvan, ad soyad, tip, sipariş, irsaliye, zarf durumu)',
-      ),
-      {
-        target: { value: 'baska' },
-      },
-    )
+    fireEvent.change(screen.getByLabelText('Ara'), {
+      target: { value: 'baska' },
+    })
 
     // Önceki satırlar yerinde kalır (tablo kaybolup yeniden çizilmez)...
     // Arama 300 ms gecikmeli uygulanır; tüm takım yük altında koşarken

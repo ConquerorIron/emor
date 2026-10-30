@@ -48,6 +48,10 @@ const NAV_GRUPLARI: NavGrubu[] = [
     ],
   },
   {
+    baslikAnahtari: 'nav.kesinti',
+    ogeler: [{ to: '/kesinti/turler', ad: 'kesintiTurleri', izin: 'kesinti_turleri.goruntule' }],
+  },
+  {
     baslikAnahtari: 'nav.ayarlar',
     ogeler: [
       {

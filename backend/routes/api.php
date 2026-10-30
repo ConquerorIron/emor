@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\EFaturaController;
 use App\Http\Controllers\Api\V1\EFaturaSenkronController;
 use App\Http\Controllers\Api\V1\EkranTasarimController;
 use App\Http\Controllers\Api\V1\EntegratorBaglantiController;
+use App\Http\Controllers\Api\V1\KesintiTuruController;
 use App\Http\Controllers\Api\V1\KullaniciController;
 use App\Http\Controllers\Api\V1\MailAyarController;
 use App\Http\Controllers\Api\V1\RolController;
@@ -134,6 +135,22 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/efatura/erp-senkron', [EFaturaSenkronController::class, 'erpEslestir'])
                 ->middleware(['can:efatura.senkron', 'throttle:efatura-erp'])
                 ->name('efatura.erp-senkron');
+        });
+
+        // Kesinti Yönetimi → Kesinti Türleri. Modülün verisi ERP'de değil,
+        // uygulamanın PostgreSQL'indedir
+        Route::get('/kesinti/turler', [KesintiTuruController::class, 'index'])
+            ->middleware('can:kesinti_turleri.goruntule')
+            ->name('kesinti.turler');
+        Route::middleware('can:kesinti_turleri.guncelle')->group(function (): void {
+            Route::post('/kesinti/turler', [KesintiTuruController::class, 'store'])
+                ->name('kesinti.turler.store');
+            Route::put('/kesinti/turler/{kesintiTuru}', [KesintiTuruController::class, 'update'])
+                ->whereNumber('kesintiTuru')
+                ->name('kesinti.turler.update');
+            Route::delete('/kesinti/turler/{kesintiTuru}', [KesintiTuruController::class, 'destroy'])
+                ->whereNumber('kesintiTuru')
+                ->name('kesinti.turler.destroy');
         });
 
         // Header'daki Test/Canlı rozeti — her kullanıcıya yalnız ortam adı döner

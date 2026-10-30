@@ -46,6 +46,8 @@
     "efatura": "e-Fatura",
     "gelenFaturalar": "Gelen Faturalar",
     "gidenFaturalar": "Giden Faturalar",
+    "kesinti": "Kesinti Yönetimi",
+    "kesintiTurleri": "Kesinti Türleri",
     "alarmKurallari": "Alarm Kuralları"
   },
   "tasarim": {
@@ -494,6 +496,7 @@
     "ekran": {
       "satinalma_talebi": "Satınalma Talebi",
       "efatura": "e-Faturalar (Gelen/Giden)",
+      "kesinti_turleri": "Kesinti Türleri",
       "sql_baglantilari": "SQL Bağlantıları",
       "entegrator_baglantilari": "Entegratör Bağlantıları",
       "mail_ayarlari": "Mail Ayarları",
@@ -525,7 +528,7 @@
     "hepsi": "Hepsi",
     "baslangic": "Başlangıç",
     "bitis": "Bitiş",
-    "ara": "Ara (no, ETTN, VKN, unvan, ad soyad, tip, sipariş, irsaliye, zarf durumu)",
+    "ara": "Ara",
     "excel": "Excel",
     "excelAciklama": "Tablonun o anki hâlini aktarır: bu sayfadaki kayıtlar, görünen kolonlar. Daha fazla kayıt için sayfa boyutundan \"Hepsi\"ni seçin (sayfa başına en fazla 1000 kayıt).",
     "detay": "Detay",
@@ -666,6 +669,29 @@
       "rozet": "Gizli",
       "rozetAciklama": "Listede gizlendi — {{kisi}}",
       "alan": "Gizlendi"
+    }
+  },
+  "kesinti": {
+    "turler": {
+      "baslik": "Kesinti Türleri",
+      "aciklamaMetni": "Taşeronlara yapılan kesintilerin türleri. Excel icmalleri bu türlere bağlanır.",
+      "yeni": "Yeni Kesinti Türü",
+      "duzenle": "Kesinti Türünü Düzenle",
+      "kod": "Kod",
+      "ad": "Ad",
+      "kdvOrani": "KDV Oranı",
+      "aciklama": "Açıklama",
+      "kaydedildi": "Kesinti türü kaydedildi.",
+      "silindi": "Kesinti türü silindi.",
+      "silOnayBaslik": "Kesinti türü silinsin mi?",
+      "silOnayMesaj": "\"{{kod}} — {{ad}}\" kesinti türü silinecek.",
+      "dogrulama": {
+        "kodZorunlu": "Kod zorunludur.",
+        "kodCokUzun": "Kod en fazla 20 karakter olabilir.",
+        "adZorunlu": "Ad zorunludur.",
+        "adCokUzun": "Ad en fazla 100 karakter olabilir.",
+        "kdvAralik": "KDV oranı 0 ile 100 arasında olmalıdır."
+      }
     }
   }
 }
