@@ -41,7 +41,7 @@ final class KampKesintisiTest extends TestCase
     private function gecerliGovde(): array
     {
         return [
-            'kesinti_turu_id' => KesintiTuru::factory()->create(['kod' => 'KAMP'])->id,
+            'kesinti_turu_id' => KesintiTuru::factory()->create(['kod' => 'KAMP', 'icmal' => 'kamp'])->id,
             'firma_id' => Firma::factory()->create(['kod' => 'MFK'])->id,
             'yansitma_turu' => 'taseron',
             'proje_id' => Proje::factory()->create(['kod' => 'TÜM MAHALLER (ORTAK)'])->id,
@@ -104,7 +104,7 @@ final class KampKesintisiTest extends TestCase
 
     public function test_kamp_dosyasindan_yalniz_oda_sayfasi_gun_kolonlari_olmadan_aktarilir(): void
     {
-        KesintiTuru::factory()->create(['kod' => 'KAMP']);
+        KesintiTuru::factory()->create(['kod' => 'KAMP', 'icmal' => 'kamp']);
         Proje::factory()->create(['kod' => 'TÜM MAHALLER (ORTAK)']);
         Firma::factory()->create(['kod' => 'MFK']);
 

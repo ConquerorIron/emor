@@ -25,6 +25,7 @@ final class KesintiTuruResource extends JsonResource
             // Metin olarak döner ("20.00"): ondalık kaybı olmasın
             'kdv_orani' => $this->kdv_orani,
             'aciklama' => $this->aciklama,
+            'icmal' => $this->icmal,
         ];
     }
 }

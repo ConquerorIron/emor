@@ -11,6 +11,7 @@ import {
 const ISGUCU_ICMALI: IcmalTanimi<IsgucuKesintisi> = {
   anahtar: 'isgucu',
   izin: 'isgucu_kesintileri',
+  icmal: 'isgucu',
   api: isgucuApi,
   alanlar: {
     ...ORTAK_ALANLAR,

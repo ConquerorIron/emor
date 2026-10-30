@@ -1,5 +1,6 @@
 import {
   YANSITMA_TURLERI,
+  type Icmal,
   type IcmalApi,
   type IcmalSatiri,
   type KesintiSecenekleri,
@@ -35,6 +36,8 @@ export interface IcmalTanimi<T extends IcmalSatiri> {
   anahtar: string
   /** İzin öneki: `<izin>.goruntule` / `<izin>.guncelle` */
   izin: string
+  /** Backend icmal anahtarı: formda yalnız bu ekrana bağlı kesinti türleri sunulur */
+  icmal: Icmal
   api: IcmalApi<T>
   alanlar: Record<string, AlanTuru>
   /** Liste kolonlarının sırası (sıralama anahtarı = alan adı) */

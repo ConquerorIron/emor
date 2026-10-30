@@ -1,8 +1,10 @@
 import { api } from '@/api/client'
 
+import type { Icmal } from './icmalApi'
+
 /**
- * Taşeron kesinti türü (Kesinti Yönetimi). İcmal ekranları da tür seçimi
- * için bu listeyi okur.
+ * Taşeron kesinti türü (Kesinti Yönetimi). Bağlı olduğu icmal ekranında
+ * kullanılır; başka ekrana girilemez / aktarılamaz.
  */
 export interface KesintiTuru {
   id: number
@@ -11,6 +13,8 @@ export interface KesintiTuru {
   /** Yüzde, noktalı ve iki ondalıklı metin ("20.00") */
   kdv_orani: string
   aciklama: string | null
+  /** Bağlı ekran; null: hiçbir ekranda kullanılamaz */
+  icmal: Icmal | null
 }
 
 export interface KesintiTuruGovdesi {
@@ -18,6 +22,7 @@ export interface KesintiTuruGovdesi {
   ad: string
   kdv_orani: string
   aciklama: string | null
+  icmal: Icmal | null
 }
 
 export async function kesintiTurleriniGetir(): Promise<KesintiTuru[]> {

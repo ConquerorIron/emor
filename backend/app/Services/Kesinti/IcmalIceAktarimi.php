@@ -18,7 +18,9 @@ use Illuminate\Support\Facades\DB;
  * Kesinti icmallerinin Excel / yapıştırma aktarımı (kullanıcı kararları 2026-10-30):
  *
  * - Tür, taşeron, proje ve para birimi KOD ile eşleşir; taşeron kodu tek firmaya
- *   düşmelidir (kodlar Firmalar ekranında Excel'le aynı yapılır).
+ *   düşmelidir (kodlar Firmalar ekranında Excel'le aynı yapılır). Tür bu
+ *   ekrana bağlı olmalıdır (Kesinti Türleri → Ekran): başka icmalin Excel'i
+ *   yanlış ekrana aktarılamaz.
  * - Tutarlar Excel'deki gibi alınır (yansıtılan/kalan yeniden hesaplanmaz).
  * - Hatalı satır varken hiçbir satır kaydedilmez; her yükleme bir partidir
  *   (KesintiYuklemesi) ve tek seferde geri alınabilir.
@@ -122,7 +124,7 @@ abstract class IcmalIceAktarimi
         }
 
         $sozlukler = [
-            'kesinti_turu' => KesintiTuru::query()->get(['id', 'kod'])->keyBy(fn (KesintiTuru $t): string => self::kodAnahtari($t->kod)),
+            'kesinti_turu' => KesintiTuru::query()->get(['id', 'kod', 'icmal'])->keyBy(fn (KesintiTuru $t): string => self::kodAnahtari($t->kod)),
             'proje' => Proje::query()->get(['id', 'kod'])->keyBy(fn (Proje $p): string => self::kodAnahtari($p->kod)),
             'para_birimi' => ParaBirimi::query()->get(['id', 'kod'])->keyBy(fn (ParaBirimi $p): string => self::kodAnahtari($p->kod)),
         ];
@@ -149,7 +151,14 @@ abstract class IcmalIceAktarimi
                 }
             }
 
-            $satirlar[] = ['satir' => $no, 'sayfa' => $sayfa, ...$gosterim, 'hatali' => $satirHatalari !== []];
+            $satirlar[] = [
+                'satir' => $no,
+                'sayfa' => $sayfa,
+                ...$gosterim,
+                'hatali' => $satirHatalari !== [],
+                // Satırın kendi hataları: ekranda "hangi satır, hangi kolon, hangi neden" gösterilir
+                'satir_hatalari' => array_map(fn (array $hata): array => ['alan' => $hata[0], 'kod' => $hata[2]], $satirHatalari),
+            ];
             $kayitlar[] = $kayit;
         }
 
@@ -238,6 +247,9 @@ abstract class IcmalIceAktarimi
 
             if ($tanim === null) {
                 $hatalar[] = [$alan, $ham, $ham === '' ? 'zorunlu' : 'bulunamadi'];
+            } elseif ($tanim instanceof KesintiTuru && $tanim->icmal !== static::ICMAL) {
+                // Tür başka ekrana bağlı (ya da hiçbirine): ör. Kamp Excel'i İşgücü ekranına yapıştırıldı
+                $hatalar[] = [$alan, $ham, 'baska_ekranin_turu'];
             } else {
                 $kayit[$alan.'_id'] = $tanim->id;
             }

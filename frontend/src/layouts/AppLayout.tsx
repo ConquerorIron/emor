@@ -50,7 +50,6 @@ const NAV_GRUPLARI: NavGrubu[] = [
   {
     baslikAnahtari: 'nav.kesinti',
     ogeler: [
-      // İcmal ekranları üstte, tanımlar altta
       { to: '/kesinti/isgucu', ad: 'isgucuKesintileri', izin: 'isgucu_kesintileri.goruntule' },
       { to: '/kesinti/kamp', ad: 'kampKesintileri', izin: 'kamp_kesintileri.goruntule' },
       {
@@ -58,10 +57,17 @@ const NAV_GRUPLARI: NavGrubu[] = [
         ad: 'kampMalzemeKesintileri',
         izin: 'kamp_malzeme_kesintileri.goruntule',
       },
-      { to: '/kesinti/turler', ad: 'kesintiTurleri', izin: 'kesinti_turleri.goruntule' },
+    ],
+  },
+  {
+    // Ortak tanımlar (kullanıcı kararı 2026-10-30: Ayarlar'ın üstünde ayrı grup);
+    // adresler değişmedi, yalnız menüdeki yerleri
+    baslikAnahtari: 'nav.tanimlar',
+    ogeler: [
       { to: '/kesinti/projeler', ad: 'projeler', izin: 'projeler.goruntule' },
       { to: '/kesinti/firmalar', ad: 'firmalar', izin: 'firmalar.goruntule' },
       { to: '/kesinti/para-birimleri', ad: 'paraBirimleri', izin: 'para_birimleri.goruntule' },
+      { to: '/kesinti/turler', ad: 'kesintiTurleri', izin: 'kesinti_turleri.goruntule' },
     ],
   },
   {

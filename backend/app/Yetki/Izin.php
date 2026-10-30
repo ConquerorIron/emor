@@ -95,10 +95,11 @@ enum Izin: string
             $ekran('isgucu_kesintileri', self::IsgucuKesintileriGoruntule, self::IsgucuKesintileriGuncelle),
             $ekran('kamp_kesintileri', self::KampKesintileriGoruntule, self::KampKesintileriGuncelle),
             $ekran('kamp_malzeme_kesintileri', self::KampMalzemeKesintileriGoruntule, self::KampMalzemeKesintileriGuncelle),
-            $ekran('kesinti_turleri', self::KesintiTurleriGoruntule, self::KesintiTurleriGuncelle),
+            // Tanımlar grubu
             $ekran('projeler', self::ProjelerGoruntule, self::ProjelerGuncelle),
             $ekran('firmalar', self::FirmalarGoruntule, self::FirmalarGuncelle),
             $ekran('para_birimleri', self::ParaBirimleriGoruntule, self::ParaBirimleriGuncelle),
+            $ekran('kesinti_turleri', self::KesintiTurleriGoruntule, self::KesintiTurleriGuncelle),
             $ekran('sql_baglantilari', self::SqlBaglantilariGoruntule, self::SqlBaglantilariGuncelle),
             $ekran('entegrator_baglantilari', self::EntegratorBaglantilariGoruntule, self::EntegratorBaglantilariGuncelle),
             $ekran('mail_ayarlari', self::MailAyarlariGoruntule, self::MailAyarlariGuncelle),

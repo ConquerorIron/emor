@@ -16,7 +16,9 @@ import { Input } from '@/components/Input'
 import { Modal } from '@/components/Modal'
 import { SaltOkunurUyarisi } from '@/components/SaltOkunurUyarisi'
 import { SayiAlani } from '@/components/SayiAlani'
+import { SelectField } from '@/components/SelectField'
 import { SinirliMetinInput } from '@/components/SinirliMetinInput'
+import { ICMALLER } from '@/features/kesinti/icmalApi'
 import {
   kesintiTuruKaydet,
   kesintiTuruSil,
@@ -47,6 +49,8 @@ const turSemasi = z.object({
     .string()
     .refine((deger) => Number(deger) <= 100, 'kesinti.turler.dogrulama.kdvAralik'),
   aciklama: z.string(),
+  // Boş: tür hiçbir icmal ekranında kullanılamaz
+  icmal: z.string(),
 })
 
 type TurGirdisi = z.infer<typeof turSemasi>
@@ -74,8 +78,14 @@ function KesintiTuruFormu({ tur, kapat }: { tur: KesintiTuru | null; kapat: () =
       // Maskeli alan boş gösterilemez: yeni türde "0,00" görünür ve öyle kaydedilir
       kdv_orani: tur?.kdv_orani ?? '0.00',
       aciklama: tur?.aciklama ?? '',
+      icmal: tur?.icmal ?? '',
     },
   })
+
+  const ekranSecenekleri = ICMALLER.map((icmal) => ({
+    value: icmal,
+    label: t(`kesinti.icmaller.${icmal}`),
+  }))
 
   const kaydet = useMutation({
     mutationFn: (girdi: TurGirdisi) =>
@@ -84,6 +94,7 @@ function KesintiTuruFormu({ tur, kapat }: { tur: KesintiTuru | null; kapat: () =
         ad: girdi.ad,
         kdv_orani: girdi.kdv_orani,
         aciklama: girdi.aciklama.trim() === '' ? null : girdi.aciklama,
+        icmal: ICMALLER.find((icmal) => icmal === girdi.icmal) ?? null,
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.kesinti.turler })
@@ -134,6 +145,27 @@ function KesintiTuruFormu({ tur, kapat }: { tur: KesintiTuru | null; kapat: () =
             />
           )}
         />
+        <div className="sm:col-span-2">
+          <Controller
+            control={control}
+            name="icmal"
+            render={({ field }) => (
+              <SelectField
+                id="kesinti-turu-ekran"
+                label={t('kesinti.turler.ekran')}
+                options={ekranSecenekleri}
+                value={ekranSecenekleri.find((secenek) => secenek.value === field.value) ?? null}
+                onChange={(secenek) => field.onChange(secenek?.value ?? '')}
+                isClearable
+                isSearchable={false}
+                placeholder={t('kesinti.turler.ekranYok')}
+              />
+            )}
+          />
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {t('kesinti.turler.ekranAciklamasi')}
+          </p>
+        </div>
       </div>
 
       <Controller
@@ -216,6 +248,17 @@ export function KesintiTurleriPage() {
       siralamaAnahtari: 'kdv_orani',
       hizala: 'sag',
       render: (tur) => <span className="tabular-nums">{kdvGoster(tur.kdv_orani)}</span>,
+    },
+    {
+      anahtar: 'icmal',
+      baslik: t('kesinti.turler.ekran'),
+      siralamaAnahtari: 'icmal',
+      render: (tur) =>
+        tur.icmal === null ? (
+          <span className="text-slate-400">{t('kesinti.turler.ekranYok')}</span>
+        ) : (
+          t(`kesinti.icmaller.${tur.icmal}`)
+        ),
     },
     {
       anahtar: 'aciklama',

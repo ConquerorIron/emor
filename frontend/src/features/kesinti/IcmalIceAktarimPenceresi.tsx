@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -31,7 +32,16 @@ const SAYFA_BOYUTU = 50
 const HATA_KUTUSU =
   'rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300'
 
-/** Önizleme sonucu: dosya hatası, eksik kolonlar, hata özeti, toplamlar, satırlar */
+/** Satırın hataları okunur biçimde: "Taşeron: Tanımlarda bu kod yok (YOK)" */
+function satirHatalari(t: TFunction, satir: OnizlemeSatiri): string[] {
+  return satir.satir_hatalari.map(({ alan, kod }) => {
+    const deger = String(satir[alan] ?? '').trim()
+
+    return `${t(`kesinti.alan.${alan}`)}: ${t(`kesinti.icmal.iceAktarim.hataKodu.${kod}`)}${deger === '' ? '' : ` (${deger})`}`
+  })
+}
+
+/** Kontrol sonucu: dosya hatası, eksik kolonlar, hata özeti, toplamlar, satır satır hatalar */
 function OnizlemeSonucu<T extends IcmalSatiri>({
   tanim,
   sonuc,
@@ -41,7 +51,8 @@ function OnizlemeSonucu<T extends IcmalSatiri>({
 }) {
   const { t } = useTranslation()
   const [sayfa, setSayfa] = useState(1)
-  const [yalnizHatali, setYalnizHatali] = useState(false)
+  // Hata varsa önce hatalı satırlar gösterilir: hangi satır, hangi neden
+  const [yalnizHatali, setYalnizHatali] = useState(() => sonuc.hatalar.length > 0)
 
   if (sonuc.hata !== null) {
     return (
@@ -74,6 +85,21 @@ function OnizlemeSonucu<T extends IcmalSatiri>({
       hizala: 'sag',
       render: (satir) => (cokSayfa ? `${String(satir.sayfa)} › ${satir.satir}` : satir.satir),
     },
+    ...(sonuc.hatalar.length > 0
+      ? [
+          {
+            anahtar: 'satir_hatalari',
+            baslik: t('kesinti.icmal.iceAktarim.hataBaslik'),
+            render: (satir) => (
+              <ul className="min-w-56 space-y-0.5 text-red-700 dark:text-red-300">
+                {satirHatalari(t, satir).map((hata) => (
+                  <li key={hata}>{hata}</li>
+                ))}
+              </ul>
+            ),
+          } satisfies DataTableKolonu<OnizlemeSatiri>,
+        ]
+      : []),
     ...tanim.onizleme.map((alan): DataTableKolonu<OnizlemeSatiri> => {
       const tur = tanim.alanlar[alan]
       const sayiMi = tur.tur === 'sayi' || tur.tur === 'hesap'
@@ -218,9 +244,12 @@ function AktarimIcerigi<T extends IcmalSatiri>({
 
   const girdi: IceAktarimGirdisi | null =
     kaynak === 'dosya' ? (dosya ? { dosya } : null) : metin.trim() !== '' ? { metin } : null
-  // Önizleme satır numaraları tablonunkilerle aynı (başlıksız, standart sırayla gönderilir)
-  const hataliSatirlar = new Set(
-    (onizleme?.satirlar ?? []).filter((satir) => satir.hatali).map((satir) => satir.satir),
+  // Kontrol satır numaraları tablonunkilerle aynı (başlıksız, standart sırayla gönderilir):
+  // hatalı satır tabloda işaretlenir, nedeni satır numarasının üzerinde görünür
+  const hataliSatirlar = new Map(
+    (onizleme?.satirlar ?? [])
+      .filter((satir) => satir.hatali)
+      .map((satir) => [satir.satir, satirHatalari(t, satir).join('\n')]),
   )
 
   const onizle = useMutation({
@@ -244,21 +273,20 @@ function AktarimIcerigi<T extends IcmalSatiri>({
       kapat()
     },
     onError: (error: unknown) => {
-      // Önizlemesiz kayıt reddedildiyse hatalar önizlemedeki gibi gösterilir
+      // Kontrol ile kayıt arasında tanımlar değiştiyse sunucunun reddettiği hatalar gösterilir
       setOnizleme(reddedilenAktarim(error))
       toast.error(t(apiErrorKey(error)))
     },
   })
 
-  // Önizleme şart değil (sunucu kayıtta aynı doğrulamayı yapar); yalnız hatası
-  // bilinen girdi kaydedilemez
+  // Kaydet yalnız tüm satırlar kontrolden geçince açılır (kullanıcı kararı 2026-10-30)
   const kaydedilebilir =
     girdi !== null &&
-    (onizleme === null ||
-      (onizleme.hata === null &&
-        onizleme.eksik_kolonlar.length === 0 &&
-        onizleme.hatalar.length === 0 &&
-        onizleme.satirlar.length > 0))
+    onizleme !== null &&
+    onizleme.hata === null &&
+    onizleme.eksik_kolonlar.length === 0 &&
+    onizleme.hatalar.length === 0 &&
+    onizleme.satirlar.length > 0
 
   const sekme = (deger: 'dosya' | 'metin') => (
     <button

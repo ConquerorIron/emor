@@ -24,8 +24,8 @@ export function YapistirmaTablosu({
   kolonlar: YapistirmaKolonu[]
   satirlar: string[][]
   degistir: (satirlar: string[][]) => void
-  /** Önizlemede hatalı çıkan satır numaraları (1'den) */
-  hataliSatirlar: ReadonlySet<number>
+  /** Kontrolde hatalı çıkan satırlar: satır numarası (1'den) → hata nedenleri */
+  hataliSatirlar: ReadonlyMap<number, string>
 }) {
   const { t } = useTranslation()
   // Seçili hücre: [satır, kolon] (0'dan); yapıştırma buradan başlar
@@ -152,12 +152,15 @@ export function YapistirmaTablosu({
           <tbody className="bg-white dark:bg-slate-900">
             {satirlar.slice(ilkSatir, ilkSatir + SAYFA_BOYUTU).map((satir, sira) => {
               const satirNo = ilkSatir + sira
-              const hatali = hataliSatirlar.has(satirNo + 1)
+              const hata = hataliSatirlar.get(satirNo + 1)
+              const hatali = hata !== undefined
 
               return (
                 <tr key={satirNo} className={hatali ? 'bg-red-50 dark:bg-red-950/40' : undefined}>
                   <th
                     scope="row"
+                    // Hatalı satırın nedeni satır numarasının üzerine gelince görünür
+                    title={hata}
                     className={`sticky left-0 border-r border-b border-slate-200 px-2 py-1 text-right font-normal text-slate-500 tabular-nums dark:border-slate-700 ${hatali ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300' : 'bg-slate-50 dark:bg-slate-800/60'}`}
                   >
                     {satirNo + 1}

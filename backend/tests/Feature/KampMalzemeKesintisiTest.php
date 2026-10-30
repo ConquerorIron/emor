@@ -40,7 +40,7 @@ final class KampMalzemeKesintisiTest extends TestCase
     private function gecerliGovde(): array
     {
         return [
-            'kesinti_turu_id' => KesintiTuru::factory()->create(['kod' => 'KAMP MALZEME'])->id,
+            'kesinti_turu_id' => KesintiTuru::factory()->create(['kod' => 'KAMP MALZEME', 'icmal' => 'kamp_malzeme'])->id,
             'firma_id' => Firma::factory()->create(['kod' => 'METROTEKNİK'])->id,
             'yansitma_turu' => 'taseron',
             'proje_id' => Proje::factory()->create(['kod' => 'TÜM MAHALLER (ORTAK)'])->id,

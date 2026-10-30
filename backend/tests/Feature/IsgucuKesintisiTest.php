@@ -40,7 +40,7 @@ final class IsgucuKesintisiTest extends TestCase
     private function gecerliGovde(): array
     {
         return [
-            'kesinti_turu_id' => KesintiTuru::factory()->create(['kod' => 'İŞGÜCÜ'])->id,
+            'kesinti_turu_id' => KesintiTuru::factory()->create(['kod' => 'İŞGÜCÜ', 'icmal' => 'isgucu'])->id,
             'firma_id' => Firma::factory()->create(['kod' => 'TMC KABA'])->id,
             'proje_id' => Proje::factory()->create(['kod' => 'ZONE 10'])->id,
             'para_birimi_id' => ParaBirimi::query()->where('kod', 'TL')->value('id'),
@@ -102,6 +102,17 @@ final class IsgucuKesintisiTest extends TestCase
         $this->postJson(self::ADRES, [...$this->gecerliGovde(), ...$degisiklik])
             ->assertUnprocessable()
             ->assertJsonValidationErrorFor($alan, 'hatalar');
+
+        $this->assertDatabaseCount('isgucu_kesintileri', 0);
+    }
+
+    public function test_baska_ekrana_bagli_kesinti_turuyle_satir_girilemez(): void
+    {
+        $kamp = KesintiTuru::factory()->create(['kod' => 'KAMP', 'icmal' => 'kamp']);
+
+        $this->postJson(self::ADRES, [...$this->gecerliGovde(), 'kesinti_turu_id' => $kamp->id])
+            ->assertUnprocessable()
+            ->assertJsonPath('hatalar.kesinti_turu_id.0', __('hata.kesinti_turu_baska_ekranin'));
 
         $this->assertDatabaseCount('isgucu_kesintileri', 0);
     }

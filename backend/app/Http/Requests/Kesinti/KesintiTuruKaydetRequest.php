@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Kesinti;
 
 use App\Models\KesintiTuru;
+use App\Models\KesintiYuklemesi;
 use App\Support\Metin;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -46,6 +47,8 @@ final class KesintiTuruKaydetRequest extends FormRequest
             'ad' => ['required', 'string', 'max:100'],
             'kdv_orani' => ['required', 'numeric', 'decimal:0,2', 'between:0,100'],
             'aciklama' => ['nullable', 'string', 'max:500'],
+            // Bağlı icmal ekranı; boşsa tür hiçbir ekranda kullanılamaz
+            'icmal' => ['nullable', 'string', Rule::in(KesintiYuklemesi::ICMALLER)],
         ];
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Kesinti;
 
+use App\Models\KesintiYuklemesi;
 use App\Services\Kesinti\MesaiTuru;
 use App\Services\Kesinti\Vasif;
 use App\Services\Kesinti\YansitmaTuru;
@@ -11,12 +12,12 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * İşgücü kesintisinin elle girilmesi / düzeltilmesi (tutar hesabı:
- * HesaplananTutarlar).
+ * İşgücü kesintisinin elle girilmesi / düzeltilmesi (tür ve tutar kuralları:
+ * IcmalSatiriKaydi).
  */
 final class IsgucuKesintisiKaydetRequest extends FormRequest
 {
-    use HesaplananTutarlar;
+    use IcmalSatiriKaydi;
 
     public function authorize(): bool
     {
@@ -32,7 +33,7 @@ final class IsgucuKesintisiKaydetRequest extends FormRequest
         $sayi = fn (int $basamak, string $ust): array => ['required', 'numeric', "decimal:0,{$basamak}", 'min:0', "max:{$ust}"];
 
         return [
-            'kesinti_turu_id' => ['required', 'integer', Rule::exists('kesinti_turleri', 'id')],
+            'kesinti_turu_id' => $this->kesintiTuruKurali(KesintiYuklemesi::ICMAL_ISGUCU),
             'firma_id' => ['required', 'integer', Rule::exists('firmalar', 'id')],
             'proje_id' => ['required', 'integer', Rule::exists('projeler', 'id')],
             'para_birimi_id' => ['required', 'integer', Rule::exists('para_birimleri', 'id')],

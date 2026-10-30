@@ -36,7 +36,7 @@ vi.mock('@/features/kesinti/kampMalzemeApi', async (importOriginal) => ({
 }))
 
 const SECENEKLER: KesintiSecenekleri = {
-  kesinti_turleri: [{ id: 1, kod: 'KAMP MALZEME', ad: 'Kamp Malzeme' }],
+  kesinti_turleri: [{ id: 1, kod: 'KAMP MALZEME', ad: 'Kamp Malzeme', icmal: 'kamp_malzeme' }],
   firmalar: [{ id: 3, kod: 'MFK', ad: 'MFK KOÇ' }],
   projeler: [{ id: 5, kod: 'TÜM MAHALLER (ORTAK)', ad: 'Tüm Mahaller' }],
   para_birimleri: [{ id: 7, kod: 'TL', ad: 'Türk Lirası' }],

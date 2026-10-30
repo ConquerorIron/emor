@@ -27,6 +27,7 @@ const KAMP: KesintiTuru = {
   ad: 'Kamp Kesintisi',
   kdv_orani: '18.50',
   aciklama: 'Ortak kamp',
+  icmal: 'kamp',
 }
 
 function ciz(izinler = ['kesinti_turleri.goruntule', 'kesinti_turleri.guncelle']) {
@@ -56,6 +57,8 @@ describe('KesintiTurleriPage', () => {
     expect(screen.getByText('Kamp Kesintisi')).toBeInTheDocument()
     expect(screen.getByText('%18,5')).toBeInTheDocument()
     expect(screen.getByText('Ortak kamp')).toBeInTheDocument()
+    // Bağlı olduğu icmal ekranı
+    expect(screen.getByText('Kamp Kesintileri')).toBeInTheDocument()
   })
 
   it('yeni türü kodu Türkçe büyük harfe çevirerek kaydeder; boş açıklama null gider', async () => {
@@ -77,6 +80,8 @@ describe('KesintiTurleriPage', () => {
       ad: 'OSGB Kesintisi',
       kdv_orani: '20.00',
       aciklama: null,
+      // Ekran seçilmedi: tür hiçbir icmal ekranında kullanılamaz
+      icmal: null,
     })
   })
 
@@ -113,6 +118,7 @@ describe('KesintiTurleriPage', () => {
       ad: 'Kamp Konaklama',
       kdv_orani: '18.50',
       aciklama: 'Ortak kamp',
+      icmal: 'kamp',
     })
   })
 

@@ -54,6 +54,7 @@
     "projeler": "Projeler",
     "firmalar": "Firmalar",
     "paraBirimleri": "Para Birimleri",
+    "tanimlar": "Tanımlar",
     "alarmKurallari": "Alarm Kuralları"
   },
   "tasarim": {
@@ -497,7 +498,7 @@
     "ERP_OKUMA_YETKISI_YOK": "ERP veritabanı kullanıcısının bu veriyi okuma yetkisi yok. Veritabanı yöneticisinden okuma (SELECT) yetkisi isteyin.",
     "ERP_OKUMA_HATASI": "ERP okunamadı. Biraz sonra tekrar deneyin.",
     "KAYIT_KULLANILIYOR": "Bu kayıt kesinti satırlarında kullanıldığı için silinemez.",
-    "ICE_AKTARIM_HATALI": "Hatalı satırlar var; hiçbir satır kaydedilmedi. Aşağıdaki hataları düzeltip tekrar kaydedin."
+    "ICE_AKTARIM_HATALI": "Hatalı satırlar var; hiçbir satır kaydedilmedi. Aşağıdaki hataları düzeltip tekrar kontrol edin."
   },
   "yetki": {
     "goruntule": "Görüntüle",
@@ -708,7 +709,10 @@
         "adZorunlu": "Ad zorunludur.",
         "adCokUzun": "Ad en fazla 100 karakter olabilir.",
         "kdvAralik": "KDV oranı 0 ile 100 arasında olmalıdır."
-      }
+      },
+      "ekran": "Ekran",
+      "ekranYok": "Bağlı değil",
+      "ekranAciklamasi": "Bu tür yalnız seçilen ekranda girilebilir ve Excel'den aktarılabilir. Boş bırakılırsa hiçbir ekranda kullanılamaz."
     },
     "projeler": {
       "baslik": "Projeler",
@@ -866,13 +870,13 @@
       "iceAktarim": {
         "ac": "Excel'den Aktar",
         "baslik": "Excel'den Aktar",
-        "aciklama": "Excel dosyasını seçin ya da satırları Excel'den kopyalayıp yapıştırın (başlık satırıyla birlikte kopyalamanız önerilir). Kolonlar başlık adlarından tanınır. Doğrudan kaydedebilir ya da önce önizleyebilirsiniz; tek bir hatalı satır bile varsa hiçbir satır kaydedilmez ve hatalar aşağıda listelenir.",
+        "aciklama": "Excel dosyasını seçin ya da satırları Excel'den kopyalayıp yapıştırın (başlık satırıyla birlikte kopyalamanız önerilir). Kolonlar başlık adlarından tanınır. Ardından Kontrol Et'e basın: tüm satırlar kontrolden geçerse Kaydet açılır; geçemezse hangi satırda hangi nedenle hata olduğu listelenir.",
         "kaynak": {
           "dosya": "Excel Dosyası",
           "metin": "Kopyala-Yapıştır"
         },
         "dosyaSec": "Excel dosyası (.xlsx)",
-        "onizle": "Önizle",
+        "onizle": "Kontrol Et",
         "kaydet": "Kaydet ({{sayi}} satır)",
         "kaydedildi": "{{sayi}} satır aktarıldı.",
         "dosyaHatasi": {
@@ -881,8 +885,8 @@
           "satir_yok": "Başlık satırının altında aktarılacak satır yok."
         },
         "eksikKolonlar": "Zorunlu kolonlar bulunamadı: {{kolonlar}}",
-        "hataliDosya": "{{sayi}} satırda hata var; düzeltilene kadar hiçbir satır kaydedilmez. Hatalar nedenine göre gruplandı:",
-        "hatasiz": "{{sayi}} satır hatasız, kaydedilmeye hazır.",
+        "hataliDosya": "{{sayi}} satır kontrolden geçemedi; düzeltilene kadar hiçbir satır kaydedilmez. Hataların nedenine göre özeti aşağıda, her satırın hatası tablodaki Hata kolonunda.",
+        "hatasiz": "{{sayi}} satır kontrolden geçti, kaydedilmeye hazır.",
         "alanBaslik": "Kolon",
         "degerBaslik": "Değer",
         "nedenBaslik": "Neden",
@@ -897,8 +901,10 @@
           "gecersiz_secenek": "Geçersiz seçenek",
           "gecersiz_tarih": "Geçersiz tarih",
           "gecersiz_sayi": "Geçersiz sayı",
-          "cok_uzun": "Çok uzun"
-        }
+          "cok_uzun": "Çok uzun",
+          "baska_ekranin_turu": "Bu ekrana bağlı değil (Kesinti Türleri → Ekran)"
+        },
+        "hataBaslik": "Hata"
       },
       "yuklemeler": {
         "baslik": "Yüklemeler",
@@ -962,6 +968,11 @@
       "satirSayisi": "{{sayi}} dolu satır",
       "temizle": "Temizle",
       "ipucu": "Excel'de satırları seçip kopyalayın, tabloya tıklayıp Ctrl+V ile yapıştırın. Başlık satırıyla kopyalarsanız kolonlar adlarından eşlenir (Excel'deki sıra önemsiz); başlıksız kopyalarsanız seçili hücreden başlayarak yerleşir. Hücreye tıklayıp düzeltebilirsiniz: Enter alt hücreye, Tab sağ hücreye geçer."
+    },
+    "icmaller": {
+      "isgucu": "İşgücü Kesintileri",
+      "kamp": "Kamp Kesintileri",
+      "kamp_malzeme": "Kamp Malzeme Kesintileri"
     }
   }
 }

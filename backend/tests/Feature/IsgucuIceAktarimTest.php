@@ -36,7 +36,7 @@ final class IsgucuIceAktarimTest extends TestCase
         parent::setUp();
 
         $this->actingAs(User::factory()->yonetici()->create());
-        KesintiTuru::factory()->create(['kod' => 'İŞGÜCÜ']);
+        KesintiTuru::factory()->create(['kod' => 'İŞGÜCÜ', 'icmal' => 'isgucu']);
         Proje::factory()->create(['kod' => 'ZONE 10']);
         Firma::factory()->create(['kod' => 'HAB']);
         Firma::factory()->create(['kod' => 'TMC KABA']);
@@ -106,7 +106,12 @@ final class IsgucuIceAktarimTest extends TestCase
             self::satir(['yansitma_turu' => '%50 TMC-%50 HAB', 'tarih' => '31.02.2026', 'birim_fiyat' => 'abc']),
         ]);
 
-        $yanit = $this->postJson(self::ONIZLE, ['metin' => $metin])->assertOk();
+        $yanit = $this->postJson(self::ONIZLE, ['metin' => $metin])
+            ->assertOk()
+            // Her satır kendi hatalarını taşır (ekran satır satır gösterir)
+            ->assertJsonPath('data.satirlar.0.satir_hatalari', [])
+            ->assertJsonPath('data.satirlar.1.satir_hatalari', [['alan' => 'taseron', 'kod' => 'bulunamadi']])
+            ->assertJsonCount(3, 'data.satirlar.4.satir_hatalari');
 
         $hatalar = array_map(
             fn (array $h): string => "{$h['alan']}:{$h['kod']}:{$h['deger']}:{$h['adet']}:".implode(',', $h['satirlar']),
@@ -212,6 +217,23 @@ final class IsgucuIceAktarimTest extends TestCase
 
         $this->assertContains('adi_soyadi', $eksik);
         $this->assertNotContains('taseron', $eksik);
+    }
+
+    public function test_baska_ekrana_bagli_ya_da_bagsiz_kesinti_turu_bu_ekrana_aktarilamaz(): void
+    {
+        // Kamp Excel'i yanlışlıkla İşgücü ekranına yapıştırıldı; bir tür de hiçbir ekrana bağlanmamış
+        KesintiTuru::factory()->create(['kod' => 'KAMP', 'icmal' => KesintiYuklemesi::ICMAL_KAMP]);
+        KesintiTuru::factory()->create(['kod' => 'YEMEK', 'icmal' => null]);
+        $metin = self::yapistirma([self::satir(), self::satir(['kesinti_turu' => 'KAMP']), self::satir(['kesinti_turu' => 'yemek'])]);
+
+        $yanit = $this->postJson(self::ONIZLE, ['metin' => $metin])->assertOk();
+
+        $this->assertEqualsCanonicalizing(
+            ['kesinti_turu:baska_ekranin_turu:KAMP:3', 'kesinti_turu:baska_ekranin_turu:yemek:4'],
+            array_map(fn (array $h): string => "{$h['alan']}:{$h['kod']}:{$h['deger']}:".implode(',', $h['satirlar']), $yanit->json('data.hatalar')),
+        );
+        $this->postJson(self::KAYDET, ['metin' => $metin])->assertUnprocessable();
+        $this->assertDatabaseCount('isgucu_kesintileri', 0);
     }
 
     public function test_parti_geri_alininca_satirlariyla_silinir_elle_girilen_satir_kalir(): void

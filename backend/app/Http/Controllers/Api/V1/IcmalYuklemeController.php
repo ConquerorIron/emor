@@ -65,8 +65,9 @@ abstract class IcmalYuklemeController extends Controller
 
     /**
      * Hatasızsa tüm satırları tek parti olarak kaydeder; tek hata bile varsa
-     * hiçbirini. Önizleme şart değildir (kullanıcı kararı 2026-10-30): red
-     * yanıtı önizlemeyle aynı sonucu taşır, ekran hataları oradan gösterir.
+     * hiçbirini. Ekran Kaydet'i yalnız hatasız kontrolden sonra açar; arada
+     * tanımlar değiştiyse red yanıtı kontrolle aynı sonucu taşır, ekran
+     * hataları oradan gösterir.
      */
     protected function kayit(IcmalIceAktarRequest $request): JsonResponse
     {

@@ -9,6 +9,7 @@ import { kampMalzemeApi, type KampMalzemeKesintisi } from '@/features/kesinti/ka
 const KAMP_MALZEME_ICMALI: IcmalTanimi<KampMalzemeKesintisi> = {
   anahtar: 'kampMalzeme',
   izin: 'kamp_malzeme_kesintileri',
+  icmal: 'kamp_malzeme',
   api: kampMalzemeApi,
   alanlar: {
     ...ORTAK_ALANLAR,

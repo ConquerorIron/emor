@@ -33,7 +33,7 @@ final class KampMalzemeIceAktarimTest extends TestCase
         parent::setUp();
 
         $this->actingAs(User::factory()->yonetici()->create());
-        KesintiTuru::factory()->create(['kod' => 'KAMP MALZEME']);
+        KesintiTuru::factory()->create(['kod' => 'KAMP MALZEME', 'icmal' => 'kamp_malzeme']);
         Proje::factory()->create(['kod' => 'TÜM MAHALLER (ORTAK)']);
         Firma::factory()->create(['kod' => 'HAB']);
         Firma::factory()->create(['kod' => 'MFK']);

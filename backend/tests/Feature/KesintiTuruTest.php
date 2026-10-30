@@ -41,6 +41,7 @@ final class KesintiTuruTest extends TestCase
                 'ad' => 'Kamp',
                 'kdv_orani' => '10.00',
                 'aciklama' => 'Ortak kamp',
+                'icmal' => null,
             ])
             ->assertJsonPath('data.1.kod', 'YMK');
     }
@@ -58,7 +59,18 @@ final class KesintiTuruTest extends TestCase
             ->assertJsonPath('data.kdv_orani', '20.50')
             ->assertJsonPath('data.aciklama', null);
 
-        $this->assertDatabaseHas('kesinti_turleri', ['kod' => 'OSGB', 'ad' => 'OSGB Kesintisi', 'aciklama' => null]);
+        $this->assertDatabaseHas('kesinti_turleri', ['kod' => 'OSGB', 'ad' => 'OSGB Kesintisi', 'aciklama' => null, 'icmal' => null]);
+    }
+
+    public function test_tur_bir_icmal_ekranina_baglanir_ve_secim_listesinde_ekraniyla_doner(): void
+    {
+        $this->postJson(self::ADRES, ['kod' => 'İŞGÜCÜ', 'ad' => 'İşgücü', 'kdv_orani' => '20', 'icmal' => 'isgucu'])
+            ->assertCreated()
+            ->assertJsonPath('data.icmal', 'isgucu');
+
+        $this->getJson('/api/v1/kesinti/secenekler')
+            ->assertOk()
+            ->assertJsonPath('data.kesinti_turleri.0.icmal', 'isgucu');
     }
 
     /**
@@ -79,6 +91,7 @@ final class KesintiTuruTest extends TestCase
             'kdv 100ü aşıyor' => [['kdv_orani' => '100.01'] + $gecerli, 'kdv_orani'],
             'kdv üç ondalıklı' => [['kdv_orani' => '20.125'] + $gecerli, 'kdv_orani'],
             'açıklama 500 karakteri aşıyor' => [['aciklama' => str_repeat('a', 501)] + $gecerli, 'aciklama'],
+            'tanımsız ekran' => [['icmal' => 'yemek'] + $gecerli, 'icmal'],
         ];
     }
 

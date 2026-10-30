@@ -193,10 +193,13 @@ export function IcmalFormu<T extends IcmalSatiri>({
       switch (tur.tur) {
         case 'tanim':
           return secim(
-            secenekler[TANIMLAR[alan as TanimAlani].liste].map((kayit) => ({
-              value: String(kayit.id),
-              label: `${kayit.kod} — ${kayit.ad}`,
-            })),
+            secenekler[TANIMLAR[alan as TanimAlani].liste]
+              // Kesinti türünden yalnız bu ekrana bağlı olanlar (Kesinti Türleri → Ekran)
+              .filter((kayit) => alan !== 'kesinti_turu' || kayit.icmal === tanim.icmal)
+              .map((kayit) => ({
+                value: String(kayit.id),
+                label: `${kayit.kod} — ${kayit.ad}`,
+              })),
             true,
           )
         case 'secenek':

@@ -2,11 +2,18 @@ import { isAxiosError } from 'axios'
 
 import { api } from '@/api/client'
 
+/** Kesinti türünün bağlanabileceği icmal ekranları (backend KesintiYuklemesi::ICMALLER) */
+export const ICMALLER = ['isgucu', 'kamp', 'kamp_malzeme'] as const
+
+export type Icmal = (typeof ICMALLER)[number]
+
 /** Seçim listesi kaydı (tür, taşeron, proje, para birimi) */
 export interface KesintiTanimi {
   id: number
   kod: string
   ad: string
+  /** Yalnız kesinti türlerinde: bağlı olduğu ekran (null: hiçbir ekranda kullanılamaz) */
+  icmal?: Icmal | null
 }
 
 /** Kesinti icmal formlarının seçim listeleri */
@@ -86,10 +93,19 @@ export interface IceAktarimHatasi {
   satirlar: (string | number)[]
 }
 
-/** Önizleme satırı: Excel'deki değerler (seçimler kod olarak) */
-export type OnizlemeSatiri = Record<string, string | number | boolean | null> & {
+/** Satırdaki bir hata: hangi kolon, hangi neden */
+export interface SatirHatasi {
+  alan: string
+  kod: string
+}
+
+/** Kontrol edilen satır: Excel'deki değerler (seçimler kod olarak) ve kendi hataları */
+export type OnizlemeSatiri = Record<string, unknown> & {
   satir: number
+  /** Birden fazla Excel sayfası okunduysa satırın sayfası */
+  sayfa?: string | null
   hatali: boolean
+  satir_hatalari: SatirHatasi[]
 }
 
 export interface IceAktarimOnizlemesi {

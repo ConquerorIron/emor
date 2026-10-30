@@ -26,6 +26,9 @@ final class KesintiYuklemesi extends Model
 
     public const ICMAL_KAMP = 'kamp';
 
+    /** Kesinti türünün bağlanabileceği icmal ekranları (menü sırasıyla) */
+    public const ICMALLER = [self::ICMAL_ISGUCU, self::ICMAL_KAMP, self::ICMAL_KAMP_MALZEME];
+
     /** Excel dosyası yüklendi */
     public const KAYNAK_EXCEL = 'excel';
 

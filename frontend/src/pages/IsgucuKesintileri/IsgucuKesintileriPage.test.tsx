@@ -41,7 +41,11 @@ vi.mock('@/features/kesinti/isgucuApi', async (importOriginal) => ({
 }))
 
 const SECENEKLER: KesintiSecenekleri = {
-  kesinti_turleri: [{ id: 1, kod: 'İŞGÜCÜ', ad: 'İşgücü' }],
+  kesinti_turleri: [
+    { id: 1, kod: 'İŞGÜCÜ', ad: 'İşgücü', icmal: 'isgucu' },
+    // Başka ekrana bağlı tür bu ekranın formunda sunulmaz
+    { id: 2, kod: 'KAMP', ad: 'Kamp', icmal: 'kamp' },
+  ],
   firmalar: [{ id: 3, kod: 'HAB', ad: 'HAB' }],
   projeler: [{ id: 5, kod: 'ZONE 10', ad: 'Zone 10' }],
   para_birimleri: [{ id: 7, kod: 'TL', ad: 'Türk Lirası' }],
@@ -116,7 +120,7 @@ async function aktarimiAc(pano: string) {
   fireEvent.click(within(dialog).getByRole('tab', { name: 'Kopyala-Yapıştır' }))
   const tablo = await within(dialog).findByRole('grid', { name: 'Yapıştırma tablosu' })
   fireEvent.paste(tablo, { clipboardData: { getData: () => pano } })
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Önizle' }))
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Kontrol Et' }))
 
   return dialog
 }
@@ -180,6 +184,13 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
     expect(within(dialog).getByLabelText('Yansıtılan Tutar')).toHaveValue('2462,15')
     expect(within(dialog).getByLabelText('Kalan Tutar')).toHaveValue('462,15')
 
+    // Kesinti türü listesinde yalnız bu ekrana bağlı türler (menü body'ye açılır:
+    // seçili değer + menüdeki tek seçenek)
+    fireEvent.keyDown(within(dialog).getByLabelText('Kesinti Türü'), { key: 'ArrowDown' })
+    expect(await screen.findAllByText('İŞGÜCÜ — İşgücü')).toHaveLength(2)
+    expect(screen.queryByText('KAMP — Kamp')).not.toBeInTheDocument()
+    fireEvent.keyDown(within(dialog).getByLabelText('Kesinti Türü'), { key: 'Escape' })
+
     fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
 
     await waitFor(() => expect(api.kaydet).toHaveBeenCalledTimes(1))
@@ -197,11 +208,18 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
     expect(govde).not.toHaveProperty('kalan_tutar')
   })
 
-  it('hatalı yapıştırmada hataları nedenine göre gösterir ve kaydetmez', async () => {
+  it('kontrolden geçemeyen satırları satır satır nedeniyle gösterir ve kaydetmez', async () => {
     const onizleme: IceAktarimOnizlemesi = {
       hata: null,
       eksik_kolonlar: [],
-      satirlar: [{ satir: 6, hatali: true, taseron: 'YOK' }],
+      satirlar: [
+        {
+          satir: 6,
+          hatali: true,
+          taseron: 'YOK',
+          satir_hatalari: [{ alan: 'taseron', kod: 'bulunamadi' }],
+        },
+      ],
       hatalar: [{ alan: 'taseron', deger: 'YOK', kod: 'bulunamadi', adet: 2207, satirlar: [6, 7] }],
       toplamlar: [],
     }
@@ -210,18 +228,22 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
 
     const dialog = await aktarimiAc('İŞGÜCÜ\tYOK')
 
+    // Nedenine göre özet
     expect(await within(dialog).findByText('Tanımlarda bu kod yok')).toBeInTheDocument()
     expect(within(dialog).getByText('2207')).toBeInTheDocument()
+    // Hangi satır, hangi kolon, hangi neden: tabloda ve yapıştırma tablosunun satır numarasında
+    expect(within(dialog).getByText('Taşeron: Tanımlarda bu kod yok (YOK)')).toBeInTheDocument()
+    expect(within(dialog).getByTitle('Taşeron: Tanımlarda bu kod yok (YOK)')).toHaveTextContent('6')
     // Başlıksız yapıştırma ilk hücreden standart sırayla yerleşir, sunucuya başlıksız gider
     expect(api.onizle).toHaveBeenCalledWith({ metin: 'İŞGÜCÜ\tYOK\t' })
     expect(within(dialog).getByRole('button', { name: 'Kaydet (1 satır)' })).toBeDisabled()
   })
 
-  it('başlıklı yapıştırmada kolonlar adlarından eşlenir; hatasız önizlemeden sonra aynı girdiyle kaydeder', async () => {
+  it('başlıklı yapıştırmada kolonlar adlarından eşlenir; hatasız kontrolden sonra aynı girdiyle kaydeder', async () => {
     api.onizle.mockResolvedValue({
       hata: null,
       eksik_kolonlar: [],
-      satirlar: [{ satir: 6, hatali: false, adi_soyadi: 'FIRAT AKYILDIZ' }],
+      satirlar: [{ satir: 6, hatali: false, adi_soyadi: 'FIRAT AKYILDIZ', satir_hatalari: [] }],
       hatalar: [],
       toplamlar: LISTE.ozet,
     } satisfies IceAktarimOnizlemesi)
@@ -241,7 +263,7 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
     )
     expect(within(dialog).getByText('FIRAT AKYILDIZ')).toBeInTheDocument()
     expect(
-      await within(dialog).findByText('1 satır hatasız, kaydedilmeye hazır.'),
+      await within(dialog).findByText('1 satır kontrolden geçti, kaydedilmeye hazır.'),
     ).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet (1 satır)' }))
 
@@ -250,48 +272,22 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
     )
   })
 
-  it('önizlemeden doğrudan kaydeder; reddedilirse hatalar önizlemedeki gibi gösterilir', async () => {
-    api.aktar.mockRejectedValueOnce(
-      Object.assign(new Error('422'), {
-        isAxiosError: true,
-        response: {
-          status: 422,
-          data: {
-            kod: 'ICE_AKTARIM_HATALI',
-            data: {
-              hata: null,
-              eksik_kolonlar: [],
-              satirlar: [{ satir: 1, hatali: true, taseron: 'YOK' }],
-              hatalar: [
-                { alan: 'taseron', deger: 'YOK', kod: 'bulunamadi', adet: 1, satirlar: [1] },
-              ],
-              toplamlar: [],
-            } satisfies IceAktarimOnizlemesi,
-          },
-        },
-      }),
-    )
+  it('yapıştırılan veri kontrol edilmeden kaydedilemez; elle satır eklenmez', async () => {
     ciz()
 
     fireEvent.click(await screen.findByRole('button', { name: "Excel'den Aktar" }))
     const dialog = await screen.findByRole('dialog')
-    // Girdi yokken kaydedilecek bir şey yok
-    expect(within(dialog).getByRole('button', { name: 'Kaydet' })).toBeDisabled()
-    expect(within(dialog).queryByRole('button', { name: '10 Satır Ekle' })).not.toBeInTheDocument()
-
     fireEvent.click(within(dialog).getByRole('tab', { name: 'Kopyala-Yapıştır' }))
     const tablo = await within(dialog).findByRole('grid', { name: 'Yapıştırma tablosu' })
-    fireEvent.paste(tablo, { clipboardData: { getData: () => 'İŞGÜCÜ\tYOK' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+    expect(within(dialog).queryByRole('button', { name: '10 Satır Ekle' })).not.toBeInTheDocument()
 
-    expect(await within(dialog).findByText('Tanımlarda bu kod yok')).toBeInTheDocument()
-    expect(api.onizle).not.toHaveBeenCalled()
-    expect(api.aktar).toHaveBeenCalledWith({ metin: 'İŞGÜCÜ\tYOK\t' })
-    // Hatası bilinen girdi düzeltilene kadar kaydedilemez
-    expect(within(dialog).getByRole('button', { name: 'Kaydet (1 satır)' })).toBeDisabled()
+    fireEvent.paste(tablo, { clipboardData: { getData: () => 'İŞGÜCÜ\tHAB' } })
+
+    expect(within(dialog).getByRole('button', { name: 'Kontrol Et' })).toBeEnabled()
+    expect(within(dialog).getByRole('button', { name: 'Kaydet' })).toBeDisabled()
   })
 
-  it('yapıştırılan hücreye tıklanıp düzeltilen değer önizlemeye gider', async () => {
+  it('yapıştırılan hücreye tıklanıp düzeltilen değer kontrole gider', async () => {
     api.onizle.mockResolvedValue({
       hata: null,
       eksik_kolonlar: [],
@@ -306,7 +302,7 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
 
     fireEvent.click(within(dialog).getByText('YOK'))
     fireEvent.change(within(dialog).getByLabelText('Taşeron 1'), { target: { value: 'HAB' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Önizle' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kontrol Et' }))
 
     await waitFor(() => expect(api.onizle).toHaveBeenLastCalledWith({ metin: 'İŞGÜCÜ\tHAB\t' }))
   })

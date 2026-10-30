@@ -28,7 +28,10 @@ final class KesintiSecenekController extends Controller
             ->all();
 
         return response()->json(['data' => [
-            'kesinti_turleri' => $liste(KesintiTuru::query()),
+            // Tür, bağlı olduğu ekranla: her icmal formu yalnız kendi türlerini sunar
+            'kesinti_turleri' => KesintiTuru::query()->orderBy('kod')->get(['id', 'kod', 'ad', 'icmal'])
+                ->map(fn (KesintiTuru $tur): array => ['id' => $tur->id, 'kod' => $tur->kod, 'ad' => $tur->ad, 'icmal' => $tur->icmal])
+                ->all(),
             'firmalar' => $liste(Firma::query()),
             'projeler' => $liste(Proje::query()),
             'para_birimleri' => $liste(ParaBirimi::query()),

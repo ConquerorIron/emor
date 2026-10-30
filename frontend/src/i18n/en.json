@@ -54,6 +54,7 @@
     "projeler": "Projects",
     "firmalar": "Companies",
     "paraBirimleri": "Currencies",
+    "tanimlar": "Definitions",
     "alarmKurallari": "Alert Rules"
   },
   "tasarim": {
@@ -497,7 +498,7 @@
     "ERP_OKUMA_YETKISI_YOK": "The ERP database user is not allowed to read this data. Ask the database administrator for SELECT permission.",
     "ERP_OKUMA_HATASI": "ERP could not be read. Please try again shortly.",
     "KAYIT_KULLANILIYOR": "This record is used by deduction rows and cannot be deleted.",
-    "ICE_AKTARIM_HATALI": "There are invalid rows; nothing was saved. Fix the errors listed below and save again."
+    "ICE_AKTARIM_HATALI": "There are invalid rows; nothing was saved. Fix the errors below and check again."
   },
   "yetki": {
     "goruntule": "View",
@@ -708,7 +709,10 @@
         "adZorunlu": "Name is required.",
         "adCokUzun": "Name can be at most 100 characters.",
         "kdvAralik": "VAT rate must be between 0 and 100."
-      }
+      },
+      "ekran": "Screen",
+      "ekranYok": "Not linked",
+      "ekranAciklamasi": "This type can only be entered and imported on the selected screen. If left empty it cannot be used on any screen."
     },
     "projeler": {
       "baslik": "Projects",
@@ -866,13 +870,13 @@
       "iceAktarim": {
         "ac": "Import from Excel",
         "baslik": "Import from Excel",
-        "aciklama": "Select the Excel file or copy rows from Excel and paste them (copying the header row is recommended). Columns are recognised by header names. You can save directly or preview first; if even one row is invalid, nothing is saved and the errors are listed below.",
+        "aciklama": "Select the Excel file or copy rows from Excel and paste them (copying the header row is recommended). Columns are recognised by header names. Then press Check: if every row passes, Save is enabled; otherwise each invalid row is listed with its reason.",
         "kaynak": {
           "dosya": "Excel File",
           "metin": "Copy & Paste"
         },
         "dosyaSec": "Excel file (.xlsx)",
-        "onizle": "Preview",
+        "onizle": "Check",
         "kaydet": "Save ({{sayi}} rows)",
         "kaydedildi": "{{sayi}} rows imported.",
         "dosyaHatasi": {
@@ -881,8 +885,8 @@
           "satir_yok": "There are no rows below the header row."
         },
         "eksikKolonlar": "Required columns not found: {{kolonlar}}",
-        "hataliDosya": "{{sayi}} rows have errors; nothing is saved until they are fixed. Errors grouped by cause:",
-        "hatasiz": "{{sayi}} rows are valid and ready to save.",
+        "hataliDosya": "{{sayi}} rows failed the check; nothing is saved until they are fixed. A summary by reason is below, and each row’s error is in the Error column of the table.",
+        "hatasiz": "{{sayi}} rows passed the check and are ready to save.",
         "alanBaslik": "Column",
         "degerBaslik": "Value",
         "nedenBaslik": "Cause",
@@ -897,8 +901,10 @@
           "gecersiz_secenek": "Invalid option",
           "gecersiz_tarih": "Invalid date",
           "gecersiz_sayi": "Invalid number",
-          "cok_uzun": "Too long"
-        }
+          "cok_uzun": "Too long",
+          "baska_ekranin_turu": "Not linked to this screen (Deduction Types → Screen)"
+        },
+        "hataBaslik": "Error"
       },
       "yuklemeler": {
         "baslik": "Uploads",
@@ -962,6 +968,11 @@
       "satirSayisi": "{{sayi}} filled rows",
       "temizle": "Clear",
       "ipucu": "Select and copy rows in Excel, click the table and paste with Ctrl+V. If you copy the header row, columns are matched by name (Excel order does not matter); without it, rows are placed starting at the selected cell. Click a cell to correct it: Enter moves down, Tab moves right."
+    },
+    "icmaller": {
+      "isgucu": "Labour Deductions",
+      "kamp": "Camp Deductions",
+      "kamp_malzeme": "Camp Material Deductions"
     }
   }
 }
