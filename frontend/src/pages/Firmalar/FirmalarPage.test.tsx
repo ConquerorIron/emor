@@ -130,7 +130,7 @@ describe('FirmalarPage', () => {
     })
   })
 
-  it('ERP önizlemesinde tümünü seç yalnız aramaya uyan satırlara uygulanır', async () => {
+  it('ERP önizlemesi seçimsiz gelir; aranıp seçilen tek firma aktarılır, görünmeyenler aktarılmaz', async () => {
     api.erpOnizleme.mockResolvedValue([
       erpSatiri(1, 'ALFA YAPI', 'yeni'),
       erpSatiri(2, 'BETA İNŞAAT', 'eslesecek', {
@@ -146,28 +146,24 @@ describe('FirmalarPage', () => {
       erpSatiri(3, 'GAMA ELEKTRİK', 'yeni'),
       erpSatiri(4, 'DELTA', 'ayni'),
     ])
-    api.erpAktar.mockResolvedValue({ eklenen: 2, guncellenen: 0, eslesen: 0, atlanan: 0 })
+    api.erpAktar.mockResolvedValue({ eklenen: 0, guncellenen: 0, eslesen: 1, atlanan: 0 })
     ciz()
     await screen.findByText('AKTAŞ HAFRİYAT')
 
     fireEvent.click(screen.getByRole('button', { name: "ERP'den Getir" }))
     const dialog = await screen.findByRole('dialog')
     expect(await within(dialog).findByText('ELLE-B')).toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'Seçilenleri Aktar (3)' })).toBeEnabled()
+    expect(within(dialog).getByRole('button', { name: 'Seçilenleri Aktar (0)' })).toBeDisabled()
 
-    // Yalnız BETA görünürken "tümünü seç" düğmesi onun seçimini kaldırır
+    // Yalnız BETA görünürken "tümünü seç" yalnız onu seçer
     fireEvent.change(within(dialog).getByLabelText('Ara'), { target: { value: 'beta' } })
     expect(within(dialog).queryByText('ALFA YAPI')).not.toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Tümünü seç' }))
-    fireEvent.change(within(dialog).getByLabelText('Ara'), { target: { value: '' } })
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Seçilenleri Aktar (2)' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Seçilenleri Aktar (1)' }))
 
     await waitFor(() => expect(api.erpAktar).toHaveBeenCalledTimes(1))
-    expect(api.erpAktar).toHaveBeenCalledWith([
-      '00000001-0000-4000-8000-000000000000',
-      '00000003-0000-4000-8000-000000000000',
-    ])
+    expect(api.erpAktar).toHaveBeenCalledWith(['00000002-0000-4000-8000-000000000000'])
   })
 
   it('yalnız görüntüleme izninde ekleme, ERP aktarımı, düzenleme ve silme sunulmaz', async () => {

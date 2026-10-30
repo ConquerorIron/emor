@@ -61,8 +61,9 @@ interface AktarimTanimi<T extends ErpAktarimSatiri> {
 }
 
 /**
- * Önizlemedeki seçim ve kayıt. Ayrı bileşen: seçim, veri geldiğinde
- * aktarılabilir satırların tümüyle başlar (effect gerekmez).
+ * Önizlemedeki seçim ve kayıt. Seçim BOŞ başlar (kullanıcı isteği
+ * 2026-10-30): varsayılan "hepsi seçili" iken arama ile tek kayıt süzülüp
+ * aktarılınca görünmeyen tüm kayıtlar da aktarılmıştı.
  */
 function AktarimListesi<T extends ErpAktarimSatiri>({
   satirlar,
@@ -85,9 +86,7 @@ function AktarimListesi<T extends ErpAktarimSatiri>({
     aranan === ''
       ? degisenler
       : degisenler.filter((satir) => trBuyukHarf(tanim.aramaMetni(satir)).includes(aranan))
-  const [secili, setSecili] = useState<Set<string | number>>(
-    () => new Set(aktarilabilirler.map((satir) => satir.sira)),
-  )
+  const [secili, setSecili] = useState<Set<string | number>>(() => new Set())
   const seciliSatirlar = aktarilabilirler.filter((satir) => secili.has(satir.sira))
 
   const aktar = useMutation({

@@ -105,7 +105,7 @@ describe('ProjelerPage', () => {
     expect(api.kaydet).toHaveBeenCalledWith(null, { kod: 'ZONE-İ', ad: 'İstanbul Zone' })
   })
 
-  it('ERP önizlemesinde aktarılabilirler seçili gelir; yalnız seçilenlerin GUIDleri gönderilir', async () => {
+  it('ERP önizlemesinde hiçbir satır seçili gelmez; yalnız seçilenlerin GUIDleri gönderilir', async () => {
     api.erpOnizleme.mockResolvedValue(ONIZLEME)
     api.erpAktar.mockResolvedValue({ eklenen: 1, guncellenen: 1, eslesen: 0, atlanan: 0 })
     ciz()
@@ -124,9 +124,12 @@ describe('ProjelerPage', () => {
     expect(within(dialog).getByText("ERP'de aynı kod birden fazla kayıtta.")).toBeInTheDocument()
     expect(within(dialog).getByText('Eski Ad')).toBeInTheDocument()
 
-    // Eşleşecek satırın seçimi kaldırılır
+    expect(within(dialog).getByRole('button', { name: 'Seçilenleri Aktar (0)' })).toBeDisabled()
+
+    // Güncellenecek ve yeni satır seçilir; eşleşecek satır seçilmez
     const satirSecimleri = within(dialog).getAllByRole('button', { name: 'Satırı seç' })
-    fireEvent.click(satirSecimleri[1])
+    fireEvent.click(satirSecimleri[0])
+    fireEvent.click(satirSecimleri[2])
     fireEvent.click(within(dialog).getByRole('button', { name: 'Seçilenleri Aktar (2)' }))
 
     await waitFor(() => expect(api.erpAktar).toHaveBeenCalledTimes(1))
