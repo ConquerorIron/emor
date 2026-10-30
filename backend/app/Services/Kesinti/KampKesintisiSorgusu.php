@@ -21,4 +21,16 @@ final class KampKesintisiSorgusu extends IcmalSorgusu
     ];
 
     protected const ARANANLAR = ['oda_tipi', 'kaynak_firma', 'mahal'];
+
+    /** Tablonun altındaki / üstündeki toplam satırlarında tutarlarla birlikte toplanır */
+    protected const EK_TOPLAMLAR = ['toplam_oda'];
+
+    /** Özet sekmeleri (kullanıcı isteği 2026-10-30): sekme => gruplar */
+    protected const PIVOTLAR = [
+        'taseron' => ['taseron', 'proje', 'para_birimi'],
+        'yansitma_turu' => ['yansitma_turu', 'proje', 'para_birimi'],
+        'proje' => ['proje', 'para_birimi'],
+    ];
+
+    protected const PIVOT_TOPLAMLARI = ['toplam_oda'];
 }

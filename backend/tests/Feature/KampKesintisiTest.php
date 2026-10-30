@@ -12,6 +12,7 @@ use App\Models\Proje;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -89,6 +90,36 @@ final class KampKesintisiTest extends TestCase
             ->assertJsonValidationErrorFor($alan, 'hatalar');
 
         $this->assertDatabaseCount('kamp_kesintileri', 0);
+    }
+
+    public function test_toplamlar_ozet_sekmeleri_ve_excel_sayfalari_toplam_odayi_icerir(): void
+    {
+        $proje = Proje::factory()->create(['kod' => 'TÜM MAHALLER (ORTAK)']);
+        $mfk = Firma::factory()->create(['kod' => 'MFK']);
+        KampKesintisi::factory()->create(['firma_id' => $mfk->id, 'proje_id' => $proje->id, 'yansitma_turu' => 'taseron', 'toplam_oda' => '17.00', 'toplam_tutar' => '20400.00']);
+        KampKesintisi::factory()->create(['firma_id' => $mfk->id, 'proje_id' => $proje->id, 'yansitma_turu' => 'hab', 'toplam_oda' => '489.00', 'toplam_tutar' => '586800.00']);
+
+        // Tablonun altı / üstü: para birimine göre toplam oda + tutarlar
+        $this->getJson(self::ADRES.'?page=1')
+            ->assertOk()
+            ->assertJsonPath('ozet.0.toplam_oda', '506.00')
+            ->assertJsonPath('ozet.0.toplam_tutar', '607200.00');
+
+        $this->getJson(self::ADRES.'/pivot/taseron')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.taseron', 'MFK')
+            ->assertJsonPath('data.0.toplam_oda', '506.00');
+        $this->getJson(self::ADRES.'/pivot/yansitma_turu')
+            ->assertOk()
+            ->assertJsonPath('data.*.yansitma_turu', ['hab', 'taseron']);
+        // İşgücü'ne özgü sekme burada yok
+        $this->getJson(self::ADRES.'/pivot/vasif')->assertNotFound();
+
+        $yanit = $this->get(self::ADRES.'/excel')->assertOk();
+        $kitap = IOFactory::load($yanit->baseResponse->getFile()->getPathname());
+        $this->assertSame(['Data', 'Taşeron', 'Yansıtma Türü', 'Proje'], $kitap->getSheetNames());
+        $this->assertSame(['PROJE', 'PARA BİRİMİ', 'SATIR SAYISI', 'TOPLAM ODA'], array_slice($kitap->getSheetByName('Proje')?->toArray()[0] ?? [], 0, 4));
     }
 
     public function test_yapistirma_kolonlari_kullanicinin_nihai_sirasinda(): void

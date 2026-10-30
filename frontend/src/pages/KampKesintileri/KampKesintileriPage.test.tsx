@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
   secenekler: vi.fn(),
   liste: vi.fn(),
   kaydet: vi.fn(),
+  pivot: vi.fn(),
 }))
 
 vi.mock('@/features/kesinti/icmalApi', async (importOriginal) => ({
@@ -31,6 +32,7 @@ vi.mock('@/features/kesinti/kampApi', async (importOriginal) => ({
     yuklemeler: vi.fn().mockResolvedValue([]),
     geriAl: vi.fn(),
     kolonlar: vi.fn(),
+    pivot: api.pivot,
   },
 }))
 
@@ -69,7 +71,19 @@ describe('KampKesintileriPage', { timeout: 15_000 }, () => {
     api.liste.mockResolvedValue({
       data: [SATIR],
       meta: { current_page: 1, last_page: 1, total: 1 },
-      ozet: [],
+      // Filtredeki tüm satırların toplamı (toplam oda + tutarlar)
+      ozet: [
+        {
+          para_birimi: 'TL',
+          satir_sayisi: 2,
+          toplam_oda: '506.00',
+          toplam_tutar: '607200.00',
+          iptal_edilen_tutar: '586800.00',
+          yansitilan_tutar: '20400.00',
+          kesilen_tutar: '20400.00',
+          kalan_tutar: '0.00',
+        },
+      ],
     })
     render(
       <AppProviders>
@@ -84,6 +98,40 @@ describe('KampKesintileriPage', { timeout: 15_000 }, () => {
     cleanup()
     vi.clearAllMocks()
     localStorage.clear()
+  })
+
+  it('toplam odayı tepede ve dipte toplar; Taşeron / Yansıtma Türü / Proje özet sekmeleri', async () => {
+    api.pivot.mockResolvedValue([
+      {
+        proje: 'TÜM MAHALLER (ORTAK)',
+        para_birimi: 'TL',
+        satir_sayisi: 2,
+        toplam_oda: '506.00',
+        toplam_tutar: '607200.00',
+        iptal_edilen_tutar: '586800.00',
+        yansitilan_tutar: '20400.00',
+        kesilen_tutar: '20400.00',
+        kalan_tutar: '0.00',
+      },
+    ])
+    expect(await screen.findByText('6 KİŞİLİK ODA')).toBeInTheDocument()
+    expect(screen.getAllByText('506,00')).toHaveLength(2)
+
+    const sekmeler = within(screen.getByRole('tablist', { name: 'Görünümler' }))
+      .getAllByRole('tab')
+      .map((sekme) => sekme.textContent)
+    expect(sekmeler).toEqual(['Data', 'Taşeron', 'Yansıtma Türü', 'Proje'])
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Proje' }))
+
+    // Grup satırı + üstteki ve alttaki toplam
+    expect(await screen.findAllByText('TÜM MAHALLER (ORTAK)')).toHaveLength(1)
+    expect(screen.getAllByText('506,00')).toHaveLength(3)
+    expect(api.pivot).toHaveBeenCalledWith('proje', expect.anything())
+    const basliklar = screen
+      .getAllByRole('columnheader')
+      .map((baslik) => baslik.textContent.replace(/[▲▼↕]/g, ''))
+    expect(basliklar.slice(0, 4)).toEqual(['Proje', 'Para Birimi', 'Satır Sayısı', 'Toplam Oda'])
   })
 
   it('kolonlar kullanıcının nihai sırasında; açıklama kolonu yok', async () => {

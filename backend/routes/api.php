@@ -255,6 +255,10 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/kesinti/kamp/excel', [KampKesintisiController::class, 'excel'])
                 ->middleware('throttle:kesinti-excel')
                 ->name('kesinti.kamp.excel');
+            // Özet sekmeleri (taşeron, yansıtma türü, proje)
+            Route::get('/kesinti/kamp/pivot/{pivot}', [KampKesintisiController::class, 'pivot'])
+                ->where('pivot', '[a-z_]+')
+                ->name('kesinti.kamp.pivot');
         });
         Route::middleware('can:kamp_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/kamp', [KampKesintisiController::class, 'store'])
