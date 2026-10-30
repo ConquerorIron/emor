@@ -139,6 +139,41 @@ final class IsgucuKesintisiTest extends TestCase
         $this->assertSame('s', $sayfa->getCell('I2')->getDataType());
     }
 
+    public function test_ozet_sekmeleri_filtredeki_satirlari_gruplayip_toplar(): void
+    {
+        $tmc = Firma::factory()->create(['kod' => 'TMC KABA', 'ad' => 'TMC Yapı']);
+        $hab = Firma::factory()->create(['kod' => 'HAB']);
+        $proje = Proje::factory()->create(['kod' => 'ZONE 10']);
+        $ortak = ['proje_id' => $proje->id, 'iptal_edilen_tutar' => '0.00', 'yansitilan_tutar' => '0.00', 'kesilen_tutar' => '0.00', 'kalan_tutar' => '0.00'];
+        IsgucuKesintisi::factory()->create([...$ortak, 'firma_id' => $tmc->id, 'tarih' => '2026-03-02', 'mesai_turu' => 'fazla', 'miktar_saat' => '3.00', 'toplam_tutar' => '100.00']);
+        IsgucuKesintisi::factory()->create([...$ortak, 'firma_id' => $tmc->id, 'tarih' => '2026-03-28', 'mesai_turu' => 'normal', 'miktar_saat' => '0.50', 'toplam_tutar' => '50.25']);
+        IsgucuKesintisi::factory()->create([...$ortak, 'firma_id' => $hab->id, 'tarih' => '2026-04-01', 'mesai_turu' => 'normal', 'miktar_saat' => '2.00', 'toplam_tutar' => '10.00']);
+
+        $this->getJson(self::ADRES.'/pivot/taseron')
+            ->assertOk()
+            ->assertJsonPath('data.*.taseron', ['HAB', 'TMC KABA'])
+            ->assertJsonPath('data.1', [
+                'taseron' => 'TMC KABA', 'proje' => 'ZONE 10', 'para_birimi' => 'TL', 'taseron_ad' => 'TMC Yapı', 'satir_sayisi' => 2,
+                'miktar_saat' => '3.50', 'toplam_tutar' => '150.25', 'iptal_edilen_tutar' => '0.00', 'yansitilan_tutar' => '0.00',
+                'kesilen_tutar' => '0.00', 'kalan_tutar' => '0.00',
+            ]);
+
+        // Tarih sekmesi tarihten türetilen yıl / aya göre; liste filtresi uygulanır
+        $this->getJson(self::ADRES.'/pivot/tarih?'.http_build_query(['firma_id' => $tmc->id]))
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.yil', 2026)
+            ->assertJsonPath('data.0.ay', 3)
+            ->assertJsonPath('data.0.toplam_tutar', '150.25');
+
+        $this->getJson(self::ADRES.'/pivot/mesai_turu')
+            ->assertOk()
+            ->assertJsonPath('data.*.mesai_turu', ['fazla', 'normal'])
+            ->assertJsonPath('data.1.miktar_saat', '2.50');
+
+        $this->getJson(self::ADRES.'/pivot/adi_soyadi')->assertNotFound();
+    }
+
     public function test_baska_ekrana_bagli_kesinti_turuyle_satir_girilemez(): void
     {
         $kamp = KesintiTuru::factory()->create(['kod' => 'KAMP', 'icmal' => 'kamp']);

@@ -219,6 +219,10 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/kesinti/isgucu/excel', [IsgucuKesintisiController::class, 'excel'])
                 ->middleware('throttle:kesinti-excel')
                 ->name('kesinti.isgucu.excel');
+            // Özet sekmeleri (taşeron, yansıtma türü, proje, vasıf, mesai türü, tarih)
+            Route::get('/kesinti/isgucu/pivot/{pivot}', [IsgucuKesintisiController::class, 'pivot'])
+                ->where('pivot', '[a-z_]+')
+                ->name('kesinti.isgucu.pivot');
         });
         Route::middleware('can:isgucu_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/isgucu', [IsgucuKesintisiController::class, 'store'])

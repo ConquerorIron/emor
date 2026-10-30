@@ -34,6 +34,11 @@ final class IsgucuKesintisiController extends IcmalSatiriController
         return $this->liste($request);
     }
 
+    public function pivot(IsgucuKesintisiListeRequest $request, string $pivot): JsonResponse
+    {
+        return $this->pivotla($request, $pivot);
+    }
+
     public function excel(IsgucuKesintisiListeRequest $request, IsgucuIceAktarimi $aktarim, IcmalExcelAktarici $aktarici): BinaryFileResponse|JsonResponse
     {
         return $this->excelAktar($request, $aktarim, $aktarici, 'İşgücü Kesintileri', 'isgucu-kesintileri.xlsx');

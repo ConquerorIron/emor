@@ -38,6 +38,9 @@ export const queryKeys = {
     icmalListeleri: (icmal: string) => ['kesinti', icmal, 'liste'] as const,
     icmalListesi: (icmal: string, parametreler: Record<string, unknown>) =>
       ['kesinti', icmal, 'liste', parametreler] as const,
+    // Listenin altında: satır eklenip silinince liste ile birlikte tazelenir
+    icmalPivotu: (icmal: string, pivot: string, parametreler: Record<string, unknown>) =>
+      ['kesinti', icmal, 'liste', 'pivot', pivot, parametreler] as const,
     icmalYuklemeleri: (icmal: string) => ['kesinti', icmal, 'yuklemeler'] as const,
     icmalKolonlari: (icmal: string) => ['kesinti', icmal, 'kolonlar'] as const,
     // ERP önizlemeleri her açılışta taze okunur (önbelleğe güvenilmez)

@@ -20,6 +20,7 @@ const api = vi.hoisted(() => ({
   geriAl: vi.fn(),
   kolonlar: vi.fn(),
   excel: vi.fn(),
+  pivot: vi.fn(),
 }))
 
 vi.mock('@/features/kesinti/icmalApi', async (importOriginal) => ({
@@ -39,6 +40,7 @@ vi.mock('@/features/kesinti/isgucuApi', async (importOriginal) => ({
     geriAl: api.geriAl,
     kolonlar: api.kolonlar,
     excel: api.excel,
+    pivot: api.pivot,
   },
 }))
 
@@ -184,6 +186,53 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
         1,
       ),
     )
+  })
+
+  it('özet sekmeleri aynı filtreyle gruplanmış toplamları gösterir', async () => {
+    api.pivot.mockResolvedValue([
+      {
+        yil: 2026,
+        ay: 3,
+        proje: 'ZONE 10',
+        para_birimi: 'TL',
+        satir_sayisi: 2,
+        miktar_saat: '3.50',
+        toplam_tutar: '150.25',
+        iptal_edilen_tutar: '0.00',
+        yansitilan_tutar: '150.25',
+        kesilen_tutar: '100.00',
+        kalan_tutar: '50.25',
+      },
+    ])
+    ciz()
+    await screen.findByText('FIRAT AKYILDIZ')
+
+    const sekmeler = within(screen.getByRole('tablist', { name: 'Görünümler' }))
+      .getAllByRole('tab')
+      .map((sekme) => sekme.textContent)
+    expect(sekmeler).toEqual([
+      'Data',
+      'Taşeron',
+      'Yansıtma Türü',
+      'Proje',
+      'Vasfı',
+      'Mesai Türü',
+      'Tarih',
+    ])
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Tarih' }))
+
+    expect(await screen.findByText('Mart')).toBeInTheDocument()
+    expect(screen.getByText('3,50')).toBeInTheDocument()
+    expect(screen.getByText('50,25')).toBeInTheDocument()
+    expect(api.pivot).toHaveBeenCalledWith('tarih', expect.objectContaining({ ara: '' }))
+    // Satır listesi bu sekmede çizilmez
+    expect(screen.queryByText('FIRAT AKYILDIZ')).not.toBeInTheDocument()
+    const basliklar = screen
+      .getAllByRole('columnheader')
+      .map((baslik) => baslik.textContent.replace(/[▲▼↕]/g, ''))
+    expect(basliklar.slice(0, 4)).toEqual(['Yıl', 'Ay', 'Proje', 'Para Birimi'])
+    expect(basliklar).toContain('Miktar (Saat)')
   })
 
   it("Excel'e Aktar ekrandaki filtre ve sıralamayla tüm satırları indirir", async () => {

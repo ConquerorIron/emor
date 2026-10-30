@@ -47,6 +47,14 @@ abstract class IcmalSatiriController extends Controller
             ->response();
     }
 
+    /** Özet (pivot) sekmesi: listeyle aynı filtre, sekmenin alanlarına göre gruplanmış toplamlar */
+    protected function pivotla(IcmalListeRequest $request, string $pivot): JsonResponse
+    {
+        abort_unless(in_array($pivot, $this->sorgu::pivotlar(), true), 404);
+
+        return response()->json(['data' => $this->sorgu->pivot($this->sorgu->filtrele($request->filtre()), $pivot)]);
+    }
+
     /**
      * Filtredeki tüm satırlar, tüm kolonlar (gizliler dahil), listedeki sırayla
      * .xlsx olarak (kullanıcı isteği 2026-10-30).

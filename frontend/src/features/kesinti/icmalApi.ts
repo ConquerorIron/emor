@@ -137,9 +137,17 @@ export type IceAktarimGirdisi = { dosya: File } | { metin: string }
 
 export type Siralama = { anahtar: string; yon: 'asc' | 'desc' } | null
 
+/**
+ * Özet (pivot) satırı: gruplanan alanlar (tanımlar kod olarak, yil / ay sayı),
+ * satır sayısı ve toplamlar (noktalı decimal metin)
+ */
+export type PivotSatiri = Record<string, string | number | null> & { satir_sayisi: number }
+
 /** Bir icmal ekranının uçları (hepsi /api/v1/kesinti/<yol> altında aynı düzende) */
 export interface IcmalApi<T extends IcmalSatiri> {
   listele: (filtre: IcmalFiltresi, siralama: Siralama, sayfa: number) => Promise<IcmalListesi<T>>
+  /** Özet sekmesi: listeyle aynı filtre, sekmenin alanlarına göre gruplanmış toplamlar */
+  pivot: (pivot: string, filtre: IcmalFiltresi) => Promise<PivotSatiri[]>
   /** Filtredeki tüm satırlar, tüm kolonlar (gizliler dahil) .xlsx olarak indirilir */
   excel: (filtre: IcmalFiltresi, siralama: Siralama, dosyaAdi: string) => Promise<void>
   kaydet: (id: number | null, govde: IcmalGovdesi) => Promise<T>
@@ -217,6 +225,13 @@ export function icmalApi<T extends IcmalSatiri>(yol: string): IcmalApi<T> {
       })
 
       return yanit.data
+    },
+    pivot: async (pivot, filtre) => {
+      const yanit = await api.get<{ data: PivotSatiri[] }>(`${adres}/pivot/${pivot}`, {
+        params: listeParametreleri(filtre, null),
+      })
+
+      return yanit.data.data
     },
     excel: async (filtre, siralama, dosyaAdi) => {
       const yanit = await api

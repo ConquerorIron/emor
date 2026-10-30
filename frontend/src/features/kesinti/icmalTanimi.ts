@@ -49,6 +49,12 @@ export interface IcmalTanimi<T extends IcmalSatiri> {
    * 2026-10-30); liste tarihin hemen sağına Yıl ve Ay ekler.
    */
   kolonlar: string[]
+  /**
+   * Özet (pivot) sekmeleri: anahtar (sekme adı `kesinti.alan.<anahtar>`),
+   * gruplanan alanlar ve toplanan sayı alanları — backend sorgusunun
+   * PIVOTLAR'ı ile aynı. Yoksa yalnız Data sekmesi (sekme çubuğu çizilmez).
+   */
+  pivotlar?: { anahtar: string; gruplar: string[]; toplamlar: string[] }[]
   /** Form bölümleri: başlık çeviri anahtarı + alanlar */
   form: { baslik: string; alanlar: FormAlani[] }[]
   /** Silme onayında satırı tanıtan metin (ör. adı soyadı, ürün) */
@@ -107,6 +113,11 @@ export function listeKolonlari(kolonlar: string[]): string[] {
 /** "2026-03-27" → ayın adı, arayüz dilinde ("Mart") */
 export function ayAdi(tarih: string, dil: string): string {
   return new Date(`${tarih.slice(0, 10)}T00:00:00`).toLocaleString(dil, { month: 'long' })
+}
+
+/** Ay numarası (1–12) → ayın adı, arayüz dilinde */
+export function ayNumarasiAdi(ay: number, dil: string): string {
+  return new Date(2000, ay - 1, 1).toLocaleString(dil, { month: 'long' })
 }
 
 /** Hesaplanan ve sayı alanlarının ondalık basamağı */

@@ -927,7 +927,10 @@
         "geriAlOnayBaslik": "Undo upload?",
         "geriAlOnayMesaj": "The upload from {{zaman}} and its {{sayi}} rows will be deleted."
       },
-      "excelAktar": "Export to Excel"
+      "excelAktar": "Export to Excel",
+      "sekmeler": "Views",
+      "sekmeData": "Data",
+      "pivotSatirSayisi": "Rows"
     },
     "isgucu": {
       "baslik": "Labour Deductions",

@@ -927,7 +927,10 @@
         "geriAlOnayBaslik": "Yükleme geri alınsın mı?",
         "geriAlOnayMesaj": "{{zaman}} yüklemesi ve {{sayi}} satırı silinecek."
       },
-      "excelAktar": "Excel'e Aktar"
+      "excelAktar": "Excel'e Aktar",
+      "sekmeler": "Görünümler",
+      "sekmeData": "Data",
+      "pivotSatirSayisi": "Satır Sayısı"
     },
     "isgucu": {
       "baslik": "İşgücü Kesintileri",

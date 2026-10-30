@@ -22,4 +22,16 @@ final class IsgucuKesintisiSorgusu extends IcmalSorgusu
     ];
 
     protected const ARANANLAR = ['adi_soyadi', 'kaynak_fis_no', 'kaynak_firma', 'mahal', 'tanim', 'gorev', 'departman', 'aktivite'];
+
+    /** Özet sekmeleri (kullanıcı isteği 2026-10-30): sekme => gruplar */
+    protected const PIVOTLAR = [
+        'taseron' => ['taseron', 'proje', 'para_birimi'],
+        'yansitma_turu' => ['yansitma_turu', 'proje', 'para_birimi'],
+        'proje' => ['proje', 'para_birimi'],
+        'vasif' => ['vasif', 'proje', 'para_birimi'],
+        'mesai_turu' => ['mesai_turu', 'proje', 'para_birimi'],
+        'tarih' => ['yil', 'ay', 'proje', 'para_birimi'],
+    ];
+
+    protected const PIVOT_TOPLAMLARI = ['miktar_saat'];
 }

@@ -31,6 +31,7 @@ import {
 } from './icmalApi'
 import { IcmalFormu } from './IcmalFormu'
 import { IcmalIceAktarimPenceresi } from './IcmalIceAktarimPenceresi'
+import { IcmalPivotTablosu } from './IcmalPivotTablosu'
 import { IcmalYuklemelerPenceresi } from './IcmalYuklemelerPenceresi'
 import {
   alanDegeri,
@@ -69,6 +70,9 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
   const [silinecek, setSilinecek] = useState<T | null>(null)
   const [aktarimAcik, setAktarimAcik] = useState(false)
   const [yuklemelerAcik, setYuklemelerAcik] = useState(false)
+  // 'data': satır listesi; diğerleri tanimdaki özet (pivot) sekmeleri
+  const [sekme, setSekme] = useState('data')
+  const seciliPivot = tanim.pivotlar?.find((pivot) => pivot.anahtar === sekme)
 
   const { siralama, siralamaDegistir: kaliciSiralamaDegistir } = useKaliciSiralama(
     `${tanim.anahtar}Kesintileri`,
@@ -289,27 +293,60 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
               <ToplamOzeti toplamlar={liste.data.ozet} />
             </div>
           ) : null}
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <KolonSecici
-              kolonlar={tumKolonlar.map(({ anahtar, baslik }) => ({ anahtar, baslik }))}
-              gorunurMu={kolonGorunurlugu.gorunurMu}
-              degistir={kolonGorunurlugu.degistir}
-              hepsiniGoster={kolonGorunurlugu.hepsiniGoster}
-            />
-            {sayfalama('ust')}
-          </div>
-          <div className={`mt-3 ${liste.isPlaceholderData ? 'opacity-50' : ''}`}>
-            <DataTable
-              kolonlar={kolonlar}
-              satirlar={liste.data?.data ?? []}
-              satirAnahtari={(satir) => satir.id}
-              yukleniyor={liste.isPending}
-              siralama={siralama}
-              siralamaDegistir={siralamaDegistir}
-              ustKaydirma
-            />
-          </div>
-          <div className="mt-3">{sayfalama('alt')}</div>
+          {tanim.pivotlar ? (
+            // Data: satırlar; diğerleri aynı filtrenin özetleri (kullanıcı isteği)
+            <div
+              role="tablist"
+              aria-label={t('kesinti.icmal.sekmeler')}
+              className="mt-4 flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-700"
+            >
+              {['data', ...tanim.pivotlar.map((p) => p.anahtar)].map((anahtar) => (
+                <button
+                  key={anahtar}
+                  type="button"
+                  role="tab"
+                  aria-selected={sekme === anahtar}
+                  onClick={() => setSekme(anahtar)}
+                  className={`-mb-px cursor-pointer border-b-2 px-3 py-2 text-sm font-semibold ${
+                    sekme === anahtar
+                      ? 'border-violet-600 text-violet-700 dark:text-violet-300'
+                      : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {anahtar === 'data' ? t('kesinti.icmal.sekmeData') : t(`kesinti.alan.${anahtar}`)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {seciliPivot ? (
+            <div className="mt-4">
+              <IcmalPivotTablosu tanim={tanim} pivot={seciliPivot} filtre={sorguFiltresi} />
+            </div>
+          ) : (
+            <>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <KolonSecici
+                  kolonlar={tumKolonlar.map(({ anahtar, baslik }) => ({ anahtar, baslik }))}
+                  gorunurMu={kolonGorunurlugu.gorunurMu}
+                  degistir={kolonGorunurlugu.degistir}
+                  hepsiniGoster={kolonGorunurlugu.hepsiniGoster}
+                />
+                {sayfalama('ust')}
+              </div>
+              <div className={`mt-3 ${liste.isPlaceholderData ? 'opacity-50' : ''}`}>
+                <DataTable
+                  kolonlar={kolonlar}
+                  satirlar={liste.data?.data ?? []}
+                  satirAnahtari={(satir) => satir.id}
+                  yukleniyor={liste.isPending}
+                  siralama={siralama}
+                  siralamaDegistir={siralamaDegistir}
+                  ustKaydirma
+                />
+              </div>
+              <div className="mt-3">{sayfalama('alt')}</div>
+            </>
+          )}
         </>
       )}
 

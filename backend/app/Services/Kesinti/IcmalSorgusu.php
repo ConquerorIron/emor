@@ -10,6 +10,7 @@ use App\Models\ParaBirimi;
 use App\Models\Proje;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Query\Builder as TemelSorgu;
 
 /**
  * Kesinti icmali listelerinin filtresi, sıralaması ve para birimine göre
@@ -47,6 +48,30 @@ abstract class IcmalSorgusu
     ];
 
     private const TUTARLAR = ['toplam_tutar', 'iptal_edilen_tutar', 'yansitilan_tutar', 'kesilen_tutar', 'kalan_tutar'];
+
+    /**
+     * Özet (pivot) sekmeleri: pivot anahtarı => gruplanan alanlar, sırasıyla.
+     * Alanlar: tanımlar (kesinti_turu, taseron, proje, para_birimi), bu
+     * tablonun kolonları ya da tarihten türetilen yil / ay.
+     *
+     * @var array<string, list<string>>
+     */
+    protected const PIVOTLAR = [];
+
+    /**
+     * Pivotlarda toplanan sayı kolonları (5 tutar her zaman eklenir).
+     *
+     * @var list<string>
+     */
+    protected const PIVOT_TOPLAMLARI = [];
+
+    /** Pivotta tanım alanının tablosu ve yabancı anahtarı (kod ile gruplanır) */
+    private const PIVOT_TANIMLARI = [
+        'kesinti_turu' => ['kesinti_turleri', 'kesinti_turu_id'],
+        'taseron' => ['firmalar', 'firma_id'],
+        'proje' => ['projeler', 'proje_id'],
+        'para_birimi' => ['para_birimleri', 'para_birimi_id'],
+    ];
 
     /**
      * Liste isteğinin kabul ettiği sıralama anahtarları.
@@ -144,5 +169,90 @@ abstract class IcmalSorgusu
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Bu icmalin özet (pivot) sekmeleri.
+     *
+     * @return list<string>
+     */
+    public static function pivotlar(): array
+    {
+        return array_keys(static::PIVOTLAR);
+    }
+
+    /**
+     * Filtredeki satırların pivotu: gruplanan alanlar (tanımlar koduyla,
+     * taşeron adıyla birlikte) + satır sayısı + toplamlar, gruplara göre sıralı.
+     *
+     * @param  Builder<Model>  $sorgu
+     * @return list<array<string, int|string|null>>
+     */
+    public function pivot(Builder $sorgu, string $pivot): array
+    {
+        $tablo = static::TABLO;
+        $gruplar = static::PIVOTLAR[$pivot];
+        $toplamlar = [...static::PIVOT_TOPLAMLARI, ...self::TUTARLAR];
+        $taban = $sorgu->clone()->toBase();
+        $secimler = [];
+        $gruplama = [];
+
+        foreach ($gruplar as $alan) {
+            if (isset(self::PIVOT_TANIMLARI[$alan])) {
+                [$tanimTablosu, $yabanci] = self::PIVOT_TANIMLARI[$alan];
+                $taban->join("{$tanimTablosu} AS {$alan}_t", "{$alan}_t.id", '=', "{$tablo}.{$yabanci}");
+                $secimler[] = "{$alan}_t.kod AS {$alan}";
+                $gruplama[] = "{$alan}_t.kod";
+
+                if ($alan === 'taseron') {
+                    // Ekranda kodun üzerine gelince firmanın adı görünür
+                    $secimler[] = 'MIN(taseron_t.ad) AS taseron_ad';
+                }
+
+                continue;
+            }
+
+            $ifade = $this->pivotIfadesi($taban, $alan);
+            $secimler[] = "{$ifade} AS {$alan}";
+            $gruplama[] = $ifade;
+        }
+
+        $secimler[] = 'COUNT(*) AS satir_sayisi';
+
+        foreach ($toplamlar as $alan) {
+            $secimler[] = "SUM({$tablo}.{$alan}) AS {$alan}";
+        }
+
+        $taban->selectRaw(implode(', ', $secimler))->groupByRaw(implode(', ', $gruplama));
+
+        foreach ($gruplama as $ifade) {
+            $taban->orderByRaw($ifade);
+        }
+
+        return $taban->get()
+            ->map(fn (object $satir): array => [
+                ...array_combine($gruplar, array_map(fn (string $alan): int|string|null => in_array($alan, ['yil', 'ay'], true) ? (int) $satir->{$alan} : $satir->{$alan}, $gruplar)),
+                ...(in_array('taseron', $gruplar, true) ? ['taseron_ad' => $satir->taseron_ad] : []),
+                'satir_sayisi' => (int) $satir->satir_sayisi,
+                ...array_combine($toplamlar, array_map(fn (string $alan): string => number_format((float) $satir->{$alan}, 2, '.', ''), $toplamlar)),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Pivotta tablonun kendi kolonu ya da tarihten türetilen yıl / ay (SQL
+     * lehçesi: PostgreSQL canlıda, SQLite testlerde).
+     */
+    private function pivotIfadesi(TemelSorgu $sorgu, string $alan): string
+    {
+        $tarih = static::TABLO.'.tarih';
+        $postgres = $sorgu->getConnection()->getDriverName() === 'pgsql';
+
+        return match ($alan) {
+            'yil' => $postgres ? "CAST(EXTRACT(YEAR FROM {$tarih}) AS INTEGER)" : "CAST(strftime('%Y', {$tarih}) AS INTEGER)",
+            'ay' => $postgres ? "CAST(EXTRACT(MONTH FROM {$tarih}) AS INTEGER)" : "CAST(strftime('%m', {$tarih}) AS INTEGER)",
+            default => static::TABLO.'.'.$alan,
+        };
     }
 }
