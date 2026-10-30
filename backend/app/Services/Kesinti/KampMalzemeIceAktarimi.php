@@ -28,9 +28,10 @@ final class KampMalzemeIceAktarimi extends IcmalIceAktarimi
         'tarih' => ['TARİH'],
         'kaynak_firma' => ['KAYNAK FİRMA', 'FİRMA'],
         'urun_tanimi' => ['ÜRÜN TANIMI'],
-        'birim_fiyat' => ['BİRİM FİYAT', 'MALZEME BİRİM FİYATI'],
+        // Kullanıcının nihai sırası (2026-10-30): miktar, birim, sonra birim fiyat
         'miktar' => ['MİKTAR'],
         'birim' => ['BİRİM'],
+        'birim_fiyat' => ['BİRİM FİYAT', 'MALZEME BİRİM FİYATI'],
         'para_birimi' => ['PARA BİRİMİ'],
         'toplam_tutar' => ['TOPLAM TUTAR'],
         'iptal_edilen_tutar' => ['İPTAL EDİLEN TUTAR'],

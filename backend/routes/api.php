@@ -323,6 +323,10 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/kesinti/kamp-malzeme/excel', [KampMalzemeKesintisiController::class, 'excel'])
                 ->middleware('throttle:kesinti-excel')
                 ->name('kesinti.kamp-malzeme.excel');
+            // Özet sekmeleri (taşeron, yansıtma türü, proje, tarih)
+            Route::get('/kesinti/kamp-malzeme/pivot/{pivot}', [KampMalzemeKesintisiController::class, 'pivot'])
+                ->where('pivot', '[a-z_]+')
+                ->name('kesinti.kamp-malzeme.pivot');
         });
         Route::middleware('can:kamp_malzeme_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/kamp-malzeme', [KampMalzemeKesintisiController::class, 'store'])

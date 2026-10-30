@@ -26,9 +26,9 @@ const KAMP_MALZEME_ICMALI: IcmalTanimi<KampMalzemeKesintisi> = {
     'tarih',
     'kaynak_firma',
     'urun_tanimi',
-    'birim_fiyat',
     'miktar',
     'birim',
+    'birim_fiyat',
     'para_birimi',
     'toplam_tutar',
     'iptal_edilen_tutar',
@@ -36,6 +36,22 @@ const KAMP_MALZEME_ICMALI: IcmalTanimi<KampMalzemeKesintisi> = {
     'kesilen_tutar',
     'kalan_tutar',
   ],
+  // Özet sekmeleri (kullanıcı isteği 2026-10-30; backend KampMalzemeKesintisiSorgusu::PIVOTLAR)
+  pivotlar: [
+    { anahtar: 'taseron', gruplar: ['taseron', 'proje', 'para_birimi'] },
+    { anahtar: 'yansitma_turu', gruplar: ['yansitma_turu', 'proje', 'para_birimi'] },
+    { anahtar: 'proje', gruplar: ['proje', 'para_birimi'] },
+    { anahtar: 'tarih', gruplar: ['yil', 'ay', 'proje', 'para_birimi'] },
+  ].map((pivot) => ({
+    ...pivot,
+    toplamlar: [
+      'toplam_tutar',
+      'iptal_edilen_tutar',
+      'yansitilan_tutar',
+      'kesilen_tutar',
+      'kalan_tutar',
+    ],
+  })),
   form: [
     {
       baslik: 'kesinti.icmal.bolum.kesinti',
@@ -51,13 +67,12 @@ const KAMP_MALZEME_ICMALI: IcmalTanimi<KampMalzemeKesintisi> = {
     },
     {
       baslik: 'kesinti.icmal.bolum.malzeme',
-      alanlar: [{ alan: 'urun_tanimi', genis: true }, 'birim'],
+      alanlar: [{ alan: 'urun_tanimi', genis: true }, 'miktar', 'birim'],
     },
     {
       baslik: 'kesinti.icmal.bolum.tutarlar',
       alanlar: [
         'birim_fiyat',
-        'miktar',
         'para_birimi',
         'toplam_tutar',
         'iptal_edilen_tutar',

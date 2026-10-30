@@ -14,6 +14,7 @@ const api = vi.hoisted(() => ({
   liste: vi.fn(),
   kaydet: vi.fn(),
   yuklemeler: vi.fn(),
+  pivot: vi.fn(),
 }))
 
 vi.mock('@/features/kesinti/icmalApi', async (importOriginal) => ({
@@ -32,6 +33,7 @@ vi.mock('@/features/kesinti/kampMalzemeApi', async (importOriginal) => ({
     yuklemeler: api.yuklemeler,
     geriAl: vi.fn(),
     kolonlar: vi.fn(),
+    pivot: api.pivot,
   },
 }))
 
@@ -107,8 +109,75 @@ describe('KampMalzemeKesintileriPage', { timeout: 15_000 }, () => {
     const basliklar = screen
       .getAllByRole('columnheader')
       .map((baslik) => baslik.textContent.replace(/[▲▼↕]/g, ''))
-    expect(basliklar.indexOf('Yansıtma Türü')).toBe(basliklar.indexOf('Taşeron') + 1)
+    // Kullanıcının nihai sırası; tarihin sağında türetilen Yıl / Ay
+    expect(basliklar.slice(0, 20)).toEqual([
+      'Kesinti Türü',
+      'Taşeron',
+      'Yansıtma Türü',
+      'Proje',
+      'Mahal',
+      'Tarih',
+      'Yıl',
+      'Ay',
+      'Kaynak Firma',
+      'Ürün Tanımı',
+      'Miktar',
+      'Birim',
+      'Birim Fiyat',
+      'Para Birimi',
+      'Toplam Tutar',
+      'İptal Edilen Tutar',
+      'Yansıtılan Tutar',
+      'Kesilen Tutar',
+      'Kalan Tutar',
+      '',
+    ])
     expect(basliklar).not.toContain('Kaynak Fiş No')
+  })
+
+  it('Taşeron / Yansıtma Türü / Proje / Tarih özet sekmeleri yalnız tutarları toplar', async () => {
+    api.pivot.mockResolvedValue([
+      {
+        yil: 2026,
+        ay: 1,
+        proje: 'TÜM MAHALLER (ORTAK)',
+        para_birimi: 'TL',
+        satir_sayisi: 3,
+        toplam_tutar: '1750.00',
+        iptal_edilen_tutar: '0.00',
+        yansitilan_tutar: '1750.00',
+        kesilen_tutar: '1000.00',
+        kalan_tutar: '750.00',
+      },
+    ])
+    ciz()
+    await screen.findByText('BATTANİYE')
+
+    const sekmeler = within(screen.getByRole('tablist', { name: 'Görünümler' }))
+      .getAllByRole('tab')
+      .map((sekme) => sekme.textContent)
+    expect(sekmeler).toEqual(['Data', 'Taşeron', 'Yansıtma Türü', 'Proje', 'Tarih'])
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Tarih' }))
+
+    expect(await screen.findByText('Ocak')).toBeInTheDocument()
+    const basliklar = screen
+      .getAllByRole('columnheader')
+      .map((baslik) => baslik.textContent.replace(/[▲▼↕]/g, ''))
+    expect(basliklar).toEqual([
+      'Yıl',
+      'Ay',
+      'Proje',
+      'Para Birimi',
+      'Satır Sayısı',
+      'Toplam Tutar',
+      'İptal Edilen Tutar',
+      'Yansıtılan Tutar',
+      'Kesilen Tutar',
+      'Kalan Tutar',
+    ])
+    // Grup satırı + üstteki ve alttaki para birimi toplamı
+    expect(screen.getAllByText('750,00')).toHaveLength(3)
   })
 
   it('düzenlemede icmale özgü alanları gönderir; boş birim null, hesaplananlar gönderilmez', async () => {

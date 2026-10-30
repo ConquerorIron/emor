@@ -21,4 +21,12 @@ final class KampMalzemeKesintisiSorgusu extends IcmalSorgusu
     ];
 
     protected const ARANANLAR = ['urun_tanimi', 'kaynak_firma', 'mahal', 'birim'];
+
+    /** Özet sekmeleri (kullanıcı isteği 2026-10-30): sekme => gruplar; yalnız 5 tutar toplanır */
+    protected const PIVOTLAR = [
+        'taseron' => ['taseron', 'proje', 'para_birimi'],
+        'yansitma_turu' => ['yansitma_turu', 'proje', 'para_birimi'],
+        'proje' => ['proje', 'para_birimi'],
+        'tarih' => ['yil', 'ay', 'proje', 'para_birimi'],
+    ];
 }

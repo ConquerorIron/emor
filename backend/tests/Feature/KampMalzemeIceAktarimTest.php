@@ -80,19 +80,23 @@ final class KampMalzemeIceAktarimTest extends TestCase
         $this->assertSame(KesintiYuklemesi::ICMAL_KAMP_MALZEME, KesintiYuklemesi::query()->sole()->icmal);
     }
 
-    public function test_yapistirma_kolonlari_yansitma_turu_tasaronun_hemen_saginda_ve_kaynak_fis_no_yok(): void
+    public function test_yapistirma_kolonlari_kullanicinin_nihai_sirasinda(): void
     {
-        $alanlar = $this->getJson(self::KAYDET.'/kolonlar')->assertOk()->json('data.*.alan');
-
-        $this->assertSame(['kesinti_turu', 'taseron', 'yansitma_turu', 'proje'], array_slice($alanlar, 0, 4));
-        $this->assertNotContains('kaynak_fis_no', $alanlar);
+        $this->getJson(self::KAYDET.'/kolonlar')
+            ->assertOk()
+            ->assertJsonPath('data.*.alan', [
+                'kesinti_turu', 'taseron', 'yansitma_turu', 'proje', 'mahal', 'tarih', 'kaynak_firma',
+                'urun_tanimi', 'miktar', 'birim', 'birim_fiyat', 'para_birimi',
+                'toplam_tutar', 'iptal_edilen_tutar', 'yansitilan_tutar', 'kesilen_tutar', 'kalan_tutar',
+            ]);
     }
 
     public function test_basliksiz_yapistirmada_birim_siniri_ve_zorunlu_urun_denetlenir(): void
     {
+        // Standart sıra: … ürün tanımı, miktar, birim, birim fiyat, para birimi, 5 tutar
         $satir = fn (string $urun, string $birim): string => implode("\t", [
             'KAMP MALZEME', 'HAB', 'HAB', 'TÜM MAHALLER (ORTAK)', '', '07.01.2026', '', $urun,
-            '350', '4', $birim, 'TL', '1.400,00', '1.400,00', '0', '0', '0',
+            '4', $birim, '350', 'TL', '1.400,00', '1.400,00', '0', '0', '0',
         ]);
 
         $yanit = $this->postJson(self::KAYDET.'/onizle', ['metin' => implode("\n", [$satir('', 'ADET'), $satir('BATTANİYE', str_repeat('A', 21))])])

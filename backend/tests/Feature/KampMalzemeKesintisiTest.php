@@ -13,6 +13,7 @@ use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -115,6 +116,29 @@ final class KampMalzemeKesintisiTest extends TestCase
             ->assertJsonPath('data.*.miktar', ['4.00', '1.00'])
             ->assertJsonPath('ozet.0.toplam_tutar', '1750.00')
             ->assertJsonPath('ozet.0.satir_sayisi', 2);
+    }
+
+    public function test_ozet_sekmeleri_ve_excel_sayfalari(): void
+    {
+        $proje = Proje::factory()->create(['kod' => 'TÜM MAHALLER (ORTAK)']);
+        $hab = Firma::factory()->create(['kod' => 'HAB']);
+        KampMalzemeKesintisi::factory()->create(['firma_id' => $hab->id, 'proje_id' => $proje->id, 'tarih' => '2026-01-05', 'toplam_tutar' => '350.00']);
+        KampMalzemeKesintisi::factory()->create(['firma_id' => $hab->id, 'proje_id' => $proje->id, 'tarih' => '2026-02-10', 'toplam_tutar' => '1400.00']);
+
+        $this->getJson(self::ADRES.'/pivot/tarih')
+            ->assertOk()
+            ->assertJsonPath('data.*.ay', [1, 2])
+            ->assertJsonPath('data.1.toplam_tutar', '1400.00')
+            // Yalnız 5 tutar toplanır (kullanıcının sekme tarifi)
+            ->assertJsonMissingPath('data.0.miktar');
+        $this->getJson(self::ADRES.'/pivot/taseron')
+            ->assertOk()
+            ->assertJsonPath('data.0.toplam_tutar', '1750.00');
+        $this->getJson(self::ADRES.'/pivot/vasif')->assertNotFound();
+
+        $yanit = $this->get(self::ADRES.'/excel')->assertOk();
+        $kitap = IOFactory::load($yanit->baseResponse->getFile()->getPathname());
+        $this->assertSame(['Data', 'Taşeron', 'Yansıtma Türü', 'Proje', 'Tarih'], $kitap->getSheetNames());
     }
 
     public function test_satir_guncellenir_ve_silinir(): void

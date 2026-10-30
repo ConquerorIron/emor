@@ -34,6 +34,11 @@ final class KampMalzemeKesintisiController extends IcmalSatiriController
         return $this->liste($request);
     }
 
+    public function pivot(KampMalzemeKesintisiListeRequest $request, string $pivot): JsonResponse
+    {
+        return $this->pivotla($request, $pivot);
+    }
+
     public function excel(KampMalzemeKesintisiListeRequest $request, KampMalzemeIceAktarimi $aktarim, IcmalExcelAktarici $aktarici): BinaryFileResponse|JsonResponse
     {
         return $this->excelAktar($request, $aktarim, $aktarici, 'Kamp Malzeme Kesintileri', 'kamp-malzeme-kesintileri.xlsx');
