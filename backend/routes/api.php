@@ -13,8 +13,10 @@ use App\Http\Controllers\Api\V1\ErpProjeController;
 use App\Http\Controllers\Api\V1\FirmaController;
 use App\Http\Controllers\Api\V1\IsgucuKesintisiController;
 use App\Http\Controllers\Api\V1\IsgucuYuklemeController;
+use App\Http\Controllers\Api\V1\KampKesintisiController;
 use App\Http\Controllers\Api\V1\KampMalzemeKesintisiController;
 use App\Http\Controllers\Api\V1\KampMalzemeYuklemeController;
+use App\Http\Controllers\Api\V1\KampYuklemeController;
 use App\Http\Controllers\Api\V1\KesintiSecenekController;
 use App\Http\Controllers\Api\V1\KesintiTuruController;
 use App\Http\Controllers\Api\V1\KullaniciController;
@@ -233,6 +235,35 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('/kesinti/isgucu/yuklemeler/{yukleme}', [IsgucuYuklemeController::class, 'destroy'])
                 ->whereNumber('yukleme')
                 ->name('kesinti.isgucu.yuklemeler.destroy');
+        });
+
+        // Kesinti Yönetimi → Kamp (oda) Kesintileri (İşgücü ile aynı akış)
+        Route::middleware('can:kamp_kesintileri.goruntule')->group(function (): void {
+            Route::get('/kesinti/kamp', [KampKesintisiController::class, 'index'])
+                ->name('kesinti.kamp');
+            Route::get('/kesinti/kamp/yuklemeler', [KampYuklemeController::class, 'index'])
+                ->name('kesinti.kamp.yuklemeler');
+        });
+        Route::middleware('can:kamp_kesintileri.guncelle')->group(function (): void {
+            Route::post('/kesinti/kamp', [KampKesintisiController::class, 'store'])
+                ->name('kesinti.kamp.store');
+            Route::put('/kesinti/kamp/{kesinti}', [KampKesintisiController::class, 'update'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.kamp.update');
+            Route::delete('/kesinti/kamp/{kesinti}', [KampKesintisiController::class, 'destroy'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.kamp.destroy');
+            Route::get('/kesinti/kamp/yuklemeler/kolonlar', [KampYuklemeController::class, 'kolonlar'])
+                ->name('kesinti.kamp.yuklemeler.kolonlar');
+            Route::post('/kesinti/kamp/yuklemeler/onizle', [KampYuklemeController::class, 'onizle'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.kamp.yuklemeler.onizle');
+            Route::post('/kesinti/kamp/yuklemeler', [KampYuklemeController::class, 'store'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.kamp.yuklemeler.store');
+            Route::delete('/kesinti/kamp/yuklemeler/{yukleme}', [KampYuklemeController::class, 'destroy'])
+                ->whereNumber('yukleme')
+                ->name('kesinti.kamp.yuklemeler.destroy');
         });
 
         // Kesinti Yönetimi → Kamp Malzeme Kesintileri (İşgücü ile aynı akış)

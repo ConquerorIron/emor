@@ -48,6 +48,7 @@
     "gidenFaturalar": "Giden Faturalar",
     "kesinti": "Kesinti Yönetimi",
     "isgucuKesintileri": "İşgücü Kesintileri",
+    "kampKesintileri": "Kamp Kesintileri",
     "kampMalzemeKesintileri": "Kamp Malzeme Kesintileri",
     "kesintiTurleri": "Kesinti Türleri",
     "projeler": "Projeler",
@@ -507,6 +508,7 @@
       "satinalma_talebi": "Satınalma Talebi",
       "efatura": "e-Faturalar (Gelen/Giden)",
       "isgucu_kesintileri": "İşgücü Kesintileri",
+      "kamp_kesintileri": "Kamp Kesintileri",
       "kamp_malzeme_kesintileri": "Kamp Malzeme Kesintileri",
       "kesinti_turleri": "Kesinti Türleri",
       "projeler": "Projeler",
@@ -816,7 +818,9 @@
       "kalan_tutar": "Kalan Tutar",
       "urun_tanimi": "Ürün Tanımı",
       "miktar": "Miktar",
-      "birim": "Birim"
+      "birim": "Birim",
+      "oda_tipi": "Oda Tipi",
+      "toplam_oda": "Toplam Oda"
     },
     "secenek": {
       "vasif": {
@@ -856,7 +860,8 @@
         "zorunlu": "Bu alan zorunludur.",
         "cokUzun200": "En fazla 200 karakter olabilir.",
         "cokUzun50": "En fazla 50 karakter olabilir.",
-        "cokUzun20": "En fazla 20 karakter olabilir."
+        "cokUzun20": "En fazla 20 karakter olabilir.",
+        "cokUzun100": "En fazla 100 karakter olabilir."
       },
       "iceAktarim": {
         "ac": "Excel'den Aktar",
@@ -911,6 +916,10 @@
     "isgucu": {
       "baslik": "İşgücü Kesintileri",
       "aciklamaMetni": "Taşeronlara yansıtılan işgücü kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
+    },
+    "kamp": {
+      "baslik": "Kamp Kesintileri",
+      "aciklamaMetni": "Taşeronlara yansıtılan kamp (oda) kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
     },
     "kampMalzeme": {
       "baslik": "Kamp Malzeme Kesintileri",

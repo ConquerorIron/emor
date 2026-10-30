@@ -116,6 +116,18 @@ export const router = createBrowserRouter([
         ],
       },
       {
+        element: <IzinAlani izin="kamp_kesintileri.goruntule" />,
+        children: [
+          {
+            path: 'kesinti/kamp',
+            lazy: async () => ({
+              Component: (await import('@/pages/KampKesintileri/KampKesintileriPage'))
+                .KampKesintileriPage,
+            }),
+          },
+        ],
+      },
+      {
         element: <IzinAlani izin="kamp_malzeme_kesintileri.goruntule" />,
         children: [
           {

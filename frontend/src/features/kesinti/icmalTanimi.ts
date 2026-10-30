@@ -17,7 +17,7 @@ export type TanimAlani = 'kesinti_turu' | 'taseron' | 'proje' | 'para_birimi'
 export type AlanTuru =
   | { tur: 'tanim' }
   | { tur: 'tarih' }
-  | { tur: 'metin'; sinir: 20 | 50 | 200; zorunlu?: boolean }
+  | { tur: 'metin'; sinir: 20 | 50 | 100 | 200; zorunlu?: boolean }
   | { tur: 'secenek'; degerler: readonly string[] }
   | { tur: 'sayi'; basamak: number }
   /** Yansıtılan / kalan: elle girişte hesaplanır, gönderilmez */

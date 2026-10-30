@@ -48,6 +48,7 @@
     "gidenFaturalar": "Outgoing Invoices",
     "kesinti": "Deduction Management",
     "isgucuKesintileri": "Labour Deductions",
+    "kampKesintileri": "Camp Deductions",
     "kampMalzemeKesintileri": "Camp Material Deductions",
     "kesintiTurleri": "Deduction Types",
     "projeler": "Projects",
@@ -507,6 +508,7 @@
       "satinalma_talebi": "Purchase Request",
       "efatura": "e-Invoices (Incoming/Outgoing)",
       "isgucu_kesintileri": "Labour Deductions",
+      "kamp_kesintileri": "Camp Deductions",
       "kamp_malzeme_kesintileri": "Camp Material Deductions",
       "kesinti_turleri": "Deduction Types",
       "projeler": "Projects",
@@ -816,7 +818,9 @@
       "kalan_tutar": "Remaining Amount",
       "urun_tanimi": "Product",
       "miktar": "Quantity",
-      "birim": "Unit"
+      "birim": "Unit",
+      "oda_tipi": "Room Type",
+      "toplam_oda": "Total Rooms"
     },
     "secenek": {
       "vasif": {
@@ -856,7 +860,8 @@
         "zorunlu": "This field is required.",
         "cokUzun200": "Can be at most 200 characters.",
         "cokUzun50": "Can be at most 50 characters.",
-        "cokUzun20": "Can be at most 20 characters."
+        "cokUzun20": "Can be at most 20 characters.",
+        "cokUzun100": "Can be at most 100 characters."
       },
       "iceAktarim": {
         "ac": "Import from Excel",
@@ -911,6 +916,10 @@
     "isgucu": {
       "baslik": "Labour Deductions",
       "aciklamaMetni": "Labour deductions charged to subcontractors. Rows can be entered manually or imported from Excel; each import is kept as an upload and can be undone."
+    },
+    "kamp": {
+      "baslik": "Camp Deductions",
+      "aciklamaMetni": "Camp (room) deductions charged to subcontractors. Rows can be entered manually or imported from Excel; each import is kept as an upload and can be undone."
     },
     "kampMalzeme": {
       "baslik": "Camp Material Deductions",

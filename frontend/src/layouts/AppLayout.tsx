@@ -52,6 +52,7 @@ const NAV_GRUPLARI: NavGrubu[] = [
     ogeler: [
       // İcmal ekranları üstte, tanımlar altta
       { to: '/kesinti/isgucu', ad: 'isgucuKesintileri', izin: 'isgucu_kesintileri.goruntule' },
+      { to: '/kesinti/kamp', ad: 'kampKesintileri', izin: 'kamp_kesintileri.goruntule' },
       {
         to: '/kesinti/kamp-malzeme',
         ad: 'kampMalzemeKesintileri',
