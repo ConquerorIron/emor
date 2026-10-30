@@ -251,6 +251,9 @@ describe('EFaturalarPage', () => {
     // ...ama yeni filtreninmiş gibi kullanılamaz
     expect(screen.getByRole('button', { name: 'Excel' })).toBeDisabled()
 
+    // "Güncelleniyor" yeni filtrenin ilk çiziminde görünür, istek ise sonraki
+    // effect'te atılır: yük altında bitirmeden önce isteğin başlaması beklenir
+    await waitFor(() => expect(bitir).toBeTypeOf('function'))
     bitir({ ...LISTE, data: [], meta: { current_page: 1, last_page: 1, total: 0 }, ozet: [] })
 
     await waitFor(() => expect(screen.queryByText('Güncelleniyor…')).not.toBeInTheDocument())

@@ -48,6 +48,7 @@
     "gidenFaturalar": "Giden Faturalar",
     "kesinti": "Kesinti Yönetimi",
     "kesintiTurleri": "Kesinti Türleri",
+    "projeler": "Projeler",
     "alarmKurallari": "Alarm Kuralları"
   },
   "tasarim": {
@@ -486,7 +487,10 @@
     "EFATURA_SENKRON_KAPALI": "e-Fatura senkronu sunucuda kapatılmış.",
     "BEKLENMEYEN_HATA": "Senkronda beklenmeyen bir hata oluştu (sunucu kaydına bakın).",
     "YAZMA_HATASI": "Faturalar veritabanına yazılamadı.",
-    "ERP_OKUNAMADI": "ERP okunamadı; eMOR bilgisi değiştirilmedi. Biraz sonra tekrar deneyin."
+    "ERP_OKUNAMADI": "ERP okunamadı; eMOR bilgisi değiştirilmedi. Biraz sonra tekrar deneyin.",
+    "ERP_CANLI_TANIMSIZ": "Canlı ERP bağlantısı tanımlanmamış. Ayarlar → SQL Bağlantıları ekranından Canlı ortamı tanımlayın.",
+    "ERP_OKUMA_YETKISI_YOK": "ERP veritabanı kullanıcısının bu veriyi okuma yetkisi yok. Veritabanı yöneticisinden okuma (SELECT) yetkisi isteyin.",
+    "ERP_OKUMA_HATASI": "ERP okunamadı. Biraz sonra tekrar deneyin."
   },
   "yetki": {
     "goruntule": "Görüntüle",
@@ -497,6 +501,7 @@
       "satinalma_talebi": "Satınalma Talebi",
       "efatura": "e-Faturalar (Gelen/Giden)",
       "kesinti_turleri": "Kesinti Türleri",
+      "projeler": "Projeler",
       "sql_baglantilari": "SQL Bağlantıları",
       "entegrator_baglantilari": "Entegratör Bağlantıları",
       "mail_ayarlari": "Mail Ayarları",
@@ -691,6 +696,57 @@
         "adZorunlu": "Ad zorunludur.",
         "adCokUzun": "Ad en fazla 100 karakter olabilir.",
         "kdvAralik": "KDV oranı 0 ile 100 arasında olmalıdır."
+      }
+    },
+    "projeler": {
+      "baslik": "Projeler",
+      "aciklamaMetni": "Kesinti kayıtlarında kullanılacak projeler. Elle açılabilir ya da canlı ERP'den aktarılabilir.",
+      "yeni": "Yeni Proje",
+      "duzenle": "Projeyi Düzenle",
+      "kod": "Proje Kodu",
+      "ad": "Proje Adı",
+      "kaynak": "Kaynak",
+      "kaynakElle": "Elle",
+      "kaynakErp": "ERP",
+      "erpdenGetir": "ERP'den Getir",
+      "erpProjesiUyarisi": "Bu proje ERP'den aktarıldı. Burada yaptığınız değişiklik, ERP'den yeniden getirildiğinde ERP'deki değere güncellenmek üzere listelenir.",
+      "kaydedildi": "Proje kaydedildi.",
+      "silindi": "Proje silindi.",
+      "silOnayBaslik": "Proje silinsin mi?",
+      "silOnayMesaj": "\"{{kod}} — {{ad}}\" projesi silinecek.",
+      "dogrulama": {
+        "kodZorunlu": "Proje kodu zorunludur.",
+        "kodCokUzun": "Proje kodu en fazla 50 karakter olabilir.",
+        "adZorunlu": "Proje adı zorunludur.",
+        "adCokUzun": "Proje adı en fazla 200 karakter olabilir."
+      },
+      "erp": {
+        "baslik": "ERP'den Projeleri Getir",
+        "okunuyor": "Canlı ERP'deki projeler okunuyor…",
+        "ozet": "{{yeni}} yeni, {{guncellenecek}} güncellenecek, {{eslesecek}} elle açılmış projeyle eşleşecek, {{aktarilamaz}} aktarılamaz. {{ayni}} proje zaten güncel.",
+        "hepsiGuncel": "ERP'deki tüm projeler zaten güncel; aktarılacak bir şey yok.",
+        "durumBaslik": "Durum",
+        "aciklamaBaslik": "Açıklama",
+        "aktar": "Seçilenleri Aktar ({{sayi}})",
+        "aktarildi": "{{eklenen}} proje eklendi, {{guncellenen}} güncellendi, {{eslesen}} eşleşti.",
+        "durum": {
+          "yeni": "Yeni",
+          "guncellenecek": "Güncellenecek",
+          "eslesecek": "Eşleşecek",
+          "ayni": "Güncel",
+          "cakisma": "Çakışma",
+          "gecersiz": "Aktarılamaz"
+        },
+        "neden": {
+          "guid_gecersiz": "ERP'deki GUID geçersiz.",
+          "kod_bos": "ERP'de proje kodu boş.",
+          "ad_bos": "ERP'de proje adı boş.",
+          "kod_uzun": "Proje kodu 50 karakteri aşıyor.",
+          "ad_uzun": "Proje adı 200 karakteri aşıyor.",
+          "guid_tekrar": "ERP'de aynı GUID birden fazla satırda.",
+          "kod_tekrar": "ERP'de aynı kod birden fazla projede.",
+          "kod_baska_projede": "Bu kod uygulamada başka bir projede kullanılıyor."
+        }
       }
     }
   }

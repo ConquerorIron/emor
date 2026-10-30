@@ -8,9 +8,11 @@ use App\Http\Controllers\Api\V1\EFaturaController;
 use App\Http\Controllers\Api\V1\EFaturaSenkronController;
 use App\Http\Controllers\Api\V1\EkranTasarimController;
 use App\Http\Controllers\Api\V1\EntegratorBaglantiController;
+use App\Http\Controllers\Api\V1\ErpProjeController;
 use App\Http\Controllers\Api\V1\KesintiTuruController;
 use App\Http\Controllers\Api\V1\KullaniciController;
 use App\Http\Controllers\Api\V1\MailAyarController;
+use App\Http\Controllers\Api\V1\ProjeController;
 use App\Http\Controllers\Api\V1\RolController;
 use App\Http\Controllers\Api\V1\SatinalmaTalebiController;
 use App\Http\Controllers\Api\V1\SecenekController;
@@ -151,6 +153,28 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('/kesinti/turler/{kesintiTuru}', [KesintiTuruController::class, 'destroy'])
                 ->whereNumber('kesintiTuru')
                 ->name('kesinti.turler.destroy');
+        });
+
+        // Kesinti Yönetimi → Projeler: elle tanım + canlı ERP'den aktarım
+        // (önce önizleme, sonra seçilenlerin kaydı)
+        Route::get('/kesinti/projeler', [ProjeController::class, 'index'])
+            ->middleware('can:projeler.goruntule')
+            ->name('kesinti.projeler');
+        Route::middleware('can:projeler.guncelle')->group(function (): void {
+            Route::post('/kesinti/projeler', [ProjeController::class, 'store'])
+                ->name('kesinti.projeler.store');
+            Route::put('/kesinti/projeler/{proje}', [ProjeController::class, 'update'])
+                ->whereNumber('proje')
+                ->name('kesinti.projeler.update');
+            Route::delete('/kesinti/projeler/{proje}', [ProjeController::class, 'destroy'])
+                ->whereNumber('proje')
+                ->name('kesinti.projeler.destroy');
+            Route::get('/kesinti/projeler/erp', [ErpProjeController::class, 'index'])
+                ->middleware('throttle:erp-proje')
+                ->name('kesinti.projeler.erp');
+            Route::post('/kesinti/projeler/erp', [ErpProjeController::class, 'store'])
+                ->middleware('throttle:erp-proje')
+                ->name('kesinti.projeler.erp.store');
         });
 
         // Header'daki Test/Canlı rozeti — her kullanıcıya yalnız ortam adı döner

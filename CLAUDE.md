@@ -34,7 +34,9 @@ Dosyayı okumadan skill'in uygulandığını iddia etme.
   olmayan, uygulamanın kendi modülüdür. Verisi (kesinti türleri, Excel icmalleri)
   PostgreSQL'de tutulur; "ERP verisi bizde tutulmaz" kuralı bu modüle uygulanmaz.
   Kendi ekranları ve izinleri (`kesinti_turleri.*` …) vardır. Her icmal ekranının
-  kolonları kodda sabittir (arayüzden kolon eklenmez).
+  kolonları kodda sabittir (arayüzden kolon eklenmez). Projeler, global aktif
+  ortamdan bağımsız olarak HER ZAMAN canlı ERP'den aktarılır (ERP GUID'i ile bağ;
+  `App\Services\Kesinti\ErpProjeSorgusu`).
 - **Test/Canlı ortamlar**: MSSQL bağlantı tanımları (test + canli) PostgreSQL'de
   `sql_baglantilari` tablosunda, şifreler encrypted cast ile. GLOBAL tek aktif
   ortam vardır (kısmi unique indeks garantiler). Store proc çalıştıracak HER modül

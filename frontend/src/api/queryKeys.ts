@@ -29,6 +29,9 @@ export const queryKeys = {
   },
   kesinti: {
     turler: ['kesinti', 'turler'],
+    projeler: ['kesinti', 'projeler'],
+    // ERP önizlemesi her açılışta taze okunur (önbelleğe güvenilmez)
+    erpProjeleri: ['kesinti', 'erpProjeleri'],
   },
   /** Ekran tasarım motoru — formu çizen yayındaki düzen */
   ekranTasarimi: (ekran: string) => ['ekranTasarimi', ekran] as const,

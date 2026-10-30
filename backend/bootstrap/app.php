@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Middleware\AktifKullanici;
 use App\Services\Entegrator\EntegratorHatasi;
+use App\Services\ErpOkumaHatasi;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -74,6 +75,13 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Entegratör (İzibiz) hataları: kod + çevrilmiş mesaj; sağlayıcı gövdesi dönmez
         $exceptions->render(function (EntegratorHatasi $e, Request $request): ?JsonResponse {
+            return $request->is('api/*')
+                ? response()->json(['kod' => $e->kod, 'mesaj' => $e->getMessage()], $e->httpDurumu)
+                : null;
+        });
+
+        // ERP okuma hataları (canlı tanımsız, okuma yetkisi yok, ulaşılamadı)
+        $exceptions->render(function (ErpOkumaHatasi $e, Request $request): ?JsonResponse {
             return $request->is('api/*')
                 ? response()->json(['kod' => $e->kod, 'mesaj' => $e->getMessage()], $e->httpDurumu)
                 : null;

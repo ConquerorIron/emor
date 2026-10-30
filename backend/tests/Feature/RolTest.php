@@ -57,7 +57,7 @@ final class RolTest extends TestCase
 
         $this->getJson('/api/v1/ayarlar/izinler')
             ->assertOk()
-            ->assertJsonCount(10, 'data')
+            ->assertJsonCount(11, 'data')
             ->assertJsonPath('data.0', [
                 'ekran' => 'satinalma_talebi',
                 'goruntule' => 'satinalma_talebi.goruntule',

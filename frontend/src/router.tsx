@@ -70,6 +70,17 @@ export const router = createBrowserRouter([
         ],
       },
       {
+        element: <IzinAlani izin="projeler.goruntule" />,
+        children: [
+          {
+            path: 'kesinti/projeler',
+            lazy: async () => ({
+              Component: (await import('@/pages/Projeler/ProjelerPage')).ProjelerPage,
+            }),
+          },
+        ],
+      },
+      {
         element: <IzinAlani izin="ekran_tasarimi.goruntule" />,
         children: [
           {

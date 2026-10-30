@@ -74,6 +74,12 @@ return [
 
     // Kesinti Yönetimi
     'kesinti_turu_kod_tekrar' => 'Bu kod başka bir kesinti türünde kullanılıyor.',
+    'proje_kod_tekrar' => 'Bu kod başka bir projede kullanılıyor.',
+
+    // ERP okuma (App\Services\ErpOkumaHatasi)
+    'erp_canli_tanimsiz' => 'Canlı ERP bağlantısı tanımlanmamış. Ayarlar → SQL Bağlantıları ekranından Canlı ortamı tanımlayın.',
+    'erp_okuma_yetkisi_yok' => 'ERP veritabanı kullanıcısının bu veriyi okuma yetkisi yok. Veritabanı yöneticisinden okuma (SELECT) yetkisi isteyin.',
+    'erp_okuma_hatasi' => 'ERP okunamadı. Biraz sonra tekrar deneyin.',
 
     // Ekran tasarım motoru
     'ekran_tanimsiz' => 'Böyle bir tasarlanabilir ekran yok.',

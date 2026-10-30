@@ -13,6 +13,8 @@ use App\Services\ErpIstisnaKoduYazici;
 use App\Services\ErpIstisnaKoduYazimi;
 use App\Services\ErpKimlikDogrulama;
 use App\Services\ErpKimlikDogrulayici;
+use App\Services\Kesinti\ErpProjeKaynagi;
+use App\Services\Kesinti\ErpProjeSorgusu;
 use App\Yetki\Izin;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -42,6 +44,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(
             ErpIstisnaKoduYazici::class,
             ErpIstisnaKoduYazimi::class,
+        );
+
+        $this->app->bind(
+            ErpProjeKaynagi::class,
+            ErpProjeSorgusu::class,
         );
     }
 
@@ -101,6 +108,11 @@ class AppServiceProvider extends ServiceProvider
         // ERP Senkronla: her basış ERP'de tüm işlenmiş fatura ETTN'lerini okur
         RateLimiter::for('efatura-erp', function (Request $request): Limit {
             return Limit::perMinute(6)->by($request->user()?->id ?? $request->ip());
+        });
+
+        // Projeler → ERP'den Getir: önizleme + kayıt, ikisi de canlı ERP'yi okur
+        RateLimiter::for('erp-proje', function (Request $request): Limit {
+            return Limit::perMinute(10)->by($request->user()?->id ?? $request->ip());
         });
     }
 }

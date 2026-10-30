@@ -48,6 +48,7 @@
     "gidenFaturalar": "Outgoing Invoices",
     "kesinti": "Deduction Management",
     "kesintiTurleri": "Deduction Types",
+    "projeler": "Projects",
     "alarmKurallari": "Alert Rules"
   },
   "tasarim": {
@@ -486,7 +487,10 @@
     "EFATURA_SENKRON_KAPALI": "e-Invoice sync is disabled on the server.",
     "BEKLENMEYEN_HATA": "An unexpected error occurred during sync (see server log).",
     "YAZMA_HATASI": "Invoices could not be written to the database.",
-    "ERP_OKUNAMADI": "Could not read the ERP; eMOR was not changed. Please try again shortly."
+    "ERP_OKUNAMADI": "Could not read the ERP; eMOR was not changed. Please try again shortly.",
+    "ERP_CANLI_TANIMSIZ": "No live ERP connection is defined. Define the Live environment under Settings → SQL Connections.",
+    "ERP_OKUMA_YETKISI_YOK": "The ERP database user is not allowed to read this data. Ask the database administrator for SELECT permission.",
+    "ERP_OKUMA_HATASI": "ERP could not be read. Please try again shortly."
   },
   "yetki": {
     "goruntule": "View",
@@ -497,6 +501,7 @@
       "satinalma_talebi": "Purchase Request",
       "efatura": "e-Invoices (Incoming/Outgoing)",
       "kesinti_turleri": "Deduction Types",
+      "projeler": "Projects",
       "sql_baglantilari": "SQL Connections",
       "entegrator_baglantilari": "Integrator Connections",
       "mail_ayarlari": "Mail Settings",
@@ -691,6 +696,57 @@
         "adZorunlu": "Name is required.",
         "adCokUzun": "Name can be at most 100 characters.",
         "kdvAralik": "VAT rate must be between 0 and 100."
+      }
+    },
+    "projeler": {
+      "baslik": "Projects",
+      "aciklamaMetni": "Projects used in deduction records. They can be created manually or imported from the live ERP.",
+      "yeni": "New Project",
+      "duzenle": "Edit Project",
+      "kod": "Project Code",
+      "ad": "Project Name",
+      "kaynak": "Source",
+      "kaynakElle": "Manual",
+      "kaynakErp": "ERP",
+      "erpdenGetir": "Fetch from ERP",
+      "erpProjesiUyarisi": "This project was imported from ERP. Changes made here will be listed for update to the ERP value when fetched from ERP again.",
+      "kaydedildi": "Project saved.",
+      "silindi": "Project deleted.",
+      "silOnayBaslik": "Delete project?",
+      "silOnayMesaj": "Project \"{{kod}} — {{ad}}\" will be deleted.",
+      "dogrulama": {
+        "kodZorunlu": "Project code is required.",
+        "kodCokUzun": "Project code can be at most 50 characters.",
+        "adZorunlu": "Project name is required.",
+        "adCokUzun": "Project name can be at most 200 characters."
+      },
+      "erp": {
+        "baslik": "Fetch Projects from ERP",
+        "okunuyor": "Reading projects from the live ERP…",
+        "ozet": "{{yeni}} new, {{guncellenecek}} to update, {{eslesecek}} to link with a manual project, {{aktarilamaz}} cannot be imported. {{ayni}} projects are already up to date.",
+        "hepsiGuncel": "All ERP projects are already up to date; nothing to import.",
+        "durumBaslik": "Status",
+        "aciklamaBaslik": "Note",
+        "aktar": "Import Selected ({{sayi}})",
+        "aktarildi": "{{eklenen}} projects added, {{guncellenen}} updated, {{eslesen}} linked.",
+        "durum": {
+          "yeni": "New",
+          "guncellenecek": "Update",
+          "eslesecek": "Link",
+          "ayni": "Up to date",
+          "cakisma": "Conflict",
+          "gecersiz": "Cannot import"
+        },
+        "neden": {
+          "guid_gecersiz": "The GUID in ERP is invalid.",
+          "kod_bos": "Project code is empty in ERP.",
+          "ad_bos": "Project name is empty in ERP.",
+          "kod_uzun": "Project code exceeds 50 characters.",
+          "ad_uzun": "Project name exceeds 200 characters.",
+          "guid_tekrar": "The same GUID appears in more than one ERP row.",
+          "kod_tekrar": "The same code is used by more than one ERP project.",
+          "kod_baska_projede": "This code is used by another project in the application."
+        }
       }
     }
   }
