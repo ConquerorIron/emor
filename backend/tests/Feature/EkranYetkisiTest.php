@@ -82,6 +82,7 @@ final class EkranYetkisiTest extends TestCase
             'firmalar' => ['firmalar', '/api/v1/kesinti/firmalar', 'post', '/api/v1/kesinti/firmalar'],
             'para birimleri' => ['para_birimleri', '/api/v1/kesinti/para-birimleri', 'post', '/api/v1/kesinti/para-birimleri'],
             'işgücü kesintileri' => ['isgucu_kesintileri', '/api/v1/kesinti/isgucu', 'post', '/api/v1/kesinti/isgucu'],
+            'kamp malzeme kesintileri' => ['kamp_malzeme_kesintileri', '/api/v1/kesinti/kamp-malzeme', 'post', '/api/v1/kesinti/kamp-malzeme'],
             'SQL bağlantıları' => ['sql_baglantilari', '/api/v1/ayarlar/sql-baglantilari', 'put', '/api/v1/ayarlar/sql-baglantilari/test'],
             'entegratör bağlantıları' => ['entegrator_baglantilari', '/api/v1/ayarlar/entegrator-baglantilari', 'put', '/api/v1/ayarlar/entegrator-baglantilari/test'],
             'mail ayarları' => ['mail_ayarlari', '/api/v1/ayarlar/mail', 'put', '/api/v1/ayarlar/mail'],

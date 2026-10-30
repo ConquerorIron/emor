@@ -48,6 +48,7 @@
     "gidenFaturalar": "Giden Faturalar",
     "kesinti": "Kesinti Yönetimi",
     "isgucuKesintileri": "İşgücü Kesintileri",
+    "kampMalzemeKesintileri": "Kamp Malzeme Kesintileri",
     "kesintiTurleri": "Kesinti Türleri",
     "projeler": "Projeler",
     "firmalar": "Firmalar",
@@ -506,6 +507,7 @@
       "satinalma_talebi": "Satınalma Talebi",
       "efatura": "e-Faturalar (Gelen/Giden)",
       "isgucu_kesintileri": "İşgücü Kesintileri",
+      "kamp_malzeme_kesintileri": "Kamp Malzeme Kesintileri",
       "kesinti_turleri": "Kesinti Türleri",
       "projeler": "Projeler",
       "firmalar": "Firmalar",
@@ -787,9 +789,50 @@
         "adCokUzun": "Ad en fazla 50 karakter olabilir."
       }
     },
-    "isgucu": {
-      "baslik": "İşgücü Kesintileri",
-      "aciklamaMetni": "Taşeronlara yansıtılan işgücü kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir.",
+    "alan": {
+      "kesinti_turu": "Kesinti Türü",
+      "taseron": "Taşeron",
+      "proje": "Proje",
+      "mahal": "Mahal",
+      "tarih": "Tarih",
+      "kaynak_firma": "Kaynak Firma",
+      "kaynak_fis_no": "Kaynak Fiş No",
+      "adi_soyadi": "Adı Soyadı",
+      "vasif": "Vasfı",
+      "mesai_turu": "Mesai Türü",
+      "yansitma_turu": "Yansıtma Türü",
+      "tanim": "Tanım",
+      "gorev": "Görev",
+      "departman": "Departman",
+      "aktivite": "Aktivite",
+      "miktar_saat": "Miktar (Saat)",
+      "miktar_yevmiye": "Miktar (Yevmiye)",
+      "birim_fiyat": "Birim Fiyat",
+      "para_birimi": "Para Birimi",
+      "toplam_tutar": "Toplam Tutar",
+      "iptal_edilen_tutar": "İptal Edilen Tutar",
+      "yansitilan_tutar": "Yansıtılan Tutar",
+      "kesilen_tutar": "Kesilen Tutar",
+      "kalan_tutar": "Kalan Tutar",
+      "urun_tanimi": "Ürün Tanımı",
+      "miktar": "Miktar",
+      "birim": "Birim"
+    },
+    "secenek": {
+      "vasif": {
+        "nitelikli": "NİTELİKLİ",
+        "niteliksiz": "NİTELİKSİZ"
+      },
+      "mesai_turu": {
+        "normal": "NORMAL MESAİ",
+        "fazla": "FAZLA MESAİ"
+      },
+      "yansitma_turu": {
+        "hab": "HAB",
+        "taseron": "TAŞERON"
+      }
+    },
+    "icmal": {
       "yeni": "Yeni Kayıt",
       "duzenle": "Kaydı Düzenle",
       "kaydedildi": "Kayıt kaydedildi.",
@@ -802,56 +845,18 @@
       "toplamlar": "Para birimine göre toplamlar",
       "satirSayisi": "{{sayi}} satır",
       "hesapAciklamasi": "Yansıtılan = Toplam − İptal, Kalan = Yansıtılan − Kesilen olarak hesaplanır.",
-      "alan": {
-        "kesinti_turu": "Kesinti Türü",
-        "taseron": "Taşeron",
-        "proje": "Proje",
-        "mahal": "Mahal",
-        "tarih": "Tarih",
-        "kaynak_firma": "Kaynak Firma",
-        "kaynak_fis_no": "Kaynak Fiş No",
-        "adi_soyadi": "Adı Soyadı",
-        "vasif": "Vasfı",
-        "mesai_turu": "Mesai Türü",
-        "yansitma_turu": "Yansıtma Türü",
-        "tanim": "Tanım",
-        "gorev": "Görev",
-        "departman": "Departman",
-        "aktivite": "Aktivite",
-        "miktar_saat": "Miktar (Saat)",
-        "miktar_yevmiye": "Miktar (Yevmiye)",
-        "birim_fiyat": "Birim Fiyat",
-        "para_birimi": "Para Birimi",
-        "toplam_tutar": "Toplam Tutar",
-        "iptal_edilen_tutar": "İptal Edilen Tutar",
-        "yansitilan_tutar": "Yansıtılan Tutar",
-        "kesilen_tutar": "Kesilen Tutar",
-        "kalan_tutar": "Kalan Tutar"
-      },
-      "secenek": {
-        "vasif": {
-          "nitelikli": "NİTELİKLİ",
-          "niteliksiz": "NİTELİKSİZ"
-        },
-        "mesai_turu": {
-          "normal": "NORMAL MESAİ",
-          "fazla": "FAZLA MESAİ"
-        },
-        "yansitma_turu": {
-          "hab": "HAB",
-          "taseron": "TAŞERON"
-        }
-      },
       "bolum": {
         "kesinti": "Kesinti",
         "personel": "Personel",
         "is": "İş",
-        "tutarlar": "Miktar ve Tutarlar"
+        "tutarlar": "Miktar ve Tutarlar",
+        "malzeme": "Malzeme"
       },
       "dogrulama": {
         "zorunlu": "Bu alan zorunludur.",
         "cokUzun200": "En fazla 200 karakter olabilir.",
-        "cokUzun50": "En fazla 50 karakter olabilir."
+        "cokUzun50": "En fazla 50 karakter olabilir.",
+        "cokUzun20": "En fazla 20 karakter olabilir."
       },
       "iceAktarim": {
         "ac": "Excel'den Aktar",
@@ -902,6 +907,14 @@
         "geriAlOnayBaslik": "Yükleme geri alınsın mı?",
         "geriAlOnayMesaj": "{{zaman}} yüklemesi ve {{sayi}} satırı silinecek."
       }
+    },
+    "isgucu": {
+      "baslik": "İşgücü Kesintileri",
+      "aciklamaMetni": "Taşeronlara yansıtılan işgücü kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
+    },
+    "kampMalzeme": {
+      "baslik": "Kamp Malzeme Kesintileri",
+      "aciklamaMetni": "Taşeronlara yansıtılan kamp malzeme kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
     },
     "erpAktarim": {
       "okunuyor": "Canlı ERP okunuyor…",

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Controller;
 use App\Http\Requests\Kesinti\IsgucuKesintisiKaydetRequest;
 use App\Http\Requests\Kesinti\IsgucuKesintisiListeRequest;
+use App\Http\Resources\IcmalSatiriResource;
 use App\Http\Resources\IsgucuKesintisiResource;
 use App\Models\IsgucuKesintisi;
 use App\Services\Kesinti\IsgucuKesintisiSorgusu;
@@ -14,48 +14,35 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 
 /**
- * Kesinti Yönetimi → İşgücü Kesintileri: liste (filtre, sıralama, sayfa,
- * toplamlar) ve elle satır girişi. `isgucu_kesintileri.goruntule` /
- * `.guncelle` izinleriyle korunur; içe aktarım IsgucuYuklemeController'da.
+ * Kesinti Yönetimi → İşgücü Kesintileri (akış: IcmalSatiriController).
+ * `isgucu_kesintileri.goruntule` / `.guncelle` izinleriyle korunur.
  */
-final class IsgucuKesintisiController extends Controller
+final class IsgucuKesintisiController extends IcmalSatiriController
 {
-    private const ILISKILER = ['kesintiTuru:id,kod,ad', 'firma:id,kod,ad', 'proje:id,kod,ad', 'paraBirimi:id,kod,ad'];
+    protected const RESOURCE = IsgucuKesintisiResource::class;
 
-    public function __construct(
-        private readonly IsgucuKesintisiSorgusu $sorgu,
-    ) {}
+    public function __construct(IsgucuKesintisiSorgusu $sorgu)
+    {
+        parent::__construct($sorgu);
+    }
 
     public function index(IsgucuKesintisiListeRequest $request): JsonResponse
     {
-        $sorgu = $this->sorgu->filtrele($request->filtre());
-        $sayfa = $this->sorgu->sirala($sorgu->clone(), $request->input('sirala'), $request->input('yon'))
-            ->with(self::ILISKILER)
-            ->paginate($request->sayfaBoyutu());
-
-        return IsgucuKesintisiResource::collection($sayfa)
-            ->additional(['ozet' => $this->sorgu->ozet($sorgu)])
-            ->response();
+        return $this->liste($request);
     }
 
     public function store(IsgucuKesintisiKaydetRequest $request): JsonResponse
     {
-        $kesinti = IsgucuKesintisi::query()->create([...$request->kayit(), 'kaydeden_id' => $request->user()?->id]);
-
-        return IsgucuKesintisiResource::make($kesinti->load(self::ILISKILER))->response()->setStatusCode(201);
+        return $this->olustur(new IsgucuKesintisi, $request->kayit(), $request->user()?->id);
     }
 
-    public function update(IsgucuKesintisiKaydetRequest $request, IsgucuKesintisi $kesinti): IsgucuKesintisiResource
+    public function update(IsgucuKesintisiKaydetRequest $request, IsgucuKesintisi $kesinti): IcmalSatiriResource
     {
-        $kesinti->update($request->kayit());
-
-        return IsgucuKesintisiResource::make($kesinti->load(self::ILISKILER));
+        return $this->guncelle($kesinti, $request->kayit());
     }
 
     public function destroy(IsgucuKesintisi $kesinti): Response
     {
-        $kesinti->delete();
-
-        return response()->noContent();
+        return $this->sil($kesinti);
     }
 }

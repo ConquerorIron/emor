@@ -10,31 +10,38 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { DataTable, type DataTableKolonu } from '@/components/DataTable'
 import { ErrorState } from '@/components/ErrorState'
 import { Modal } from '@/components/Modal'
-import {
-  isgucuYuklemeleriniGetir,
-  isgucuYuklemesiniGeriAl,
-  type KesintiYuklemesi,
-} from '@/features/kesinti/isgucuApi'
 import { zamanGoster } from '@/utils/tarih'
 
-function YuklemeListesi({ geriAlabilir }: { geriAlabilir: boolean }) {
+import type { IcmalSatiri, KesintiYuklemesi } from './icmalApi'
+import type { IcmalTanimi } from './icmalTanimi'
+
+interface YuklemelerProps<T extends IcmalSatiri> {
+  tanim: IcmalTanimi<T>
+  geriAlabilir: boolean
+}
+
+function YuklemeListesi<T extends IcmalSatiri>({ tanim, geriAlabilir }: YuklemelerProps<T>) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [geriAlinacak, setGeriAlinacak] = useState<KesintiYuklemesi | null>(null)
 
   const yuklemeler = useQuery({
-    queryKey: queryKeys.kesinti.isgucuYuklemeleri,
-    queryFn: isgucuYuklemeleriniGetir,
+    queryKey: queryKeys.kesinti.icmalYuklemeleri(tanim.anahtar),
+    queryFn: () => tanim.api.yuklemeler(),
   })
 
   const geriAl = useMutation({
-    mutationFn: (yukleme: KesintiYuklemesi) => isgucuYuklemesiniGeriAl(yukleme.id),
+    mutationFn: (yukleme: KesintiYuklemesi) => tanim.api.geriAl(yukleme.id),
     onSuccess: async (_, yukleme) => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.kesinti.isgucuYuklemeleri }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.kesinti.isgucuListeleri }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.kesinti.icmalYuklemeleri(tanim.anahtar),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.kesinti.icmalListeleri(tanim.anahtar),
+        }),
       ])
-      toast.success(t('kesinti.isgucu.yuklemeler.geriAlindi', { sayi: yukleme.satir_sayisi }))
+      toast.success(t('kesinti.icmal.yuklemeler.geriAlindi', { sayi: yukleme.satir_sayisi }))
     },
     onError: (error: unknown) => toast.error(t(apiErrorKey(error))),
     onSettled: () => setGeriAlinacak(null),
@@ -52,24 +59,24 @@ function YuklemeListesi({ geriAlabilir }: { geriAlabilir: boolean }) {
   const kolonlar: DataTableKolonu<KesintiYuklemesi>[] = [
     {
       anahtar: 'zaman',
-      baslik: t('kesinti.isgucu.yuklemeler.zaman'),
+      baslik: t('kesinti.icmal.yuklemeler.zaman'),
       render: (yukleme) => zamanGoster(yukleme.olusturma_zamani),
     },
     {
       anahtar: 'yukleyen',
-      baslik: t('kesinti.isgucu.yuklemeler.yukleyen'),
+      baslik: t('kesinti.icmal.yuklemeler.yukleyen'),
       render: (yukleme) => yukleme.yukleyen ?? '—',
     },
     {
       anahtar: 'kaynak',
-      baslik: t('kesinti.isgucu.yuklemeler.kaynak'),
+      baslik: t('kesinti.icmal.yuklemeler.kaynak'),
       render: (yukleme) =>
         yukleme.dosya_adi ??
-        t(`kesinti.isgucu.iceAktarim.kaynak.${yukleme.kaynak === 'excel' ? 'dosya' : 'metin'}`),
+        t(`kesinti.icmal.iceAktarim.kaynak.${yukleme.kaynak === 'excel' ? 'dosya' : 'metin'}`),
     },
     {
       anahtar: 'satir_sayisi',
-      baslik: t('kesinti.isgucu.yuklemeler.satirSayisi'),
+      baslik: t('kesinti.icmal.yuklemeler.satirSayisi'),
       hizala: 'sag',
       render: (yukleme) => yukleme.satir_sayisi.toLocaleString('tr-TR'),
     },
@@ -81,7 +88,7 @@ function YuklemeListesi({ geriAlabilir }: { geriAlabilir: boolean }) {
             hizala: 'sag',
             render: (yukleme) => (
               <Button variant="danger" onClick={() => setGeriAlinacak(yukleme)}>
-                {t('kesinti.isgucu.yuklemeler.geriAl')}
+                {t('kesinti.icmal.yuklemeler.geriAl')}
               </Button>
             ),
           } satisfies DataTableKolonu<KesintiYuklemesi>,
@@ -92,7 +99,7 @@ function YuklemeListesi({ geriAlabilir }: { geriAlabilir: boolean }) {
   return (
     <>
       <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">
-        {t('kesinti.isgucu.yuklemeler.aciklama')}
+        {t('kesinti.icmal.yuklemeler.aciklama')}
       </p>
       <DataTable
         kolonlar={kolonlar}
@@ -103,12 +110,12 @@ function YuklemeListesi({ geriAlabilir }: { geriAlabilir: boolean }) {
       <ConfirmDialog
         acik={geriAlinacak !== null}
         kapat={() => setGeriAlinacak(null)}
-        baslik={t('kesinti.isgucu.yuklemeler.geriAlOnayBaslik')}
-        mesaj={t('kesinti.isgucu.yuklemeler.geriAlOnayMesaj', {
+        baslik={t('kesinti.icmal.yuklemeler.geriAlOnayBaslik')}
+        mesaj={t('kesinti.icmal.yuklemeler.geriAlOnayMesaj', {
           zaman: geriAlinacak ? zamanGoster(geriAlinacak.olusturma_zamani) : '',
           sayi: geriAlinacak?.satir_sayisi ?? 0,
         })}
-        onayEtiketi={t('kesinti.isgucu.yuklemeler.geriAl')}
+        onayEtiketi={t('kesinti.icmal.yuklemeler.geriAl')}
         yukleniyor={geriAl.isPending}
         onayla={() => {
           if (geriAlinacak !== null) {
@@ -121,20 +128,16 @@ function YuklemeListesi({ geriAlabilir }: { geriAlabilir: boolean }) {
 }
 
 /** Yapılan içe aktarımlar (partiler); yanlış yükleme satırlarıyla birlikte geri alınır */
-export function YuklemelerPenceresi({
+export function IcmalYuklemelerPenceresi<T extends IcmalSatiri>({
   acik,
   kapat,
-  geriAlabilir,
-}: {
-  acik: boolean
-  kapat: () => void
-  geriAlabilir: boolean
-}) {
+  ...props
+}: YuklemelerProps<T> & { acik: boolean; kapat: () => void }) {
   const { t } = useTranslation()
 
   return (
-    <Modal acik={acik} kapat={kapat} baslik={t('kesinti.isgucu.yuklemeler.baslik')} boyut="genis">
-      {acik ? <YuklemeListesi geriAlabilir={geriAlabilir} /> : null}
+    <Modal acik={acik} kapat={kapat} baslik={t('kesinti.icmal.yuklemeler.baslik')} boyut="genis">
+      {acik ? <YuklemeListesi {...props} /> : null}
     </Modal>
   )
 }

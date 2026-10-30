@@ -34,11 +34,12 @@ export const queryKeys = {
     paraBirimleri: ['kesinti', 'paraBirimleri'],
     // Formların seçim listeleri: tanım ekranlarında değişince tazelenir (['kesinti'] altında)
     secenekler: ['kesinti', 'secenekler'],
-    isgucuListeleri: ['kesinti', 'isgucu', 'liste'],
-    isgucuListesi: (parametreler: Record<string, unknown>) =>
-      ['kesinti', 'isgucu', 'liste', parametreler] as const,
-    isgucuYuklemeleri: ['kesinti', 'isgucu', 'yuklemeler'],
-    isgucuKolonlari: ['kesinti', 'isgucu', 'kolonlar'],
+    // İcmal ekranları (anahtar: 'isgucu', 'kampMalzeme' …)
+    icmalListeleri: (icmal: string) => ['kesinti', icmal, 'liste'] as const,
+    icmalListesi: (icmal: string, parametreler: Record<string, unknown>) =>
+      ['kesinti', icmal, 'liste', parametreler] as const,
+    icmalYuklemeleri: (icmal: string) => ['kesinti', icmal, 'yuklemeler'] as const,
+    icmalKolonlari: (icmal: string) => ['kesinti', icmal, 'kolonlar'] as const,
     // ERP önizlemeleri her açılışta taze okunur (önbelleğe güvenilmez)
     erpProjeleri: ['kesinti', 'erpProjeleri'],
     erpFirmalari: ['kesinti', 'erpFirmalari'],

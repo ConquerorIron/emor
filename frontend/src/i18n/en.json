@@ -48,6 +48,7 @@
     "gidenFaturalar": "Outgoing Invoices",
     "kesinti": "Deduction Management",
     "isgucuKesintileri": "Labour Deductions",
+    "kampMalzemeKesintileri": "Camp Material Deductions",
     "kesintiTurleri": "Deduction Types",
     "projeler": "Projects",
     "firmalar": "Companies",
@@ -506,6 +507,7 @@
       "satinalma_talebi": "Purchase Request",
       "efatura": "e-Invoices (Incoming/Outgoing)",
       "isgucu_kesintileri": "Labour Deductions",
+      "kamp_malzeme_kesintileri": "Camp Material Deductions",
       "kesinti_turleri": "Deduction Types",
       "projeler": "Projects",
       "firmalar": "Companies",
@@ -787,9 +789,50 @@
         "adCokUzun": "Name can be at most 50 characters."
       }
     },
-    "isgucu": {
-      "baslik": "Labour Deductions",
-      "aciklamaMetni": "Labour deductions charged to subcontractors. Rows can be entered manually or imported from Excel; each import is kept as an upload and can be undone.",
+    "alan": {
+      "kesinti_turu": "Deduction Type",
+      "taseron": "Subcontractor",
+      "proje": "Project",
+      "mahal": "Area",
+      "tarih": "Date",
+      "kaynak_firma": "Source Company",
+      "kaynak_fis_no": "Source Slip No",
+      "adi_soyadi": "Full Name",
+      "vasif": "Qualification",
+      "mesai_turu": "Shift Type",
+      "yansitma_turu": "Charged To",
+      "tanim": "Definition",
+      "gorev": "Task",
+      "departman": "Department",
+      "aktivite": "Activity",
+      "miktar_saat": "Quantity (Hours)",
+      "miktar_yevmiye": "Quantity (Days)",
+      "birim_fiyat": "Unit Price",
+      "para_birimi": "Currency",
+      "toplam_tutar": "Total Amount",
+      "iptal_edilen_tutar": "Cancelled Amount",
+      "yansitilan_tutar": "Charged Amount",
+      "kesilen_tutar": "Deducted Amount",
+      "kalan_tutar": "Remaining Amount",
+      "urun_tanimi": "Product",
+      "miktar": "Quantity",
+      "birim": "Unit"
+    },
+    "secenek": {
+      "vasif": {
+        "nitelikli": "QUALIFIED",
+        "niteliksiz": "UNQUALIFIED"
+      },
+      "mesai_turu": {
+        "normal": "REGULAR",
+        "fazla": "OVERTIME"
+      },
+      "yansitma_turu": {
+        "hab": "HAB",
+        "taseron": "SUBCONTRACTOR"
+      }
+    },
+    "icmal": {
       "yeni": "New Row",
       "duzenle": "Edit Row",
       "kaydedildi": "Row saved.",
@@ -802,56 +845,18 @@
       "toplamlar": "Totals by currency",
       "satirSayisi": "{{sayi}} rows",
       "hesapAciklamasi": "Charged = Total − Cancelled, Remaining = Charged − Deducted.",
-      "alan": {
-        "kesinti_turu": "Deduction Type",
-        "taseron": "Subcontractor",
-        "proje": "Project",
-        "mahal": "Area",
-        "tarih": "Date",
-        "kaynak_firma": "Source Company",
-        "kaynak_fis_no": "Source Slip No",
-        "adi_soyadi": "Full Name",
-        "vasif": "Qualification",
-        "mesai_turu": "Shift Type",
-        "yansitma_turu": "Charged To",
-        "tanim": "Definition",
-        "gorev": "Task",
-        "departman": "Department",
-        "aktivite": "Activity",
-        "miktar_saat": "Quantity (Hours)",
-        "miktar_yevmiye": "Quantity (Days)",
-        "birim_fiyat": "Unit Price",
-        "para_birimi": "Currency",
-        "toplam_tutar": "Total Amount",
-        "iptal_edilen_tutar": "Cancelled Amount",
-        "yansitilan_tutar": "Charged Amount",
-        "kesilen_tutar": "Deducted Amount",
-        "kalan_tutar": "Remaining Amount"
-      },
-      "secenek": {
-        "vasif": {
-          "nitelikli": "QUALIFIED",
-          "niteliksiz": "UNQUALIFIED"
-        },
-        "mesai_turu": {
-          "normal": "REGULAR",
-          "fazla": "OVERTIME"
-        },
-        "yansitma_turu": {
-          "hab": "HAB",
-          "taseron": "SUBCONTRACTOR"
-        }
-      },
       "bolum": {
         "kesinti": "Deduction",
         "personel": "Personnel",
         "is": "Work",
-        "tutarlar": "Quantities and Amounts"
+        "tutarlar": "Quantities and Amounts",
+        "malzeme": "Material"
       },
       "dogrulama": {
         "zorunlu": "This field is required.",
         "cokUzun200": "Can be at most 200 characters.",
-        "cokUzun50": "Can be at most 50 characters."
+        "cokUzun50": "Can be at most 50 characters.",
+        "cokUzun20": "Can be at most 20 characters."
       },
       "iceAktarim": {
         "ac": "Import from Excel",
@@ -902,6 +907,14 @@
         "geriAlOnayBaslik": "Undo upload?",
         "geriAlOnayMesaj": "The upload from {{zaman}} and its {{sayi}} rows will be deleted."
       }
+    },
+    "isgucu": {
+      "baslik": "Labour Deductions",
+      "aciklamaMetni": "Labour deductions charged to subcontractors. Rows can be entered manually or imported from Excel; each import is kept as an upload and can be undone."
+    },
+    "kampMalzeme": {
+      "baslik": "Camp Material Deductions",
+      "aciklamaMetni": "Camp material deductions charged to subcontractors. Rows can be entered manually or imported from Excel; each import is kept as an upload and can be undone."
     },
     "erpAktarim": {
       "okunuyor": "Reading the live ERP…",

@@ -11,12 +11,13 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * İşgücü kesintisinin elle girilmesi / düzeltilmesi. Yansıtılan ve kalan
- * tutar elle girişte HESAPLANIR (kullanıcı kararı 2026-10-30); istemcinin
- * gönderdiği değerler kullanılmaz.
+ * İşgücü kesintisinin elle girilmesi / düzeltilmesi (tutar hesabı:
+ * HesaplananTutarlar).
  */
 final class IsgucuKesintisiKaydetRequest extends FormRequest
 {
+    use HesaplananTutarlar;
+
     public function authorize(): bool
     {
         return $this->user()?->can('isgucu_kesintileri.guncelle') ?? false;
@@ -53,26 +54,6 @@ final class IsgucuKesintisiKaydetRequest extends FormRequest
             'toplam_tutar' => $sayi(2, '9999999999999999.99'),
             'iptal_edilen_tutar' => $sayi(2, '9999999999999999.99'),
             'kesilen_tutar' => $sayi(2, '9999999999999999.99'),
-        ];
-    }
-
-    /**
-     * Doğrulanmış alanlar + hesaplanan tutarlar: yansıtılan = toplam − iptal,
-     * kalan = yansıtılan − kesilen (decimal aritmetiği, float yuvarlaması yok).
-     *
-     * @return array<string, mixed>
-     */
-    public function kayit(): array
-    {
-        $veri = $this->validated();
-        $tutar = fn (string $alan): string => number_format((float) $veri[$alan], 2, '.', '');
-
-        $yansitilan = bcsub($tutar('toplam_tutar'), $tutar('iptal_edilen_tutar'), 2);
-
-        return [
-            ...$veri,
-            'yansitilan_tutar' => $yansitilan,
-            'kalan_tutar' => bcsub($yansitilan, $tutar('kesilen_tutar'), 2),
         ];
     }
 }

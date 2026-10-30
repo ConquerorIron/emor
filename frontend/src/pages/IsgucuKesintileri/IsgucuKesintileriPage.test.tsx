@@ -2,11 +2,8 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import '@/i18n/i18n'
-import type {
-  IceAktarimOnizlemesi,
-  IsgucuKesintisi,
-  KesintiSecenekleri,
-} from '@/features/kesinti/isgucuApi'
+import type { IceAktarimOnizlemesi, KesintiSecenekleri } from '@/features/kesinti/icmalApi'
+import type { IsgucuKesintisi } from '@/features/kesinti/isgucuApi'
 import { AppProviders } from '@/providers/AppProviders'
 import { SahteOturum } from '@/test/SahteOturum'
 
@@ -24,17 +21,23 @@ const api = vi.hoisted(() => ({
   kolonlar: vi.fn(),
 }))
 
+vi.mock('@/features/kesinti/icmalApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/kesinti/icmalApi')>()),
+  kesintiSecenekleriniGetir: api.secenekler,
+}))
+
 vi.mock('@/features/kesinti/isgucuApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/features/kesinti/isgucuApi')>()),
-  kesintiSecenekleriniGetir: api.secenekler,
-  isgucuKesintileriniGetir: api.liste,
-  isgucuKesintisiKaydet: api.kaydet,
-  isgucuKesintisiSil: api.sil,
-  isgucuOnizle: api.onizle,
-  isgucuIceAktar: api.aktar,
-  isgucuYuklemeleriniGetir: api.yuklemeler,
-  isgucuYuklemesiniGeriAl: api.geriAl,
-  isgucuAktarimKolonlariniGetir: api.kolonlar,
+  isgucuApi: {
+    listele: api.liste,
+    kaydet: api.kaydet,
+    sil: api.sil,
+    onizle: api.onizle,
+    iceAktar: api.aktar,
+    yuklemeler: api.yuklemeler,
+    geriAl: api.geriAl,
+    kolonlar: api.kolonlar,
+  },
 }))
 
 const SECENEKLER: KesintiSecenekleri = {
@@ -140,6 +143,11 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
     expect(screen.getByText('27.03.2026')).toBeInTheDocument()
     expect(screen.getAllByText('2.562,15').length).toBeGreaterThan(0)
     expect(screen.getByLabelText('Para birimine göre toplamlar')).toHaveTextContent('562,15')
+    // Yansıtma türü taşeronun hemen sağında (kullanıcı kararı)
+    const basliklar = screen
+      .getAllByRole('columnheader')
+      .map((baslik) => baslik.textContent.replace(/[▲▼↕]/g, ''))
+    expect(basliklar.indexOf('Yansıtma Türü')).toBe(basliklar.indexOf('Taşeron') + 1)
     // Varsayılan sıra: tarih, yeniden eskiye
     expect(api.liste).toHaveBeenLastCalledWith(
       expect.anything(),

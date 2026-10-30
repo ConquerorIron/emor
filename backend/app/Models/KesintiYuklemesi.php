@@ -22,6 +22,8 @@ final class KesintiYuklemesi extends Model
 {
     public const ICMAL_ISGUCU = 'isgucu';
 
+    public const ICMAL_KAMP_MALZEME = 'kamp_malzeme';
+
     /** Excel dosyası yüklendi */
     public const KAYNAK_EXCEL = 'excel';
 

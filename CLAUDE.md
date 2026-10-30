@@ -49,6 +49,13 @@ Dosyayı okumadan skill'in uygulandığını iddia etme.
   ortak: `Kesinti\IceAktarimTablosu` (başlığı adından tanır, en çok kolonu
   eşleşen satır; TR sayı/tarih, "-" = 0). Tanımlar KOD ile eşleşir; kullanılan
   tanım silinmez (`App\Support\KayitSilme` → 409 KAYIT_KULLANILIYOR).
+  Yeni icmal = ince alt sınıflar: backend `Icmal*` taban sınıfları
+  (IceAktarimi, Sorgusu, ListeRequest, IceAktarRequest, SatiriController,
+  YuklemeController, SatiriResource) + `HesaplananTutarlar` +
+  `Models\Concerns\IcmalSatiri`; frontend `features/kesinti/IcmalSayfasi`'na
+  verilen bir `IcmalTanimi` (kolonlar, sıra, form bölümleri). Kolon sırası
+  kuralı: "Yansıtma Türü" her icmalde "Taşeron"un hemen sağında (Excel/yapıştırma
+  standart sırası, liste, form).
 - **Test/Canlı ortamlar**: MSSQL bağlantı tanımları (test + canli) PostgreSQL'de
   `sql_baglantilari` tablosunda, şifreler encrypted cast ile. GLOBAL tek aktif
   ortam vardır (kısmi unique indeks garantiler). Store proc çalıştıracak HER modül

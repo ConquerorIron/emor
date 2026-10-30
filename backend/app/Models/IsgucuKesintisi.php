@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\IcmalSatiri;
 use App\Services\Kesinti\MesaiTuru;
 use App\Services\Kesinti\Vasif;
 use App\Services\Kesinti\YansitmaTuru;
@@ -11,7 +12,6 @@ use Carbon\CarbonImmutable;
 use Database\Factories\IsgucuKesintisiFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * İşgücü Kesintileri icmalinin bir satırı. Tutarlar decimal metin olarak
@@ -50,6 +50,8 @@ final class IsgucuKesintisi extends Model
     /** @use HasFactory<IsgucuKesintisiFactory> */
     use HasFactory;
 
+    use IcmalSatiri;
+
     protected $table = 'isgucu_kesintileri';
 
     protected $fillable = [
@@ -80,45 +82,5 @@ final class IsgucuKesintisi extends Model
             'kesilen_tutar' => 'decimal:2',
             'kalan_tutar' => 'decimal:2',
         ];
-    }
-
-    /**
-     * @return BelongsTo<KesintiTuru, $this>
-     */
-    public function kesintiTuru(): BelongsTo
-    {
-        return $this->belongsTo(KesintiTuru::class);
-    }
-
-    /**
-     * @return BelongsTo<Firma, $this>
-     */
-    public function firma(): BelongsTo
-    {
-        return $this->belongsTo(Firma::class);
-    }
-
-    /**
-     * @return BelongsTo<Proje, $this>
-     */
-    public function proje(): BelongsTo
-    {
-        return $this->belongsTo(Proje::class);
-    }
-
-    /**
-     * @return BelongsTo<ParaBirimi, $this>
-     */
-    public function paraBirimi(): BelongsTo
-    {
-        return $this->belongsTo(ParaBirimi::class);
-    }
-
-    /**
-     * @return BelongsTo<KesintiYuklemesi, $this>
-     */
-    public function yukleme(): BelongsTo
-    {
-        return $this->belongsTo(KesintiYuklemesi::class);
     }
 }

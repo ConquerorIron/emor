@@ -41,10 +41,16 @@ final class IceAktarimTablosu
     }
 
     /**
+     * Zorunlu kolonların hepsini taşıyan HER sayfa okunur (aynı dosyada başka
+     * düzende sayfalar olabilir: Kamp dosyasında oda ve malzeme sayfaları).
+     * Hiçbir sayfa yetmiyorsa en çok kolonu tanınan sayfanın kolonları döner;
+     * hangi zorunlu kolonların eksik olduğu böylece gösterilebilir.
+     *
      * @param  array<string, list<string>>  $kolonlar
-     * @return array{satirlar: list<array{satir: int, degerler: array<string, mixed>}>, kolonlar: list<string>, hata: string|null}
+     * @param  list<string>  $zorunlular
+     * @return array{satirlar: list<array{satir: int, sayfa: string|null, degerler: array<string, mixed>}>, kolonlar: list<string>, hata: string|null}
      */
-    public static function excel(string $yol, array $kolonlar): array
+    public static function excel(string $yol, array $kolonlar, array $zorunlular = []): array
     {
         self::bellekSiniriniYukselt();
 
@@ -56,7 +62,10 @@ final class IceAktarimTablosu
             return ['satirlar' => [], 'kolonlar' => [], 'hata' => 'dosya_okunamadi'];
         }
 
-        // Başlığı tanınan ilk sayfa okunur
+        $satirlar = [];
+        $okunanKolonlar = [];
+        $enIyiEslesme = null;
+
         foreach ($kitap->getWorksheetIterator() as $sayfa) {
             $sonSatir = $sayfa->getHighestDataRow();
             $sonKolon = $sayfa->getHighestDataColumn();
@@ -69,21 +78,30 @@ final class IceAktarimTablosu
 
             [$baslikSatiri, $eslesme] = $baslik;
 
-            if ($baslikSatiri >= $sonSatir) {
-                return ['satirlar' => [], 'kolonlar' => array_keys($eslesme), 'hata' => null];
+            if (count($eslesme) > count($enIyiEslesme ?? [])) {
+                $enIyiEslesme = $eslesme;
             }
 
-            // Formüller hesaplanmış, biçimlendirilmemiş ham değerler (tarih = Excel seri numarası)
-            $veri = $sayfa->rangeToArray('A'.($baslikSatiri + 1).":{$sonKolon}{$sonSatir}", null, true, false, false);
+            if (array_diff($zorunlular, array_keys($eslesme)) !== []) {
+                continue;
+            }
 
-            return [
-                'satirlar' => self::eslestir($veri, $eslesme, $baslikSatiri + 1),
-                'kolonlar' => array_keys($eslesme),
-                'hata' => null,
-            ];
+            $okunanKolonlar = [...$okunanKolonlar, ...array_keys($eslesme)];
+
+            if ($baslikSatiri < $sonSatir) {
+                // Formüller hesaplanmış, biçimlendirilmemiş ham değerler (tarih = Excel seri numarası)
+                $veri = $sayfa->rangeToArray('A'.($baslikSatiri + 1).":{$sonKolon}{$sonSatir}", null, true, false, false);
+                $satirlar = [...$satirlar, ...self::eslestir($veri, $eslesme, $baslikSatiri + 1, $sayfa->getTitle())];
+            }
         }
 
-        return ['satirlar' => [], 'kolonlar' => [], 'hata' => 'baslik_bulunamadi'];
+        if ($okunanKolonlar !== []) {
+            return ['satirlar' => $satirlar, 'kolonlar' => array_values(array_unique($okunanKolonlar)), 'hata' => null];
+        }
+
+        return $enIyiEslesme === null
+            ? ['satirlar' => [], 'kolonlar' => [], 'hata' => 'baslik_bulunamadi']
+            : ['satirlar' => [], 'kolonlar' => array_keys($enIyiEslesme), 'hata' => null];
     }
 
     /**
@@ -92,7 +110,7 @@ final class IceAktarimTablosu
      * kolonların standart sırası esas alınır.
      *
      * @param  array<string, list<string>>  $kolonlar
-     * @return array{satirlar: list<array{satir: int, degerler: array<string, mixed>}>, kolonlar: list<string>, hata: string|null}
+     * @return array{satirlar: list<array{satir: int, sayfa: string|null, degerler: array<string, mixed>}>, kolonlar: list<string>, hata: string|null}
      */
     public static function metin(string $metin, array $kolonlar): array
     {
@@ -245,9 +263,9 @@ final class IceAktarimTablosu
      *
      * @param  list<array<int, mixed>>  $satirlar
      * @param  array<string, int>  $eslesme
-     * @return list<array{satir: int, degerler: array<string, mixed>}>
+     * @return list<array{satir: int, sayfa: string|null, degerler: array<string, mixed>}>
      */
-    private static function eslestir(array $satirlar, array $eslesme, int $ilkSatirNo): array
+    private static function eslestir(array $satirlar, array $eslesme, int $ilkSatirNo, ?string $sayfa = null): array
     {
         $sonuc = [];
 
@@ -262,7 +280,7 @@ final class IceAktarimTablosu
                 continue;
             }
 
-            $sonuc[] = ['satir' => $ilkSatirNo + $sira, 'degerler' => $degerler];
+            $sonuc[] = ['satir' => $ilkSatirNo + $sira, 'sayfa' => $sayfa, 'degerler' => $degerler];
         }
 
         return $sonuc;

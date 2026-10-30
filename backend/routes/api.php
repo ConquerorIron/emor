@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\V1\ErpProjeController;
 use App\Http\Controllers\Api\V1\FirmaController;
 use App\Http\Controllers\Api\V1\IsgucuKesintisiController;
 use App\Http\Controllers\Api\V1\IsgucuYuklemeController;
+use App\Http\Controllers\Api\V1\KampMalzemeKesintisiController;
+use App\Http\Controllers\Api\V1\KampMalzemeYuklemeController;
 use App\Http\Controllers\Api\V1\KesintiSecenekController;
 use App\Http\Controllers\Api\V1\KesintiTuruController;
 use App\Http\Controllers\Api\V1\KullaniciController;
@@ -231,6 +233,35 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('/kesinti/isgucu/yuklemeler/{yukleme}', [IsgucuYuklemeController::class, 'destroy'])
                 ->whereNumber('yukleme')
                 ->name('kesinti.isgucu.yuklemeler.destroy');
+        });
+
+        // Kesinti Yönetimi → Kamp Malzeme Kesintileri (İşgücü ile aynı akış)
+        Route::middleware('can:kamp_malzeme_kesintileri.goruntule')->group(function (): void {
+            Route::get('/kesinti/kamp-malzeme', [KampMalzemeKesintisiController::class, 'index'])
+                ->name('kesinti.kamp-malzeme');
+            Route::get('/kesinti/kamp-malzeme/yuklemeler', [KampMalzemeYuklemeController::class, 'index'])
+                ->name('kesinti.kamp-malzeme.yuklemeler');
+        });
+        Route::middleware('can:kamp_malzeme_kesintileri.guncelle')->group(function (): void {
+            Route::post('/kesinti/kamp-malzeme', [KampMalzemeKesintisiController::class, 'store'])
+                ->name('kesinti.kamp-malzeme.store');
+            Route::put('/kesinti/kamp-malzeme/{kesinti}', [KampMalzemeKesintisiController::class, 'update'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.kamp-malzeme.update');
+            Route::delete('/kesinti/kamp-malzeme/{kesinti}', [KampMalzemeKesintisiController::class, 'destroy'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.kamp-malzeme.destroy');
+            Route::get('/kesinti/kamp-malzeme/yuklemeler/kolonlar', [KampMalzemeYuklemeController::class, 'kolonlar'])
+                ->name('kesinti.kamp-malzeme.yuklemeler.kolonlar');
+            Route::post('/kesinti/kamp-malzeme/yuklemeler/onizle', [KampMalzemeYuklemeController::class, 'onizle'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.kamp-malzeme.yuklemeler.onizle');
+            Route::post('/kesinti/kamp-malzeme/yuklemeler', [KampMalzemeYuklemeController::class, 'store'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.kamp-malzeme.yuklemeler.store');
+            Route::delete('/kesinti/kamp-malzeme/yuklemeler/{yukleme}', [KampMalzemeYuklemeController::class, 'destroy'])
+                ->whereNumber('yukleme')
+                ->name('kesinti.kamp-malzeme.yuklemeler.destroy');
         });
 
         // Kesinti Yönetimi → Firmalar (taşeronlar): elle tanım + canlı ERP'den

@@ -183,7 +183,9 @@ final class IsgucuIceAktarimTest extends TestCase
             ->assertOk()
             ->assertJsonCount(24, 'data')
             ->assertJsonPath('data.0', ['alan' => 'kesinti_turu', 'basliklar' => ['KESİNTİ TÜRÜ']])
-            ->assertJsonPath('data.1.basliklar', ['TAŞERON ADI', 'TAŞERON', 'KESİNTİ YAPILACAK FİRMA']);
+            ->assertJsonPath('data.1.basliklar', ['TAŞERON ADI', 'TAŞERON', 'KESİNTİ YAPILACAK FİRMA'])
+            // Yansıtma türü taşeronun hemen sağında (yapıştırma sırası)
+            ->assertJsonPath('data.2.alan', 'yansitma_turu');
     }
 
     public function test_basliksiz_yapistirma_standart_kolon_sirasiyla_okunur_ve_satir_numaralari_korunur(): void
@@ -195,16 +197,17 @@ final class IsgucuIceAktarimTest extends TestCase
             ->assertOk()
             ->assertJsonCount(2, 'data.satirlar')
             ->assertJsonPath('data.satirlar.0.satir', 1)
-            ->assertJsonPath('data.hatalar.0.satirlar', [3]);
+            ->assertJsonPath('data.hatalar.0.satirlar', ['3']);
     }
 
     public function test_zorunlu_kolon_eksikse_hangi_kolonlar_oldugu_doner(): void
     {
         $metin = "KESİNTİ TÜRÜ\tTAŞERON ADI\tPROJE\tTARİH\nİŞGÜCÜ\tHAB\tZONE 10\t27.03.2026";
 
-        $this->postJson(self::ONIZLE, ['metin' => $metin])
-            ->assertOk()
-            ->assertJsonPath('data.eksik_kolonlar.0', 'adi_soyadi');
+        $eksik = $this->postJson(self::ONIZLE, ['metin' => $metin])->assertOk()->json('data.eksik_kolonlar');
+
+        $this->assertContains('adi_soyadi', $eksik);
+        $this->assertNotContains('taseron', $eksik);
     }
 
     public function test_parti_geri_alininca_satirlariyla_silinir_elle_girilen_satir_kalir(): void
