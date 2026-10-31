@@ -20,13 +20,39 @@ function anahtar(metin: string): string {
   return trBuyukHarf(metin).replace(/[^\p{L}\p{N}]+/gu, '')
 }
 
-/** Excel panosu: satırlar yeni satırla, hücreler sekmeyle ayrılır */
+/**
+ * Excel panosu: satırlar yeni satırla, hücreler sekmeyle ayrılır. İçinde
+ * satır sonu (Alt+Enter) olan hücreyi Excel tırnak içine alır ve hücredeki
+ * tırnağı ikiler ("" → "); tırnağın ardından sekme / satır sonu / metin sonu
+ * gelmiyorsa tırnak hücrenin kendi içeriğidir. Hücre içindeki satır sonları
+ * ayrı satır sayılmaz, boşluğa döner (tek satırlık hücreye sığsın; sunucuya
+ * da böyle gider).
+ */
 export function panoyuCoz(metin: string): string[][] {
-  return metin
-    .replace(/\r\n?/g, '\n')
-    .replace(/\n$/, '')
-    .split('\n')
-    .map((satir) => satir.split('\t').map((hucre) => hucre.replace(/^"(.*)"$/s, '$1').trim()))
+  const pano = metin.replace(/\r\n?/g, '\n').replace(/\n$/, '')
+  const hucreDeseni = /"((?:[^"]|"")*)"(?=[\t\n]|$)|[^\t\n]*/y
+  const satirlar: string[][] = []
+  let satir: string[] = []
+
+  for (;;) {
+    // İkinci seçenek boş metni de eşlediği için her konumda eşleşme vardır
+    const hucre = hucreDeseni.exec(pano) as RegExpExecArray
+    const deger = hucre[1] === undefined ? hucre[0] : hucre[1].replace(/""/g, '"')
+    satir.push(deger.replace(/\s*[\t\n]\s*/g, ' ').trim())
+
+    const ayirac = pano[hucreDeseni.lastIndex]
+    if (ayirac === undefined) {
+      break
+    }
+    hucreDeseni.lastIndex += 1
+    if (ayirac === '\n') {
+      satirlar.push(satir)
+      satir = []
+    }
+  }
+  satirlar.push(satir)
+
+  return satirlar
 }
 
 /** İlk satır başlıksa: tablo kolonu sırası => panodaki kolon sırası (-1: yok) */
