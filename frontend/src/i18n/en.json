@@ -51,6 +51,7 @@
     "kampKesintileri": "Camp Deductions",
     "kampMalzemeKesintileri": "Camp Material Deductions",
     "makinaEkipmanKesintileri": "Machinery & Equipment Deductions",
+    "tutanakKesintileri": "Report Deductions",
     "kesintiTurleri": "Deduction Types",
     "projeler": "Projects",
     "firmalar": "Companies",
@@ -514,6 +515,7 @@
       "kamp_kesintileri": "Camp Deductions",
       "kamp_malzeme_kesintileri": "Camp Material Deductions",
       "makina_ekipman_kesintileri": "Machinery & Equipment Deductions",
+      "tutanak_kesintileri": "Report Deductions",
       "kesinti_turleri": "Deduction Types",
       "projeler": "Projects",
       "firmalar": "Companies",
@@ -833,7 +835,10 @@
       "toplam_oda": "Total Rooms",
       "makina_tanimi": "Machine",
       "disiplin": "Discipline",
-      "makina": "Machine"
+      "makina": "Machine",
+      "kaynak_tutanak_no": "Source Report No",
+      "kaynak_sozlesme": "Source Contract",
+      "kaynak_hakedis_no": "Source Progress Payment No"
     },
     "secenek": {
       "vasif": {
@@ -868,7 +873,8 @@
         "is": "Work",
         "tutarlar": "Quantities and Amounts",
         "malzeme": "Material",
-        "makina": "Machine"
+        "makina": "Machine",
+        "tutanak": "Report"
       },
       "dogrulama": {
         "zorunlu": "This field is required.",
@@ -951,6 +957,10 @@
       "baslik": "Machinery & Equipment Deductions",
       "aciklamaMetni": "Machinery and equipment deductions charged to subcontractors. Rows can be entered manually or imported from Excel; each import is kept as an upload and can be undone."
     },
+    "tutanak": {
+      "baslik": "Report Deductions",
+      "aciklamaMetni": "Report (tutanak) deductions charged to subcontractors. Rows can be entered manually or imported from Excel; each import is kept as an upload and can be undone."
+    },
     "erpAktarim": {
       "okunuyor": "Reading the live ERP…",
       "ozet": "{{yeni}} new, {{guncellenecek}} to update, {{eslesecek}} to link with a manual record, {{aktarilamaz}} cannot be imported. {{ayni}} records are already up to date.",
@@ -993,7 +1003,8 @@
       "isgucu": "Labour Deductions",
       "kamp": "Camp Deductions",
       "kamp_malzeme": "Camp Material Deductions",
-      "makina_ekipman": "Machinery & Equipment Deductions"
+      "makina_ekipman": "Machinery & Equipment Deductions",
+      "tutanak": "Report Deductions"
     }
   }
 }

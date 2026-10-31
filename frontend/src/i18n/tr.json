@@ -51,6 +51,7 @@
     "kampKesintileri": "Kamp Kesintileri",
     "kampMalzemeKesintileri": "Kamp Malzeme Kesintileri",
     "makinaEkipmanKesintileri": "Makina Ekipman Kesintileri",
+    "tutanakKesintileri": "Tutanak Kesintisi",
     "kesintiTurleri": "Kesinti Türleri",
     "projeler": "Projeler",
     "firmalar": "Firmalar",
@@ -514,6 +515,7 @@
       "kamp_kesintileri": "Kamp Kesintileri",
       "kamp_malzeme_kesintileri": "Kamp Malzeme Kesintileri",
       "makina_ekipman_kesintileri": "Makina Ekipman Kesintileri",
+      "tutanak_kesintileri": "Tutanak Kesintisi",
       "kesinti_turleri": "Kesinti Türleri",
       "projeler": "Projeler",
       "firmalar": "Firmalar",
@@ -833,7 +835,10 @@
       "toplam_oda": "Toplam Oda",
       "makina_tanimi": "Makina Tanımı",
       "disiplin": "Disiplin",
-      "makina": "Makina"
+      "makina": "Makina",
+      "kaynak_tutanak_no": "Kaynak Tutanak No",
+      "kaynak_sozlesme": "Kaynak Sözleşme",
+      "kaynak_hakedis_no": "Kaynak Hakediş No"
     },
     "secenek": {
       "vasif": {
@@ -868,7 +873,8 @@
         "is": "İş",
         "tutarlar": "Miktar ve Tutarlar",
         "malzeme": "Malzeme",
-        "makina": "Makina"
+        "makina": "Makina",
+        "tutanak": "Tutanak"
       },
       "dogrulama": {
         "zorunlu": "Bu alan zorunludur.",
@@ -951,6 +957,10 @@
       "baslik": "Makina Ekipman Kesintileri",
       "aciklamaMetni": "Taşeronlara yansıtılan makina ve ekipman kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
     },
+    "tutanak": {
+      "baslik": "Tutanak Kesintisi",
+      "aciklamaMetni": "Taşeronlara yansıtılan tutanak kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
+    },
     "erpAktarim": {
       "okunuyor": "Canlı ERP okunuyor…",
       "ozet": "{{yeni}} yeni, {{guncellenecek}} güncellenecek, {{eslesecek}} elle açılmış kayıtla eşleşecek, {{aktarilamaz}} aktarılamaz. {{ayni}} kayıt zaten güncel.",
@@ -993,7 +1003,8 @@
       "isgucu": "İşgücü Kesintileri",
       "kamp": "Kamp Kesintileri",
       "kamp_malzeme": "Kamp Malzeme Kesintileri",
-      "makina_ekipman": "Makina Ekipman Kesintileri"
+      "makina_ekipman": "Makina Ekipman Kesintileri",
+      "tutanak": "Tutanak Kesintisi"
     }
   }
 }

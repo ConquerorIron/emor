@@ -4,7 +4,7 @@ import { api } from '@/api/client'
 import { blobHatasiniCoz, dosyayiIndir } from '@/api/indirme'
 
 /** Kesinti türünün bağlanabileceği icmal ekranları (backend KesintiYuklemesi::ICMALLER) */
-export const ICMALLER = ['isgucu', 'kamp', 'kamp_malzeme', 'makina_ekipman'] as const
+export const ICMALLER = ['isgucu', 'kamp', 'kamp_malzeme', 'makina_ekipman', 'tutanak'] as const
 
 export type Icmal = (typeof ICMALLER)[number]
 

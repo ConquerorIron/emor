@@ -28,8 +28,10 @@ final class KesintiYuklemesi extends Model
 
     public const ICMAL_MAKINA_EKIPMAN = 'makina_ekipman';
 
+    public const ICMAL_TUTANAK = 'tutanak';
+
     /** Kesinti türünün bağlanabileceği icmal ekranları (menü sırasıyla) */
-    public const ICMALLER = [self::ICMAL_ISGUCU, self::ICMAL_KAMP, self::ICMAL_KAMP_MALZEME, self::ICMAL_MAKINA_EKIPMAN];
+    public const ICMALLER = [self::ICMAL_ISGUCU, self::ICMAL_KAMP, self::ICMAL_KAMP_MALZEME, self::ICMAL_MAKINA_EKIPMAN, self::ICMAL_TUTANAK];
 
     /** Excel dosyası yüklendi */
     public const KAYNAK_EXCEL = 'excel';

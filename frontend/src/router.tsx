@@ -153,6 +153,18 @@ export const router = createBrowserRouter([
         ],
       },
       {
+        element: <IzinAlani izin="tutanak_kesintileri.goruntule" />,
+        children: [
+          {
+            path: 'kesinti/tutanak',
+            lazy: async () => ({
+              Component: (await import('@/pages/TutanakKesintileri/TutanakKesintileriPage'))
+                .TutanakKesintileriPage,
+            }),
+          },
+        ],
+      },
+      {
         element: <IzinAlani izin="ekran_tasarimi.goruntule" />,
         children: [
           {
