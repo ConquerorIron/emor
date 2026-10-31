@@ -17,7 +17,10 @@ final class TetkikIceAktarimi extends IcmalIceAktarimi
 
     protected const MODEL = TetkikKesintisi::class;
 
-    /** Sıra kullanıcının listesi (2026-10-31) */
+    /**
+     * Sıra kullanıcının listesi (2026-10-31; Kaynak Hakediş No sonradan
+     * eklendi). Sağlık Tetkikleri sayfasında hakediş no "HK. NO" başlığında.
+     */
     public const KOLONLAR = [
         'kesinti_turu' => ['KESİNTİ TÜRÜ'],
         'taseron' => ['TAŞERON ADI', 'TAŞERON', 'KESİNTİ YAPILACAK FİRMA'],
@@ -26,6 +29,7 @@ final class TetkikIceAktarimi extends IcmalIceAktarimi
         'mahal' => ['MAHAL'],
         'tarih' => ['TARİH'],
         'kaynak_firma' => ['KAYNAK FİRMA', 'FİRMA'],
+        'kaynak_hakedis_no' => ['KAYNAK HAKEDİŞ NO', 'HAKEDİŞ NO', 'HK. NO'],
         'adi_soyadi' => ['ADI SOYADI'],
         'para_birimi' => ['PARA BİRİMİ'],
         'toplam_tutar' => ['TOPLAM TUTAR'],
@@ -41,7 +45,8 @@ final class TetkikIceAktarimi extends IcmalIceAktarimi
     ];
 
     protected const METINLER = [
-        'mahal' => [200, false], 'kaynak_firma' => [200, false], 'adi_soyadi' => [200, true],
+        'mahal' => [200, false], 'kaynak_firma' => [200, false], 'kaynak_hakedis_no' => [100, false],
+        'adi_soyadi' => [200, true],
     ];
 
     protected const SAYILAR = [

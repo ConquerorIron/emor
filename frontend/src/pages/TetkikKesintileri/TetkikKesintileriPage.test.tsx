@@ -55,6 +55,7 @@ const SATIR: TetkikKesintisi = {
   mahal: null,
   tarih: '2026-02-01',
   kaynak_firma: null,
+  kaynak_hakedis_no: '4',
   adi_soyadi: 'TUNCAY YEL',
   toplam_tutar: '830.00',
   iptal_edilen_tutar: '0.00',
@@ -95,7 +96,7 @@ describe('TetkikKesintileriPage', { timeout: 15_000 }, () => {
     const basliklar = screen
       .getAllByRole('columnheader')
       .map((baslik) => baslik.textContent.replace(/[▲▼↕]/g, ''))
-    expect(basliklar.slice(0, 17)).toEqual([
+    expect(basliklar.slice(0, 18)).toEqual([
       'Sıra No',
       'Kesinti Türü',
       'Taşeron',
@@ -106,6 +107,7 @@ describe('TetkikKesintileriPage', { timeout: 15_000 }, () => {
       'Yıl',
       'Ay',
       'Kaynak Firma',
+      'Kaynak Hakediş No',
       'Adı Soyadı',
       'Para Birimi',
       'Toplam Tutar',
@@ -137,6 +139,9 @@ describe('TetkikKesintileriPage', { timeout: 15_000 }, () => {
     fireEvent.change(adiSoyadi, { target: { value: 'MÖHSİN UD' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
     await waitFor(() => expect(api.kaydet).toHaveBeenCalledTimes(1))
-    expect(api.kaydet.mock.calls[0][1]).toMatchObject({ adi_soyadi: 'MÖHSİN UD' })
+    expect(api.kaydet.mock.calls[0][1]).toMatchObject({
+      adi_soyadi: 'MÖHSİN UD',
+      kaynak_hakedis_no: '4',
+    })
   })
 })

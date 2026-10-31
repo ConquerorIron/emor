@@ -14,6 +14,7 @@ const TETKIK_ICMALI: IcmalTanimi<TetkikKesintisi> = {
   api: tetkikApi,
   alanlar: {
     ...ORTAK_ALANLAR,
+    kaynak_hakedis_no: { tur: 'metin', sinir: 100 },
     adi_soyadi: { tur: 'metin', sinir: 200, zorunlu: true },
   },
   kolonlar: [
@@ -24,6 +25,7 @@ const TETKIK_ICMALI: IcmalTanimi<TetkikKesintisi> = {
     'mahal',
     'tarih',
     'kaynak_firma',
+    'kaynak_hakedis_no',
     'adi_soyadi',
     'para_birimi',
     'toplam_tutar',
@@ -43,7 +45,8 @@ const TETKIK_ICMALI: IcmalTanimi<TetkikKesintisi> = {
         'proje',
         'mahal',
         'tarih',
-        { alan: 'kaynak_firma', genis: true },
+        'kaynak_firma',
+        'kaynak_hakedis_no',
       ],
     },
     {

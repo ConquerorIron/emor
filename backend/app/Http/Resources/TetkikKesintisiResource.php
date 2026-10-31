@@ -17,6 +17,7 @@ final class TetkikKesintisiResource extends IcmalSatiriResource
     protected function alanlar(): array
     {
         return [
+            'kaynak_hakedis_no' => $this->kaynak_hakedis_no,
             'adi_soyadi' => $this->adi_soyadi,
         ];
     }

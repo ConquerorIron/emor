@@ -39,6 +39,7 @@ final class TetkikKesintisiKaydetRequest extends FormRequest
             'tarih' => ['required', 'date_format:Y-m-d'],
             'mahal' => $metin(200),
             'kaynak_firma' => $metin(200),
+            'kaynak_hakedis_no' => $metin(100),
             'adi_soyadi' => $metin(200, true),
             'toplam_tutar' => $tutar,
             'iptal_edilen_tutar' => $tutar,

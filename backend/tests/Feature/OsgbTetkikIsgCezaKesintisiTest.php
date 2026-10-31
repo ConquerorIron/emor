@@ -51,7 +51,7 @@ final class OsgbTetkikIsgCezaKesintisiTest extends TestCase
 
         return [
             'OSGB' => ['osgb', [...$bas, 'toplam_kisi', 'birim_fiyat', ...$son]],
-            'Tetkik' => ['tetkik', [...$bas, 'adi_soyadi', ...$son]],
+            'Tetkik' => ['tetkik', [...$bas, 'kaynak_hakedis_no', 'adi_soyadi', ...$son]],
             'İSG Ceza' => ['isg-ceza', [...$bas, ...$son]],
         ];
     }
@@ -90,9 +90,14 @@ final class OsgbTetkikIsgCezaKesintisiTest extends TestCase
         $this->postJson('/api/v1/kesinti/tetkik', [...$ortak, 'kesinti_turu_id' => $tur('TETKİK'), 'adi_soyadi' => ''])
             ->assertUnprocessable()
             ->assertJsonValidationErrorFor('adi_soyadi', 'hatalar');
-        $this->postJson('/api/v1/kesinti/tetkik', [...$ortak, 'kesinti_turu_id' => $tur('TETKİK'), 'adi_soyadi' => 'TUNCAY YEL'])
+        $this->postJson('/api/v1/kesinti/tetkik', [...$ortak, 'kesinti_turu_id' => $tur('TETKİK'), 'adi_soyadi' => 'TUNCAY YEL', 'kaynak_hakedis_no' => str_repeat('1', 101)])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrorFor('kaynak_hakedis_no', 'hatalar');
+        $this->postJson('/api/v1/kesinti/tetkik', [...$ortak, 'kesinti_turu_id' => $tur('TETKİK'), 'adi_soyadi' => 'TUNCAY YEL', 'kaynak_hakedis_no' => '3'])
             ->assertCreated()
-            ->assertJsonPath('data.adi_soyadi', 'TUNCAY YEL');
+            ->assertJsonPath('data.adi_soyadi', 'TUNCAY YEL')
+            ->assertJsonPath('data.kaynak_hakedis_no', '3');
+        $this->assertDatabaseHas('tetkik_kesintileri', ['adi_soyadi' => 'TUNCAY YEL', 'kaynak_hakedis_no' => '3']);
 
         $this->postJson('/api/v1/kesinti/isg-ceza', [...$ortak, 'kesinti_turu_id' => $tur('İSG CEZA')])
             ->assertCreated()
@@ -113,7 +118,7 @@ final class OsgbTetkikIsgCezaKesintisiTest extends TestCase
         $kitap->createSheet()->setTitle('Z10-Sağlık Tetkikleri')->fromArray([
             ['NO', 'HK. NO', 'TARİH', 'ADI SOYADI', 'KESİNTİ YAPILACAK FİRMA', 'YANSITMA', 'KESİNTİ TÜRÜ', 'BÜTÇE', 'PARA BİRİMİ', 'Hemog.', 'TOPLAM TUTAR', 'İPTAL EDİLEN TUTAR', 'YANSITILAN TUTAR', 'KESİLEN TUTAR', 'KALAN TUTAR'],
             [1, 1, 46053, 'TUNCAY YEL', 'TMC KABA', 'TAŞERON', 'TETKİK', 'ZONE 10', 'TL', 1, 830, 0, 830, 830, 0],
-            [1, 1, 46053, 'MÖHSİN UD', 'TMC KABA', 'TAŞERON', 'TETKİK', 'ZONE 10', 'TL', 1, 830, 0, 830, 830, 0],
+            [2, 2, 46053, 'MÖHSİN UD', 'TMC KABA', 'TAŞERON', 'TETKİK', 'ZONE 10', 'TL', 1, 830, 0, 830, 830, 0],
         ], null, 'A7');
         $kitap->createSheet()->setTitle('Z10-İSG Ceza')->fromArray([
             ['BÜTÇE', 'KESİNTİ TÜRÜ', 'PARA BİRİMİ', 'UYGUNSUZLUK TİPİ', 'UYGUNSUZLUK TESPİT YERİ', 'TARİH', 'KESİNTİ YAPILACAK FİRMA', 'YANSITMA', 'TUTAR', 'TOPLAM TUTAR', 'İPTAL EDİLEN TUTAR', 'YANSITILAN TUTAR', 'KESİLEN TUTAR', 'KALAN TUTAR'],
@@ -136,7 +141,8 @@ final class OsgbTetkikIsgCezaKesintisiTest extends TestCase
         $yukle('isg-ceza')->assertCreated()->assertJsonPath('data.satir_sayisi', 1);
 
         $this->assertDatabaseHas('osgb_kesintileri', ['toplam_kisi' => '411.00', 'birim_fiyat' => '120.0000', 'kesilen_tutar' => '36990.00']);
-        $this->assertSame(['MÖHSİN UD', 'TUNCAY YEL'], TetkikKesintisi::query()->orderBy('adi_soyadi')->pluck('adi_soyadi')->all());
+        // Kaynak hakediş no sayfadaki "HK. NO" kolonundan
+        $this->assertSame(['MÖHSİN UD' => '2', 'TUNCAY YEL' => '1'], TetkikKesintisi::query()->orderBy('adi_soyadi')->pluck('kaynak_hakedis_no', 'adi_soyadi')->all());
         $this->assertDatabaseHas('isg_ceza_kesintileri', ['mahal' => 'ZONE 10', 'toplam_tutar' => '5000.00']);
     }
 

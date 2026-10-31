@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $mahal
  * @property CarbonImmutable $tarih
  * @property string|null $kaynak_firma
+ * @property string|null $kaynak_hakedis_no
  * @property string $adi_soyadi
  * @property string $toplam_tutar
  * @property string $iptal_edilen_tutar
@@ -44,7 +45,7 @@ final class TetkikKesintisi extends Model
 
     protected $fillable = [
         'yukleme_id', 'kesinti_turu_id', 'firma_id', 'yansitma_turu', 'proje_id', 'para_birimi_id',
-        'mahal', 'tarih', 'kaynak_firma', 'adi_soyadi',
+        'mahal', 'tarih', 'kaynak_firma', 'kaynak_hakedis_no', 'adi_soyadi',
         'toplam_tutar', 'iptal_edilen_tutar', 'yansitilan_tutar', 'kesilen_tutar', 'kalan_tutar',
         'kaydeden_id',
     ];

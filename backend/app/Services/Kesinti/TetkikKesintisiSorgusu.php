@@ -16,11 +16,11 @@ final class TetkikKesintisiSorgusu extends IcmalSorgusu
     protected const MODEL = TetkikKesintisi::class;
 
     protected const KOLONLAR = [
-        'tarih', 'yansitma_turu', 'mahal', 'kaynak_firma', 'adi_soyadi',
+        'tarih', 'yansitma_turu', 'mahal', 'kaynak_firma', 'kaynak_hakedis_no', 'adi_soyadi',
         'toplam_tutar', 'iptal_edilen_tutar', 'yansitilan_tutar', 'kesilen_tutar', 'kalan_tutar',
     ];
 
-    protected const ARANANLAR = ['adi_soyadi', 'kaynak_firma', 'mahal'];
+    protected const ARANANLAR = ['adi_soyadi', 'kaynak_firma', 'kaynak_hakedis_no', 'mahal'];
 
     /** Özet sekmeleri (kullanıcı isteği 2026-10-31: Yemek ile aynı); yalnız 5 tutar toplanır */
     protected const PIVOTLAR = [

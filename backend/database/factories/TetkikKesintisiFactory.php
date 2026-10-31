@@ -34,6 +34,7 @@ class TetkikKesintisiFactory extends Factory
             'mahal' => 'ZONE 10',
             'tarih' => '2026-01-31',
             'kaynak_firma' => null,
+            'kaynak_hakedis_no' => null,
             'adi_soyadi' => fake()->name(),
             'toplam_tutar' => '830.00',
             'iptal_edilen_tutar' => '0.00',
