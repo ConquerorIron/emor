@@ -234,7 +234,7 @@ export function KesintiTurleriPage() {
     {
       anahtar: 'sira_no',
       baslik: t('kesinti.alan.sira_no'),
-      hizala: 'sag',
+      hizala: 'orta',
       render: (_tur, sira) => (
         <span className="text-slate-500 tabular-nums dark:text-slate-400">{sira + 1}</span>
       ),

@@ -198,7 +198,7 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
   const siraKolonu: DataTableKolonu<T> = {
     anahtar: 'sira_no',
     baslik: t('kesinti.alan.sira_no'),
-    hizala: 'sag',
+    hizala: 'orta',
     render: (_satir, sira) => (
       <span className="text-slate-500 tabular-nums dark:text-slate-400">{ilkSira + sira}</span>
     ),
