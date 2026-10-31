@@ -182,6 +182,28 @@ abstract class IcmalSorgusu
     }
 
     /**
+     * Ekranın taşeron / proje filtre seçimleri: tüm tanımlar değil, yalnız bu
+     * icmalin kayıtlarında geçenler, koduna göre (kullanıcı isteği 2026-10-31).
+     *
+     * @return array{firmalar: list<array{id: int, kod: string, ad: string}>, projeler: list<array{id: int, kod: string, ad: string}>}
+     */
+    public function filtreSecenekleri(): array
+    {
+        /** @param class-string<Model> $model */
+        $kullanilanlar = fn (string $model, string $yabanci): array => $model::query()
+            ->whereIn('id', (static::MODEL)::query()->select($yabanci))
+            ->orderBy('kod')
+            ->get(['id', 'kod', 'ad'])
+            ->map(fn (Model $kayit): array => ['id' => $kayit->getKey(), 'kod' => $kayit->getAttribute('kod'), 'ad' => $kayit->getAttribute('ad')])
+            ->all();
+
+        return [
+            'firmalar' => $kullanilanlar(Firma::class, 'firma_id'),
+            'projeler' => $kullanilanlar(Proje::class, 'proje_id'),
+        ];
+    }
+
+    /**
      * Bu icmalin özet (pivot) sekmeleri.
      *
      * @return list<string>

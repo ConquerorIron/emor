@@ -69,6 +69,12 @@ export interface IcmalSatiri {
 /** Formun gönderdiği gövde: tanımlar id ile, boş metinler null */
 export type IcmalGovdesi = Record<string, string | number | null>
 
+/** Taşeron / proje filtrelerinin seçimleri: yalnız o ekranın kayıtlarında geçenler */
+export interface IcmalFiltreSecenekleri {
+  firmalar: KesintiTanimi[]
+  projeler: KesintiTanimi[]
+}
+
 export interface IcmalFiltresi {
   ara: string
   firma_id: string
@@ -161,6 +167,7 @@ export interface IcmalApi<T extends IcmalSatiri> {
   listele: (filtre: IcmalFiltresi, siralama: Siralama, sayfa: number) => Promise<IcmalListesi<T>>
   /** Özet sekmesi: listeyle aynı filtre, sekmenin alanlarına göre gruplanmış toplamlar */
   pivot: (pivot: string, filtre: IcmalFiltresi) => Promise<PivotSatiri[]>
+  filtreSecenekleri: () => Promise<IcmalFiltreSecenekleri>
   /** Filtredeki tüm satırlar, tüm kolonlar (gizliler dahil) .xlsx olarak indirilir */
   excel: (filtre: IcmalFiltresi, siralama: Siralama, dosyaAdi: string) => Promise<void>
   kaydet: (id: number | null, govde: IcmalGovdesi) => Promise<T>
@@ -243,6 +250,11 @@ export function icmalApi<T extends IcmalSatiri>(yol: string): IcmalApi<T> {
       const yanit = await api.get<{ data: PivotSatiri[] }>(`${adres}/pivot/${pivot}`, {
         params: listeParametreleri(filtre, null),
       })
+
+      return yanit.data.data
+    },
+    filtreSecenekleri: async () => {
+      const yanit = await api.get<{ data: IcmalFiltreSecenekleri }>(`${adres}/filtre-secenekleri`)
 
       return yanit.data.data
     },

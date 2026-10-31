@@ -235,6 +235,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/kesinti/isgucu/pivot/{pivot}', [IsgucuKesintisiController::class, 'pivot'])
                 ->where('pivot', '[a-z_]+')
                 ->name('kesinti.isgucu.pivot');
+            // Taşeron / proje filtreleri: yalnız bu ekranın kayıtlarındakiler
+            Route::get('/kesinti/isgucu/filtre-secenekleri', [IsgucuKesintisiController::class, 'filtreSecenekleri'])
+                ->name('kesinti.isgucu.filtre-secenekleri');
         });
         Route::middleware('can:isgucu_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/isgucu', [IsgucuKesintisiController::class, 'store'])
@@ -271,6 +274,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/kesinti/kamp/pivot/{pivot}', [KampKesintisiController::class, 'pivot'])
                 ->where('pivot', '[a-z_]+')
                 ->name('kesinti.kamp.pivot');
+            // Taşeron / proje filtreleri: yalnız bu ekranın kayıtlarındakiler
+            Route::get('/kesinti/kamp/filtre-secenekleri', [KampKesintisiController::class, 'filtreSecenekleri'])
+                ->name('kesinti.kamp.filtre-secenekleri');
         });
         Route::middleware('can:kamp_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/kamp', [KampKesintisiController::class, 'store'])
@@ -307,6 +313,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/kesinti/makina-ekipman/pivot/{pivot}', [MakinaEkipmanKesintisiController::class, 'pivot'])
                 ->where('pivot', '[a-z_]+')
                 ->name('kesinti.makina-ekipman.pivot');
+            // Taşeron / proje filtreleri: yalnız bu ekranın kayıtlarındakiler
+            Route::get('/kesinti/makina-ekipman/filtre-secenekleri', [MakinaEkipmanKesintisiController::class, 'filtreSecenekleri'])
+                ->name('kesinti.makina-ekipman.filtre-secenekleri');
         });
         Route::middleware('can:makina_ekipman_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/makina-ekipman', [MakinaEkipmanKesintisiController::class, 'store'])
@@ -343,6 +352,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/kesinti/tutanak/pivot/{pivot}', [TutanakKesintisiController::class, 'pivot'])
                 ->where('pivot', '[a-z_]+')
                 ->name('kesinti.tutanak.pivot');
+            // Taşeron / proje filtreleri: yalnız bu ekranın kayıtlarındakiler
+            Route::get('/kesinti/tutanak/filtre-secenekleri', [TutanakKesintisiController::class, 'filtreSecenekleri'])
+                ->name('kesinti.tutanak.filtre-secenekleri');
         });
         Route::middleware('can:tutanak_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/tutanak', [TutanakKesintisiController::class, 'store'])
@@ -379,6 +391,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/kesinti/yemek/pivot/{pivot}', [YemekKesintisiController::class, 'pivot'])
                 ->where('pivot', '[a-z_]+')
                 ->name('kesinti.yemek.pivot');
+            // Taşeron / proje filtreleri: yalnız bu ekranın kayıtlarındakiler
+            Route::get('/kesinti/yemek/filtre-secenekleri', [YemekKesintisiController::class, 'filtreSecenekleri'])
+                ->name('kesinti.yemek.filtre-secenekleri');
         });
         Route::middleware('can:yemek_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/yemek', [YemekKesintisiController::class, 'store'])
@@ -415,6 +430,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/kesinti/osgb/pivot/{pivot}', [OsgbKesintisiController::class, 'pivot'])
                 ->where('pivot', '[a-z_]+')
                 ->name('kesinti.osgb.pivot');
+            // Taşeron / proje filtreleri: yalnız bu ekranın kayıtlarındakiler
+            Route::get('/kesinti/osgb/filtre-secenekleri', [OsgbKesintisiController::class, 'filtreSecenekleri'])
+                ->name('kesinti.osgb.filtre-secenekleri');
         });
         Route::middleware('can:osgb_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/osgb', [OsgbKesintisiController::class, 'store'])
@@ -451,6 +469,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/kesinti/tetkik/pivot/{pivot}', [TetkikKesintisiController::class, 'pivot'])
                 ->where('pivot', '[a-z_]+')
                 ->name('kesinti.tetkik.pivot');
+            // Taşeron / proje filtreleri: yalnız bu ekranın kayıtlarındakiler
+            Route::get('/kesinti/tetkik/filtre-secenekleri', [TetkikKesintisiController::class, 'filtreSecenekleri'])
+                ->name('kesinti.tetkik.filtre-secenekleri');
         });
         Route::middleware('can:tetkik_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/tetkik', [TetkikKesintisiController::class, 'store'])
@@ -487,6 +508,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/kesinti/isg-ceza/pivot/{pivot}', [IsgCezaKesintisiController::class, 'pivot'])
                 ->where('pivot', '[a-z_]+')
                 ->name('kesinti.isg-ceza.pivot');
+            // Taşeron / proje filtreleri: yalnız bu ekranın kayıtlarındakiler
+            Route::get('/kesinti/isg-ceza/filtre-secenekleri', [IsgCezaKesintisiController::class, 'filtreSecenekleri'])
+                ->name('kesinti.isg-ceza.filtre-secenekleri');
         });
         Route::middleware('can:isg_ceza_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/isg-ceza', [IsgCezaKesintisiController::class, 'store'])
@@ -523,6 +547,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/kesinti/malzeme/pivot/{pivot}', [MalzemeKesintisiController::class, 'pivot'])
                 ->where('pivot', '[a-z_]+')
                 ->name('kesinti.malzeme.pivot');
+            // Taşeron / proje filtreleri: yalnız bu ekranın kayıtlarındakiler
+            Route::get('/kesinti/malzeme/filtre-secenekleri', [MalzemeKesintisiController::class, 'filtreSecenekleri'])
+                ->name('kesinti.malzeme.filtre-secenekleri');
         });
         Route::middleware('can:malzeme_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/malzeme', [MalzemeKesintisiController::class, 'store'])
@@ -559,6 +586,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/kesinti/kamp-malzeme/pivot/{pivot}', [KampMalzemeKesintisiController::class, 'pivot'])
                 ->where('pivot', '[a-z_]+')
                 ->name('kesinti.kamp-malzeme.pivot');
+            // Taşeron / proje filtreleri: yalnız bu ekranın kayıtlarındakiler
+            Route::get('/kesinti/kamp-malzeme/filtre-secenekleri', [KampMalzemeKesintisiController::class, 'filtreSecenekleri'])
+                ->name('kesinti.kamp-malzeme.filtre-secenekleri');
         });
         Route::middleware('can:kamp_malzeme_kesintileri.guncelle')->group(function (): void {
             Route::post('/kesinti/kamp-malzeme', [KampMalzemeKesintisiController::class, 'store'])

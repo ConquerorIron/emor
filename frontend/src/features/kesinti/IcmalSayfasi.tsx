@@ -84,9 +84,14 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
   const ara = useDebounce(filtre.ara)
   const sorguFiltresi = { ...filtre, ara }
 
+  // Form tüm tanımlardan seçer; filtreler yalnız bu ekranın kayıtlarında geçenlerden (kullanıcı isteği)
   const secenekler = useQuery({
     queryKey: queryKeys.kesinti.secenekler,
     queryFn: kesintiSecenekleriniGetir,
+  })
+  const filtreSecenekleri = useQuery({
+    queryKey: queryKeys.kesinti.icmalFiltreSecenekleri(tanim.anahtar),
+    queryFn: tanim.api.filtreSecenekleri,
   })
   const liste = useQuery({
     queryKey: queryKeys.kesinti.icmalListesi(tanim.anahtar, { ...sorguFiltresi, siralama, sayfa }),
@@ -122,8 +127,8 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
     setSayfa(1)
   }
 
-  const firmaSecenekleri = tanimSecenekleri(secenekler.data?.firmalar)
-  const projeSecenekleri = tanimSecenekleri(secenekler.data?.projeler)
+  const firmaSecenekleri = tanimSecenekleri(filtreSecenekleri.data?.firmalar)
+  const projeSecenekleri = tanimSecenekleri(filtreSecenekleri.data?.projeler)
 
   const hucreIcerigi = (satir: T, alan: string, tur: AlanTuru) => {
     switch (tur.tur) {

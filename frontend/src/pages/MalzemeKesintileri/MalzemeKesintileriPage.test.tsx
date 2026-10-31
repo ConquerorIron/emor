@@ -32,6 +32,7 @@ vi.mock('@/features/kesinti/malzemeApi', async (importOriginal) => ({
     geriAl: vi.fn(),
     kolonlar: vi.fn(),
     pivot: vi.fn(),
+    filtreSecenekleri: vi.fn().mockResolvedValue({ firmalar: [], projeler: [] }),
     excel: vi.fn(),
   },
 }))

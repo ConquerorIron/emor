@@ -33,6 +33,7 @@ vi.mock('@/features/kesinti/kampApi', async (importOriginal) => ({
     geriAl: vi.fn(),
     kolonlar: vi.fn(),
     pivot: api.pivot,
+    filtreSecenekleri: vi.fn().mockResolvedValue({ firmalar: [], projeler: [] }),
   },
 }))
 

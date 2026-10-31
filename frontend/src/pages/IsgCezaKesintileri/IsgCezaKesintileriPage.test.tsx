@@ -31,6 +31,7 @@ vi.mock('@/features/kesinti/isgCezaApi', async (importOriginal) => ({
     geriAl: vi.fn(),
     kolonlar: vi.fn(),
     pivot: vi.fn(),
+    filtreSecenekleri: vi.fn().mockResolvedValue({ firmalar: [], projeler: [] }),
     excel: vi.fn(),
   },
 }))

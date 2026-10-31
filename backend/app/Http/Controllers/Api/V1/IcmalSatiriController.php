@@ -56,6 +56,16 @@ abstract class IcmalSatiriController extends Controller
     }
 
     /**
+     * Taşeron / proje filtrelerinin seçimleri: yalnız bu ekranın kayıtlarında
+     * geçenler. Filtre parametresi almadığı için tipli istek gerekmez; yetki
+     * rota middleware'inde (`can:<icmal>_kesintileri.goruntule`).
+     */
+    public function filtreSecenekleri(): JsonResponse
+    {
+        return response()->json(['data' => $this->sorgu->filtreSecenekleri()]);
+    }
+
+    /**
      * Filtredeki tüm satırlar, tüm kolonlar (gizliler dahil), listedeki sırayla
      * .xlsx olarak; ekranın özet sekmeleri de aynı filtreyle sekme başına ayrı
      * sayfa (kullanıcı istekleri 2026-10-30).

@@ -11,6 +11,7 @@ use App\Models\ParaBirimi;
 use App\Models\Proje;
 use App\Models\Rol;
 use App\Models\User;
+use App\Models\YemekKesintisi;
 use App\Services\Kesinti\IsgucuIceAktarimi;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -77,6 +78,28 @@ final class IsgucuKesintisiTest extends TestCase
             ->assertJsonPath('data.yukleme_id', null);
 
         $this->assertDatabaseHas('isgucu_kesintileri', ['adi_soyadi' => 'Fırat Akyıldız', 'yansitilan_tutar' => '860.81', 'kalan_tutar' => '360.81']);
+    }
+
+    public function test_filtre_secimleri_yalniz_bu_ekranin_kayitlarindaki_taseron_ve_projelerdir(): void
+    {
+        $proje = Proje::factory()->create(['kod' => 'ZONE 10']);
+        IsgucuKesintisi::factory()->create(['firma_id' => Firma::factory()->create(['kod' => 'TMC KABA'])->id, 'proje_id' => $proje->id]);
+        IsgucuKesintisi::factory()->create(['firma_id' => Firma::factory()->create(['kod' => 'HAB'])->id, 'proje_id' => $proje->id]);
+        // Başka ekranın kayıtlarındaki ve hiç kullanılmayan tanımlar listelenmez
+        YemekKesintisi::factory()->create([
+            'firma_id' => Firma::factory()->create(['kod' => 'ATİLLA GIDA'])->id,
+            'proje_id' => Proje::factory()->create(['kod' => 'ZONE 11'])->id,
+        ]);
+        Firma::factory()->create(['kod' => 'KULLANILMAYAN']);
+
+        $this->getJson(self::ADRES.'/filtre-secenekleri')
+            ->assertOk()
+            ->assertJsonPath('data.firmalar.*.kod', ['HAB', 'TMC KABA'])
+            ->assertJsonPath('data.projeler.*.kod', ['ZONE 10']);
+
+        $this->actingAs(User::factory()->create())
+            ->getJson(self::ADRES.'/filtre-secenekleri')
+            ->assertForbidden();
     }
 
     /**

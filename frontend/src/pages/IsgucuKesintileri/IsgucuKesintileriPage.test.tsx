@@ -25,6 +25,7 @@ const api = vi.hoisted(() => ({
   kolonlar: vi.fn(),
   excel: vi.fn(),
   pivot: vi.fn(),
+  filtreSecenekleri: vi.fn(),
 }))
 
 vi.mock('@/features/kesinti/icmalApi', async (importOriginal) => ({
@@ -45,6 +46,7 @@ vi.mock('@/features/kesinti/isgucuApi', async (importOriginal) => ({
     kolonlar: api.kolonlar,
     excel: api.excel,
     pivot: api.pivot,
+    filtreSecenekleri: api.filtreSecenekleri,
   },
 }))
 
@@ -143,6 +145,10 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
     api.liste.mockResolvedValue(LISTE)
     api.yuklemeler.mockResolvedValue([])
     api.kolonlar.mockResolvedValue(KOLONLAR)
+    api.filtreSecenekleri.mockResolvedValue({
+      firmalar: SECENEKLER.firmalar,
+      projeler: SECENEKLER.projeler,
+    })
   })
 
   afterEach(() => {
@@ -194,6 +200,34 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
       expect(api.liste).toHaveBeenLastCalledWith(
         expect.anything(),
         { anahtar: 'adi_soyadi', yon: 'asc' },
+        1,
+      ),
+    )
+  })
+
+  it('taşeron ve proje filtreleri tüm tanımları değil, yalnız bu ekranın kayıtlarındakileri sunar', async () => {
+    // Formun seçimlerinde (tüm tanımlar) bu ekranda kaydı olmayan taşeron ve proje de var
+    api.secenekler.mockResolvedValue({
+      ...SECENEKLER,
+      firmalar: [...SECENEKLER.firmalar, { id: 4, kod: 'ATİLLA GIDA', ad: 'Atilla Gıda' }],
+      projeler: [...SECENEKLER.projeler, { id: 6, kod: 'ZONE 11', ad: 'Zone 11' }],
+    })
+    ciz()
+    await screen.findByText('FIRAT AKYILDIZ')
+
+    fireEvent.keyDown(screen.getByLabelText('Proje'), { key: 'ArrowDown' })
+    expect(await screen.findByText('ZONE 10 — Zone 10')).toBeInTheDocument()
+    expect(screen.queryByText('ZONE 11 — Zone 11')).not.toBeInTheDocument()
+    fireEvent.keyDown(screen.getByLabelText('Proje'), { key: 'Escape' })
+
+    fireEvent.keyDown(screen.getByLabelText('Taşeron'), { key: 'ArrowDown' })
+    expect(screen.queryByText('ATİLLA GIDA — Atilla Gıda')).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByText('HAB — HAB'))
+
+    await waitFor(() =>
+      expect(api.liste).toHaveBeenLastCalledWith(
+        expect.objectContaining({ firma_id: '3' }),
+        expect.anything(),
         1,
       ),
     )
