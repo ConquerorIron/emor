@@ -31,6 +31,8 @@ use App\Http\Controllers\Api\V1\SecenekController;
 use App\Http\Controllers\Api\V1\SqlBaglantiController;
 use App\Http\Controllers\Api\V1\TutanakKesintisiController;
 use App\Http\Controllers\Api\V1\TutanakYuklemeController;
+use App\Http\Controllers\Api\V1\YemekKesintisiController;
+use App\Http\Controllers\Api\V1\YemekYuklemeController;
 use App\Models\AlarmKurali;
 use Illuminate\Support\Facades\Route;
 
@@ -354,6 +356,42 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('/kesinti/tutanak/yuklemeler/{yukleme}', [TutanakYuklemeController::class, 'destroy'])
                 ->whereNumber('yukleme')
                 ->name('kesinti.tutanak.yuklemeler.destroy');
+        });
+
+        // Kesinti Yönetimi → Yemek Kesintisi (İşgücü ile aynı akış)
+        Route::middleware('can:yemek_kesintileri.goruntule')->group(function (): void {
+            Route::get('/kesinti/yemek', [YemekKesintisiController::class, 'index'])
+                ->name('kesinti.yemek');
+            Route::get('/kesinti/yemek/yuklemeler', [YemekYuklemeController::class, 'index'])
+                ->name('kesinti.yemek.yuklemeler');
+            Route::get('/kesinti/yemek/excel', [YemekKesintisiController::class, 'excel'])
+                ->middleware('throttle:kesinti-excel')
+                ->name('kesinti.yemek.excel');
+            // Özet sekmeleri (taşeron, yansıtma türü, proje, tarih)
+            Route::get('/kesinti/yemek/pivot/{pivot}', [YemekKesintisiController::class, 'pivot'])
+                ->where('pivot', '[a-z_]+')
+                ->name('kesinti.yemek.pivot');
+        });
+        Route::middleware('can:yemek_kesintileri.guncelle')->group(function (): void {
+            Route::post('/kesinti/yemek', [YemekKesintisiController::class, 'store'])
+                ->name('kesinti.yemek.store');
+            Route::put('/kesinti/yemek/{kesinti}', [YemekKesintisiController::class, 'update'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.yemek.update');
+            Route::delete('/kesinti/yemek/{kesinti}', [YemekKesintisiController::class, 'destroy'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.yemek.destroy');
+            Route::get('/kesinti/yemek/yuklemeler/kolonlar', [YemekYuklemeController::class, 'kolonlar'])
+                ->name('kesinti.yemek.yuklemeler.kolonlar');
+            Route::post('/kesinti/yemek/yuklemeler/onizle', [YemekYuklemeController::class, 'onizle'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.yemek.yuklemeler.onizle');
+            Route::post('/kesinti/yemek/yuklemeler', [YemekYuklemeController::class, 'store'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.yemek.yuklemeler.store');
+            Route::delete('/kesinti/yemek/yuklemeler/{yukleme}', [YemekYuklemeController::class, 'destroy'])
+                ->whereNumber('yukleme')
+                ->name('kesinti.yemek.yuklemeler.destroy');
         });
 
         // Kesinti Yönetimi → Kamp Malzeme Kesintileri (İşgücü ile aynı akış)

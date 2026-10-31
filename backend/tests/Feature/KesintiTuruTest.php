@@ -91,7 +91,7 @@ final class KesintiTuruTest extends TestCase
             'kdv 100ü aşıyor' => [['kdv_orani' => '100.01'] + $gecerli, 'kdv_orani'],
             'kdv üç ondalıklı' => [['kdv_orani' => '20.125'] + $gecerli, 'kdv_orani'],
             'açıklama 500 karakteri aşıyor' => [['aciklama' => str_repeat('a', 501)] + $gecerli, 'aciklama'],
-            'tanımsız ekran' => [['icmal' => 'yemek'] + $gecerli, 'icmal'],
+            'tanımsız ekran' => [['icmal' => 'olmayan_ekran'] + $gecerli, 'icmal'],
         ];
     }
 

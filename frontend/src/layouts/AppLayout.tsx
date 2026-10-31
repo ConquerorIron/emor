@@ -63,6 +63,7 @@ const NAV_GRUPLARI: NavGrubu[] = [
         izin: 'makina_ekipman_kesintileri.goruntule',
       },
       { to: '/kesinti/tutanak', ad: 'tutanakKesintileri', izin: 'tutanak_kesintileri.goruntule' },
+      { to: '/kesinti/yemek', ad: 'yemekKesintileri', izin: 'yemek_kesintileri.goruntule' },
     ],
   },
   {

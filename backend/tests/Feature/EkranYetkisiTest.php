@@ -85,6 +85,7 @@ final class EkranYetkisiTest extends TestCase
             'kamp kesintileri' => ['kamp_kesintileri', '/api/v1/kesinti/kamp', 'post', '/api/v1/kesinti/kamp'],
             'makina ekipman kesintileri' => ['makina_ekipman_kesintileri', '/api/v1/kesinti/makina-ekipman', 'post', '/api/v1/kesinti/makina-ekipman'],
             'tutanak kesintisi' => ['tutanak_kesintileri', '/api/v1/kesinti/tutanak', 'post', '/api/v1/kesinti/tutanak'],
+            'yemek kesintisi' => ['yemek_kesintileri', '/api/v1/kesinti/yemek', 'post', '/api/v1/kesinti/yemek'],
             'kamp malzeme kesintileri' => ['kamp_malzeme_kesintileri', '/api/v1/kesinti/kamp-malzeme', 'post', '/api/v1/kesinti/kamp-malzeme'],
             'SQL bağlantıları' => ['sql_baglantilari', '/api/v1/ayarlar/sql-baglantilari', 'put', '/api/v1/ayarlar/sql-baglantilari/test'],
             'entegratör bağlantıları' => ['entegrator_baglantilari', '/api/v1/ayarlar/entegrator-baglantilari', 'put', '/api/v1/ayarlar/entegrator-baglantilari/test'],

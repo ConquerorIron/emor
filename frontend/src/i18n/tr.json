@@ -52,6 +52,7 @@
     "kampMalzemeKesintileri": "Kamp Malzeme Kesintileri",
     "makinaEkipmanKesintileri": "Makina Ekipman Kesintileri",
     "tutanakKesintileri": "Tutanak Kesintisi",
+    "yemekKesintileri": "Yemek Kesintisi",
     "kesintiTurleri": "Kesinti Türleri",
     "projeler": "Projeler",
     "firmalar": "Firmalar",
@@ -516,6 +517,7 @@
       "kamp_malzeme_kesintileri": "Kamp Malzeme Kesintileri",
       "makina_ekipman_kesintileri": "Makina Ekipman Kesintileri",
       "tutanak_kesintileri": "Tutanak Kesintisi",
+      "yemek_kesintileri": "Yemek Kesintisi",
       "kesinti_turleri": "Kesinti Türleri",
       "projeler": "Projeler",
       "firmalar": "Firmalar",
@@ -961,6 +963,10 @@
       "baslik": "Tutanak Kesintisi",
       "aciklamaMetni": "Taşeronlara yansıtılan tutanak kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
     },
+    "yemek": {
+      "baslik": "Yemek Kesintisi",
+      "aciklamaMetni": "Taşeronlara yansıtılan yemek kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
+    },
     "erpAktarim": {
       "okunuyor": "Canlı ERP okunuyor…",
       "ozet": "{{yeni}} yeni, {{guncellenecek}} güncellenecek, {{eslesecek}} elle açılmış kayıtla eşleşecek, {{aktarilamaz}} aktarılamaz. {{ayni}} kayıt zaten güncel.",
@@ -1004,7 +1010,8 @@
       "kamp": "Kamp Kesintileri",
       "kamp_malzeme": "Kamp Malzeme Kesintileri",
       "makina_ekipman": "Makina Ekipman Kesintileri",
-      "tutanak": "Tutanak Kesintisi"
+      "tutanak": "Tutanak Kesintisi",
+      "yemek": "Yemek Kesintisi"
     }
   }
 }

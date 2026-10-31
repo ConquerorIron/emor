@@ -126,6 +126,7 @@ class AppServiceProvider extends ServiceProvider
                 Izin::KampMalzemeKesintileriGoruntule->value,
                 Izin::MakinaEkipmanKesintileriGoruntule->value,
                 Izin::TutanakKesintileriGoruntule->value,
+                Izin::YemekKesintileriGoruntule->value,
             ],
             $user->izinler(),
         ) !== []);
