@@ -8,6 +8,9 @@ return [
         'data' => 'Data',
         'toplam' => 'TOPLAM',
         'satir_sayisi' => 'SATIR SAYISI',
+        // Data sayfasının en solundaki satır numarası ve altındaki kayıt sayısı
+        'sira_no' => 'SIRA NO',
+        'toplam_kayit' => 'Toplam Kayıt: :adet',
         'pivot' => [
             'taseron' => 'Taşeron',
             'yansitma_turu' => 'Yansıtma Türü',

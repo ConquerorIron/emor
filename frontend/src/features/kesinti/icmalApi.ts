@@ -69,8 +69,9 @@ export interface IcmalSatiri {
 /** Formun gönderdiği gövde: tanımlar id ile, boş metinler null */
 export type IcmalGovdesi = Record<string, string | number | null>
 
-/** Taşeron / proje filtrelerinin seçimleri: yalnız o ekranın kayıtlarında geçenler */
+/** Filtre seçimleri (tür, taşeron, proje): yalnız o ekranın kayıtlarında geçenler */
 export interface IcmalFiltreSecenekleri {
+  kesinti_turleri: KesintiTanimi[]
   firmalar: KesintiTanimi[]
   projeler: KesintiTanimi[]
 }
@@ -79,6 +80,8 @@ export interface IcmalFiltresi {
   ara: string
   firma_id: string
   proje_id: string
+  /** Çoklu seçim (Tüm Kesintiler); boşsa filtre yok */
+  kesinti_turu_id: string[]
   baslangic: string
   bitis: string
 }
@@ -98,7 +101,8 @@ export interface KesintiToplami {
 
 export interface IcmalListesi<T extends IcmalSatiri> {
   data: T[]
-  meta: { current_page: number; last_page: number; total: number }
+  /** from: sayfanın ilk satırının genel sırası (1'den; boş listede null) */
+  meta: { current_page: number; last_page: number; total: number; from: number | null }
   ozet: KesintiToplami[]
 }
 
@@ -214,15 +218,18 @@ function aktarimGovdesi(girdi: IceAktarimGirdisi): FormData {
   return govde
 }
 
-/** Liste filtresi ve sıralaması sorgu parametresi olarak (boş filtreler gönderilmez) */
+/**
+ * Liste filtresi ve sıralaması sorgu parametresi olarak (boş metin / boş çoklu
+ * seçim gönderilmez; dizi `kesinti_turu_id[]=1&kesinti_turu_id[]=2` olur)
+ */
 function listeParametreleri(
   filtre: IcmalFiltresi,
   siralama: Siralama,
-): Record<string, string | number> {
-  const params: Record<string, string | number> = {}
+): Record<string, string | number | string[]> {
+  const params: Record<string, string | number | string[]> = {}
 
   for (const [anahtar, deger] of Object.entries(filtre)) {
-    if (deger !== '') {
+    if (deger.length > 0) {
       params[anahtar] = deger
     }
   }

@@ -99,7 +99,8 @@ describe('MalzemeKesintileriPage', { timeout: 15_000 }, () => {
     const basliklar = screen
       .getAllByRole('columnheader')
       .map((baslik) => baslik.textContent.replace(/[▲▼↕]/g, ''))
-    expect(basliklar.slice(0, 20)).toEqual([
+    expect(basliklar.slice(0, 21)).toEqual([
+      'Sıra No',
       'Kesinti Türü',
       'Taşeron',
       'Yansıtma Türü',

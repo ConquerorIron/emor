@@ -154,6 +154,6 @@ final class TutanakKesintisiTest extends TestCase
         $yanit = $this->get(self::ADRES.'/excel')->assertOk();
         $kitap = IOFactory::load($yanit->baseResponse->getFile()->getPathname());
         $this->assertSame(['Data', 'Taşeron', 'Yansıtma Türü', 'Proje', 'Tarih'], $kitap->getSheetNames());
-        $this->assertSame('KAYNAK TUTANAK NO', $kitap->getSheet(0)->getCell('J1')->getValue());
+        $this->assertSame('KAYNAK TUTANAK NO', $kitap->getSheet(0)->getCell('K1')->getValue());
     }
 }

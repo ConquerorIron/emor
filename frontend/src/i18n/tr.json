@@ -47,6 +47,7 @@
     "gelenFaturalar": "Gelen Faturalar",
     "gidenFaturalar": "Giden Faturalar",
     "kesinti": "Kesinti Yönetimi",
+    "tumKesintiler": "Tüm Kesintiler",
     "isgucuKesintileri": "İşgücü Kesintileri",
     "kampKesintileri": "Kamp Kesintileri",
     "kampMalzemeKesintileri": "Kamp Malzeme Kesintileri",
@@ -516,6 +517,7 @@
     "ekran": {
       "satinalma_talebi": "Satınalma Talebi",
       "efatura": "e-Faturalar (Gelen/Giden)",
+      "tum_kesintiler": "Tüm Kesintiler",
       "isgucu_kesintileri": "İşgücü Kesintileri",
       "kamp_kesintileri": "Kamp Kesintileri",
       "kamp_malzeme_kesintileri": "Kamp Malzeme Kesintileri",
@@ -812,6 +814,7 @@
       }
     },
     "alan": {
+      "sira_no": "Sıra No",
       "kesinti_turu": "Kesinti Türü",
       "taseron": "Taşeron",
       "proje": "Proje",
@@ -953,6 +956,10 @@
       "sekmeData": "Data",
       "pivotSatirSayisi": "Satır Sayısı",
       "toplamSatiri": "Toplam"
+    },
+    "tumu": {
+      "baslik": "Tüm Kesintiler",
+      "aciklamaMetni": "Bütün kesinti ekranlarına girilen kayıtlar, ortak kolonlarıyla tek listede. Bu sayfaya veri girilmez; kayıtlar ilgili kesinti ekranından girilir ve düzeltilir."
     },
     "isgucu": {
       "baslik": "İşgücü Kesintileri",

@@ -102,7 +102,8 @@ describe('MakinaEkipmanKesintileriPage', { timeout: 15_000 }, () => {
     const basliklar = screen
       .getAllByRole('columnheader')
       .map((baslik) => baslik.textContent.replace(/[▲▼↕]/g, ''))
-    expect(basliklar.slice(0, 15)).toEqual([
+    expect(basliklar.slice(0, 16)).toEqual([
+      'Sıra No',
       'Kesinti Türü',
       'Taşeron',
       'Yansıtma Türü',

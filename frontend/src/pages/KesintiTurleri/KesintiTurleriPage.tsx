@@ -230,6 +230,15 @@ export function KesintiTurleriPage() {
   })
 
   const tumKolonlar: DataTableKolonu<KesintiTuru>[] = [
+    // En solda satır numarası, ekrandaki sırayla (kullanıcı isteği)
+    {
+      anahtar: 'sira_no',
+      baslik: t('kesinti.alan.sira_no'),
+      hizala: 'sag',
+      render: (_tur, sira) => (
+        <span className="text-slate-500 tabular-nums dark:text-slate-400">{sira + 1}</span>
+      ),
+    },
     {
       anahtar: 'kod',
       baslik: t('kesinti.turler.kod'),

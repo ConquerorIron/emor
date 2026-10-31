@@ -37,6 +37,7 @@ use App\Http\Controllers\Api\V1\SecenekController;
 use App\Http\Controllers\Api\V1\SqlBaglantiController;
 use App\Http\Controllers\Api\V1\TetkikKesintisiController;
 use App\Http\Controllers\Api\V1\TetkikYuklemeController;
+use App\Http\Controllers\Api\V1\TumKesintilerController;
 use App\Http\Controllers\Api\V1\TutanakKesintisiController;
 use App\Http\Controllers\Api\V1\TutanakYuklemeController;
 use App\Http\Controllers\Api\V1\YemekKesintisiController;
@@ -220,6 +221,21 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/kesinti/secenekler', [KesintiSecenekController::class, 'index'])
             ->middleware('can:kesinti-secenekleri')
             ->name('kesinti.secenekler');
+
+        // Kesinti Yönetimi → Tüm Kesintiler: bütün icmallerin ortak kolonları tek
+        // listede; yalnız rapor (liste, özet sekmeleri, Excel'e aktarım)
+        Route::middleware('can:tum_kesintiler.goruntule')->group(function (): void {
+            Route::get('/kesinti/tumu', [TumKesintilerController::class, 'index'])
+                ->name('kesinti.tumu');
+            Route::get('/kesinti/tumu/excel', [TumKesintilerController::class, 'excel'])
+                ->middleware('throttle:kesinti-excel')
+                ->name('kesinti.tumu.excel');
+            Route::get('/kesinti/tumu/pivot/{pivot}', [TumKesintilerController::class, 'pivot'])
+                ->where('pivot', '[a-z_]+')
+                ->name('kesinti.tumu.pivot');
+            Route::get('/kesinti/tumu/filtre-secenekleri', [TumKesintilerController::class, 'filtreSecenekleri'])
+                ->name('kesinti.tumu.filtre-secenekleri');
+        });
 
         // Kesinti Yönetimi → İşgücü Kesintileri: liste + elle giriş + Excel/yapıştırma
         // içe aktarımı (her yükleme bir parti; parti satırlarıyla geri alınır)

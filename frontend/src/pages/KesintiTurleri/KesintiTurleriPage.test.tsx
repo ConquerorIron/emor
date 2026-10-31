@@ -59,6 +59,9 @@ describe('KesintiTurleriPage', () => {
     expect(screen.getByText('Ortak kamp')).toBeInTheDocument()
     // Bağlı olduğu icmal ekranı
     expect(screen.getByText('Kamp Kesintileri')).toBeInTheDocument()
+    // En solda satır numarası
+    expect(screen.getAllByRole('columnheader')[0]).toHaveTextContent('Sıra No')
+    expect(within(screen.getAllByRole('row')[1]).getAllByRole('cell')[0]).toHaveTextContent('1')
   })
 
   it('yeni türü kodu Türkçe büyük harfe çevirerek kaydeder; boş açıklama null gider', async () => {

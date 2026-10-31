@@ -93,18 +93,33 @@ abstract class IcmalSorgusu
     }
 
     /**
-     * @param  array{ara?: string|null, firma_id?: int|string|null, proje_id?: int|string|null, yukleme_id?: int|string|null, baslangic?: string|null, bitis?: string|null}  $filtre
+     * Filtrelenecek satırlar: icmalin tablosu (Tüm Kesintiler'de tabloların birleşimi).
+     *
+     * @return Builder<Model>
+     */
+    protected function temelSorgu(): Builder
+    {
+        return (static::MODEL)::query();
+    }
+
+    /**
+     * @param  array{ara?: string|null, firma_id?: int|string|null, proje_id?: int|string|null, yukleme_id?: int|string|null, kesinti_turu_id?: list<int|string>|null, baslangic?: string|null, bitis?: string|null}  $filtre
      * @return Builder<Model>
      */
     public function filtrele(array $filtre): Builder
     {
         $tablo = static::TABLO;
-        $sorgu = (static::MODEL)::query();
+        $sorgu = $this->temelSorgu();
 
         foreach (['firma_id', 'proje_id', 'yukleme_id'] as $alan) {
             if (filled($filtre[$alan] ?? null)) {
                 $sorgu->where("{$tablo}.{$alan}", (int) $filtre[$alan]);
             }
+        }
+
+        // Kesinti türleri çoklu seçilir (Tüm Kesintiler)
+        if (filled($filtre['kesinti_turu_id'] ?? null)) {
+            $sorgu->whereIn("{$tablo}.kesinti_turu_id", array_map('intval', $filtre['kesinti_turu_id']));
         }
 
         if (filled($filtre['baslangic'] ?? null)) {
@@ -182,22 +197,26 @@ abstract class IcmalSorgusu
     }
 
     /**
-     * Ekranın taşeron / proje filtre seçimleri: tüm tanımlar değil, yalnız bu
-     * icmalin kayıtlarında geçenler, koduna göre (kullanıcı isteği 2026-10-31).
+     * Ekranın filtre seçimleri (kesinti türü, taşeron, proje): tüm tanımlar
+     * değil, yalnız bu icmalin kayıtlarında geçenler, koduna göre (kullanıcı
+     * isteği 2026-10-31).
      *
-     * @return array{firmalar: list<array{id: int, kod: string, ad: string}>, projeler: list<array{id: int, kod: string, ad: string}>}
+     * @return array{kesinti_turleri: list<array{id: int, kod: string, ad: string}>, firmalar: list<array{id: int, kod: string, ad: string}>, projeler: list<array{id: int, kod: string, ad: string}>}
      */
     public function filtreSecenekleri(): array
     {
+        $tablo = static::TABLO;
+
         /** @param class-string<Model> $model */
         $kullanilanlar = fn (string $model, string $yabanci): array => $model::query()
-            ->whereIn('id', (static::MODEL)::query()->select($yabanci))
+            ->whereIn('id', $this->temelSorgu()->select("{$tablo}.{$yabanci}"))
             ->orderBy('kod')
             ->get(['id', 'kod', 'ad'])
             ->map(fn (Model $kayit): array => ['id' => $kayit->getKey(), 'kod' => $kayit->getAttribute('kod'), 'ad' => $kayit->getAttribute('ad')])
             ->all();
 
         return [
+            'kesinti_turleri' => $kullanilanlar(KesintiTuru::class, 'kesinti_turu_id'),
             'firmalar' => $kullanilanlar(Firma::class, 'firma_id'),
             'projeler' => $kullanilanlar(Proje::class, 'proje_id'),
         ];

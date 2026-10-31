@@ -149,13 +149,17 @@ final class IsgucuKesintisiTest extends TestCase
         $satirlar = $sayfa->toArray(null, false, false);
         $basliklar = $satirlar[0];
 
-        // Yapıştırma sırası + tarihin hemen sağında Yıl / Ay; başlıklar içe aktarımın standart adları
+        // En solda Sıra No, sonra yapıştırma sırası + tarihin hemen sağında Yıl / Ay;
+        // başlıklar içe aktarımın standart adları
         $beklenen = array_map(fn (array $b): string => $b[0], array_values(IsgucuIceAktarimi::KOLONLAR));
         array_splice($beklenen, array_search('TARİH', $beklenen, true) + 1, 0, ['YIL', 'AY']);
-        $this->assertSame($beklenen, $basliklar);
+        $this->assertSame(['SIRA NO', ...$beklenen], $basliklar);
 
-        $this->assertCount(2, $satirlar, 'Filtre dışındaki satır aktarılmaz');
+        // Başlık + filtredeki tek satır + altında yalnız Sıra No kolonunda kayıt sayısı
+        $this->assertCount(3, $satirlar, 'Filtre dışındaki satır aktarılmaz');
+        $this->assertSame(['Toplam Kayıt: 1', null], [$satirlar[2][0], $satirlar[2][1]]);
         $satir = array_combine($basliklar, $satirlar[1]);
+        $this->assertSame(1, (int) $satir['SIRA NO']);
         $this->assertSame('TMC KABA', $satir['TAŞERON ADI']);
         $this->assertSame('HAB', $satir['YANSITMA TÜRÜ']);
         $this->assertSame(2026, (int) $satir['YIL']);
@@ -163,7 +167,7 @@ final class IsgucuKesintisiTest extends TestCase
         $this->assertSame(2562.1521, (float) $satir['BİRİM FİYAT']);
         // Formül gibi görünen metin formül olarak yazılmaz
         $this->assertSame('=KOMUT()', $satir['ADI SOYADI']);
-        $this->assertSame('s', $sayfa->getCell('I2')->getDataType());
+        $this->assertSame('s', $sayfa->getCell('J2')->getDataType());
 
         // Özet sayfası: aynı filtre, gruplar + satır sayısı + toplamlar; altında para birimi TOPLAM satırı
         $tarih = $kitap->getSheetByName('Tarih')?->toArray(null, false, false) ?? [];

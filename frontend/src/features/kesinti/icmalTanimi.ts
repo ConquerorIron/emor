@@ -39,8 +39,15 @@ export interface IcmalTanimi<T extends IcmalSatiri> {
   anahtar: string
   /** İzin öneki: `<izin>.goruntule` / `<izin>.guncelle` */
   izin: string
-  /** Backend icmal anahtarı: formda yalnız bu ekrana bağlı kesinti türleri sunulur */
-  icmal: Icmal
+  /** Backend icmal anahtarı: formda yalnız bu ekrana bağlı kesinti türleri sunulur (raporda yok) */
+  icmal?: Icmal
+  /**
+   * Yalnız rapor (Tüm Kesintiler): veri girilmez — elle giriş, Excel'den
+   * aktarım, yüklemeler, düzenle / sil yok; filtrede kesinti türleri (çoklu).
+   */
+  rapor?: boolean
+  /** Satırın tablodaki anahtarı; verilmezse id (raporda id yalnız kendi icmalinde benzersiz) */
+  satirAnahtari?: (satir: T) => string | number
   api: IcmalApi<T>
   alanlar: Record<string, AlanTuru>
   /**

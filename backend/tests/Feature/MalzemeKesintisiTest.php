@@ -117,6 +117,27 @@ final class MalzemeKesintisiTest extends TestCase
         $yanit = $this->get('/api/v1/kesinti/malzeme/excel')->assertOk();
         $kitap = IOFactory::load($yanit->baseResponse->getFile()->getPathname());
         $this->assertSame(['Data', 'Taşeron', 'Yansıtma Türü', 'Proje', 'Tarih'], $kitap->getSheetNames());
-        $this->assertSame('MALZEME BİRİM FİYATI', $kitap->getSheet(0)->getCell('L1')->getValue());
+        $this->assertSame('MALZEME BİRİM FİYATI', $kitap->getSheet(0)->getCell('M1')->getValue());
+    }
+
+    public function test_excele_aktarilan_dosya_sira_no_ve_kayit_sayisiyla_hatasiz_geri_yuklenir(): void
+    {
+        MalzemeKesintisi::factory()->count(2)->create([
+            'kesinti_turu_id' => KesintiTuru::query()->value('id'),
+            'firma_id' => Firma::query()->value('id'),
+            'proje_id' => Proje::query()->value('id'),
+        ]);
+
+        $yanit = $this->get('/api/v1/kesinti/malzeme/excel')->assertOk();
+        $yol = $yanit->baseResponse->getFile()->getPathname();
+        $data = IOFactory::load($yol)->getSheet(0)->toArray(null, false, false);
+        $this->assertSame(['SIRA NO', 1, 2, 'Toplam Kayıt: 2'], [$data[0][0], (int) $data[1][0], (int) $data[2][0], $data[3][0]]);
+
+        // SIRA NO tanınmayan kolon olarak, kayıt sayısı satırı boş satır olarak atlanır
+        $this->post('/api/v1/kesinti/malzeme/yuklemeler/onizle', ['dosya' => new UploadedFile($yol, 'malzeme-kesintisi.xlsx', null, null, true)], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJsonPath('data.hatalar', [])
+            ->assertJsonPath('data.eksik_kolonlar', [])
+            ->assertJsonCount(2, 'data.satirlar');
     }
 }

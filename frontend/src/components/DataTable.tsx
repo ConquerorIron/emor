@@ -12,7 +12,8 @@ export interface DataTableKolonu<T> {
   hizala?: 'sol' | 'orta' | 'sag'
   /** Doluysa başlık tıklanabilir olur ve sunucu tarafında bu anahtara göre sıralanır. */
   siralamaAnahtari?: string
-  render: (satir: T) => ReactNode
+  /** sira: satırın tablodaki sırası (0'dan; ör. "Sıra No" kolonu) */
+  render: (satir: T, sira: number) => ReactNode
 }
 
 interface DataTableProps<T> {
@@ -269,7 +270,7 @@ export function DataTable<T>({
               </tr>
             ) : null}
             {!yukleniyor &&
-              satirlar.map((satir) => {
+              satirlar.map((satir, sira) => {
                 const anahtar = satirAnahtari(satir)
                 const satirSecilebilir = secilebilir ? secilebilir(satir) : true
                 // Seçim vurgusu satıra özel renkten önce gelir
@@ -295,7 +296,7 @@ export function DataTable<T>({
                         key={kolon.anahtar}
                         className={`border-r border-b border-slate-100 px-3 py-2 last:border-r-0 dark:border-slate-800 ${hizaSiniflari[kolon.hizala ?? 'sol']}`}
                       >
-                        {kolon.render(satir)}
+                        {kolon.render(satir, sira)}
                       </td>
                     ))}
                   </tr>

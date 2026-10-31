@@ -15,7 +15,7 @@ import { Modal } from '@/components/Modal'
 import { OpsiyonelTarihInput } from '@/components/OpsiyonelTarihInput'
 import { Pagination } from '@/components/Pagination'
 import { SaltOkunurUyarisi } from '@/components/SaltOkunurUyarisi'
-import { SelectField } from '@/components/SelectField'
+import { MultiSelectField, SelectField } from '@/components/SelectField'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useIzin } from '@/hooks/useIzin'
 import { useKaliciSiralama } from '@/hooks/useKaliciSiralama'
@@ -45,7 +45,14 @@ import {
 } from './icmalTanimi'
 import { ToplamOzeti } from './ToplamOzeti'
 
-const BOS_FILTRE: IcmalFiltresi = { ara: '', firma_id: '', proje_id: '', baslangic: '', bitis: '' }
+const BOS_FILTRE: IcmalFiltresi = {
+  ara: '',
+  firma_id: '',
+  proje_id: '',
+  kesinti_turu_id: [],
+  baslangic: '',
+  bitis: '',
+}
 
 function tanimSecenekleri(liste: KesintiTanimi[] | undefined) {
   return (liste ?? []).map((tanim) => ({
@@ -57,12 +64,14 @@ function tanimSecenekleri(liste: KesintiTanimi[] | undefined) {
 /**
  * Kesinti icmali ekranı: filtreler, para birimine göre toplamlar, kolon
  * seçimi ve sıralamalı liste; elle giriş, Excel/yapıştırma aktarımı ve
- * yüklemeler. Kolonlar ve sıraları icmal tanımından gelir.
+ * yüklemeler. Kolonlar ve sıraları icmal tanımından gelir. Rapor tanımında
+ * (Tüm Kesintiler) yalnız liste, özet sekmeleri ve Excel'e aktarım.
  */
 export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTanimi<T> }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
-  const guncelleyebilir = useIzin(`${tanim.izin}.guncelle`)
+  const rapor = tanim.rapor === true
+  const guncelleyebilir = useIzin(`${tanim.izin}.guncelle`) && !rapor
   const [filtre, setFiltre] = useState<IcmalFiltresi>(BOS_FILTRE)
   const [sayfa, setSayfa] = useState(1)
   // null: kapalı; 'yeni': yeni satır; T: düzenleme
@@ -84,10 +93,12 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
   const ara = useDebounce(filtre.ara)
   const sorguFiltresi = { ...filtre, ara }
 
-  // Form tüm tanımlardan seçer; filtreler yalnız bu ekranın kayıtlarında geçenlerden (kullanıcı isteği)
+  // Form tüm tanımlardan seçer (yalnız güncelleme izninde açılır); filtreler
+  // yalnız bu ekranın kayıtlarında geçenlerden (kullanıcı isteği)
   const secenekler = useQuery({
     queryKey: queryKeys.kesinti.secenekler,
     queryFn: kesintiSecenekleriniGetir,
+    enabled: guncelleyebilir,
   })
   const filtreSecenekleri = useQuery({
     queryKey: queryKeys.kesinti.icmalFiltreSecenekleri(tanim.anahtar),
@@ -127,6 +138,7 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
     setSayfa(1)
   }
 
+  const turSecenekleri = tanimSecenekleri(filtreSecenekleri.data?.kesinti_turleri)
   const firmaSecenekleri = tanimSecenekleri(filtreSecenekleri.data?.firmalar)
   const projeSecenekleri = tanimSecenekleri(filtreSecenekleri.data?.projeler)
 
@@ -181,6 +193,16 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
       ),
     }
   })
+  // En solda satır numarası (kullanıcı isteği): sayfadan sayfaya sürer, gizlenmez
+  const ilkSira = liste.data?.meta.from ?? 1
+  const siraKolonu: DataTableKolonu<T> = {
+    anahtar: 'sira_no',
+    baslik: t('kesinti.alan.sira_no'),
+    hizala: 'sag',
+    render: (_satir, sira) => (
+      <span className="text-slate-500 tabular-nums dark:text-slate-400">{ilkSira + sira}</span>
+    ),
+  }
   const islemKolonu: DataTableKolonu<T> = {
     anahtar: 'islemler',
     baslik: '',
@@ -217,8 +239,8 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
   }))
 
   const gorunenKolonlar = tumKolonlar.filter((kolon) => kolonGorunurlugu.gorunurMu(kolon.anahtar))
-  // Yalnız görüntüleme izninde düzenle/sil kolonu çizilmez
-  const kolonlar = guncelleyebilir ? [...gorunenKolonlar, islemKolonu] : gorunenKolonlar
+  // Yalnız görüntüleme izninde (ve raporda) düzenle/sil kolonu çizilmez
+  const kolonlar = [siraKolonu, ...gorunenKolonlar, ...(guncelleyebilir ? [islemKolonu] : [])]
 
   const sayfalama = (konum: 'ust' | 'alt') =>
     liste.data ? (
@@ -239,9 +261,11 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
           <Button variant="secondary" yukleniyor={excel.isPending} onClick={() => excel.mutate()}>
             {t('kesinti.icmal.excelAktar')}
           </Button>
-          <Button variant="secondary" onClick={() => setYuklemelerAcik(true)}>
-            {t('kesinti.icmal.yuklemeler.baslik')}
-          </Button>
+          {rapor ? null : (
+            <Button variant="secondary" onClick={() => setYuklemelerAcik(true)}>
+              {t('kesinti.icmal.yuklemeler.baslik')}
+            </Button>
+          )}
           {guncelleyebilir ? (
             <>
               <Button variant="secondary" onClick={() => setAktarimAcik(true)}>
@@ -262,9 +286,12 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
         {t(`kesinti.${tanim.anahtar}.aciklamaMetni`)}
       </p>
 
-      {guncelleyebilir ? null : <SaltOkunurUyarisi />}
+      {/* Raporda zaten veri girilmez: salt okunur uyarısı gereksiz */}
+      {guncelleyebilir || rapor ? null : <SaltOkunurUyarisi />}
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div
+        className={`mt-4 grid gap-3 sm:grid-cols-2 ${rapor ? 'lg:grid-cols-6' : 'lg:grid-cols-5'}`}
+      >
         <Input
           id={`${tanim.anahtar}-ara`}
           type="search"
@@ -273,6 +300,21 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
           value={filtre.ara}
           onChange={(olay) => filtreDegistir('ara', olay.target.value)}
         />
+        {rapor ? (
+          <MultiSelectField
+            id={`${tanim.anahtar}-filtre-kesinti-turu`}
+            label={t('kesinti.alan.kesinti_turu')}
+            options={turSecenekleri}
+            value={turSecenekleri.filter((s) => filtre.kesinti_turu_id.includes(s.value))}
+            onChange={(secilenler) =>
+              filtreDegistir(
+                'kesinti_turu_id',
+                secilenler.map((s) => s.value),
+              )
+            }
+            placeholder={t('ortak.hepsi')}
+          />
+        ) : null}
         <SelectField
           id={`${tanim.anahtar}-filtre-taseron`}
           label={t('kesinti.alan.taseron')}
@@ -368,7 +410,7 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
                 <DataTable
                   kolonlar={kolonlar}
                   satirlar={liste.data?.data ?? []}
-                  satirAnahtari={(satir) => satir.id}
+                  satirAnahtari={tanim.satirAnahtari ?? ((satir) => satir.id)}
                   yukleniyor={liste.isPending}
                   siralama={siralama}
                   siralamaDegistir={siralamaDegistir}
@@ -398,17 +440,21 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
         ) : null}
       </Modal>
 
-      <IcmalIceAktarimPenceresi
-        tanim={tanim}
-        acik={aktarimAcik}
-        kapat={() => setAktarimAcik(false)}
-      />
-      <IcmalYuklemelerPenceresi
-        tanim={tanim}
-        acik={yuklemelerAcik}
-        kapat={() => setYuklemelerAcik(false)}
-        geriAlabilir={guncelleyebilir}
-      />
+      {rapor ? null : (
+        <>
+          <IcmalIceAktarimPenceresi
+            tanim={tanim}
+            acik={aktarimAcik}
+            kapat={() => setAktarimAcik(false)}
+          />
+          <IcmalYuklemelerPenceresi
+            tanim={tanim}
+            acik={yuklemelerAcik}
+            kapat={() => setYuklemelerAcik(false)}
+            geriAlabilir={guncelleyebilir}
+          />
+        </>
+      )}
 
       <ConfirmDialog
         acik={silinecek !== null}

@@ -20,7 +20,8 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
  * - İlk sayfa: filtredeki TÜM satırlar ve ekranda gizli olanlar dahil TÜM
  *   kolonlar, yapıştırma sırasıyla (IcmalIceAktarimi::excelKolonlari). Tanımlar
  *   koduyla, seçenekler Excel etiketiyle — sayfa ekrana geri yüklenebilir
- *   (bu yüzden altına toplam satırı yazılmaz).
+ *   (bu yüzden altına tutar toplamı yazılmaz; SIRA NO ve kayıt sayısı
+ *   içe aktarımın tanımadığı ilk kolonda).
  * - Ekranın özet (pivot) sekmeleri varsa her biri ayrı sayfa, sekme adıyla;
  *   altında para birimine göre TOPLAM satırları.
  *
@@ -75,24 +76,36 @@ final class IcmalExcelAktarici
     /**
      * @param  Builder<Model>  $sorgu
      */
+    /**
+     * En solda satır numarası (SIRA NO), altında toplam kayıt sayısı (kullanıcı
+     * isteği 2026-10-31). İkisi de içe aktarımın tanımadığı kolonda: dosya geri
+     * yüklenirken SIRA NO atlanır, kayıt sayısı satırı boş sayılır.
+     *
+     * @param  Builder<Model>  $sorgu
+     */
     private function satirlariYaz(Worksheet $sayfa, Builder $sorgu, IcmalIceAktarimi $aktarim): void
     {
         $kolonlar = $aktarim->excelKolonlari();
+        $sayfa->setCellValueExplicit([1, 1], __('kesinti.excel.sira_no'), DataType::TYPE_STRING);
 
         foreach ($kolonlar as $i => $kolon) {
-            $sayfa->setCellValueExplicit([$i + 1, 1], $kolon['baslik'], DataType::TYPE_STRING);
+            $sayfa->setCellValueExplicit([$i + 2, 1], $kolon['baslik'], DataType::TYPE_STRING);
         }
 
         $satir = 2;
 
         foreach ($sorgu->with(array_values(self::ILISKILER))->lazy(1000) as $kayit) {
+            $sayfa->setCellValueExplicit([1, $satir], $satir - 1, DataType::TYPE_NUMERIC);
+
             foreach ($kolonlar as $i => $kolon) {
-                $this->hucreYaz($sayfa, $i + 1, $satir, $kolon, $kayit);
+                $this->hucreYaz($sayfa, $i + 2, $satir, $kolon, $kayit);
             }
             $satir++;
         }
 
+        $adet = $satir - 2;
         $sonSatir = max(2, $satir - 1);
+        $this->kolonuBicimle($sayfa, 1, $sonSatir, '0');
 
         foreach ($kolonlar as $i => $kolon) {
             $bicim = match ($kolon['tur']) {
@@ -100,10 +113,14 @@ final class IcmalExcelAktarici
                 'sayi' => '#,##0.'.str_repeat('0', $kolon['basamak']),
                 default => null,
             };
-            $this->kolonuBicimle($sayfa, $i + 1, $sonSatir, $bicim);
+            $this->kolonuBicimle($sayfa, $i + 2, $sonSatir, $bicim);
         }
 
-        $this->bitir($sayfa, count($kolonlar), $sonSatir);
+        $this->bitir($sayfa, count($kolonlar) + 1, $sonSatir);
+
+        // Otomatik filtrenin dışında, yalnız SIRA NO kolonunda
+        $this->metin($sayfa, 1, $satir, __('kesinti.excel.toplam_kayit', ['adet' => number_format($adet, 0, ',', '.')]));
+        $sayfa->getStyle([1, $satir])->getFont()->setBold(true);
     }
 
     /**

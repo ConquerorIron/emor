@@ -50,6 +50,7 @@ const NAV_GRUPLARI: NavGrubu[] = [
   {
     baslikAnahtari: 'nav.kesinti',
     ogeler: [
+      { to: '/kesinti/tumu', ad: 'tumKesintiler', izin: 'tum_kesintiler.goruntule' },
       { to: '/kesinti/isgucu', ad: 'isgucuKesintileri', izin: 'isgucu_kesintileri.goruntule' },
       { to: '/kesinti/kamp', ad: 'kampKesintileri', izin: 'kamp_kesintileri.goruntule' },
       {

@@ -111,7 +111,8 @@ describe('KampMalzemeKesintileriPage', { timeout: 15_000 }, () => {
       .getAllByRole('columnheader')
       .map((baslik) => baslik.textContent.replace(/[▲▼↕]/g, ''))
     // Kullanıcının nihai sırası; tarihin sağında türetilen Yıl / Ay
-    expect(basliklar.slice(0, 20)).toEqual([
+    expect(basliklar.slice(0, 21)).toEqual([
+      'Sıra No',
       'Kesinti Türü',
       'Taşeron',
       'Yansıtma Türü',

@@ -34,6 +34,8 @@ abstract class IcmalListeRequest extends FormRequest
             'firma_id' => ['nullable', 'integer'],
             'proje_id' => ['nullable', 'integer'],
             'yukleme_id' => ['nullable', 'integer'],
+            'kesinti_turu_id' => ['nullable', 'array', 'max:100'],
+            'kesinti_turu_id.*' => ['integer'],
             'baslangic' => ['nullable', 'date_format:Y-m-d'],
             'bitis' => ['nullable', 'date_format:Y-m-d', Rule::when($this->filled('baslangic'), ['after_or_equal:baslangic'])],
             'sirala' => ['nullable', Rule::in(($this->sorgu())::siralamalar())],
@@ -44,12 +46,12 @@ abstract class IcmalListeRequest extends FormRequest
     }
 
     /**
-     * @return array{ara?: string|null, firma_id?: int|string|null, proje_id?: int|string|null, yukleme_id?: int|string|null, baslangic?: string|null, bitis?: string|null}
+     * @return array{ara?: string|null, firma_id?: int|string|null, proje_id?: int|string|null, yukleme_id?: int|string|null, kesinti_turu_id?: list<int|string>|null, baslangic?: string|null, bitis?: string|null}
      */
     public function filtre(): array
     {
-        /** @var array{ara?: string|null, firma_id?: int|string|null, proje_id?: int|string|null, yukleme_id?: int|string|null, baslangic?: string|null, bitis?: string|null} */
-        return $this->safe()->only(['ara', 'firma_id', 'proje_id', 'yukleme_id', 'baslangic', 'bitis']);
+        /** @var array{ara?: string|null, firma_id?: int|string|null, proje_id?: int|string|null, yukleme_id?: int|string|null, kesinti_turu_id?: list<int|string>|null, baslangic?: string|null, bitis?: string|null} */
+        return $this->safe()->only(['ara', 'firma_id', 'proje_id', 'yukleme_id', 'kesinti_turu_id', 'baslangic', 'bitis']);
     }
 
     public function sayfaBoyutu(): int

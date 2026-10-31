@@ -47,6 +47,7 @@
     "gelenFaturalar": "Incoming Invoices",
     "gidenFaturalar": "Outgoing Invoices",
     "kesinti": "Deduction Management",
+    "tumKesintiler": "All Deductions",
     "isgucuKesintileri": "Labour Deductions",
     "kampKesintileri": "Camp Deductions",
     "kampMalzemeKesintileri": "Camp Material Deductions",
@@ -516,6 +517,7 @@
     "ekran": {
       "satinalma_talebi": "Purchase Request",
       "efatura": "e-Invoices (Incoming/Outgoing)",
+      "tum_kesintiler": "All Deductions",
       "isgucu_kesintileri": "Labour Deductions",
       "kamp_kesintileri": "Camp Deductions",
       "kamp_malzeme_kesintileri": "Camp Material Deductions",
@@ -812,6 +814,7 @@
       }
     },
     "alan": {
+      "sira_no": "No.",
       "kesinti_turu": "Deduction Type",
       "taseron": "Subcontractor",
       "proje": "Project",
@@ -953,6 +956,10 @@
       "sekmeData": "Data",
       "pivotSatirSayisi": "Rows",
       "toplamSatiri": "Total"
+    },
+    "tumu": {
+      "baslik": "All Deductions",
+      "aciklamaMetni": "Records from every deduction screen in a single list with their common columns. No data is entered here; records are entered and corrected on their own deduction screen."
     },
     "isgucu": {
       "baslik": "Labour Deductions",
