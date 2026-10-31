@@ -32,10 +32,19 @@ final class KesintiYuklemesi extends Model
 
     public const ICMAL_YEMEK = 'yemek';
 
+    public const ICMAL_OSGB = 'osgb';
+
+    public const ICMAL_TETKIK = 'tetkik';
+
+    public const ICMAL_ISG_CEZA = 'isg_ceza';
+
+    public const ICMAL_MALZEME = 'malzeme';
+
     /** Kesinti türünün bağlanabileceği icmal ekranları (menü sırasıyla) */
     public const ICMALLER = [
         self::ICMAL_ISGUCU, self::ICMAL_KAMP, self::ICMAL_KAMP_MALZEME, self::ICMAL_MAKINA_EKIPMAN,
-        self::ICMAL_TUTANAK, self::ICMAL_YEMEK,
+        self::ICMAL_TUTANAK, self::ICMAL_YEMEK, self::ICMAL_OSGB, self::ICMAL_TETKIK, self::ICMAL_ISG_CEZA,
+        self::ICMAL_MALZEME,
     ];
 
     /** Excel dosyası yüklendi */

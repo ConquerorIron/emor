@@ -64,6 +64,14 @@ const NAV_GRUPLARI: NavGrubu[] = [
       },
       { to: '/kesinti/tutanak', ad: 'tutanakKesintileri', izin: 'tutanak_kesintileri.goruntule' },
       { to: '/kesinti/yemek', ad: 'yemekKesintileri', izin: 'yemek_kesintileri.goruntule' },
+      { to: '/kesinti/osgb', ad: 'osgbKesintileri', izin: 'osgb_kesintileri.goruntule' },
+      { to: '/kesinti/tetkik', ad: 'tetkikKesintileri', izin: 'tetkik_kesintileri.goruntule' },
+      {
+        to: '/kesinti/isg-ceza',
+        ad: 'isgCezaKesintileri',
+        izin: 'isg_ceza_kesintileri.goruntule',
+      },
+      { to: '/kesinti/malzeme', ad: 'malzemeKesintileri', izin: 'malzeme_kesintileri.goruntule' },
     ],
   },
   {

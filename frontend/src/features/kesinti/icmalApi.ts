@@ -11,6 +11,10 @@ export const ICMALLER = [
   'makina_ekipman',
   'tutanak',
   'yemek',
+  'osgb',
+  'tetkik',
+  'isg_ceza',
+  'malzeme',
 ] as const
 
 export type Icmal = (typeof ICMALLER)[number]

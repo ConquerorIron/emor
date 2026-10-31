@@ -177,6 +177,54 @@ export const router = createBrowserRouter([
         ],
       },
       {
+        element: <IzinAlani izin="osgb_kesintileri.goruntule" />,
+        children: [
+          {
+            path: 'kesinti/osgb',
+            lazy: async () => ({
+              Component: (await import('@/pages/OsgbKesintileri/OsgbKesintileriPage'))
+                .OsgbKesintileriPage,
+            }),
+          },
+        ],
+      },
+      {
+        element: <IzinAlani izin="tetkik_kesintileri.goruntule" />,
+        children: [
+          {
+            path: 'kesinti/tetkik',
+            lazy: async () => ({
+              Component: (await import('@/pages/TetkikKesintileri/TetkikKesintileriPage'))
+                .TetkikKesintileriPage,
+            }),
+          },
+        ],
+      },
+      {
+        element: <IzinAlani izin="isg_ceza_kesintileri.goruntule" />,
+        children: [
+          {
+            path: 'kesinti/isg-ceza',
+            lazy: async () => ({
+              Component: (await import('@/pages/IsgCezaKesintileri/IsgCezaKesintileriPage'))
+                .IsgCezaKesintileriPage,
+            }),
+          },
+        ],
+      },
+      {
+        element: <IzinAlani izin="malzeme_kesintileri.goruntule" />,
+        children: [
+          {
+            path: 'kesinti/malzeme',
+            lazy: async () => ({
+              Component: (await import('@/pages/MalzemeKesintileri/MalzemeKesintileriPage'))
+                .MalzemeKesintileriPage,
+            }),
+          },
+        ],
+      },
+      {
         element: <IzinAlani izin="ekran_tasarimi.goruntule" />,
         children: [
           {

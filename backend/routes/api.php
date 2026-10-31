@@ -11,6 +11,8 @@ use App\Http\Controllers\Api\V1\EntegratorBaglantiController;
 use App\Http\Controllers\Api\V1\ErpFirmaController;
 use App\Http\Controllers\Api\V1\ErpProjeController;
 use App\Http\Controllers\Api\V1\FirmaController;
+use App\Http\Controllers\Api\V1\IsgCezaKesintisiController;
+use App\Http\Controllers\Api\V1\IsgCezaYuklemeController;
 use App\Http\Controllers\Api\V1\IsgucuKesintisiController;
 use App\Http\Controllers\Api\V1\IsgucuYuklemeController;
 use App\Http\Controllers\Api\V1\KampKesintisiController;
@@ -23,12 +25,18 @@ use App\Http\Controllers\Api\V1\KullaniciController;
 use App\Http\Controllers\Api\V1\MailAyarController;
 use App\Http\Controllers\Api\V1\MakinaEkipmanKesintisiController;
 use App\Http\Controllers\Api\V1\MakinaEkipmanYuklemeController;
+use App\Http\Controllers\Api\V1\MalzemeKesintisiController;
+use App\Http\Controllers\Api\V1\MalzemeYuklemeController;
+use App\Http\Controllers\Api\V1\OsgbKesintisiController;
+use App\Http\Controllers\Api\V1\OsgbYuklemeController;
 use App\Http\Controllers\Api\V1\ParaBirimiController;
 use App\Http\Controllers\Api\V1\ProjeController;
 use App\Http\Controllers\Api\V1\RolController;
 use App\Http\Controllers\Api\V1\SatinalmaTalebiController;
 use App\Http\Controllers\Api\V1\SecenekController;
 use App\Http\Controllers\Api\V1\SqlBaglantiController;
+use App\Http\Controllers\Api\V1\TetkikKesintisiController;
+use App\Http\Controllers\Api\V1\TetkikYuklemeController;
 use App\Http\Controllers\Api\V1\TutanakKesintisiController;
 use App\Http\Controllers\Api\V1\TutanakYuklemeController;
 use App\Http\Controllers\Api\V1\YemekKesintisiController;
@@ -392,6 +400,150 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('/kesinti/yemek/yuklemeler/{yukleme}', [YemekYuklemeController::class, 'destroy'])
                 ->whereNumber('yukleme')
                 ->name('kesinti.yemek.yuklemeler.destroy');
+        });
+
+        // Kesinti Yönetimi → OSGB Kesintisi (İşgücü ile aynı akış)
+        Route::middleware('can:osgb_kesintileri.goruntule')->group(function (): void {
+            Route::get('/kesinti/osgb', [OsgbKesintisiController::class, 'index'])
+                ->name('kesinti.osgb');
+            Route::get('/kesinti/osgb/yuklemeler', [OsgbYuklemeController::class, 'index'])
+                ->name('kesinti.osgb.yuklemeler');
+            Route::get('/kesinti/osgb/excel', [OsgbKesintisiController::class, 'excel'])
+                ->middleware('throttle:kesinti-excel')
+                ->name('kesinti.osgb.excel');
+            // Özet sekmeleri (taşeron, yansıtma türü, proje, tarih)
+            Route::get('/kesinti/osgb/pivot/{pivot}', [OsgbKesintisiController::class, 'pivot'])
+                ->where('pivot', '[a-z_]+')
+                ->name('kesinti.osgb.pivot');
+        });
+        Route::middleware('can:osgb_kesintileri.guncelle')->group(function (): void {
+            Route::post('/kesinti/osgb', [OsgbKesintisiController::class, 'store'])
+                ->name('kesinti.osgb.store');
+            Route::put('/kesinti/osgb/{kesinti}', [OsgbKesintisiController::class, 'update'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.osgb.update');
+            Route::delete('/kesinti/osgb/{kesinti}', [OsgbKesintisiController::class, 'destroy'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.osgb.destroy');
+            Route::get('/kesinti/osgb/yuklemeler/kolonlar', [OsgbYuklemeController::class, 'kolonlar'])
+                ->name('kesinti.osgb.yuklemeler.kolonlar');
+            Route::post('/kesinti/osgb/yuklemeler/onizle', [OsgbYuklemeController::class, 'onizle'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.osgb.yuklemeler.onizle');
+            Route::post('/kesinti/osgb/yuklemeler', [OsgbYuklemeController::class, 'store'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.osgb.yuklemeler.store');
+            Route::delete('/kesinti/osgb/yuklemeler/{yukleme}', [OsgbYuklemeController::class, 'destroy'])
+                ->whereNumber('yukleme')
+                ->name('kesinti.osgb.yuklemeler.destroy');
+        });
+
+        // Kesinti Yönetimi → Tetkik Kesintisi (İşgücü ile aynı akış)
+        Route::middleware('can:tetkik_kesintileri.goruntule')->group(function (): void {
+            Route::get('/kesinti/tetkik', [TetkikKesintisiController::class, 'index'])
+                ->name('kesinti.tetkik');
+            Route::get('/kesinti/tetkik/yuklemeler', [TetkikYuklemeController::class, 'index'])
+                ->name('kesinti.tetkik.yuklemeler');
+            Route::get('/kesinti/tetkik/excel', [TetkikKesintisiController::class, 'excel'])
+                ->middleware('throttle:kesinti-excel')
+                ->name('kesinti.tetkik.excel');
+            // Özet sekmeleri (taşeron, yansıtma türü, proje, tarih)
+            Route::get('/kesinti/tetkik/pivot/{pivot}', [TetkikKesintisiController::class, 'pivot'])
+                ->where('pivot', '[a-z_]+')
+                ->name('kesinti.tetkik.pivot');
+        });
+        Route::middleware('can:tetkik_kesintileri.guncelle')->group(function (): void {
+            Route::post('/kesinti/tetkik', [TetkikKesintisiController::class, 'store'])
+                ->name('kesinti.tetkik.store');
+            Route::put('/kesinti/tetkik/{kesinti}', [TetkikKesintisiController::class, 'update'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.tetkik.update');
+            Route::delete('/kesinti/tetkik/{kesinti}', [TetkikKesintisiController::class, 'destroy'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.tetkik.destroy');
+            Route::get('/kesinti/tetkik/yuklemeler/kolonlar', [TetkikYuklemeController::class, 'kolonlar'])
+                ->name('kesinti.tetkik.yuklemeler.kolonlar');
+            Route::post('/kesinti/tetkik/yuklemeler/onizle', [TetkikYuklemeController::class, 'onizle'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.tetkik.yuklemeler.onizle');
+            Route::post('/kesinti/tetkik/yuklemeler', [TetkikYuklemeController::class, 'store'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.tetkik.yuklemeler.store');
+            Route::delete('/kesinti/tetkik/yuklemeler/{yukleme}', [TetkikYuklemeController::class, 'destroy'])
+                ->whereNumber('yukleme')
+                ->name('kesinti.tetkik.yuklemeler.destroy');
+        });
+
+        // Kesinti Yönetimi → İSG Ceza Kesintisi (İşgücü ile aynı akış)
+        Route::middleware('can:isg_ceza_kesintileri.goruntule')->group(function (): void {
+            Route::get('/kesinti/isg-ceza', [IsgCezaKesintisiController::class, 'index'])
+                ->name('kesinti.isg-ceza');
+            Route::get('/kesinti/isg-ceza/yuklemeler', [IsgCezaYuklemeController::class, 'index'])
+                ->name('kesinti.isg-ceza.yuklemeler');
+            Route::get('/kesinti/isg-ceza/excel', [IsgCezaKesintisiController::class, 'excel'])
+                ->middleware('throttle:kesinti-excel')
+                ->name('kesinti.isg-ceza.excel');
+            // Özet sekmeleri (taşeron, yansıtma türü, proje, tarih)
+            Route::get('/kesinti/isg-ceza/pivot/{pivot}', [IsgCezaKesintisiController::class, 'pivot'])
+                ->where('pivot', '[a-z_]+')
+                ->name('kesinti.isg-ceza.pivot');
+        });
+        Route::middleware('can:isg_ceza_kesintileri.guncelle')->group(function (): void {
+            Route::post('/kesinti/isg-ceza', [IsgCezaKesintisiController::class, 'store'])
+                ->name('kesinti.isg-ceza.store');
+            Route::put('/kesinti/isg-ceza/{kesinti}', [IsgCezaKesintisiController::class, 'update'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.isg-ceza.update');
+            Route::delete('/kesinti/isg-ceza/{kesinti}', [IsgCezaKesintisiController::class, 'destroy'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.isg-ceza.destroy');
+            Route::get('/kesinti/isg-ceza/yuklemeler/kolonlar', [IsgCezaYuklemeController::class, 'kolonlar'])
+                ->name('kesinti.isg-ceza.yuklemeler.kolonlar');
+            Route::post('/kesinti/isg-ceza/yuklemeler/onizle', [IsgCezaYuklemeController::class, 'onizle'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.isg-ceza.yuklemeler.onizle');
+            Route::post('/kesinti/isg-ceza/yuklemeler', [IsgCezaYuklemeController::class, 'store'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.isg-ceza.yuklemeler.store');
+            Route::delete('/kesinti/isg-ceza/yuklemeler/{yukleme}', [IsgCezaYuklemeController::class, 'destroy'])
+                ->whereNumber('yukleme')
+                ->name('kesinti.isg-ceza.yuklemeler.destroy');
+        });
+
+        // Kesinti Yönetimi → Malzeme Kesintisi (İşgücü ile aynı akış)
+        Route::middleware('can:malzeme_kesintileri.goruntule')->group(function (): void {
+            Route::get('/kesinti/malzeme', [MalzemeKesintisiController::class, 'index'])
+                ->name('kesinti.malzeme');
+            Route::get('/kesinti/malzeme/yuklemeler', [MalzemeYuklemeController::class, 'index'])
+                ->name('kesinti.malzeme.yuklemeler');
+            Route::get('/kesinti/malzeme/excel', [MalzemeKesintisiController::class, 'excel'])
+                ->middleware('throttle:kesinti-excel')
+                ->name('kesinti.malzeme.excel');
+            // Özet sekmeleri (taşeron, yansıtma türü, proje, tarih)
+            Route::get('/kesinti/malzeme/pivot/{pivot}', [MalzemeKesintisiController::class, 'pivot'])
+                ->where('pivot', '[a-z_]+')
+                ->name('kesinti.malzeme.pivot');
+        });
+        Route::middleware('can:malzeme_kesintileri.guncelle')->group(function (): void {
+            Route::post('/kesinti/malzeme', [MalzemeKesintisiController::class, 'store'])
+                ->name('kesinti.malzeme.store');
+            Route::put('/kesinti/malzeme/{kesinti}', [MalzemeKesintisiController::class, 'update'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.malzeme.update');
+            Route::delete('/kesinti/malzeme/{kesinti}', [MalzemeKesintisiController::class, 'destroy'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.malzeme.destroy');
+            Route::get('/kesinti/malzeme/yuklemeler/kolonlar', [MalzemeYuklemeController::class, 'kolonlar'])
+                ->name('kesinti.malzeme.yuklemeler.kolonlar');
+            Route::post('/kesinti/malzeme/yuklemeler/onizle', [MalzemeYuklemeController::class, 'onizle'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.malzeme.yuklemeler.onizle');
+            Route::post('/kesinti/malzeme/yuklemeler', [MalzemeYuklemeController::class, 'store'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.malzeme.yuklemeler.store');
+            Route::delete('/kesinti/malzeme/yuklemeler/{yukleme}', [MalzemeYuklemeController::class, 'destroy'])
+                ->whereNumber('yukleme')
+                ->name('kesinti.malzeme.yuklemeler.destroy');
         });
 
         // Kesinti Yönetimi → Kamp Malzeme Kesintileri (İşgücü ile aynı akış)

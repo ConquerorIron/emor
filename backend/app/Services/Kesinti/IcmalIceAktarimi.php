@@ -82,13 +82,53 @@ abstract class IcmalIceAktarimi
     /**
      * Excel dosyası: gerekli kolonların tamamını taşıyan her sayfa okunur;
      * başka düzendeki sayfalar atlanır (ör. Kamp dosyasının oda sayfası Kamp
-     * Malzeme aktarımında).
+     * Malzeme aktarımında). Birden fazla sayfa uygunsa yalnız bu ekrana ait
+     * olanlar kalır (bkz. baskaEkraninSayfalariniAyikla).
      *
      * @return array{satirlar: list<array{satir: int, sayfa: string|null, degerler: array<string, mixed>}>, kolonlar: list<string>, hata: string|null}
      */
     public function excelOku(string $yol): array
     {
-        return IceAktarimTablosu::excel($yol, static::KOLONLAR, static::ZORUNLU_KOLONLAR);
+        return $this->baskaEkraninSayfalariniAyikla(IceAktarimTablosu::excel($yol, static::KOLONLAR, static::ZORUNLU_KOLONLAR));
+    }
+
+    /**
+     * Aynı dosyada bu ekranın kolonlarını taşıyan birden fazla sayfa varsa
+     * (ör. OSGB dosyasında Sağlık Tetkikleri ve İSG Ceza sayfaları; ortak
+     * kolonlar her ikisinde de var) yalnız kesinti türü bu ekrana bağlı satır
+     * taşıyan sayfalar okunur — tüm dosya her ekrana yüklenebilsin. Hiçbir sayfa
+     * bu ekrana ait değilse hepsi kalır: hatalar önizlemede görünür.
+     *
+     * @param  array{satirlar: list<array{satir: int, sayfa: string|null, degerler: array<string, mixed>}>, kolonlar: list<string>, hata: string|null}  $tablo
+     * @return array{satirlar: list<array{satir: int, sayfa: string|null, degerler: array<string, mixed>}>, kolonlar: list<string>, hata: string|null}
+     */
+    private function baskaEkraninSayfalariniAyikla(array $tablo): array
+    {
+        if (count(array_unique(array_column($tablo['satirlar'], 'sayfa'))) < 2) {
+            return $tablo;
+        }
+
+        $bagliTurler = KesintiTuru::query()->where('icmal', static::ICMAL)->pluck('kod')
+            ->mapWithKeys(fn (string $kod): array => [self::kodAnahtari($kod) => true])
+            ->all();
+        $buEkraninSayfalari = [];
+
+        foreach ($tablo['satirlar'] as $satir) {
+            $tur = self::metinDegeri($satir['degerler']['kesinti_turu'] ?? null);
+
+            if ($tur !== '' && isset($bagliTurler[self::kodAnahtari($tur)])) {
+                $buEkraninSayfalari[(string) $satir['sayfa']] = true;
+            }
+        }
+
+        if ($buEkraninSayfalari === []) {
+            return $tablo;
+        }
+
+        return [
+            ...$tablo,
+            'satirlar' => array_values(array_filter($tablo['satirlar'], fn (array $satir): bool => isset($buEkraninSayfalari[(string) $satir['sayfa']]))),
+        ];
     }
 
     /**

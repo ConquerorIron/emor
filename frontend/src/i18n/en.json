@@ -53,6 +53,10 @@
     "makinaEkipmanKesintileri": "Machinery & Equipment Deductions",
     "tutanakKesintileri": "Report Deductions",
     "yemekKesintileri": "Meal Deductions",
+    "osgbKesintileri": "OSGB Deductions",
+    "tetkikKesintileri": "Health Check Deductions",
+    "isgCezaKesintileri": "OHS Penalty Deductions",
+    "malzemeKesintileri": "Material Deductions",
     "kesintiTurleri": "Deduction Types",
     "projeler": "Projects",
     "firmalar": "Companies",
@@ -518,6 +522,10 @@
       "makina_ekipman_kesintileri": "Machinery & Equipment Deductions",
       "tutanak_kesintileri": "Report Deductions",
       "yemek_kesintileri": "Meal Deductions",
+      "osgb_kesintileri": "OSGB Deductions",
+      "tetkik_kesintileri": "Health Check Deductions",
+      "isg_ceza_kesintileri": "OHS Penalty Deductions",
+      "malzeme_kesintileri": "Material Deductions",
       "kesinti_turleri": "Deduction Types",
       "projeler": "Projects",
       "firmalar": "Companies",
@@ -840,7 +848,10 @@
       "makina": "Machine",
       "kaynak_tutanak_no": "Source Report No",
       "kaynak_sozlesme": "Source Contract",
-      "kaynak_hakedis_no": "Source Progress Payment No"
+      "kaynak_hakedis_no": "Source Progress Payment No",
+      "toplam_kisi": "Total Headcount",
+      "kaynak_irsaliye_no": "Source Waybill No",
+      "malzeme_birim_fiyati": "Material Unit Price"
     },
     "secenek": {
       "vasif": {
@@ -967,6 +978,22 @@
       "baslik": "Meal Deductions",
       "aciklamaMetni": "Meal deductions charged to subcontractors. Rows can be entered manually or imported from Excel; each import is kept as an upload and can be undone."
     },
+    "osgb": {
+      "baslik": "OSGB Deductions",
+      "aciklamaMetni": "OSGB Deductions charged to subcontractors. Rows can be entered manually or imported from Excel; each import is kept as an upload and can be undone."
+    },
+    "tetkik": {
+      "baslik": "Health Check Deductions",
+      "aciklamaMetni": "Health Check Deductions charged to subcontractors. Rows can be entered manually or imported from Excel; each import is kept as an upload and can be undone."
+    },
+    "isgCeza": {
+      "baslik": "OHS Penalty Deductions",
+      "aciklamaMetni": "OHS Penalty Deductions charged to subcontractors. Rows can be entered manually or imported from Excel; each import is kept as an upload and can be undone."
+    },
+    "malzeme": {
+      "baslik": "Material Deductions",
+      "aciklamaMetni": "Material Deductions charged to subcontractors. Rows can be entered manually or imported from Excel; each import is kept as an upload and can be undone."
+    },
     "erpAktarim": {
       "okunuyor": "Reading the live ERP…",
       "ozet": "{{yeni}} new, {{guncellenecek}} to update, {{eslesecek}} to link with a manual record, {{aktarilamaz}} cannot be imported. {{ayni}} records are already up to date.",
@@ -1011,7 +1038,11 @@
       "kamp_malzeme": "Camp Material Deductions",
       "makina_ekipman": "Machinery & Equipment Deductions",
       "tutanak": "Report Deductions",
-      "yemek": "Meal Deductions"
+      "yemek": "Meal Deductions",
+      "osgb": "OSGB Deductions",
+      "tetkik": "Health Check Deductions",
+      "isg_ceza": "OHS Penalty Deductions",
+      "malzeme": "Material Deductions"
     }
   }
 }

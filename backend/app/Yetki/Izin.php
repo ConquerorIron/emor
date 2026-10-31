@@ -54,6 +54,18 @@ enum Izin: string
     case YemekKesintileriGoruntule = 'yemek_kesintileri.goruntule';
     case YemekKesintileriGuncelle = 'yemek_kesintileri.guncelle';
 
+    case OsgbKesintileriGoruntule = 'osgb_kesintileri.goruntule';
+    case OsgbKesintileriGuncelle = 'osgb_kesintileri.guncelle';
+
+    case TetkikKesintileriGoruntule = 'tetkik_kesintileri.goruntule';
+    case TetkikKesintileriGuncelle = 'tetkik_kesintileri.guncelle';
+
+    case IsgCezaKesintileriGoruntule = 'isg_ceza_kesintileri.goruntule';
+    case IsgCezaKesintileriGuncelle = 'isg_ceza_kesintileri.guncelle';
+
+    case MalzemeKesintileriGoruntule = 'malzeme_kesintileri.goruntule';
+    case MalzemeKesintileriGuncelle = 'malzeme_kesintileri.guncelle';
+
     case SqlBaglantilariGoruntule = 'sql_baglantilari.goruntule';
     case SqlBaglantilariGuncelle = 'sql_baglantilari.guncelle';
 
@@ -107,6 +119,10 @@ enum Izin: string
             $ekran('makina_ekipman_kesintileri', self::MakinaEkipmanKesintileriGoruntule, self::MakinaEkipmanKesintileriGuncelle),
             $ekran('tutanak_kesintileri', self::TutanakKesintileriGoruntule, self::TutanakKesintileriGuncelle),
             $ekran('yemek_kesintileri', self::YemekKesintileriGoruntule, self::YemekKesintileriGuncelle),
+            $ekran('osgb_kesintileri', self::OsgbKesintileriGoruntule, self::OsgbKesintileriGuncelle),
+            $ekran('tetkik_kesintileri', self::TetkikKesintileriGoruntule, self::TetkikKesintileriGuncelle),
+            $ekran('isg_ceza_kesintileri', self::IsgCezaKesintileriGoruntule, self::IsgCezaKesintileriGuncelle),
+            $ekran('malzeme_kesintileri', self::MalzemeKesintileriGoruntule, self::MalzemeKesintileriGuncelle),
             // Tanımlar grubu
             $ekran('projeler', self::ProjelerGoruntule, self::ProjelerGuncelle),
             $ekran('firmalar', self::FirmalarGoruntule, self::FirmalarGuncelle),

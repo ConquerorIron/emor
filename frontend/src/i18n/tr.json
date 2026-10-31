@@ -53,6 +53,10 @@
     "makinaEkipmanKesintileri": "Makina Ekipman Kesintileri",
     "tutanakKesintileri": "Tutanak Kesintisi",
     "yemekKesintileri": "Yemek Kesintisi",
+    "osgbKesintileri": "OSGB Kesintisi",
+    "tetkikKesintileri": "Tetkik Kesintisi",
+    "isgCezaKesintileri": "İSG Ceza Kesintisi",
+    "malzemeKesintileri": "Malzeme Kesintisi",
     "kesintiTurleri": "Kesinti Türleri",
     "projeler": "Projeler",
     "firmalar": "Firmalar",
@@ -518,6 +522,10 @@
       "makina_ekipman_kesintileri": "Makina Ekipman Kesintileri",
       "tutanak_kesintileri": "Tutanak Kesintisi",
       "yemek_kesintileri": "Yemek Kesintisi",
+      "osgb_kesintileri": "OSGB Kesintisi",
+      "tetkik_kesintileri": "Tetkik Kesintisi",
+      "isg_ceza_kesintileri": "İSG Ceza Kesintisi",
+      "malzeme_kesintileri": "Malzeme Kesintisi",
       "kesinti_turleri": "Kesinti Türleri",
       "projeler": "Projeler",
       "firmalar": "Firmalar",
@@ -840,7 +848,10 @@
       "makina": "Makina",
       "kaynak_tutanak_no": "Kaynak Tutanak No",
       "kaynak_sozlesme": "Kaynak Sözleşme",
-      "kaynak_hakedis_no": "Kaynak Hakediş No"
+      "kaynak_hakedis_no": "Kaynak Hakediş No",
+      "toplam_kisi": "Toplam Kişi",
+      "kaynak_irsaliye_no": "Kaynak İrsaliye No",
+      "malzeme_birim_fiyati": "Malzeme Birim Fiyatı"
     },
     "secenek": {
       "vasif": {
@@ -967,6 +978,22 @@
       "baslik": "Yemek Kesintisi",
       "aciklamaMetni": "Taşeronlara yansıtılan yemek kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
     },
+    "osgb": {
+      "baslik": "OSGB Kesintisi",
+      "aciklamaMetni": "Taşeronlara yansıtılan OSGB (iş sağlığı ve güvenliği hizmeti) kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
+    },
+    "tetkik": {
+      "baslik": "Tetkik Kesintisi",
+      "aciklamaMetni": "Taşeronlara yansıtılan sağlık tetkiki kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
+    },
+    "isgCeza": {
+      "baslik": "İSG Ceza Kesintisi",
+      "aciklamaMetni": "Taşeronlara yansıtılan İSG uygunsuzluk ceza kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
+    },
+    "malzeme": {
+      "baslik": "Malzeme Kesintisi",
+      "aciklamaMetni": "Taşeronlara yansıtılan ambar çıkışı malzeme kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
+    },
     "erpAktarim": {
       "okunuyor": "Canlı ERP okunuyor…",
       "ozet": "{{yeni}} yeni, {{guncellenecek}} güncellenecek, {{eslesecek}} elle açılmış kayıtla eşleşecek, {{aktarilamaz}} aktarılamaz. {{ayni}} kayıt zaten güncel.",
@@ -1011,7 +1038,11 @@
       "kamp_malzeme": "Kamp Malzeme Kesintileri",
       "makina_ekipman": "Makina Ekipman Kesintileri",
       "tutanak": "Tutanak Kesintisi",
-      "yemek": "Yemek Kesintisi"
+      "yemek": "Yemek Kesintisi",
+      "osgb": "OSGB Kesintisi",
+      "tetkik": "Tetkik Kesintisi",
+      "isg_ceza": "İSG Ceza Kesintisi",
+      "malzeme": "Malzeme Kesintisi"
     }
   }
 }
