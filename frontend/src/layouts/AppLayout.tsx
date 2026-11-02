@@ -73,6 +73,11 @@ const NAV_GRUPLARI: NavGrubu[] = [
         izin: 'isg_ceza_kesintileri.goruntule',
       },
       { to: '/kesinti/malzeme', ad: 'malzemeKesintileri', izin: 'malzeme_kesintileri.goruntule' },
+      {
+        to: '/kesinti/kart-basim',
+        ad: 'kartBasimKesintileri',
+        izin: 'kart_basim_kesintileri.goruntule',
+      },
     ],
   },
   {

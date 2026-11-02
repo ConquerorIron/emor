@@ -58,6 +58,7 @@
     "tetkikKesintileri": "Tetkik Kesintisi",
     "isgCezaKesintileri": "İSG Ceza Kesintisi",
     "malzemeKesintileri": "Malzeme Kesintisi",
+    "kartBasimKesintileri": "Personel Kart Basım Kesintisi",
     "kesintiTurleri": "Kesinti Türleri",
     "projeler": "Projeler",
     "firmalar": "Firmalar",
@@ -528,6 +529,7 @@
       "tetkik_kesintileri": "Tetkik Kesintisi",
       "isg_ceza_kesintileri": "İSG Ceza Kesintisi",
       "malzeme_kesintileri": "Malzeme Kesintisi",
+      "kart_basim_kesintileri": "Personel Kart Basım Kesintisi",
       "kesinti_turleri": "Kesinti Türleri",
       "projeler": "Projeler",
       "firmalar": "Firmalar",
@@ -854,7 +856,9 @@
       "kaynak_hakedis_no": "Kaynak Hakediş No",
       "toplam_kisi": "Toplam Kişi",
       "kaynak_irsaliye_no": "Kaynak İrsaliye No",
-      "malzeme_birim_fiyati": "Malzeme Birim Fiyatı"
+      "malzeme_birim_fiyati": "Malzeme Birim Fiyatı",
+      "personel_adi_soyadi": "Personel Adı Soyadı",
+      "kart_basim_nedeni": "Kart Basım Nedeni"
     },
     "secenek": {
       "vasif": {
@@ -1002,6 +1006,10 @@
       "baslik": "Malzeme Kesintisi",
       "aciklamaMetni": "Taşeronlara yansıtılan ambar çıkışı malzeme kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
     },
+    "kartBasim": {
+      "baslik": "Personel Kart Basım Kesintisi",
+      "aciklamaMetni": "Taşeronlara yansıtılan personel kartı basım kesintileri. Satırlar elle girilebilir ya da Excel'den aktarılabilir; her aktarım bir yükleme olarak tutulur ve geri alınabilir."
+    },
     "erpAktarim": {
       "okunuyor": "Canlı ERP okunuyor…",
       "ozet": "{{yeni}} yeni, {{guncellenecek}} güncellenecek, {{eslesecek}} elle açılmış kayıtla eşleşecek, {{aktarilamaz}} aktarılamaz. {{ayni}} kayıt zaten güncel.",
@@ -1050,7 +1058,8 @@
       "osgb": "OSGB Kesintisi",
       "tetkik": "Tetkik Kesintisi",
       "isg_ceza": "İSG Ceza Kesintisi",
-      "malzeme": "Malzeme Kesintisi"
+      "malzeme": "Malzeme Kesintisi",
+      "kart_basim": "Personel Kart Basım Kesintisi"
     }
   }
 }

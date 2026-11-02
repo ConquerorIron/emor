@@ -42,11 +42,13 @@ final class KesintiYuklemesi extends Model
 
     public const ICMAL_MALZEME = 'malzeme';
 
+    public const ICMAL_KART_BASIM = 'kart_basim';
+
     /** Kesinti türünün bağlanabileceği icmal ekranları (menü sırasıyla) */
     public const ICMALLER = [
         self::ICMAL_ISGUCU, self::ICMAL_KAMP, self::ICMAL_KAMP_MALZEME, self::ICMAL_MAKINA_EKIPMAN,
         self::ICMAL_TUTANAK, self::ICMAL_YEMEK, self::ICMAL_OSGB, self::ICMAL_TETKIK, self::ICMAL_ISG_CEZA,
-        self::ICMAL_MALZEME,
+        self::ICMAL_MALZEME, self::ICMAL_KART_BASIM,
     ];
 
     /** Excel dosyası yüklendi */

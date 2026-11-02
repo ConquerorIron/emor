@@ -8,6 +8,7 @@ use App\Models\IsgCezaKesintisi;
 use App\Models\IsgucuKesintisi;
 use App\Models\KampKesintisi;
 use App\Models\KampMalzemeKesintisi;
+use App\Models\KartBasimKesintisi;
 use App\Models\KesintiYuklemesi;
 use App\Models\MakinaEkipmanKesintisi;
 use App\Models\MalzemeKesintisi;
@@ -64,6 +65,7 @@ final class TumKesintilerSorgusu extends IcmalSorgusu
         KesintiYuklemesi::ICMAL_TETKIK => TetkikKesintisi::class,
         KesintiYuklemesi::ICMAL_ISG_CEZA => IsgCezaKesintisi::class,
         KesintiYuklemesi::ICMAL_MALZEME => MalzemeKesintisi::class,
+        KesintiYuklemesi::ICMAL_KART_BASIM => KartBasimKesintisi::class,
     ];
 
     /** Her icmal tablosunda aynı adla duran kolonlar */

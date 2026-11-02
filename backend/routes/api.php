@@ -19,6 +19,8 @@ use App\Http\Controllers\Api\V1\KampKesintisiController;
 use App\Http\Controllers\Api\V1\KampMalzemeKesintisiController;
 use App\Http\Controllers\Api\V1\KampMalzemeYuklemeController;
 use App\Http\Controllers\Api\V1\KampYuklemeController;
+use App\Http\Controllers\Api\V1\KartBasimKesintisiController;
+use App\Http\Controllers\Api\V1\KartBasimYuklemeController;
 use App\Http\Controllers\Api\V1\KesintiSecenekController;
 use App\Http\Controllers\Api\V1\KesintiTuruController;
 use App\Http\Controllers\Api\V1\KullaniciController;
@@ -587,6 +589,45 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('/kesinti/malzeme/yuklemeler/{yukleme}', [MalzemeYuklemeController::class, 'destroy'])
                 ->whereNumber('yukleme')
                 ->name('kesinti.malzeme.yuklemeler.destroy');
+        });
+
+        // Kesinti Yönetimi → Personel Kart Basım Kesintisi (İşgücü ile aynı akış)
+        Route::middleware('can:kart_basim_kesintileri.goruntule')->group(function (): void {
+            Route::get('/kesinti/kart-basim', [KartBasimKesintisiController::class, 'index'])
+                ->name('kesinti.kart-basim');
+            Route::get('/kesinti/kart-basim/yuklemeler', [KartBasimYuklemeController::class, 'index'])
+                ->name('kesinti.kart-basim.yuklemeler');
+            Route::get('/kesinti/kart-basim/excel', [KartBasimKesintisiController::class, 'excel'])
+                ->middleware('throttle:kesinti-excel')
+                ->name('kesinti.kart-basim.excel');
+            // Özet sekmeleri (taşeron, yansıtma türü, proje, tarih)
+            Route::get('/kesinti/kart-basim/pivot/{pivot}', [KartBasimKesintisiController::class, 'pivot'])
+                ->where('pivot', '[a-z_]+')
+                ->name('kesinti.kart-basim.pivot');
+            // Taşeron / proje filtreleri: yalnız bu ekranın kayıtlarındakiler
+            Route::get('/kesinti/kart-basim/filtre-secenekleri', [KartBasimKesintisiController::class, 'filtreSecenekleri'])
+                ->name('kesinti.kart-basim.filtre-secenekleri');
+        });
+        Route::middleware('can:kart_basim_kesintileri.guncelle')->group(function (): void {
+            Route::post('/kesinti/kart-basim', [KartBasimKesintisiController::class, 'store'])
+                ->name('kesinti.kart-basim.store');
+            Route::put('/kesinti/kart-basim/{kesinti}', [KartBasimKesintisiController::class, 'update'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.kart-basim.update');
+            Route::delete('/kesinti/kart-basim/{kesinti}', [KartBasimKesintisiController::class, 'destroy'])
+                ->whereNumber('kesinti')
+                ->name('kesinti.kart-basim.destroy');
+            Route::get('/kesinti/kart-basim/yuklemeler/kolonlar', [KartBasimYuklemeController::class, 'kolonlar'])
+                ->name('kesinti.kart-basim.yuklemeler.kolonlar');
+            Route::post('/kesinti/kart-basim/yuklemeler/onizle', [KartBasimYuklemeController::class, 'onizle'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.kart-basim.yuklemeler.onizle');
+            Route::post('/kesinti/kart-basim/yuklemeler', [KartBasimYuklemeController::class, 'store'])
+                ->middleware('throttle:kesinti-ice-aktarim')
+                ->name('kesinti.kart-basim.yuklemeler.store');
+            Route::delete('/kesinti/kart-basim/yuklemeler/{yukleme}', [KartBasimYuklemeController::class, 'destroy'])
+                ->whereNumber('yukleme')
+                ->name('kesinti.kart-basim.yuklemeler.destroy');
         });
 
         // Kesinti Yönetimi → Kamp Malzeme Kesintileri (İşgücü ile aynı akış)

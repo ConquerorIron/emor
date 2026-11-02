@@ -90,6 +90,7 @@ final class EkranYetkisiTest extends TestCase
             'tetkik kesintisi' => ['tetkik_kesintileri', '/api/v1/kesinti/tetkik', 'post', '/api/v1/kesinti/tetkik'],
             'isg ceza kesintisi' => ['isg_ceza_kesintileri', '/api/v1/kesinti/isg-ceza', 'post', '/api/v1/kesinti/isg-ceza'],
             'malzeme kesintisi' => ['malzeme_kesintileri', '/api/v1/kesinti/malzeme', 'post', '/api/v1/kesinti/malzeme'],
+            'personel kart basım kesintisi' => ['kart_basim_kesintileri', '/api/v1/kesinti/kart-basim', 'post', '/api/v1/kesinti/kart-basim'],
             'kamp malzeme kesintileri' => ['kamp_malzeme_kesintileri', '/api/v1/kesinti/kamp-malzeme', 'post', '/api/v1/kesinti/kamp-malzeme'],
             'SQL bağlantıları' => ['sql_baglantilari', '/api/v1/ayarlar/sql-baglantilari', 'put', '/api/v1/ayarlar/sql-baglantilari/test'],
             'entegratör bağlantıları' => ['entegrator_baglantilari', '/api/v1/ayarlar/entegrator-baglantilari', 'put', '/api/v1/ayarlar/entegrator-baglantilari/test'],

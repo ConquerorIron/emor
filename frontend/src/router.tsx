@@ -237,6 +237,18 @@ export const router = createBrowserRouter([
         ],
       },
       {
+        element: <IzinAlani izin="kart_basim_kesintileri.goruntule" />,
+        children: [
+          {
+            path: 'kesinti/kart-basim',
+            lazy: async () => ({
+              Component: (await import('@/pages/KartBasimKesintileri/KartBasimKesintileriPage'))
+                .KartBasimKesintileriPage,
+            }),
+          },
+        ],
+      },
+      {
         element: <IzinAlani izin="ekran_tasarimi.goruntule" />,
         children: [
           {

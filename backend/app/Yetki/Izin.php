@@ -69,6 +69,9 @@ enum Izin: string
     case MalzemeKesintileriGoruntule = 'malzeme_kesintileri.goruntule';
     case MalzemeKesintileriGuncelle = 'malzeme_kesintileri.guncelle';
 
+    case KartBasimKesintileriGoruntule = 'kart_basim_kesintileri.goruntule';
+    case KartBasimKesintileriGuncelle = 'kart_basim_kesintileri.guncelle';
+
     case SqlBaglantilariGoruntule = 'sql_baglantilari.goruntule';
     case SqlBaglantilariGuncelle = 'sql_baglantilari.guncelle';
 
@@ -127,6 +130,7 @@ enum Izin: string
             $ekran('tetkik_kesintileri', self::TetkikKesintileriGoruntule, self::TetkikKesintileriGuncelle),
             $ekran('isg_ceza_kesintileri', self::IsgCezaKesintileriGoruntule, self::IsgCezaKesintileriGuncelle),
             $ekran('malzeme_kesintileri', self::MalzemeKesintileriGoruntule, self::MalzemeKesintileriGuncelle),
+            $ekran('kart_basim_kesintileri', self::KartBasimKesintileriGoruntule, self::KartBasimKesintileriGuncelle),
             // Tanımlar grubu
             $ekran('projeler', self::ProjelerGoruntule, self::ProjelerGuncelle),
             $ekran('firmalar', self::FirmalarGoruntule, self::FirmalarGuncelle),
