@@ -154,6 +154,23 @@ final class IsgucuIceAktarimTest extends TestCase
         ]);
     }
 
+    public function test_yuklemeler_satirlarindaki_proje_kodlariyla_listelenir(): void
+    {
+        Proje::factory()->create(['kod' => 'ZONE 03']);
+        $this->postJson(self::KAYDET, ['metin' => self::yapistirma([self::satir(), self::satir(['proje' => 'ZONE 03']), self::satir()])])
+            ->assertCreated()
+            ->assertJsonPath('data.projeler', ['ZONE 03', 'ZONE 10']);
+        $this->postJson(self::KAYDET, ['metin' => self::yapistirma([self::satir()])])->assertCreated();
+        // Elle girilen satırın projesi hiçbir yüklemede görünmez
+        IsgucuKesintisi::factory()->create(['proje_id' => Proje::factory()->create(['kod' => 'ZONE 99'])]);
+
+        // En yeni yükleme önce; projeler kod sırasıyla, tekrarsız
+        $this->getJson(self::KAYDET)
+            ->assertOk()
+            ->assertJsonPath('data.0.projeler', ['ZONE 10'])
+            ->assertJsonPath('data.1.projeler', ['ZONE 03', 'ZONE 10']);
+    }
+
     public function test_excel_dosyasi_ust_satirlardaki_ara_toplama_ragmen_dogru_baslikla_okunur(): void
     {
         $kitap = new Spreadsheet;

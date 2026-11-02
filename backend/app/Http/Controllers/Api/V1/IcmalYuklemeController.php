@@ -9,6 +9,7 @@ use App\Http\Requests\Kesinti\IcmalIceAktarRequest;
 use App\Http\Resources\KesintiYuklemesiResource;
 use App\Models\KesintiYuklemesi;
 use App\Services\Kesinti\IcmalIceAktarimi;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -37,13 +38,32 @@ abstract class IcmalYuklemeController extends Controller
     public function index(): AnonymousResourceCollection
     {
         return KesintiYuklemesiResource::collection(
-            KesintiYuklemesi::query()
-                ->where('icmal', $this->aktarim::ICMAL)
-                ->with('yukleyen:id,ad')
-                ->latest()
-                ->orderByDesc('id')
-                ->limit(self::LISTE_SINIRI)
-                ->get(),
+            $this->projeleriBagla(
+                KesintiYuklemesi::query()
+                    ->where('icmal', $this->aktarim::ICMAL)
+                    ->with('yukleyen:id,ad')
+                    ->latest()
+                    ->orderByDesc('id')
+                    ->limit(self::LISTE_SINIRI)
+                    ->get(),
+            ),
+        );
+    }
+
+    /**
+     * Her yüklemeye satırlarındaki projeleri bağlar (`projeler`; liste için
+     * tek sorgu). Satır tablosu icmale göre değiştiğinden bu bir Eloquent
+     * ilişkisi değildir.
+     *
+     * @param  Collection<int, KesintiYuklemesi>  $yuklemeler
+     * @return Collection<int, KesintiYuklemesi>
+     */
+    private function projeleriBagla(Collection $yuklemeler): Collection
+    {
+        $projeler = $this->aktarim->yuklemeProjeleri($yuklemeler->modelKeys());
+
+        return $yuklemeler->each(
+            fn (KesintiYuklemesi $yukleme) => $yukleme->setRelation('projeler', $projeler->get($yukleme->id, new Collection)),
         );
     }
 
@@ -82,8 +102,9 @@ abstract class IcmalYuklemeController extends Controller
         }
 
         $yukleme = $this->aktarim->kaydet($sonuc['kayitlar'], $request->kaynak(), $request->dosyaAdi(), $request->user()?->id);
+        $this->projeleriBagla(new Collection([$yukleme->load('yukleyen:id,ad')]));
 
-        return KesintiYuklemesiResource::make($yukleme->load('yukleyen:id,ad'))->response()->setStatusCode(201);
+        return KesintiYuklemesiResource::make($yukleme)->response()->setStatusCode(201);
     }
 
     /**

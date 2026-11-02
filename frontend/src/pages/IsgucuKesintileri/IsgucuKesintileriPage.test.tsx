@@ -5,6 +5,7 @@ import '@/i18n/i18n'
 import type {
   IceAktarimOnizlemesi,
   KesintiSecenekleri,
+  KesintiYuklemesi,
   PivotSatiri,
 } from '@/features/kesinti/icmalApi'
 import type { IsgucuKesintisi } from '@/features/kesinti/isgucuApi'
@@ -563,10 +564,11 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
         kaynak: 'excel',
         dosya_adi: 'isgucu.xlsx',
         satir_sayisi: 2379,
+        projeler: ['ZONE 10'],
         yukleyen: 'Deneme',
         olusturma_zamani: '2026-10-30T09:00:00Z',
       },
-    ])
+    ] satisfies KesintiYuklemesi[])
     ciz(['isgucu_kesintileri.goruntule'])
 
     expect(await screen.findByText('FIRAT AKYILDIZ')).toBeInTheDocument()
@@ -580,24 +582,26 @@ describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
     expect(within(dialog).queryByRole('button', { name: 'Geri Al' })).not.toBeInTheDocument()
   })
 
-  it('yükleme onaylanınca satırlarıyla geri alınır', async () => {
+  it('yükleme projeleriyle listelenir; onaylanınca satırlarıyla geri alınır', async () => {
     api.yuklemeler.mockResolvedValue([
       {
         id: 2,
         kaynak: 'excel',
         dosya_adi: 'isgucu.xlsx',
         satir_sayisi: 2379,
+        projeler: ['ZONE 03', 'ZONE 10'],
         yukleyen: 'Deneme',
         olusturma_zamani: '2026-10-30T09:00:00Z',
       },
-    ])
+    ] satisfies KesintiYuklemesi[])
     api.geriAl.mockResolvedValue(undefined)
     ciz()
     await screen.findByText('FIRAT AKYILDIZ')
 
     fireEvent.click(screen.getByRole('button', { name: 'Yüklemeler' }))
     const pencere = await screen.findByRole('dialog')
-    fireEvent.click(await within(pencere).findByRole('button', { name: 'Geri Al' }))
+    expect(await within(pencere).findByText('ZONE 03, ZONE 10')).toBeInTheDocument()
+    fireEvent.click(within(pencere).getByRole('button', { name: 'Geri Al' }))
 
     const onaylar = await screen.findAllByRole('dialog')
     const onay = onaylar[onaylar.length - 1]

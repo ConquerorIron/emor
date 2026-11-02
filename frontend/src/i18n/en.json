@@ -945,6 +945,7 @@
         "zaman": "Time",
         "yukleyen": "Uploaded by",
         "kaynak": "Source",
+        "proje": "Project",
         "satirSayisi": "Rows",
         "geriAl": "Undo",
         "geriAlindi": "Upload undone; {{sayi}} rows deleted.",

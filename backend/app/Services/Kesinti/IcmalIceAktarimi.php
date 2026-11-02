@@ -247,6 +247,28 @@ abstract class IcmalIceAktarimi
     }
 
     /**
+     * Yüklemelerin satırlarındaki projeler (kod sırasıyla), yükleme kimliğine
+     * göre gruplu. Satır sonradan elle düzeltilmiş olabileceği için satırların
+     * bugünkü halinden okunur.
+     *
+     * @param  list<int>  $yuklemeIdleri
+     * @return Collection<int, Collection<int, Proje>>
+     */
+    public function yuklemeProjeleri(array $yuklemeIdleri): Collection
+    {
+        $tablo = (new (static::MODEL))->getTable();
+
+        return Proje::query()
+            ->join($tablo, "{$tablo}.proje_id", '=', 'projeler.id')
+            ->whereIn("{$tablo}.yukleme_id", $yuklemeIdleri)
+            ->distinct()
+            ->orderBy('projeler.kod')
+            ->get(['projeler.id', 'projeler.kod', "{$tablo}.yukleme_id"])
+            ->groupBy('yukleme_id')
+            ->toBase();
+    }
+
+    /**
      * Yapıştırma tablosunun kolonları, standart sırayla.
      *
      * @return list<array{alan: string, basliklar: list<string>}>

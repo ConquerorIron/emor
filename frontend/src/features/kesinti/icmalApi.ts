@@ -145,6 +145,8 @@ export interface KesintiYuklemesi {
   kaynak: 'excel' | 'yapistirma'
   dosya_adi: string | null
   satir_sayisi: number
+  /** Satırlardaki proje kodları (kod sırasıyla) */
+  projeler: string[]
   yukleyen: string | null
   olusturma_zamani: string
 }

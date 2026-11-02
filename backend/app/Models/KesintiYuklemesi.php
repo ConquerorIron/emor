@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -17,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $dosya_adi
  * @property int $satir_sayisi
  * @property int|null $yukleyen_id
+ * @property-read Collection<int, Proje> $projeler Satırlardaki projeler; ilişki değil, yükleme uçları bağlar (IcmalYuklemeController)
  */
 final class KesintiYuklemesi extends Model
 {

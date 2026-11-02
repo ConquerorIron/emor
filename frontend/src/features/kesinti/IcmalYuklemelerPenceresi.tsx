@@ -75,6 +75,11 @@ function YuklemeListesi<T extends IcmalSatiri>({ tanim, geriAlabilir }: Yuklemel
         t(`kesinti.icmal.iceAktarim.kaynak.${yukleme.kaynak === 'excel' ? 'dosya' : 'metin'}`),
     },
     {
+      anahtar: 'projeler',
+      baslik: t('kesinti.icmal.yuklemeler.proje'),
+      render: (yukleme) => (yukleme.projeler.length > 0 ? yukleme.projeler.join(', ') : '—'),
+    },
+    {
       anahtar: 'satir_sayisi',
       baslik: t('kesinti.icmal.yuklemeler.satirSayisi'),
       hizala: 'sag',

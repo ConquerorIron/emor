@@ -23,6 +23,8 @@ final class KesintiYuklemesiResource extends JsonResource
             'kaynak' => $this->kaynak,
             'dosya_adi' => $this->dosya_adi,
             'satir_sayisi' => $this->satir_sayisi,
+            // Satırlardaki proje kodları (IcmalYuklemeController bağlar)
+            'projeler' => $this->whenLoaded('projeler', fn () => $this->projeler->pluck('kod')->all()),
             'yukleyen' => $this->whenLoaded('yukleyen', fn () => $this->yukleyen?->ad),
             'olusturma_zamani' => $this->created_at?->toISOString(),
         ];
