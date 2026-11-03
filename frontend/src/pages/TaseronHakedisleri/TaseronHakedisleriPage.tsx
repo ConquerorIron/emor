@@ -29,7 +29,7 @@ const ILK_TARIH = '2000-01-01'
 /** Tarihler dışında ortalanan kısa kolonlar */
 const ORTALI = new Set<string>(['hakedis_no', 'para_kodu', 'onay_saati'])
 
-/** Tek satıra sığmayan uzun metinler */
+/** Uzun metinler (en uzun ~130 karakter): sabit geniş kolon, sığmayan kısım "…" */
 const UZUN_METINLER = new Set<string>(['firma_adi', 'sozlesme_konusu'])
 
 type TarihHatalari = Partial<Record<'ilk_tarih' | 'son_tarih', string>>
@@ -139,11 +139,13 @@ export function TaseronHakedisleriPage() {
           )
         }
 
-        // Uzun adlar (en uzun ~130 karakter) satıra kırılır; diğerleri tek satır
-        return (
-          <span className={UZUN_METINLER.has(alan) ? 'block min-w-56' : 'whitespace-nowrap'}>
+        // Hepsi tek satır; uzun adlar kesilir, tamamı üzerine gelince görünür
+        return UZUN_METINLER.has(alan) ? (
+          <span className="block w-112 truncate" title={String(deger)}>
             {deger}
           </span>
+        ) : (
+          <span className="whitespace-nowrap">{deger}</span>
         )
       },
     })),
