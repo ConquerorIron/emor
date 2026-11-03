@@ -1079,6 +1079,10 @@
       "tarihZorunlu": "Date is required.",
       "sonTarihOnce": "End date cannot be before the start date."
     },
+    "projeyeGoreFiltrele": "Filter by project",
+    "firmayaGoreFiltrele": "Filter by company",
+    "kayitSayisi": "{{sayi}} records",
+    "suzulmusKayitSayisi": "{{sayi}} of {{toplam}} records",
     "taseronHakedisleri": {
       "baslik": "Subcontractor Progress Payments",
       "aciklamaMetni": "Subcontract progress payments from the ERP, one row per payment, with currency totals above and below the table. The report is read from the ERP when you press Run Report.",

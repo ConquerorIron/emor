@@ -1079,6 +1079,10 @@
       "tarihZorunlu": "Tarih zorunludur.",
       "sonTarihOnce": "Son tarih ilk tarihten önce olamaz."
     },
+    "projeyeGoreFiltrele": "Projeye göre filtrele",
+    "firmayaGoreFiltrele": "Firmaya göre filtrele",
+    "kayitSayisi": "{{sayi}} kayıt",
+    "suzulmusKayitSayisi": "{{toplam}} kayıttan {{sayi}} kayıt",
     "taseronHakedisleri": {
       "baslik": "Taşeron Hakedişleri",
       "aciklamaMetni": "ERP'deki taşeron sözleşme hakedişleri, hakediş başına bir satır; tablonun üstünde ve altında para birimine göre toplamlar. Rapor, Raporu Çalıştır'a basıldığında ERP'den okunur.",

@@ -121,7 +121,23 @@ final class TaseronHakedisleriRaporu
     }
 
     /**
-     * Para kodu başına genel toplam (ekranın ve Excel'in TOPLAM satırları).
+     * Ekranda süzülmüş hakedişler, verilen (ekrandaki) sırayla; proc arada
+     * değiştiyse artık olmayan kimlik atlanır.
+     *
+     * @param  list<array<string, int|string|float|null>>  $satirlar  hakedisler()'in sonucu
+     * @param  list<int>  $idler
+     * @return list<array<string, int|string|float|null>>
+     */
+    public function sec(array $satirlar, array $idler): array
+    {
+        $kimlige = array_column($satirlar, null, 'hakedis_id');
+
+        return array_values(array_filter(array_map(fn (int $id): ?array => $kimlige[$id] ?? null, $idler)));
+    }
+
+    /**
+     * Para kodu başına genel toplam (Excel'in TOPLAM satırları; ekran aynı
+     * hesabı süzülmüş satırlarla kendisi yapar).
      *
      * @param  list<array<string, int|string|float|null>>  $satirlar  hakedisler()'in sonucu
      * @return list<array<string, string|float>>

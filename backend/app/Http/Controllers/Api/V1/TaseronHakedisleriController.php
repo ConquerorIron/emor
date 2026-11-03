@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Rapor\TaseronHakedisleriExcelRequest;
 use App\Http\Requests\Rapor\TaseronHakedisleriRequest;
 use App\Services\Rapor\TaseronHakedisleriExcelAktarici;
 use App\Services\Rapor\TaseronHakedisleriRaporu;
@@ -12,8 +13,9 @@ use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
- * Raporlar → Taşeron Hakedişleri: ERP proc'unun hakedişleri, para koduna
- * göre toplamlarıyla (TaseronHakedisleriRaporu). Yalnız rapor;
+ * Raporlar → Taşeron Hakedişleri: ERP proc'unun hakedişleri
+ * (TaseronHakedisleriRaporu). Ekran süzme, sayfalama ve toplamları
+ * tarayıcıda yapar; Excel ekranda süzülen hakedişleri alır. Yalnız rapor;
  * `taseron_hakedisleri.goruntule` izniyle korunur.
  */
 final class TaseronHakedisleriController extends Controller
@@ -24,17 +26,17 @@ final class TaseronHakedisleriController extends Controller
 
     public function index(TaseronHakedisleriRequest $request): JsonResponse
     {
-        $satirlar = $this->rapor->hakedisler($this->erpKullaniciId($request), $request->parametreler());
-
         return response()->json([
-            'data' => $satirlar,
-            'toplamlar' => $this->rapor->toplamlar($satirlar),
+            'data' => $this->rapor->hakedisler($this->erpKullaniciId($request), $request->parametreler()),
         ]);
     }
 
-    public function excel(TaseronHakedisleriRequest $request, TaseronHakedisleriExcelAktarici $aktarici): BinaryFileResponse
+    public function excel(TaseronHakedisleriExcelRequest $request, TaseronHakedisleriExcelAktarici $aktarici): BinaryFileResponse
     {
-        $satirlar = $this->rapor->hakedisler($this->erpKullaniciId($request), $request->parametreler());
+        $satirlar = $this->rapor->sec(
+            $this->rapor->hakedisler($this->erpKullaniciId($request), $request->parametreler()),
+            $request->hakedisIdleri(),
+        );
 
         return response()
             ->download($aktarici->olustur($satirlar, $this->rapor->toplamlar($satirlar)), 'taseron-hakedisleri.xlsx', [

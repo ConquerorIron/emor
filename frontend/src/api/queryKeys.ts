@@ -50,10 +50,8 @@ export const queryKeys = {
     erpProjeleri: ['kesinti', 'erpProjeleri'],
     erpFirmalari: ['kesinti', 'erpFirmalari'],
   },
-  // ERP rapor proc'ları: her "Raporu Çalıştır" ayrı sorgu (no), önbellekten tazelenmez
+  // ERP raporlarının süzgeç seçenekleri (raporun kendisi "Raporu Çalıştır"la, mutation)
   raporlar: {
-    taseronHakedisleri: (parametreler: Record<string, unknown>, no: number) =>
-      ['raporlar', 'taseronHakedisleri', parametreler, no] as const,
     taseronHakedisSecenekleri: ['raporlar', 'taseronHakedisleri', 'secenekler'],
   },
   /** Ekran tasarım motoru — formu çizen yayındaki düzen */

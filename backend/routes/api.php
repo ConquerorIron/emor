@@ -676,7 +676,8 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/raporlar/taseron-hakedisleri', [TaseronHakedisleriController::class, 'index'])
                 ->middleware('throttle:erp-rapor')
                 ->name('raporlar.taseron-hakedisleri');
-            Route::get('/raporlar/taseron-hakedisleri/excel', [TaseronHakedisleriController::class, 'excel'])
+            // Excel'e Aktar: ekranda süzülen hakedişlerin kimlikleri gövdede (POST)
+            Route::post('/raporlar/taseron-hakedisleri/excel', [TaseronHakedisleriController::class, 'excel'])
                 ->middleware('throttle:erp-rapor')
                 ->name('raporlar.taseron-hakedisleri.excel');
             // Proje kodu / firma adı süzgeçleri: canlı ERP'nin WEB_ERP_* view'ları

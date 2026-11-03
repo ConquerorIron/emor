@@ -1,16 +1,19 @@
-import { skipToken, useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
+import { ALAN_KUTUSU } from '@/components/alanStilleri'
 import { Button } from '@/components/Button'
 import { DataTable, type DataTableKolonu, type ToplamSatiri } from '@/components/DataTable'
 import { ErrorState } from '@/components/ErrorState'
-import { SelectField, type SecenekOgesi } from '@/components/SelectField'
+import { Pagination } from '@/components/Pagination'
+import { MultiSelectField, SelectField, type SecenekOgesi } from '@/components/SelectField'
 import { TarihInput } from '@/components/TarihInput'
 import { tutarGoster } from '@/features/kesinti/bicim'
+import { sayfaBoyutuOku } from '@/utils/sayfaBoyutu'
 import { bugunIso, tarihGoster } from '@/utils/tarih'
 
 import {
@@ -20,6 +23,7 @@ import {
   taseronHakedisleriGetir,
   taseronHakedisSecenekleriGetir,
   type HakedisSatiri,
+  type HakedisToplami,
   type RaporParametreleri,
 } from './taseronHakedisleriApi'
 
@@ -29,16 +33,61 @@ const ILK_TARIH = '2000-01-01'
 /** Tarihler dışında ortalanan kısa kolonlar */
 const ORTALI = new Set<string>(['hakedis_no', 'para_kodu', 'onay_saati'])
 
-/** Uzun metinler (en uzun ~130 karakter): sabit geniş kolon, sığmayan kısım "…" */
-const UZUN_METINLER = new Set<string>(['firma_adi', 'sozlesme_konusu'])
+/**
+ * Sabit genişlikli metin kolonları: tek satır, sığmayan kısım "…", tamamı
+ * üzerine gelince (kullanıcı isteği 2026-11-03). Firma / sözleşme konusu
+ * ~130 karaktere, proje adı 29'a, hakediş no 16'ya kadar çıkıyor.
+ */
+const SABIT_GENISLIK: Partial<Record<string, string>> = {
+  firma_adi: 'w-112',
+  sozlesme_konusu: 'w-112',
+  proje_adi: 'w-32',
+  hakedis_no: 'w-20',
+}
 
 type TarihHatalari = Partial<Record<'ilk_tarih' | 'son_tarih', string>>
+
+interface AnlikSuzgec {
+  projeler: string[]
+  firmalar: string[]
+}
+
+const BOS_SUZGEC: AnlikSuzgec = { projeler: [], firmalar: [] }
+
+/** Sonuçtaki farklı değerler, Türkçe sırayla (ZONE 7, ZONE 10'dan önce) */
+function secenekler(degerler: string[]): SecenekOgesi[] {
+  return [...new Set(degerler)]
+    .sort((a, b) => a.localeCompare(b, 'tr', { numeric: true }))
+    .map((deger) => ({ value: deger, label: deger }))
+}
+
+/** Para koduna göre genel toplam (süzülen satırların tamamı, sayfa değil) */
+function paraKodunaGoreTopla(satirlar: HakedisSatiri[]): HakedisToplami[] {
+  const toplamlar = new Map<string, HakedisToplami>()
+
+  for (const satir of satirlar) {
+    const toplam =
+      toplamlar.get(satir.para_kodu) ??
+      ({
+        para_kodu: satir.para_kodu,
+        ...Object.fromEntries(TUTARLAR.map((alan) => [alan, 0])),
+      } as HakedisToplami)
+    for (const alan of TUTARLAR) {
+      toplam[alan] += satir[alan]
+    }
+    toplamlar.set(satir.para_kodu, toplam)
+  }
+
+  return [...toplamlar.values()].sort((a, b) => a.para_kodu.localeCompare(b.para_kodu, 'tr'))
+}
 
 /**
  * Raporlar → Taşeron Hakedişleri (kullanıcı isteği 2026-11-03): ERP rapor
  * proc'unun hakedişleri, hakediş başına bir satır, kolonlar kullanıcının
- * verdiği sırayla; para koduna göre toplamlarıyla. Proc ağır (tüm tarihlerde
- * ~9 sn): yalnız "Raporu Çalıştır"la çalışır, sonuç kendiliğinden tazelenmez.
+ * verdiği sırayla. Proc ağır (tüm tarihlerde ~9 sn): yalnız "Raporu
+ * Çalıştır"la çalışır (mutation — sayfa boyutu değişince tüm sorguların
+ * tazelenmesi raporu yeniden çalıştırmaz). Gelen veride proje / firma süzme,
+ * sayfalama ve para koduna göre toplamlar tarayıcıda, anında yapılır.
  */
 export function TaseronHakedisleriPage() {
   const { t } = useTranslation()
@@ -50,28 +99,19 @@ export function TaseronHakedisleriPage() {
   }))
   // i18n anahtarları: dil değişince mesaj da değişir
   const [hatalar, setHatalar] = useState<TarihHatalari>({})
-  // Son çalıştırma: tablo ve Excel bu parametrelerle; her basış yeni sorgu (no)
-  const [calistirma, setCalistirma] = useState<{
-    parametreler: RaporParametreleri
-    no: number
-  } | null>(null)
+  const [suzgec, setSuzgec] = useState<AnlikSuzgec>(BOS_SUZGEC)
+  const [sayfa, setSayfa] = useState(1)
+  // Ortak sayfa boyutu tercihi; Pagination değiştirince sayfaDegistir'de yeniden okunur
+  const [boyut, setBoyut] = useState(sayfaBoyutuOku)
 
-  const secenekler = useQuery({
+  const erpSecenekleri = useQuery({
     queryKey: queryKeys.raporlar.taseronHakedisSecenekleri,
     queryFn: taseronHakedisSecenekleriGetir,
     staleTime: 5 * 60_000,
   })
 
-  const rapor = useQuery({
-    queryKey: queryKeys.raporlar.taseronHakedisleri(
-      { ...calistirma?.parametreler },
-      calistirma?.no ?? 0,
-    ),
-    queryFn: calistirma ? () => taseronHakedisleriGetir(calistirma.parametreler) : skipToken,
-    staleTime: Infinity,
-    // Proc hatası (ör. yetki) yeniden denenirse bekleme iki katına çıkar
-    retry: false,
-  })
+  // Son çalıştırmanın parametreleri rapor.variables'ta: Excel aynılarıyla iner
+  const rapor = useMutation({ mutationFn: taseronHakedisleriGetir })
 
   const excel = useMutation({
     mutationFn: taseronHakedisleriExcel,
@@ -97,19 +137,42 @@ export function TaseronHakedisleriPage() {
 
     setHatalar(yeniHatalar)
     if (Object.keys(yeniHatalar).length === 0) {
-      setCalistirma((onceki) => ({ parametreler, no: (onceki?.no ?? 0) + 1 }))
+      // Önceki sonucun süzgeçleri yeni sonuçta anlamsız olabilir
+      setSuzgec(BOS_SUZGEC)
+      setSayfa(1)
+      rapor.mutate(parametreler)
     }
   }
 
-  const projeSecenekleri: SecenekOgesi[] = (secenekler.data?.projeler ?? []).map((proje) => ({
+  const suzgecDegistir = (alan: keyof AnlikSuzgec, degerler: string[]) => {
+    setSuzgec((onceki) => ({ ...onceki, [alan]: degerler }))
+    setSayfa(1)
+  }
+
+  const projeSecenekleri: SecenekOgesi[] = (erpSecenekleri.data?.projeler ?? []).map((proje) => ({
     value: proje.kod,
     label: proje.ad && proje.ad !== proje.kod ? `${proje.kod} - ${proje.ad}` : proje.kod,
   }))
-  const firmaSecenekleri: SecenekOgesi[] = (secenekler.data?.firmalar ?? []).map((ad) => ({
+  const firmaSecenekleri: SecenekOgesi[] = (erpSecenekleri.data?.firmalar ?? []).map((ad) => ({
     value: ad,
     label: ad,
   }))
-  const secenekHatasi = secenekler.error ? t(apiErrorKey(secenekler.error)) : undefined
+  const secenekHatasi = erpSecenekleri.error ? t(apiErrorKey(erpSecenekleri.error)) : undefined
+
+  const tumSatirlar = rapor.data?.data ?? []
+  const suzgecProjeleri = secenekler(tumSatirlar.map((satir) => satir.proje_adi))
+  const suzgecFirmalari = secenekler(tumSatirlar.map((satir) => satir.firma_adi))
+  const satirlar = tumSatirlar.filter(
+    (satir) =>
+      (suzgec.projeler.length === 0 || suzgec.projeler.includes(satir.proje_adi)) &&
+      (suzgec.firmalar.length === 0 || suzgec.firmalar.includes(satir.firma_adi)),
+  )
+
+  // Sayfalama tarayıcıda; 0 = "Hepsi"
+  const toplamSayfa = boyut === 0 ? 1 : Math.max(1, Math.ceil(satirlar.length / boyut))
+  const gecerliSayfa = Math.min(sayfa, toplamSayfa)
+  const ilkIndeks = boyut === 0 ? 0 : (gecerliSayfa - 1) * boyut
+  const sayfaSatirlari = boyut === 0 ? satirlar : satirlar.slice(ilkIndeks, ilkIndeks + boyut)
 
   const kolonBasligi = (alan: string) => t(`raporlar.taseronHakedisleri.kolon.${alan}`)
   const kolonlar: DataTableKolonu<HakedisSatiri>[] = [
@@ -118,7 +181,9 @@ export function TaseronHakedisleriPage() {
       baslik: kolonBasligi('sira_no'),
       hizala: 'orta',
       render: (_satir, sira) => (
-        <span className="text-slate-500 tabular-nums dark:text-slate-400">{sira + 1}</span>
+        <span className="text-slate-500 tabular-nums dark:text-slate-400">
+          {ilkIndeks + sira + 1}
+        </span>
       ),
     },
     ...KOLONLAR.map(({ alan, tur }): DataTableKolonu<HakedisSatiri> => ({
@@ -139,9 +204,10 @@ export function TaseronHakedisleriPage() {
           )
         }
 
-        // Hepsi tek satır; uzun adlar kesilir, tamamı üzerine gelince görünür
-        return UZUN_METINLER.has(alan) ? (
-          <span className="block w-112 truncate" title={String(deger)}>
+        const genislik = SABIT_GENISLIK[alan]
+
+        return genislik ? (
+          <span className={`block truncate ${genislik}`} title={String(deger)}>
             {deger}
           </span>
         ) : (
@@ -152,7 +218,7 @@ export function TaseronHakedisleriPage() {
   ]
 
   // Para koduna göre genel toplam, tablonun üstünde ve altında
-  const toplamSatirlari: ToplamSatiri[] = (rapor.data?.toplamlar ?? []).map((toplam) => ({
+  const toplamSatirlari: ToplamSatiri[] = paraKodunaGoreTopla(satirlar).map((toplam) => ({
     anahtar: toplam.para_kodu,
     etiket: t('raporlar.toplam'),
     hucreler: {
@@ -168,6 +234,21 @@ export function TaseronHakedisleriPage() {
     },
   }))
 
+  const sayfalama = (konum: 'ust' | 'alt') => (
+    <Pagination
+      sayfa={gecerliSayfa}
+      toplamSayfa={toplamSayfa}
+      sayfaDegistir={(yeni) => {
+        setSayfa(yeni)
+        setBoyut(sayfaBoyutuOku())
+      }}
+      disabled={rapor.isPending}
+      boyutSeciciId={`hakedis-sayfa-boyutu-${konum}`}
+    />
+  )
+
+  const suzuldu = suzgec.projeler.length > 0 || suzgec.firmalar.length > 0
+
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -175,10 +256,13 @@ export function TaseronHakedisleriPage() {
         <Button
           variant="yesil"
           yukleniyor={excel.isPending}
-          disabled={!rapor.isSuccess || rapor.isFetching}
+          disabled={!rapor.isSuccess || satirlar.length === 0}
           onClick={() => {
-            if (calistirma) {
-              excel.mutate(calistirma.parametreler)
+            if (rapor.variables) {
+              excel.mutate({
+                parametreler: rapor.variables,
+                hakedisIdleri: satirlar.map((satir) => satir.hakedis_id),
+              })
             }
           }}
         >
@@ -189,11 +273,12 @@ export function TaseronHakedisleriPage() {
         {t('raporlar.taseronHakedisleri.aciklamaMetni')}
       </p>
 
+      {/* Alanlar alttan hizalı: düğme kutularla aynı satırda ve aynı yükseklikte */}
       <form
         noValidate
         onSubmit={calistir}
         aria-label={t('raporlar.parametreler')}
-        className="mt-4 grid items-start gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-[10rem_10rem_minmax(0,1fr)_minmax(0,1fr)_auto] dark:border-slate-700"
+        className="mt-4 grid items-end gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-[10rem_10rem_minmax(0,1fr)_minmax(0,1fr)_auto] dark:border-slate-700"
       >
         <TarihInput
           id="hakedis-ilk-tarih"
@@ -216,7 +301,7 @@ export function TaseronHakedisleriPage() {
           value={projeSecenekleri.find((s) => s.value === parametreler.proje_kodu) ?? null}
           onChange={(secenek) => degistir('proje_kodu', secenek?.value ?? '')}
           isClearable
-          yukleniyor={secenekler.isPending}
+          yukleniyor={erpSecenekleri.isPending}
           hata={secenekHatasi}
           placeholder={t('ortak.hepsi')}
         />
@@ -227,13 +312,16 @@ export function TaseronHakedisleriPage() {
           value={firmaSecenekleri.find((s) => s.value === parametreler.firma_adi) ?? null}
           onChange={(secenek) => degistir('firma_adi', secenek?.value ?? '')}
           isClearable
-          yukleniyor={secenekler.isPending}
+          yukleniyor={erpSecenekleri.isPending}
           hata={secenekHatasi}
           placeholder={t('ortak.hepsi')}
         />
-        {/* Etiket yüksekliği kadar aşağıda: kutularla aynı hizada */}
-        <div className="sm:col-span-2 lg:col-span-1 lg:pt-6">
-          <Button type="submit" yukleniyor={rapor.isFetching} className="w-full lg:w-auto">
+        <div className="sm:col-span-2 lg:col-span-1">
+          <Button
+            type="submit"
+            yukleniyor={rapor.isPending}
+            className={`w-full lg:w-auto ${ALAN_KUTUSU}`}
+          >
             {t('raporlar.calistir')}
           </Button>
         </div>
@@ -249,25 +337,78 @@ export function TaseronHakedisleriPage() {
         </p>
       ) : null}
 
-      {calistirma === null ? (
+      {rapor.isIdle ? (
         <div className="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
           {t('raporlar.onceCalistirin')}
         </div>
-      ) : rapor.error ? (
+      ) : rapor.isError ? (
         <div className="mt-4">
-          <ErrorState mesaj={t(apiErrorKey(rapor.error))} tekrarDene={() => void rapor.refetch()} />
-        </div>
-      ) : (
-        <div className="mt-4">
-          <DataTable
-            kolonlar={kolonlar}
-            satirlar={rapor.data?.data ?? []}
-            satirAnahtari={(satir) => satir.hakedis_id}
-            yukleniyor={rapor.isFetching}
-            ustKaydirma
-            toplamSatirlari={toplamSatirlari}
+          <ErrorState
+            mesaj={t(apiErrorKey(rapor.error))}
+            tekrarDene={() => {
+              if (rapor.variables) {
+                rapor.mutate(rapor.variables)
+              }
+            }}
           />
         </div>
+      ) : (
+        <>
+          {/* Gelen veride anında süzme: proc yeniden çalışmaz */}
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <MultiSelectField
+              id="hakedis-suz-proje"
+              label={t('raporlar.projeyeGoreFiltrele')}
+              options={suzgecProjeleri}
+              value={suzgecProjeleri.filter((s) => suzgec.projeler.includes(s.value))}
+              onChange={(secilenler) =>
+                suzgecDegistir(
+                  'projeler',
+                  secilenler.map((s) => s.value),
+                )
+              }
+              placeholder={t('ortak.hepsi')}
+            />
+            <MultiSelectField
+              id="hakedis-suz-firma"
+              label={t('raporlar.firmayaGoreFiltrele')}
+              options={suzgecFirmalari}
+              value={suzgecFirmalari.filter((s) => suzgec.firmalar.includes(s.value))}
+              onChange={(secilenler) =>
+                suzgecDegistir(
+                  'firmalar',
+                  secilenler.map((s) => s.value),
+                )
+              }
+              placeholder={t('ortak.hepsi')}
+            />
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              {rapor.isSuccess
+                ? suzuldu
+                  ? t('raporlar.suzulmusKayitSayisi', {
+                      sayi: satirlar.length,
+                      toplam: tumSatirlar.length,
+                    })
+                  : t('raporlar.kayitSayisi', { sayi: satirlar.length })
+                : null}
+            </p>
+            {sayfalama('ust')}
+          </div>
+          <div className="mt-3">
+            <DataTable
+              kolonlar={kolonlar}
+              satirlar={sayfaSatirlari}
+              satirAnahtari={(satir) => satir.hakedis_id}
+              yukleniyor={rapor.isPending}
+              ustKaydirma
+              toplamSatirlari={toplamSatirlari}
+            />
+          </div>
+          <div className="mt-3">{sayfalama('alt')}</div>
+        </>
       )}
     </>
   )

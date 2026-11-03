@@ -37,9 +37,14 @@ const tutarlar = (imalat: number) => ({
   odenen_tutar: 0,
 })
 
-const hakedis = (hakedis_id: number, proje_adi: string, imalat: number): HakedisSatiri => ({
+const hakedis = (
+  hakedis_id: number,
+  proje_adi: string,
+  imalat: number,
+  firma_adi = 'ATİLLA GIDA',
+): HakedisSatiri => ({
   hakedis_id,
-  firma_adi: 'ATİLLA GIDA',
+  firma_adi,
   proje_adi,
   sozlesme_no: 'HAB-26-1078.03.Z01',
   sozlesme_konusu: 'YEMEK TEMİNİ HİZMETLERİ',
@@ -60,15 +65,16 @@ const hakedis = (hakedis_id: number, proje_adi: string, imalat: number): Hakedis
 const RAPOR: HakedisRaporu = {
   data: [
     { ...hakedis(3, 'ZONE 7', 240663.52), onay_tarihi: '2026-07-06', onay_saati: '13:53:14' },
-    hakedis(4, 'ZONE 10', 1000),
+    hakedis(4, 'ZONE 10', 1000, 'BETA YAPI'),
   ],
-  toplamlar: [{ para_kodu: 'TL', ...tutarlar(241663.52) }],
 }
 
 const VARSAYILAN = { ilk_tarih: '2000-01-01', son_tarih: bugunIso(), proje_kodu: '', firma_adi: '' }
 
 describe('TaseronHakedisleriPage', () => {
   beforeEach(() => {
+    // Ortak sayfa boyutu tercihi (utils/sayfaBoyutu)
+    localStorage.setItem('erp.sayfaBoyutu', '25')
     api.secenekler.mockResolvedValue({
       projeler: [{ kod: 'ZONE 10', ad: 'ZONE 10' }],
       firmalar: ['ATİLLA GIDA'],
@@ -85,6 +91,7 @@ describe('TaseronHakedisleriPage', () => {
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()
+    localStorage.clear()
   })
 
   it('rapor yalnız Raporu Çalıştır ile çalışır; hakediş başına satır, kolonlar kullanıcının sırasında, para koduna göre toplamlı', async () => {
@@ -95,7 +102,7 @@ describe('TaseronHakedisleriPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
 
     expect(await screen.findByText('ZONE 7')).toBeInTheDocument()
-    expect(api.rapor).toHaveBeenCalledWith(VARSAYILAN)
+    expect(api.rapor.mock.calls[0][0]).toEqual(VARSAYILAN)
     expect(screen.getAllByRole('columnheader').map((baslik) => baslik.textContent)).toEqual([
       'Sıra No',
       'Firma Adı',
@@ -137,9 +144,59 @@ describe('TaseronHakedisleriPage', () => {
     // Toplam satırı tablonun üstünde ve altında
     expect(screen.getAllByText('241.663,52')).toHaveLength(2)
 
+    // Excel aynı parametreler ve ekrandaki hakedişlerle (ekrandaki sırayla)
     fireEvent.click(screen.getByRole('button', { name: "Excel'e Aktar" }))
     await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
-    expect(api.excel.mock.calls[0][0]).toEqual(VARSAYILAN)
+    expect(api.excel.mock.calls[0][0]).toEqual({ parametreler: VARSAYILAN, hakedisIdleri: [3, 4] })
+  })
+
+  it('gelen veride proje ve firmaya göre anında süzülür; proc yeniden çalışmaz', async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
+    expect(await screen.findByText('2 kayıt')).toBeInTheDocument()
+
+    const proje = screen.getByLabelText('Projeye göre filtrele')
+    fireEvent.keyDown(proje, { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('option', { name: 'ZONE 10' }))
+
+    expect(await screen.findByText('2 kayıttan 1 kayıt')).toBeInTheDocument()
+    expect(screen.queryByText('240.663,52')).not.toBeInTheDocument()
+    // Toplamlar süzülen satırlardan: satırın kendisi + üst ve alt toplam
+    expect(screen.getAllByText('1.000,00')).toHaveLength(3)
+
+    // Firma süzgeci projeyle birlikte uygulanır
+    const firma = screen.getByLabelText('Firmaya göre filtrele')
+    fireEvent.keyDown(firma, { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('option', { name: 'ATİLLA GIDA' }))
+    expect(await screen.findByText('2 kayıttan 0 kayıt')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: "Excel'e Aktar" })).toBeDisabled()
+
+    fireEvent.keyDown(firma, { key: 'Backspace' })
+    expect(await screen.findByText('2 kayıttan 1 kayıt')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: "Excel'e Aktar" }))
+    await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
+    expect(api.excel.mock.calls[0][0]).toEqual({ parametreler: VARSAYILAN, hakedisIdleri: [4] })
+    expect(api.rapor).toHaveBeenCalledTimes(1)
+  })
+
+  it('sayfalama tarayıcıda; Sıra No sayfalar arasında devam eder', async () => {
+    api.rapor.mockResolvedValue({
+      data: Array.from({ length: 30 }, (_, i) => hakedis(i + 1, `PROJE ${i + 1}`, 10)),
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
+    expect(await screen.findByText('30 kayıt')).toBeInTheDocument()
+
+    // Başlık + üst toplam + 25 satır + alt toplam
+    expect(screen.getAllByRole('row')).toHaveLength(28)
+    expect(screen.getByText('PROJE 25')).toBeInTheDocument()
+    expect(screen.queryByText('PROJE 26')).not.toBeInTheDocument()
+    // Toplam bütün satırların: 30 × 10
+    expect(screen.getAllByText('300,00')).toHaveLength(2)
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Sonraki' })[0])
+    expect(await screen.findByText('PROJE 26')).toBeInTheDocument()
+    expect(screen.getAllByRole('row')).toHaveLength(8)
+    // İlk hücre Sıra No
+    expect(within(screen.getAllByRole('row')[2]).getAllByRole('cell')[0]).toHaveTextContent(/^26$/)
   })
 
   it('tarihler zorunlu; son tarih ilk tarihten önce olamaz', async () => {
@@ -155,12 +212,11 @@ describe('TaseronHakedisleriPage', () => {
 
     fireEvent.change(screen.getByLabelText('Son Tarih'), { target: { value: '30.06.2026' } })
     fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
-    await waitFor(() =>
-      expect(api.rapor).toHaveBeenCalledWith({
-        ...VARSAYILAN,
-        ilk_tarih: '2026-06-01',
-        son_tarih: '2026-06-30',
-      }),
-    )
+    await waitFor(() => expect(api.rapor).toHaveBeenCalledTimes(1))
+    expect(api.rapor.mock.calls[0][0]).toEqual({
+      ...VARSAYILAN,
+      ilk_tarih: '2026-06-01',
+      son_tarih: '2026-06-30',
+    })
   })
 })

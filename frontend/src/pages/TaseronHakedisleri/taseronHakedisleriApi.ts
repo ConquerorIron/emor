@@ -83,12 +83,11 @@ export const KOLONLAR: {
   { alan: 'odenen_tutar', tur: 'tutar' },
 ]
 
-/** Para kodu başına genel toplam */
+/** Para kodu başına genel toplam (ekranda süzülen satırlardan) */
 export type HakedisToplami = { para_kodu: string } & Record<Tutar, number>
 
 export interface HakedisRaporu {
   data: HakedisSatiri[]
-  toplamlar: HakedisToplami[]
 }
 
 /** Süzgeç seçenekleri: proc proje KODU ve firma ADIYLA süzer */
@@ -113,10 +112,23 @@ export async function taseronHakedisSecenekleriGetir(): Promise<HakedisSecenekle
   return yanit.data.data
 }
 
-/** Raporu aynı parametrelerle yeniden çalıştırıp .xlsx olarak indirir */
-export async function taseronHakedisleriExcel(parametreler: RaporParametreleri): Promise<void> {
+/**
+ * Raporu aynı parametrelerle yeniden çalıştırıp ekranda süzülen hakedişleri
+ * (ekrandaki sırayla) .xlsx olarak indirir — Excel ekranla aynı satırları içerir
+ */
+export async function taseronHakedisleriExcel({
+  parametreler,
+  hakedisIdleri,
+}: {
+  parametreler: RaporParametreleri
+  hakedisIdleri: number[]
+}): Promise<void> {
   const yanit = await api
-    .get<Blob>(`${ADRES}/excel`, { params: parametreler, responseType: 'blob' })
+    .post<Blob>(
+      `${ADRES}/excel`,
+      { ...parametreler, hakedis_idler: hakedisIdleri },
+      { responseType: 'blob' },
+    )
     .catch(blobHatasiniCoz)
 
   dosyayiIndir(yanit.data, 'taseron-hakedisleri.xlsx')

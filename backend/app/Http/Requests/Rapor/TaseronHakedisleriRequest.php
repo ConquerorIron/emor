@@ -10,7 +10,7 @@ use Illuminate\Foundation\Http\FormRequest;
  * Taşeron Hakedişleri raporunun parametreleri (ERP proc'unun girdileri).
  * Yetki rota middleware'indedir (`can:taseron_hakedisleri.goruntule`).
  */
-final class TaseronHakedisleriRequest extends FormRequest
+class TaseronHakedisleriRequest extends FormRequest
 {
     public function authorize(): bool
     {

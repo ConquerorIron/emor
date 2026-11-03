@@ -150,11 +150,7 @@ final class TaseronHakedisleriRaporTest extends TestCase
             ->assertJsonPath('data.2.onay_saati', '13:53:14')
             ->assertJsonPath('data.2.hakedis_durumu', '')
             ->assertJsonPath('data.2.imalat', 58776.99)
-            ->assertJsonPath('data.2.odeme_talebi_tutari', 816187.76)
-            ->assertJsonPath('toplamlar.0.para_kodu', 'TL')
-            ->assertJsonPath('toplamlar.0.imalat', 240663.52)
-            ->assertJsonPath('toplamlar.1.para_kodu', 'USD')
-            ->assertJsonPath('toplamlar.1.imalat', 100.5);
+            ->assertJsonPath('data.2.odeme_talebi_tutari', 816187.76);
 
         // Boş proje / firma = hepsi (NULL); proc kullanıcının ERP kimliğiyle süzer
         $this->assertSame(
@@ -170,7 +166,7 @@ final class TaseronHakedisleriRaporTest extends TestCase
         $this->actingAs($this->raporcu(null))
             ->getJson(self::ADRES.'?'.self::TARIHLER.'&proje_kodu=ZONE%2010&firma_adi='.urlencode('ATİLLA GIDA'))
             ->assertOk()
-            ->assertExactJson(['data' => [], 'toplamlar' => []]);
+            ->assertExactJson(['data' => []]);
 
         $this->assertSame(
             [[-1, ['ilk_tarih' => '2026-01-01', 'son_tarih' => '2026-11-03', 'proje_kodu' => 'ZONE 10', 'firma_adi' => 'ATİLLA GIDA']]],
@@ -183,8 +179,8 @@ final class TaseronHakedisleriRaporTest extends TestCase
         $this->erpHakedisleri([]);
         $this->actingAs(User::factory()->create(['erp_kullanici_id' => 2]));
 
-        foreach (['', '/excel', '/secenekler'] as $uc) {
-            $this->getJson(self::ADRES.$uc.'?'.self::TARIHLER)
+        foreach ([['get', ''], ['post', '/excel'], ['get', '/secenekler']] as [$metot, $uc]) {
+            $this->json($metot, self::ADRES.$uc.'?'.self::TARIHLER, ['hakedis_idler' => []])
                 ->assertForbidden()
                 ->assertJsonPath('kod', 'ERISIM_ENGELLI');
         }
@@ -205,14 +201,23 @@ final class TaseronHakedisleriRaporTest extends TestCase
         $this->assertSame([], $this->cagrilar);
     }
 
-    public function test_excel_ekranin_kolon_sirasiyla_ve_para_koduna_gore_toplamla_iner(): void
+    public function test_excel_ekranda_suzulen_hakedislerle_kolon_sirasiyla_ve_toplamla_iner(): void
     {
         $this->erpHakedisleri([
             $this->hakedis(1, '2026-05-16', 'ZONE 7', 'TL', ['IMALAT_TUTARI' => '10.5', 'ODENEN_TUTAR' => '3']),
             $this->hakedis(2, '2026-06-30', 'ZONE 10', 'EUR', ['IMALAT_TUTARI' => '7', 'ONAY_ZAMANI' => null]),
+            // Ekranda süzülüp dışarıda kalan: Excel'e ve toplama girmez
+            $this->hakedis(3, '2026-07-01', 'ZONE 8', 'TL', ['IMALAT_TUTARI' => '100']),
         ]);
+        $this->actingAs($this->raporcu());
+        $parametreler = ['ilk_tarih' => '2026-01-01', 'son_tarih' => '2026-11-03', 'proje_kodu' => '', 'firma_adi' => ''];
 
-        $yanit = $this->actingAs($this->raporcu())->get(self::ADRES.'/excel?'.self::TARIHLER)->assertOk();
+        $this->postJson(self::ADRES.'/excel', $parametreler)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrorFor('hakedis_idler', 'hatalar');
+
+        // Ekrandaki sırayla; proc'ta artık olmayan kimlik (99) atlanır
+        $yanit = $this->post(self::ADRES.'/excel', [...$parametreler, 'hakedis_idler' => [2, 99, 1]])->assertOk();
         $this->assertStringContainsString('taseron-hakedisleri.xlsx', (string) $yanit->headers->get('Content-Disposition'));
 
         $sayfa = IOFactory::load($yanit->baseResponse->getFile()->getPathname())->getActiveSheet();
