@@ -230,6 +230,19 @@ export function KullanicilarPage() {
       ),
     },
     {
+      // ERP KULLANICI_ID (salt okunur): ERP'nin kullanıcı listesinden / girişten
+      // gelir; rapor proc'larının @KullaniciId'si ve kaydı yapan kullanıcı
+      anahtar: 'erp_kullanici_id',
+      baslik: t('ayarlar.kullanicilar.erpKullaniciId'),
+      hizala: 'orta',
+      render: (k) =>
+        k.erp_kullanici_id === null ? (
+          <span className="text-slate-400">—</span>
+        ) : (
+          <span className="tabular-nums">{k.erp_kullanici_id}</span>
+        ),
+    },
+    {
       anahtar: 'giris',
       baslik: t('ayarlar.kullanicilar.giris'),
       render: (k) => (

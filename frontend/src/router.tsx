@@ -261,6 +261,19 @@ export const router = createBrowserRouter([
         ],
       },
       {
+        element: <IzinAlani izin="gider_yansitma_faturalari.goruntule" />,
+        children: [
+          {
+            path: 'raporlar/gider-yansitma-faturalari',
+            lazy: async () => ({
+              Component: (
+                await import('@/pages/GiderYansitmaFaturalari/GiderYansitmaFaturalariPage')
+              ).GiderYansitmaFaturalariPage,
+            }),
+          },
+        ],
+      },
+      {
         element: <IzinAlani izin="ekran_tasarimi.goruntule" />,
         children: [
           {

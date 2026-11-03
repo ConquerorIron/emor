@@ -7,10 +7,10 @@ namespace App\Http\Requests\Rapor;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Taşeron Hakedişleri raporunun parametreleri (ERP proc'unun girdileri).
- * Yetki rota middleware'indedir (`can:taseron_hakedisleri.goruntule`).
+ * ERP raporlarının ortak parametreleri (proc girdileri: ErpRaporKaynagi).
+ * Yetki rota middleware'indedir (`can:<rapor>.goruntule`).
  */
-class TaseronHakedisleriRequest extends FormRequest
+class ErpRaporRequest extends FormRequest
 {
     public function authorize(): bool
     {

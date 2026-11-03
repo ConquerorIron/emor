@@ -1,11 +1,15 @@
 <?php
 
 return [
+    // Excel'in ortak kolon ve satır etiketleri (ErpRaporExcelAktarici)
+    'sira_no' => 'Sıra No',
+    'toplam' => 'TOPLAM',
+    'genel_toplam_tl' => 'GENEL TOPLAM (TL)',
+
+    // Rapor bölümleri: ErpRaporu::DIL; kolon sırası raporun KOLONLAR'ından gelir
     'taseron_hakedisleri' => [
         'baslik' => 'Taşeron Hakedişleri',
-        // Excel başlıkları; sıra TaseronHakedisleriRaporu::KOLONLAR'dan gelir
         'kolonlar' => [
-            'sira_no' => 'Sıra No',
             'firma_adi' => 'Firma Adı',
             'proje_adi' => 'Proje Adı',
             'sozlesme_no' => 'Sözleşme No',
@@ -35,6 +39,33 @@ return [
             'odeme_talebi_tutari' => 'Ödeme Talebi Tutarı',
             'odenen_tutar' => 'Ödenen Tutar',
         ],
-        'toplam' => 'TOPLAM',
+    ],
+
+    'gider_yansitma_faturalari' => [
+        'baslik' => 'Gider Yansıtma Faturaları',
+        'kolonlar' => [
+            'tarih' => 'Tarih',
+            'fatura_no' => 'Fatura No',
+            'unvan' => 'Ünvan',
+            'proje_kodu' => 'Proje Kodu',
+            'aciklama' => 'Açıklama',
+            'kdv_matrahi_tl' => 'KDV Matrahı (TL)',
+            'kdv_tl' => 'KDV (TL)',
+            'vergi_tl' => 'Vergi (TL)',
+            'tevkifat_tl' => 'Tevkifat (TL)',
+            'genel_toplam_tl' => 'Genel Toplam (TL)',
+            'kesinti_toplami_tl' => 'Kesinti Toplamı (TL)',
+            'net_toplam_tl' => 'Net Toplam (TL)',
+            'para_kodu' => 'Para Kodu',
+            'kdv_matrahi_doviz' => 'KDV Matrahı (Döviz)',
+            'kdv_doviz' => 'KDV (Döviz)',
+            'vergi_doviz' => 'Vergi (Döviz)',
+            'tevkifat_doviz' => 'Tevkifat (Döviz)',
+            'genel_toplam_doviz' => 'Genel Toplam (Döviz)',
+            'kesinti_toplami_doviz' => 'Kesinti Toplamı (Döviz)',
+            'net_toplam_doviz' => 'Net Toplam (Döviz)',
+            'kayit_eden' => 'Kayıt Eden',
+            'guncelleyen' => 'Güncelleyen',
+        ],
     ],
 ];

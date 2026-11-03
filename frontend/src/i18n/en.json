@@ -61,6 +61,7 @@
     "kartBasimKesintileri": "Personnel Card Printing Deductions",
     "raporlar": "Reports",
     "taseronHakedisleri": "Subcontractor Progress Payments",
+    "giderYansitmaFaturalari": "Expense Re-invoicing Invoices",
     "kesintiTurleri": "Deduction Types",
     "projeler": "Projects",
     "firmalar": "Companies",
@@ -396,6 +397,7 @@
       "duzenleBaslik": "Edit User",
       "ara": "Search name or username",
       "ad": "Full Name",
+      "erpKullaniciId": "ERP User ID",
       "roller": "Roles",
       "rolSec": "Select roles…",
       "kaynak": {
@@ -533,6 +535,7 @@
       "malzeme_kesintileri": "Material Deductions",
       "kart_basim_kesintileri": "Personnel Card Printing Deductions",
       "taseron_hakedisleri": "Subcontractor Progress Payments",
+      "gider_yansitma_faturalari": "Expense Re-invoicing Invoices",
       "kesinti_turleri": "Deduction Types",
       "projeler": "Projects",
       "firmalar": "Companies",
@@ -1083,11 +1086,12 @@
     "firmayaGoreFiltrele": "Filter by company",
     "kayitSayisi": "{{sayi}} records",
     "suzulmusKayitSayisi": "{{sayi}} of {{toplam}} records",
+    "siraNo": "No",
+    "genelToplamTl": "Grand Total (TRY)",
     "taseronHakedisleri": {
       "baslik": "Subcontractor Progress Payments",
       "aciklamaMetni": "Subcontract progress payments from the ERP, one row per payment, with currency totals above and below the table. The report is read from the ERP when you press Run Report.",
       "kolon": {
-        "sira_no": "No",
         "firma_adi": "Company Name",
         "proje_adi": "Project Name",
         "sozlesme_no": "Contract No",
@@ -1116,6 +1120,34 @@
         "hakedis_durumu": "Payment Status",
         "odeme_talebi_tutari": "Payment Request Amount",
         "odenen_tutar": "Amount Paid"
+      }
+    },
+    "giderYansitmaFaturalari": {
+      "baslik": "Expense Re-invoicing Invoices",
+      "aciklamaMetni": "Expense re-invoicing invoices from the ERP, one row per invoice; amounts in TRY and in the invoice currency. TRY grand total and currency totals above and below the table. The report is read from the ERP when you press Run Report.",
+      "kolon": {
+        "tarih": "Date",
+        "fatura_no": "Invoice No",
+        "unvan": "Title",
+        "proje_kodu": "Project Code",
+        "aciklama": "Description",
+        "kdv_matrahi_tl": "VAT Base (TRY)",
+        "kdv_tl": "VAT (TRY)",
+        "vergi_tl": "Tax (TRY)",
+        "tevkifat_tl": "Withholding (TRY)",
+        "genel_toplam_tl": "Grand Total (TRY)",
+        "kesinti_toplami_tl": "Deductions (TRY)",
+        "net_toplam_tl": "Net Total (TRY)",
+        "para_kodu": "Currency",
+        "kdv_matrahi_doviz": "VAT Base (FX)",
+        "kdv_doviz": "VAT (FX)",
+        "vergi_doviz": "Tax (FX)",
+        "tevkifat_doviz": "Withholding (FX)",
+        "genel_toplam_doviz": "Grand Total (FX)",
+        "kesinti_toplami_doviz": "Deductions (FX)",
+        "net_toplam_doviz": "Net Total (FX)",
+        "kayit_eden": "Created By",
+        "guncelleyen": "Updated By"
       }
     }
   }

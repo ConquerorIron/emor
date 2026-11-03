@@ -6,7 +6,7 @@ import { AppProviders } from '@/providers/AppProviders'
 import { bugunIso } from '@/utils/tarih'
 
 import { TaseronHakedisleriPage } from './TaseronHakedisleriPage'
-import type { HakedisRaporu, HakedisSatiri } from './taseronHakedisleriApi'
+import type { HakedisSatiri } from './taseronHakedisleriApi'
 
 const api = vi.hoisted(() => ({
   rapor: vi.fn(),
@@ -16,9 +16,7 @@ const api = vi.hoisted(() => ({
 
 vi.mock('./taseronHakedisleriApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./taseronHakedisleriApi')>()),
-  taseronHakedisleriGetir: api.rapor,
-  taseronHakedisSecenekleriGetir: api.secenekler,
-  taseronHakedisleriExcel: api.excel,
+  taseronHakedisleriApi: { getir: api.rapor, secenekler: api.secenekler, excel: api.excel },
 }))
 
 const tutarlar = (imalat: number) => ({
@@ -62,12 +60,10 @@ const hakedis = (
   ...tutarlar(imalat),
 })
 
-const RAPOR: HakedisRaporu = {
-  data: [
-    { ...hakedis(3, 'ZONE 7', 240663.52), onay_tarihi: '2026-07-06', onay_saati: '13:53:14' },
-    hakedis(4, 'ZONE 10', 1000, 'BETA YAPI'),
-  ],
-}
+const RAPOR: HakedisSatiri[] = [
+  { ...hakedis(3, 'ZONE 7', 240663.52), onay_tarihi: '2026-07-06', onay_saati: '13:53:14' },
+  hakedis(4, 'ZONE 10', 1000, 'BETA YAPI'),
+]
 
 const VARSAYILAN = { ilk_tarih: '2000-01-01', son_tarih: bugunIso(), proje_kodu: '', firma_adi: '' }
 
@@ -147,7 +143,10 @@ describe('TaseronHakedisleriPage', () => {
     // Excel aynı parametreler ve ekrandaki hakedişlerle (ekrandaki sırayla)
     fireEvent.click(screen.getByRole('button', { name: "Excel'e Aktar" }))
     await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
-    expect(api.excel.mock.calls[0][0]).toEqual({ parametreler: VARSAYILAN, hakedisIdleri: [3, 4] })
+    expect(api.excel.mock.calls[0][0]).toEqual({
+      parametreler: VARSAYILAN,
+      anahtarlar: ['3', '4'],
+    })
   })
 
   it('gelen veride proje ve firmaya göre anında süzülür; proc yeniden çalışmaz', async () => {
@@ -174,14 +173,14 @@ describe('TaseronHakedisleriPage', () => {
     expect(await screen.findByText('2 kayıttan 1 kayıt')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: "Excel'e Aktar" }))
     await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
-    expect(api.excel.mock.calls[0][0]).toEqual({ parametreler: VARSAYILAN, hakedisIdleri: [4] })
+    expect(api.excel.mock.calls[0][0]).toEqual({ parametreler: VARSAYILAN, anahtarlar: ['4'] })
     expect(api.rapor).toHaveBeenCalledTimes(1)
   })
 
   it('sayfalama tarayıcıda; Sıra No sayfalar arasında devam eder', async () => {
-    api.rapor.mockResolvedValue({
-      data: Array.from({ length: 30 }, (_, i) => hakedis(i + 1, `PROJE ${i + 1}`, 10)),
-    })
+    api.rapor.mockResolvedValue(
+      Array.from({ length: 30 }, (_, i) => hakedis(i + 1, `PROJE ${i + 1}`, 10)),
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
     expect(await screen.findByText('30 kayıt')).toBeInTheDocument()
 

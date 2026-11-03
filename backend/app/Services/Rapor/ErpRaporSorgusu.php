@@ -10,25 +10,21 @@ use Illuminate\Database\QueryException;
 use PDOException;
 
 /**
- * Taşeron sözleşme hakedişleri ERP'nin rapor proc'undan, aktif ortamda okunur
- * (kullanıcı isteği 2026-11-03). Ölçüm (canlı, 2026-11-03): tüm tarihler
- * 638 satır ~9 sn; proje kodu (büyük/küçük harf duyarsız) ve firma adı TAM
- * eşleşir; kullanıcı kimliği güvenlik süzgecidir (-1 → satır yok). Test
- * ortamında `erp` kullanıcısının bu proc'u çalıştırma yetkisi yok.
+ * ERP rapor proc'larını aktif ortamda çalıştırır. Kullanıcı kimliği proc'un
+ * güvenlik süzgecidir (-1 → satır yok; canlı ölçüm 2026-11-03). Test
+ * ortamında `erp` kullanıcısının bu proc'ları çalıştırma yetkisi yok.
  */
-final class TaseronHakedisSorgusu implements TaseronHakedisKaynagi
+final class ErpRaporSorgusu implements ErpRaporKaynagi
 {
-    private const PROC = 'dbo.DASHBOARD_TASERON_SOZLESME_HAKEDISLERI';
-
     public function __construct(
         private readonly MssqlBaglantiServisi $mssql,
     ) {}
 
-    public function hakedisler(int $erpKullaniciId, array $parametreler): array
+    public function satirlar(string $proc, int $erpKullaniciId, array $parametreler): array
     {
         try {
             $satirlar = $this->mssql->baglan()->select(
-                'EXEC '.self::PROC.' @KullaniciId = ?, @IlkTarih = ?, @SonTarih = ?, @ProjeKodu = ?, @FirmaAdi = ?',
+                'EXEC '.$proc.' @KullaniciId = ?, @IlkTarih = ?, @SonTarih = ?, @ProjeKodu = ?, @FirmaAdi = ?',
                 [
                     $erpKullaniciId,
                     $parametreler['ilk_tarih'],

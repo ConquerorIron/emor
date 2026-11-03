@@ -12,28 +12,29 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 /**
- * Taşeron Hakedişleri raporunun Excel (.xlsx) çıktısı: ekrandaki satırlar ve
- * kolonlar (TaseronHakedisleriRaporu::KOLONLAR), altında para koduna göre
- * TOPLAM satırları (otomatik filtrenin dışında). Tarihler Excel tarihi olarak
- * yazılır (süzülüp sıralanabilir). Metin hücreleri metin tipiyle yazılır:
- * "=", "+", "-", "@" ile başlayan değer formül olarak yorumlanmaz.
+ * ERP raporlarının Excel (.xlsx) çıktısı: ekrandaki satırlar ve kolonlar
+ * (ErpRaporu::KOLONLAR), altında raporun toplam satırları (otomatik
+ * filtrenin dışında). Tarihler Excel tarihi olarak yazılır (süzülüp
+ * sıralanabilir). Metin hücreleri metin tipiyle yazılır: "=", "+", "-", "@"
+ * ile başlayan değer formül olarak yorumlanmaz.
  */
-final class TaseronHakedisleriExcelAktarici
+final class ErpRaporExcelAktarici
 {
     /**
-     * @param  list<array<string, int|string|float|null>>  $satirlar  TaseronHakedisleriRaporu::hakedisler()
-     * @param  list<array<string, string|float>>  $toplamlar  TaseronHakedisleriRaporu::toplamlar()
+     * @param  list<array<string, int|string|float|null>>  $satirlar  ekranda süzülen satırlar, ekrandaki sırayla
      * @return string oluşturulan geçici dosyanın yolu (çağıran siler)
      */
-    public function olustur(array $satirlar, array $toplamlar): string
+    public function olustur(ErpRaporu $rapor, array $satirlar): string
     {
-        $basliklar = __('rapor.taseron_hakedisleri.kolonlar');
-        $kolonlar = TaseronHakedisleriRaporu::KOLONLAR;
+        $kolonlar = $rapor::KOLONLAR;
+        $basliklar = __('rapor.'.$rapor::DIL.'.kolonlar');
+        $baslik = __('rapor.'.$rapor::DIL.'.baslik');
         $kitap = new Spreadsheet;
-        $kitap->getProperties()->setCreator('eMOR ERP')->setTitle(__('rapor.taseron_hakedisleri.baslik'));
-        $sayfa = $kitap->getActiveSheet()->setTitle(__('rapor.taseron_hakedisleri.baslik'));
+        $kitap->getProperties()->setCreator('eMOR ERP')->setTitle($baslik);
+        // Excel sayfa adı en fazla 31 karakter
+        $sayfa = $kitap->getActiveSheet()->setTitle(mb_substr($baslik, 0, 31));
 
-        $sayfa->setCellValueExplicit([1, 1], $basliklar['sira_no'], DataType::TYPE_STRING);
+        $sayfa->setCellValueExplicit([1, 1], __('rapor.sira_no'), DataType::TYPE_STRING);
         foreach (array_keys($kolonlar) as $i => $alan) {
             $sayfa->setCellValueExplicit([$i + 2, 1], $basliklar[$alan], DataType::TYPE_STRING);
         }
@@ -42,15 +43,15 @@ final class TaseronHakedisleriExcelAktarici
 
         foreach ($satirlar as $sira => $degerler) {
             $sayfa->setCellValueExplicit([1, $satir], $sira + 1, DataType::TYPE_NUMERIC);
-            $this->satirYaz($sayfa, $satir, $degerler);
+            $this->satirYaz($sayfa, $satir, $kolonlar, $degerler);
             $satir++;
         }
 
         $sonVeriSatiri = max(2, $satir - 1);
 
-        foreach ($toplamlar as $toplam) {
-            $sayfa->setCellValueExplicit([1, $satir], __('rapor.taseron_hakedisleri.toplam'), DataType::TYPE_STRING);
-            $this->satirYaz($sayfa, $satir, $toplam);
+        foreach ($rapor->toplamSatirlari($satirlar) as $toplam) {
+            $sayfa->setCellValueExplicit([1, $satir], $toplam['etiket'], DataType::TYPE_STRING);
+            $this->satirYaz($sayfa, $satir, $kolonlar, $toplam['degerler']);
             $sayfa->getStyle([1, $satir, count($kolonlar) + 1, $satir])->getFont()->setBold(true);
             $satir++;
         }
@@ -80,12 +81,12 @@ final class TaseronHakedisleriExcelAktarici
             $sayfa->getColumnDimension(Coordinate::stringFromColumnIndex($sutun))->setAutoSize(true);
         }
 
-        $yol = tempnam(sys_get_temp_dir(), 'hakedis-');
+        $yol = tempnam(sys_get_temp_dir(), 'rapor-');
 
         if ($yol === false) {
             $kitap->disconnectWorksheets();
 
-            throw new \RuntimeException('Taşeron hakedişleri Excel geçici dosyası oluşturulamadı.');
+            throw new \RuntimeException('Rapor Excel geçici dosyası oluşturulamadı.');
         }
 
         try {
@@ -102,14 +103,15 @@ final class TaseronHakedisleriExcelAktarici
     }
 
     /**
-     * Sıra No kolonunun sağından KOLONLAR sırasıyla; satırda olmayan alan
+     * Sıra No kolonunun sağından kolon sırasıyla; satırda olmayan alan
      * (toplam satırında metin / tarih kolonları) boş kalır.
      *
+     * @param  array<string, 'metin'|'tarih'|'tutar'>  $kolonlar
      * @param  array<string, int|string|float|null>  $degerler
      */
-    private function satirYaz(Worksheet $sayfa, int $satir, array $degerler): void
+    private function satirYaz(Worksheet $sayfa, int $satir, array $kolonlar, array $degerler): void
     {
-        foreach (array_keys(TaseronHakedisleriRaporu::KOLONLAR) as $i => $alan) {
+        foreach (array_keys($kolonlar) as $i => $alan) {
             $sutun = $i + 2;
             $deger = $degerler[$alan] ?? null;
 
@@ -117,7 +119,7 @@ final class TaseronHakedisleriExcelAktarici
                 continue;
             }
 
-            match (TaseronHakedisleriRaporu::KOLONLAR[$alan]) {
+            match ($kolonlar[$alan]) {
                 'tarih' => $sayfa->setCellValueExplicit([$sutun, $satir], ExcelTarihi::PHPToExcel((string) $deger), DataType::TYPE_NUMERIC),
                 'tutar' => $sayfa->setCellValueExplicit([$sutun, $satir], (float) $deger, DataType::TYPE_NUMERIC),
                 default => $sayfa->setCellValueExplicit([$sutun, $satir], (string) $deger, DataType::TYPE_STRING),

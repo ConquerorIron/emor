@@ -89,6 +89,11 @@ const NAV_GRUPLARI: NavGrubu[] = [
         ad: 'taseronHakedisleri',
         izin: 'taseron_hakedisleri.goruntule',
       },
+      {
+        to: '/raporlar/gider-yansitma-faturalari',
+        ad: 'giderYansitmaFaturalari',
+        izin: 'gider_yansitma_faturalari.goruntule',
+      },
     ],
   },
   {

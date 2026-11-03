@@ -61,6 +61,7 @@
     "kartBasimKesintileri": "Personel Kart Basım Kesintisi",
     "raporlar": "Raporlar",
     "taseronHakedisleri": "Taşeron Hakedişleri",
+    "giderYansitmaFaturalari": "Gider Yansıtma Faturaları",
     "kesintiTurleri": "Kesinti Türleri",
     "projeler": "Projeler",
     "firmalar": "Firmalar",
@@ -396,6 +397,7 @@
       "duzenleBaslik": "Kullanıcıyı Düzenle",
       "ara": "Ad veya kullanıcı adı ara",
       "ad": "Ad Soyad",
+      "erpKullaniciId": "ERP Kullanıcı ID",
       "roller": "Roller",
       "rolSec": "Rol seçin…",
       "kaynak": {
@@ -533,6 +535,7 @@
       "malzeme_kesintileri": "Malzeme Kesintisi",
       "kart_basim_kesintileri": "Personel Kart Basım Kesintisi",
       "taseron_hakedisleri": "Taşeron Hakedişleri",
+      "gider_yansitma_faturalari": "Gider Yansıtma Faturaları",
       "kesinti_turleri": "Kesinti Türleri",
       "projeler": "Projeler",
       "firmalar": "Firmalar",
@@ -1083,11 +1086,12 @@
     "firmayaGoreFiltrele": "Firmaya göre filtrele",
     "kayitSayisi": "{{sayi}} kayıt",
     "suzulmusKayitSayisi": "{{toplam}} kayıttan {{sayi}} kayıt",
+    "siraNo": "Sıra No",
+    "genelToplamTl": "Genel Toplam (TL)",
     "taseronHakedisleri": {
       "baslik": "Taşeron Hakedişleri",
       "aciklamaMetni": "ERP'deki taşeron sözleşme hakedişleri, hakediş başına bir satır; tablonun üstünde ve altında para birimine göre toplamlar. Rapor, Raporu Çalıştır'a basıldığında ERP'den okunur.",
       "kolon": {
-        "sira_no": "Sıra No",
         "firma_adi": "Firma Adı",
         "proje_adi": "Proje Adı",
         "sozlesme_no": "Sözleşme No",
@@ -1116,6 +1120,34 @@
         "hakedis_durumu": "Hakediş Durumu",
         "odeme_talebi_tutari": "Ödeme Talebi Tutarı",
         "odenen_tutar": "Ödenen Tutar"
+      }
+    },
+    "giderYansitmaFaturalari": {
+      "baslik": "Gider Yansıtma Faturaları",
+      "aciklamaMetni": "ERP'deki gider yansıtma faturaları, fatura başına bir satır; tutarlar TL karşılığıyla ve faturanın kendi para biriminde (Döviz). Tablonun üstünde ve altında TL genel toplamı ile para birimine göre döviz toplamları. Rapor, Raporu Çalıştır'a basıldığında ERP'den okunur.",
+      "kolon": {
+        "tarih": "Tarih",
+        "fatura_no": "Fatura No",
+        "unvan": "Ünvan",
+        "proje_kodu": "Proje Kodu",
+        "aciklama": "Açıklama",
+        "kdv_matrahi_tl": "KDV Matrahı (TL)",
+        "kdv_tl": "KDV (TL)",
+        "vergi_tl": "Vergi (TL)",
+        "tevkifat_tl": "Tevkifat (TL)",
+        "genel_toplam_tl": "Genel Toplam (TL)",
+        "kesinti_toplami_tl": "Kesinti Toplamı (TL)",
+        "net_toplam_tl": "Net Toplam (TL)",
+        "para_kodu": "Para Kodu",
+        "kdv_matrahi_doviz": "KDV Matrahı (Döviz)",
+        "kdv_doviz": "KDV (Döviz)",
+        "vergi_doviz": "Vergi (Döviz)",
+        "tevkifat_doviz": "Tevkifat (Döviz)",
+        "genel_toplam_doviz": "Genel Toplam (Döviz)",
+        "kesinti_toplami_doviz": "Kesinti Toplamı (Döviz)",
+        "net_toplam_doviz": "Net Toplam (Döviz)",
+        "kayit_eden": "Kayıt Eden",
+        "guncelleyen": "Güncelleyen"
       }
     }
   }

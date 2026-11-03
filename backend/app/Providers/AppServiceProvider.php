@@ -17,8 +17,8 @@ use App\Services\Kesinti\ErpFirmaKaynagi;
 use App\Services\Kesinti\ErpFirmaSorgusu;
 use App\Services\Kesinti\ErpProjeKaynagi;
 use App\Services\Kesinti\ErpProjeSorgusu;
-use App\Services\Rapor\TaseronHakedisKaynagi;
-use App\Services\Rapor\TaseronHakedisSorgusu;
+use App\Services\Rapor\ErpRaporKaynagi;
+use App\Services\Rapor\ErpRaporSorgusu;
 use App\Yetki\Izin;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -61,8 +61,8 @@ class AppServiceProvider extends ServiceProvider
         );
 
         $this->app->bind(
-            TaseronHakedisKaynagi::class,
-            TaseronHakedisSorgusu::class,
+            ErpRaporKaynagi::class,
+            ErpRaporSorgusu::class,
         );
     }
 
@@ -158,7 +158,7 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(10)->by($request->user()?->id ?? $request->ip());
         });
 
-        // ERP rapor proc'ları ağır (Taşeron Hakedişleri tüm tarihlerde ~9 sn)
+        // ERP rapor proc'ları ağır olabilir (Taşeron Hakedişleri tüm tarihlerde ~9 sn)
         RateLimiter::for('erp-rapor', function (Request $request): Limit {
             return Limit::perMinute(10)->by($request->user()?->id ?? $request->ip());
         });

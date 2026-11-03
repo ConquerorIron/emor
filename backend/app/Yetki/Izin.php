@@ -75,6 +75,9 @@ enum Izin: string
     /** Yalnız rapor: güncelleme izni yok */
     case TaseronHakedisleriGoruntule = 'taseron_hakedisleri.goruntule';
 
+    /** Yalnız rapor: güncelleme izni yok */
+    case GiderYansitmaFaturalariGoruntule = 'gider_yansitma_faturalari.goruntule';
+
     case SqlBaglantilariGoruntule = 'sql_baglantilari.goruntule';
     case SqlBaglantilariGuncelle = 'sql_baglantilari.guncelle';
 
@@ -136,6 +139,7 @@ enum Izin: string
             $ekran('kart_basim_kesintileri', self::KartBasimKesintileriGoruntule, self::KartBasimKesintileriGuncelle),
             // Raporlar grubu
             $ekran('taseron_hakedisleri', self::TaseronHakedisleriGoruntule, null),
+            $ekran('gider_yansitma_faturalari', self::GiderYansitmaFaturalariGoruntule, null),
             // Tanımlar grubu
             $ekran('projeler', self::ProjelerGoruntule, self::ProjelerGuncelle),
             $ekran('firmalar', self::FirmalarGoruntule, self::FirmalarGuncelle),

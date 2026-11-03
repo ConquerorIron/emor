@@ -1,5 +1,4 @@
-import { api } from '@/api/client'
-import { blobHatasiniCoz, dosyayiIndir } from '@/api/indirme'
+import { erpRaporApi } from '@/features/rapor/erpRaporApi'
 
 /** Tutar kolonları (backend TaseronHakedisleriRaporu::TUTARLAR) */
 export const TUTARLAR = [
@@ -20,16 +19,8 @@ export const TUTARLAR = [
 
 export type Tutar = (typeof TUTARLAR)[number]
 
-/** ERP proc'unun girdileri; boş proje / firma = hepsi */
-export interface RaporParametreleri {
-  ilk_tarih: string
-  son_tarih: string
-  proje_kodu: string
-  firma_adi: string
-}
-
 /** Hakediş başına satır; tarihler YYYY-MM-DD, onay saati SS:DD:ss */
-export interface HakedisSatiri extends Record<Tutar, number> {
+export type HakedisSatiri = {
   hakedis_id: number
   firma_adi: string
   proje_adi: string
@@ -46,90 +37,9 @@ export interface HakedisSatiri extends Record<Tutar, number> {
   onay_saati: string | null
   fatura_no: string
   hakedis_durumu: string
-}
+} & Record<Tutar, number>
 
-/** Kolonlar, Sıra No'dan sonra kullanıcının sırasıyla (backend TaseronHakedisleriRaporu::KOLONLAR) */
-export const KOLONLAR: {
-  alan: Exclude<keyof HakedisSatiri, 'hakedis_id'>
-  tur: 'metin' | 'tarih' | 'tutar'
-}[] = [
-  { alan: 'firma_adi', tur: 'metin' },
-  { alan: 'proje_adi', tur: 'metin' },
-  { alan: 'sozlesme_no', tur: 'metin' },
-  { alan: 'sozlesme_konusu', tur: 'metin' },
-  { alan: 'hakedis_no', tur: 'metin' },
-  { alan: 'hakedis_tarihi', tur: 'tarih' },
-  { alan: 'donem_baslangici', tur: 'tarih' },
-  { alan: 'donem_sonu', tur: 'tarih' },
-  { alan: 'para_kodu', tur: 'metin' },
-  { alan: 'imalat', tur: 'tutar' },
-  { alan: 'tutanak', tur: 'tutar' },
-  { alan: 'hakedis', tur: 'tutar' },
-  { alan: 'imalat_kesintisi', tur: 'tutar' },
-  { alan: 'kdv', tur: 'tutar' },
-  { alan: 'kdvli_hakedis', tur: 'tutar' },
-  { alan: 'kdv_tevkifati', tur: 'tutar' },
-  { alan: 'cari_kesinti', tur: 'tutar' },
-  { alan: 'yansitilacak_gider', tur: 'tutar' },
-  { alan: 'taseron_adina_yapilan_is', tur: 'tutar' },
-  { alan: 'net_odenecek', tur: 'tutar' },
-  { alan: 'onay_durumu', tur: 'metin' },
-  { alan: 'onaylayan', tur: 'metin' },
-  { alan: 'onay_tarihi', tur: 'tarih' },
-  { alan: 'onay_saati', tur: 'metin' },
-  { alan: 'fatura_no', tur: 'metin' },
-  { alan: 'hakedis_durumu', tur: 'metin' },
-  { alan: 'odeme_talebi_tutari', tur: 'tutar' },
-  { alan: 'odenen_tutar', tur: 'tutar' },
-]
-
-/** Para kodu başına genel toplam (ekranda süzülen satırlardan) */
-export type HakedisToplami = { para_kodu: string } & Record<Tutar, number>
-
-export interface HakedisRaporu {
-  data: HakedisSatiri[]
-}
-
-/** Süzgeç seçenekleri: proc proje KODU ve firma ADIYLA süzer */
-export interface HakedisSecenekleri {
-  projeler: { kod: string; ad: string }[]
-  firmalar: string[]
-}
-
-const ADRES = '/api/v1/raporlar/taseron-hakedisleri'
-
-export async function taseronHakedisleriGetir(
-  parametreler: RaporParametreleri,
-): Promise<HakedisRaporu> {
-  const yanit = await api.get<HakedisRaporu>(ADRES, { params: parametreler })
-
-  return yanit.data
-}
-
-export async function taseronHakedisSecenekleriGetir(): Promise<HakedisSecenekleri> {
-  const yanit = await api.get<{ data: HakedisSecenekleri }>(`${ADRES}/secenekler`)
-
-  return yanit.data.data
-}
-
-/**
- * Raporu aynı parametrelerle yeniden çalıştırıp ekranda süzülen hakedişleri
- * (ekrandaki sırayla) .xlsx olarak indirir — Excel ekranla aynı satırları içerir
- */
-export async function taseronHakedisleriExcel({
-  parametreler,
-  hakedisIdleri,
-}: {
-  parametreler: RaporParametreleri
-  hakedisIdleri: number[]
-}): Promise<void> {
-  const yanit = await api
-    .post<Blob>(
-      `${ADRES}/excel`,
-      { ...parametreler, hakedis_idler: hakedisIdleri },
-      { responseType: 'blob' },
-    )
-    .catch(blobHatasiniCoz)
-
-  dosyayiIndir(yanit.data, 'taseron-hakedisleri.xlsx')
-}
+export const taseronHakedisleriApi = erpRaporApi<HakedisSatiri>(
+  '/api/v1/raporlar/taseron-hakedisleri',
+  'taseron-hakedisleri.xlsx',
+)

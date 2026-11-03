@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\EntegratorBaglantiController;
 use App\Http\Controllers\Api\V1\ErpFirmaController;
 use App\Http\Controllers\Api\V1\ErpProjeController;
 use App\Http\Controllers\Api\V1\FirmaController;
+use App\Http\Controllers\Api\V1\GiderYansitmaFaturalariController;
 use App\Http\Controllers\Api\V1\IsgCezaKesintisiController;
 use App\Http\Controllers\Api\V1\IsgCezaYuklemeController;
 use App\Http\Controllers\Api\V1\IsgucuKesintisiController;
@@ -670,19 +671,29 @@ Route::prefix('v1')->group(function (): void {
                 ->name('kesinti.kamp-malzeme.yuklemeler.destroy');
         });
 
-        // Raporlar → Taşeron Hakedişleri: ERP rapor proc'u, proje + para koduna
-        // göre özet (liste ve Excel her seferinde proc'u çalıştırır)
+        // Raporlar: ERP rapor proc'ları (ErpRaporController; liste ve Excel her
+        // seferinde proc'u çalıştırır)
         Route::middleware('can:taseron_hakedisleri.goruntule')->group(function (): void {
             Route::get('/raporlar/taseron-hakedisleri', [TaseronHakedisleriController::class, 'index'])
                 ->middleware('throttle:erp-rapor')
                 ->name('raporlar.taseron-hakedisleri');
-            // Excel'e Aktar: ekranda süzülen hakedişlerin kimlikleri gövdede (POST)
+            // Excel'e Aktar: ekranda süzülen satırların anahtarları gövdede (POST)
             Route::post('/raporlar/taseron-hakedisleri/excel', [TaseronHakedisleriController::class, 'excel'])
                 ->middleware('throttle:erp-rapor')
                 ->name('raporlar.taseron-hakedisleri.excel');
             // Proje kodu / firma adı süzgeçleri: canlı ERP'nin WEB_ERP_* view'ları
             Route::get('/raporlar/taseron-hakedisleri/secenekler', [TaseronHakedisleriController::class, 'secenekler'])
                 ->name('raporlar.taseron-hakedisleri.secenekler');
+        });
+        Route::middleware('can:gider_yansitma_faturalari.goruntule')->group(function (): void {
+            Route::get('/raporlar/gider-yansitma-faturalari', [GiderYansitmaFaturalariController::class, 'index'])
+                ->middleware('throttle:erp-rapor')
+                ->name('raporlar.gider-yansitma-faturalari');
+            Route::post('/raporlar/gider-yansitma-faturalari/excel', [GiderYansitmaFaturalariController::class, 'excel'])
+                ->middleware('throttle:erp-rapor')
+                ->name('raporlar.gider-yansitma-faturalari.excel');
+            Route::get('/raporlar/gider-yansitma-faturalari/secenekler', [GiderYansitmaFaturalariController::class, 'secenekler'])
+                ->name('raporlar.gider-yansitma-faturalari.secenekler');
         });
 
         // Kesinti Yönetimi → Firmalar (taşeronlar): elle tanım + canlı ERP'den

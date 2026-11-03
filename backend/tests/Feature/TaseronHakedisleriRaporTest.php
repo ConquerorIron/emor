@@ -8,16 +8,16 @@ use App\Models\Rol;
 use App\Models\User;
 use App\Services\Kesinti\ErpFirmaKaynagi;
 use App\Services\Kesinti\ErpProjeKaynagi;
-use App\Services\Rapor\TaseronHakedisKaynagi;
+use App\Services\Rapor\ErpRaporKaynagi;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 /**
- * Raporlar → Taşeron Hakedişleri: ERP proc'unun hakedişleri proje + para
- * koduna göre özetlenir. Proc ve WEB_ERP_* view'ları sahte kaynakla taklit
- * edilir (gerçek proc test ortamında çalıştırılamıyor).
+ * Raporlar → Taşeron Hakedişleri: ERP proc'unun hakedişleri, hakediş başına
+ * satır. Proc ve WEB_ERP_* view'ları sahte kaynakla taklit edilir (gerçek
+ * proc test ortamında çalıştırılamıyor).
  */
 final class TaseronHakedisleriRaporTest extends TestCase
 {
@@ -25,12 +25,14 @@ final class TaseronHakedisleriRaporTest extends TestCase
 
     private const ADRES = '/api/v1/raporlar/taseron-hakedisleri';
 
+    private const PROC = 'dbo.DASHBOARD_TASERON_SOZLESME_HAKEDISLERI';
+
     private const TARIHLER = 'ilk_tarih=2026-01-01&son_tarih=2026-11-03';
 
     /**
-     * Proc'a giden çağrılar (kullanıcı kimliği + parametreler)
+     * Proc'a giden çağrılar (proc + kullanıcı kimliği + parametreler)
      *
-     * @var list<array{0: int, 1: array<string, string|null>}>
+     * @var list<array{0: string, 1: int, 2: array<string, string|null>}>
      */
     private array $cagrilar = [];
 
@@ -39,17 +41,17 @@ final class TaseronHakedisleriRaporTest extends TestCase
      */
     private function erpHakedisleri(array $hakedisler): void
     {
-        $this->app->instance(TaseronHakedisKaynagi::class, new class($hakedisler, $this->cagrilar) implements TaseronHakedisKaynagi
+        $this->app->instance(ErpRaporKaynagi::class, new class($hakedisler, $this->cagrilar) implements ErpRaporKaynagi
         {
             /**
              * @param  list<array<string, mixed>>  $hakedisler
-             * @param  list<array{0: int, 1: array<string, string|null>}>  $cagrilar
+             * @param  list<array{0: string, 1: int, 2: array<string, string|null>}>  $cagrilar
              */
             public function __construct(private readonly array $hakedisler, private array &$cagrilar) {}
 
-            public function hakedisler(int $erpKullaniciId, array $parametreler): array
+            public function satirlar(string $proc, int $erpKullaniciId, array $parametreler): array
             {
-                $this->cagrilar[] = [$erpKullaniciId, $parametreler];
+                $this->cagrilar[] = [$proc, $erpKullaniciId, $parametreler];
 
                 return $this->hakedisler;
             }
@@ -154,7 +156,7 @@ final class TaseronHakedisleriRaporTest extends TestCase
 
         // Boş proje / firma = hepsi (NULL); proc kullanıcının ERP kimliğiyle süzer
         $this->assertSame(
-            [[2, ['ilk_tarih' => '2026-01-01', 'son_tarih' => '2026-11-03', 'proje_kodu' => null, 'firma_adi' => null]]],
+            [[self::PROC, 2, ['ilk_tarih' => '2026-01-01', 'son_tarih' => '2026-11-03', 'proje_kodu' => null, 'firma_adi' => null]]],
             $this->cagrilar,
         );
     }
@@ -169,7 +171,7 @@ final class TaseronHakedisleriRaporTest extends TestCase
             ->assertExactJson(['data' => []]);
 
         $this->assertSame(
-            [[-1, ['ilk_tarih' => '2026-01-01', 'son_tarih' => '2026-11-03', 'proje_kodu' => 'ZONE 10', 'firma_adi' => 'ATİLLA GIDA']]],
+            [[self::PROC, -1, ['ilk_tarih' => '2026-01-01', 'son_tarih' => '2026-11-03', 'proje_kodu' => 'ZONE 10', 'firma_adi' => 'ATİLLA GIDA']]],
             $this->cagrilar,
         );
     }
@@ -180,7 +182,7 @@ final class TaseronHakedisleriRaporTest extends TestCase
         $this->actingAs(User::factory()->create(['erp_kullanici_id' => 2]));
 
         foreach ([['get', ''], ['post', '/excel'], ['get', '/secenekler']] as [$metot, $uc]) {
-            $this->json($metot, self::ADRES.$uc.'?'.self::TARIHLER, ['hakedis_idler' => []])
+            $this->json($metot, self::ADRES.$uc.'?'.self::TARIHLER, ['anahtarlar' => []])
                 ->assertForbidden()
                 ->assertJsonPath('kod', 'ERISIM_ENGELLI');
         }
@@ -214,10 +216,10 @@ final class TaseronHakedisleriRaporTest extends TestCase
 
         $this->postJson(self::ADRES.'/excel', $parametreler)
             ->assertUnprocessable()
-            ->assertJsonValidationErrorFor('hakedis_idler', 'hatalar');
+            ->assertJsonValidationErrorFor('anahtarlar', 'hatalar');
 
         // Ekrandaki sırayla; proc'ta artık olmayan kimlik (99) atlanır
-        $yanit = $this->post(self::ADRES.'/excel', [...$parametreler, 'hakedis_idler' => [2, 99, 1]])->assertOk();
+        $yanit = $this->post(self::ADRES.'/excel', [...$parametreler, 'anahtarlar' => ['2', '99', '1']])->assertOk();
         $this->assertStringContainsString('taseron-hakedisleri.xlsx', (string) $yanit->headers->get('Content-Disposition'));
 
         $sayfa = IOFactory::load($yanit->baseResponse->getFile()->getPathname())->getActiveSheet();

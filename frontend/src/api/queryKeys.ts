@@ -50,9 +50,9 @@ export const queryKeys = {
     erpProjeleri: ['kesinti', 'erpProjeleri'],
     erpFirmalari: ['kesinti', 'erpFirmalari'],
   },
-  // ERP raporlarının süzgeç seçenekleri (raporun kendisi "Raporu Çalıştır"la, mutation)
+  // ERP raporlarının parametre seçenekleri (raporun kendisi "Raporu Çalıştır"la, mutation)
   raporlar: {
-    taseronHakedisSecenekleri: ['raporlar', 'taseronHakedisleri', 'secenekler'],
+    secenekler: (rapor: string) => ['raporlar', rapor, 'secenekler'] as const,
   },
   /** Ekran tasarım motoru — formu çizen yayındaki düzen */
   ekranTasarimi: (ekran: string) => ['ekranTasarimi', ekran] as const,
