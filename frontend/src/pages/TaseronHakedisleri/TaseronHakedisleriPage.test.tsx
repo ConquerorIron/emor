@@ -242,6 +242,32 @@ describe('TaseronHakedisleriPage', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
+  it('Kolonlar menüsünden gizlenen kolon tablodan kalkar; tercih rapor başına saklanır', async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
+    expect(await screen.findByText('ZONE 7')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Kolonlar \(28\/28\)/ }))
+    fireEvent.click(await screen.findByRole('switch', { name: 'Sözleşme Konusu' }))
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('columnheader', { name: 'Sözleşme Konusu' }),
+      ).not.toBeInTheDocument(),
+    )
+    expect(screen.getByRole('columnheader', { name: 'Sıra No' })).toBeInTheDocument()
+    expect(
+      JSON.parse(localStorage.getItem('erp.kolonlar.rapor.taseronHakedisleri') ?? '[]'),
+    ).toEqual(['sozlesme_konusu'])
+
+    // Excel gizli kolonları da içerir: gönderilen yalnız parametreler ve satırlar
+    fireEvent.click(screen.getByRole('button', { name: "Excel'e Aktar" }))
+    await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
+    expect(Object.keys(api.excel.mock.calls[0][0] as object)).toEqual([
+      'parametreler',
+      'anahtarlar',
+    ])
+  })
+
   it('genel arama metin kolonlarında, Türkçe büyük/küçük harf duyarsız', async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
     expect(await screen.findByText('2 kayıt')).toBeInTheDocument()

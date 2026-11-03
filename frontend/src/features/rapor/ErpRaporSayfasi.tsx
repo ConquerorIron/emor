@@ -10,6 +10,7 @@ import { Button } from '@/components/Button'
 import { DataTable, type DataTableKolonu, type ToplamSatiri } from '@/components/DataTable'
 import { ErrorState } from '@/components/ErrorState'
 import { Input } from '@/components/Input'
+import { KolonSecici } from '@/components/KolonSecici'
 import { Pagination } from '@/components/Pagination'
 import { MultiSelectField, SelectField, type SecenekOgesi } from '@/components/SelectField'
 import { siralaUygula } from '@/components/SiralanabilirBaslik'
@@ -17,6 +18,7 @@ import { TarihInput } from '@/components/TarihInput'
 import { tutarGoster } from '@/features/kesinti/bicim'
 import { ayNumarasiAdi } from '@/features/kesinti/icmalTanimi'
 import { useKaliciSiralama } from '@/hooks/useKaliciSiralama'
+import { useKolonGorunurlugu } from '@/hooks/useKolonGorunurlugu'
 import { aramaBicimi } from '@/utils/metin'
 import { sayfaBoyutuOku } from '@/utils/sayfaBoyutu'
 import { bugunIso, tarihGoster } from '@/utils/tarih'
@@ -182,6 +184,8 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
   const [boyut, setBoyut] = useState(sayfaBoyutuOku)
   // 'data' ya da özet sekmesinin anahtarı
   const [sekme, setSekme] = useState('data')
+  // Data sekmesinde gizlenen kolonlar: tarayıcıda, rapor başına (Excel hepsini içerir)
+  const kolonGorunurlugu = useKolonGorunurlugu(`rapor.${tanim.anahtar}`)
 
   const erpSecenekleri = useQuery({
     queryKey: queryKeys.raporlar.secenekler(tanim.anahtar),
@@ -262,6 +266,13 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
 
   const kolonBasligi = (alan: string) => t(`raporlar.${tanim.anahtar}.kolon.${alan}`)
   const ortali = new Set<string>(tanim.ortali ?? [])
+  const veriKolonlari = tanim.kolonlar.map(({ alan, tur }): DataTableKolonu<T> => ({
+    anahtar: alan,
+    baslik: kolonBasligi(alan),
+    hizala: hizasi(tur, ortali.has(alan)),
+    render: (satir) => hucre(tur, satir[alan], tanim.sabitGenislik?.[alan]),
+  }))
+  // Sıra No hep görünür; diğerleri Kolonlar menüsünden gizlenebilir
   const kolonlar: DataTableKolonu<T>[] = [
     {
       anahtar: 'sira_no',
@@ -273,12 +284,7 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
         </span>
       ),
     },
-    ...tanim.kolonlar.map(({ alan, tur }): DataTableKolonu<T> => ({
-      anahtar: alan,
-      baslik: kolonBasligi(alan),
-      hizala: hizasi(tur, ortali.has(alan)),
-      render: (satir) => hucre(tur, satir[alan], tanim.sabitGenislik?.[alan]),
-    })),
+    ...veriKolonlari.filter((kolon) => kolonGorunurlugu.gorunurMu(kolon.anahtar)),
   ]
 
   const turler = new Map<string, KolonTuru>(tanim.kolonlar.map(({ alan, tur }) => [alan, tur]))
@@ -502,14 +508,22 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
           ) : (
             <>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  {suzuldu
-                    ? t('raporlar.suzulmusKayitSayisi', {
-                        sayi: satirlar.length,
-                        toplam: tumSatirlar.length,
-                      })
-                    : t('raporlar.kayitSayisi', { sayi: satirlar.length })}
-                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <KolonSecici
+                    kolonlar={veriKolonlari.map(({ anahtar, baslik }) => ({ anahtar, baslik }))}
+                    gorunurMu={kolonGorunurlugu.gorunurMu}
+                    degistir={kolonGorunurlugu.degistir}
+                    hepsiniGoster={kolonGorunurlugu.hepsiniGoster}
+                  />
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    {suzuldu
+                      ? t('raporlar.suzulmusKayitSayisi', {
+                          sayi: satirlar.length,
+                          toplam: tumSatirlar.length,
+                        })
+                      : t('raporlar.kayitSayisi', { sayi: satirlar.length })}
+                  </p>
+                </div>
                 {sayfalama('ust')}
               </div>
               <div className="mt-3">
