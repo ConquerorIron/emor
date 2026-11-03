@@ -223,6 +223,25 @@ describe('TaseronHakedisleriPage', () => {
     expect(api.rapor).toHaveBeenCalledTimes(1)
   })
 
+  it('sonuç gelene kadar süzgeç, sekme ve tablo yerine yükleniyor kutusu görünür', async () => {
+    let coz: (satirlar: HakedisSatiri[]) => void = () => undefined
+    api.rapor.mockReturnValue(
+      new Promise<HakedisSatiri[]>((resolve) => {
+        coz = resolve
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent("Rapor ERP'den okunuyor…")
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Genel Arama')).not.toBeInTheDocument()
+
+    coz(RAPOR)
+    expect(await screen.findByText('ZONE 7')).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('genel arama metin kolonlarında, Türkçe büyük/küçük harf duyarsız', async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
     expect(await screen.findByText('2 kayıt')).toBeInTheDocument()

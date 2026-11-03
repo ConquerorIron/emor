@@ -88,13 +88,11 @@ function RaporPivotTablosu<T extends RaporSatiri>({
   tanim,
   pivot,
   satirlar,
-  yukleniyor,
   toplamSatirlari,
 }: {
   tanim: ErpRaporTanimi<T>
   pivot: RaporPivotu
   satirlar: T[]
-  yukleniyor: boolean
   toplamSatirlari: ToplamSatiri[]
 }) {
   const { t, i18n } = useTranslation()
@@ -152,7 +150,6 @@ function RaporPivotTablosu<T extends RaporSatiri>({
       kolonlar={kolonlar}
       satirlar={siralaUygula(pivotla(satirlar, pivot, tanim.tarihAlani, tutarlar), siralama)}
       satirAnahtari={(satir) => pivot.gruplar.map((alan) => String(satir[alan])).join('|')}
-      yukleniyor={yukleniyor}
       siralama={siralama}
       siralamaDegistir={siralamaDegistir}
       ustKaydirma
@@ -304,7 +301,6 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
         setSayfa(yeni)
         setBoyut(sayfaBoyutuOku())
       }}
-      disabled={rapor.isPending}
       boyutSeciciId={`${tanim.anahtar}-sayfa-boyutu-${konum}`}
     />
   )
@@ -404,6 +400,18 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
         <div className="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
           {t('raporlar.onceCalistirin')}
         </div>
+      ) : rapor.isPending ? (
+        // Sonuç gelene kadar süzgeç, sekme ve boş tablo çizilmez (kullanıcı isteği 2026-11-03)
+        <div
+          role="status"
+          className="mt-4 flex items-center justify-center gap-3 rounded-xl border border-dashed border-slate-300 px-4 py-10 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400"
+        >
+          <span
+            aria-hidden="true"
+            className="size-5 animate-spin rounded-full border-2 border-current border-t-transparent"
+          />
+          {t('raporlar.hazirlaniyor')}
+        </div>
       ) : rapor.isError ? (
         <div className="mt-4">
           <ErrorState
@@ -488,7 +496,6 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
                 tanim={tanim}
                 pivot={seciliPivot}
                 satirlar={satirlar}
-                yukleniyor={rapor.isPending}
                 toplamSatirlari={toplamSatirlari}
               />
             </div>
@@ -496,14 +503,12 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
             <>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-slate-600 dark:text-slate-400">
-                  {rapor.isSuccess
-                    ? suzuldu
-                      ? t('raporlar.suzulmusKayitSayisi', {
-                          sayi: satirlar.length,
-                          toplam: tumSatirlar.length,
-                        })
-                      : t('raporlar.kayitSayisi', { sayi: satirlar.length })
-                    : null}
+                  {suzuldu
+                    ? t('raporlar.suzulmusKayitSayisi', {
+                        sayi: satirlar.length,
+                        toplam: tumSatirlar.length,
+                      })
+                    : t('raporlar.kayitSayisi', { sayi: satirlar.length })}
                 </p>
                 {sayfalama('ust')}
               </div>
@@ -512,7 +517,6 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
                   kolonlar={kolonlar}
                   satirlar={sayfaSatirlari}
                   satirAnahtari={tanim.satirAnahtari}
-                  yukleniyor={rapor.isPending}
                   ustKaydirma
                   toplamSatirlari={toplamSatirlari}
                 />
