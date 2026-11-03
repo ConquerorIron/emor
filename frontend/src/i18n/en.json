@@ -1082,15 +1082,27 @@
       "tarihZorunlu": "Date is required.",
       "sonTarihOnce": "End date cannot be before the start date."
     },
+    "genelArama": "Search",
     "projeyeGoreFiltrele": "Filter by project",
     "firmayaGoreFiltrele": "Filter by company",
     "kayitSayisi": "{{sayi}} records",
     "suzulmusKayitSayisi": "{{sayi}} of {{toplam}} records",
     "siraNo": "No",
     "genelToplamTl": "Grand Total (TRY)",
+    "sekmeler": "Views",
+    "pivot": {
+      "data": "Data",
+      "taseron": "Subcontractor",
+      "proje": "Project",
+      "tarih": "Date"
+    },
+    "yil": "Year",
+    "ay": "Month",
+    "kayitSayisiKolonu": "Record Count",
     "taseronHakedisleri": {
       "baslik": "Subcontractor Progress Payments",
       "aciklamaMetni": "Subcontract progress payments from the ERP, one row per payment, with currency totals above and below the table. The report is read from the ERP when you press Run Report.",
+      "aramaIpucu": "Company, project, contract, invoice no, status, approver…",
       "kolon": {
         "firma_adi": "Company Name",
         "proje_adi": "Project Name",
@@ -1125,6 +1137,7 @@
     "giderYansitmaFaturalari": {
       "baslik": "Expense Re-invoicing Invoices",
       "aciklamaMetni": "Expense re-invoicing invoices from the ERP, one row per invoice; amounts in TRY and in the invoice currency. TRY grand total and currency totals above and below the table. The report is read from the ERP when you press Run Report.",
+      "aramaIpucu": "Invoice no, title, project, description, user…",
       "kolon": {
         "tarih": "Date",
         "fatura_no": "Invoice No",

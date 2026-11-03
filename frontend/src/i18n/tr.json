@@ -1082,15 +1082,27 @@
       "tarihZorunlu": "Tarih zorunludur.",
       "sonTarihOnce": "Son tarih ilk tarihten önce olamaz."
     },
+    "genelArama": "Genel Arama",
     "projeyeGoreFiltrele": "Projeye göre filtrele",
     "firmayaGoreFiltrele": "Firmaya göre filtrele",
     "kayitSayisi": "{{sayi}} kayıt",
     "suzulmusKayitSayisi": "{{toplam}} kayıttan {{sayi}} kayıt",
     "siraNo": "Sıra No",
     "genelToplamTl": "Genel Toplam (TL)",
+    "sekmeler": "Görünümler",
+    "pivot": {
+      "data": "Data",
+      "taseron": "Taşeron",
+      "proje": "Proje",
+      "tarih": "Tarih"
+    },
+    "yil": "Yıl",
+    "ay": "Ay",
+    "kayitSayisiKolonu": "Kayıt Sayısı",
     "taseronHakedisleri": {
       "baslik": "Taşeron Hakedişleri",
       "aciklamaMetni": "ERP'deki taşeron sözleşme hakedişleri, hakediş başına bir satır; tablonun üstünde ve altında para birimine göre toplamlar. Rapor, Raporu Çalıştır'a basıldığında ERP'den okunur.",
+      "aramaIpucu": "Firma, proje, sözleşme, fatura no, durum, onaylayan…",
       "kolon": {
         "firma_adi": "Firma Adı",
         "proje_adi": "Proje Adı",
@@ -1125,6 +1137,7 @@
     "giderYansitmaFaturalari": {
       "baslik": "Gider Yansıtma Faturaları",
       "aciklamaMetni": "ERP'deki gider yansıtma faturaları, fatura başına bir satır; tutarlar TL karşılığıyla ve faturanın kendi para biriminde (Döviz). Tablonun üstünde ve altında TL genel toplamı ile para birimine göre döviz toplamları. Rapor, Raporu Çalıştır'a basıldığında ERP'den okunur.",
+      "aramaIpucu": "Fatura no, ünvan, proje, açıklama, kullanıcı…",
       "kolon": {
         "tarih": "Tarih",
         "fatura_no": "Fatura No",

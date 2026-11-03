@@ -121,5 +121,10 @@ describe('GiderYansitmaFaturalariPage', () => {
     fireEvent.click(screen.getByRole('button', { name: "Excel'e Aktar" }))
     await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
     expect(api.excel.mock.calls[0][0]).toMatchObject({ anahtarlar: ['INS3', 'INS2', 'INS1'] })
+
+    // Genel arama fatura no'da da arar; toplamlar aranan satırlardan
+    fireEvent.change(screen.getByLabelText('Genel Arama'), { target: { value: 'ins2' } })
+    expect(await screen.findByText('3 kayıttan 1 kayıt')).toBeInTheDocument()
+    expect(screen.getAllByText('4.300,00')).toHaveLength(3)
   })
 })

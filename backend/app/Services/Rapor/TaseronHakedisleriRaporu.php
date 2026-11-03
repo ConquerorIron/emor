@@ -51,6 +51,15 @@ final class TaseronHakedisleriRaporu extends ErpRaporu
         'odenen_tutar' => 'tutar',
     ];
 
+    /** Kullanıcı isteği 2026-11-03: kesinti ekranlarının özet sekmeleri gibi */
+    public const PIVOTLAR = [
+        'taseron' => ['firma_adi', 'proje_adi', 'para_kodu'],
+        'proje' => ['proje_adi', 'para_kodu'],
+        'tarih' => ['yil', 'ay', 'proje_adi', 'para_kodu'],
+    ];
+
+    public const TARIH_ALANI = 'hakedis_tarihi';
+
     /** Tutar kolonları: rapor alanı => proc kolonu */
     private const TUTARLAR = [
         'imalat' => 'IMALAT_TUTARI',

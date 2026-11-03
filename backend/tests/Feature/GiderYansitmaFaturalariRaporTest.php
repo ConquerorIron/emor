@@ -157,8 +157,11 @@ final class GiderYansitmaFaturalariRaporTest extends TestCase
             ->assertOk();
         $this->assertStringContainsString('gider-yansitma-faturalari.xlsx', (string) $yanit->headers->get('Content-Disposition'));
 
-        $sayfa = IOFactory::load($yanit->baseResponse->getFile()->getPathname())->getActiveSheet();
-        $this->assertSame('Gider Yansıtma Faturaları', $sayfa->getTitle());
+        $kitap = IOFactory::load($yanit->baseResponse->getFile()->getPathname());
+        // Ekranın sekmeleri gibi: Data + özet sayfaları
+        $this->assertSame(['Data', 'Taşeron', 'Proje', 'Tarih'], $kitap->getSheetNames());
+        $sayfa = $kitap->getActiveSheet();
+        $this->assertSame('Data', $sayfa->getTitle());
         $this->assertSame([
             'Sıra No', 'Tarih', 'Fatura No', 'Ünvan', 'Proje Kodu', 'Açıklama', 'KDV Matrahı (TL)', 'KDV (TL)',
             'Vergi (TL)', 'Tevkifat (TL)', 'Genel Toplam (TL)', 'Kesinti Toplamı (TL)', 'Net Toplam (TL)', 'Para Kodu',
@@ -179,5 +182,28 @@ final class GiderYansitmaFaturalariRaporTest extends TestCase
         $this->assertSame(['TOPLAM', '', '', '', 'USD', '150.00'], $satir(7));
         $this->assertSame('', $sayfa->getCell('A8')->getFormattedValue());
         $this->assertSame('A1:W4', $sayfa->getAutoFilter()->getRange());
+
+        // Taşeron: Ünvan | Proje | Para Kodu | Kayıt Sayısı | tutarlar — aynı gruptaki faturalar toplanır
+        $taseron = $kitap->getSheetByName('Taşeron');
+        $this->assertSame(
+            ['Ünvan', 'Proje Kodu', 'Para Kodu', 'Kayıt Sayısı', 'KDV Matrahı (TL)'],
+            $taseron->rangeToArray('A1:E1')[0],
+        );
+        // Ünvan, Para Kodu, Kayıt Sayısı, Genel Toplam (TL)
+        $pivotSatiri = fn (int $no): array => array_map(
+            fn (string $kolon): mixed => $taseron->getCell($kolon.$no)->getFormattedValue(),
+            ['A', 'C', 'D', 'I'],
+        );
+        $this->assertSame(['MFK KOÇ LTD.ŞTİ', 'TL', '1', '120.00'], $pivotSatiri(2));
+        $this->assertSame(['MFK KOÇ LTD.ŞTİ', 'USD', '2', '6,450.00'], $pivotSatiri(3));
+        $this->assertSame(['GENEL TOPLAM (TL)', '', '', '6,570.00'], $pivotSatiri(4));
+
+        // Tarih: Yıl | Ay (Türkçe ad) | Proje | Para Kodu
+        $tarih = $kitap->getSheetByName('Tarih');
+        $this->assertSame(['2026', 'Ocak', 'ZONE 4-5 - ANA BÜTÇE', 'TL'], array_map(
+            fn (string $kolon): mixed => $tarih->getCell($kolon.'2')->getFormattedValue(),
+            ['A', 'B', 'C', 'D'],
+        ));
+        $this->assertSame('Mart', $tarih->getCell('B4')->getFormattedValue());
     }
 }

@@ -30,6 +30,8 @@ const GIDER_YANSITMA_FATURALARI: ErpRaporTanimi<GiderYansitmaFaturasi> = {
     { alan: 'guncelleyen', tur: 'metin' },
   ],
   satirAnahtari: (satir) => satir.fatura_no,
+  // Metin kolonlarının hepsi
+  aramaAlanlari: ['fatura_no', 'unvan', 'proje_kodu', 'aciklama', 'kayit_eden', 'guncelleyen'],
   projeAlani: 'proje_kodu',
   firmaAlani: 'unvan',
   // Canlıda ünvan 126, açıklama 154, proje kodu 49 karaktere kadar
@@ -46,6 +48,13 @@ const GIDER_YANSITMA_FATURALARI: ErpRaporTanimi<GiderYansitmaFaturasi> = {
           },
           ...paraKodunaGoreTopla(satirlar, DOVIZ_TUTARLAR),
         ],
+  // Kesinti ekranlarının özet sekmeleri gibi, taşeron = ünvan (backend PIVOTLAR ile aynı)
+  pivotlar: [
+    { anahtar: 'taseron', gruplar: ['unvan', 'proje_kodu', 'para_kodu'] },
+    { anahtar: 'proje', gruplar: ['proje_kodu', 'para_kodu'] },
+    { anahtar: 'tarih', gruplar: ['yil', 'ay', 'proje_kodu', 'para_kodu'] },
+  ],
+  tarihAlani: 'tarih',
 }
 
 export function GiderYansitmaFaturalariPage() {

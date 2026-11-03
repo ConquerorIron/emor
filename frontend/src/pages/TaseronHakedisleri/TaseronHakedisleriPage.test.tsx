@@ -177,6 +177,66 @@ describe('TaseronHakedisleriPage', () => {
     expect(api.rapor).toHaveBeenCalledTimes(1)
   })
 
+  it('özet sekmeleri süzülen satırları gruplar: Taşeron (firma + proje + para), Tarih (yıl + ay)', async () => {
+    api.rapor.mockResolvedValue([
+      hakedis(1, 'ZONE 7', 100),
+      hakedis(2, 'ZONE 7', 50.25),
+      hakedis(3, 'ZONE 10', 10, 'BETA YAPI'),
+    ])
+    fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
+    expect(await screen.findByText('3 kayıt')).toBeInTheDocument()
+
+    const sekmeler = within(screen.getByRole('tablist', { name: 'Görünümler' }))
+    expect(sekmeler.getAllByRole('tab').map((sekme) => sekme.textContent)).toEqual([
+      'Data',
+      'Taşeron',
+      'Proje',
+      'Tarih',
+    ])
+
+    fireEvent.click(sekmeler.getByRole('tab', { name: 'Taşeron' }))
+    const basliklar = screen
+      .getAllByRole('columnheader')
+      .map((baslik) => baslik.textContent.replace(/[▲▼↕]/g, ''))
+    expect(basliklar.slice(0, 5)).toEqual([
+      'Firma Adı',
+      'Proje Adı',
+      'Para Kodu',
+      'Kayıt Sayısı',
+      'İmalat',
+    ])
+    // Başlık + üst toplam + 2 grup + alt toplam; aynı firma + projedeki iki hakediş toplanır
+    const satirlar = screen.getAllByRole('row')
+    expect(satirlar).toHaveLength(5)
+    const atilla = within(satirlar[2])
+      .getAllByRole('cell')
+      .map((hucre) => hucre.textContent)
+    expect(atilla.slice(0, 5)).toEqual(['ATİLLA GIDA', 'ZONE 7', 'TL', '2', '150,25'])
+
+    // Süzgeç özet sekmelerine de uygulanır
+    fireEvent.change(screen.getByLabelText('Genel Arama'), { target: { value: 'beta' } })
+    await waitFor(() => expect(screen.getAllByRole('row')).toHaveLength(4))
+
+    fireEvent.click(sekmeler.getByRole('tab', { name: 'Tarih' }))
+    expect(screen.getByRole('columnheader', { name: /Yıl/ })).toBeInTheDocument()
+    expect(screen.getByText('Mayıs')).toBeInTheDocument()
+    expect(api.rapor).toHaveBeenCalledTimes(1)
+  })
+
+  it('genel arama metin kolonlarında, Türkçe büyük/küçük harf duyarsız', async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
+    expect(await screen.findByText('2 kayıt')).toBeInTheDocument()
+
+    const ara = screen.getByLabelText('Genel Arama')
+    fireEvent.change(ara, { target: { value: 'atilla' } })
+    expect(await screen.findByText('2 kayıttan 1 kayıt')).toBeInTheDocument()
+    expect(screen.queryByText('BETA YAPI')).not.toBeInTheDocument()
+
+    // Tutarlar aranmaz (yalnız tanımdaki metin kolonları)
+    fireEvent.change(ara, { target: { value: '240' } })
+    expect(await screen.findByText('2 kayıttan 0 kayıt')).toBeInTheDocument()
+  })
+
   it('sayfalama tarayıcıda; Sıra No sayfalar arasında devam eder', async () => {
     api.rapor.mockResolvedValue(
       Array.from({ length: 30 }, (_, i) => hakedis(i + 1, `PROJE ${i + 1}`, 10)),

@@ -42,6 +42,17 @@ const TASERON_HAKEDISLERI: ErpRaporTanimi<HakedisSatiri> = {
     { alan: 'odenen_tutar', tur: 'tutar' },
   ],
   satirAnahtari: (satir) => String(satir.hakedis_id),
+  // Kullanıcı isteği 2026-11-03
+  aramaAlanlari: [
+    'firma_adi',
+    'sozlesme_konusu',
+    'proje_adi',
+    'sozlesme_no',
+    'fatura_no',
+    'hakedis_durumu',
+    'onay_durumu',
+    'onaylayan',
+  ],
   projeAlani: 'proje_adi',
   firmaAlani: 'firma_adi',
   // Kullanıcı istekleri 2026-11-03: firma / sözleşme konusu ~130 karaktere,
@@ -54,6 +65,13 @@ const TASERON_HAKEDISLERI: ErpRaporTanimi<HakedisSatiri> = {
   },
   ortali: ['hakedis_no', 'para_kodu', 'onay_saati'],
   toplamlar: (satirlar) => paraKodunaGoreTopla(satirlar, TUTARLAR),
+  // Kesinti ekranlarının özet sekmeleri gibi (backend PIVOTLAR ile aynı)
+  pivotlar: [
+    { anahtar: 'taseron', gruplar: ['firma_adi', 'proje_adi', 'para_kodu'] },
+    { anahtar: 'proje', gruplar: ['proje_adi', 'para_kodu'] },
+    { anahtar: 'tarih', gruplar: ['yil', 'ay', 'proje_adi', 'para_kodu'] },
+  ],
+  tarihAlani: 'hakedis_tarihi',
 }
 
 export function TaseronHakedisleriPage() {

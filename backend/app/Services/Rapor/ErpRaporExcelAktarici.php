@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Rapor;
 
+use Carbon\CarbonImmutable;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelTarihi;
@@ -12,11 +13,16 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 /**
- * ERP raporlarının Excel (.xlsx) çıktısı: ekrandaki satırlar ve kolonlar
- * (ErpRaporu::KOLONLAR), altında raporun toplam satırları (otomatik
- * filtrenin dışında). Tarihler Excel tarihi olarak yazılır (süzülüp
- * sıralanabilir). Metin hücreleri metin tipiyle yazılır: "=", "+", "-", "@"
- * ile başlayan değer formül olarak yorumlanmaz.
+ * ERP raporlarının Excel (.xlsx) çıktısı, ekranın sekmeleri gibi:
+ *
+ * - "Data": ekranda süzülen satırlar ve kolonlar (ErpRaporu::KOLONLAR).
+ * - Her özet sekmesi (ErpRaporu::PIVOTLAR) ayrı sayfa: gruplar + kayıt
+ *   sayısı + tutarlar.
+ *
+ * Her sayfanın altında raporun toplam satırları (otomatik filtrenin dışında).
+ * Tarihler Excel tarihi olarak yazılır (süzülüp sıralanabilir). Metin
+ * hücreleri metin tipiyle yazılır: "=", "+", "-", "@" ile başlayan değer
+ * formül olarak yorumlanmaz.
  */
 final class ErpRaporExcelAktarici
 {
@@ -26,61 +32,49 @@ final class ErpRaporExcelAktarici
      */
     public function olustur(ErpRaporu $rapor, array $satirlar): string
     {
-        $kolonlar = $rapor::KOLONLAR;
         $basliklar = __('rapor.'.$rapor::DIL.'.kolonlar');
         $baslik = __('rapor.'.$rapor::DIL.'.baslik');
-        $kitap = new Spreadsheet;
-        $kitap->getProperties()->setCreator('eMOR ERP')->setTitle($baslik);
-        // Excel sayfa adı en fazla 31 karakter
-        $sayfa = $kitap->getActiveSheet()->setTitle(mb_substr($baslik, 0, 31));
-
-        $sayfa->setCellValueExplicit([1, 1], __('rapor.sira_no'), DataType::TYPE_STRING);
-        foreach (array_keys($kolonlar) as $i => $alan) {
-            $sayfa->setCellValueExplicit([$i + 2, 1], $basliklar[$alan], DataType::TYPE_STRING);
-        }
-
-        $satir = 2;
-
-        foreach ($satirlar as $sira => $degerler) {
-            $sayfa->setCellValueExplicit([1, $satir], $sira + 1, DataType::TYPE_NUMERIC);
-            $this->satirYaz($sayfa, $satir, $kolonlar, $degerler);
-            $satir++;
-        }
-
-        $sonVeriSatiri = max(2, $satir - 1);
-
-        foreach ($rapor->toplamSatirlari($satirlar) as $toplam) {
-            $sayfa->setCellValueExplicit([1, $satir], $toplam['etiket'], DataType::TYPE_STRING);
-            $this->satirYaz($sayfa, $satir, $kolonlar, $toplam['degerler']);
-            $sayfa->getStyle([1, $satir, count($kolonlar) + 1, $satir])->getFont()->setBold(true);
-            $satir++;
-        }
-
-        $sonSatir = max(2, $satir - 1);
-
-        foreach (array_values($kolonlar) as $i => $tur) {
-            $harf = Coordinate::stringFromColumnIndex($i + 2);
-            $bicim = match ($tur) {
-                'tarih' => 'dd.mm.yyyy',
-                'tutar' => '#,##0.00',
-                default => null,
-            };
-
-            if ($bicim !== null) {
-                $sayfa->getStyle("{$harf}2:{$harf}{$sonSatir}")->getNumberFormat()->setFormatCode($bicim);
+        $toplamlar = $rapor->toplamSatirlari($satirlar);
+        $kolon = fn (string $alan, string $tur, string $baslik): array => ['alan' => $alan, 'tur' => $tur, 'baslik' => $baslik];
+        $tutarKolonlari = [];
+        foreach ($rapor::KOLONLAR as $alan => $tur) {
+            if ($tur === 'tutar') {
+                $tutarKolonlari[] = $kolon($alan, $tur, $basliklar[$alan]);
             }
         }
 
-        $sonKolon = Coordinate::stringFromColumnIndex(count($kolonlar) + 1);
-        $sayfa->getStyle("A1:{$sonKolon}1")->getFont()->setBold(true);
-        $sayfa->freezePane('A2');
-        $sayfa->setAutoFilter("A1:{$sonKolon}{$sonVeriSatiri}");
+        $kitap = new Spreadsheet;
+        $kitap->getProperties()->setCreator('eMOR ERP')->setTitle($baslik);
 
-        foreach (range(1, count($kolonlar) + 1) as $sutun) {
-            // Veri ne kadar genişse kolon o kadar
-            $sayfa->getColumnDimension(Coordinate::stringFromColumnIndex($sutun))->setAutoSize(true);
+        // Sekmeli raporda ilk sayfa ekrandaki gibi "Data"; Excel sayfa adı en fazla 31 karakter
+        $this->tabloYaz(
+            $kitap->getActiveSheet()->setTitle(mb_substr($rapor::PIVOTLAR === [] ? $baslik : __('rapor.pivot.data'), 0, 31)),
+            [
+                $kolon('sira_no', 'sayi', __('rapor.sira_no')),
+                ...array_map(fn (string $alan, string $tur): array => $kolon($alan, $tur, $basliklar[$alan]), array_keys($rapor::KOLONLAR), $rapor::KOLONLAR),
+            ],
+            array_map(fn (array $satir, int $sira): array => ['sira_no' => $sira + 1, ...$satir], $satirlar, array_keys($satirlar)),
+            $toplamlar,
+        );
+
+        foreach ($rapor::PIVOTLAR as $pivot => $gruplar) {
+            $this->tabloYaz(
+                $kitap->createSheet()->setTitle(__("rapor.pivot.{$pivot}")),
+                [
+                    ...array_map(fn (string $alan): array => match ($alan) {
+                        'yil' => $kolon($alan, 'sayi', __('rapor.yil')),
+                        'ay' => $kolon($alan, 'ay', __('rapor.ay')),
+                        default => $kolon($alan, 'metin', $basliklar[$alan]),
+                    }, $gruplar),
+                    $kolon('satir_sayisi', 'sayi', __('rapor.kayit_sayisi')),
+                    ...$tutarKolonlari,
+                ],
+                $rapor->pivot($satirlar, $pivot),
+                $toplamlar,
+            );
         }
 
+        $kitap->setActiveSheetIndex(0);
         $yol = tempnam(sys_get_temp_dir(), 'rapor-');
 
         if ($yol === false) {
@@ -103,27 +97,75 @@ final class ErpRaporExcelAktarici
     }
 
     /**
-     * Sıra No kolonunun sağından kolon sırasıyla; satırda olmayan alan
-     * (toplam satırında metin / tarih kolonları) boş kalır.
+     * Başlık + satırlar; altında toplam satırları (etiket ilk kolonda, değerler
+     * kolon adıyla eşleşen hücrelerde).
      *
-     * @param  array<string, 'metin'|'tarih'|'tutar'>  $kolonlar
-     * @param  array<string, int|string|float|null>  $degerler
+     * @param  list<array{alan: string, tur: string, baslik: string}>  $kolonlar
+     * @param  list<array<string, int|string|float|null>>  $satirlar
+     * @param  list<array{etiket: string, degerler: array<string, string|float>}>  $toplamlar
      */
-    private function satirYaz(Worksheet $sayfa, int $satir, array $kolonlar, array $degerler): void
+    private function tabloYaz(Worksheet $sayfa, array $kolonlar, array $satirlar, array $toplamlar): void
     {
-        foreach (array_keys($kolonlar) as $i => $alan) {
-            $sutun = $i + 2;
-            $deger = $degerler[$alan] ?? null;
-
-            if ($deger === null || $deger === '') {
-                continue;
-            }
-
-            match ($kolonlar[$alan]) {
-                'tarih' => $sayfa->setCellValueExplicit([$sutun, $satir], ExcelTarihi::PHPToExcel((string) $deger), DataType::TYPE_NUMERIC),
-                'tutar' => $sayfa->setCellValueExplicit([$sutun, $satir], (float) $deger, DataType::TYPE_NUMERIC),
-                default => $sayfa->setCellValueExplicit([$sutun, $satir], (string) $deger, DataType::TYPE_STRING),
-            };
+        foreach ($kolonlar as $i => $kolon) {
+            $sayfa->setCellValueExplicit([$i + 1, 1], $kolon['baslik'], DataType::TYPE_STRING);
         }
+
+        $satir = 2;
+
+        foreach ($satirlar as $degerler) {
+            foreach ($kolonlar as $i => $kolon) {
+                $this->hucreYaz($sayfa, $i + 1, $satir, $kolon['tur'], $degerler[$kolon['alan']] ?? null);
+            }
+            $satir++;
+        }
+
+        $sonVeriSatiri = max(2, $satir - 1);
+
+        foreach ($toplamlar as $toplam) {
+            $sayfa->setCellValueExplicit([1, $satir], $toplam['etiket'], DataType::TYPE_STRING);
+            foreach (array_slice($kolonlar, 1, preserve_keys: true) as $i => $kolon) {
+                $this->hucreYaz($sayfa, $i + 1, $satir, $kolon['tur'], $toplam['degerler'][$kolon['alan']] ?? null);
+            }
+            $sayfa->getStyle([1, $satir, count($kolonlar), $satir])->getFont()->setBold(true);
+            $satir++;
+        }
+
+        $sonSatir = max(2, $satir - 1);
+
+        foreach ($kolonlar as $i => $kolon) {
+            $harf = Coordinate::stringFromColumnIndex($i + 1);
+            $bicim = match ($kolon['tur']) {
+                'tarih' => 'dd.mm.yyyy',
+                'tutar' => '#,##0.00',
+                'sayi' => '0',
+                default => null,
+            };
+
+            if ($bicim !== null) {
+                $sayfa->getStyle("{$harf}2:{$harf}{$sonSatir}")->getNumberFormat()->setFormatCode($bicim);
+            }
+            // Veri ne kadar genişse kolon o kadar
+            $sayfa->getColumnDimension($harf)->setAutoSize(true);
+        }
+
+        $sonKolon = Coordinate::stringFromColumnIndex(count($kolonlar));
+        $sayfa->getStyle("A1:{$sonKolon}1")->getFont()->setBold(true);
+        $sayfa->freezePane('A2');
+        $sayfa->setAutoFilter("A1:{$sonKolon}{$sonVeriSatiri}");
+    }
+
+    private function hucreYaz(Worksheet $sayfa, int $sutun, int $satir, string $tur, mixed $deger): void
+    {
+        if ($deger === null || $deger === '') {
+            return;
+        }
+
+        match ($tur) {
+            'tarih' => $sayfa->setCellValueExplicit([$sutun, $satir], ExcelTarihi::PHPToExcel((string) $deger), DataType::TYPE_NUMERIC),
+            'tutar', 'sayi' => $sayfa->setCellValueExplicit([$sutun, $satir], $deger, DataType::TYPE_NUMERIC),
+            // Ekrandaki gibi Türkçe ay adı ("Mart")
+            'ay' => $sayfa->setCellValueExplicit([$sutun, $satir], CarbonImmutable::create(2000, (int) $deger, 1)->locale('tr')->translatedFormat('F'), DataType::TYPE_STRING),
+            default => $sayfa->setCellValueExplicit([$sutun, $satir], (string) $deger, DataType::TYPE_STRING),
+        };
     }
 }

@@ -9,15 +9,26 @@ import { ALAN_KUTUSU } from '@/components/alanStilleri'
 import { Button } from '@/components/Button'
 import { DataTable, type DataTableKolonu, type ToplamSatiri } from '@/components/DataTable'
 import { ErrorState } from '@/components/ErrorState'
+import { Input } from '@/components/Input'
 import { Pagination } from '@/components/Pagination'
 import { MultiSelectField, SelectField, type SecenekOgesi } from '@/components/SelectField'
+import { siralaUygula } from '@/components/SiralanabilirBaslik'
 import { TarihInput } from '@/components/TarihInput'
 import { tutarGoster } from '@/features/kesinti/bicim'
+import { ayNumarasiAdi } from '@/features/kesinti/icmalTanimi'
+import { useKaliciSiralama } from '@/hooks/useKaliciSiralama'
+import { aramaBicimi } from '@/utils/metin'
 import { sayfaBoyutuOku } from '@/utils/sayfaBoyutu'
 import { bugunIso, tarihGoster } from '@/utils/tarih'
 
 import type { RaporParametreleri, RaporSatiri } from './erpRaporApi'
-import type { ErpRaporTanimi, KolonTuru } from './raporTanimi'
+import {
+  pivotla,
+  type ErpRaporTanimi,
+  type KolonTuru,
+  type PivotSatiri,
+  type RaporPivotu,
+} from './raporTanimi'
 
 /** Açılışta tüm geçmiş, bugüne kadar */
 const ILK_TARIH = '2000-01-01'
@@ -25,11 +36,13 @@ const ILK_TARIH = '2000-01-01'
 type TarihHatalari = Partial<Record<'ilk_tarih' | 'son_tarih', string>>
 
 interface AnlikSuzgec {
+  /** Genel arama: raporun aramaAlanlari'nda, büyük/küçük harf duyarsız */
+  arama: string
   projeler: string[]
   firmalar: string[]
 }
 
-const BOS_SUZGEC: AnlikSuzgec = { projeler: [], firmalar: [] }
+const BOS_SUZGEC: AnlikSuzgec = { arama: '', projeler: [], firmalar: [] }
 
 /** Sonuçtaki farklı değerler, Türkçe sırayla (ZONE 7, ZONE 10'dan önce) */
 function secenekler(degerler: string[]): SecenekOgesi[] {
@@ -68,6 +81,87 @@ function hucre(tur: KolonTuru, deger: string | number | null | undefined, genisl
 }
 
 /**
+ * Özet (pivot) sekmesi: süzülen satırlar sekmenin gruplarına göre toplanır
+ * (tarayıcıda); kolonlara göre sıralanır, toplam satırları Data ile aynı.
+ */
+function RaporPivotTablosu<T extends RaporSatiri>({
+  tanim,
+  pivot,
+  satirlar,
+  yukleniyor,
+  toplamSatirlari,
+}: {
+  tanim: ErpRaporTanimi<T>
+  pivot: RaporPivotu
+  satirlar: T[]
+  yukleniyor: boolean
+  toplamSatirlari: ToplamSatiri[]
+}) {
+  const { t, i18n } = useTranslation()
+  const { siralama, siralamaDegistir } = useKaliciSiralama(`${tanim.anahtar}Pivot.${pivot.anahtar}`)
+  const tutarlar = tanim.kolonlar.filter((kolon) => kolon.tur === 'tutar').map((k) => k.alan)
+  const ortali = new Set<string>(tanim.ortali ?? [])
+  const sabitGenislik: Partial<Record<string, string>> = tanim.sabitGenislik ?? {}
+
+  const grupKolonu = (alan: string): DataTableKolonu<PivotSatiri> => {
+    if (alan === 'yil' || alan === 'ay') {
+      return {
+        anahtar: alan,
+        baslik: t(`raporlar.${alan}`),
+        siralamaAnahtari: alan,
+        hizala: 'orta',
+        render: (satir) => (
+          <span className="whitespace-nowrap tabular-nums">
+            {alan === 'ay' ? ayNumarasiAdi(Number(satir.ay), i18n.language) : satir.yil}
+          </span>
+        ),
+      }
+    }
+
+    return {
+      anahtar: alan,
+      baslik: t(`raporlar.${tanim.anahtar}.kolon.${alan}`),
+      siralamaAnahtari: alan,
+      hizala: ortali.has(alan) ? 'orta' : 'sol',
+      render: (satir) => hucre('metin', satir[alan], sabitGenislik[alan]),
+    }
+  }
+
+  const kolonlar: DataTableKolonu<PivotSatiri>[] = [
+    ...pivot.gruplar.map(grupKolonu),
+    {
+      anahtar: 'satir_sayisi',
+      baslik: t('raporlar.kayitSayisiKolonu'),
+      siralamaAnahtari: 'satir_sayisi',
+      hizala: 'sag',
+      render: (satir) => (
+        <span className="tabular-nums">{Number(satir.satir_sayisi).toLocaleString('tr-TR')}</span>
+      ),
+    },
+    ...tutarlar.map((alan): DataTableKolonu<PivotSatiri> => ({
+      anahtar: alan,
+      baslik: t(`raporlar.${tanim.anahtar}.kolon.${alan}`),
+      siralamaAnahtari: alan,
+      hizala: 'sag',
+      render: (satir) => hucre('tutar', satir[alan]),
+    })),
+  ]
+
+  return (
+    <DataTable
+      kolonlar={kolonlar}
+      satirlar={siralaUygula(pivotla(satirlar, pivot, tanim.tarihAlani, tutarlar), siralama)}
+      satirAnahtari={(satir) => pivot.gruplar.map((alan) => String(satir[alan])).join('|')}
+      yukleniyor={yukleniyor}
+      siralama={siralama}
+      siralamaDegistir={siralamaDegistir}
+      ustKaydirma
+      toplamSatirlari={toplamSatirlari}
+    />
+  )
+}
+
+/**
  * Raporlar menüsündeki ERP raporlarının ortak ekranı (ilk: Taşeron
  * Hakedişleri, 2026-11-03). Parametreler proc'a gider ve rapor yalnız
  * "Raporu Çalıştır"la çalışır (mutation — sayfa boyutu değişince tüm
@@ -89,6 +183,8 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
   const [sayfa, setSayfa] = useState(1)
   // Ortak sayfa boyutu tercihi; Pagination değiştirince sayfaDegistir'de yeniden okunur
   const [boyut, setBoyut] = useState(sayfaBoyutuOku)
+  // 'data' ya da özet sekmesinin anahtarı
+  const [sekme, setSekme] = useState('data')
 
   const erpSecenekleri = useQuery({
     queryKey: queryKeys.raporlar.secenekler(tanim.anahtar),
@@ -130,8 +226,8 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
     }
   }
 
-  const suzgecDegistir = (alan: keyof AnlikSuzgec, degerler: string[]) => {
-    setSuzgec((onceki) => ({ ...onceki, [alan]: degerler }))
+  const suzgecDegistir = <K extends keyof AnlikSuzgec>(alan: K, deger: AnlikSuzgec[K]) => {
+    setSuzgec((onceki) => ({ ...onceki, [alan]: deger }))
     setSayfa(1)
   }
 
@@ -150,8 +246,13 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
   const tumSatirlar = rapor.data ?? []
   const suzgecProjeleri = secenekler(tumSatirlar.map(projesi))
   const suzgecFirmalari = secenekler(tumSatirlar.map(firmasi))
+  const aranan = aramaBicimi(suzgec.arama.trim())
   const satirlar = tumSatirlar.filter(
     (satir) =>
+      (aranan === '' ||
+        tanim.aramaAlanlari.some((alan) =>
+          aramaBicimi(String(satir[alan] ?? '')).includes(aranan),
+        )) &&
       (suzgec.projeler.length === 0 || suzgec.projeler.includes(projesi(satir))) &&
       (suzgec.firmalar.length === 0 || suzgec.firmalar.includes(firmasi(satir))),
   )
@@ -208,7 +309,8 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
     />
   )
 
-  const suzuldu = suzgec.projeler.length > 0 || suzgec.firmalar.length > 0
+  const suzuldu = aranan !== '' || suzgec.projeler.length > 0 || suzgec.firmalar.length > 0
+  const seciliPivot = tanim.pivotlar.find((pivot) => pivot.anahtar === sekme)
 
   return (
     <>
@@ -316,7 +418,16 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
       ) : (
         <>
           {/* Gelen veride anında süzme: proc yeniden çalışmaz */}
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Input
+              id={`${tanim.anahtar}-ara`}
+              type="search"
+              label={t('raporlar.genelArama')}
+              placeholder={t(`raporlar.${tanim.anahtar}.aramaIpucu`)}
+              maxLength={100}
+              value={suzgec.arama}
+              onChange={(olay) => suzgecDegistir('arama', olay.target.value)}
+            />
             <MultiSelectField
               id={`${tanim.anahtar}-suz-proje`}
               label={t('raporlar.projeyeGoreFiltrele')}
@@ -345,30 +456,70 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
             />
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              {rapor.isSuccess
-                ? suzuldu
-                  ? t('raporlar.suzulmusKayitSayisi', {
-                      sayi: satirlar.length,
-                      toplam: tumSatirlar.length,
-                    })
-                  : t('raporlar.kayitSayisi', { sayi: satirlar.length })
-                : null}
-            </p>
-            {sayfalama('ust')}
+          {/* Data: satırlar; diğerleri aynı süzgeçteki satırların özetleri */}
+          <div
+            role="tablist"
+            aria-label={t('raporlar.sekmeler')}
+            className="mt-4 flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-700"
+          >
+            {['data', ...tanim.pivotlar.map((pivot) => pivot.anahtar)].map((anahtar) => (
+              <button
+                key={anahtar}
+                type="button"
+                role="tab"
+                aria-selected={sekme === anahtar}
+                onClick={() => setSekme(anahtar)}
+                className={`-mb-px cursor-pointer border-b-2 px-3 py-2 text-sm font-semibold ${
+                  sekme === anahtar
+                    ? 'border-violet-600 text-violet-700 dark:text-violet-300'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                {t(`raporlar.pivot.${anahtar}`)}
+              </button>
+            ))}
           </div>
-          <div className="mt-3">
-            <DataTable
-              kolonlar={kolonlar}
-              satirlar={sayfaSatirlari}
-              satirAnahtari={tanim.satirAnahtari}
-              yukleniyor={rapor.isPending}
-              ustKaydirma
-              toplamSatirlari={toplamSatirlari}
-            />
-          </div>
-          <div className="mt-3">{sayfalama('alt')}</div>
+
+          {seciliPivot ? (
+            <div className="mt-4">
+              {/* Sekme başına ayrı: sıralama tercihi sekmeden sekmeye taşınmaz */}
+              <RaporPivotTablosu
+                key={seciliPivot.anahtar}
+                tanim={tanim}
+                pivot={seciliPivot}
+                satirlar={satirlar}
+                yukleniyor={rapor.isPending}
+                toplamSatirlari={toplamSatirlari}
+              />
+            </div>
+          ) : (
+            <>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  {rapor.isSuccess
+                    ? suzuldu
+                      ? t('raporlar.suzulmusKayitSayisi', {
+                          sayi: satirlar.length,
+                          toplam: tumSatirlar.length,
+                        })
+                      : t('raporlar.kayitSayisi', { sayi: satirlar.length })
+                    : null}
+                </p>
+                {sayfalama('ust')}
+              </div>
+              <div className="mt-3">
+                <DataTable
+                  kolonlar={kolonlar}
+                  satirlar={sayfaSatirlari}
+                  satirAnahtari={tanim.satirAnahtari}
+                  yukleniyor={rapor.isPending}
+                  ustKaydirma
+                  toplamSatirlari={toplamSatirlari}
+                />
+              </div>
+              <div className="mt-3">{sayfalama('alt')}</div>
+            </>
+          )}
         </>
       )}
     </>

@@ -47,6 +47,15 @@ final class GiderYansitmaFaturalariRaporu extends ErpRaporu
         'guncelleyen' => 'metin',
     ];
 
+    /** Kullanıcı isteği 2026-11-03: kesinti ekranlarının özet sekmeleri gibi (taşeron = ünvan) */
+    public const PIVOTLAR = [
+        'taseron' => ['unvan', 'proje_kodu', 'para_kodu'],
+        'proje' => ['proje_kodu', 'para_kodu'],
+        'tarih' => ['yil', 'ay', 'proje_kodu', 'para_kodu'],
+    ];
+
+    public const TARIH_ALANI = 'tarih';
+
     /** Rapor alanı => proc kolonu (proc'ta TL KDV matrahı "_TL" eki olmadan: KDV_MATRAHI) */
     private const KAYNAK = [
         'tarih' => 'TARIH',

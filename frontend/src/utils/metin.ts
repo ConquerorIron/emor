@@ -8,6 +8,15 @@ export function trBuyukHarf(deger: string): string {
 }
 
 /**
+ * Serbest metin araması için karşılaştırma biçimi: Türkçe küçük harf ve
+ * I/İ/ı/i farksız. Yalnız tr küçültmede "INS" → "ıns" olur ve "ins" aranınca
+ * bulunmaz (ERP kodları ASCII büyük harfle gelir); iki taraf da bununla çevrilir.
+ */
+export function aramaBicimi(deger: string): string {
+  return deger.toLocaleLowerCase('tr-TR').replaceAll('ı', 'i')
+}
+
+/**
  * react-hook-form register seçenekleri: form STATE'i her zaman büyük harf
  * (setValueAs — submit garantisi) + input yazarken büyük gösterir (onChange
  * DOM değerini dönüştürür). Kullanım: {...register('ad', buyukHarfKaydi)}

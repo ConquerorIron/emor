@@ -5,6 +5,16 @@ return [
     'sira_no' => 'Sıra No',
     'toplam' => 'TOPLAM',
     'genel_toplam_tl' => 'GENEL TOPLAM (TL)',
+    // Özet sayfaları (ekrandaki sekmeler; ErpRaporu::PIVOTLAR)
+    'pivot' => [
+        'data' => 'Data',
+        'taseron' => 'Taşeron',
+        'proje' => 'Proje',
+        'tarih' => 'Tarih',
+    ],
+    'yil' => 'Yıl',
+    'ay' => 'Ay',
+    'kayit_sayisi' => 'Kayıt Sayısı',
 
     // Rapor bölümleri: ErpRaporu::DIL; kolon sırası raporun KOLONLAR'ından gelir
     'taseron_hakedisleri' => [

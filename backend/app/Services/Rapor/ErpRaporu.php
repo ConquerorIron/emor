@@ -6,6 +6,7 @@ namespace App\Services\Rapor;
 
 use App\Services\ErpOkumaHatasi;
 use Carbon\CarbonImmutable;
+use Collator;
 
 /**
  * Raporlar menüsündeki ERP raporlarının ortak akışı: proc ortak imzayla
@@ -34,9 +35,78 @@ abstract class ErpRaporu
      */
     public const KOLONLAR = [];
 
+    /**
+     * Özet (pivot) sekmeleri, ekrandaki sırayla: sekme => grup kolonları
+     * ("yil" / "ay" TARIH_ALANI'ndan türer). Frontend tanımıyla aynı olmalı;
+     * Excel'de her biri ayrı sayfa.
+     *
+     * @var array<string, list<string>>
+     */
+    public const PIVOTLAR = [];
+
+    /** Pivotlardaki Yıl / Ay'ın türediği tarih kolonu (Y-m-d) */
+    public const TARIH_ALANI = '';
+
     public function __construct(
         private readonly ErpRaporKaynagi $kaynak,
     ) {}
+
+    /**
+     * Satırlar sekmenin grup kolonlarına göre toplanır: gruplar + satır
+     * sayısı + tutar kolonları; gruplar soldan sağa sıralı (Türkçe, sayılar
+     * sayı gibi).
+     *
+     * @param  list<array<string, int|string|float|null>>  $satirlar  ekranda süzülen satırlar
+     * @return list<array<string, int|string|float>>
+     */
+    public function pivot(array $satirlar, string $pivot): array
+    {
+        $gruplar = static::PIVOTLAR[$pivot];
+        $tutarlar = array_keys(array_filter(static::KOLONLAR, fn (string $tur): bool => $tur === 'tutar'));
+        $sonuc = [];
+
+        foreach ($satirlar as $satir) {
+            $tarih = (string) ($satir[static::TARIH_ALANI] ?? '');
+            $degerler = [];
+            foreach ($gruplar as $alan) {
+                $degerler[$alan] = match ($alan) {
+                    'yil' => (int) substr($tarih, 0, 4),
+                    'ay' => (int) substr($tarih, 5, 2),
+                    default => (string) ($satir[$alan] ?? ''),
+                };
+            }
+
+            $anahtar = implode("\0", $degerler);
+            $sonuc[$anahtar] ??= [...$degerler, 'satir_sayisi' => 0, ...array_fill_keys($tutarlar, 0.0)];
+            $sonuc[$anahtar]['satir_sayisi']++;
+            foreach ($tutarlar as $alan) {
+                $sonuc[$anahtar][$alan] += (float) $satir[$alan];
+            }
+        }
+
+        $siralayici = new Collator('tr_TR');
+        $siralayici->setAttribute(Collator::NUMERIC_COLLATION, Collator::ON);
+        $sonuc = array_values($sonuc);
+        usort($sonuc, function (array $a, array $b) use ($gruplar, $siralayici): int {
+            foreach ($gruplar as $alan) {
+                $fark = is_int($a[$alan]) ? $a[$alan] <=> $b[$alan] : (int) $siralayici->compare($a[$alan], $b[$alan]);
+                if ($fark !== 0) {
+                    return $fark;
+                }
+            }
+
+            return 0;
+        });
+
+        // Toplamadaki float artıkları temizlenir (kuruş)
+        return array_map(function (array $grup) use ($tutarlar): array {
+            foreach ($tutarlar as $alan) {
+                $grup[$alan] = round($grup[$alan], 2);
+            }
+
+            return $grup;
+        }, $sonuc);
+    }
 
     /**
      * @param  array{ilk_tarih: string, son_tarih: string, proje_kodu: string|null, firma_adi: string|null}  $parametreler
