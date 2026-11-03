@@ -57,18 +57,30 @@ final class TaseronHakedisleriRaporTest extends TestCase
     }
 
     /**
-     * Proc satırı: verilmeyen tutarlar 0 (proc float metni döndürür)
+     * Canlıdaki gibi proc satırı: verilmeyen tutarlar 0 (proc float metni döndürür)
      *
-     * @param  array<string, string>  $tutarlar
+     * @param  array<string, string|null>  $degerler
      * @return array<string, mixed>
      */
-    private function hakedis(string $proje, string $para, array $tutarlar = []): array
+    private function hakedis(int $id, string $tarih, string $proje, string $para, array $degerler = []): array
     {
         return [
+            'HAKEDIS_ID' => (string) $id,
             'FIRMA_ADI' => 'ATİLLA GIDA',
             'PROJE_ADI' => $proje,
             // nchar: sonu boşlukla dolu gelir
+            'SOZLESME_NO' => str_pad('HAB-26-1078.03.Z01', 50),
+            'SOZLESME_KONUSU' => 'YEMEK TEMİNİ HİZMETLERİ',
+            'HAKEDIS_NO' => str_pad('3', 50),
+            'HAKEDIS_TARIHI' => "{$tarih} 00:00:00.000",
+            'DONEM_BASLANGICI' => '2026-04-16 00:00:00.000',
+            'DONEM_SONU' => '2026-05-16 00:00:00.000',
             'PARA_KODU' => str_pad($para, 5),
+            'ONAY_DURUMU' => 'Onaylandı',
+            'ONAYLAYAN' => 'ozalp.doganalp',
+            'ONAY_ZAMANI' => '2026-07-06 13:53:14.850',
+            'FATURA_NO' => 'TRN2026000002287',
+            'HAKEDIS_DURUMU' => ' ',
             'IMALAT_TUTARI' => '0.0',
             'TUTANAK_TUTARI' => '0.0',
             'HAKEDIS' => '0.0',
@@ -82,7 +94,7 @@ final class TaseronHakedisleriRaporTest extends TestCase
             'NET_ODENECEK' => '0.0',
             'ODEME_TALEBI_YAPILAN_TUTAR' => '0.0',
             'ODENEN_TUTAR' => '0.0',
-            ...$tutarlar,
+            ...$degerler,
         ];
     }
 
@@ -96,31 +108,51 @@ final class TaseronHakedisleriRaporTest extends TestCase
         return $kullanici;
     }
 
-    public function test_hakedisler_proje_ve_para_koduna_gore_toplanir_turkce_siralanir(): void
+    public function test_hakedis_basina_satir_kullanicinin_kolon_sirasiyla_en_yenisi_once(): void
     {
         $this->erpHakedisleri([
-            $this->hakedis('ZONE 7', 'TL', ['IMALAT_TUTARI' => '58776.989999999998', 'ODEME_TALEBI_YAPILAN_TUTAR' => '816187.76000000001']),
-            $this->hakedis('ZONE 7', 'USD', ['IMALAT_TUTARI' => '100.5']),
-            $this->hakedis('İŞLETME', 'TL', ['NET_ODENECEK' => '10']),
-            $this->hakedis('ZONE 7', 'TL', ['IMALAT_TUTARI' => '181886.53', 'ODEME_TALEBI_YAPILAN_TUTAR' => '519632.41999999998']),
-            $this->hakedis('ÇEVRE', 'TL', ['IMALAT_TUTARI' => '1.25']),
+            $this->hakedis(400, '2026-05-16', 'ZONE 7', 'TL', ['IMALAT_TUTARI' => '58776.989999999998', 'ODEME_TALEBI_YAPILAN_TUTAR' => '816187.76000000001']),
+            $this->hakedis(443, '2026-06-30', 'ZONE 7', 'USD', ['IMALAT_TUTARI' => '100.5']),
+            $this->hakedis(472, '2026-06-30', 'ZONE 10', 'TL', [
+                'IMALAT_TUTARI' => '181886.53',
+                'ONAY_ZAMANI' => null,
+                'FATURA_NO' => null,
+                'HAKEDIS_DURUMU' => 'Kesin Hakediş',
+            ]),
         ]);
 
         $yanit = $this->actingAs($this->raporcu())
             ->getJson(self::ADRES.'?'.self::TARIHLER.'&proje_kodu=&firma_adi=')
             ->assertOk();
 
-        // Ç ve İ, Z'den önce (bayt sırasında sona düşerdi)
-        $this->assertSame(
-            [['ÇEVRE', 'TL'], ['İŞLETME', 'TL'], ['ZONE 7', 'TL'], ['ZONE 7', 'USD']],
-            array_map(fn (array $satir): array => [$satir['proje_adi'], $satir['para_kodu']], $yanit->json('data')),
-        );
-        // Her hakediş kuruşa yuvarlanıp toplanır; ödeme talebi proc'un ODEME_TALEBI_YAPILAN_TUTAR'ı
-        $yanit->assertJsonPath('data.2.imalat', 240663.52)
-            ->assertJsonPath('data.2.odeme_talebi_tutari', 1335820.18)
-            ->assertJsonPath('data.1.net_odenecek', 10)
+        // Hakediş tarihi yeniden eskiye; aynı günde son açılan hakediş önce
+        $this->assertSame([472, 443, 400], array_column($yanit->json('data'), 'hakedis_id'));
+        $this->assertSame([
+            'hakedis_id', 'firma_adi', 'proje_adi', 'sozlesme_no', 'sozlesme_konusu', 'hakedis_no', 'hakedis_tarihi',
+            'donem_baslangici', 'donem_sonu', 'para_kodu', 'imalat', 'tutanak', 'hakedis', 'imalat_kesintisi', 'kdv',
+            'kdvli_hakedis', 'kdv_tevkifati', 'cari_kesinti', 'yansitilacak_gider', 'taseron_adina_yapilan_is',
+            'net_odenecek', 'onay_durumu', 'onaylayan', 'onay_tarihi', 'onay_saati', 'fatura_no', 'hakedis_durumu',
+            'odeme_talebi_tutari', 'odenen_tutar',
+        ], array_keys($yanit->json('data.0')));
+
+        // nchar kırpılır, tarihler gün olarak; onaysız / faturasız hakedişte boş
+        $yanit->assertJsonPath('data.0.sozlesme_no', 'HAB-26-1078.03.Z01')
+            ->assertJsonPath('data.0.hakedis_no', '3')
+            ->assertJsonPath('data.0.hakedis_tarihi', '2026-06-30')
+            ->assertJsonPath('data.0.donem_baslangici', '2026-04-16')
+            ->assertJsonPath('data.0.para_kodu', 'TL')
+            ->assertJsonPath('data.0.onay_tarihi', null)
+            ->assertJsonPath('data.0.onay_saati', null)
+            ->assertJsonPath('data.0.fatura_no', '')
+            ->assertJsonPath('data.0.hakedis_durumu', 'Kesin Hakediş')
+            // Onay zamanı tarih + saat; tutar kuruşa yuvarlanır; ödeme talebi proc'un ODEME_TALEBI_YAPILAN_TUTAR'ı
+            ->assertJsonPath('data.2.onay_tarihi', '2026-07-06')
+            ->assertJsonPath('data.2.onay_saati', '13:53:14')
+            ->assertJsonPath('data.2.hakedis_durumu', '')
+            ->assertJsonPath('data.2.imalat', 58776.99)
+            ->assertJsonPath('data.2.odeme_talebi_tutari', 816187.76)
             ->assertJsonPath('toplamlar.0.para_kodu', 'TL')
-            ->assertJsonPath('toplamlar.0.imalat', 240664.77)
+            ->assertJsonPath('toplamlar.0.imalat', 240663.52)
             ->assertJsonPath('toplamlar.1.para_kodu', 'USD')
             ->assertJsonPath('toplamlar.1.imalat', 100.5);
 
@@ -176,32 +208,35 @@ final class TaseronHakedisleriRaporTest extends TestCase
     public function test_excel_ekranin_kolon_sirasiyla_ve_para_koduna_gore_toplamla_iner(): void
     {
         $this->erpHakedisleri([
-            $this->hakedis('ZONE 7', 'TL', ['IMALAT_TUTARI' => '10.5', 'ODENEN_TUTAR' => '3']),
-            $this->hakedis('ZONE 10', 'TL', ['IMALAT_TUTARI' => '2']),
-            $this->hakedis('ZONE 10', 'EUR', ['IMALAT_TUTARI' => '7']),
+            $this->hakedis(1, '2026-05-16', 'ZONE 7', 'TL', ['IMALAT_TUTARI' => '10.5', 'ODENEN_TUTAR' => '3']),
+            $this->hakedis(2, '2026-06-30', 'ZONE 10', 'EUR', ['IMALAT_TUTARI' => '7', 'ONAY_ZAMANI' => null]),
         ]);
 
         $yanit = $this->actingAs($this->raporcu())->get(self::ADRES.'/excel?'.self::TARIHLER)->assertOk();
         $this->assertStringContainsString('taseron-hakedisleri.xlsx', (string) $yanit->headers->get('Content-Disposition'));
 
         $sayfa = IOFactory::load($yanit->baseResponse->getFile()->getPathname())->getActiveSheet();
-        $this->assertSame(
-            ['Sıra No', 'Proje Adı', 'Para Kodu', 'İmalat', 'Tutanak', 'Hakediş', 'İmalat Kesintisi', 'KDV', 'KDV\'li Hakediş', 'KDV Tevkifatı',
-                'Cari Kesinti', 'Yansıtılacak Gider', 'Taşeron Adına Yapılan İş', 'Net Ödenecek', 'Ödeme Talebi Tutarı', 'Ödenen Tutar'],
-            $sayfa->rangeToArray('A1:P1')[0],
-        );
+        $this->assertSame([
+            'Sıra No', 'Firma Adı', 'Proje Adı', 'Sözleşme No', 'Sözleşme Konusu', 'Hakediş No', 'Hakediş Tarihi',
+            'Dönem Başlangıcı', 'Dönem Sonu', 'Para Kodu', 'İmalat', 'Tutanak', 'Hakediş', 'İmalat Kesintisi', 'KDV',
+            'KDV\'li Hakediş', 'KDV Tevkifatı', 'Cari Kesinti', 'Yansıtılacak Gider', 'Taşeron Adına Yapılan İş',
+            'Net Ödenecek', 'Onay Durumu', 'Onaylayan', 'Onay Tarihi', 'Onay Saati', 'Fatura No', 'Hakediş Durumu',
+            'Ödeme Talebi Tutarı', 'Ödenen Tutar',
+        ], $sayfa->rangeToArray('A1:AC1')[0]);
+
+        // Sıra No, Proje, Hakediş Tarihi, Para Kodu, İmalat, Onay Tarihi, Onay Saati, Ödenen Tutar
         $satir = fn (int $no): array => array_map(
-            fn (string $kolon): mixed => $sayfa->getCell($kolon.$no)->getValue(),
-            ['A', 'B', 'C', 'D', 'P'],
+            fn (string $kolon): mixed => $sayfa->getCell($kolon.$no)->getFormattedValue(),
+            ['A', 'C', 'G', 'J', 'K', 'X', 'Y', 'AC'],
         );
-        // Ekrandaki sıra: sayılar sayı gibi (ZONE 7, ZONE 10'dan önce)
-        $this->assertEquals([1, 'ZONE 7', 'TL', 10.5, 3], $satir(2));
-        $this->assertEquals([2, 'ZONE 10', 'EUR', 7, 0], $satir(3));
-        $this->assertEquals([3, 'ZONE 10', 'TL', 2, 0], $satir(4));
+        // Ekrandaki sıra (en yeni hakediş önce); tarihler Excel tarihi, gün.ay.yıl görünür
+        $this->assertSame(['1', 'ZONE 10', '30.06.2026', 'EUR', '7.00', '', '', '0.00'], $satir(2));
+        $this->assertSame(['2', 'ZONE 7', '16.05.2026', 'TL', '10.50', '06.07.2026', '13:53:14', '3.00'], $satir(3));
+        $this->assertIsNumeric($sayfa->getCell('G2')->getValue());
         // Para koduna göre TOPLAM satırları, otomatik filtrenin dışında
-        $this->assertEquals(['TOPLAM', null, 'EUR', 7, 0], $satir(5));
-        $this->assertEquals(['TOPLAM', null, 'TL', 12.5, 3], $satir(6));
-        $this->assertSame('A1:P4', $sayfa->getAutoFilter()->getRange());
+        $this->assertSame(['TOPLAM', '', '', 'EUR', '7.00', '', '', '0.00'], $satir(4));
+        $this->assertSame(['TOPLAM', '', '', 'TL', '10.50', '', '', '3.00'], $satir(5));
+        $this->assertSame('A1:AC3', $sayfa->getAutoFilter()->getRange());
     }
 
     public function test_secenekler_proje_kodlari_ve_firma_adlari_turkce_sirali_tekrarsiz(): void

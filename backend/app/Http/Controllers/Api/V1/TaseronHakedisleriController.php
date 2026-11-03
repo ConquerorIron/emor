@@ -12,8 +12,8 @@ use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
- * Raporlar → Taşeron Hakedişleri: ERP proc'unun hakedişleri proje + para
- * koduna göre özetlenir (TaseronHakedisleriRaporu). Yalnız rapor;
+ * Raporlar → Taşeron Hakedişleri: ERP proc'unun hakedişleri, para koduna
+ * göre toplamlarıyla (TaseronHakedisleriRaporu). Yalnız rapor;
  * `taseron_hakedisleri.goruntule` izniyle korunur.
  */
 final class TaseronHakedisleriController extends Controller
@@ -24,7 +24,7 @@ final class TaseronHakedisleriController extends Controller
 
     public function index(TaseronHakedisleriRequest $request): JsonResponse
     {
-        $satirlar = $this->rapor->ozet($this->erpKullaniciId($request), $request->parametreler());
+        $satirlar = $this->rapor->hakedisler($this->erpKullaniciId($request), $request->parametreler());
 
         return response()->json([
             'data' => $satirlar,
@@ -34,7 +34,7 @@ final class TaseronHakedisleriController extends Controller
 
     public function excel(TaseronHakedisleriRequest $request, TaseronHakedisleriExcelAktarici $aktarici): BinaryFileResponse
     {
-        $satirlar = $this->rapor->ozet($this->erpKullaniciId($request), $request->parametreler());
+        $satirlar = $this->rapor->hakedisler($this->erpKullaniciId($request), $request->parametreler());
 
         return response()
             ->download($aktarici->olustur($satirlar, $this->rapor->toplamlar($satirlar)), 'taseron-hakedisleri.xlsx', [

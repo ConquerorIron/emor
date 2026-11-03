@@ -1081,10 +1081,17 @@
     },
     "taseronHakedisleri": {
       "baslik": "Subcontractor Progress Payments",
-      "aciklamaMetni": "Subcontract progress payments from the ERP, totalled by project and currency. The report is read from the ERP when you press Run Report.",
+      "aciklamaMetni": "Subcontract progress payments from the ERP, one row per payment, with currency totals above and below the table. The report is read from the ERP when you press Run Report.",
       "kolon": {
         "sira_no": "No",
+        "firma_adi": "Company Name",
         "proje_adi": "Project Name",
+        "sozlesme_no": "Contract No",
+        "sozlesme_konusu": "Contract Subject",
+        "hakedis_no": "Payment No",
+        "hakedis_tarihi": "Payment Date",
+        "donem_baslangici": "Period Start",
+        "donem_sonu": "Period End",
         "para_kodu": "Currency",
         "imalat": "Work Done",
         "tutanak": "Minutes",
@@ -1097,6 +1104,12 @@
         "yansitilacak_gider": "Expense to Charge",
         "taseron_adina_yapilan_is": "Work Done on Behalf",
         "net_odenecek": "Net Payable",
+        "onay_durumu": "Approval Status",
+        "onaylayan": "Approved By",
+        "onay_tarihi": "Approval Date",
+        "onay_saati": "Approval Time",
+        "fatura_no": "Invoice No",
+        "hakedis_durumu": "Payment Status",
         "odeme_talebi_tutari": "Payment Request Amount",
         "odenen_tutar": "Amount Paid"
       }

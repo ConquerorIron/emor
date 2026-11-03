@@ -7,19 +7,56 @@ namespace App\Services\Rapor;
 use App\Services\ErpOkumaHatasi;
 use App\Services\Kesinti\ErpFirmaKaynagi;
 use App\Services\Kesinti\ErpProjeKaynagi;
+use Carbon\CarbonImmutable;
 use Collator;
 
 /**
  * Raporlar → Taşeron Hakedişleri (kullanıcı isteği 2026-11-03): ERP proc'unun
- * hakediş satırları proje + para kodu başına toplanır; kolonlar kullanıcının
- * verdiği sırayladır. Proje / firma seçenekleri proc'un süzgeç değerleridir:
- * proje KODU ve firma ADI (WEB_ERP_* view'ları; canlıda proc'un döndürdüğü
- * tüm proje ve firmalar bu listelerde).
+ * hakedişleri, hakediş başına bir satır, kullanıcının verdiği kolon sırasıyla;
+ * para koduna göre toplamlarıyla. Proje / firma seçenekleri proc'un süzgeç
+ * değerleridir: proje KODU ve firma ADI (WEB_ERP_* view'ları; canlıda proc'un
+ * döndürdüğü tüm proje ve firmalar bu listelerde).
  */
 final class TaseronHakedisleriRaporu
 {
     /**
-     * Tutar kolonları, ekrandaki sırayla: rapor alanı => proc kolonu.
+     * Ekrandaki ve Excel'deki kolonlar, Sıra No'dan sonra kullanıcının sırasıyla.
+     *
+     * @var array<string, 'metin'|'tarih'|'tutar'>
+     */
+    public const KOLONLAR = [
+        'firma_adi' => 'metin',
+        'proje_adi' => 'metin',
+        'sozlesme_no' => 'metin',
+        'sozlesme_konusu' => 'metin',
+        'hakedis_no' => 'metin',
+        'hakedis_tarihi' => 'tarih',
+        'donem_baslangici' => 'tarih',
+        'donem_sonu' => 'tarih',
+        'para_kodu' => 'metin',
+        'imalat' => 'tutar',
+        'tutanak' => 'tutar',
+        'hakedis' => 'tutar',
+        'imalat_kesintisi' => 'tutar',
+        'kdv' => 'tutar',
+        'kdvli_hakedis' => 'tutar',
+        'kdv_tevkifati' => 'tutar',
+        'cari_kesinti' => 'tutar',
+        'yansitilacak_gider' => 'tutar',
+        'taseron_adina_yapilan_is' => 'tutar',
+        'net_odenecek' => 'tutar',
+        'onay_durumu' => 'metin',
+        'onaylayan' => 'metin',
+        'onay_tarihi' => 'tarih',
+        'onay_saati' => 'metin',
+        'fatura_no' => 'metin',
+        'hakedis_durumu' => 'metin',
+        'odeme_talebi_tutari' => 'tutar',
+        'odenen_tutar' => 'tutar',
+    ];
+
+    /**
+     * Tutar kolonları: rapor alanı => proc kolonu.
      *
      * @var array<string, string>
      */
@@ -39,6 +76,26 @@ final class TaseronHakedisleriRaporu
         'odenen_tutar' => 'ODENEN_TUTAR',
     ];
 
+    /** Metin kolonları (nchar olanlar sonu boşlukla dolu gelir, kırpılır) */
+    private const METINLER = [
+        'firma_adi' => 'FIRMA_ADI',
+        'proje_adi' => 'PROJE_ADI',
+        'sozlesme_no' => 'SOZLESME_NO',
+        'sozlesme_konusu' => 'SOZLESME_KONUSU',
+        'hakedis_no' => 'HAKEDIS_NO',
+        'para_kodu' => 'PARA_KODU',
+        'onay_durumu' => 'ONAY_DURUMU',
+        'onaylayan' => 'ONAYLAYAN',
+        'fatura_no' => 'FATURA_NO',
+        'hakedis_durumu' => 'HAKEDIS_DURUMU',
+    ];
+
+    private const TARIHLER = [
+        'hakedis_tarihi' => 'HAKEDIS_TARIHI',
+        'donem_baslangici' => 'DONEM_BASLANGICI',
+        'donem_sonu' => 'DONEM_SONU',
+    ];
+
     public function __construct(
         private readonly TaseronHakedisKaynagi $kaynak,
         private readonly ErpProjeKaynagi $projeler,
@@ -46,35 +103,19 @@ final class TaseronHakedisleriRaporu
     ) {}
 
     /**
-     * Proje + para kodu başına toplamlar; proje adına (Türkçe sıra), sonra
-     * para koduna göre sıralı. Proc tutarları float döner: her hakediş ERP'nin
-     * gösterdiği gibi kuruşa yuvarlanıp toplanır.
+     * Hakediş başına bir satır, en yeni hakediş tarihi önce. Tarihler
+     * Y-m-d; onay zamanı tarih ve saat olarak ayrılır. Proc tutarları float
+     * döner: ERP'nin gösterdiği gibi kuruşa yuvarlanır.
      *
      * @param  array{ilk_tarih: string, son_tarih: string, proje_kodu: string|null, firma_adi: string|null}  $parametreler
-     * @return list<array<string, string|float>>
+     * @return list<array<string, int|string|float|null>>
      *
      * @throws ErpOkumaHatasi
      */
-    public function ozet(int $erpKullaniciId, array $parametreler): array
+    public function hakedisler(int $erpKullaniciId, array $parametreler): array
     {
-        /** @var array<string, array<string, string|float>> $gruplar */
-        $gruplar = [];
-
-        foreach ($this->kaynak->hakedisler($erpKullaniciId, $parametreler) as $hakedis) {
-            $proje = trim((string) ($hakedis['PROJE_ADI'] ?? ''));
-            $para = trim((string) ($hakedis['PARA_KODU'] ?? ''));
-            $anahtar = $proje."\0".$para;
-            $gruplar[$anahtar] ??= ['proje_adi' => $proje, 'para_kodu' => $para, ...array_fill_keys(array_keys(self::TUTARLAR), 0.0)];
-
-            foreach (self::TUTARLAR as $alan => $kolon) {
-                $gruplar[$anahtar][$alan] += round((float) ($hakedis[$kolon] ?? 0), 2);
-            }
-        }
-
-        $siralayici = $this->siralayici();
-        $satirlar = array_map($this->yuvarla(...), array_values($gruplar));
-        usort($satirlar, fn (array $a, array $b): int => (int) $siralayici->compare((string) $a['proje_adi'], (string) $b['proje_adi'])
-            ?: strcmp((string) $a['para_kodu'], (string) $b['para_kodu']));
+        $satirlar = array_map($this->satir(...), $this->kaynak->hakedisler($erpKullaniciId, $parametreler));
+        usort($satirlar, fn (array $a, array $b): int => [$b['hakedis_tarihi'], $b['hakedis_id']] <=> [$a['hakedis_tarihi'], $a['hakedis_id']]);
 
         return $satirlar;
     }
@@ -82,7 +123,7 @@ final class TaseronHakedisleriRaporu
     /**
      * Para kodu başına genel toplam (ekranın ve Excel'in TOPLAM satırları).
      *
-     * @param  list<array<string, string|float>>  $satirlar  ozet()'in sonucu
+     * @param  list<array<string, int|string|float|null>>  $satirlar  hakedisler()'in sonucu
      * @return list<array<string, string|float>>
      */
     public function toplamlar(array $satirlar): array
@@ -101,7 +142,14 @@ final class TaseronHakedisleriRaporu
 
         ksort($toplamlar);
 
-        return array_map($this->yuvarla(...), array_values($toplamlar));
+        // Toplamadaki float artıkları temizlenir (kuruş)
+        return array_values(array_map(function (array $toplam): array {
+            foreach (array_keys(self::TUTARLAR) as $alan) {
+                $toplam[$alan] = round((float) $toplam[$alan], 2);
+            }
+
+            return $toplam;
+        }, $toplamlar));
     }
 
     /**
@@ -113,7 +161,9 @@ final class TaseronHakedisleriRaporu
      */
     public function secenekler(): array
     {
-        $siralayici = $this->siralayici();
+        // Türkçe harf sırası; sayılar sayı gibi (ZONE 7, ZONE 10'dan önce)
+        $siralayici = new Collator('tr_TR');
+        $siralayici->setAttribute(Collator::NUMERIC_COLLATION, Collator::ON);
 
         $projeListesi = [];
         foreach ($this->projeler->projeler() as $proje) {
@@ -133,27 +183,32 @@ final class TaseronHakedisleriRaporu
         return ['projeler' => $projeListesi, 'firmalar' => $firmaAdlari];
     }
 
-    /** Türkçe harf sırası; sayılar sayı gibi (ZONE 7, ZONE 10'dan önce) */
-    private function siralayici(): Collator
-    {
-        $siralayici = new Collator('tr_TR');
-        $siralayici->setAttribute(Collator::NUMERIC_COLLATION, Collator::ON);
-
-        return $siralayici;
-    }
-
     /**
-     * Toplamadaki float artıkları temizlenir (kuruş).
+     * Proc satırı → rapor satırı (KOLONLAR + satır kimliği hakedis_id).
      *
-     * @param  array<string, string|float>  $satir
-     * @return array<string, string|float>
+     * @param  array<string, mixed>  $hakedis
+     * @return array<string, int|string|float|null>
      */
-    private function yuvarla(array $satir): array
+    private function satir(array $hakedis): array
     {
-        foreach (array_keys(self::TUTARLAR) as $alan) {
-            $satir[$alan] = round((float) $satir[$alan], 2);
+        $onay = $this->zaman($hakedis['ONAY_ZAMANI'] ?? null);
+        $satir = ['hakedis_id' => (int) ($hakedis['HAKEDIS_ID'] ?? 0)];
+
+        foreach (array_keys(self::KOLONLAR) as $alan) {
+            $satir[$alan] = match (true) {
+                isset(self::METINLER[$alan]) => trim((string) ($hakedis[self::METINLER[$alan]] ?? '')),
+                isset(self::TARIHLER[$alan]) => $this->zaman($hakedis[self::TARIHLER[$alan]] ?? null)?->toDateString(),
+                isset(self::TUTARLAR[$alan]) => round((float) ($hakedis[self::TUTARLAR[$alan]] ?? 0), 2),
+                $alan === 'onay_tarihi' => $onay?->toDateString(),
+                $alan === 'onay_saati' => $onay?->format('H:i:s'),
+            };
         }
 
         return $satir;
+    }
+
+    private function zaman(mixed $deger): ?CarbonImmutable
+    {
+        return $deger === null || trim((string) $deger) === '' ? null : CarbonImmutable::parse((string) $deger);
     }
 }

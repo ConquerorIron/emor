@@ -3,10 +3,17 @@
 return [
     'taseron_hakedisleri' => [
         'baslik' => 'Taşeron Hakedişleri',
-        // Excel başlıkları ekrandaki kolon sırasıyla (TaseronHakedisleriRaporu::TUTARLAR)
+        // Excel başlıkları; sıra TaseronHakedisleriRaporu::KOLONLAR'dan gelir
         'kolonlar' => [
             'sira_no' => 'Sıra No',
+            'firma_adi' => 'Firma Adı',
             'proje_adi' => 'Proje Adı',
+            'sozlesme_no' => 'Sözleşme No',
+            'sozlesme_konusu' => 'Sözleşme Konusu',
+            'hakedis_no' => 'Hakediş No',
+            'hakedis_tarihi' => 'Hakediş Tarihi',
+            'donem_baslangici' => 'Dönem Başlangıcı',
+            'donem_sonu' => 'Dönem Sonu',
             'para_kodu' => 'Para Kodu',
             'imalat' => 'İmalat',
             'tutanak' => 'Tutanak',
@@ -19,6 +26,12 @@ return [
             'yansitilacak_gider' => 'Yansıtılacak Gider',
             'taseron_adina_yapilan_is' => 'Taşeron Adına Yapılan İş',
             'net_odenecek' => 'Net Ödenecek',
+            'onay_durumu' => 'Onay Durumu',
+            'onaylayan' => 'Onaylayan',
+            'onay_tarihi' => 'Onay Tarihi',
+            'onay_saati' => 'Onay Saati',
+            'fatura_no' => 'Fatura No',
+            'hakedis_durumu' => 'Hakediş Durumu',
             'odeme_talebi_tutari' => 'Ödeme Talebi Tutarı',
             'odenen_tutar' => 'Ödenen Tutar',
         ],

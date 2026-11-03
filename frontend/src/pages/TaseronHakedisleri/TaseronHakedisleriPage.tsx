@@ -11,27 +11,34 @@ import { ErrorState } from '@/components/ErrorState'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 import { TarihInput } from '@/components/TarihInput'
 import { tutarGoster } from '@/features/kesinti/bicim'
-import { bugunIso } from '@/utils/tarih'
+import { bugunIso, tarihGoster } from '@/utils/tarih'
 
 import {
+  KOLONLAR,
   TUTARLAR,
   taseronHakedisleriExcel,
   taseronHakedisleriGetir,
   taseronHakedisSecenekleriGetir,
-  type HakedisOzeti,
+  type HakedisSatiri,
   type RaporParametreleri,
 } from './taseronHakedisleriApi'
 
 /** Açılışta tüm geçmiş, bugüne kadar */
 const ILK_TARIH = '2000-01-01'
 
+/** Tarihler dışında ortalanan kısa kolonlar */
+const ORTALI = new Set<string>(['hakedis_no', 'para_kodu', 'onay_saati'])
+
+/** Tek satıra sığmayan uzun metinler */
+const UZUN_METINLER = new Set<string>(['firma_adi', 'sozlesme_konusu'])
+
 type TarihHatalari = Partial<Record<'ilk_tarih' | 'son_tarih', string>>
 
 /**
  * Raporlar → Taşeron Hakedişleri (kullanıcı isteği 2026-11-03): ERP rapor
- * proc'unun hakedişleri proje + para kodu başına toplanır; kolonlar
- * kullanıcının verdiği sırayla. Proc ağır (tüm tarihlerde ~9 sn): yalnız
- * "Raporu Çalıştır"la çalışır, sonuç kendiliğinden tazelenmez.
+ * proc'unun hakedişleri, hakediş başına bir satır, kolonlar kullanıcının
+ * verdiği sırayla; para koduna göre toplamlarıyla. Proc ağır (tüm tarihlerde
+ * ~9 sn): yalnız "Raporu Çalıştır"la çalışır, sonuç kendiliğinden tazelenmez.
  */
 export function TaseronHakedisleriPage() {
   const { t } = useTranslation()
@@ -105,7 +112,7 @@ export function TaseronHakedisleriPage() {
   const secenekHatasi = secenekler.error ? t(apiErrorKey(secenekler.error)) : undefined
 
   const kolonBasligi = (alan: string) => t(`raporlar.taseronHakedisleri.kolon.${alan}`)
-  const kolonlar: DataTableKolonu<HakedisOzeti>[] = [
+  const kolonlar: DataTableKolonu<HakedisSatiri>[] = [
     {
       anahtar: 'sira_no',
       baslik: kolonBasligi('sira_no'),
@@ -114,24 +121,31 @@ export function TaseronHakedisleriPage() {
         <span className="text-slate-500 tabular-nums dark:text-slate-400">{sira + 1}</span>
       ),
     },
-    {
-      anahtar: 'proje_adi',
-      baslik: kolonBasligi('proje_adi'),
-      render: (satir) => <span className="whitespace-nowrap">{satir.proje_adi}</span>,
-    },
-    {
-      anahtar: 'para_kodu',
-      baslik: kolonBasligi('para_kodu'),
-      hizala: 'orta',
-      render: (satir) => satir.para_kodu,
-    },
-    ...TUTARLAR.map((alan): DataTableKolonu<HakedisOzeti> => ({
+    ...KOLONLAR.map(({ alan, tur }): DataTableKolonu<HakedisSatiri> => ({
       anahtar: alan,
       baslik: kolonBasligi(alan),
-      hizala: 'sag',
-      render: (satir) => (
-        <span className="whitespace-nowrap tabular-nums">{tutarGoster(satir[alan])}</span>
-      ),
+      hizala: tur === 'tutar' ? 'sag' : tur === 'tarih' || ORTALI.has(alan) ? 'orta' : 'sol',
+      render: (satir) => {
+        const deger = satir[alan]
+
+        if (tur === 'tutar') {
+          return <span className="whitespace-nowrap tabular-nums">{tutarGoster(deger ?? 0)}</span>
+        }
+        if (tur === 'tarih') {
+          return (
+            <span className="whitespace-nowrap tabular-nums">
+              {tarihGoster(String(deger ?? ''))}
+            </span>
+          )
+        }
+
+        // Uzun adlar (en uzun ~130 karakter) satıra kırılır; diğerleri tek satır
+        return (
+          <span className={UZUN_METINLER.has(alan) ? 'block min-w-56' : 'whitespace-nowrap'}>
+            {deger}
+          </span>
+        )
+      },
     })),
   ]
 
@@ -246,7 +260,7 @@ export function TaseronHakedisleriPage() {
           <DataTable
             kolonlar={kolonlar}
             satirlar={rapor.data?.data ?? []}
-            satirAnahtari={(satir) => `${satir.proje_adi}|${satir.para_kodu}`}
+            satirAnahtari={(satir) => satir.hakedis_id}
             yukleniyor={rapor.isFetching}
             ustKaydirma
             toplamSatirlari={toplamSatirlari}

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import '@/i18n/i18n'
@@ -6,7 +6,7 @@ import { AppProviders } from '@/providers/AppProviders'
 import { bugunIso } from '@/utils/tarih'
 
 import { TaseronHakedisleriPage } from './TaseronHakedisleriPage'
-import type { HakedisRaporu } from './taseronHakedisleriApi'
+import type { HakedisRaporu, HakedisSatiri } from './taseronHakedisleriApi'
 
 const api = vi.hoisted(() => ({
   rapor: vi.fn(),
@@ -37,10 +37,30 @@ const tutarlar = (imalat: number) => ({
   odenen_tutar: 0,
 })
 
+const hakedis = (hakedis_id: number, proje_adi: string, imalat: number): HakedisSatiri => ({
+  hakedis_id,
+  firma_adi: 'ATİLLA GIDA',
+  proje_adi,
+  sozlesme_no: 'HAB-26-1078.03.Z01',
+  sozlesme_konusu: 'YEMEK TEMİNİ HİZMETLERİ',
+  hakedis_no: String(hakedis_id),
+  hakedis_tarihi: '2026-05-16',
+  donem_baslangici: '2026-04-16',
+  donem_sonu: '2026-05-15',
+  para_kodu: 'TL',
+  onay_durumu: 'Onaylandı',
+  onaylayan: 'ozalp.doganalp',
+  onay_tarihi: null,
+  onay_saati: null,
+  fatura_no: '',
+  hakedis_durumu: '',
+  ...tutarlar(imalat),
+})
+
 const RAPOR: HakedisRaporu = {
   data: [
-    { proje_adi: 'ZONE 7', para_kodu: 'TL', ...tutarlar(240663.52) },
-    { proje_adi: 'ZONE 10', para_kodu: 'TL', ...tutarlar(1000) },
+    { ...hakedis(3, 'ZONE 7', 240663.52), onay_tarihi: '2026-07-06', onay_saati: '13:53:14' },
+    hakedis(4, 'ZONE 10', 1000),
   ],
   toplamlar: [{ para_kodu: 'TL', ...tutarlar(241663.52) }],
 }
@@ -67,7 +87,7 @@ describe('TaseronHakedisleriPage', () => {
     vi.clearAllMocks()
   })
 
-  it('rapor yalnız Raporu Çalıştır ile çalışır; kolonlar kullanıcının sırasında, para koduna göre toplamlı', async () => {
+  it('rapor yalnız Raporu Çalıştır ile çalışır; hakediş başına satır, kolonlar kullanıcının sırasında, para koduna göre toplamlı', async () => {
     expect(screen.getByText("Parametreleri seçip Raporu Çalıştır'a basın.")).toBeInTheDocument()
     expect(screen.getByRole('button', { name: "Excel'e Aktar" })).toBeDisabled()
     expect(api.rapor).not.toHaveBeenCalled()
@@ -78,7 +98,14 @@ describe('TaseronHakedisleriPage', () => {
     expect(api.rapor).toHaveBeenCalledWith(VARSAYILAN)
     expect(screen.getAllByRole('columnheader').map((baslik) => baslik.textContent)).toEqual([
       'Sıra No',
+      'Firma Adı',
       'Proje Adı',
+      'Sözleşme No',
+      'Sözleşme Konusu',
+      'Hakediş No',
+      'Hakediş Tarihi',
+      'Dönem Başlangıcı',
+      'Dönem Sonu',
       'Para Kodu',
       'İmalat',
       'Tutanak',
@@ -91,10 +118,22 @@ describe('TaseronHakedisleriPage', () => {
       'Yansıtılacak Gider',
       'Taşeron Adına Yapılan İş',
       'Net Ödenecek',
+      'Onay Durumu',
+      'Onaylayan',
+      'Onay Tarihi',
+      'Onay Saati',
+      'Fatura No',
+      'Hakediş Durumu',
       'Ödeme Talebi Tutarı',
       'Ödenen Tutar',
     ])
-    expect(screen.getByText('240.663,52')).toBeInTheDocument()
+    // Hakediş başına satır: tarihler gün.ay.yıl, tutarlar Türkçe biçimli
+    const ilkSatir = within(screen.getAllByRole('row')[2])
+    expect(ilkSatir.getByText('ZONE 7')).toBeInTheDocument()
+    expect(ilkSatir.getByText('16.05.2026')).toBeInTheDocument()
+    expect(ilkSatir.getByText('06.07.2026')).toBeInTheDocument()
+    expect(ilkSatir.getByText('13:53:14')).toBeInTheDocument()
+    expect(ilkSatir.getByText('240.663,52')).toBeInTheDocument()
     // Toplam satırı tablonun üstünde ve altında
     expect(screen.getAllByText('241.663,52')).toHaveLength(2)
 
