@@ -59,6 +59,8 @@
     "isgCezaKesintileri": "İSG Ceza Kesintisi",
     "malzemeKesintileri": "Malzeme Kesintisi",
     "kartBasimKesintileri": "Personel Kart Basım Kesintisi",
+    "raporlar": "Raporlar",
+    "taseronHakedisleri": "Taşeron Hakedişleri",
     "kesintiTurleri": "Kesinti Türleri",
     "projeler": "Projeler",
     "firmalar": "Firmalar",
@@ -530,6 +532,7 @@
       "isg_ceza_kesintileri": "İSG Ceza Kesintisi",
       "malzeme_kesintileri": "Malzeme Kesintisi",
       "kart_basim_kesintileri": "Personel Kart Basım Kesintisi",
+      "taseron_hakedisleri": "Taşeron Hakedişleri",
       "kesinti_turleri": "Kesinti Türleri",
       "projeler": "Projeler",
       "firmalar": "Firmalar",
@@ -1060,6 +1063,43 @@
       "isg_ceza": "İSG Ceza Kesintisi",
       "malzeme": "Malzeme Kesintisi",
       "kart_basim": "Personel Kart Basım Kesintisi"
+    }
+  },
+  "raporlar": {
+    "parametreler": "Rapor parametreleri",
+    "ilkTarih": "İlk Tarih",
+    "sonTarih": "Son Tarih",
+    "projeKodu": "Proje Kodu",
+    "firmaAdi": "Firma Adı",
+    "calistir": "Raporu Çalıştır",
+    "excelAktar": "Excel'e Aktar",
+    "onceCalistirin": "Parametreleri seçip Raporu Çalıştır'a basın.",
+    "toplam": "Toplam",
+    "dogrulama": {
+      "tarihZorunlu": "Tarih zorunludur.",
+      "sonTarihOnce": "Son tarih ilk tarihten önce olamaz."
+    },
+    "taseronHakedisleri": {
+      "baslik": "Taşeron Hakedişleri",
+      "aciklamaMetni": "ERP'deki taşeron sözleşme hakedişleri, proje ve para birimine göre toplanmış olarak listelenir. Rapor, Raporu Çalıştır'a basıldığında ERP'den okunur.",
+      "kolon": {
+        "sira_no": "Sıra No",
+        "proje_adi": "Proje Adı",
+        "para_kodu": "Para Kodu",
+        "imalat": "İmalat",
+        "tutanak": "Tutanak",
+        "hakedis": "Hakediş",
+        "imalat_kesintisi": "İmalat Kesintisi",
+        "kdv": "KDV",
+        "kdvli_hakedis": "KDV'li Hakediş",
+        "kdv_tevkifati": "KDV Tevkifatı",
+        "cari_kesinti": "Cari Kesinti",
+        "yansitilacak_gider": "Yansıtılacak Gider",
+        "taseron_adina_yapilan_is": "Taşeron Adına Yapılan İş",
+        "net_odenecek": "Net Ödenecek",
+        "odeme_talebi_tutari": "Ödeme Talebi Tutarı",
+        "odenen_tutar": "Ödenen Tutar"
+      }
     }
   }
 }

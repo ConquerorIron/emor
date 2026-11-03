@@ -249,6 +249,18 @@ export const router = createBrowserRouter([
         ],
       },
       {
+        element: <IzinAlani izin="taseron_hakedisleri.goruntule" />,
+        children: [
+          {
+            path: 'raporlar/taseron-hakedisleri',
+            lazy: async () => ({
+              Component: (await import('@/pages/TaseronHakedisleri/TaseronHakedisleriPage'))
+                .TaseronHakedisleriPage,
+            }),
+          },
+        ],
+      },
+      {
         element: <IzinAlani izin="ekran_tasarimi.goruntule" />,
         children: [
           {

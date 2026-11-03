@@ -37,6 +37,7 @@ use App\Http\Controllers\Api\V1\RolController;
 use App\Http\Controllers\Api\V1\SatinalmaTalebiController;
 use App\Http\Controllers\Api\V1\SecenekController;
 use App\Http\Controllers\Api\V1\SqlBaglantiController;
+use App\Http\Controllers\Api\V1\TaseronHakedisleriController;
 use App\Http\Controllers\Api\V1\TetkikKesintisiController;
 use App\Http\Controllers\Api\V1\TetkikYuklemeController;
 use App\Http\Controllers\Api\V1\TumKesintilerController;
@@ -667,6 +668,20 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('/kesinti/kamp-malzeme/yuklemeler/{yukleme}', [KampMalzemeYuklemeController::class, 'destroy'])
                 ->whereNumber('yukleme')
                 ->name('kesinti.kamp-malzeme.yuklemeler.destroy');
+        });
+
+        // Raporlar → Taşeron Hakedişleri: ERP rapor proc'u, proje + para koduna
+        // göre özet (liste ve Excel her seferinde proc'u çalıştırır)
+        Route::middleware('can:taseron_hakedisleri.goruntule')->group(function (): void {
+            Route::get('/raporlar/taseron-hakedisleri', [TaseronHakedisleriController::class, 'index'])
+                ->middleware('throttle:erp-rapor')
+                ->name('raporlar.taseron-hakedisleri');
+            Route::get('/raporlar/taseron-hakedisleri/excel', [TaseronHakedisleriController::class, 'excel'])
+                ->middleware('throttle:erp-rapor')
+                ->name('raporlar.taseron-hakedisleri.excel');
+            // Proje kodu / firma adı süzgeçleri: canlı ERP'nin WEB_ERP_* view'ları
+            Route::get('/raporlar/taseron-hakedisleri/secenekler', [TaseronHakedisleriController::class, 'secenekler'])
+                ->name('raporlar.taseron-hakedisleri.secenekler');
         });
 
         // Kesinti Yönetimi → Firmalar (taşeronlar): elle tanım + canlı ERP'den

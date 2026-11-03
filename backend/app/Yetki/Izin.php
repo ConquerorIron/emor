@@ -72,6 +72,9 @@ enum Izin: string
     case KartBasimKesintileriGoruntule = 'kart_basim_kesintileri.goruntule';
     case KartBasimKesintileriGuncelle = 'kart_basim_kesintileri.guncelle';
 
+    /** Yalnız rapor: güncelleme izni yok */
+    case TaseronHakedisleriGoruntule = 'taseron_hakedisleri.goruntule';
+
     case SqlBaglantilariGoruntule = 'sql_baglantilari.goruntule';
     case SqlBaglantilariGuncelle = 'sql_baglantilari.guncelle';
 
@@ -131,6 +134,8 @@ enum Izin: string
             $ekran('isg_ceza_kesintileri', self::IsgCezaKesintileriGoruntule, self::IsgCezaKesintileriGuncelle),
             $ekran('malzeme_kesintileri', self::MalzemeKesintileriGoruntule, self::MalzemeKesintileriGuncelle),
             $ekran('kart_basim_kesintileri', self::KartBasimKesintileriGoruntule, self::KartBasimKesintileriGuncelle),
+            // Raporlar grubu
+            $ekran('taseron_hakedisleri', self::TaseronHakedisleriGoruntule, null),
             // Tanımlar grubu
             $ekran('projeler', self::ProjelerGoruntule, self::ProjelerGuncelle),
             $ekran('firmalar', self::FirmalarGoruntule, self::FirmalarGuncelle),

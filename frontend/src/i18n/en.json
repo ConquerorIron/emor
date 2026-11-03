@@ -59,6 +59,8 @@
     "isgCezaKesintileri": "OHS Penalty Deductions",
     "malzemeKesintileri": "Material Deductions",
     "kartBasimKesintileri": "Personnel Card Printing Deductions",
+    "raporlar": "Reports",
+    "taseronHakedisleri": "Subcontractor Progress Payments",
     "kesintiTurleri": "Deduction Types",
     "projeler": "Projects",
     "firmalar": "Companies",
@@ -530,6 +532,7 @@
       "isg_ceza_kesintileri": "OHS Penalty Deductions",
       "malzeme_kesintileri": "Material Deductions",
       "kart_basim_kesintileri": "Personnel Card Printing Deductions",
+      "taseron_hakedisleri": "Subcontractor Progress Payments",
       "kesinti_turleri": "Deduction Types",
       "projeler": "Projects",
       "firmalar": "Companies",
@@ -1060,6 +1063,43 @@
       "isg_ceza": "OHS Penalty Deductions",
       "malzeme": "Material Deductions",
       "kart_basim": "Personnel Card Printing Deductions"
+    }
+  },
+  "raporlar": {
+    "parametreler": "Report parameters",
+    "ilkTarih": "Start Date",
+    "sonTarih": "End Date",
+    "projeKodu": "Project Code",
+    "firmaAdi": "Company Name",
+    "calistir": "Run Report",
+    "excelAktar": "Export to Excel",
+    "onceCalistirin": "Choose the parameters and press Run Report.",
+    "toplam": "Total",
+    "dogrulama": {
+      "tarihZorunlu": "Date is required.",
+      "sonTarihOnce": "End date cannot be before the start date."
+    },
+    "taseronHakedisleri": {
+      "baslik": "Subcontractor Progress Payments",
+      "aciklamaMetni": "Subcontract progress payments from the ERP, totalled by project and currency. The report is read from the ERP when you press Run Report.",
+      "kolon": {
+        "sira_no": "No",
+        "proje_adi": "Project Name",
+        "para_kodu": "Currency",
+        "imalat": "Work Done",
+        "tutanak": "Minutes",
+        "hakedis": "Progress Payment",
+        "imalat_kesintisi": "Work Deduction",
+        "kdv": "VAT",
+        "kdvli_hakedis": "Payment incl. VAT",
+        "kdv_tevkifati": "VAT Withholding",
+        "cari_kesinti": "Account Deduction",
+        "yansitilacak_gider": "Expense to Charge",
+        "taseron_adina_yapilan_is": "Work Done on Behalf",
+        "net_odenecek": "Net Payable",
+        "odeme_talebi_tutari": "Payment Request Amount",
+        "odenen_tutar": "Amount Paid"
+      }
     }
   }
 }

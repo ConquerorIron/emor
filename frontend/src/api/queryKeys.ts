@@ -50,6 +50,12 @@ export const queryKeys = {
     erpProjeleri: ['kesinti', 'erpProjeleri'],
     erpFirmalari: ['kesinti', 'erpFirmalari'],
   },
+  // ERP rapor proc'ları: her "Raporu Çalıştır" ayrı sorgu (no), önbellekten tazelenmez
+  raporlar: {
+    taseronHakedisleri: (parametreler: Record<string, unknown>, no: number) =>
+      ['raporlar', 'taseronHakedisleri', parametreler, no] as const,
+    taseronHakedisSecenekleri: ['raporlar', 'taseronHakedisleri', 'secenekler'],
+  },
   /** Ekran tasarım motoru — formu çizen yayındaki düzen */
   ekranTasarimi: (ekran: string) => ['ekranTasarimi', ekran] as const,
   ekranTaslagi: (ekran: string) => ['ekranTaslagi', ekran] as const,

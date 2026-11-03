@@ -81,6 +81,17 @@ const NAV_GRUPLARI: NavGrubu[] = [
     ],
   },
   {
+    // ERP rapor proc'larından okunan raporlar (veri girilmez)
+    baslikAnahtari: 'nav.raporlar',
+    ogeler: [
+      {
+        to: '/raporlar/taseron-hakedisleri',
+        ad: 'taseronHakedisleri',
+        izin: 'taseron_hakedisleri.goruntule',
+      },
+    ],
+  },
+  {
     // Ortak tanımlar (kullanıcı kararı 2026-10-30: Ayarlar'ın üstünde ayrı grup);
     // adresler değişmedi, yalnız menüdeki yerleri
     baslikAnahtari: 'nav.tanimlar',
