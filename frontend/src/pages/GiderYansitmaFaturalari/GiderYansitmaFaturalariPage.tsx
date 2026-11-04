@@ -10,9 +10,10 @@ import {
 
 /**
  * Raporlar → Gider Yansıtma Faturaları (kullanıcı kararları 2026-11-03):
- * proc'un 22 kolonunun hepsi, proc sırasıyla; Para Kodu Döviz kolonlarının
- * hemen önünde. Toplamlar: TL kolonlarının tek genel toplamı + para koduna
- * göre Döviz kolonları.
+ * proc'un kolonlarının hepsi, proc sırasıyla; Para Kodu Döviz kolonlarının
+ * hemen önünde. Hakediş No / Hakediş Tarihi / Sözleşme No 2026-11-04'te
+ * eklendi. Toplamlar: TL kolonlarının tek genel toplamı + para koduna göre
+ * Döviz kolonları.
  */
 const GIDER_YANSITMA_FATURALARI: ErpRaporTanimi<GiderYansitmaFaturasi> = {
   anahtar: 'giderYansitmaFaturalari',
@@ -23,6 +24,9 @@ const GIDER_YANSITMA_FATURALARI: ErpRaporTanimi<GiderYansitmaFaturasi> = {
     { alan: 'unvan', tur: 'metin' },
     { alan: 'proje_kodu', tur: 'metin' },
     { alan: 'aciklama', tur: 'metin' },
+    { alan: 'hakedis_no', tur: 'metin' },
+    { alan: 'hakedis_tarihi', tur: 'tarih' },
+    { alan: 'sozlesme_no', tur: 'metin' },
     ...TL_TUTARLAR.map((alan) => ({ alan, tur: 'tutar' as const })),
     { alan: 'para_kodu', tur: 'metin' },
     ...DOVIZ_TUTARLAR.map((alan) => ({ alan, tur: 'tutar' as const })),
@@ -31,12 +35,22 @@ const GIDER_YANSITMA_FATURALARI: ErpRaporTanimi<GiderYansitmaFaturasi> = {
   ],
   satirAnahtari: (satir) => satir.fatura_no,
   // Metin kolonlarının hepsi
-  aramaAlanlari: ['fatura_no', 'unvan', 'proje_kodu', 'aciklama', 'kayit_eden', 'guncelleyen'],
+  aramaAlanlari: [
+    'fatura_no',
+    'unvan',
+    'proje_kodu',
+    'aciklama',
+    'hakedis_no',
+    'sozlesme_no',
+    'kayit_eden',
+    'guncelleyen',
+  ],
   projeAlani: 'proje_kodu',
   firmaAlani: 'unvan',
-  // Canlıda ünvan 126, açıklama 154, proje kodu 49 karaktere kadar
-  sabitGenislik: { unvan: 'w-112', aciklama: 'w-112', proje_kodu: 'w-40' },
-  ortali: ['fatura_no', 'para_kodu'],
+  // Canlıda ünvan 126, açıklama 154, proje kodu 49 karaktere kadar; Hakediş No
+  // Taşeron Hakedişleri'ndeki gibi dar
+  sabitGenislik: { unvan: 'w-112', aciklama: 'w-112', proje_kodu: 'w-40', hakedis_no: 'w-20' },
+  ortali: ['fatura_no', 'hakedis_no', 'para_kodu'],
   toplamlar: (satirlar) =>
     satirlar.length === 0
       ? []

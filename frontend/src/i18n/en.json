@@ -1138,13 +1138,16 @@
     "giderYansitmaFaturalari": {
       "baslik": "Expense Re-invoicing Invoices",
       "aciklamaMetni": "Expense re-invoicing invoices from the ERP, one row per invoice; amounts in TRY and in the invoice currency. TRY grand total and currency totals above and below the table. The report is read from the ERP when you press Run Report.",
-      "aramaIpucu": "Invoice no, title, project, description, user…",
+      "aramaIpucu": "Invoice no, title, project, description, payment, contract, user…",
       "kolon": {
         "tarih": "Date",
         "fatura_no": "Invoice No",
         "unvan": "Title",
         "proje_kodu": "Project Code",
         "aciklama": "Description",
+        "hakedis_no": "Payment No",
+        "hakedis_tarihi": "Payment Date",
+        "sozlesme_no": "Contract No",
         "kdv_matrahi_tl": "VAT Base (TRY)",
         "kdv_tl": "VAT (TRY)",
         "vergi_tl": "Tax (TRY)",

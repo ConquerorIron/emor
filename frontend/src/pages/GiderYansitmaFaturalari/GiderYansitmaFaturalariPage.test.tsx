@@ -18,7 +18,7 @@ vi.mock('./giderYansitmaFaturalariApi', async (importOriginal) => ({
   giderYansitmaFaturalariApi: { getir: api.rapor, secenekler: api.secenekler, excel: api.excel },
 }))
 
-/** Genel toplam dışındaki tutarlar 0 */
+/** Genel toplam dışındaki tutarlar 0; sözleşme no fatura no'dan türer */
 const fatura = (
   fatura_no: string,
   para_kodu: string,
@@ -30,6 +30,9 @@ const fatura = (
   unvan: 'MFK KOÇ LTD.ŞTİ',
   proje_kodu: 'ZONE 4-5 - ANA BÜTÇE',
   aciklama: 'YANSITMA BEDELİ',
+  hakedis_no: '5',
+  hakedis_tarihi: '2026-01-05',
+  sozlesme_no: `SZL-${fatura_no}`,
   kdv_matrahi_tl: 0,
   kdv_tl: 0,
   vergi_tl: 0,
@@ -70,7 +73,7 @@ describe('GiderYansitmaFaturalariPage', () => {
     vi.clearAllMocks()
   })
 
-  it('22 kolon proc sırasıyla; TL genel toplam ve para koduna göre döviz toplamları', async () => {
+  it('26 kolon proc sırasıyla; TL genel toplam ve para koduna göre döviz toplamları', async () => {
     expect(screen.getByRole('heading', { name: 'Gider Yansıtma Faturaları' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
     expect(await screen.findByText('3 kayıt')).toBeInTheDocument()
@@ -82,6 +85,9 @@ describe('GiderYansitmaFaturalariPage', () => {
       'Ünvan',
       'Proje Kodu',
       'Açıklama',
+      'Hakediş No',
+      'Hakediş Tarihi',
+      'Sözleşme No',
       'KDV Matrahı (TL)',
       'KDV (TL)',
       'Vergi (TL)',
@@ -107,11 +113,11 @@ describe('GiderYansitmaFaturalariPage', () => {
       within(satir)
         .getAllByRole('cell')
         .map((hucre) => hucre.textContent)
-    // Sıra No, …, Genel Toplam (TL) = 11. kolon, Para Kodu = 14., Genel Toplam (Döviz) = 19.
+    // Sıra No, …, Genel Toplam (TL) = 14. kolon, Para Kodu = 17., Genel Toplam (Döviz) = 22.
     const secili = (satir: HTMLElement) => {
       const degerler = hucreler(satir)
 
-      return [degerler[0], degerler[10], degerler[13], degerler[18]]
+      return [degerler[0], degerler[13], degerler[16], degerler[21]]
     }
     expect(secili(genelTl)).toEqual(['Genel Toplam (TL)', '6.570,00', '', ''])
     expect(secili(tl)).toEqual(['Toplam', '', 'TL', '120,00'])
@@ -121,10 +127,20 @@ describe('GiderYansitmaFaturalariPage', () => {
     fireEvent.click(screen.getByRole('button', { name: "Excel'e Aktar" }))
     await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
     expect(api.excel.mock.calls[0][0]).toMatchObject({ anahtarlar: ['INS3', 'INS2', 'INS1'] })
+  })
 
-    // Genel arama fatura no'da da arar; toplamlar aranan satırlardan
+  it('genel arama fatura no ve sözleşme no içinde arar; toplamlar aranan satırlardan', async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
+    expect(await screen.findByText('3 kayıt')).toBeInTheDocument()
+
     fireEvent.change(screen.getByLabelText('Genel Arama'), { target: { value: 'ins2' } })
     expect(await screen.findByText('3 kayıttan 1 kayıt')).toBeInTheDocument()
     expect(screen.getAllByText('4.300,00')).toHaveLength(3)
+
+    // Sözleşme no'da da arar
+    fireEvent.change(screen.getByLabelText('Genel Arama'), { target: { value: 'szl-ins3' } })
+    expect(await screen.findByText('SZL-INS3')).toBeInTheDocument()
+    expect(screen.getByText('3 kayıttan 1 kayıt')).toBeInTheDocument()
+    expect(screen.getByText('05.01.2026')).toBeInTheDocument()
   })
 })

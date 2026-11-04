@@ -13,7 +13,7 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 /**
- * Raporlar → Gider Yansıtma Faturaları: ERP proc'unun 22 kolonu, fatura
+ * Raporlar → Gider Yansıtma Faturaları: ERP proc'unun kolonları, fatura
  * başına satır; Excel'de TL genel toplam + para koduna göre Döviz toplamları.
  * Proc sahte kaynakla taklit edilir (ortak akış TaseronHakedisleriRaporTest'te).
  */
@@ -64,6 +64,9 @@ final class GiderYansitmaFaturalariRaporTest extends TestCase
             'UNVAN' => 'MFK KOÇ LTD.ŞTİ',
             'PROJE_KODU' => str_pad('ZONE 4-5 - ANA BÜTÇE', 50),
             'ACIKLAMA' => 'HAKEDİŞE İSTİNADEN YANSITMA BEDELİ',
+            'HAKEDIS_NO' => str_pad('5', 50),
+            'HAKEDIS_TARIHI' => '2026-01-05 00:00:00.000',
+            'SOZLESME_NO' => str_pad('SZL2026000000012', 50),
             'KDV_MATRAHI' => '100.00',
             'KDV_TL' => '20.00',
             'VERGI_TL' => '20.00',
@@ -98,7 +101,8 @@ final class GiderYansitmaFaturalariRaporTest extends TestCase
     public function test_fatura_basina_satir_proc_kolonlari_sirasiyla_en_yenisi_once(): void
     {
         $this->erpFaturalari([
-            $this->fatura('INS2026000000001', '2026-01-10', 'TL'),
+            // Hakedişe bağlı olmayan fatura: proc'un LEFT JOIN'i NULL döner
+            $this->fatura('INS2026000000001', '2026-01-10', 'TL', ['HAKEDIS_NO' => null, 'HAKEDIS_TARIHI' => null, 'SOZLESME_NO' => null]),
             $this->fatura('INS2026000000003', '2026-02-01', 'USD', ['GENEL_TOPLAM_TL' => '4300.00', 'GENEL_TOPLAM_DOVIZ' => '100.00']),
             $this->fatura('INS2026000000002', '2026-02-01', 'TL'),
         ]);
@@ -114,13 +118,19 @@ final class GiderYansitmaFaturalariRaporTest extends TestCase
         );
         // Proc sırası; Para Kodu Döviz kolonlarının hemen önünde
         $this->assertSame([
-            'tarih', 'fatura_no', 'unvan', 'proje_kodu', 'aciklama', 'kdv_matrahi_tl', 'kdv_tl', 'vergi_tl',
-            'tevkifat_tl', 'genel_toplam_tl', 'kesinti_toplami_tl', 'net_toplam_tl', 'para_kodu', 'kdv_matrahi_doviz',
+            'tarih', 'fatura_no', 'unvan', 'proje_kodu', 'aciklama', 'hakedis_no', 'hakedis_tarihi', 'sozlesme_no',
+            'kdv_matrahi_tl', 'kdv_tl', 'vergi_tl', 'tevkifat_tl', 'genel_toplam_tl', 'kesinti_toplami_tl', 'net_toplam_tl', 'para_kodu', 'kdv_matrahi_doviz',
             'kdv_doviz', 'vergi_doviz', 'tevkifat_doviz', 'genel_toplam_doviz', 'kesinti_toplami_doviz',
             'net_toplam_doviz', 'kayit_eden', 'guncelleyen',
         ], array_keys($yanit->json('data.0')));
         $yanit->assertJsonPath('data.0.tarih', '2026-02-01')
             ->assertJsonPath('data.0.proje_kodu', 'ZONE 4-5 - ANA BÜTÇE')
+            ->assertJsonPath('data.0.hakedis_no', '5')
+            ->assertJsonPath('data.0.hakedis_tarihi', '2026-01-05')
+            ->assertJsonPath('data.0.sozlesme_no', 'SZL2026000000012')
+            ->assertJsonPath('data.2.hakedis_no', '')
+            ->assertJsonPath('data.2.hakedis_tarihi', null)
+            ->assertJsonPath('data.2.sozlesme_no', '')
             ->assertJsonPath('data.0.para_kodu', 'USD')
             ->assertJsonPath('data.0.genel_toplam_tl', 4300)
             ->assertJsonPath('data.0.genel_toplam_doviz', 100)
@@ -145,7 +155,7 @@ final class GiderYansitmaFaturalariRaporTest extends TestCase
     public function test_excel_tl_genel_toplam_ve_para_koduna_gore_doviz_toplamiyla_iner(): void
     {
         $this->erpFaturalari([
-            $this->fatura('INS1', '2026-01-10', 'TL'),
+            $this->fatura('INS1', '2026-01-10', 'TL', ['HAKEDIS_NO' => null, 'HAKEDIS_TARIHI' => null, 'SOZLESME_NO' => null]),
             $this->fatura('INS2', '2026-02-01', 'USD', ['GENEL_TOPLAM_TL' => '4300.00', 'GENEL_TOPLAM_DOVIZ' => '100.00']),
             $this->fatura('INS3', '2026-03-01', 'USD', ['GENEL_TOPLAM_TL' => '2150.00', 'GENEL_TOPLAM_DOVIZ' => '50.00']),
             // Ekranda süzülüp dışarıda kalan: Excel'e ve toplamlara girmez
@@ -163,25 +173,27 @@ final class GiderYansitmaFaturalariRaporTest extends TestCase
         $sayfa = $kitap->getActiveSheet();
         $this->assertSame('Data', $sayfa->getTitle());
         $this->assertSame([
-            'Sıra No', 'Tarih', 'Fatura No', 'Ünvan', 'Proje Kodu', 'Açıklama', 'KDV Matrahı (TL)', 'KDV (TL)',
-            'Vergi (TL)', 'Tevkifat (TL)', 'Genel Toplam (TL)', 'Kesinti Toplamı (TL)', 'Net Toplam (TL)', 'Para Kodu',
-            'KDV Matrahı (Döviz)', 'KDV (Döviz)', 'Vergi (Döviz)', 'Tevkifat (Döviz)', 'Genel Toplam (Döviz)',
-            'Kesinti Toplamı (Döviz)', 'Net Toplam (Döviz)', 'Kayıt Eden', 'Güncelleyen',
-        ], $sayfa->rangeToArray('A1:W1')[0]);
+            'Sıra No', 'Tarih', 'Fatura No', 'Ünvan', 'Proje Kodu', 'Açıklama', 'Hakediş No', 'Hakediş Tarihi',
+            'Sözleşme No', 'KDV Matrahı (TL)', 'KDV (TL)', 'Vergi (TL)', 'Tevkifat (TL)', 'Genel Toplam (TL)',
+            'Kesinti Toplamı (TL)', 'Net Toplam (TL)', 'Para Kodu', 'KDV Matrahı (Döviz)', 'KDV (Döviz)', 'Vergi (Döviz)',
+            'Tevkifat (Döviz)', 'Genel Toplam (Döviz)', 'Kesinti Toplamı (Döviz)', 'Net Toplam (Döviz)', 'Kayıt Eden',
+            'Güncelleyen',
+        ], $sayfa->rangeToArray('A1:Z1')[0]);
 
-        // Sıra No, Tarih, Fatura No, Genel Toplam (TL), Para Kodu, Genel Toplam (Döviz)
+        // Sıra No, Tarih, Fatura No, Hakediş No, Hakediş Tarihi, Sözleşme No, Genel Toplam (TL), Para Kodu, Genel Toplam (Döviz)
         $satir = fn (int $no): array => array_map(
             fn (string $kolon): mixed => $sayfa->getCell($kolon.$no)->getFormattedValue(),
-            ['A', 'B', 'C', 'K', 'N', 'S'],
+            ['A', 'B', 'C', 'G', 'H', 'I', 'N', 'Q', 'V'],
         );
-        $this->assertSame(['1', '01.03.2026', 'INS3', '2,150.00', 'USD', '50.00'], $satir(2));
-        $this->assertSame(['3', '10.01.2026', 'INS1', '120.00', 'TL', '120.00'], $satir(4));
+        $this->assertSame(['1', '01.03.2026', 'INS3', '5', '05.01.2026', 'SZL2026000000012', '2,150.00', 'USD', '50.00'], $satir(2));
+        // Hakedişsiz fatura: hakediş hücreleri boş
+        $this->assertSame(['3', '10.01.2026', 'INS1', '', '', '', '120.00', 'TL', '120.00'], $satir(4));
         // TL kolonları tek genel toplam; Döviz kolonları para koduna göre
-        $this->assertSame(['GENEL TOPLAM (TL)', '', '', '6,570.00', '', ''], $satir(5));
-        $this->assertSame(['TOPLAM', '', '', '', 'TL', '120.00'], $satir(6));
-        $this->assertSame(['TOPLAM', '', '', '', 'USD', '150.00'], $satir(7));
+        $this->assertSame(['GENEL TOPLAM (TL)', '', '', '', '', '', '6,570.00', '', ''], $satir(5));
+        $this->assertSame(['TOPLAM', '', '', '', '', '', '', 'TL', '120.00'], $satir(6));
+        $this->assertSame(['TOPLAM', '', '', '', '', '', '', 'USD', '150.00'], $satir(7));
         $this->assertSame('', $sayfa->getCell('A8')->getFormattedValue());
-        $this->assertSame('A1:W4', $sayfa->getAutoFilter()->getRange());
+        $this->assertSame('A1:Z4', $sayfa->getAutoFilter()->getRange());
 
         // Taşeron: Ünvan | Proje | Para Kodu | Kayıt Sayısı | tutarlar — aynı gruptaki faturalar toplanır
         $taseron = $kitap->getSheetByName('Taşeron');

@@ -1138,13 +1138,16 @@
     "giderYansitmaFaturalari": {
       "baslik": "Gider Yansıtma Faturaları",
       "aciklamaMetni": "ERP'deki gider yansıtma faturaları, fatura başına bir satır; tutarlar TL karşılığıyla ve faturanın kendi para biriminde (Döviz). Tablonun üstünde ve altında TL genel toplamı ile para birimine göre döviz toplamları. Rapor, Raporu Çalıştır'a basıldığında ERP'den okunur.",
-      "aramaIpucu": "Fatura no, ünvan, proje, açıklama, kullanıcı…",
+      "aramaIpucu": "Fatura no, ünvan, proje, açıklama, hakediş, sözleşme, kullanıcı…",
       "kolon": {
         "tarih": "Tarih",
         "fatura_no": "Fatura No",
         "unvan": "Ünvan",
         "proje_kodu": "Proje Kodu",
         "aciklama": "Açıklama",
+        "hakedis_no": "Hakediş No",
+        "hakedis_tarihi": "Hakediş Tarihi",
+        "sozlesme_no": "Sözleşme No",
         "kdv_matrahi_tl": "KDV Matrahı (TL)",
         "kdv_tl": "KDV (TL)",
         "vergi_tl": "Vergi (TL)",

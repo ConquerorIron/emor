@@ -22,13 +22,16 @@ export const DOVIZ_TUTARLAR = [
   'net_toplam_doviz',
 ] as const
 
-/** Fatura başına satır; tarih YYYY-MM-DD */
+/** Fatura başına satır; tarihler YYYY-MM-DD; hakedişe bağlı olmayan faturada hakediş alanları boş */
 export type GiderYansitmaFaturasi = {
   tarih: string | null
   fatura_no: string
   unvan: string
   proje_kodu: string
   aciklama: string
+  hakedis_no: string
+  hakedis_tarihi: string | null
+  sozlesme_no: string
   para_kodu: string
   kayit_eden: string
   guncelleyen: string

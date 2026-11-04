@@ -6,8 +6,9 @@ namespace App\Services\Rapor;
 
 /**
  * Raporlar → Gider Yansıtma Faturaları (kullanıcı isteği 2026-11-03): ERP
- * proc'unun 22 kolonunun hepsi, proc sırasıyla; Para Kodu Döviz kolonlarının
- * hemen önünde. Her tutar TL karşılığıyla ve faturanın kendi para biriminde
+ * proc'unun kolonlarının hepsi, proc sırasıyla; Para Kodu Döviz kolonlarının
+ * hemen önünde. Hakediş No / Hakediş Tarihi / Sözleşme No 2026-11-04'te
+ * proc'a eklendi. Her tutar TL karşılığıyla ve faturanın kendi para biriminde
  * (Döviz; TL faturada TL'nin aynısı) gelir. Canlı ölçüm: 493 satır ~0,1 sn;
  * FATURA_NO tekil. Toplamlar: TL kolonlarının genel toplamı + para koduna
  * göre Döviz kolonları.
@@ -28,6 +29,9 @@ final class GiderYansitmaFaturalariRaporu extends ErpRaporu
         'unvan' => 'metin',
         'proje_kodu' => 'metin',
         'aciklama' => 'metin',
+        'hakedis_no' => 'metin',
+        'hakedis_tarihi' => 'tarih',
+        'sozlesme_no' => 'metin',
         'kdv_matrahi_tl' => 'tutar',
         'kdv_tl' => 'tutar',
         'vergi_tl' => 'tutar',
@@ -63,6 +67,9 @@ final class GiderYansitmaFaturalariRaporu extends ErpRaporu
         'unvan' => 'UNVAN',
         'proje_kodu' => 'PROJE_KODU',
         'aciklama' => 'ACIKLAMA',
+        'hakedis_no' => 'HAKEDIS_NO',
+        'hakedis_tarihi' => 'HAKEDIS_TARIHI',
+        'sozlesme_no' => 'SOZLESME_NO',
         'kdv_matrahi_tl' => 'KDV_MATRAHI',
         'kdv_tl' => 'KDV_TL',
         'vergi_tl' => 'VERGI_TL',
