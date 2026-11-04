@@ -34,10 +34,10 @@ export interface ErpRaporTanimi<T extends RaporSatiri> {
   ortali?: (keyof T & string)[]
   /** Toplam satırları — süzülen satırların tamamından (sayfa değil); özet sekmelerinde de */
   toplamlar: (satirlar: T[]) => RaporToplami[]
-  /** Özet (pivot) sekmeleri, Data'dan sonra — backend ErpRaporu::PIVOTLAR ile aynı */
+  /** Özet (pivot) sekmeleri, Data'dan sonra — backend ErpRaporu::PIVOTLAR ile aynı; yoksa sekme şeridi çizilmez */
   pivotlar: RaporPivotu[]
-  /** Pivotlardaki Yıl / Ay'ın türediği tarih kolonu (YYYY-MM-DD) */
-  tarihAlani: keyof T & string
+  /** Pivotlardaki Yıl / Ay'ın türediği tarih kolonu (YYYY-MM-DD); Yıl / Ay pivotu olmayan raporda gerekmez */
+  tarihAlani?: keyof T & string
 }
 
 /** Özet sekmesi: grup kolonları ("yil" / "ay" tarih alanından türer); i18n raporlar.pivot.<anahtar> */

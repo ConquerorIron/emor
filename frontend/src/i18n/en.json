@@ -60,6 +60,7 @@
     "malzemeKesintileri": "Material Deductions",
     "kartBasimKesintileri": "Personnel Card Printing Deductions",
     "raporlar": "Reports",
+    "erpKesintiKontrolu": "ERP Deduction Check",
     "taseronHakedisleri": "Subcontractor Progress Payments",
     "giderYansitmaFaturalari": "Expense Re-invoicing Invoices",
     "kesintiTurleri": "Deduction Types",
@@ -534,6 +535,7 @@
       "isg_ceza_kesintileri": "OHS Penalty Deductions",
       "malzeme_kesintileri": "Material Deductions",
       "kart_basim_kesintileri": "Personnel Card Printing Deductions",
+      "erp_kesinti_kontrolu": "ERP Deduction Check",
       "taseron_hakedisleri": "Subcontractor Progress Payments",
       "gider_yansitma_faturalari": "Expense Re-invoicing Invoices",
       "kesinti_turleri": "Deduction Types",
@@ -1100,6 +1102,23 @@
     "yil": "Year",
     "ay": "Month",
     "kayitSayisiKolonu": "Record Count",
+    "erpKesintiKontrolu": {
+      "baslik": "ERP Deduction Check",
+      "aciklamaMetni": "Amounts entered on the deduction screens by subcontractor, project and currency; on the right, the same group's re-invoiced expense from ERP progress payments and its expense re-invoicing invoice total (VAT included, in the invoice currency). Rows are matched by subcontractor name, project and currency; in projects with deductions, ERP groups without deductions are listed too. The date filter applies to each deduction's, payment's and invoice's own date.",
+      "aramaIpucu": "Subcontractor, project…",
+      "kolon": {
+        "taseron": "Subcontractor",
+        "proje": "Project",
+        "para_kodu": "Currency",
+        "toplam_tutar": "Total Amount",
+        "iptal_edilen_tutar": "Cancelled Amount",
+        "yansitilan_tutar": "Re-invoiced Amount",
+        "kesilen_tutar": "Deducted Amount",
+        "kalan_tutar": "Remaining Amount",
+        "hakedis_yansitilacak_gider": "Payment Re-invoiced Expense",
+        "yansitma_faturasi": "Re-invoicing Invoice"
+      }
+    },
     "taseronHakedisleri": {
       "baslik": "Subcontractor Progress Payments",
       "aciklamaMetni": "Subcontract progress payments from the ERP, one row per payment, with currency totals above and below the table. The report is read from the ERP when you press Run Report.",

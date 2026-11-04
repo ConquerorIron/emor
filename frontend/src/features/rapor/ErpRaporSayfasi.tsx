@@ -150,7 +150,7 @@ function RaporPivotTablosu<T extends RaporSatiri>({
   return (
     <DataTable
       kolonlar={kolonlar}
-      satirlar={siralaUygula(pivotla(satirlar, pivot, tanim.tarihAlani, tutarlar), siralama)}
+      satirlar={siralaUygula(pivotla(satirlar, pivot, tanim.tarihAlani ?? '', tutarlar), siralama)}
       satirAnahtari={(satir) => pivot.gruplar.map((alan) => String(satir[alan])).join('|')}
       siralama={siralama}
       siralamaDegistir={siralamaDegistir}
@@ -470,29 +470,31 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
             />
           </div>
 
-          {/* Data: satırlar; diğerleri aynı süzgeçteki satırların özetleri */}
-          <div
-            role="tablist"
-            aria-label={t('raporlar.sekmeler')}
-            className="mt-4 flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-700"
-          >
-            {['data', ...tanim.pivotlar.map((pivot) => pivot.anahtar)].map((anahtar) => (
-              <button
-                key={anahtar}
-                type="button"
-                role="tab"
-                aria-selected={sekme === anahtar}
-                onClick={() => setSekme(anahtar)}
-                className={`-mb-px cursor-pointer border-b-2 px-3 py-2 text-sm font-semibold ${
-                  sekme === anahtar
-                    ? 'border-violet-600 text-violet-700 dark:text-violet-300'
-                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-                }`}
-              >
-                {t(`raporlar.pivot.${anahtar}`)}
-              </button>
-            ))}
-          </div>
+          {/* Data: satırlar; diğerleri aynı süzgeçteki satırların özetleri (özeti olmayan raporda şerit yok) */}
+          {tanim.pivotlar.length > 0 && (
+            <div
+              role="tablist"
+              aria-label={t('raporlar.sekmeler')}
+              className="mt-4 flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-700"
+            >
+              {['data', ...tanim.pivotlar.map((pivot) => pivot.anahtar)].map((anahtar) => (
+                <button
+                  key={anahtar}
+                  type="button"
+                  role="tab"
+                  aria-selected={sekme === anahtar}
+                  onClick={() => setSekme(anahtar)}
+                  className={`-mb-px cursor-pointer border-b-2 px-3 py-2 text-sm font-semibold ${
+                    sekme === anahtar
+                      ? 'border-violet-600 text-violet-700 dark:text-violet-300'
+                      : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {t(`raporlar.pivot.${anahtar}`)}
+                </button>
+              ))}
+            </div>
+          )}
 
           {seciliPivot ? (
             <div className="mt-4">

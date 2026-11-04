@@ -17,6 +17,22 @@ return [
     'kayit_sayisi' => 'Kayıt Sayısı',
 
     // Rapor bölümleri: ErpRaporu::DIL; kolon sırası raporun KOLONLAR'ından gelir
+    'erp_kesinti_kontrolu' => [
+        'baslik' => 'ERP Kesinti Kontrolü',
+        'kolonlar' => [
+            'taseron' => 'Taşeron',
+            'proje' => 'Proje',
+            'para_kodu' => 'Para Birimi',
+            'toplam_tutar' => 'Toplam Tutar',
+            'iptal_edilen_tutar' => 'İptal Edilen Tutar',
+            'yansitilan_tutar' => 'Yansıtılan Tutar',
+            'kesilen_tutar' => 'Kesilen Tutar',
+            'kalan_tutar' => 'Kalan Tutar',
+            'hakedis_yansitilacak_gider' => 'Hakediş Yansıtılacak Gider',
+            'yansitma_faturasi' => 'Yansıtma Faturası',
+        ],
+    ],
+
     'taseron_hakedisleri' => [
         'baslik' => 'Taşeron Hakedişleri',
         'kolonlar' => [

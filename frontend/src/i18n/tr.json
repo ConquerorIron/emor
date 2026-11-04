@@ -60,6 +60,7 @@
     "malzemeKesintileri": "Malzeme Kesintisi",
     "kartBasimKesintileri": "Personel Kart Basım Kesintisi",
     "raporlar": "Raporlar",
+    "erpKesintiKontrolu": "ERP Kesinti Kontrolü",
     "taseronHakedisleri": "Taşeron Hakedişleri",
     "giderYansitmaFaturalari": "Gider Yansıtma Faturaları",
     "kesintiTurleri": "Kesinti Türleri",
@@ -534,6 +535,7 @@
       "isg_ceza_kesintileri": "İSG Ceza Kesintisi",
       "malzeme_kesintileri": "Malzeme Kesintisi",
       "kart_basim_kesintileri": "Personel Kart Basım Kesintisi",
+      "erp_kesinti_kontrolu": "ERP Kesinti Kontrolü",
       "taseron_hakedisleri": "Taşeron Hakedişleri",
       "gider_yansitma_faturalari": "Gider Yansıtma Faturaları",
       "kesinti_turleri": "Kesinti Türleri",
@@ -1100,6 +1102,23 @@
     "yil": "Yıl",
     "ay": "Ay",
     "kayitSayisiKolonu": "Kayıt Sayısı",
+    "erpKesintiKontrolu": {
+      "baslik": "ERP Kesinti Kontrolü",
+      "aciklamaMetni": "Kesinti ekranlarına girilen tutarlar taşeron, proje ve para birimi bazında; sağda aynı grubun ERP'deki hakediş yansıtılacak gideri ve gider yansıtma faturası toplamı (KDV dahil, faturanın para biriminde). Eşleşme taşeron adı, proje ve para birimiyle yapılır; kesinti girilen projelerde ERP'de olup kesintisi olmayan gruplar da listelenir. Tarih süzgeci kesintinin, hakedişin ve faturanın kendi tarihine uygulanır.",
+      "aramaIpucu": "Taşeron, proje…",
+      "kolon": {
+        "taseron": "Taşeron",
+        "proje": "Proje",
+        "para_kodu": "Para Birimi",
+        "toplam_tutar": "Toplam Tutar",
+        "iptal_edilen_tutar": "İptal Edilen Tutar",
+        "yansitilan_tutar": "Yansıtılan Tutar",
+        "kesilen_tutar": "Kesilen Tutar",
+        "kalan_tutar": "Kalan Tutar",
+        "hakedis_yansitilacak_gider": "Hakediş Yansıtılacak Gider",
+        "yansitma_faturasi": "Yansıtma Faturası"
+      }
+    },
     "taseronHakedisleri": {
       "baslik": "Taşeron Hakedişleri",
       "aciklamaMetni": "ERP'deki taşeron sözleşme hakedişleri, hakediş başına bir satır; tablonun üstünde ve altında para birimine göre toplamlar. Rapor, Raporu Çalıştır'a basıldığında ERP'den okunur.",

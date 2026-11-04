@@ -249,6 +249,18 @@ export const router = createBrowserRouter([
         ],
       },
       {
+        element: <IzinAlani izin="erp_kesinti_kontrolu.goruntule" />,
+        children: [
+          {
+            path: 'raporlar/erp-kesinti-kontrolu',
+            lazy: async () => ({
+              Component: (await import('@/pages/ErpKesintiKontrolu/ErpKesintiKontroluPage'))
+                .ErpKesintiKontroluPage,
+            }),
+          },
+        ],
+      },
+      {
         element: <IzinAlani izin="taseron_hakedisleri.goruntule" />,
         children: [
           {

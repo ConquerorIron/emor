@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\EFaturaSenkronController;
 use App\Http\Controllers\Api\V1\EkranTasarimController;
 use App\Http\Controllers\Api\V1\EntegratorBaglantiController;
 use App\Http\Controllers\Api\V1\ErpFirmaController;
+use App\Http\Controllers\Api\V1\ErpKesintiKontroluController;
 use App\Http\Controllers\Api\V1\ErpProjeController;
 use App\Http\Controllers\Api\V1\FirmaController;
 use App\Http\Controllers\Api\V1\GiderYansitmaFaturalariController;
@@ -673,6 +674,17 @@ Route::prefix('v1')->group(function (): void {
 
         // Raporlar: ERP rapor proc'ları (ErpRaporController; liste ve Excel her
         // seferinde proc'u çalıştırır)
+        // ERP Kesinti Kontrolü: kesinti icmalleri + iki ERP raporu, taşeron / proje / para bazında
+        Route::middleware('can:erp_kesinti_kontrolu.goruntule')->group(function (): void {
+            Route::get('/raporlar/erp-kesinti-kontrolu', [ErpKesintiKontroluController::class, 'index'])
+                ->middleware('throttle:erp-rapor')
+                ->name('raporlar.erp-kesinti-kontrolu');
+            Route::post('/raporlar/erp-kesinti-kontrolu/excel', [ErpKesintiKontroluController::class, 'excel'])
+                ->middleware('throttle:erp-rapor')
+                ->name('raporlar.erp-kesinti-kontrolu.excel');
+            Route::get('/raporlar/erp-kesinti-kontrolu/secenekler', [ErpKesintiKontroluController::class, 'secenekler'])
+                ->name('raporlar.erp-kesinti-kontrolu.secenekler');
+        });
         Route::middleware('can:taseron_hakedisleri.goruntule')->group(function (): void {
             Route::get('/raporlar/taseron-hakedisleri', [TaseronHakedisleriController::class, 'index'])
                 ->middleware('throttle:erp-rapor')

@@ -85,6 +85,11 @@ const NAV_GRUPLARI: NavGrubu[] = [
     baslikAnahtari: 'nav.raporlar',
     ogeler: [
       {
+        to: '/raporlar/erp-kesinti-kontrolu',
+        ad: 'erpKesintiKontrolu',
+        izin: 'erp_kesinti_kontrolu.goruntule',
+      },
+      {
         to: '/raporlar/taseron-hakedisleri',
         ad: 'taseronHakedisleri',
         izin: 'taseron_hakedisleri.goruntule',
