@@ -57,6 +57,10 @@ const KATALOG: EkranIzni[] = [
   { ekran: 'roller', goruntule: 'roller.goruntule', guncelle: 'roller.guncelle', ekler: [] },
 ]
 
+/** İzinler menü gruplarında kapalı gelir: ekran anahtarları grup açılınca çizilir */
+const grubuAc = (dialog: HTMLElement, ad: string) =>
+  fireEvent.click(within(dialog).getByRole('button', { name: ad }))
+
 describe('RollerPage', () => {
   beforeEach(() => {
     api.izinler.mockResolvedValue(KATALOG)
@@ -88,6 +92,7 @@ describe('RollerPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Yeni Rol' }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.change(within(dialog).getByLabelText('Rol Adı'), { target: { value: 'Denetçi' } })
+    grubuAc(dialog, 'Ayarlar')
     fireEvent.click(within(dialog).getByRole('switch', { name: 'SQL Bağlantıları — Güncelle' }))
 
     expect(
@@ -112,6 +117,7 @@ describe('RollerPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Yeni Rol' }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.change(within(dialog).getByLabelText('Rol Adı'), { target: { value: 'Denetçi' } })
+    grubuAc(dialog, 'e-Fatura')
     fireEvent.click(
       within(dialog).getByRole('switch', { name: "e-Fatura listesini Excel'e aktarma" }),
     )
@@ -123,6 +129,69 @@ describe('RollerPage', () => {
       aciklama: null,
       izinler: ['efatura.goruntule', 'efatura.disari_aktar'],
     })
+  })
+
+  it('izinler menü gruplarında kapalı ve sayılı gelir; grup anahtarı grubun tüm ekranlarını açar', async () => {
+    // Menüde olmayan ekran "Diğer" grubuna düşer
+    api.izinler.mockResolvedValue([
+      ...KATALOG,
+      { ekran: 'menude_yok', goruntule: 'menude_yok.goruntule', guncelle: null, ekler: [] },
+    ])
+    api.kaydet.mockResolvedValue(MUHASEBE)
+    ciz()
+    await screen.findByText('Muhasebe')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent('4 ekrandan 1 ekran açık')
+    const ayarlar = within(dialog).getByRole('button', { name: 'Ayarlar' })
+    expect(ayarlar).toHaveAttribute('aria-expanded', 'false')
+    expect(within(dialog).getByRole('button', { name: 'Diğer' })).toBeInTheDocument()
+    expect(
+      within(dialog).queryByRole('switch', { name: 'SQL Bağlantıları — Görüntüle' }),
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(within(dialog).getByRole('switch', { name: 'Ayarlar — tümü: Güncelle' }))
+    expect(dialog).toHaveTextContent('4 ekrandan 3 ekran açık')
+    fireEvent.click(ayarlar)
+    expect(
+      within(dialog).getByRole('switch', { name: 'SQL Bağlantıları — Görüntüle' }),
+    ).toBeChecked()
+    expect(within(dialog).getByRole('switch', { name: 'Roller — Güncelle' })).toBeChecked()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+
+    await waitFor(() => expect(api.kaydet).toHaveBeenCalledTimes(1))
+    expect(api.kaydet).toHaveBeenCalledWith(7, {
+      ad: 'Muhasebe',
+      aciklama: null,
+      izinler: [
+        'efatura.goruntule',
+        'efatura.pdf',
+        'sql_baglantilari.goruntule',
+        'sql_baglantilari.guncelle',
+        'roller.goruntule',
+        'roller.guncelle',
+      ],
+    })
+  })
+
+  it('ekran araması ek izin adlarında da arar; eşleşen gruplar açık gelir', async () => {
+    ciz()
+    await screen.findByText('Muhasebe')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Yeni Rol' }))
+    const dialog = await screen.findByRole('dialog')
+    const arama = within(dialog).getByLabelText('Ekran ara')
+
+    fireEvent.change(arama, { target: { value: 'pdf' } })
+    expect(
+      within(dialog).getByRole('switch', { name: 'e-Faturalar (Gelen/Giden) — Görüntüle' }),
+    ).toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'Ayarlar' })).not.toBeInTheDocument()
+
+    fireEvent.change(arama, { target: { value: 'yok böyle' } })
+    expect(dialog).toHaveTextContent('Aramaya uyan ekran yok.')
   })
 
   it('boş adla istek atmadan hata gösterir', async () => {
@@ -144,6 +213,7 @@ describe('RollerPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }))
     const dialog = await screen.findByRole('dialog')
+    grubuAc(dialog, 'e-Fatura')
     const pdf = within(dialog).getByRole('switch', { name: 'e-Fatura PDF/XML görüntüleme' })
     expect(pdf).toBeChecked()
 
@@ -193,6 +263,7 @@ describe('RollerPage', () => {
     const ad = within(dialog).getByLabelText('Rol Adı')
     expect(ad).toHaveValue('Muhasebe (Kopya)')
     expect(within(dialog).getByLabelText('Açıklama')).toHaveValue('Fatura ekibi')
+    grubuAc(dialog, 'e-Fatura')
     expect(
       within(dialog).getByRole('switch', { name: 'e-Fatura PDF/XML görüntüleme' }),
     ).toBeChecked()

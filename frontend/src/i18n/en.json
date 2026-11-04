@@ -522,8 +522,14 @@
   "yetki": {
     "goruntule": "View",
     "guncelle": "Update",
-    "ekIzinler": "Extra permissions",
     "ekranBaslik": "Screen",
+    "digerEkranlar": "Other",
+    "ekranAra": "Search screens",
+    "ekranAraIpucu": "Screen or permission name…",
+    "eslesenEkranYok": "No screen matches the search.",
+    "acikSayisi": "{{sayi}}/{{toplam}} on",
+    "acikEkranlar": "{{sayi}} of {{toplam}} screens on",
+    "grupDuzeyi": "{{grup}} — all: {{duzey}}",
     "ekran": {
       "satinalma_talebi": "Purchase Request",
       "efatura": "e-Invoices (Incoming/Outgoing)",

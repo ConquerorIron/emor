@@ -25,13 +25,16 @@ export function Modal({ acik, kapat, baslik, boyut = 'normal', children }: Modal
   return (
     <Dialog open={acik} onClose={kapat} className="relative z-50">
       <DialogBackdrop className="fixed inset-0 bg-black/40" />
-      <div className="fixed inset-0 flex items-center justify-center overflow-y-auto p-4">
-        <DialogPanel
-          className={`w-full ${BOYUT_SINIFLARI[boyut]} rounded-xl border border-slate-200 bg-white p-6 shadow-lg dark:border-slate-800 dark:bg-slate-900`}
-        >
-          <DialogTitle className="text-lg font-bold">{baslik}</DialogTitle>
-          <div className="mt-4">{children}</div>
-        </DialogPanel>
+      {/* Kayan kap ile ortalayan kap ayrı: ekrandan uzun pencerenin üstü kesilmez, kaydırılarak ulaşılır */}
+      <div className="fixed inset-0 overflow-y-auto">
+        <div className="flex min-h-full items-center justify-center p-4">
+          <DialogPanel
+            className={`w-full ${BOYUT_SINIFLARI[boyut]} rounded-xl border border-slate-200 bg-white p-6 shadow-lg dark:border-slate-800 dark:bg-slate-900`}
+          >
+            <DialogTitle className="text-lg font-bold">{baslik}</DialogTitle>
+            <div className="mt-4">{children}</div>
+          </DialogPanel>
+        </div>
       </div>
     </Dialog>
   )

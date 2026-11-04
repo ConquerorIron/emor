@@ -522,8 +522,14 @@
   "yetki": {
     "goruntule": "Görüntüle",
     "guncelle": "Güncelle",
-    "ekIzinler": "Ek izinler",
     "ekranBaslik": "Ekran",
+    "digerEkranlar": "Diğer",
+    "ekranAra": "Ekran ara",
+    "ekranAraIpucu": "Ekran veya izin adı…",
+    "eslesenEkranYok": "Aramaya uyan ekran yok.",
+    "acikSayisi": "{{sayi}}/{{toplam}} açık",
+    "acikEkranlar": "{{toplam}} ekrandan {{sayi}} ekran açık",
+    "grupDuzeyi": "{{grup}} — tümü: {{duzey}}",
     "ekran": {
       "satinalma_talebi": "Satınalma Talebi",
       "efatura": "e-Faturalar (Gelen/Giden)",

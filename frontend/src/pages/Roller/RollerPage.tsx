@@ -110,18 +110,21 @@ function RolFormu({
           {t('ayarlar.roller.kopyaBilgisi', { ad: kaynak.ad })}
         </p>
       ) : null}
-      <Input
-        id="rol-ad"
-        label={t('ayarlar.roller.ad')}
-        hata={errors.ad?.message ? t(errors.ad.message) : undefined}
-        {...register('ad')}
-      />
-      <Input
-        id="rol-aciklama"
-        label={t('ayarlar.roller.aciklama')}
-        hata={errors.aciklama?.message ? t(errors.aciklama.message) : undefined}
-        {...register('aciklama')}
-      />
+      {/* Yan yana: izin listesine yer kalsın */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Input
+          id="rol-ad"
+          label={t('ayarlar.roller.ad')}
+          hata={errors.ad?.message ? t(errors.ad.message) : undefined}
+          {...register('ad')}
+        />
+        <Input
+          id="rol-aciklama"
+          label={t('ayarlar.roller.aciklama')}
+          hata={errors.aciklama?.message ? t(errors.aciklama.message) : undefined}
+          {...register('aciklama')}
+        />
+      </div>
 
       {/* min-w-0: fieldset içeriğe göre genişlemesin, matris dar ekranda kaysın */}
       <fieldset className="min-w-0">

@@ -1,4 +1,59 @@
 import { izinEtiketAnahtari, type EkranIzni } from '@/features/ayarlar/yetkiApi'
+import type { NavGrubu } from '@/layouts/navGruplari'
+
+/** Matristeki katlanır bölüm: bir menü grubunun ekranları */
+export interface IzinGrubu {
+  /** i18n: menü grubunun başlığı (nav.*) ya da yetki.digerEkranlar */
+  baslikAnahtari: string
+  ekranlar: EkranIzni[]
+}
+
+/**
+ * Katalogdaki ekranlar menüdeki gruplarına göre, menü sırasıyla (ekran,
+ * görüntüleme izniyle eşleşir). Menüde olmayan ekranlar sondaki "Diğer"
+ * grubunda: yeni bir ekran matristen düşmez.
+ */
+export function izinGruplari(katalog: EkranIzni[], menu: NavGrubu[]): IzinGrubu[] {
+  const kalanlar = new Map(katalog.map((ekran) => [ekran.goruntule, ekran]))
+  const gruplar: IzinGrubu[] = []
+
+  for (const { baslikAnahtari, ogeler } of menu) {
+    if (baslikAnahtari === null) {
+      continue
+    }
+    const ekranlar: EkranIzni[] = []
+    for (const { izin } of ogeler) {
+      const ekran = izin === undefined ? undefined : kalanlar.get(izin)
+      if (ekran) {
+        ekranlar.push(ekran)
+        kalanlar.delete(ekran.goruntule)
+      }
+    }
+    if (ekranlar.length > 0) {
+      gruplar.push({ baslikAnahtari, ekranlar })
+    }
+  }
+  if (kalanlar.size > 0) {
+    gruplar.push({ baslikAnahtari: 'yetki.digerEkranlar', ekranlar: [...kalanlar.values()] })
+  }
+
+  return gruplar
+}
+
+/** Ekranların hepsinde aynı düzeyi açar / kapar (izinDegistir kurallarıyla); güncellemesi olmayan ekran atlanır */
+export function grupDegistir(
+  katalog: EkranIzni[],
+  secili: string[],
+  ekranlar: EkranIzni[],
+  duzey: 'goruntule' | 'guncelle',
+  acik: boolean,
+): string[] {
+  return ekranlar.reduce((sonuc, ekran) => {
+    const izin = ekran[duzey]
+
+    return izin === null ? sonuc : izinDegistir(katalog, sonuc, ekran, izin, acik)
+  }, secili)
+}
 
 /** Ekranın tüm izin kodları: görüntüleme, güncelleme ve ek izinler. */
 function ekranKodlari(ekran: EkranIzni): string[] {
