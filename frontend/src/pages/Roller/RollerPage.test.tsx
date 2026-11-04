@@ -181,6 +181,34 @@ describe('RollerPage', () => {
     )
   })
 
+  it('kopyalama kaynak rolün açıklama ve izinleriyle yeni rol açar; yeni adla oluşturur', async () => {
+    api.roller.mockResolvedValue([{ ...MUHASEBE, aciklama: 'Fatura ekibi' }])
+    api.kaydet.mockResolvedValue({ ...MUHASEBE, id: 8, ad: 'Muhasebe Şefi' })
+    ciz()
+    await screen.findByText('Muhasebe')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kopyala' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Rolü Kopyala' })
+    expect(dialog).toHaveTextContent('Kullanıcı atamaları kopyalanmaz.')
+    const ad = within(dialog).getByLabelText('Rol Adı')
+    expect(ad).toHaveValue('Muhasebe (Kopya)')
+    expect(within(dialog).getByLabelText('Açıklama')).toHaveValue('Fatura ekibi')
+    expect(
+      within(dialog).getByRole('switch', { name: 'e-Fatura PDF/XML görüntüleme' }),
+    ).toBeChecked()
+
+    fireEvent.change(ad, { target: { value: 'Muhasebe Şefi' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+
+    // Kaynak rol değişmez: id'siz, yeni rol olarak kaydedilir
+    await waitFor(() => expect(api.kaydet).toHaveBeenCalledTimes(1))
+    expect(api.kaydet).toHaveBeenCalledWith(null, {
+      ad: 'Muhasebe Şefi',
+      aciklama: 'Fatura ekibi',
+      izinler: ['efatura.goruntule', 'efatura.pdf'],
+    })
+  })
+
   it('silmeyi onaydan sonra yapar', async () => {
     api.sil.mockResolvedValue(undefined)
     ciz()
@@ -196,13 +224,14 @@ describe('RollerPage', () => {
     await waitFor(() => expect(api.sil).toHaveBeenCalledWith(7))
   })
 
-  it('yalnız görüntüleme izninde ekleme, düzenleme ve silme gizlidir', async () => {
+  it('yalnız görüntüleme izninde ekleme, düzenleme, kopyalama ve silme gizlidir', async () => {
     ciz(['roller.goruntule'])
 
     expect(await screen.findByText('Muhasebe')).toBeInTheDocument()
     expect(screen.getByText('Bu ekranı yalnız görüntüleme yetkiniz var.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Yeni Rol' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Düzenle' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Kopyala' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Sil' })).not.toBeInTheDocument()
   })
 })

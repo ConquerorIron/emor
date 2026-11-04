@@ -40,17 +40,31 @@ const rolSemasi = z.object({
 
 type RolGirdisi = z.infer<typeof rolSemasi>
 
+// Açık form: yeni rol, düzenleme ya da kopyalama (kopyada rol, yeni rolün başlangıcıdır)
+type FormDurumu = { tur: 'yeni' } | { tur: 'duzenle' | 'kopyala'; rol: Rol }
+
+const MODAL_BASLIKLARI: Record<FormDurumu['tur'], string> = {
+  yeni: 'ayarlar.roller.yeni',
+  duzenle: 'ayarlar.roller.duzenle',
+  kopyala: 'ayarlar.roller.kopyalaBaslik',
+}
+
 function RolFormu({
   rol,
+  kaynak,
   izinKatalogu,
   kapat,
 }: {
+  /** Düzenlenen rol; null: yeni rol */
   rol: Rol | null
+  /** Kopyalanan rol: yeni rol onun açıklaması ve izinleriyle başlar (kullanıcıları kopyalanmaz) */
+  kaynak: Rol | null
   izinKatalogu: EkranIzni[]
   kapat: () => void
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const baslangic = rol ?? kaynak
 
   const {
     register,
@@ -61,9 +75,10 @@ function RolFormu({
   } = useForm<RolGirdisi>({
     resolver: standardSchemaResolver(rolSemasi),
     defaultValues: {
-      ad: rol?.ad ?? '',
-      aciklama: rol?.aciklama ?? '',
-      izinler: rol?.izinler ?? [],
+      // Kopyanın adı öneri: kaydetmeden önce değiştirilir (ad benzersiz)
+      ad: rol?.ad ?? (kaynak ? t('ayarlar.roller.kopyaAdi', { ad: kaynak.ad }) : ''),
+      aciklama: baslangic?.aciklama ?? '',
+      izinler: baslangic?.izinler ?? [],
     },
   })
 
@@ -90,6 +105,11 @@ function RolFormu({
 
   return (
     <form onSubmit={(e) => void onSubmit(e)} noValidate className="space-y-4">
+      {kaynak ? (
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          {t('ayarlar.roller.kopyaBilgisi', { ad: kaynak.ad })}
+        </p>
+      ) : null}
       <Input
         id="rol-ad"
         label={t('ayarlar.roller.ad')}
@@ -142,8 +162,8 @@ export function RollerPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const guncelleyebilir = useIzin('roller.guncelle')
-  // null: kapalı; 'yeni': yeni rol; Rol: düzenleme
-  const [formdaki, setFormdaki] = useState<Rol | 'yeni' | null>(null)
+  // null: form kapalı
+  const [form, setForm] = useState<FormDurumu | null>(null)
   const [silinecek, setSilinecek] = useState<Rol | null>(null)
 
   const roller = useQuery({ queryKey: queryKeys.ayarlar.roller, queryFn: rolleriGetir })
@@ -192,8 +212,11 @@ export function RollerPage() {
       hizala: 'sag',
       render: (rol) => (
         <div className="flex justify-end gap-2">
-          <Button variant="turuncu" onClick={() => setFormdaki(rol)}>
+          <Button variant="turuncu" onClick={() => setForm({ tur: 'duzenle', rol })}>
             {t('ortak.duzenle')}
+          </Button>
+          <Button variant="secondary" onClick={() => setForm({ tur: 'kopyala', rol })}>
+            {t('ayarlar.roller.kopyala')}
           </Button>
           <Button variant="danger" onClick={() => setSilinecek(rol)}>
             {t('ortak.sil')}
@@ -202,7 +225,7 @@ export function RollerPage() {
       ),
     },
   ]
-  // Yalnız görüntüleme izninde düzenle/sil kolonu çizilmez
+  // Yalnız görüntüleme izninde düzenle/kopyala/sil kolonu çizilmez
   const kolonlar = guncelleyebilir
     ? tumKolonlar
     : tumKolonlar.filter((kolon) => kolon.anahtar !== 'islemler')
@@ -216,7 +239,7 @@ export function RollerPage() {
         {guncelleyebilir ? (
           <Button
             variant="mor"
-            onClick={() => setFormdaki('yeni')}
+            onClick={() => setForm({ tur: 'yeni' })}
             disabled={!izinKatalogu.isSuccess}
           >
             {t('ayarlar.roller.yeni')}
@@ -251,16 +274,17 @@ export function RollerPage() {
       )}
 
       <Modal
-        acik={formdaki !== null}
-        kapat={() => setFormdaki(null)}
-        baslik={formdaki === 'yeni' ? t('ayarlar.roller.yeni') : t('ayarlar.roller.duzenle')}
+        acik={form !== null}
+        kapat={() => setForm(null)}
+        baslik={t(MODAL_BASLIKLARI[form?.tur ?? 'yeni'])}
         boyut="genis"
       >
-        {formdaki !== null && izinKatalogu.isSuccess ? (
+        {form !== null && izinKatalogu.isSuccess ? (
           <RolFormu
-            rol={formdaki === 'yeni' ? null : formdaki}
+            rol={form.tur === 'duzenle' ? form.rol : null}
+            kaynak={form.tur === 'kopyala' ? form.rol : null}
             izinKatalogu={izinKatalogu.data}
-            kapat={() => setFormdaki(null)}
+            kapat={() => setForm(null)}
           />
         ) : null}
       </Modal>
