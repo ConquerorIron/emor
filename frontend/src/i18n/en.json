@@ -1121,6 +1121,10 @@
         "kalan_tutar": "Remaining Amount",
         "hakedis_yansitilacak_gider": "Payment Re-invoiced Expense",
         "yansitma_faturasi": "Re-invoicing Invoice"
+      },
+      "suzgec": {
+        "hakedisFaturaFarkli": "Payment Re-invoiced Expense ≠ Re-invoicing Invoice",
+        "yansitilanFaturaFarkli": "Re-invoiced Amount ≠ Re-invoicing Invoice"
       }
     },
     "taseronHakedisleri": {

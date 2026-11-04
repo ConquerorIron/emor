@@ -1121,6 +1121,10 @@
         "kalan_tutar": "Kalan Tutar",
         "hakedis_yansitilacak_gider": "Hakediş Yansıtılacak Gider",
         "yansitma_faturasi": "Yansıtma Faturası"
+      },
+      "suzgec": {
+        "hakedisFaturaFarkli": "Hakediş Yansıtılacak Gider ≠ Yansıtma Faturası",
+        "yansitilanFaturaFarkli": "Yansıtılan Tutar ≠ Yansıtma Faturası"
       }
     },
     "taseronHakedisleri": {

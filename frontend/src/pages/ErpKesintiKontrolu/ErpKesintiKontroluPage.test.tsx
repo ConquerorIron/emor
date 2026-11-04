@@ -18,7 +18,7 @@ vi.mock('./erpKesintiKontroluApi', async (importOriginal) => ({
   erpKesintiKontroluApi: { getir: api.rapor, secenekler: api.secenekler, excel: api.excel },
 }))
 
-/** Kesintide yalnız toplam tutar; ERP tutarları verilenler */
+/** Kesintide yalnız toplam ve yansıtılan tutar; ERP tutarları verilenler */
 const satir = (
   anahtar: string,
   taseron: string,
@@ -26,6 +26,7 @@ const satir = (
   toplam_tutar: number,
   hakedis_yansitilacak_gider: number,
   yansitma_faturasi: number,
+  yansitilan_tutar = 0,
 ): KesintiKontrolSatiri => ({
   anahtar,
   taseron,
@@ -33,7 +34,7 @@ const satir = (
   para_kodu,
   toplam_tutar,
   iptal_edilen_tutar: 0,
-  yansitilan_tutar: 0,
+  yansitilan_tutar,
   kesilen_tutar: 0,
   kalan_tutar: 0,
   hakedis_yansitilacak_gider,
@@ -106,5 +107,34 @@ describe('ErpKesintiKontroluPage', () => {
 
     fireEvent.change(screen.getByLabelText('Genel Arama'), { target: { value: 'kortek' } })
     expect(await screen.findByText('4 kayıttan 2 kayıt')).toBeInTheDocument()
+  })
+
+  it('switch süzgeçleri tutarı farklı satırları bırakır; ikisi birlikte açıkken ikisini de tutanlar, Excel süzülenlerle', async () => {
+    api.rapor.mockResolvedValue([
+      // Ondalık hesap artığı (0,1 + 0,2) fark sayılmaz
+      satir('b1', 'HAB', 'TL', 50, 0.3, 0.1 + 0.2, 0.3),
+      satir('b2', 'KORTEK YAPI', 'USD', 0, 0, 84.5),
+      satir('b3', 'TMC YAPI', 'TL', 1500, 1500, 1500, 1000),
+    ])
+    fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
+    expect(await screen.findByText('3 kayıt')).toBeInTheDocument()
+
+    const hakedisFatura = screen.getByRole('switch', {
+      name: 'Hakediş Yansıtılacak Gider ≠ Yansıtma Faturası',
+    })
+    const yansitilanFatura = screen.getByRole('switch', {
+      name: 'Yansıtılan Tutar ≠ Yansıtma Faturası',
+    })
+
+    fireEvent.click(hakedisFatura)
+    expect(await screen.findByText('3 kayıttan 1 kayıt')).toBeInTheDocument()
+    fireEvent.click(yansitilanFatura)
+    expect(await screen.findByText('3 kayıttan 1 kayıt')).toBeInTheDocument()
+    fireEvent.click(hakedisFatura)
+    expect(await screen.findByText('3 kayıttan 2 kayıt')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: "Excel'e Aktar" }))
+    await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
+    expect(api.excel.mock.calls[0][0]).toMatchObject({ anahtarlar: ['b2', 'b3'] })
   })
 })

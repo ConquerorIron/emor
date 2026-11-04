@@ -14,6 +14,7 @@ import { KolonSecici } from '@/components/KolonSecici'
 import { Pagination } from '@/components/Pagination'
 import { MultiSelectField, SelectField, type SecenekOgesi } from '@/components/SelectField'
 import { siralaUygula } from '@/components/SiralanabilirBaslik'
+import { Switch } from '@/components/Switch'
 import { TarihInput } from '@/components/TarihInput'
 import { tutarGoster } from '@/features/kesinti/bicim'
 import { ayNumarasiAdi } from '@/features/kesinti/icmalTanimi'
@@ -42,9 +43,11 @@ interface AnlikSuzgec {
   arama: string
   projeler: string[]
   firmalar: string[]
+  /** Açık koşul süzgeçlerinin anahtarları (tanim.kosulSuzgecleri) */
+  kosullar: string[]
 }
 
-const BOS_SUZGEC: AnlikSuzgec = { arama: '', projeler: [], firmalar: [] }
+const BOS_SUZGEC: AnlikSuzgec = { arama: '', projeler: [], firmalar: [], kosullar: [] }
 
 /** Sonuçtaki farklı değerler, Türkçe sırayla (ZONE 7, ZONE 10'dan önce) */
 function secenekler(degerler: string[]): SecenekOgesi[] {
@@ -248,6 +251,8 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
   const suzgecProjeleri = secenekler(tumSatirlar.map(projesi))
   const suzgecFirmalari = secenekler(tumSatirlar.map(firmasi))
   const aranan = aramaBicimi(suzgec.arama.trim())
+  const kosulSuzgecleri = tanim.kosulSuzgecleri ?? []
+  const acikKosullar = kosulSuzgecleri.filter((s) => suzgec.kosullar.includes(s.anahtar))
   const satirlar = tumSatirlar.filter(
     (satir) =>
       (aranan === '' ||
@@ -255,7 +260,8 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
           aramaBicimi(String(satir[alan] ?? '')).includes(aranan),
         )) &&
       (suzgec.projeler.length === 0 || suzgec.projeler.includes(projesi(satir))) &&
-      (suzgec.firmalar.length === 0 || suzgec.firmalar.includes(firmasi(satir))),
+      (suzgec.firmalar.length === 0 || suzgec.firmalar.includes(firmasi(satir))) &&
+      acikKosullar.every((s) => s.kosul(satir)),
   )
 
   // Sayfalama tarayıcıda; 0 = "Hepsi"
@@ -311,7 +317,11 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
     />
   )
 
-  const suzuldu = aranan !== '' || suzgec.projeler.length > 0 || suzgec.firmalar.length > 0
+  const suzuldu =
+    aranan !== '' ||
+    suzgec.projeler.length > 0 ||
+    suzgec.firmalar.length > 0 ||
+    acikKosullar.length > 0
   const seciliPivot = tanim.pivotlar.find((pivot) => pivot.anahtar === sekme)
 
   return (
@@ -469,6 +479,26 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
               placeholder={t('ortak.hepsi')}
             />
           </div>
+          {kosulSuzgecleri.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-3">
+              {kosulSuzgecleri.map((s) => (
+                <Switch
+                  key={s.anahtar}
+                  id={`${tanim.anahtar}-suz-${s.anahtar}`}
+                  label={t(`raporlar.${tanim.anahtar}.suzgec.${s.anahtar}`)}
+                  checked={suzgec.kosullar.includes(s.anahtar)}
+                  onChange={(acik) =>
+                    suzgecDegistir(
+                      'kosullar',
+                      acik
+                        ? [...suzgec.kosullar, s.anahtar]
+                        : suzgec.kosullar.filter((k) => k !== s.anahtar),
+                    )
+                  }
+                />
+              ))}
+            </div>
+          ) : null}
 
           {/* Data: satırlar; diğerleri aynı süzgeçteki satırların özetleri (özeti olmayan raporda şerit yok) */}
           {tanim.pivotlar.length > 0 && (

@@ -38,6 +38,14 @@ export interface ErpRaporTanimi<T extends RaporSatiri> {
   pivotlar: RaporPivotu[]
   /** Pivotlardaki Yıl / Ay'ın türediği tarih kolonu (YYYY-MM-DD); Yıl / Ay pivotu olmayan raporda gerekmez */
   tarihAlani?: keyof T & string
+  /** Gelen veride switch'le açılan süzgeçler; açık olanların hepsini tutan satırlar kalır */
+  kosulSuzgecleri?: KosulSuzgeci<T>[]
+}
+
+/** Switch süzgeci: açıkken yalnız koşulu tutan satırlar; etiket i18n raporlar.<rapor>.suzgec.<anahtar> */
+export interface KosulSuzgeci<T extends RaporSatiri> {
+  anahtar: string
+  kosul: (satir: T) => boolean
 }
 
 /** Özet sekmesi: grup kolonları ("yil" / "ay" tarih alanından türer); i18n raporlar.pivot.<anahtar> */
