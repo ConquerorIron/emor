@@ -63,8 +63,7 @@ const SATIR: YemekKesintisi = {
   kalan_tutar: '0.00',
 }
 
-// Geniş tablo + form: tüm takım yük altındayken 5 sn varsayılan sınırı aşılabiliyor
-describe('YemekKesintileriPage', { timeout: 15_000 }, () => {
+describe('YemekKesintileriPage', () => {
   beforeEach(() => {
     api.secenekler.mockResolvedValue(SECENEKLER)
     api.liste.mockResolvedValue({

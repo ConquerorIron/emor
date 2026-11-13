@@ -66,8 +66,7 @@ const SATIR: TutanakKesintisi = {
   kalan_tutar: '400.00',
 }
 
-// Geniş tablo + form: tüm takım yük altındayken 5 sn varsayılan sınırı aşılabiliyor
-describe('TutanakKesintileriPage', { timeout: 15_000 }, () => {
+describe('TutanakKesintileriPage', () => {
   beforeEach(() => {
     api.secenekler.mockResolvedValue(SECENEKLER)
     api.liste.mockResolvedValue({

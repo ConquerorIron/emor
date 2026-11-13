@@ -79,8 +79,7 @@ function ciz() {
   )
 }
 
-// Geniş tablo + form: tüm takım yük altındayken 5 sn varsayılan sınırı aşılabiliyor
-describe('KampMalzemeKesintileriPage', { timeout: 15_000 }, () => {
+describe('KampMalzemeKesintileriPage', () => {
   beforeEach(() => {
     api.secenekler.mockResolvedValue(SECENEKLER)
     api.liste.mockResolvedValue({

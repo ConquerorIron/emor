@@ -80,9 +80,7 @@ function ciz(izinler = ['firmalar.goruntule', 'firmalar.guncelle']) {
   )
 }
 
-// 50 satırlık tablo + soğuk açılış: tüm takım yük altındayken ilk test 5 sn
-// varsayılan sınırını aşıyordu
-describe('FirmalarPage', { timeout: 15_000 }, () => {
+describe('FirmalarPage', () => {
   beforeEach(() => {
     api.firmalar.mockResolvedValue(FIRMALAR)
   })

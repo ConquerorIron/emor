@@ -139,8 +139,7 @@ async function aktarimiAc(pano: string) {
   return dialog
 }
 
-// Geniş tablo + form: tüm takım yük altındayken 5 sn varsayılan sınırı aşılabiliyor
-describe('IsgucuKesintileriPage', { timeout: 15_000 }, () => {
+describe('IsgucuKesintileriPage', () => {
   beforeEach(() => {
     api.secenekler.mockResolvedValue(SECENEKLER)
     api.liste.mockResolvedValue(LISTE)

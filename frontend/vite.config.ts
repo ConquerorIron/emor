@@ -74,5 +74,13 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['src/test/setup.ts'],
     css: false,
+    // Her mantıksal çekirdeğe bir jsdom işçisi (varsayılan) işçileri birbirine
+    // boğuyordu: tek başına ~0,5 sn süren testler tam koşuda 5 sn'yi aşıp
+    // aralıklı düşüyordu. Yarısı aynı toplam sürede testleri belirgin hızlandırır
+    // (ölçüm 2026-11-13, 12 çekirdek: 46 sn / en yavaş 9,0 sn → 45 sn / 5,2 sn).
+    maxWorkers: '50%',
+    // Ekran testleri jsdom'da saniyeler sürer; 5 sn varsayılanı yük altında dardı
+    // (önceden 14 dosyaya ayrı ayrı yazılıyordu)
+    testTimeout: 15_000,
   },
 })

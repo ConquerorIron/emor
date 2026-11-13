@@ -64,8 +64,7 @@ const SATIR: TetkikKesintisi = {
   kalan_tutar: '0.00',
 }
 
-// Geniş tablo + form: tüm takım yük altındayken 5 sn varsayılan sınırı aşılabiliyor
-describe('TetkikKesintileriPage', { timeout: 15_000 }, () => {
+describe('TetkikKesintileriPage', () => {
   beforeEach(() => {
     api.secenekler.mockResolvedValue(SECENEKLER)
     api.liste.mockResolvedValue({

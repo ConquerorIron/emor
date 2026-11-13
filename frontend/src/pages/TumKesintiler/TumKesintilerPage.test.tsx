@@ -63,7 +63,7 @@ const satir = (
   kalan_tutar: '0.00',
 })
 
-describe('TumKesintilerPage', { timeout: 15_000 }, () => {
+describe('TumKesintilerPage', () => {
   beforeEach(() => {
     api.liste.mockResolvedValue({
       data: [satir('isgucu', TURLER[0], 'MFK'), satir('yemek', TURLER[1], 'ATİLLA GIDA')],

@@ -68,8 +68,7 @@ const SATIR: MakinaEkipmanKesintisi = {
   kalan_tutar: '235.95',
 }
 
-// Geniş tablo + form: tüm takım yük altındayken 5 sn varsayılan sınırı aşılabiliyor
-describe('MakinaEkipmanKesintileriPage', { timeout: 15_000 }, () => {
+describe('MakinaEkipmanKesintileriPage', () => {
   beforeEach(() => {
     api.secenekler.mockResolvedValue(SECENEKLER)
     api.liste.mockResolvedValue({

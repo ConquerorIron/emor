@@ -61,7 +61,7 @@ const SATIR: IsgCezaKesintisi = {
   kalan_tutar: '0.00',
 }
 
-describe('IsgCezaKesintileriPage', { timeout: 15_000 }, () => {
+describe('IsgCezaKesintileriPage', () => {
   beforeEach(() => {
     api.secenekler.mockResolvedValue(SECENEKLER)
     api.liste.mockResolvedValue({

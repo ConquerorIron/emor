@@ -64,8 +64,7 @@ const SATIR: OsgbKesintisi = {
   kalan_tutar: '0.00',
 }
 
-// Geniş tablo + form: tüm takım yük altındayken 5 sn varsayılan sınırı aşılabiliyor
-describe('OsgbKesintileriPage', { timeout: 15_000 }, () => {
+describe('OsgbKesintileriPage', () => {
   beforeEach(() => {
     api.secenekler.mockResolvedValue(SECENEKLER)
     api.liste.mockResolvedValue({
