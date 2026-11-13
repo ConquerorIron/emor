@@ -27,6 +27,15 @@ export interface FirmaOzeti {
   toplam: { kalanlar: string[]; toplam_kalan: string }
 }
 
+/** Tıklanan hücre: raporun tarihi ve para birimi + satırın taşeronu ve projesi; tür yoksa (Toplam Kalan) bütün türler */
+export interface EkstreParametreleri {
+  tarih: string
+  para_birimi_id: number
+  firma_id: number
+  proje_id: number
+  kesinti_turu_id?: number
+}
+
 const ADRES = '/api/v1/kesinti/firma-ozeti'
 
 export const firmaOzetiApi = {
@@ -47,5 +56,13 @@ export const firmaOzetiApi = {
       .catch(blobHatasiniCoz)
 
     dosyayiIndir(yanit.data, 'firma-ozeti.xlsx')
+  },
+  /** Hücrenin kesinti ekstresi: PDF, A3 yatay */
+  ekstre: async (parametreler: EkstreParametreleri, dosyaAdi: string): Promise<void> => {
+    const yanit = await api
+      .get<Blob>(`${ADRES}/ekstre`, { params: parametreler, responseType: 'blob' })
+      .catch(blobHatasiniCoz)
+
+    dosyayiIndir(yanit.data, dosyaAdi)
   },
 }

@@ -64,6 +64,15 @@ class AppServiceProvider extends ServiceProvider
             ErpRaporKaynagi::class,
             ErpRaporSorgusu::class,
         );
+
+        // TCPDF (kesinti ekstresi) hatada varsayılan olarak die() çağırır: istek
+        // 200 ile yarım kalırdı. Kütüphane yüklenmeden önce istisnaya çevrilir;
+        // paketin kendi tcpdf_config.php'si sabiti koşulsuz tanımladığı için
+        // atlanır (diğer varsayılanları tcpdf_autoconfig.php koşullu tanımlar).
+        if (! defined('K_TCPDF_EXTERNAL_CONFIG')) {
+            define('K_TCPDF_EXTERNAL_CONFIG', true);
+            define('K_TCPDF_THROW_EXCEPTION_ERROR', true);
+        }
     }
 
     public function boot(): void
@@ -151,6 +160,11 @@ class AppServiceProvider extends ServiceProvider
         // Kesinti icmali → Excel'e Aktar: filtredeki tüm satırlar bellekte yazılır
         RateLimiter::for('kesinti-excel', function (Request $request): Limit {
             return Limit::perMinute(10)->by($request->user()?->id ?? $request->ip());
+        });
+
+        // Firma Özeti → kesinti ekstresi (PDF): hücreler arka arkaya tıklanabilir
+        RateLimiter::for('kesinti-ekstre', function (Request $request): Limit {
+            return Limit::perMinute(30)->by($request->user()?->id ?? $request->ip());
         });
 
         // Projeler / Firmalar → ERP'den Getir: önizleme + kayıt, ikisi de canlı ERP'yi okur

@@ -11,6 +11,7 @@ const api = vi.hoisted(() => ({
   getir: vi.fn(),
   secenekler: vi.fn(),
   excel: vi.fn(),
+  ekstre: vi.fn(),
 }))
 
 vi.mock('./firmaOzetiApi', async (importOriginal) => ({
@@ -127,6 +128,34 @@ describe('FirmaOzetiPage', () => {
     fireEvent.click(toplamKalan)
 
     expect(taseronSirasi(tablo)).toEqual(['ZETAŞ', 'MFK'])
+  })
+
+  it('rakama tıklanınca o hücrenin ekstresi iner; Toplam Kalan bütün türleri, "-" tıklanmaz', async () => {
+    api.ekstre.mockResolvedValue(undefined)
+    await screen.findByRole('table')
+
+    fireEvent.click(screen.getByRole('button', { name: 'ZETAŞ / ZONE 10 / YEMEK ekstresi (PDF)' }))
+    await waitFor(() => expect(api.ekstre).toHaveBeenCalledTimes(1))
+    expect(api.ekstre).toHaveBeenLastCalledWith(
+      expect.objectContaining({ para_birimi_id: 1, firma_id: 1, proje_id: 10, kesinti_turu_id: 5 }),
+      'kesinti-ekstresi-ZETAŞ-ZONE-10-YEMEK.pdf',
+    )
+
+    // Kalanı olmayan hücre düğme değil
+    expect(
+      screen.queryByRole('button', { name: 'ZETAŞ / ZONE 10 / KAMP ekstresi (PDF)' }),
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'MFK / ZONE 6 / tüm kesinti türleri ekstresi (PDF)',
+      }),
+    )
+    await waitFor(() => expect(api.ekstre).toHaveBeenCalledTimes(2))
+    const [hucre, dosyaAdi] = api.ekstre.mock.calls[1]
+    expect(hucre).toMatchObject({ firma_id: 2, proje_id: 6 })
+    expect(hucre).not.toHaveProperty('kesinti_turu_id')
+    expect(dosyaAdi).toBe('kesinti-ekstresi-MFK-ZONE-6.pdf')
   })
 
   it('kalan yoksa tablo yerine bilgi gösterir; Excel kapalı', async () => {

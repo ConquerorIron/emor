@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\Kesinti;
 
 use App\Models\KesintiTuru;
-use App\Models\KesintiYuklemesi;
 use App\Models\ParaBirimi;
 use Collator;
 
@@ -104,21 +103,16 @@ final class FirmaOzeti
     }
 
     /**
-     * Kolonlar: tüm kesinti türleri, bağlı oldukları ekranın menü sırasıyla
-     * (KesintiYuklemesi::ICMALLER); ekrana bağlanmamışlar sonda, koduna göre.
+     * Kolonlar: tüm kesinti türleri, bağlı oldukları ekranın menü sırasıyla.
      *
      * @return list<array{id: int, kod: string, ad: string}>
      */
     private function kesintiTurleri(): array
     {
-        $ekranSirasi = array_flip(KesintiYuklemesi::ICMALLER);
-        $sira = fn (KesintiTuru $tur): int => $tur->icmal === null ? PHP_INT_MAX : ($ekranSirasi[$tur->icmal] ?? PHP_INT_MAX);
-        $siralayici = new Collator('tr_TR');
-        $turler = KesintiTuru::query()->get(['id', 'kod', 'ad', 'icmal'])->all();
-        usort($turler, fn (KesintiTuru $a, KesintiTuru $b): int => $sira($a) <=> $sira($b)
-            ?: (int) $siralayici->compare($a->kod, $b->kod));
-
-        return array_map(fn (KesintiTuru $tur): array => ['id' => (int) $tur->id, 'kod' => (string) $tur->kod, 'ad' => (string) $tur->ad], $turler);
+        return array_map(
+            fn (KesintiTuru $tur): array => ['id' => (int) $tur->id, 'kod' => (string) $tur->kod, 'ad' => (string) $tur->ad],
+            KesintiTuru::ekranSirasiyla(),
+        );
     }
 
     /** Noktalı iki ondalıklı metin (diğer kesinti uçlarıyla aynı) */

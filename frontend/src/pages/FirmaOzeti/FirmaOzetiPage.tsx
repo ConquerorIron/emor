@@ -13,17 +13,24 @@ import { KesintiRaporuParametreleri } from '@/features/kesinti/KesintiRaporuPara
 import { useKesintiRaporuParametreleri } from '@/features/kesinti/kesintiRaporu'
 import { useKaliciSiralama } from '@/hooks/useKaliciSiralama'
 
-import { firmaOzetiApi } from './firmaOzetiApi'
+import { firmaOzetiApi, type EkstreParametreleri, type FirmaOzeti } from './firmaOzetiApi'
 
 /** Tablo satırı: kesinti türlerinin kalanı `tur_<id>` kolonlarında (sayı: sıralanabilir) */
 type TabloSatiri = Record<string, string | number> & {
   anahtar: string
+  firma_id: number
   taseron: string
   taseron_ad: string
+  proje_id: number
   proje: string
 }
 
+type KesintiTuru = FirmaOzeti['kesinti_turleri'][number]
+
 const turKolonu = (id: number) => `tur_${id}`
+
+/** Ekstre hazırlanırken gösterilen bildirim (hata ya da bitişte aynı kimlikle değişir) */
+const EKSTRE_BILDIRIMI = 'firma-ozeti-ekstre'
 
 function tutarHucresi(deger: string | number, kalin = false) {
   return (
@@ -56,12 +63,63 @@ export function FirmaOzetiPage() {
     onError: (error: unknown) => toast.error(t(apiErrorKey(error))),
   })
 
+  const ekstre = useMutation({
+    mutationFn: ({ hucre, dosyaAdi }: { hucre: EkstreParametreleri; dosyaAdi: string }) =>
+      firmaOzetiApi.ekstre(hucre, dosyaAdi),
+    onMutate: () => {
+      toast.loading(t('kesinti.firmaOzeti.ekstreHazirlaniyor'), { id: EKSTRE_BILDIRIMI })
+    },
+    onSuccess: () => toast.dismiss(EKSTRE_BILDIRIMI),
+    onError: (error: unknown) => toast.error(t(apiErrorKey(error)), { id: EKSTRE_BILDIRIMI }),
+  })
+
+  /**
+   * Kalan hücresi: sıfır değilse tıklanınca o hücrenin ekstresi (PDF) iner;
+   * tür yoksa (Toplam Kalan) taşeron + projenin bütün türleri.
+   */
+  const kalanHucresi = (satir: TabloSatiri, tur: KesintiTuru | null, kalin = false) => {
+    const deger = tur ? satir[turKolonu(tur.id)] : satir.toplam_kalan
+    if (Number(deger) === 0 || parametreler === null) {
+      return tutarHucresi(deger, kalin)
+    }
+    const hucre: EkstreParametreleri = {
+      tarih: parametreler.tarih,
+      para_birimi_id: parametreler.para_birimi_id,
+      firma_id: satir.firma_id,
+      proje_id: satir.proje_id,
+      ...(tur ? { kesinti_turu_id: tur.id } : {}),
+    }
+    const dosyaAdi = `kesinti-ekstresi-${[satir.taseron, satir.proje, tur?.kod]
+      .filter(Boolean)
+      .join('-')
+      .replace(/\s+/g, '-')}.pdf`
+
+    return (
+      <button
+        type="button"
+        disabled={ekstre.isPending}
+        aria-label={t('kesinti.firmaOzeti.ekstreEtiketi', {
+          taseron: satir.taseron,
+          proje: satir.proje,
+          tur: tur?.kod ?? t('kesinti.firmaOzeti.tumTurler'),
+        })}
+        title={t('kesinti.firmaOzeti.ekstreIpucu')}
+        onClick={() => ekstre.mutate({ hucre, dosyaAdi })}
+        className={`cursor-pointer whitespace-nowrap text-blue-700 tabular-nums underline decoration-dotted underline-offset-2 hover:decoration-solid disabled:cursor-wait dark:text-blue-300 ${kalin ? 'font-semibold' : ''}`}
+      >
+        {tutarVeyaTire(deger)}
+      </button>
+    )
+  }
+
   const veri = ozet.data
   const turler = veri?.kesinti_turleri ?? []
   const satirlar: TabloSatiri[] = (veri?.satirlar ?? []).map((satir) => ({
     anahtar: `${satir.firma_id}-${satir.proje_id}`,
+    firma_id: satir.firma_id,
     taseron: satir.taseron,
     taseron_ad: satir.taseron_ad,
+    proje_id: satir.proje_id,
     proje: satir.proje,
     ...Object.fromEntries(turler.map((tur, i) => [turKolonu(tur.id), Number(satir.kalanlar[i])])),
     toplam_kalan: Number(satir.toplam_kalan),
@@ -92,14 +150,14 @@ export function FirmaOzetiPage() {
       baslik: tur.kod,
       hizala: 'sag',
       siralamaAnahtari: turKolonu(tur.id),
-      render: (satir) => tutarHucresi(satir[turKolonu(tur.id)]),
+      render: (satir) => kalanHucresi(satir, tur),
     })),
     {
       anahtar: 'toplam_kalan',
       baslik: t('kesinti.firmaOzeti.kolon.toplamKalan'),
       hizala: 'sag',
       siralamaAnahtari: 'toplam_kalan',
-      render: (satir) => tutarHucresi(satir.toplam_kalan, true),
+      render: (satir) => kalanHucresi(satir, null, true),
     },
   ]
 
@@ -178,6 +236,8 @@ export function FirmaOzetiPage() {
               siralamaDegistir={siralamaDegistir}
               ustKaydirma
               toplamSatirlari={toplamSatirlari}
+              // 14 kolon: bir boy küçük (kullanıcı isteği 2026-11-13)
+              yaziBoyutu="kucuk"
             />
           </div>
         </div>

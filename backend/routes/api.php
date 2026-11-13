@@ -266,6 +266,10 @@ Route::prefix('v1')->group(function (): void {
                 ->name('kesinti.firma-ozeti.excel');
             Route::get('/kesinti/firma-ozeti/secenekler', [FirmaOzetiController::class, 'secenekler'])
                 ->name('kesinti.firma-ozeti.secenekler');
+            // Hücreye tıklanınca: o taşeron + proje (+ tür) kesintilerinin PDF ekstresi
+            Route::get('/kesinti/firma-ozeti/ekstre', [FirmaOzetiController::class, 'ekstre'])
+                ->middleware('throttle:kesinti-ekstre')
+                ->name('kesinti.firma-ozeti.ekstre');
         });
 
         // Kesinti Yönetimi → İşgücü Kesintileri: liste + elle giriş + Excel/yapıştırma

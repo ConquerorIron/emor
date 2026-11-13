@@ -1035,7 +1035,7 @@
     },
     "firmaOzeti": {
       "baslik": "Company Summary",
-      "aciklamaMetni": "Remaining amount of each deduction type per subcontractor and project, side by side; from All Deductions up to the selected date, in a single currency. Only deductions re-invoiced to the subcontractor count (the remainder of those assumed by HAB is not deducted from the subcontractor; same as Remaining in Deduction Summary). Rows with nothing remaining are not listed.",
+      "aciklamaMetni": "Remaining amount of each deduction type per subcontractor and project, side by side; from All Deductions up to the selected date, in a single currency. Only deductions re-invoiced to the subcontractor count (the remainder of those assumed by HAB is not deducted from the subcontractor; same as Remaining in Deduction Summary). Rows with nothing remaining are not listed. Click an amount to download that cell’s deduction statement as a PDF (A3 landscape); Total Remaining covers all types of the subcontractor and project.",
       "kolon": {
         "taseron": "Subcontractor",
         "proje": "Project",
@@ -1043,7 +1043,11 @@
       },
       "toplam": "Total",
       "kalanYok": "Nothing remains for the selected date, projects, companies and currency.",
-      "satirSayisi": "{{sayi}} subcontractor / project rows ({{para}})"
+      "satirSayisi": "{{sayi}} subcontractor / project rows ({{para}})",
+      "ekstreEtiketi": "{{taseron}} / {{proje}} / {{tur}} statement (PDF)",
+      "tumTurler": "all deduction types",
+      "ekstreIpucu": "Download the deduction statement as PDF",
+      "ekstreHazirlaniyor": "Preparing statement…"
     },
     "isgucu": {
       "baslik": "Labour Deductions",

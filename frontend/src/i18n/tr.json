@@ -1035,7 +1035,7 @@
     },
     "firmaOzeti": {
       "baslik": "Firma Özeti",
-      "aciklamaMetni": "Taşeron ve proje başına her kesinti türünden kalan tutar yan yana; Tüm Kesintiler'den, seçilen tarihe kadar ve tek para biriminde. Yalnız taşerona yansıtılan kesintiler sayılır (HAB'ın üstlendiklerinin kalanı taşerondan kesilmez; Kesinti Özeti'ndeki Kalan ile aynı). Kalanı olmayan satırlar listelenmez.",
+      "aciklamaMetni": "Taşeron ve proje başına her kesinti türünden kalan tutar yan yana; Tüm Kesintiler'den, seçilen tarihe kadar ve tek para biriminde. Yalnız taşerona yansıtılan kesintiler sayılır (HAB'ın üstlendiklerinin kalanı taşerondan kesilmez; Kesinti Özeti'ndeki Kalan ile aynı). Kalanı olmayan satırlar listelenmez. Rakama tıklanınca o hücrenin kesinti ekstresi PDF (A3 yatay) olarak iner; Toplam Kalan, taşeron ve projenin bütün türlerini içerir.",
       "kolon": {
         "taseron": "Taşeron",
         "proje": "Proje",
@@ -1043,7 +1043,11 @@
       },
       "toplam": "Toplam",
       "kalanYok": "Seçilen tarih, proje, firma ve para biriminde kalan kesinti yok.",
-      "satirSayisi": "{{sayi}} taşeron / proje satırı ({{para}})"
+      "satirSayisi": "{{sayi}} taşeron / proje satırı ({{para}})",
+      "ekstreEtiketi": "{{taseron}} / {{proje}} / {{tur}} ekstresi (PDF)",
+      "tumTurler": "tüm kesinti türleri",
+      "ekstreIpucu": "Kesinti ekstresini PDF olarak indir",
+      "ekstreHazirlaniyor": "Ekstre hazırlanıyor…"
     },
     "isgucu": {
       "baslik": "İşgücü Kesintileri",

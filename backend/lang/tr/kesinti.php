@@ -72,6 +72,40 @@ return [
         ],
     ],
 
+    // Firma Özeti → hücre → kesinti ekstresi (PDF)
+    'ekstre' => [
+        'baslik' => 'KESİNTİ EKSTRESİ',
+        'sirket' => 'TERSANE İSTANBUL',
+        'duzenlenme' => 'Düzenlenme: :tarih',
+        'taseron' => 'Taşeron',
+        'vkn' => 'VKN',
+        'vergi_dairesi' => 'Vergi Dairesi',
+        'proje' => 'Proje',
+        'kesinti_turu' => 'Kesinti Türü',
+        'tum_turler' => 'Tüm kesinti türleri',
+        'tarih' => 'Tarih',
+        'itibariyla' => ':tarih itibarıyla',
+        'para_birimi' => 'Para Birimi',
+        'isveren' => 'İşveren',
+        'aciklama' => 'Taşerona yansıtılan kesintiler. Kalan: henüz kesilmemiş tutar (Toplam = İptal Edilen + Kesilen + Kalan).',
+        'ozet' => 'ÖZET',
+        'kayit' => 'Kayıt',
+        'toplam' => 'TOPLAM',
+        'tutar' => [
+            'toplam_tutar' => 'Toplam',
+            'iptal_edilen_tutar' => 'İptal Edilen',
+            'yansitilan_tutar' => 'Yansıtılan',
+            'kesilen_tutar' => 'Kesilen',
+            'kalan_tutar' => 'Kalan',
+        ],
+        'sira_no' => 'SIRA',
+        'bolum' => ':tur  ·  :adet kayıt',
+        'devam' => '(devam)',
+        'sayfa' => 'Sayfa :no / :toplam',
+        'alt_bilgi' => 'eMOR · Kesinti Ekstresi · :firma · :proje · :tarih itibarıyla',
+        'kayit_yok' => 'Bu seçimde kesinti satırı yok.',
+    ],
+
     // Firmalar → Excel'e Aktar: ekrandaki kolon adlarıyla, sırasıyla
     'firmalar_excel' => [
         'baslik' => 'Firmalar',
