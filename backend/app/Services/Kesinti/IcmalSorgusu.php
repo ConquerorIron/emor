@@ -122,12 +122,14 @@ abstract class IcmalSorgusu
             $sorgu->whereIn("{$tablo}.kesinti_turu_id", array_map('intval', $filtre['kesinti_turu_id']));
         }
 
+        // whereDate: SQLite (testler) tarihi "Y-m-d H:i:s" saklar; düz karşılaştırmada
+        // bitiş günü dışarıda kalırdı (PostgreSQL date kolonunda sonuç aynı)
         if (filled($filtre['baslangic'] ?? null)) {
-            $sorgu->where("{$tablo}.tarih", '>=', $filtre['baslangic']);
+            $sorgu->whereDate("{$tablo}.tarih", '>=', $filtre['baslangic']);
         }
 
         if (filled($filtre['bitis'] ?? null)) {
-            $sorgu->where("{$tablo}.tarih", '<=', $filtre['bitis']);
+            $sorgu->whereDate("{$tablo}.tarih", '<=', $filtre['bitis']);
         }
 
         $ara = trim((string) ($filtre['ara'] ?? ''));

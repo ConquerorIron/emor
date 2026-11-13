@@ -45,6 +45,9 @@ export const queryKeys = {
     icmalFiltreSecenekleri: (icmal: string) =>
       ['kesinti', icmal, 'liste', 'filtreSecenekleri'] as const,
     icmalYuklemeleri: (icmal: string) => ['kesinti', icmal, 'yuklemeler'] as const,
+    // Kesinti Özeti raporu (parametre başına) ve parametre seçimleri
+    ozet: (parametreler: unknown) => ['kesinti', 'ozet', parametreler] as const,
+    ozetSecenekleri: ['kesinti', 'ozet', 'secenekler'],
     icmalKolonlari: (icmal: string) => ['kesinti', icmal, 'kolonlar'] as const,
     // ERP önizlemeleri her açılışta taze okunur (önbelleğe güvenilmez)
     erpProjeleri: ['kesinti', 'erpProjeleri'],

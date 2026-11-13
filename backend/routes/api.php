@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\KampMalzemeYuklemeController;
 use App\Http\Controllers\Api\V1\KampYuklemeController;
 use App\Http\Controllers\Api\V1\KartBasimKesintisiController;
 use App\Http\Controllers\Api\V1\KartBasimYuklemeController;
+use App\Http\Controllers\Api\V1\KesintiOzetiController;
 use App\Http\Controllers\Api\V1\KesintiSecenekController;
 use App\Http\Controllers\Api\V1\KesintiTuruController;
 use App\Http\Controllers\Api\V1\KullaniciController;
@@ -240,6 +241,18 @@ Route::prefix('v1')->group(function (): void {
                 ->name('kesinti.tumu.pivot');
             Route::get('/kesinti/tumu/filtre-secenekleri', [TumKesintilerController::class, 'filtreSecenekleri'])
                 ->name('kesinti.tumu.filtre-secenekleri');
+        });
+
+        // Kesinti Yönetimi → Kesinti Özeti: Tüm Kesintiler'den özet ve dağılım
+        // raporu (ERP okunmaz); yalnız rapor
+        Route::middleware('can:kesinti_ozeti.goruntule')->group(function (): void {
+            Route::get('/kesinti/ozet', [KesintiOzetiController::class, 'index'])
+                ->name('kesinti.ozet');
+            Route::get('/kesinti/ozet/excel', [KesintiOzetiController::class, 'excel'])
+                ->middleware('throttle:kesinti-excel')
+                ->name('kesinti.ozet.excel');
+            Route::get('/kesinti/ozet/secenekler', [KesintiOzetiController::class, 'secenekler'])
+                ->name('kesinti.ozet.secenekler');
         });
 
         // Kesinti Yönetimi → İşgücü Kesintileri: liste + elle giriş + Excel/yapıştırma

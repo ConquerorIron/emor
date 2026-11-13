@@ -48,6 +48,7 @@
     "gidenFaturalar": "Giden Faturalar",
     "kesinti": "Kesinti Yönetimi",
     "tumKesintiler": "Tüm Kesintiler",
+    "kesintiOzeti": "Kesinti Özeti",
     "isgucuKesintileri": "İşgücü Kesintileri",
     "kampKesintileri": "Kamp Kesintileri",
     "kampMalzemeKesintileri": "Kamp Malzeme Kesintileri",
@@ -534,6 +535,7 @@
       "satinalma_talebi": "Satınalma Talebi",
       "efatura": "e-Faturalar (Gelen/Giden)",
       "tum_kesintiler": "Tüm Kesintiler",
+      "kesinti_ozeti": "Kesinti Özeti",
       "isgucu_kesintileri": "İşgücü Kesintileri",
       "kamp_kesintileri": "Kamp Kesintileri",
       "kamp_malzeme_kesintileri": "Kamp Malzeme Kesintileri",
@@ -983,6 +985,48 @@
     "tumu": {
       "baslik": "Tüm Kesintiler",
       "aciklamaMetni": "Bütün kesinti ekranlarına girilen kayıtlar, ortak kolonlarıyla tek listede. Bu sayfaya veri girilmez; kayıtlar ilgili kesinti ekranından girilir ve düzeltilir."
+    },
+    "ozet": {
+      "baslik": "Kesinti Özeti",
+      "aciklamaMetni": "Tüm Kesintiler'den seçilen tarihe kadarki kesintiler, tek para biriminde: genel özet, Zone (proje) ve kesinti türü dağılımı, en yüksek kesintili taşeronlar. HAB Üstlendiği yansıtma türü HAB olan kesintilerdir; taşeron payı ve İptal / Kesilen / Kalan yansıtma türü TAŞERON olanlardan gelir.",
+      "tarih": "Tarih (itibarıyla)",
+      "tarihZorunlu": "Tarih seçin.",
+      "projeler": "Projeler",
+      "kesintiYok": "Henüz kesinti kaydı yok.",
+      "secimdeKesintiYok": "Seçilen tarih, proje ve para biriminde kesinti yok.",
+      "kayitYok": "Kayıt yok",
+      "sirket": "TERSANE İSTANBUL",
+      "raporBasligi": "{{donem}} İTİBARIYLA KESİNTİ LİSTESİ",
+      "aySonu": "{{ay}} SONU",
+      "butce": "BÜTÇE",
+      "isveren": "İŞVEREN",
+      "genel": "GENEL",
+      "hab": "HAB",
+      "taseron": "TAŞERON",
+      "toplam": "TOPLAM",
+      "bolum": {
+        "ozet": "1. ÖZET",
+        "dagilim": "2. KESİNTİ DAĞILIMI",
+        "projeBazinda": "2.1  ZONE BAZINDA",
+        "turBazinda": "2.2  KESİNTİ TÜRÜ BAZINDA",
+        "taseronDurumu": "3. TAŞERON KESİNTİ DURUMU",
+        "enYuksek": "3.1  EN YÜKSEK KESİNTİLİ {{adet}} TAŞERON"
+      },
+      "kolon": {
+        "proje": "ZONE",
+        "kesinti_turu": "KESİNTİ TÜRÜ",
+        "taseron_firma": "TAŞERON FİRMA",
+        "toplam": "TOPLAM KESİNTİ",
+        "hab": "HAB ÜSTLENDİĞİ",
+        "taseron": "TAŞERON PAYI",
+        "iptal": "İPTAL EDİLEN",
+        "kesilen": "KESİLEN",
+        "kalan": "KALAN"
+      },
+      "oran": {
+        "toplam": "TOPLAMIN {{oran}}",
+        "taseron": "TAŞERON PAYININ {{oran}}"
+      }
     },
     "isgucu": {
       "baslik": "İşgücü Kesintileri",

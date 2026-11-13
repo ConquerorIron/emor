@@ -23,6 +23,42 @@ return [
         ],
     ],
 
+    // Kesinti Özeti → Excel'e Aktar: ekrandaki rapor (kullanıcının örnek Excel'indeki adlar)
+    'ozet' => [
+        'sayfa' => 'Kesinti Özeti',
+        'sirket' => 'TERSANE İSTANBUL',
+        'baslik' => ':donem İTİBARIYLA KESİNTİ LİSTESİ',
+        'ay_sonu' => ':ay SONU',
+        'butce' => 'BÜTÇE',
+        'isveren' => 'İŞVEREN',
+        'ozet' => '1. ÖZET',
+        'genel' => 'GENEL',
+        'hab' => 'HAB',
+        'taseron' => 'TAŞERON',
+        'dagilim' => '2. KESİNTİ DAĞILIMI',
+        'proje_bazinda' => '2.1  ZONE BAZINDA',
+        'tur_bazinda' => '2.2  KESİNTİ TÜRÜ BAZINDA',
+        'taseron_durumu' => '3. TAŞERON KESİNTİ DURUMU',
+        'en_yuksek' => '3.1  EN YÜKSEK KESİNTİLİ :adet TAŞERON',
+        'toplam' => 'TOPLAM',
+        'kolon' => [
+            'proje' => 'ZONE',
+            'kesinti_turu' => 'KESİNTİ TÜRÜ',
+            'taseron_firma' => 'TAŞERON FİRMA',
+            'toplam' => 'TOPLAM KESİNTİ',
+            'hab' => 'HAB ÜSTLENDİĞİ',
+            'taseron' => 'TAŞERON PAYI',
+            'iptal' => 'İPTAL EDİLEN',
+            'kesilen' => 'KESİLEN',
+            'kalan' => 'KALAN',
+        ],
+        'oran' => [
+            'tamami' => '%100',
+            'toplamin' => 'TOPLAMIN %:oran',
+            'taseron_payinin' => 'TAŞERON PAYININ %:oran',
+        ],
+    ],
+
     // Firmalar → Excel'e Aktar: ekrandaki kolon adlarıyla, sırasıyla
     'firmalar_excel' => [
         'baslik' => 'Firmalar',

@@ -48,6 +48,7 @@
     "gidenFaturalar": "Outgoing Invoices",
     "kesinti": "Deduction Management",
     "tumKesintiler": "All Deductions",
+    "kesintiOzeti": "Deduction Summary",
     "isgucuKesintileri": "Labour Deductions",
     "kampKesintileri": "Camp Deductions",
     "kampMalzemeKesintileri": "Camp Material Deductions",
@@ -534,6 +535,7 @@
       "satinalma_talebi": "Purchase Request",
       "efatura": "e-Invoices (Incoming/Outgoing)",
       "tum_kesintiler": "All Deductions",
+      "kesinti_ozeti": "Deduction Summary",
       "isgucu_kesintileri": "Labour Deductions",
       "kamp_kesintileri": "Camp Deductions",
       "kamp_malzeme_kesintileri": "Camp Material Deductions",
@@ -983,6 +985,48 @@
     "tumu": {
       "baslik": "All Deductions",
       "aciklamaMetni": "Records from every deduction screen in a single list with their common columns. No data is entered here; records are entered and corrected on their own deduction screen."
+    },
+    "ozet": {
+      "baslik": "Deduction Summary",
+      "aciklamaMetni": "Deductions from All Deductions up to the selected date, in a single currency: general summary, breakdown by zone (project) and deduction type, and the subcontractors with the highest deductions. HAB Assumed covers deductions with re-invoicing type HAB; the subcontractor share and its Cancelled / Deducted / Remaining come from those with type SUBCONTRACTOR.",
+      "tarih": "Date (as of)",
+      "tarihZorunlu": "Select a date.",
+      "projeler": "Projects",
+      "kesintiYok": "There are no deduction records yet.",
+      "secimdeKesintiYok": "No deductions for the selected date, projects and currency.",
+      "kayitYok": "No records",
+      "sirket": "TERSANE İSTANBUL",
+      "raporBasligi": "DEDUCTION LIST AS OF {{donem}}",
+      "aySonu": "END OF {{ay}}",
+      "butce": "BUDGET",
+      "isveren": "EMPLOYER",
+      "genel": "GENERAL",
+      "hab": "HAB",
+      "taseron": "SUBCONTRACTOR",
+      "toplam": "TOTAL",
+      "bolum": {
+        "ozet": "1. SUMMARY",
+        "dagilim": "2. DEDUCTION BREAKDOWN",
+        "projeBazinda": "2.1  BY ZONE",
+        "turBazinda": "2.2  BY DEDUCTION TYPE",
+        "taseronDurumu": "3. SUBCONTRACTOR DEDUCTIONS",
+        "enYuksek": "3.1  TOP {{adet}} SUBCONTRACTORS BY DEDUCTION"
+      },
+      "kolon": {
+        "proje": "ZONE",
+        "kesinti_turu": "DEDUCTION TYPE",
+        "taseron_firma": "SUBCONTRACTOR",
+        "toplam": "TOTAL DEDUCTION",
+        "hab": "HAB ASSUMED",
+        "taseron": "SUBCONTRACTOR SHARE",
+        "iptal": "CANCELLED",
+        "kesilen": "DEDUCTED",
+        "kalan": "REMAINING"
+      },
+      "oran": {
+        "toplam": "{{oran}} OF TOTAL",
+        "taseron": "{{oran}} OF SUBCONTRACTOR SHARE"
+      }
     },
     "isgucu": {
       "baslik": "Labour Deductions",

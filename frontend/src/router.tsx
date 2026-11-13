@@ -116,6 +116,17 @@ export const router = createBrowserRouter([
         ],
       },
       {
+        element: <IzinAlani izin="kesinti_ozeti.goruntule" />,
+        children: [
+          {
+            path: 'kesinti/ozet',
+            lazy: async () => ({
+              Component: (await import('@/pages/KesintiOzeti/KesintiOzetiPage')).KesintiOzetiPage,
+            }),
+          },
+        ],
+      },
+      {
         element: <IzinAlani izin="isgucu_kesintileri.goruntule" />,
         children: [
           {
