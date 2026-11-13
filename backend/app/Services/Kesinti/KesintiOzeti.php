@@ -33,12 +33,16 @@ final class KesintiOzeti
     public function __construct(private readonly TumKesintilerSorgusu $kesintiler) {}
 
     /**
-     * @param  array{tarih: string, para_birimi_id: int, proje_id: list<int>}  $parametreler
+     * Firma süzgeci her iki yansıtma türüne uygulanır: seçilen firmanın HAB'ın
+     * üstlendiği kesintileri de rapora girer.
+     *
+     * @param  array{tarih: string, para_birimi_id: int, proje_id: list<int>, firma_id: list<int>}  $parametreler
      * @return array{
      *     tarih: string,
      *     para_birimi: string,
      *     isveren: string|null,
      *     projeler: list<string>,
+     *     firmalar: list<string>,
      *     genel: array<string, string>,
      *     proje_dagilimi: list<array<string, string>>,
      *     tur_dagilimi: list<array<string, string>>,
@@ -48,9 +52,11 @@ final class KesintiOzeti
     public function hesapla(array $parametreler): array
     {
         $projeIdleri = $parametreler['proje_id'];
+        $firmaIdleri = $parametreler['firma_id'];
         $sorgu = $this->kesintiler->filtrele(['bitis' => $parametreler['tarih']])
             ->where('tum_kesintiler.para_birimi_id', $parametreler['para_birimi_id'])
-            ->when($projeIdleri !== [], fn (Builder $q): Builder => $q->whereIn('tum_kesintiler.proje_id', $projeIdleri));
+            ->when($projeIdleri !== [], fn (Builder $q): Builder => $q->whereIn('tum_kesintiler.proje_id', $projeIdleri))
+            ->when($firmaIdleri !== [], fn (Builder $q): Builder => $q->whereIn('tum_kesintiler.firma_id', $firmaIdleri));
 
         $projeDagilimi = $this->gruplar($sorgu, 'projeler', 'proje_id');
         // Proje kodları doğal sırayla: ZONE 7, ZONE 10'dan önce
@@ -61,6 +67,8 @@ final class KesintiOzeti
             ? array_column($projeDagilimi, 'kod')
             : Proje::query()->whereKey($projeIdleri)->pluck('kod')->all();
         usort($projeler, fn (string $a, string $b): int => (int) $siralayici->compare($a, $b));
+        $firmalar = $firmaIdleri === [] ? [] : Firma::query()->whereKey($firmaIdleri)->pluck('kod')->all();
+        usort($firmalar, fn (string $a, string $b): int => (int) $siralayici->compare($a, $b));
 
         return [
             'tarih' => $parametreler['tarih'],
@@ -68,6 +76,8 @@ final class KesintiOzeti
             'isveren' => Firma::query()->where('firmamiz', true)->value('kod'),
             // Başlıktaki "Bütçe": seçilen projeler; seçim yoksa veride geçenler
             'projeler' => $projeler,
+            // Başlıktaki "Taşeron": yalnız firma seçildiyse (yazdırılan rapor süzüldüğünü göstersin)
+            'firmalar' => $firmalar,
             'genel' => $this->tutarlar($this->toplamlariSec($sorgu->clone()->toBase())->first()),
             'proje_dagilimi' => $projeDagilimi,
             'tur_dagilimi' => $this->gruplar($sorgu, 'kesinti_turleri', 'kesinti_turu_id', toplamaGore: true),
@@ -83,10 +93,10 @@ final class KesintiOzeti
     }
 
     /**
-     * Parametre seçimleri: kesintide geçen projeler (koduna göre) ve para
-     * birimleri (en çok satırı olan önce — ekranın varsayılanı).
+     * Parametre seçimleri: kesintide geçen projeler ve firmalar (koduna göre)
+     * ve para birimleri (en çok satırı olan önce — ekranın varsayılanı).
      *
-     * @return array{projeler: list<array{id: int, kod: string, ad: string}>, para_birimleri: list<array{id: int, kod: string}>}
+     * @return array{projeler: list<array{id: int, kod: string, ad: string}>, firmalar: list<array{id: int, kod: string, ad: string}>, para_birimleri: list<array{id: int, kod: string}>}
      */
     public function secenekler(): array
     {
@@ -100,8 +110,11 @@ final class KesintiOzeti
             ->map(fn (object $para): array => ['id' => (int) $para->id, 'kod' => (string) $para->kod])
             ->all();
 
+        $tanimlar = $this->kesintiler->filtreSecenekleri();
+
         return [
-            'projeler' => $this->kesintiler->filtreSecenekleri()['projeler'],
+            'projeler' => $tanimlar['projeler'],
+            'firmalar' => $tanimlar['firmalar'],
             'para_birimleri' => $paraBirimleri,
         ];
     }

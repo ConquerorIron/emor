@@ -34,6 +34,7 @@ const OZET: KesintiOzeti = {
   para_birimi: 'TL',
   isveren: 'HAB',
   projeler: ['ZONE 6', 'ZONE 10'],
+  firmalar: [],
   genel: {
     toplam: '2050.00',
     hab: '750.00',
@@ -69,6 +70,10 @@ describe('KesintiOzetiPage', () => {
   beforeEach(() => {
     api.secenekler.mockResolvedValue({
       projeler: [{ id: 3, kod: 'ZONE 6', ad: 'ZONE 6' }],
+      firmalar: [
+        { id: 5, kod: 'MFK', ad: 'MFK' },
+        { id: 6, kod: 'ZETAŞ', ad: 'ZETAŞ ZEMİN' },
+      ],
       // En çok satırlı önce: varsayılan TL
       para_birimleri: [
         { id: 1, kod: 'TL' },
@@ -96,7 +101,7 @@ describe('KesintiOzetiPage', () => {
       }),
     ).toBeInTheDocument()
     expect(api.getir).toHaveBeenCalledWith(
-      expect.objectContaining({ para_birimi_id: 1, proje_id: [] }),
+      expect.objectContaining({ para_birimi_id: 1, proje_id: [], firma_id: [] }),
     )
 
     // Kartlar: tam sayı + oran (HAB toplamın, iptal taşeron payının)
@@ -152,6 +157,23 @@ describe('KesintiOzetiPage', () => {
     fireEvent.click(screen.getByRole('button', { name: "Excel'e Aktar" }))
     await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
     expect(api.excel.mock.calls[0][0]).toMatchObject({ para_birimi_id: 1, proje_id: [] })
+  })
+
+  it('firmalar çoklu seçilir; rapor seçilen firmalarla istenir, üst bilgide Taşeron satırı çıkar', async () => {
+    await screen.findByRole('heading', { name: /KESİNTİ LİSTESİ$/ })
+    expect(screen.queryByText('MFK · ZETAŞ')).not.toBeInTheDocument()
+    api.getir.mockResolvedValue({ ...OZET, firmalar: ['MFK', 'ZETAŞ'] })
+
+    const firmalar = screen.getByLabelText('Firmalar')
+    fireEvent.keyDown(firmalar, { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('option', { name: 'ZETAŞ - ZETAŞ ZEMİN' }))
+    fireEvent.keyDown(firmalar, { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('option', { name: 'MFK' }))
+
+    await waitFor(() =>
+      expect(api.getir).toHaveBeenLastCalledWith(expect.objectContaining({ firma_id: [6, 5] })),
+    )
+    expect(await screen.findByText('MFK · ZETAŞ')).toBeInTheDocument()
   })
 
   // Rapor isteği seçenekler gelince atılır: yanıt testin başında değiştirilebilir

@@ -51,6 +51,16 @@ const TASERON_GRUPLARI: KolonGrubu[] = [
   },
 ]
 
+/** Proje / firma seçimi: "kod - ad" (ad koddan farklıysa) */
+function tanimSecenekleri(
+  liste: { id: number; kod: string; ad: string }[] | undefined,
+): SecenekOgesi[] {
+  return (liste ?? []).map((tanim) => ({
+    value: String(tanim.id),
+    label: tanim.ad && tanim.ad !== tanim.kod ? `${tanim.kod} - ${tanim.ad}` : tanim.kod,
+  }))
+}
+
 /** "ZONE 6 - ZONE 7 – EYLÜL SONU İTİBARIYLA KESİNTİ LİSTESİ" (backend Excel'i aynı kural) */
 function raporBasligi(ozet: KesintiOzeti, t: TFunction, dil: string) {
   const yerel = dil === 'en' ? 'en-US' : 'tr-TR'
@@ -76,6 +86,7 @@ export function KesintiOzetiPage() {
   const { t, i18n } = useTranslation()
   const [tarih, setTarih] = useState(bugunIso)
   const [projeIdleri, setProjeIdleri] = useState<number[]>([])
+  const [firmaIdleri, setFirmaIdleri] = useState<number[]>([])
   // null: en çok satırı olan para birimi (seçeneklerin ilki)
   const [paraBirimiId, setParaBirimiId] = useState<number | null>(null)
 
@@ -86,7 +97,7 @@ export function KesintiOzetiPage() {
   const seciliPara = paraBirimiId ?? secenekler.data?.para_birimleri[0]?.id ?? null
   const parametreler: KesintiOzetiParametreleri | null =
     seciliPara !== null && tarih !== ''
-      ? { tarih, para_birimi_id: seciliPara, proje_id: projeIdleri }
+      ? { tarih, para_birimi_id: seciliPara, proje_id: projeIdleri, firma_id: firmaIdleri }
       : null
 
   const ozet = useQuery({
@@ -100,10 +111,8 @@ export function KesintiOzetiPage() {
     onError: (error: unknown) => toast.error(t(apiErrorKey(error))),
   })
 
-  const projeSecenekleri: SecenekOgesi[] = (secenekler.data?.projeler ?? []).map((proje) => ({
-    value: String(proje.id),
-    label: proje.ad && proje.ad !== proje.kod ? `${proje.kod} - ${proje.ad}` : proje.kod,
-  }))
+  const projeSecenekleri = tanimSecenekleri(secenekler.data?.projeler)
+  const firmaSecenekleri = tanimSecenekleri(secenekler.data?.firmalar)
   const paraSecenekleri: SecenekOgesi[] = (secenekler.data?.para_birimleri ?? []).map((para) => ({
     value: String(para.id),
     label: para.kod,
@@ -132,7 +141,7 @@ export function KesintiOzetiPage() {
         {t('kesinti.ozet.aciklamaMetni')}
       </p>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[12rem_minmax(0,1fr)_10rem]">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[12rem_minmax(0,1fr)_minmax(0,1fr)_10rem]">
         <TarihInput
           id="kesinti-ozeti-tarih"
           label={t('kesinti.ozet.tarih')}
@@ -146,6 +155,14 @@ export function KesintiOzetiPage() {
           options={projeSecenekleri}
           value={projeSecenekleri.filter((s) => projeIdleri.includes(Number(s.value)))}
           onChange={(secilenler) => setProjeIdleri(secilenler.map((s) => Number(s.value)))}
+          placeholder={t('ortak.hepsi')}
+        />
+        <MultiSelectField
+          id="kesinti-ozeti-firmalar"
+          label={t('kesinti.ozet.firmalar')}
+          options={firmaSecenekleri}
+          value={firmaSecenekleri.filter((s) => firmaIdleri.includes(Number(s.value)))}
+          onChange={(secilenler) => setFirmaIdleri(secilenler.map((s) => Number(s.value)))}
           placeholder={t('ortak.hepsi')}
         />
         <SelectField
@@ -211,6 +228,15 @@ export function KesintiOzetiPage() {
                 <dt className="sr-only">{t('kesinti.alan.para_birimi')}</dt>
                 <dd>{veri.para_birimi}</dd>
               </div>
+              {/* Firma seçildiyse: yazdırılan rapor süzüldüğünü göstersin */}
+              {veri.firmalar.length > 0 ? (
+                <div className="flex basis-full gap-2">
+                  <dt className="text-slate-500 dark:text-slate-400">
+                    {t('kesinti.ozet.taseron')}
+                  </dt>
+                  <dd>{veri.firmalar.join(' · ')}</dd>
+                </div>
+              ) : null}
             </dl>
           </header>
 

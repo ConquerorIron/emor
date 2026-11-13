@@ -9,8 +9,8 @@ use Illuminate\Validation\Rule;
 
 /**
  * Kesinti Özeti parametreleri: tarih (o güne kadarki kesintiler), tek para
- * birimi (kur çevrimi yok), isteğe bağlı projeler (boş = hepsi). Erişim
- * rotadaki `kesinti_ozeti.goruntule` izniyle.
+ * birimi (kur çevrimi yok), isteğe bağlı projeler ve firmalar (çoklu; boş =
+ * hepsi). Erişim rotadaki `kesinti_ozeti.goruntule` izniyle.
  */
 final class KesintiOzetiRequest extends FormRequest
 {
@@ -29,11 +29,13 @@ final class KesintiOzetiRequest extends FormRequest
             'para_birimi_id' => ['required', 'integer', Rule::exists('para_birimleri', 'id')],
             'proje_id' => ['nullable', 'array', 'max:100'],
             'proje_id.*' => ['integer', 'distinct'],
+            'firma_id' => ['nullable', 'array', 'max:100'],
+            'firma_id.*' => ['integer', 'distinct'],
         ];
     }
 
     /**
-     * @return array{tarih: string, para_birimi_id: int, proje_id: list<int>}
+     * @return array{tarih: string, para_birimi_id: int, proje_id: list<int>, firma_id: list<int>}
      */
     public function parametreler(): array
     {
@@ -41,6 +43,7 @@ final class KesintiOzetiRequest extends FormRequest
             'tarih' => (string) $this->validated('tarih'),
             'para_birimi_id' => $this->integer('para_birimi_id'),
             'proje_id' => array_values(array_map('intval', $this->validated('proje_id') ?? [])),
+            'firma_id' => array_values(array_map('intval', $this->validated('firma_id') ?? [])),
         ];
     }
 }

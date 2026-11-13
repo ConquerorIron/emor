@@ -22,6 +22,8 @@ export interface KesintiOzeti {
   isveren: string | null
   /** Başlıktaki "Bütçe": seçilen projeler, seçim yoksa veride geçenler */
   projeler: string[]
+  /** Başlıktaki "Taşeron": seçilen firmalar; seçim yoksa boş (satır çizilmez) */
+  firmalar: string[]
   genel: OzetTutarlari
   proje_dagilimi: OzetGrubu[]
   tur_dagilimi: OzetGrubu[]
@@ -34,10 +36,13 @@ export interface KesintiOzetiParametreleri {
   para_birimi_id: number
   /** Boş: tüm projeler */
   proje_id: number[]
+  /** Boş: tüm firmalar; HAB'ın üstlendiği kesintileri de süzer */
+  firma_id: number[]
 }
 
 export interface KesintiOzetiSecenekleri {
   projeler: { id: number; kod: string; ad: string }[]
+  firmalar: { id: number; kod: string; ad: string }[]
   /** En çok kesinti satırı olan önce (ekranın varsayılanı) */
   para_birimleri: { id: number; kod: string }[]
 }

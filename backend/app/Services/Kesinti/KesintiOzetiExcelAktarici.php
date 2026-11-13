@@ -41,7 +41,7 @@ final class KesintiOzetiExcelAktarici
     private const TASERON_KOLONLARI = ['taseron' => 'toplam', 'iptal' => 'iptal', 'kesilen' => 'kesilen', 'kalan' => 'kalan'];
 
     /**
-     * @param  array{tarih: string, para_birimi: string, isveren: string|null, projeler: list<string>, genel: array<string, string>, proje_dagilimi: list<array<string, string>>, tur_dagilimi: list<array<string, string>>, taseronlar: list<array<string, string>>}  $ozet  KesintiOzeti::hesapla()
+     * @param  array{tarih: string, para_birimi: string, isveren: string|null, projeler: list<string>, firmalar: list<string>, genel: array<string, string>, proje_dagilimi: list<array<string, string>>, tur_dagilimi: list<array<string, string>>, taseronlar: list<array<string, string>>}  $ozet  KesintiOzeti::hesapla()
      * @return string oluşturulan geçici dosyanın yolu (çağıran siler)
      */
     public function olustur(array $ozet): string
@@ -63,8 +63,8 @@ final class KesintiOzetiExcelAktarici
             ->setFitToHeight(0);
 
         // Bölümler arasında bir boş satır; bölüm başlığıyla şerit arasında da
-        $this->ustBilgi($sayfa, $ozet, $baslik);
-        $satir = $this->ozetKartlari($sayfa, $ozet, 5);
+        // Üst bilgiden sonra bir boş satır
+        $satir = $this->ozetKartlari($sayfa, $ozet, $this->ustBilgi($sayfa, $ozet, $baslik) + 2);
 
         $this->bolumBasligi($sayfa, $satir, __('kesinti.ozet.dagilim'));
         $satir = $this->dagilimTablosu($sayfa, $satir + 2, __('kesinti.ozet.proje_bazinda'), __('kesinti.ozet.kolon.proje'), $ozet['proje_dagilimi'], $ozet['genel']);
@@ -113,9 +113,12 @@ final class KesintiOzetiExcelAktarici
     }
 
     /**
-     * @param  array{tarih: string, para_birimi: string, isveren: string|null, projeler: list<string>}  $ozet
+     * Şirket + tarih, başlık, Bütçe / İşveren / para birimi; firma seçildiyse
+     * altında Taşeron satırı. Üst bilginin son satırını döner.
+     *
+     * @param  array{tarih: string, para_birimi: string, isveren: string|null, projeler: list<string>, firmalar: list<string>}  $ozet
      */
-    private function ustBilgi(Worksheet $sayfa, array $ozet, string $baslik): void
+    private function ustBilgi(Worksheet $sayfa, array $ozet, string $baslik): int
     {
         $this->metin($sayfa, 'A1', __('kesinti.ozet.sirket'));
         $this->metin($sayfa, 'G1', CarbonImmutable::parse($ozet['tarih'])->format('d.m.Y'));
@@ -137,7 +140,20 @@ final class KesintiOzetiExcelAktarici
         $sayfa->getStyle('A3')->getFont()->setColor($this->renk(self::SOLUK));
         $sayfa->getStyle('E3')->getFont()->setColor($this->renk(self::SOLUK));
         $sayfa->getStyle('E3:G3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-        $sayfa->getStyle('A3:G3')->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THIN)->setColor($this->renk(self::KOYU));
+        $son = 3;
+
+        if ($ozet['firmalar'] !== []) {
+            $this->metin($sayfa, 'A4', __('kesinti.ozet.taseron'));
+            $this->metin($sayfa, 'B4', implode(' · ', $ozet['firmalar']));
+            $sayfa->mergeCells('B4:G4');
+            $sayfa->getStyle('A4:G4')->getFont()->setBold(true);
+            $sayfa->getStyle('A4')->getFont()->setColor($this->renk(self::SOLUK));
+            $son = 4;
+        }
+
+        $sayfa->getStyle("A{$son}:G{$son}")->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THIN)->setColor($this->renk(self::KOYU));
+
+        return $son;
     }
 
     /**

@@ -37,6 +37,10 @@ final class KesintiOzetiTest extends TestCase
 
     private Proje $zone7;
 
+    private Firma $zetas;
+
+    private Firma $mfk;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -63,8 +67,8 @@ final class KesintiOzetiTest extends TestCase
     private function ornekVeri(): void
     {
         $hab = Firma::factory()->create(['kod' => 'HAB', 'firmamiz' => true]);
-        $zetas = Firma::factory()->create(['kod' => 'ZETAŞ', 'ad' => 'ZETAŞ ZEMİN TEKNOLOJİSİ']);
-        $mfk = Firma::factory()->create(['kod' => 'MFK']);
+        $zetas = $this->zetas = Firma::factory()->create(['kod' => 'ZETAŞ', 'ad' => 'ZETAŞ ZEMİN TEKNOLOJİSİ']);
+        $mfk = $this->mfk = Firma::factory()->create(['kod' => 'MFK']);
         $this->zone6 = Proje::factory()->create(['kod' => 'ZONE 6', 'ad' => 'ZONE 6']);
         $this->zone7 = Proje::factory()->create(['kod' => 'ZONE 7', 'ad' => 'ZONE 7']);
         $zone10 = Proje::factory()->create(['kod' => 'ZONE 10', 'ad' => 'ZONE 10']);
@@ -116,6 +120,7 @@ final class KesintiOzetiTest extends TestCase
             ->assertJsonPath('data.isveren', 'HAB')
             // Seçim yoksa veride geçen projeler, doğal sırayla
             ->assertJsonPath('data.projeler', ['ZONE 6', 'ZONE 10'])
+            ->assertJsonPath('data.firmalar', [])
             ->assertJsonPath('data.genel', [
                 'toplam' => '2050.00', 'hab' => '750.00', 'taseron' => '1300.00',
                 'iptal' => '100.00', 'kesilen' => '1000.00', 'kalan' => '200.00',
@@ -151,6 +156,29 @@ final class KesintiOzetiTest extends TestCase
             ->assertJsonPath('data.taseronlar.*.kod', ['MFK']);
     }
 
+    public function test_secilen_firmalarla_hab_ve_taseron_kesintileri_birlikte_suzulur_projeyle_birlesir(): void
+    {
+        $this->ornekVeri();
+        $this->actingAs($this->kullanici());
+
+        // ZETAŞ: kendisine yansıtılan 1000 + HAB'ın üstlendiği 250
+        $this->getJson($this->adres(['firma_id' => [$this->zetas->id]]))
+            ->assertOk()
+            ->assertJsonPath('data.firmalar', ['ZETAŞ'])
+            ->assertJsonPath('data.projeler', ['ZONE 10'])
+            ->assertJsonPath('data.genel.toplam', '1250.00')
+            ->assertJsonPath('data.genel.hab', '250.00')
+            ->assertJsonPath('data.genel.taseron', '1000.00')
+            ->assertJsonPath('data.taseronlar.*.kod', ['ZETAŞ']);
+
+        // Firma ve proje süzgeci birlikte: ZONE 6'da yalnız MFK'nın işgücü
+        $this->getJson($this->adres(['firma_id' => [$this->zetas->id, $this->mfk->id], 'proje_id' => [$this->zone6->id]]))
+            ->assertOk()
+            ->assertJsonPath('data.firmalar', ['MFK', 'ZETAŞ'])
+            ->assertJsonPath('data.genel.toplam', '300.00')
+            ->assertJsonPath('data.tur_dagilimi.*.kod', ['İŞGÜCÜ']);
+    }
+
     public function test_tarih_ve_para_birimi_zorunludur_422(): void
     {
         $this->actingAs($this->kullanici())
@@ -168,6 +196,7 @@ final class KesintiOzetiTest extends TestCase
             ->getJson(self::ADRES.'/secenekler')
             ->assertOk()
             ->assertJsonPath('data.projeler.*.kod', ['ZONE 10', 'ZONE 6'])
+            ->assertJsonPath('data.firmalar.*.kod', ['HAB', 'MFK', 'ZETAŞ'])
             ->assertJsonPath('data.para_birimleri.*.kod', ['TL', 'USD']);
     }
 
@@ -205,6 +234,20 @@ final class KesintiOzetiTest extends TestCase
         $this->assertSame(['TAŞERON FİRMA', 'TOPLAM KESİNTİ', 'İPTAL EDİLEN', 'KESİLEN', 'KALAN'], $satir(35, 'E'));
         $this->assertSame(['ZETAŞ', '1,000.00', '100.00', '800.00', '100.00'], $satir(36, 'E'));
         $this->assertSame(['MFK', '300.00', '-', '200.00', '100.00'], $satir(37, 'E'));
+    }
+
+    public function test_excelde_secilen_firmalar_ust_bilgide_yazilir_rapor_bir_satir_asagidan_baslar(): void
+    {
+        $this->ornekVeri();
+
+        $yanit = $this->actingAs($this->kullanici())
+            ->get($this->adres(['firma_id' => [$this->zetas->id]], '/excel'))
+            ->assertOk();
+
+        $sayfa = IOFactory::load($yanit->baseResponse->getFile()->getPathname())->getActiveSheet();
+        $deger = fn (string $hucre): string => (string) $sayfa->getCell($hucre)->getFormattedValue();
+        $this->assertSame(['TAŞERON', 'ZETAŞ'], [$deger('A4'), $deger('B4')]);
+        $this->assertSame(['1. ÖZET', '1,250'], [$deger('A6'), $deger('B9')]);
     }
 
     public function test_baska_kesinti_ekraninin_izni_raporu_acmaz_403(): void
