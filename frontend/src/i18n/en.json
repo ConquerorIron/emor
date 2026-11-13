@@ -49,6 +49,7 @@
     "kesinti": "Deduction Management",
     "tumKesintiler": "All Deductions",
     "kesintiOzeti": "Deduction Summary",
+    "firmaOzeti": "Company Summary",
     "isgucuKesintileri": "Labour Deductions",
     "kampKesintileri": "Camp Deductions",
     "kampMalzemeKesintileri": "Camp Material Deductions",
@@ -536,6 +537,7 @@
       "efatura": "e-Invoices (Incoming/Outgoing)",
       "tum_kesintiler": "All Deductions",
       "kesinti_ozeti": "Deduction Summary",
+      "firma_ozeti": "Company Summary",
       "isgucu_kesintileri": "Labour Deductions",
       "kamp_kesintileri": "Camp Deductions",
       "kamp_malzeme_kesintileri": "Camp Material Deductions",
@@ -986,13 +988,15 @@
       "baslik": "All Deductions",
       "aciklamaMetni": "Records from every deduction screen in a single list with their common columns. No data is entered here; records are entered and corrected on their own deduction screen."
     },
-    "ozet": {
-      "baslik": "Deduction Summary",
-      "aciklamaMetni": "Deductions from All Deductions up to the selected date, in a single currency: general summary, breakdown by zone (project) and deduction type, and the subcontractors with the highest deductions. HAB Assumed covers deductions with re-invoicing type HAB; the subcontractor share and its Cancelled / Deducted / Remaining come from those with type SUBCONTRACTOR.",
+    "raporParametreleri": {
       "tarih": "Date (as of)",
       "tarihZorunlu": "Select a date.",
       "projeler": "Projects",
-      "firmalar": "Companies",
+      "firmalar": "Companies"
+    },
+    "ozet": {
+      "baslik": "Deduction Summary",
+      "aciklamaMetni": "Deductions from All Deductions up to the selected date, in a single currency: general summary, breakdown by zone (project) and deduction type, and the subcontractors with the highest deductions. HAB Assumed covers deductions with re-invoicing type HAB; the subcontractor share and its Cancelled / Deducted / Remaining come from those with type SUBCONTRACTOR.",
       "kesintiYok": "There are no deduction records yet.",
       "secimdeKesintiYok": "No deductions for the selected date, projects and currency.",
       "kayitYok": "No records",
@@ -1028,6 +1032,18 @@
         "toplam": "{{oran}} OF TOTAL",
         "taseron": "{{oran}} OF SUBCONTRACTOR SHARE"
       }
+    },
+    "firmaOzeti": {
+      "baslik": "Company Summary",
+      "aciklamaMetni": "Remaining amount of each deduction type per subcontractor and project, side by side; from All Deductions up to the selected date, in a single currency. Only deductions re-invoiced to the subcontractor count (the remainder of those assumed by HAB is not deducted from the subcontractor; same as Remaining in Deduction Summary). Rows with nothing remaining are not listed.",
+      "kolon": {
+        "taseron": "Subcontractor",
+        "proje": "Project",
+        "toplamKalan": "Total Remaining"
+      },
+      "toplam": "Total",
+      "kalanYok": "Nothing remains for the selected date, projects, companies and currency.",
+      "satirSayisi": "{{sayi}} subcontractor / project rows ({{para}})"
     },
     "isgucu": {
       "baslik": "Labour Deductions",

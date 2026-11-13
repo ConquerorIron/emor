@@ -9,3 +9,8 @@ export function tutarGoster(deger: string | number, basamak = 2): string {
       })
     : String(deger)
 }
+
+/** Rapor tablolarında sıfır tutar "-" (kullanıcının örnek raporları gibi) */
+export function tutarVeyaTire(deger: string | number): string {
+  return Number(deger) === 0 ? '-' : tutarGoster(deger)
+}

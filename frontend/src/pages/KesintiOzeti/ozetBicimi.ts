@@ -1,10 +1,3 @@
-import { tutarGoster } from '@/features/kesinti/bicim'
-
-/** Tablolarda sıfır tutar "-" (kullanıcının örnek raporu gibi) */
-export function tutarVeyaTire(deger: string): string {
-  return Number(deger) === 0 ? '-' : tutarGoster(deger)
-}
-
 /** "%57,2"; payda sıfırsa %0,0 */
 export function oranGoster(pay: string, payda: string): string {
   const bolen = Number(payda)

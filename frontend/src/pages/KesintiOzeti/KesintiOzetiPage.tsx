@@ -1,6 +1,5 @@
 import { keepPreviousData, skipToken, useMutation, useQuery } from '@tanstack/react-query'
 import type { TFunction } from 'i18next'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -8,16 +7,12 @@ import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
 import { Button } from '@/components/Button'
 import { ErrorState } from '@/components/ErrorState'
-import { MultiSelectField, SelectField, type SecenekOgesi } from '@/components/SelectField'
-import { TarihInput } from '@/components/TarihInput'
-import { bugunIso, tarihGoster } from '@/utils/tarih'
+import { KesintiRaporuParametreleri } from '@/features/kesinti/KesintiRaporuParametreleri'
+import { useKesintiRaporuParametreleri } from '@/features/kesinti/kesintiRaporu'
+import { tarihGoster } from '@/utils/tarih'
 
 import { DagilimTablosu, type KolonGrubu } from './DagilimTablosu'
-import {
-  kesintiOzetiApi,
-  type KesintiOzeti,
-  type KesintiOzetiParametreleri,
-} from './kesintiOzetiApi'
+import { kesintiOzetiApi, type KesintiOzeti } from './kesintiOzetiApi'
 import { OzetKartlari } from './OzetKartlari'
 import { aySonuMu } from './ozetBicimi'
 
@@ -51,16 +46,6 @@ const TASERON_GRUPLARI: KolonGrubu[] = [
   },
 ]
 
-/** Proje / firma seçimi: "kod - ad" (ad koddan farklıysa) */
-function tanimSecenekleri(
-  liste: { id: number; kod: string; ad: string }[] | undefined,
-): SecenekOgesi[] {
-  return (liste ?? []).map((tanim) => ({
-    value: String(tanim.id),
-    label: tanim.ad && tanim.ad !== tanim.kod ? `${tanim.kod} - ${tanim.ad}` : tanim.kod,
-  }))
-}
-
 /** "ZONE 6 - ZONE 7 – EYLÜL SONU İTİBARIYLA KESİNTİ LİSTESİ" (backend Excel'i aynı kural) */
 function raporBasligi(ozet: KesintiOzeti, t: TFunction, dil: string) {
   const yerel = dil === 'en' ? 'en-US' : 'tr-TR'
@@ -84,21 +69,8 @@ function raporBasligi(ozet: KesintiOzeti, t: TFunction, dil: string) {
  */
 export function KesintiOzetiPage() {
   const { t, i18n } = useTranslation()
-  const [tarih, setTarih] = useState(bugunIso)
-  const [projeIdleri, setProjeIdleri] = useState<number[]>([])
-  const [firmaIdleri, setFirmaIdleri] = useState<number[]>([])
-  // null: en çok satırı olan para birimi (seçeneklerin ilki)
-  const [paraBirimiId, setParaBirimiId] = useState<number | null>(null)
-
-  const secenekler = useQuery({
-    queryKey: queryKeys.kesinti.ozetSecenekleri,
-    queryFn: kesintiOzetiApi.secenekler,
-  })
-  const seciliPara = paraBirimiId ?? secenekler.data?.para_birimleri[0]?.id ?? null
-  const parametreler: KesintiOzetiParametreleri | null =
-    seciliPara !== null && tarih !== ''
-      ? { tarih, para_birimi_id: seciliPara, proje_id: projeIdleri, firma_id: firmaIdleri }
-      : null
+  const parametreDurumu = useKesintiRaporuParametreleri('ozet', kesintiOzetiApi.secenekler)
+  const { parametreler, secenekler } = parametreDurumu
 
   const ozet = useQuery({
     queryKey: queryKeys.kesinti.ozet(parametreler),
@@ -111,12 +83,6 @@ export function KesintiOzetiPage() {
     onError: (error: unknown) => toast.error(t(apiErrorKey(error))),
   })
 
-  const projeSecenekleri = tanimSecenekleri(secenekler.data?.projeler)
-  const firmaSecenekleri = tanimSecenekleri(secenekler.data?.firmalar)
-  const paraSecenekleri: SecenekOgesi[] = (secenekler.data?.para_birimleri ?? []).map((para) => ({
-    value: String(para.id),
-    label: para.kod,
-  }))
   const veri = ozet.data
   const bos = veri !== undefined && veri.proje_dagilimi.length === 0
 
@@ -141,39 +107,7 @@ export function KesintiOzetiPage() {
         {t('kesinti.ozet.aciklamaMetni')}
       </p>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[12rem_minmax(0,1fr)_minmax(0,1fr)_10rem]">
-        <TarihInput
-          id="kesinti-ozeti-tarih"
-          label={t('kesinti.ozet.tarih')}
-          value={tarih}
-          onChange={setTarih}
-          hata={tarih === '' ? t('kesinti.ozet.tarihZorunlu') : undefined}
-        />
-        <MultiSelectField
-          id="kesinti-ozeti-projeler"
-          label={t('kesinti.ozet.projeler')}
-          options={projeSecenekleri}
-          value={projeSecenekleri.filter((s) => projeIdleri.includes(Number(s.value)))}
-          onChange={(secilenler) => setProjeIdleri(secilenler.map((s) => Number(s.value)))}
-          placeholder={t('ortak.hepsi')}
-        />
-        <MultiSelectField
-          id="kesinti-ozeti-firmalar"
-          label={t('kesinti.ozet.firmalar')}
-          options={firmaSecenekleri}
-          value={firmaSecenekleri.filter((s) => firmaIdleri.includes(Number(s.value)))}
-          onChange={(secilenler) => setFirmaIdleri(secilenler.map((s) => Number(s.value)))}
-          placeholder={t('ortak.hepsi')}
-        />
-        <SelectField
-          id="kesinti-ozeti-para-birimi"
-          label={t('kesinti.alan.para_birimi')}
-          options={paraSecenekleri}
-          value={paraSecenekleri.find((s) => Number(s.value) === seciliPara) ?? null}
-          onChange={(secenek) => setParaBirimiId(secenek ? Number(secenek.value) : null)}
-          yukleniyor={secenekler.isPending}
-        />
-      </div>
+      <KesintiRaporuParametreleri durum={parametreDurumu} idOneki="kesinti-ozeti" />
 
       {secenekler.error || ozet.error ? (
         <div className="mt-4">
@@ -190,7 +124,7 @@ export function KesintiOzetiPage() {
           role="status"
           className="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400"
         >
-          {secenekler.isSuccess && paraSecenekleri.length === 0
+          {secenekler.data?.para_birimleri.length === 0
             ? t('kesinti.ozet.kesintiYok')
             : t('ortak.yukleniyor')}
         </div>

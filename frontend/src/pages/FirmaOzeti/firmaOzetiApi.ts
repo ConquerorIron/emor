@@ -1,0 +1,51 @@
+import { api } from '@/api/client'
+import { blobHatasiniCoz, dosyayiIndir } from '@/api/indirme'
+import type {
+  KesintiRaporuParametreleri,
+  KesintiRaporuSecenekleri,
+} from '@/features/kesinti/kesintiRaporu'
+
+/** Taşeron + proje satırı: kalanlar kesinti_turleri ile aynı sırada (noktalı iki ondalıklı metin) */
+export interface FirmaOzetiSatiri {
+  firma_id: number
+  /** Firma kodu (ekranda); tam unvan taseron_ad */
+  taseron: string
+  taseron_ad: string
+  proje_id: number
+  proje: string
+  kalanlar: string[]
+  toplam_kalan: string
+}
+
+/** Backend FirmaOzeti::hesapla — yalnız taşerona yansıtılan kesintilerin kalanı */
+export interface FirmaOzeti {
+  tarih: string
+  para_birimi: string
+  /** Kolonlar: kesinti türleri, bağlı oldukları ekranın menü sırasıyla */
+  kesinti_turleri: { id: number; kod: string; ad: string }[]
+  satirlar: FirmaOzetiSatiri[]
+  toplam: { kalanlar: string[]; toplam_kalan: string }
+}
+
+const ADRES = '/api/v1/kesinti/firma-ozeti'
+
+export const firmaOzetiApi = {
+  getir: async (parametreler: KesintiRaporuParametreleri): Promise<FirmaOzeti> => {
+    const yanit = await api.get<{ data: FirmaOzeti }>(ADRES, { params: parametreler })
+
+    return yanit.data.data
+  },
+  secenekler: async (): Promise<KesintiRaporuSecenekleri> => {
+    const yanit = await api.get<{ data: KesintiRaporuSecenekleri }>(`${ADRES}/secenekler`)
+
+    return yanit.data.data
+  },
+  /** Ekrandaki tablo + toplam satırı .xlsx */
+  excel: async (parametreler: KesintiRaporuParametreleri): Promise<void> => {
+    const yanit = await api
+      .get<Blob>(`${ADRES}/excel`, { params: parametreler, responseType: 'blob' })
+      .catch(blobHatasiniCoz)
+
+    dosyayiIndir(yanit.data, 'firma-ozeti.xlsx')
+  },
+}

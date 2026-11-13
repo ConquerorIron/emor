@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Kesinti\KesintiOzetiRequest;
+use App\Http\Requests\Kesinti\KesintiRaporuRequest;
 use App\Services\Kesinti\KesintiOzeti;
 use App\Services\Kesinti\KesintiOzetiExcelAktarici;
+use App\Services\Kesinti\TumKesintilerSorgusu;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -18,13 +19,13 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  */
 final class KesintiOzetiController extends Controller
 {
-    public function index(KesintiOzetiRequest $request, KesintiOzeti $ozet): JsonResponse
+    public function index(KesintiRaporuRequest $request, KesintiOzeti $ozet): JsonResponse
     {
         return response()->json(['data' => $ozet->hesapla($request->parametreler())]);
     }
 
     /** Ekrandaki raporun aynısı, tek sayfa */
-    public function excel(KesintiOzetiRequest $request, KesintiOzeti $ozet, KesintiOzetiExcelAktarici $aktarici): BinaryFileResponse
+    public function excel(KesintiRaporuRequest $request, KesintiOzeti $ozet, KesintiOzetiExcelAktarici $aktarici): BinaryFileResponse
     {
         return response()
             ->download($aktarici->olustur($ozet->hesapla($request->parametreler())), 'kesinti-ozeti.xlsx', [
@@ -34,8 +35,8 @@ final class KesintiOzetiController extends Controller
             ->deleteFileAfterSend();
     }
 
-    public function secenekler(KesintiOzeti $ozet): JsonResponse
+    public function secenekler(TumKesintilerSorgusu $kesintiler): JsonResponse
     {
-        return response()->json(['data' => $ozet->secenekler()]);
+        return response()->json(['data' => $kesintiler->raporSecenekleri()]);
     }
 }

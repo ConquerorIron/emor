@@ -8,11 +8,12 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Kesinti Özeti parametreleri: tarih (o güne kadarki kesintiler), tek para
- * birimi (kur çevrimi yok), isteğe bağlı projeler ve firmalar (çoklu; boş =
- * hepsi). Erişim rotadaki `kesinti_ozeti.goruntule` izniyle.
+ * Kesinti raporlarının (Kesinti Özeti, Firma Özeti) ortak parametreleri:
+ * tarih (o güne kadarki kesintiler), tek para birimi (kur çevrimi yok),
+ * isteğe bağlı projeler ve firmalar (çoklu; boş = hepsi). Erişim rotadaki
+ * raporun `<rapor>.goruntule` izniyle.
  */
-final class KesintiOzetiRequest extends FormRequest
+final class KesintiRaporuRequest extends FormRequest
 {
     public function authorize(): bool
     {

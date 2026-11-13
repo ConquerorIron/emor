@@ -1,5 +1,9 @@
 import { api } from '@/api/client'
 import { blobHatasiniCoz, dosyayiIndir } from '@/api/indirme'
+import type {
+  KesintiRaporuParametreleri,
+  KesintiRaporuSecenekleri,
+} from '@/features/kesinti/kesintiRaporu'
 
 /** Genel özetin ve her grubun tutarları (backend KesintiOzeti::TUTARLAR) */
 export const OZET_TUTARLARI = ['toplam', 'hab', 'taseron', 'iptal', 'kesilen', 'kalan'] as const
@@ -31,37 +35,22 @@ export interface KesintiOzeti {
   taseronlar: OzetGrubu[]
 }
 
-export interface KesintiOzetiParametreleri {
-  tarih: string
-  para_birimi_id: number
-  /** Boş: tüm projeler */
-  proje_id: number[]
-  /** Boş: tüm firmalar; HAB'ın üstlendiği kesintileri de süzer */
-  firma_id: number[]
-}
-
-export interface KesintiOzetiSecenekleri {
-  projeler: { id: number; kod: string; ad: string }[]
-  firmalar: { id: number; kod: string; ad: string }[]
-  /** En çok kesinti satırı olan önce (ekranın varsayılanı) */
-  para_birimleri: { id: number; kod: string }[]
-}
-
 const ADRES = '/api/v1/kesinti/ozet'
 
+/** Firma süzgeci HAB'ın üstlendiği kesintileri de süzer */
 export const kesintiOzetiApi = {
-  getir: async (parametreler: KesintiOzetiParametreleri): Promise<KesintiOzeti> => {
+  getir: async (parametreler: KesintiRaporuParametreleri): Promise<KesintiOzeti> => {
     const yanit = await api.get<{ data: KesintiOzeti }>(ADRES, { params: parametreler })
 
     return yanit.data.data
   },
-  secenekler: async (): Promise<KesintiOzetiSecenekleri> => {
-    const yanit = await api.get<{ data: KesintiOzetiSecenekleri }>(`${ADRES}/secenekler`)
+  secenekler: async (): Promise<KesintiRaporuSecenekleri> => {
+    const yanit = await api.get<{ data: KesintiRaporuSecenekleri }>(`${ADRES}/secenekler`)
 
     return yanit.data.data
   },
   /** Ekrandaki rapor, tek sayfa .xlsx */
-  excel: async (parametreler: KesintiOzetiParametreleri): Promise<void> => {
+  excel: async (parametreler: KesintiRaporuParametreleri): Promise<void> => {
     const yanit = await api
       .get<Blob>(`${ADRES}/excel`, { params: parametreler, responseType: 'blob' })
       .catch(blobHatasiniCoz)

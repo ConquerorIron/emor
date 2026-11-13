@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next'
 
+import { tutarVeyaTire } from '@/features/kesinti/bicim'
+
 import type { OzetGrubu, OzetTutari, OzetTutarlari } from './kesintiOzetiApi'
-import { tutarVeyaTire } from './ozetBicimi'
 
 export interface DagilimKolonu {
   alan: OzetTutari

@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\ErpFirmaController;
 use App\Http\Controllers\Api\V1\ErpKesintiKontroluController;
 use App\Http\Controllers\Api\V1\ErpProjeController;
 use App\Http\Controllers\Api\V1\FirmaController;
+use App\Http\Controllers\Api\V1\FirmaOzetiController;
 use App\Http\Controllers\Api\V1\GiderYansitmaFaturalariController;
 use App\Http\Controllers\Api\V1\IsgCezaKesintisiController;
 use App\Http\Controllers\Api\V1\IsgCezaYuklemeController;
@@ -253,6 +254,18 @@ Route::prefix('v1')->group(function (): void {
                 ->name('kesinti.ozet.excel');
             Route::get('/kesinti/ozet/secenekler', [KesintiOzetiController::class, 'secenekler'])
                 ->name('kesinti.ozet.secenekler');
+        });
+
+        // Kesinti Yönetimi → Firma Özeti: taşeron + proje başına kesinti
+        // türlerinin kalanı yan yana; yalnız rapor
+        Route::middleware('can:firma_ozeti.goruntule')->group(function (): void {
+            Route::get('/kesinti/firma-ozeti', [FirmaOzetiController::class, 'index'])
+                ->name('kesinti.firma-ozeti');
+            Route::get('/kesinti/firma-ozeti/excel', [FirmaOzetiController::class, 'excel'])
+                ->middleware('throttle:kesinti-excel')
+                ->name('kesinti.firma-ozeti.excel');
+            Route::get('/kesinti/firma-ozeti/secenekler', [FirmaOzetiController::class, 'secenekler'])
+                ->name('kesinti.firma-ozeti.secenekler');
         });
 
         // Kesinti Yönetimi → İşgücü Kesintileri: liste + elle giriş + Excel/yapıştırma

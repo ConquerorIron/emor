@@ -76,6 +76,48 @@ final class TumKesintilerSorgusu extends IcmalSorgusu
     ];
 
     /**
+     * Kesinti raporlarının (Kesinti Özeti, Firma Özeti) ortak süzgeci: seçilen
+     * tarihe kadarki satırlar, tek para biriminde; projeler ve firmalar boşsa hepsi.
+     *
+     * @param  array{tarih: string, para_birimi_id: int, proje_id: list<int>, firma_id: list<int>}  $parametreler
+     * @return Builder<Model>
+     */
+    public function raporSorgusu(array $parametreler): Builder
+    {
+        return $this->filtrele(['bitis' => $parametreler['tarih']])
+            ->where(self::TABLO.'.para_birimi_id', $parametreler['para_birimi_id'])
+            ->when($parametreler['proje_id'] !== [], fn (Builder $q): Builder => $q->whereIn(self::TABLO.'.proje_id', $parametreler['proje_id']))
+            ->when($parametreler['firma_id'] !== [], fn (Builder $q): Builder => $q->whereIn(self::TABLO.'.firma_id', $parametreler['firma_id']));
+    }
+
+    /**
+     * Kesinti raporlarının parametre seçimleri: kesintide geçen projeler ve
+     * firmalar (koduna göre) ve para birimleri (en çok satırı olan önce —
+     * ekranın varsayılanı).
+     *
+     * @return array{projeler: list<array{id: int, kod: string, ad: string}>, firmalar: list<array{id: int, kod: string, ad: string}>, para_birimleri: list<array{id: int, kod: string}>}
+     */
+    public function raporSecenekleri(): array
+    {
+        $paraBirimleri = $this->filtrele([])->toBase()
+            ->join('para_birimleri', 'para_birimleri.id', '=', self::TABLO.'.para_birimi_id')
+            ->groupBy('para_birimleri.id', 'para_birimleri.kod')
+            ->orderByRaw('COUNT(*) DESC')
+            ->orderBy('para_birimleri.kod')
+            ->select(['para_birimleri.id', 'para_birimleri.kod'])
+            ->get()
+            ->map(fn (object $para): array => ['id' => (int) $para->id, 'kod' => (string) $para->kod])
+            ->all();
+        $tanimlar = $this->filtreSecenekleri();
+
+        return [
+            'projeler' => $tanimlar['projeler'],
+            'firmalar' => $tanimlar['firmalar'],
+            'para_birimleri' => $paraBirimleri,
+        ];
+    }
+
+    /**
      * Bütün icmal tablolarının ortak kolonları + satırın icmali, tek "tablo" olarak.
      *
      * @return Builder<Model>

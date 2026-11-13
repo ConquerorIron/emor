@@ -49,6 +49,7 @@
     "kesinti": "Kesinti Yönetimi",
     "tumKesintiler": "Tüm Kesintiler",
     "kesintiOzeti": "Kesinti Özeti",
+    "firmaOzeti": "Firma Özeti",
     "isgucuKesintileri": "İşgücü Kesintileri",
     "kampKesintileri": "Kamp Kesintileri",
     "kampMalzemeKesintileri": "Kamp Malzeme Kesintileri",
@@ -536,6 +537,7 @@
       "efatura": "e-Faturalar (Gelen/Giden)",
       "tum_kesintiler": "Tüm Kesintiler",
       "kesinti_ozeti": "Kesinti Özeti",
+      "firma_ozeti": "Firma Özeti",
       "isgucu_kesintileri": "İşgücü Kesintileri",
       "kamp_kesintileri": "Kamp Kesintileri",
       "kamp_malzeme_kesintileri": "Kamp Malzeme Kesintileri",
@@ -986,13 +988,15 @@
       "baslik": "Tüm Kesintiler",
       "aciklamaMetni": "Bütün kesinti ekranlarına girilen kayıtlar, ortak kolonlarıyla tek listede. Bu sayfaya veri girilmez; kayıtlar ilgili kesinti ekranından girilir ve düzeltilir."
     },
-    "ozet": {
-      "baslik": "Kesinti Özeti",
-      "aciklamaMetni": "Tüm Kesintiler'den seçilen tarihe kadarki kesintiler, tek para biriminde: genel özet, Zone (proje) ve kesinti türü dağılımı, en yüksek kesintili taşeronlar. HAB Üstlendiği yansıtma türü HAB olan kesintilerdir; taşeron payı ve İptal / Kesilen / Kalan yansıtma türü TAŞERON olanlardan gelir.",
+    "raporParametreleri": {
       "tarih": "Tarih (itibarıyla)",
       "tarihZorunlu": "Tarih seçin.",
       "projeler": "Projeler",
-      "firmalar": "Firmalar",
+      "firmalar": "Firmalar"
+    },
+    "ozet": {
+      "baslik": "Kesinti Özeti",
+      "aciklamaMetni": "Tüm Kesintiler'den seçilen tarihe kadarki kesintiler, tek para biriminde: genel özet, Zone (proje) ve kesinti türü dağılımı, en yüksek kesintili taşeronlar. HAB Üstlendiği yansıtma türü HAB olan kesintilerdir; taşeron payı ve İptal / Kesilen / Kalan yansıtma türü TAŞERON olanlardan gelir.",
       "kesintiYok": "Henüz kesinti kaydı yok.",
       "secimdeKesintiYok": "Seçilen tarih, proje ve para biriminde kesinti yok.",
       "kayitYok": "Kayıt yok",
@@ -1028,6 +1032,18 @@
         "toplam": "TOPLAMIN {{oran}}",
         "taseron": "TAŞERON PAYININ {{oran}}"
       }
+    },
+    "firmaOzeti": {
+      "baslik": "Firma Özeti",
+      "aciklamaMetni": "Taşeron ve proje başına her kesinti türünden kalan tutar yan yana; Tüm Kesintiler'den, seçilen tarihe kadar ve tek para biriminde. Yalnız taşerona yansıtılan kesintiler sayılır (HAB'ın üstlendiklerinin kalanı taşerondan kesilmez; Kesinti Özeti'ndeki Kalan ile aynı). Kalanı olmayan satırlar listelenmez.",
+      "kolon": {
+        "taseron": "Taşeron",
+        "proje": "Proje",
+        "toplamKalan": "Toplam Kalan"
+      },
+      "toplam": "Toplam",
+      "kalanYok": "Seçilen tarih, proje, firma ve para biriminde kalan kesinti yok.",
+      "satirSayisi": "{{sayi}} taşeron / proje satırı ({{para}})"
     },
     "isgucu": {
       "baslik": "İşgücü Kesintileri",

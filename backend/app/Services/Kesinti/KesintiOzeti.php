@@ -53,10 +53,7 @@ final class KesintiOzeti
     {
         $projeIdleri = $parametreler['proje_id'];
         $firmaIdleri = $parametreler['firma_id'];
-        $sorgu = $this->kesintiler->filtrele(['bitis' => $parametreler['tarih']])
-            ->where('tum_kesintiler.para_birimi_id', $parametreler['para_birimi_id'])
-            ->when($projeIdleri !== [], fn (Builder $q): Builder => $q->whereIn('tum_kesintiler.proje_id', $projeIdleri))
-            ->when($firmaIdleri !== [], fn (Builder $q): Builder => $q->whereIn('tum_kesintiler.firma_id', $firmaIdleri));
+        $sorgu = $this->kesintiler->raporSorgusu($parametreler);
 
         $projeDagilimi = $this->gruplar($sorgu, 'projeler', 'proje_id');
         // Proje kodları doğal sırayla: ZONE 7, ZONE 10'dan önce
@@ -89,33 +86,6 @@ final class KesintiOzeti
                 toplamaGore: true,
                 sinir: self::TASERON_SAYISI,
             ),
-        ];
-    }
-
-    /**
-     * Parametre seçimleri: kesintide geçen projeler ve firmalar (koduna göre)
-     * ve para birimleri (en çok satırı olan önce — ekranın varsayılanı).
-     *
-     * @return array{projeler: list<array{id: int, kod: string, ad: string}>, firmalar: list<array{id: int, kod: string, ad: string}>, para_birimleri: list<array{id: int, kod: string}>}
-     */
-    public function secenekler(): array
-    {
-        $paraBirimleri = $this->kesintiler->filtrele([])->toBase()
-            ->join('para_birimleri', 'para_birimleri.id', '=', 'tum_kesintiler.para_birimi_id')
-            ->groupBy('para_birimleri.id', 'para_birimleri.kod')
-            ->orderByRaw('COUNT(*) DESC')
-            ->orderBy('para_birimleri.kod')
-            ->select(['para_birimleri.id', 'para_birimleri.kod'])
-            ->get()
-            ->map(fn (object $para): array => ['id' => (int) $para->id, 'kod' => (string) $para->kod])
-            ->all();
-
-        $tanimlar = $this->kesintiler->filtreSecenekleri();
-
-        return [
-            'projeler' => $tanimlar['projeler'],
-            'firmalar' => $tanimlar['firmalar'],
-            'para_birimleri' => $paraBirimleri,
         ];
     }
 

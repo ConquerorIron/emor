@@ -59,6 +59,19 @@ return [
         ],
     ],
 
+    // Firma Özeti → Excel'e Aktar: ekrandaki tablo
+    'firma_ozeti' => [
+        'sayfa' => 'Firma Özeti',
+        'baslik' => 'Firma Özeti — :tarih itibarıyla kalan kesintiler (:para)',
+        'toplam' => 'TOPLAM',
+        'kolon' => [
+            'taseron' => 'Taşeron',
+            'taseron_ad' => 'Taşeron Adı',
+            'proje' => 'Proje',
+            'toplam_kalan' => 'Toplam Kalan',
+        ],
+    ],
+
     // Firmalar → Excel'e Aktar: ekrandaki kolon adlarıyla, sırasıyla
     'firmalar_excel' => [
         'baslik' => 'Firmalar',
