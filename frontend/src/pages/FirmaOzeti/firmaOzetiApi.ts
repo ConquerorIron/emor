@@ -14,6 +14,8 @@ export interface FirmaOzetiSatiri {
   proje_id: number
   proje: string
   kalanlar: string[]
+  /** Kesinti türü başına satır sayısı: 0 → o türde kesinti yok ("-"), kalan 0 olsa da >0 → "0,00" */
+  kayit_sayilari: number[]
   toplam_kalan: string
 }
 
@@ -24,7 +26,7 @@ export interface FirmaOzeti {
   /** Kolonlar: kesinti türleri, bağlı oldukları ekranın menü sırasıyla */
   kesinti_turleri: { id: number; kod: string; ad: string }[]
   satirlar: FirmaOzetiSatiri[]
-  toplam: { kalanlar: string[]; toplam_kalan: string }
+  toplam: { kalanlar: string[]; kayit_sayilari: number[]; toplam_kalan: string }
 }
 
 /** Tıklanan hücre: raporun tarihi ve para birimi + satırın taşeronu ve projesi; tür yoksa (Toplam Kalan) bütün türler */

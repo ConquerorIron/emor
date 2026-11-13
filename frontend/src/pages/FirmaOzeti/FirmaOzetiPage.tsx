@@ -8,14 +8,17 @@ import { Button } from '@/components/Button'
 import { DataTable, type DataTableKolonu, type ToplamSatiri } from '@/components/DataTable'
 import { ErrorState } from '@/components/ErrorState'
 import { siralaUygula } from '@/components/SiralanabilirBaslik'
-import { tutarVeyaTire } from '@/features/kesinti/bicim'
+import { tutarGoster } from '@/features/kesinti/bicim'
 import { KesintiRaporuParametreleri } from '@/features/kesinti/KesintiRaporuParametreleri'
 import { useKesintiRaporuParametreleri } from '@/features/kesinti/kesintiRaporu'
 import { useKaliciSiralama } from '@/hooks/useKaliciSiralama'
 
 import { firmaOzetiApi, type EkstreParametreleri, type FirmaOzeti } from './firmaOzetiApi'
 
-/** Tablo satırı: kesinti türlerinin kalanı `tur_<id>` kolonlarında (sayı: sıralanabilir) */
+/**
+ * Tablo satırı: kesinti türlerinin kalanı `tur_<id>` (sayı: sıralanabilir),
+ * satır sayısı `adet_<id>` kolonlarında
+ */
 type TabloSatiri = Record<string, string | number> & {
   anahtar: string
   firma_id: number
@@ -28,14 +31,16 @@ type TabloSatiri = Record<string, string | number> & {
 type KesintiTuru = FirmaOzeti['kesinti_turleri'][number]
 
 const turKolonu = (id: number) => `tur_${id}`
+const adetKolonu = (id: number) => `adet_${id}`
 
 /** Ekstre hazırlanırken gösterilen bildirim (hata ya da bitişte aynı kimlikle değişir) */
 const EKSTRE_BILDIRIMI = 'firma-ozeti-ekstre'
 
-function tutarHucresi(deger: string | number, kalin = false) {
+/** "-": o türde kesinti yok; kesinti varsa tutar (tamamı kesilmişse 0,00) */
+function tutarHucresi(deger: string | number, kalin = false, kesintiVar = true) {
   return (
     <span className={`whitespace-nowrap tabular-nums ${kalin ? 'font-semibold' : ''}`}>
-      {tutarVeyaTire(deger)}
+      {kesintiVar ? tutarGoster(deger) : '-'}
     </span>
   )
 }
@@ -44,7 +49,7 @@ function tutarHucresi(deger: string | number, kalin = false) {
  * Kesinti Yönetimi → Firma Özeti (kullanıcı isteği 2026-11-13): taşeron +
  * proje başına her kesinti türünden kalan tutar yan yana ve toplam kalan.
  * Yalnız taşerona yansıtılan kesintiler (Kesinti Özeti'nin "Kalan"ı ile
- * aynı); kalanı olmayan satırlar gelmez. Parametreler Kesinti Özeti'nin aynısı.
+ * aynı); kesintisi olan her satır listelenir. Parametreler Kesinti Özeti'nin aynısı.
  */
 export function FirmaOzetiPage() {
   const { t } = useTranslation()
@@ -74,13 +79,15 @@ export function FirmaOzetiPage() {
   })
 
   /**
-   * Kalan hücresi: sıfır değilse tıklanınca o hücrenin ekstresi (PDF) iner;
-   * tür yoksa (Toplam Kalan) taşeron + projenin bütün türleri.
+   * Kalan hücresi: o türde kesinti varsa (kalanı sıfır olsa da) tıklanınca
+   * hücrenin ekstresi (PDF) iner; tür yoksa (Toplam Kalan) taşeron + projenin
+   * bütün türleri — satır yalnız kesintisi olan taşeron + proje için gelir.
    */
   const kalanHucresi = (satir: TabloSatiri, tur: KesintiTuru | null, kalin = false) => {
     const deger = tur ? satir[turKolonu(tur.id)] : satir.toplam_kalan
-    if (Number(deger) === 0 || parametreler === null) {
-      return tutarHucresi(deger, kalin)
+    const kesintiVar = tur ? Number(satir[adetKolonu(tur.id)]) > 0 : true
+    if (!kesintiVar || parametreler === null) {
+      return tutarHucresi(deger, kalin, kesintiVar)
     }
     const hucre: EkstreParametreleri = {
       tarih: parametreler.tarih,
@@ -107,7 +114,7 @@ export function FirmaOzetiPage() {
         onClick={() => ekstre.mutate({ hucre, dosyaAdi })}
         className={`cursor-pointer whitespace-nowrap text-blue-700 tabular-nums underline decoration-dotted underline-offset-2 hover:decoration-solid disabled:cursor-wait dark:text-blue-300 ${kalin ? 'font-semibold' : ''}`}
       >
-        {tutarVeyaTire(deger)}
+        {tutarGoster(deger)}
       </button>
     )
   }
@@ -121,7 +128,12 @@ export function FirmaOzetiPage() {
     taseron_ad: satir.taseron_ad,
     proje_id: satir.proje_id,
     proje: satir.proje,
-    ...Object.fromEntries(turler.map((tur, i) => [turKolonu(tur.id), Number(satir.kalanlar[i])])),
+    ...Object.fromEntries(
+      turler.flatMap((tur, i) => [
+        [turKolonu(tur.id), Number(satir.kalanlar[i])],
+        [adetKolonu(tur.id), satir.kayit_sayilari[i]],
+      ]),
+    ),
     toplam_kalan: Number(satir.toplam_kalan),
   }))
 
@@ -168,7 +180,10 @@ export function FirmaOzetiPage() {
           etiket: t('kesinti.firmaOzeti.toplam'),
           hucreler: {
             ...Object.fromEntries(
-              turler.map((tur, i) => [turKolonu(tur.id), tutarHucresi(veri.toplam.kalanlar[i])]),
+              turler.map((tur, i) => [
+                turKolonu(tur.id),
+                tutarHucresi(veri.toplam.kalanlar[i], false, veri.toplam.kayit_sayilari[i] > 0),
+              ]),
             ),
             toplam_kalan: tutarHucresi(veri.toplam.toplam_kalan, true),
           },

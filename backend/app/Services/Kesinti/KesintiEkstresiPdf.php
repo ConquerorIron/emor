@@ -46,11 +46,12 @@ final class KesintiEkstresiPdf
     {
         $this->pdf = new EkstreBelgesi('L', 'mm', 'A3', true, 'UTF-8');
         $this->pdf->SetCreator('eMOR ERP');
-        $this->pdf->SetTitle(__('kesinti.ekstre.baslik').' — '.$veri['firma']['kod'].' — '.$veri['proje']);
+        $this->pdf->SetTitle($veri['baslik'].' — '.$veri['firma']['kod'].' — '.$veri['proje']);
         $this->pdf->setPrintHeader(false);
         $this->pdf->SetMargins(self::KENAR, self::KENAR, self::KENAR);
         $this->pdf->SetAutoPageBreak(false);
         $this->pdf->altBilgi = __('kesinti.ekstre.alt_bilgi', [
+            'baslik' => $veri['baslik'],
             'firma' => $veri['firma']['kod'],
             'proje' => $veri['proje'],
             'tarih' => $veri['tarih'],
@@ -86,7 +87,7 @@ final class KesintiEkstresiPdf
         $pdf->Cell(self::GENISLIK / 2, 4, __('kesinti.ekstre.duzenlenme', ['tarih' => $veri['duzenlenme']]), 0, 1, 'R');
 
         $this->yazi(16, 'B', self::KOYU);
-        $pdf->Cell(self::GENISLIK, 9, __('kesinti.ekstre.baslik'), 0, 1, 'L');
+        $pdf->Cell(self::GENISLIK, 9, $veri['baslik'], 0, 1, 'L');
 
         $firma = $veri['firma'];
         $this->etiketliSatir([
@@ -95,7 +96,7 @@ final class KesintiEkstresiPdf
             [__('kesinti.ekstre.vergi_dairesi'), $firma['vergi_dairesi'] ?? '-'],
         ]);
         $this->etiketliSatir([
-            [__('kesinti.ekstre.proje'), $veri['proje']],
+            [__('kesinti.ekstre.proje'), $veri['proje_ad'] !== '' && $veri['proje_ad'] !== $veri['proje'] ? "{$veri['proje']} — {$veri['proje_ad']}" : $veri['proje']],
             [__('kesinti.ekstre.kesinti_turu'), $veri['kesinti_turu'] ?? __('kesinti.ekstre.tum_turler')],
             [__('kesinti.ekstre.tarih'), __('kesinti.ekstre.itibariyla', ['tarih' => $veri['tarih']])],
             [__('kesinti.ekstre.para_birimi'), $veri['para_birimi']],
@@ -233,11 +234,7 @@ final class KesintiEkstresiPdf
                     $enUzun = $hucreler[$i];
                 }
             }
-            $kelimeler = preg_split('/\s+/u', $kolon['baslik']) ?: [$kolon['baslik']];
-            $baslik = max(
-                $pdf->GetStringWidth($kolon['baslik'], 'dejavusans', 'B', 6.5) / 2,
-                ...array_map(fn (string $kelime): float => $pdf->GetStringWidth($kelime, 'dejavusans', 'B', 6.5), $kelimeler),
-            );
+            $baslik = $this->ikiSatirGenisligi($kolon['baslik']);
             $toplam = $bolum['toplam'][$bolum['kolon_alanlari'][$i]] ?? '';
             $dogal[] = max(
                 $baslik,
@@ -249,6 +246,23 @@ final class KesintiEkstresiPdf
         $carpan = self::GENISLIK / array_sum($dogal);
 
         return array_map(fn (float $genislik): float => $genislik * $carpan, $dogal);
+    }
+
+    /**
+     * Başlığın iki satıra en dengeli bölündüğü genişlik ("İPTAL EDİLEN / TUTAR"
+     * üç satıra taşmasın): her bölme noktası için uzun satır, en kısası.
+     */
+    private function ikiSatirGenisligi(string $baslik): float
+    {
+        $kelimeler = preg_split('/\s+/u', trim($baslik)) ?: [$baslik];
+        $genislik = fn (array $parca): float => $this->pdf->GetStringWidth(implode(' ', $parca), 'dejavusans', 'B', 6.5);
+        $enIyi = $genislik($kelimeler);
+
+        for ($bol = 1; $bol < count($kelimeler); $bol++) {
+            $enIyi = min($enIyi, max($genislik(array_slice($kelimeler, 0, $bol)), $genislik(array_slice($kelimeler, $bol))));
+        }
+
+        return $enIyi;
     }
 
     /**
@@ -315,7 +329,7 @@ final class KesintiEkstresiPdf
         $pdf->AddPage();
         $this->yazi(8, 'B', self::KOYU);
         $pdf->Cell(self::GENISLIK, 5, implode('  ·  ', [
-            __('kesinti.ekstre.baslik'),
+            $veri['baslik'],
             $veri['firma']['kod'],
             $veri['proje'],
             $veri['kesinti_turu'] ?? __('kesinti.ekstre.tum_turler'),

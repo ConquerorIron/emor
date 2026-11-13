@@ -1035,14 +1035,14 @@
     },
     "firmaOzeti": {
       "baslik": "Company Summary",
-      "aciklamaMetni": "Remaining amount of each deduction type per subcontractor and project, side by side; from All Deductions up to the selected date, in a single currency. Only deductions re-invoiced to the subcontractor count (the remainder of those assumed by HAB is not deducted from the subcontractor; same as Remaining in Deduction Summary). Rows with nothing remaining are not listed. Click an amount to download that cell’s deduction statement as a PDF (A3 landscape); Total Remaining covers all types of the subcontractor and project.",
+      "aciklamaMetni": "Remaining amount of each deduction type per subcontractor and project, side by side; from All Deductions up to the selected date, in a single currency. Only deductions re-invoiced to the subcontractor count (the remainder of those assumed by HAB is not deducted from the subcontractor; same as Remaining in Deduction Summary). \"-\" means no deductions of that type; 0.00 means there are deductions but all were deducted. Click an amount to download that cell’s deduction statement as a PDF (A3 landscape); Total Remaining covers all types of the subcontractor and project.",
       "kolon": {
         "taseron": "Subcontractor",
         "proje": "Project",
         "toplamKalan": "Total Remaining"
       },
       "toplam": "Total",
-      "kalanYok": "Nothing remains for the selected date, projects, companies and currency.",
+      "kalanYok": "No deductions re-invoiced to subcontractors for the selected date, projects, companies and currency.",
       "satirSayisi": "{{sayi}} subcontractor / project rows ({{para}})",
       "ekstreEtiketi": "{{taseron}} / {{proje}} / {{tur}} statement (PDF)",
       "tumTurler": "all deduction types",

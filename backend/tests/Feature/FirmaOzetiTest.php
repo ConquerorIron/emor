@@ -43,8 +43,8 @@ final class FirmaOzetiTest extends TestCase
     /**
      * Kolonlar: İŞGÜCÜ, KAMP (verisiz), YEMEK ekran sırasıyla, ekrana bağsız ESKİ sonda.
      * Kalanlar (TL, 30.09.2026'ya kadar, taşerona yansıtılan): ZETAŞ / ZONE 10 →
-     * işgücü 40 + yemek 100 + 60; MFK / ZONE 6 → işgücü 100. Dışarıda: HAB'ın
-     * üstlendiği kalanlar, kalanı sıfır olan MFK / ZONE 10, Ekim'deki satır.
+     * işgücü 40 + yemek 100 + 60; MFK / ZONE 6 → işgücü 100; MFK / ZONE 10 →
+     * yemek 0 (tamamı kesilmiş). Dışarıda: HAB'ın üstlendikleri, Ekim'deki satır.
      */
     private function ornekVeri(): void
     {
@@ -98,15 +98,21 @@ final class FirmaOzetiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.para_birimi', 'TL')
             ->assertJsonPath('data.kesinti_turleri.*.kod', ['İŞGÜCÜ', 'KAMP', 'YEMEK', 'ESKİ'])
-            // Taşeron sırasıyla; kalanı sıfır olan MFK / ZONE 10 yok
-            ->assertJsonPath('data.satirlar.*.taseron', ['MFK', 'ZETAŞ'])
-            ->assertJsonPath('data.satirlar.0.proje', 'ZONE 6')
+            // Taşeron, sonra proje sırasıyla; kalanı sıfır olan MFK / ZONE 10 da listelenir
+            ->assertJsonPath('data.satirlar.*.taseron', ['MFK', 'MFK', 'ZETAŞ'])
+            ->assertJsonPath('data.satirlar.*.proje', ['ZONE 6', 'ZONE 10', 'ZONE 10'])
             ->assertJsonPath('data.satirlar.0.kalanlar', ['100.00', '0.00', '0.00', '0.00'])
             ->assertJsonPath('data.satirlar.0.toplam_kalan', '100.00')
-            ->assertJsonPath('data.satirlar.1.taseron_ad', 'ZETAŞ ZEMİN TEKNOLOJİSİ')
-            ->assertJsonPath('data.satirlar.1.kalanlar', ['40.00', '0.00', '160.00', '0.00'])
-            ->assertJsonPath('data.satirlar.1.toplam_kalan', '200.00')
-            ->assertJsonPath('data.toplam', ['kalanlar' => ['140.00', '0.00', '160.00', '0.00'], 'toplam_kalan' => '300.00']);
+            // Kayıt sayısı: yemek kesintisi var ama tamamı kesilmiş (ekranda 0,00), diğer türler yok ("-")
+            ->assertJsonPath('data.satirlar.1.kalanlar', ['0.00', '0.00', '0.00', '0.00'])
+            ->assertJsonPath('data.satirlar.1.kayit_sayilari', [0, 0, 1, 0])
+            ->assertJsonPath('data.satirlar.2.taseron_ad', 'ZETAŞ ZEMİN TEKNOLOJİSİ')
+            ->assertJsonPath('data.satirlar.2.kalanlar', ['40.00', '0.00', '160.00', '0.00'])
+            ->assertJsonPath('data.satirlar.2.kayit_sayilari', [1, 0, 2, 0])
+            ->assertJsonPath('data.satirlar.2.toplam_kalan', '200.00')
+            ->assertJsonPath('data.toplam', [
+                'kalanlar' => ['140.00', '0.00', '160.00', '0.00'], 'kayit_sayilari' => [2, 0, 3, 0], 'toplam_kalan' => '300.00',
+            ]);
     }
 
     public function test_secilen_firmayla_suzulur(): void
@@ -138,9 +144,11 @@ final class FirmaOzetiTest extends TestCase
         );
         $this->assertSame('Firma Özeti — 30.09.2026 itibarıyla kalan kesintiler (TL)', $sayfa->getCell('A1')->getValue());
         $this->assertSame(['Taşeron', 'Taşeron Adı', 'Proje', 'İŞGÜCÜ', 'KAMP', 'YEMEK', 'ESKİ', 'Toplam Kalan'], $satir(3));
-        $this->assertSame(['MFK', 'MFK', 'ZONE 6', '100.00', '-', '-', '-', '100.00'], $satir(4));
-        $this->assertSame(['ZETAŞ', 'ZETAŞ ZEMİN TEKNOLOJİSİ', 'ZONE 10', '40.00', '-', '160.00', '-', '200.00'], $satir(5));
-        $this->assertSame(['TOPLAM', '', '', '140.00', '-', '160.00', '-', '300.00'], $satir(6));
+        // Kesintisi olmayan tür boş, kesintisi olup kalanı sıfır olan 0.00
+        $this->assertSame(['MFK', 'MFK', 'ZONE 6', '100.00', '', '', '', '100.00'], $satir(4));
+        $this->assertSame(['MFK', 'MFK', 'ZONE 10', '', '', '0.00', '', '0.00'], $satir(5));
+        $this->assertSame(['ZETAŞ', 'ZETAŞ ZEMİN TEKNOLOJİSİ', 'ZONE 10', '40.00', '', '160.00', '', '200.00'], $satir(6));
+        $this->assertSame(['TOPLAM', '', '', '140.00', '', '160.00', '', '300.00'], $satir(7));
     }
 
     public function test_parametre_secenekleri_kesintide_gecenlerden(): void

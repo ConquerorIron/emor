@@ -74,7 +74,11 @@ return [
 
     // Firma Özeti → hücre → kesinti ekstresi (PDF)
     'ekstre' => [
-        'baslik' => 'KESİNTİ EKSTRESİ',
+        // Başlık türü söyler (kullanıcı isteği 2026-11-13): "KAMP KESİNTİ EKSTRESİ"
+        'baslik_tur' => ':tur KESİNTİ EKSTRESİ',
+        'baslik_kesintisi' => ':tur EKSTRESİ',
+        'baslik_tumu' => 'TÜM KESİNTİLER EKSTRESİ',
+        'proje_kolonu' => 'PROJE',
         'sirket' => 'TERSANE İSTANBUL',
         'duzenlenme' => 'Düzenlenme: :tarih',
         'taseron' => 'Taşeron',
@@ -102,7 +106,7 @@ return [
         'bolum' => ':tur  ·  :adet kayıt',
         'devam' => '(devam)',
         'sayfa' => 'Sayfa :no / :toplam',
-        'alt_bilgi' => 'eMOR · Kesinti Ekstresi · :firma · :proje · :tarih itibarıyla',
+        'alt_bilgi' => 'eMOR · :baslik · :firma · :proje · :tarih itibarıyla',
         'kayit_yok' => 'Bu seçimde kesinti satırı yok.',
     ],
 

@@ -16,16 +16,17 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
  * Firma Özeti'nin Excel (.xlsx) çıktısı: üstte tarih ve para birimi, altında
  * ekrandaki tablo (taşeron, taşeron adı, proje, kesinti türleri, toplam kalan)
  * ve TOPLAM satırı. Başlık satırı süzülebilir; metinler metin tipiyle yazılır
- * (formül olarak yorumlanmaz); sıfır kalan "-" görünür.
+ * (formül olarak yorumlanmaz). Ekrandaki gibi: o türde kesinti yoksa hücre
+ * boş, kesinti var ama tamamı kesilmişse 0,00.
  */
 final class FirmaOzetiExcelAktarici
 {
     private const BASLIK_SATIRI = 3;
 
-    private const TUTAR = '#,##0.00;-#,##0.00;"-"';
+    private const TUTAR = '#,##0.00';
 
     /**
-     * @param  array{tarih: string, para_birimi: string, kesinti_turleri: list<array{id: int, kod: string, ad: string}>, satirlar: list<array{taseron: string, taseron_ad: string, proje: string, kalanlar: list<string>, toplam_kalan: string}>, toplam: array{kalanlar: list<string>, toplam_kalan: string}}  $ozet  FirmaOzeti::hesapla()
+     * @param  array{tarih: string, para_birimi: string, kesinti_turleri: list<array{id: int, kod: string, ad: string}>, satirlar: list<array{taseron: string, taseron_ad: string, proje: string, kalanlar: list<string>, kayit_sayilari: list<int>, toplam_kalan: string}>, toplam: array{kalanlar: list<string>, kayit_sayilari: list<int>, toplam_kalan: string}}  $ozet  FirmaOzeti::hesapla()
      * @return string oluşturulan geçici dosyanın yolu (çağıran siler)
      */
     public function olustur(array $ozet): string
@@ -60,13 +61,13 @@ final class FirmaOzetiExcelAktarici
             $sayfa->setCellValueExplicit([1, $satir], $degerler['taseron'], DataType::TYPE_STRING);
             $sayfa->setCellValueExplicit([2, $satir], $degerler['taseron_ad'], DataType::TYPE_STRING);
             $sayfa->setCellValueExplicit([3, $satir], $degerler['proje'], DataType::TYPE_STRING);
-            $this->tutarlariYaz($sayfa, $satir, [...$degerler['kalanlar'], $degerler['toplam_kalan']]);
+            $this->tutarlariYaz($sayfa, $satir, $degerler);
         }
         $sonVeriSatiri = max(self::BASLIK_SATIRI + 1, $satir);
 
         $satir++;
         $sayfa->setCellValueExplicit([1, $satir], __('kesinti.firma_ozeti.toplam'), DataType::TYPE_STRING);
-        $this->tutarlariYaz($sayfa, $satir, [...$ozet['toplam']['kalanlar'], $ozet['toplam']['toplam_kalan']]);
+        $this->tutarlariYaz($sayfa, $satir, $ozet['toplam']);
         $sayfa->getStyle("A{$satir}:{$sonKolon}{$satir}")->getFont()->setBold(true);
         $sayfa->getStyle("A{$satir}:{$sonKolon}{$satir}")->getBorders()->getTop()->setBorderStyle(Border::BORDER_THIN);
 
@@ -101,14 +102,17 @@ final class FirmaOzetiExcelAktarici
     }
 
     /**
-     * Kesinti türü kalanları + toplam kalan, D kolonundan başlayarak.
+     * Kesinti türü kalanları (kesintisi olmayan tür boş) + toplam kalan, D kolonundan başlayarak.
      *
-     * @param  list<string>  $tutarlar
+     * @param  array{kalanlar: list<string>, kayit_sayilari: list<int>, toplam_kalan: string}  $degerler
      */
-    private function tutarlariYaz(Worksheet $sayfa, int $satir, array $tutarlar): void
+    private function tutarlariYaz(Worksheet $sayfa, int $satir, array $degerler): void
     {
-        foreach ($tutarlar as $i => $tutar) {
-            $sayfa->setCellValueExplicit([4 + $i, $satir], (float) $tutar, DataType::TYPE_NUMERIC);
+        foreach ($degerler['kalanlar'] as $i => $tutar) {
+            if ($degerler['kayit_sayilari'][$i] > 0) {
+                $sayfa->setCellValueExplicit([4 + $i, $satir], (float) $tutar, DataType::TYPE_NUMERIC);
+            }
         }
+        $sayfa->setCellValueExplicit([4 + count($degerler['kalanlar']), $satir], (float) $degerler['toplam_kalan'], DataType::TYPE_NUMERIC);
     }
 }

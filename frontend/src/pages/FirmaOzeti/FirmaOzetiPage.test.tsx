@@ -19,7 +19,10 @@ vi.mock('./firmaOzetiApi', async (importOriginal) => ({
   firmaOzetiApi: api,
 }))
 
-/** Backend testindeki veri: kolonlar ekran sırasıyla, KAMP verisiz */
+/**
+ * Kolonlar ekran sırasıyla, KAMP verisiz ("-"); MFK'nın yemek kesintisi var
+ * ama tamamı kesilmiş (0,00, ekstresi alınabilir)
+ */
 const OZET: FirmaOzeti = {
   tarih: '2026-09-30',
   para_birimi: 'TL',
@@ -36,6 +39,7 @@ const OZET: FirmaOzeti = {
       proje_id: 6,
       proje: 'ZONE 6',
       kalanlar: ['100.00', '0.00', '0.00'],
+      kayit_sayilari: [1, 0, 1],
       toplam_kalan: '100.00',
     },
     {
@@ -45,10 +49,15 @@ const OZET: FirmaOzeti = {
       proje_id: 10,
       proje: 'ZONE 10',
       kalanlar: ['40.00', '0.00', '160.00'],
+      kayit_sayilari: [1, 0, 2],
       toplam_kalan: '200.00',
     },
   ],
-  toplam: { kalanlar: ['140.00', '0.00', '160.00'], toplam_kalan: '300.00' },
+  toplam: {
+    kalanlar: ['140.00', '0.00', '160.00'],
+    kayit_sayilari: [2, 0, 3],
+    toplam_kalan: '300.00',
+  },
 }
 
 const metinler = (ogeler: HTMLElement[]) =>
@@ -141,10 +150,13 @@ describe('FirmaOzetiPage', () => {
       'kesinti-ekstresi-ZETAŞ-ZONE-10-YEMEK.pdf',
     )
 
-    // Kalanı olmayan hücre düğme değil
+    // Kesintisi olmayan hücre ("-") düğme değil; kesintisi olup kalanı sıfır olan (0,00) düğme
     expect(
       screen.queryByRole('button', { name: 'ZETAŞ / ZONE 10 / KAMP ekstresi (PDF)' }),
     ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'MFK / ZONE 6 / YEMEK ekstresi (PDF)' }),
+    ).toHaveTextContent('0,00')
 
     fireEvent.click(
       await screen.findByRole('button', {
@@ -162,7 +174,9 @@ describe('FirmaOzetiPage', () => {
     api.getir.mockResolvedValue({ ...OZET, satirlar: [] })
 
     expect(
-      await screen.findByText('Seçilen tarih, proje, firma ve para biriminde kalan kesinti yok.'),
+      await screen.findByText(
+        'Seçilen tarih, proje, firma ve para biriminde taşerona yansıtılan kesinti yok.',
+      ),
     ).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: "Excel'e Aktar" })).toBeDisabled()

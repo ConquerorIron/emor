@@ -15,8 +15,10 @@ use Collator;
  *
  * Kalan yalnız taşerona yansıtılan satırlardan (Kesinti Özeti'nin "Kalan"ıyla
  * aynı tanım): HAB'ın üstlendiği kesintinin kalanı taşerondan kesilmez.
- * Kalanı olmayan taşeron + proje satırı listelenmez. Hücreler firma, proje ve
- * kesinti türü kimliğiyle gelir (sonraki adım: hücreden ekstre).
+ * Taşerona yansıtılmış kesintisi olan her taşeron + proje listelenir; her
+ * hücrenin kayıt sayısı da gelir — ekranda "-" kesinti yok, 0,00 kesinti var
+ * ama tamamı kesilmiş (kullanıcı 2026-11-13: işgücünün kalanı sıfır olduğu
+ * için kolon boş sanılıyordu). Hücreden ekstre: KesintiEkstresi.
  */
 final class FirmaOzeti
 {
@@ -28,8 +30,8 @@ final class FirmaOzeti
      *     tarih: string,
      *     para_birimi: string,
      *     kesinti_turleri: list<array{id: int, kod: string, ad: string}>,
-     *     satirlar: list<array{firma_id: int, taseron: string, taseron_ad: string, proje_id: int, proje: string, kalanlar: list<string>, toplam_kalan: string}>,
-     *     toplam: array{kalanlar: list<string>, toplam_kalan: string},
+     *     satirlar: list<array{firma_id: int, taseron: string, taseron_ad: string, proje_id: int, proje: string, kalanlar: list<string>, kayit_sayilari: list<int>, toplam_kalan: string}>,
+     *     toplam: array{kalanlar: list<string>, kayit_sayilari: list<int>, toplam_kalan: string},
      * }
      */
     public function hesapla(array $parametreler): array
@@ -40,6 +42,7 @@ final class FirmaOzeti
         // Kesinti türü kimliği => kolon sırası
         $kolon = array_flip(array_column($turler, 'id'));
         $bos = array_fill(0, count($turler), 0.0);
+        $sifirAdet = array_fill(0, count($turler), 0);
 
         $satirlar = [];
         $hucreler = $sorgu->clone()->toBase()
@@ -50,7 +53,7 @@ final class FirmaOzeti
                 'tum_kesintiler.firma_id', 'tum_kesintiler.proje_id', 'tum_kesintiler.kesinti_turu_id',
                 'firmalar.kod AS taseron', 'firmalar.ad AS taseron_ad', 'projeler.kod AS proje',
             ])
-            ->selectRaw('SUM(tum_kesintiler.kalan_tutar) AS kalan')
+            ->selectRaw('SUM(tum_kesintiler.kalan_tutar) AS kalan, COUNT(*) AS adet')
             ->get();
 
         foreach ($hucreler as $hucre) {
@@ -62,14 +65,14 @@ final class FirmaOzeti
                 'proje_id' => (int) $hucre->proje_id,
                 'proje' => (string) $hucre->proje,
                 'kalanlar' => $bos,
+                'kayit_sayilari' => $sifirAdet,
             ];
-            $satirlar[$anahtar]['kalanlar'][$kolon[(int) $hucre->kesinti_turu_id]] = round((float) $hucre->kalan, 2);
+            $sira = $kolon[(int) $hucre->kesinti_turu_id];
+            $satirlar[$anahtar]['kalanlar'][$sira] = round((float) $hucre->kalan, 2);
+            $satirlar[$anahtar]['kayit_sayilari'][$sira] = (int) $hucre->adet;
         }
 
-        $satirlar = array_values(array_filter(
-            $satirlar,
-            fn (array $satir): bool => array_filter($satir['kalanlar'], fn (float $kalan): bool => $kalan !== 0.0) !== [],
-        ));
+        $satirlar = array_values($satirlar);
         // Taşeron, sonra proje; kodlar doğal sırayla (ZONE 7, ZONE 10'dan önce)
         $siralayici = new Collator('tr_TR');
         $siralayici->setAttribute(Collator::NUMERIC_COLLATION, Collator::ON);
@@ -79,11 +82,14 @@ final class FirmaOzeti
         $turToplamlari = $sorgu->clone()->toBase()
             ->groupBy('tum_kesintiler.kesinti_turu_id')
             ->select(['tum_kesintiler.kesinti_turu_id'])
-            ->selectRaw('SUM(tum_kesintiler.kalan_tutar) AS kalan')
+            ->selectRaw('SUM(tum_kesintiler.kalan_tutar) AS kalan, COUNT(*) AS adet')
             ->get();
         $toplam = $bos;
+        $toplamAdet = $sifirAdet;
         foreach ($turToplamlari as $turToplami) {
-            $toplam[$kolon[(int) $turToplami->kesinti_turu_id]] = round((float) $turToplami->kalan, 2);
+            $sira = $kolon[(int) $turToplami->kesinti_turu_id];
+            $toplam[$sira] = round((float) $turToplami->kalan, 2);
+            $toplamAdet[$sira] = (int) $turToplami->adet;
         }
 
         return [
@@ -97,6 +103,7 @@ final class FirmaOzeti
             ], $satirlar),
             'toplam' => [
                 'kalanlar' => array_map($this->tutar(...), $toplam),
+                'kayit_sayilari' => $toplamAdet,
                 'toplam_kalan' => $this->tutar((float) $sorgu->clone()->sum('tum_kesintiler.kalan_tutar')),
             ],
         ];
