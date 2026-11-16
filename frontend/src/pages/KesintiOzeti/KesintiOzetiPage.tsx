@@ -71,6 +71,9 @@ export function KesintiOzetiPage() {
 
   const veri = ozet.data
   const bos = veri !== undefined && veri.proje_dagilimi.length === 0
+  // Parametre değişince yeni yanıt gelene dek ÖNCEKİ rapor (soluk) görünür; Excel
+  // yeni parametrelerle ineceğinden o arada kapalı — görülen ile inen ayrışmasın
+  const eskiVeri = ozet.isPlaceholderData
 
   return (
     <>
@@ -79,7 +82,7 @@ export function KesintiOzetiPage() {
         <Button
           variant="secondary"
           yukleniyor={excel.isPending}
-          disabled={parametreler === null || veri === undefined || bos}
+          disabled={parametreler === null || veri === undefined || bos || eskiVeri}
           onClick={() => {
             if (parametreler) {
               excel.mutate(parametreler)
@@ -126,7 +129,7 @@ export function KesintiOzetiPage() {
         // Kâğıt görünümü: kullanıcının örnek raporu
         <article
           aria-label={t('kesinti.ozet.baslik')}
-          className={`mt-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6 dark:border-slate-700 dark:bg-slate-900 ${ozet.isPlaceholderData ? 'opacity-50' : ''}`}
+          className={`mt-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6 dark:border-slate-700 dark:bg-slate-900 ${eskiVeri ? 'opacity-50' : ''}`}
         >
           <section>
             <h4 className="text-base font-bold text-slate-800 dark:text-slate-100">

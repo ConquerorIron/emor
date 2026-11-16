@@ -139,6 +139,37 @@ final class FirmaOzetiTest extends TestCase
             ->assertJsonMissingPath('data.proje_satirlari.0.firma_id');
     }
 
+    public function test_ayni_turde_birden_cok_sifir_olmayan_bakiye_toplanir(): void
+    {
+        $this->ornekVeri();
+        // MFK'nın ZONE 10'da da işgücü bakiyesi: MFK işgücü iki projede (100 + 30,10),
+        // ZONE 10 işgücü iki firmada (ZETAŞ 40 + MFK 30,10)
+        $tur = fn (string $kod): int => (int) KesintiTuru::query()->where('kod', $kod)->value('id');
+        IsgucuKesintisi::factory()->create([
+            'kesinti_turu_id' => $tur('İŞGÜCÜ'),
+            'firma_id' => (int) Firma::query()->where('kod', 'MFK')->value('id'),
+            'proje_id' => (int) Proje::query()->where('kod', 'ZONE 10')->value('id'),
+            'yansitma_turu' => YansitmaTuru::Taseron, 'tarih' => '2026-09-20',
+            'toplam_tutar' => '500.00', 'iptal_edilen_tutar' => '0.00', 'yansitilan_tutar' => '500.00',
+            'kesilen_tutar' => '469.90', 'kalan_tutar' => '30.10',
+        ]);
+
+        $this->actingAs($this->kullanici())
+            ->getJson($this->adres())
+            ->assertOk()
+            ->assertJsonPath('data.firma_satirlari.0.taseron', 'MFK')
+            ->assertJsonPath('data.firma_satirlari.0.kalanlar', ['130.10', '0.00', '0.00', '0.00'])
+            ->assertJsonPath('data.firma_satirlari.0.kayit_sayilari', [2, 0, 1, 0])
+            ->assertJsonPath('data.firma_satirlari.0.toplam_kalan', '130.10')
+            ->assertJsonPath('data.proje_satirlari.1.proje', 'ZONE 10')
+            ->assertJsonPath('data.proje_satirlari.1.kalanlar', ['70.10', '0.00', '160.00', '0.00'])
+            ->assertJsonPath('data.proje_satirlari.1.kayit_sayilari', [2, 0, 3, 0])
+            ->assertJsonPath('data.proje_satirlari.1.toplam_kalan', '230.10')
+            // Üç sekmenin ortak toplamı
+            ->assertJsonPath('data.toplam.kalanlar', ['170.10', '0.00', '160.00', '0.00'])
+            ->assertJsonPath('data.toplam.toplam_kalan', '330.10');
+    }
+
     public function test_secilen_firmayla_suzulur(): void
     {
         $this->ornekVeri();

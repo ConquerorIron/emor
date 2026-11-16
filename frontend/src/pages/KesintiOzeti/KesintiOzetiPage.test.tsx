@@ -202,6 +202,36 @@ describe('KesintiOzetiPage', () => {
     expect(api.excel.mock.calls[0][0]).toMatchObject({ kesinti_turu_id: [2, 1] })
   })
 
+  it('parametre değişip yeni yanıt beklenirken eski rapordan Excel indirilemez', async () => {
+    await screen.findByText('2.050')
+    const excelDugmesi = screen.getByRole('button', { name: "Excel'e Aktar" })
+
+    let yanitla: (ozet: KesintiOzeti) => void = () => {}
+    api.getir.mockReturnValue(
+      new Promise<KesintiOzeti>((coz) => {
+        yanitla = coz
+      }),
+    )
+    fireEvent.change(document.getElementById('kesinti-ozeti-tarih')!, {
+      target: { value: '01.01.2020' },
+    })
+    await waitFor(() =>
+      expect(api.getir).toHaveBeenLastCalledWith(expect.objectContaining({ tarih: '2020-01-01' })),
+    )
+
+    // Önceki rapor hâlâ görünür ama Excel kapalı
+    expect(screen.getByText('2.050')).toBeInTheDocument()
+    expect(excelDugmesi).toBeDisabled()
+    fireEvent.click(excelDugmesi)
+    expect(api.excel).not.toHaveBeenCalled()
+
+    yanitla({ ...OZET, tarih: '2020-01-01' })
+    await waitFor(() => expect(excelDugmesi).toBeEnabled())
+    fireEvent.click(excelDugmesi)
+    await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
+    expect(api.excel.mock.calls[0][0]).toMatchObject({ tarih: '2020-01-01' })
+  })
+
   it('seçimde kesinti yoksa rapor yerine bilgi gösterir; Excel kapalı', async () => {
     api.getir.mockResolvedValue({ ...OZET, proje_dagilimi: [], tur_dagilimi: [], taseronlar: [] })
 
