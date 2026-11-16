@@ -59,8 +59,8 @@ return [
         ],
     ],
 
-    // Pivot (Firma Özeti) → Excel'e Aktar: ekranın üç sekmesi, sekme başına sayfa
-    'firma_ozeti' => [
+    // Pivot → Excel'e Aktar: ekranın üç sekmesi, sekme başına sayfa
+    'pivot' => [
         'dosya' => 'Pivot',
         'sayfa' => [
             'ozet' => 'Özet',
@@ -78,7 +78,7 @@ return [
         ],
     ],
 
-    // Firma Özeti → hücre → kesinti ekstresi (PDF)
+    // Pivot (Özet sekmesi) → hücre → kesinti ekstresi (PDF)
     'ekstre' => [
         // Başlık türü söyler (kullanıcı isteği 2026-11-13): "KAMP KESİNTİ EKSTRESİ"
         'baslik_tur' => ':tur KESİNTİ EKSTRESİ',

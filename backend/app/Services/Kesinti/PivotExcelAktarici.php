@@ -13,7 +13,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 /**
- * Pivot (Firma Özeti) ekranının Excel (.xlsx) çıktısı: ekrandaki üç sekme ayrı
+ * Pivot ekranının Excel (.xlsx) çıktısı: ekrandaki üç sekme ayrı
  * sayfa — Özet (taşeron + proje), Firma Özeti (taşeron), Proje Özeti (proje).
  * Her sayfada üstte başlık (tarih, para birimi), altında tablo (kimlik
  * kolonları, kesinti türleri, toplam kalan) ve TOPLAM satırı. Başlık satırı
@@ -21,19 +21,19 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
  * Ekrandaki gibi: o türde kesinti yoksa hücre boş, kesinti var ama tamamı
  * kesilmişse 0,00.
  */
-final class FirmaOzetiExcelAktarici
+final class PivotExcelAktarici
 {
     private const BASLIK_SATIRI = 3;
 
     private const TUTAR = '#,##0.00';
 
     /**
-     * @param  array{tarih: string, para_birimi: string, kesinti_turleri: list<array{id: int, kod: string, ad: string}>, satirlar: list<array<string, mixed>>, firma_satirlari: list<array<string, mixed>>, proje_satirlari: list<array<string, mixed>>, toplam: array{kalanlar: list<string>, kayit_sayilari: list<int>, toplam_kalan: string}}  $ozet  FirmaOzeti::hesapla()
+     * @param  array{tarih: string, para_birimi: string, kesinti_turleri: list<array{id: int, kod: string, ad: string}>, satirlar: list<array<string, mixed>>, firma_satirlari: list<array<string, mixed>>, proje_satirlari: list<array<string, mixed>>, toplam: array{kalanlar: list<string>, kayit_sayilari: list<int>, toplam_kalan: string}}  $ozet  Pivot::hesapla()
      * @return string oluşturulan geçici dosyanın yolu (çağıran siler)
      */
     public function olustur(array $ozet): string
     {
-        $kolon = fn (string $anahtar): string => (string) __("kesinti.firma_ozeti.kolon.{$anahtar}");
+        $kolon = fn (string $anahtar): string => (string) __("kesinti.pivot.kolon.{$anahtar}");
         $sayfalar = [
             'ozet' => [
                 'kimlikler' => ['taseron' => $kolon('taseron'), 'taseron_ad' => $kolon('taseron_ad'), 'proje' => $kolon('proje')],
@@ -50,12 +50,12 @@ final class FirmaOzetiExcelAktarici
         ];
 
         $kitap = new Spreadsheet;
-        $kitap->getProperties()->setCreator('eMOR ERP')->setTitle((string) __('kesinti.firma_ozeti.dosya'));
+        $kitap->getProperties()->setCreator('eMOR ERP')->setTitle((string) __('kesinti.pivot.dosya'));
         $kitap->removeSheetByIndex(0);
         foreach ($sayfalar as $anahtar => $tanim) {
             $this->sayfaYaz(
                 $kitap->createSheet(),
-                (string) __("kesinti.firma_ozeti.sayfa.{$anahtar}"),
+                (string) __("kesinti.pivot.sayfa.{$anahtar}"),
                 $tanim['kimlikler'],
                 $tanim['satirlar'],
                 $ozet,
@@ -63,12 +63,12 @@ final class FirmaOzetiExcelAktarici
         }
         $kitap->setActiveSheetIndex(0);
 
-        $yol = tempnam(sys_get_temp_dir(), 'firma-ozeti-');
+        $yol = tempnam(sys_get_temp_dir(), 'pivot-');
 
         if ($yol === false) {
             $kitap->disconnectWorksheets();
 
-            throw new \RuntimeException('Firma özeti Excel geçici dosyası oluşturulamadı.');
+            throw new \RuntimeException('Pivot Excel geçici dosyası oluşturulamadı.');
         }
 
         try {
@@ -95,7 +95,7 @@ final class FirmaOzetiExcelAktarici
     private function sayfaYaz(Worksheet $sayfa, string $sayfaAdi, array $kimlikler, array $satirlar, array $ozet): void
     {
         $sayfa->setTitle($sayfaAdi);
-        $baslik = __('kesinti.firma_ozeti.baslik', [
+        $baslik = __('kesinti.pivot.baslik', [
             'sayfa' => $sayfaAdi,
             'tarih' => CarbonImmutable::parse($ozet['tarih'])->format('d.m.Y'),
             'para' => $ozet['para_birimi'],
@@ -106,7 +106,7 @@ final class FirmaOzetiExcelAktarici
         $basliklar = [
             ...array_values($kimlikler),
             ...array_column($ozet['kesinti_turleri'], 'kod'),
-            __('kesinti.firma_ozeti.kolon.toplam_kalan'),
+            __('kesinti.pivot.kolon.toplam_kalan'),
         ];
         $ilkTutar = count($kimlikler) + 1;
         $ilkTutarHarfi = Coordinate::stringFromColumnIndex($ilkTutar);
@@ -129,7 +129,7 @@ final class FirmaOzetiExcelAktarici
         $sonVeriSatiri = max(self::BASLIK_SATIRI + 1, $satir);
 
         $satir++;
-        $sayfa->setCellValueExplicit([1, $satir], __('kesinti.firma_ozeti.toplam'), DataType::TYPE_STRING);
+        $sayfa->setCellValueExplicit([1, $satir], __('kesinti.pivot.toplam'), DataType::TYPE_STRING);
         $this->tutarlariYaz($sayfa, $satir, $ilkTutar, $ozet['toplam']);
         $sayfa->getStyle("A{$satir}:{$sonKolon}{$satir}")->getFont()->setBold(true);
         $sayfa->getStyle("A{$satir}:{$sonKolon}{$satir}")->getBorders()->getTop()->setBorderStyle(Border::BORDER_THIN);

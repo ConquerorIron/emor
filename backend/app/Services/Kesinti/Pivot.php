@@ -9,7 +9,7 @@ use App\Models\ParaBirimi;
 use Collator;
 
 /**
- * Firma Özeti raporu (kullanıcı isteği 2026-11-13): taşeron + proje başına her
+ * Pivot raporu (eski adı Firma Özeti; kullanıcı isteği 2026-11-13): taşeron + proje başına her
  * kesinti türünden kalan tutar yan yana (kesinti türlerinin pivotu) ve toplam
  * kalan. Tüm Kesintiler'den, Kesinti Özeti'nin parametreleriyle.
  *
@@ -25,7 +25,7 @@ use Collator;
  * (yalnız proje, taşeronlar toplanır). Üçü de, tür toplamları ve genel toplam
  * da TEK hücre sorgusundan, PHP'de kuruşla toplanır.
  */
-final class FirmaOzeti
+final class Pivot
 {
     public function __construct(private readonly TumKesintilerSorgusu $kesintiler) {}
 

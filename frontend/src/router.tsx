@@ -127,13 +127,13 @@ export const router = createBrowserRouter([
         ],
       },
       {
-        element: <IzinAlani izin="firma_ozeti.goruntule" />,
+        element: <IzinAlani izin="pivot.goruntule" />,
         children: [
           {
             // Menüde "Pivot" (kullanıcı isteği 2026-11-16); eski adres yönlenir
             path: 'kesinti/pivot',
             lazy: async () => ({
-              Component: (await import('@/pages/FirmaOzeti/FirmaOzetiPage')).FirmaOzetiPage,
+              Component: (await import('@/pages/Pivot/PivotPage')).PivotPage,
             }),
           },
           { path: 'kesinti/firma-ozeti', element: <Navigate to="/kesinti/pivot" replace /> },

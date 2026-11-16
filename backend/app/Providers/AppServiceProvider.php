@@ -162,7 +162,7 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(10)->by($request->user()?->id ?? $request->ip());
         });
 
-        // Firma Özeti → kesinti ekstresi (PDF): hücreler arka arkaya tıklanabilir
+        // Pivot → kesinti ekstresi (PDF): hücreler arka arkaya tıklanabilir
         RateLimiter::for('kesinti-ekstre', function (Request $request): Limit {
             return Limit::perMinute(30)->by($request->user()?->id ?? $request->ip());
         });

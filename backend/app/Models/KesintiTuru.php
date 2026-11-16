@@ -32,7 +32,7 @@ final class KesintiTuru extends Model
 
     /**
      * Türler, bağlı oldukları ekranın menü sırasıyla (KesintiYuklemesi::ICMALLER);
-     * ekrana bağlanmamışlar sonda, koduna göre — Firma Özeti kolonları ve
+     * ekrana bağlanmamışlar sonda, koduna göre — Pivot kolonları ve
      * ekstre bölümleri bu sırada.
      *
      * @param  list<int>|null  $idler  null: hepsi

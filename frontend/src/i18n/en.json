@@ -537,7 +537,7 @@
       "efatura": "e-Invoices (Incoming/Outgoing)",
       "tum_kesintiler": "All Deductions",
       "kesinti_ozeti": "Deduction Summary",
-      "firma_ozeti": "Pivot",
+      "pivot": "Pivot",
       "isgucu_kesintileri": "Labour Deductions",
       "kamp_kesintileri": "Camp Deductions",
       "kamp_malzeme_kesintileri": "Camp Material Deductions",
@@ -1029,7 +1029,7 @@
         "taseron": "{{oran}} OF SUBCONTRACTOR SHARE"
       }
     },
-    "firmaOzeti": {
+    "pivot": {
       "baslik": "Pivot",
       "aciklamaMetni": "Remaining amount of each deduction type side by side; from All Deductions up to the selected date, in a single currency. Summary shows it per subcontractor and project, Company Summary per subcontractor (projects added up), Project Summary per project (subcontractors added up). Only deductions re-invoiced to the subcontractor count (the remainder of those assumed by HAB is not deducted from the subcontractor; same as Remaining in Deduction Summary). \"-\" means no deductions of that type; 0.00 means there are deductions but all were deducted. On the Summary tab, click an amount to download that cell’s deduction statement as a PDF (A3 landscape); Total Remaining covers all types of the subcontractor and project. Export to Excel downloads the three tabs as separate sheets.",
       "sekmeler": "Views",

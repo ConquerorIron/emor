@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { queryKeys } from '@/api/queryKeys'
 import { bugunIso } from '@/utils/tarih'
 
-/** Kesinti raporlarının (Kesinti Özeti, Firma Özeti) ortak parametreleri (backend KesintiRaporuRequest) */
+/** Kesinti raporlarının (Kesinti Özeti, Pivot) ortak parametreleri (backend KesintiRaporuRequest) */
 export interface KesintiRaporuParametreleri {
   /** O güne kadarki kesintiler ("itibarıyla") */
   tarih: string

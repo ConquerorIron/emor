@@ -30,15 +30,15 @@ export interface ProjeSatiri extends KalanSatiri {
 }
 
 /** Özet sekmesi: taşeron + proje */
-export interface FirmaOzetiSatiri extends FirmaSatiri, ProjeSatiri {}
+export interface OzetSatiri extends FirmaSatiri, ProjeSatiri {}
 
-/** Backend FirmaOzeti::hesapla — yalnız taşerona yansıtılan kesintilerin kalanı; üç sekmenin satırları */
-export interface FirmaOzeti {
+/** Backend Pivot::hesapla — yalnız taşerona yansıtılan kesintilerin kalanı; üç sekmenin satırları */
+export interface PivotVerisi {
   tarih: string
   para_birimi: string
   /** Kolonlar: kesinti türleri, bağlı oldukları ekranın menü sırasıyla */
   kesinti_turleri: { id: number; kod: string; ad: string }[]
-  satirlar: FirmaOzetiSatiri[]
+  satirlar: OzetSatiri[]
   firma_satirlari: FirmaSatiri[]
   proje_satirlari: ProjeSatiri[]
   toplam: KalanSatiri
@@ -53,11 +53,11 @@ export interface EkstreParametreleri {
   kesinti_turu_id?: number
 }
 
-const ADRES = '/api/v1/kesinti/firma-ozeti'
+const ADRES = '/api/v1/kesinti/pivot'
 
-export const firmaOzetiApi = {
-  getir: async (parametreler: KesintiRaporuParametreleri): Promise<FirmaOzeti> => {
-    const yanit = await api.get<{ data: FirmaOzeti }>(ADRES, { params: parametreler })
+export const pivotApi = {
+  getir: async (parametreler: KesintiRaporuParametreleri): Promise<PivotVerisi> => {
+    const yanit = await api.get<{ data: PivotVerisi }>(ADRES, { params: parametreler })
 
     return yanit.data.data
   },

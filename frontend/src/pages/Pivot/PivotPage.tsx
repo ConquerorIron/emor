@@ -15,13 +15,13 @@ import { useKesintiRaporuParametreleri } from '@/features/kesinti/kesintiRaporu'
 import { useKaliciSiralama } from '@/hooks/useKaliciSiralama'
 
 import {
-  firmaOzetiApi,
+  pivotApi,
   type EkstreParametreleri,
-  type FirmaOzeti,
+  type PivotVerisi,
   type FirmaSatiri,
   type KalanSatiri,
   type ProjeSatiri,
-} from './firmaOzetiApi'
+} from './pivotApi'
 
 /** Özet: taşeron + proje; Firma Özeti: taşeron (projeler toplanır); Proje Özeti: proje (taşeronlar toplanır) */
 type Sekme = 'ozet' | 'firma' | 'proje'
@@ -50,7 +50,7 @@ type TabloSatiri = Record<string, string | number> & {
   proje_ad: string
 }
 
-type KesintiTuru = FirmaOzeti['kesinti_turleri'][number]
+type KesintiTuru = PivotVerisi['kesinti_turleri'][number]
 
 type KaynakSatiri = KalanSatiri & Partial<FirmaSatiri> & Partial<ProjeSatiri>
 
@@ -58,7 +58,7 @@ const turKolonu = (id: number) => `tur_${id}`
 const adetKolonu = (id: number) => `adet_${id}`
 
 /** Ekstre hazırlanırken gösterilen bildirim (hata ya da bitişte aynı kimlikle değişir) */
-const EKSTRE_BILDIRIMI = 'firma-ozeti-ekstre'
+const EKSTRE_BILDIRIMI = 'pivot-ekstre'
 
 /** "-": o türde kesinti yok; kesinti varsa tutar (tamamı kesilmişse 0,00) */
 function tutarHucresi(deger: string | number, kalin = false, kesintiVar = true) {
@@ -70,7 +70,7 @@ function tutarHucresi(deger: string | number, kalin = false, kesintiVar = true) 
 }
 
 /** Sekmenin satırları, tablo biçiminde */
-function tabloSatirlari(veri: FirmaOzeti, sekme: Sekme): TabloSatiri[] {
+function tabloSatirlari(veri: PivotVerisi, sekme: Sekme): TabloSatiri[] {
   const kaynak: KaynakSatiri[] =
     sekme === 'ozet'
       ? veri.satirlar
@@ -107,9 +107,9 @@ function tabloSatirlari(veri: FirmaOzeti, sekme: Sekme): TabloSatiri[] {
  * Özet'te (ekstre bir taşeron + projenin dökümüdür); Excel üç sekmeyi ayrı
  * sayfalarda indirir.
  */
-export function FirmaOzetiPage() {
+export function PivotPage() {
   const { t } = useTranslation()
-  const parametreDurumu = useKesintiRaporuParametreleri('firmaOzeti', firmaOzetiApi.secenekler)
+  const parametreDurumu = useKesintiRaporuParametreleri('pivot', pivotApi.secenekler)
   const { parametreler, secenekler } = parametreDurumu
   const [sekme, setSekme] = useState<Sekme>('ozet')
   // Sekme başına ayrı sıralama tercihi (Özet'in anahtarı eskisi: kayıtlı tercih korunur)
@@ -121,21 +121,21 @@ export function FirmaOzetiPage() {
   const { siralama, siralamaDegistir } = siralamalar[sekme]
 
   const ozet = useQuery({
-    queryKey: queryKeys.kesinti.firmaOzeti(parametreler),
-    queryFn: parametreler ? () => firmaOzetiApi.getir(parametreler) : skipToken,
+    queryKey: queryKeys.kesinti.pivot(parametreler),
+    queryFn: parametreler ? () => pivotApi.getir(parametreler) : skipToken,
     placeholderData: keepPreviousData,
   })
 
   const excel = useMutation({
-    mutationFn: firmaOzetiApi.excel,
+    mutationFn: pivotApi.excel,
     onError: (error: unknown) => toast.error(t(apiErrorKey(error))),
   })
 
   const ekstre = useMutation({
     mutationFn: ({ hucre, dosyaAdi }: { hucre: EkstreParametreleri; dosyaAdi: string }) =>
-      firmaOzetiApi.ekstre(hucre, dosyaAdi),
+      pivotApi.ekstre(hucre, dosyaAdi),
     onMutate: () => {
-      toast.loading(t('kesinti.firmaOzeti.ekstreHazirlaniyor'), { id: EKSTRE_BILDIRIMI })
+      toast.loading(t('kesinti.pivot.ekstreHazirlaniyor'), { id: EKSTRE_BILDIRIMI })
     },
     onSuccess: () => toast.dismiss(EKSTRE_BILDIRIMI),
     onError: (error: unknown) => toast.error(t(apiErrorKey(error)), { id: EKSTRE_BILDIRIMI }),
@@ -175,12 +175,12 @@ export function FirmaOzetiPage() {
       <button
         type="button"
         disabled={ekstre.isPending || eskiVeri}
-        aria-label={t('kesinti.firmaOzeti.ekstreEtiketi', {
+        aria-label={t('kesinti.pivot.ekstreEtiketi', {
           taseron: satir.taseron,
           proje: satir.proje,
-          tur: tur?.kod ?? t('kesinti.firmaOzeti.tumTurler'),
+          tur: tur?.kod ?? t('kesinti.pivot.tumTurler'),
         })}
-        title={t('kesinti.firmaOzeti.ekstreIpucu')}
+        title={t('kesinti.pivot.ekstreIpucu')}
         onClick={() => ekstre.mutate({ hucre, dosyaAdi })}
         className={`cursor-pointer whitespace-nowrap text-blue-700 tabular-nums underline decoration-dotted underline-offset-2 hover:decoration-solid disabled:cursor-wait dark:text-blue-300 ${kalin ? 'font-semibold' : ''}`}
       >
@@ -196,7 +196,7 @@ export function FirmaOzetiPage() {
   const kimlikKolonlari: Record<'taseron' | 'proje', DataTableKolonu<TabloSatiri>> = {
     taseron: {
       anahtar: 'taseron',
-      baslik: t('kesinti.firmaOzeti.kolon.taseron'),
+      baslik: t('kesinti.pivot.kolon.taseron'),
       siralamaAnahtari: 'taseron',
       render: (satir) => (
         <span
@@ -209,7 +209,7 @@ export function FirmaOzetiPage() {
     },
     proje: {
       anahtar: 'proje',
-      baslik: t('kesinti.firmaOzeti.kolon.proje'),
+      baslik: t('kesinti.pivot.kolon.proje'),
       siralamaAnahtari: 'proje',
       render: (satir) => (
         <span
@@ -233,7 +233,7 @@ export function FirmaOzetiPage() {
     })),
     {
       anahtar: 'toplam_kalan',
-      baslik: t('kesinti.firmaOzeti.kolon.toplamKalan'),
+      baslik: t('kesinti.pivot.kolon.toplamKalan'),
       hizala: 'sag',
       siralamaAnahtari: 'toplam_kalan',
       render: (satir) => kalanHucresi(satir, null, true),
@@ -244,7 +244,7 @@ export function FirmaOzetiPage() {
     ? [
         {
           anahtar: 'toplam',
-          etiket: t('kesinti.firmaOzeti.toplam'),
+          etiket: t('kesinti.pivot.toplam'),
           hucreler: {
             ...Object.fromEntries(
               turler.map((tur, i) => [
@@ -264,7 +264,7 @@ export function FirmaOzetiPage() {
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-bold">{t('kesinti.firmaOzeti.baslik')}</h2>
+        <h2 className="text-2xl font-bold">{t('kesinti.pivot.baslik')}</h2>
         <Button
           variant="secondary"
           yukleniyor={excel.isPending}
@@ -279,10 +279,10 @@ export function FirmaOzetiPage() {
         </Button>
       </div>
       <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-        {t('kesinti.firmaOzeti.aciklamaMetni')}
+        {t('kesinti.pivot.aciklamaMetni')}
       </p>
 
-      <KesintiRaporuParametreleri durum={parametreDurumu} idOneki="firma-ozeti" />
+      <KesintiRaporuParametreleri durum={parametreDurumu} idOneki="pivot" />
 
       {secenekler.error || ozet.error ? (
         <div className="mt-4">
@@ -300,7 +300,7 @@ export function FirmaOzetiPage() {
           className="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400"
         >
           {bos
-            ? t('kesinti.firmaOzeti.kalanYok')
+            ? t('kesinti.pivot.kalanYok')
             : secenekler.data?.para_birimleri.length === 0
               ? t('kesinti.ozet.kesintiYok')
               : t('ortak.yukleniyor')}
@@ -309,7 +309,7 @@ export function FirmaOzetiPage() {
         <>
           <div
             role="tablist"
-            aria-label={t('kesinti.firmaOzeti.sekmeler')}
+            aria-label={t('kesinti.pivot.sekmeler')}
             className="mt-4 flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-700"
           >
             {SEKMELER.map((anahtar) => (
@@ -325,13 +325,13 @@ export function FirmaOzetiPage() {
                     : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                 }`}
               >
-                {t(`kesinti.firmaOzeti.sekme.${anahtar}`)}
+                {t(`kesinti.pivot.sekme.${anahtar}`)}
               </button>
             ))}
           </div>
           <div className={eskiVeri ? 'opacity-50' : ''}>
             <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
-              {t(`kesinti.firmaOzeti.satirSayisi.${sekme}`, {
+              {t(`kesinti.pivot.satirSayisi.${sekme}`, {
                 sayi: satirlar.length,
                 para: veri.para_birimi,
               })}

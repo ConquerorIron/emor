@@ -12,7 +12,6 @@ use App\Http\Controllers\Api\V1\ErpFirmaController;
 use App\Http\Controllers\Api\V1\ErpKesintiKontroluController;
 use App\Http\Controllers\Api\V1\ErpProjeController;
 use App\Http\Controllers\Api\V1\FirmaController;
-use App\Http\Controllers\Api\V1\FirmaOzetiController;
 use App\Http\Controllers\Api\V1\GiderYansitmaFaturalariController;
 use App\Http\Controllers\Api\V1\IsgCezaKesintisiController;
 use App\Http\Controllers\Api\V1\IsgCezaYuklemeController;
@@ -36,6 +35,7 @@ use App\Http\Controllers\Api\V1\MalzemeYuklemeController;
 use App\Http\Controllers\Api\V1\OsgbKesintisiController;
 use App\Http\Controllers\Api\V1\OsgbYuklemeController;
 use App\Http\Controllers\Api\V1\ParaBirimiController;
+use App\Http\Controllers\Api\V1\PivotController;
 use App\Http\Controllers\Api\V1\ProjeController;
 use App\Http\Controllers\Api\V1\RolController;
 use App\Http\Controllers\Api\V1\SatinalmaTalebiController;
@@ -256,20 +256,20 @@ Route::prefix('v1')->group(function (): void {
                 ->name('kesinti.ozet.secenekler');
         });
 
-        // Kesinti Yönetimi → Firma Özeti: taşeron + proje başına kesinti
+        // Kesinti Yönetimi → Pivot: taşeron + proje başına kesinti
         // türlerinin kalanı yan yana; yalnız rapor
-        Route::middleware('can:firma_ozeti.goruntule')->group(function (): void {
-            Route::get('/kesinti/firma-ozeti', [FirmaOzetiController::class, 'index'])
-                ->name('kesinti.firma-ozeti');
-            Route::get('/kesinti/firma-ozeti/excel', [FirmaOzetiController::class, 'excel'])
+        Route::middleware('can:pivot.goruntule')->group(function (): void {
+            Route::get('/kesinti/pivot', [PivotController::class, 'index'])
+                ->name('kesinti.pivot');
+            Route::get('/kesinti/pivot/excel', [PivotController::class, 'excel'])
                 ->middleware('throttle:kesinti-excel')
-                ->name('kesinti.firma-ozeti.excel');
-            Route::get('/kesinti/firma-ozeti/secenekler', [FirmaOzetiController::class, 'secenekler'])
-                ->name('kesinti.firma-ozeti.secenekler');
+                ->name('kesinti.pivot.excel');
+            Route::get('/kesinti/pivot/secenekler', [PivotController::class, 'secenekler'])
+                ->name('kesinti.pivot.secenekler');
             // Hücreye tıklanınca: o taşeron + proje (+ tür) kesintilerinin PDF ekstresi
-            Route::get('/kesinti/firma-ozeti/ekstre', [FirmaOzetiController::class, 'ekstre'])
+            Route::get('/kesinti/pivot/ekstre', [PivotController::class, 'ekstre'])
                 ->middleware('throttle:kesinti-ekstre')
-                ->name('kesinti.firma-ozeti.ekstre');
+                ->name('kesinti.pivot.ekstre');
         });
 
         // Kesinti Yönetimi → İşgücü Kesintileri: liste + elle giriş + Excel/yapıştırma

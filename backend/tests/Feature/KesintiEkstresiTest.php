@@ -21,14 +21,14 @@ use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
- * Firma Özeti → hücreye tıklanınca kesinti ekstresi (PDF): hücrenin arkasındaki
+ * Pivot (Özet sekmesi) → hücreye tıklanınca kesinti ekstresi (PDF): hücrenin arkasındaki
  * satırlar kendi ekranının kolonlarıyla; kalan toplamı hücreye eşit.
  */
 final class KesintiEkstresiTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const ADRES = '/api/v1/kesinti/firma-ozeti/ekstre';
+    private const ADRES = '/api/v1/kesinti/pivot/ekstre';
 
     private Firma $zetas;
 
@@ -38,7 +38,7 @@ final class KesintiEkstresiTest extends TestCase
 
     private int $tl;
 
-    private function kullanici(string $izin = 'firma_ozeti.goruntule'): User
+    private function kullanici(string $izin = 'pivot.goruntule'): User
     {
         $kullanici = User::factory()->create();
         $rol = Rol::query()->create(['ad' => 'Firma Raporcu']);
@@ -50,7 +50,7 @@ final class KesintiEkstresiTest extends TestCase
 
     /**
      * ZETAŞ / ZONE 10 (TL, 30.09.2026'ya kadar, taşerona yansıtılan): yemek kalan
-     * 100 + 60, işgücü kalan 40 → Firma Özeti hücreleri YEMEK 160, Toplam Kalan 200.
+     * 100 + 60, işgücü kalan 40 → Pivot hücreleri YEMEK 160, Toplam Kalan 200.
      * Dışarıda: HAB'ın üstlendiği yemek, Ekim'deki yemek, başka projedeki yemek.
      */
     private function ornekVeri(): void

@@ -76,7 +76,7 @@ final class TumKesintilerSorgusu extends IcmalSorgusu
     ];
 
     /**
-     * Kesinti raporlarının (Kesinti Özeti, Firma Özeti) ortak süzgeci: seçilen
+     * Kesinti raporlarının (Kesinti Özeti, Pivot) ortak süzgeci: seçilen
      * tarihe kadarki satırlar, tek para biriminde; projeler, firmalar ve
      * kesinti türleri boşsa hepsi.
      *

@@ -19,18 +19,18 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 /**
- * Kesinti Yönetimi → Firma Özeti: taşeron + proje başına kesinti türlerinin
+ * Kesinti Yönetimi → Pivot (Özet sekmesi): taşeron + proje başına kesinti türlerinin
  * kalanı yan yana (pivot) ve toplam kalan; yalnız taşerona yansıtılanlardan.
  */
-final class FirmaOzetiTest extends TestCase
+final class PivotTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const ADRES = '/api/v1/kesinti/firma-ozeti';
+    private const ADRES = '/api/v1/kesinti/pivot';
 
     private Firma $zetas;
 
-    private function kullanici(string $izin = 'firma_ozeti.goruntule'): User
+    private function kullanici(string $izin = 'pivot.goruntule'): User
     {
         $kullanici = User::factory()->create();
         $rol = Rol::query()->create(['ad' => 'Firma Raporcu']);
@@ -232,7 +232,7 @@ final class FirmaOzetiTest extends TestCase
             ->assertJsonPath('data.para_birimleri.*.kod', ['TL']);
     }
 
-    public function test_kesinti_ozeti_izni_firma_ozetini_acmaz_403(): void
+    public function test_kesinti_ozeti_izni_pivotu_acmaz_403(): void
     {
         $this->actingAs($this->kullanici('kesinti_ozeti.goruntule'))
             ->getJson($this->adres())

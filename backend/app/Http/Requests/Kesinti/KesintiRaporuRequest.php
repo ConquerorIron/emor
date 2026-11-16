@@ -8,7 +8,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Kesinti raporlarının (Kesinti Özeti, Firma Özeti) ortak parametreleri:
+ * Kesinti raporlarının (Kesinti Özeti, Pivot) ortak parametreleri:
  * tarih (o güne kadarki kesintiler), tek para birimi (kur çevrimi yok),
  * isteğe bağlı projeler, firmalar ve kesinti türleri (çoklu; boş = hepsi;
  * kesinti türünü yalnız Kesinti Özeti ekranı gönderir). Erişim rotadaki

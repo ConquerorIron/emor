@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@/i18n/i18n'
 import { AppProviders } from '@/providers/AppProviders'
 
-import { FirmaOzetiPage } from './FirmaOzetiPage'
-import type { FirmaOzeti } from './firmaOzetiApi'
+import { PivotPage } from './PivotPage'
+import type { PivotVerisi } from './pivotApi'
 
 const api = vi.hoisted(() => ({
   getir: vi.fn(),
@@ -14,16 +14,16 @@ const api = vi.hoisted(() => ({
   ekstre: vi.fn(),
 }))
 
-vi.mock('./firmaOzetiApi', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./firmaOzetiApi')>()),
-  firmaOzetiApi: api,
+vi.mock('./pivotApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./pivotApi')>()),
+  pivotApi: api,
 }))
 
 /**
  * Kolonlar ekran sırasıyla, KAMP verisiz ("-"); MFK'nın yemek kesintisi var
  * ama tamamı kesilmiş (0,00, ekstresi alınabilir)
  */
-const OZET: FirmaOzeti = {
+const OZET: PivotVerisi = {
   tarih: '2026-09-30',
   para_birimi: 'TL',
   kesinti_turleri: [
@@ -55,7 +55,7 @@ const OZET: FirmaOzeti = {
       toplam_kalan: '200.00',
     },
   ],
-  // Toplama backend'de (FirmaOzetiTest); burada sekmenin çizimi
+  // Toplama backend'de (PivotTest); burada sekmenin çizimi
   firma_satirlari: [
     {
       firma_id: 2,
@@ -109,7 +109,7 @@ const taseronSirasi = (tablo: HTMLElement) =>
     .map((satir) => within(satir).queryAllByRole('cell')[0]?.textContent)
     .filter((ilk) => ilk === 'MFK' || ilk === 'ZETAŞ')
 
-describe('FirmaOzetiPage', () => {
+describe('PivotPage', () => {
   beforeEach(() => {
     localStorage.clear()
     api.secenekler.mockResolvedValue({
@@ -121,7 +121,7 @@ describe('FirmaOzetiPage', () => {
     api.excel.mockResolvedValue(undefined)
     render(
       <AppProviders>
-        <FirmaOzetiPage />
+        <PivotPage />
       </AppProviders>,
     )
   })
@@ -258,13 +258,13 @@ describe('FirmaOzetiPage', () => {
       screen.getByRole('button', { name: 'ZETAŞ / ZONE 10 / YEMEK ekstresi (PDF)' })
     const excelDugmesi = screen.getByRole('button', { name: "Excel'e Aktar" })
 
-    let yanitla: (ozet: FirmaOzeti) => void = () => {}
+    let yanitla: (ozet: PivotVerisi) => void = () => {}
     api.getir.mockReturnValue(
-      new Promise<FirmaOzeti>((coz) => {
+      new Promise<PivotVerisi>((coz) => {
         yanitla = coz
       }),
     )
-    fireEvent.change(document.getElementById('firma-ozeti-tarih')!, {
+    fireEvent.change(document.getElementById('pivot-tarih')!, {
       target: { value: '01.01.2020' },
     })
     await waitFor(() =>

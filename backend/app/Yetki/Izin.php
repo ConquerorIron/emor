@@ -55,7 +55,7 @@ enum Izin: string
     case KesintiOzetiGoruntule = 'kesinti_ozeti.goruntule';
 
     /** Yalnız rapor: güncelleme izni yok */
-    case FirmaOzetiGoruntule = 'firma_ozeti.goruntule';
+    case PivotGoruntule = 'pivot.goruntule';
 
     case TutanakKesintileriGoruntule = 'tutanak_kesintileri.goruntule';
     case TutanakKesintileriGuncelle = 'tutanak_kesintileri.guncelle';
@@ -136,7 +136,7 @@ enum Izin: string
             $ekran('efatura', self::EfaturaGoruntule, self::EfaturaSenkron, self::EfaturaPdf, self::EfaturaDisariAktar, self::EfaturaGizle),
             // Kesinti Yönetimi grubu: menüdeki gibi önce raporlar
             $ekran('kesinti_ozeti', self::KesintiOzetiGoruntule, null),
-            $ekran('firma_ozeti', self::FirmaOzetiGoruntule, null),
+            $ekran('pivot', self::PivotGoruntule, null),
             $ekran('tum_kesintiler', self::TumKesintilerGoruntule, null),
             $ekran('isgucu_kesintileri', self::IsgucuKesintileriGoruntule, self::IsgucuKesintileriGuncelle),
             $ekran('kamp_kesintileri', self::KampKesintileriGoruntule, self::KampKesintileriGuncelle),

@@ -537,7 +537,7 @@
       "efatura": "e-Faturalar (Gelen/Giden)",
       "tum_kesintiler": "Tüm Kesintiler",
       "kesinti_ozeti": "Kesinti Özeti",
-      "firma_ozeti": "Pivot",
+      "pivot": "Pivot",
       "isgucu_kesintileri": "İşgücü Kesintileri",
       "kamp_kesintileri": "Kamp Kesintileri",
       "kamp_malzeme_kesintileri": "Kamp Malzeme Kesintileri",
@@ -1029,7 +1029,7 @@
         "taseron": "TAŞERON PAYININ {{oran}}"
       }
     },
-    "firmaOzeti": {
+    "pivot": {
       "baslik": "Pivot",
       "aciklamaMetni": "Her kesinti türünden kalan tutar yan yana; Tüm Kesintiler'den, seçilen tarihe kadar ve tek para biriminde. Özet taşeron ve proje başına, Firma Özeti taşeron başına (projeler toplanır), Proje Özeti proje başına (taşeronlar toplanır) gösterir. Yalnız taşerona yansıtılan kesintiler sayılır (HAB'ın üstlendiklerinin kalanı taşerondan kesilmez; Kesinti Özeti'ndeki Kalan ile aynı). \"-\" o türde kesinti yok demektir; 0,00 kesinti var ama tamamı kesilmiş demektir. Özet sekmesinde rakama tıklanınca o hücrenin kesinti ekstresi PDF (A3 yatay) olarak iner; Toplam Kalan, taşeron ve projenin bütün türlerini içerir. Excel'e Aktar üç sekmeyi ayrı sayfalarda indirir.",
       "sekmeler": "Görünümler",

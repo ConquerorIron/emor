@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Kesinti ekstresi (kullanıcı isteği 2026-11-13): Firma Özeti'nde tıklanan
+ * Kesinti ekstresi (kullanıcı isteği 2026-11-13): Pivot'un Özet sekmesinde tıklanan
  * rakamın arkasındaki kesinti satırları — taşeron + proje + kesinti türü (ya
  * da Toplam Kalan'da bütün türler), aynı tarih ve para biriminde, yalnız
  * taşerona yansıtılanlar. Kalan toplamı tıklanan rakama eşittir; kalanı

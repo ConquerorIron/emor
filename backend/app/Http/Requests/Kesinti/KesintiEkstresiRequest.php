@@ -8,9 +8,9 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Firma Özeti'nde tıklanan hücrenin ekstresi: raporun tarihi ve para birimi +
+ * Pivot'un Özet sekmesinde tıklanan hücrenin ekstresi: raporun tarihi ve para birimi +
  * hücrenin taşeronu ve projesi; kesinti türü boşsa (Toplam Kalan) bütün türler.
- * Erişim rotadaki `firma_ozeti.goruntule` izniyle.
+ * Erişim rotadaki `pivot.goruntule` izniyle.
  */
 final class KesintiEkstresiRequest extends FormRequest
 {
