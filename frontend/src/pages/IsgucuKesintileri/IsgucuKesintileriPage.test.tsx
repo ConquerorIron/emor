@@ -217,13 +217,14 @@ describe('IsgucuKesintileriPage', () => {
     await screen.findByText('FIRAT AKYILDIZ')
 
     fireEvent.keyDown(screen.getByLabelText('Proje'), { key: 'ArrowDown' })
-    expect(await screen.findByText('ZONE 10 — Zone 10')).toBeInTheDocument()
-    expect(screen.queryByText('ZONE 11 — Zone 11')).not.toBeInTheDocument()
+    // Proje adıyla, taşeron koduyla (kullanıcı isteği 2026-11-16)
+    expect(await screen.findByRole('option', { name: 'Zone 10' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Zone 11' })).not.toBeInTheDocument()
     fireEvent.keyDown(screen.getByLabelText('Proje'), { key: 'Escape' })
 
     fireEvent.keyDown(screen.getByLabelText('Taşeron'), { key: 'ArrowDown' })
-    expect(screen.queryByText('ATİLLA GIDA — Atilla Gıda')).not.toBeInTheDocument()
-    fireEvent.click(await screen.findByText('HAB — HAB'))
+    expect(screen.queryByRole('option', { name: 'ATİLLA GIDA' })).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('option', { name: 'HAB' }))
 
     await waitFor(() =>
       expect(api.liste).toHaveBeenLastCalledWith(

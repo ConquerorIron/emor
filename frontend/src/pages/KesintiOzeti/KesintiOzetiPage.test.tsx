@@ -166,7 +166,8 @@ describe('KesintiOzetiPage', () => {
 
     const firmalar = screen.getByLabelText('Firmalar')
     fireEvent.keyDown(firmalar, { key: 'ArrowDown' })
-    fireEvent.click(await screen.findByRole('option', { name: 'ZETAŞ - ZETAŞ ZEMİN' }))
+    // Firma koduyla (kullanıcı isteği 2026-11-16)
+    fireEvent.click(await screen.findByRole('option', { name: 'ZETAŞ' }))
     fireEvent.keyDown(firmalar, { key: 'ArrowDown' })
     fireEvent.click(await screen.findByRole('option', { name: 'MFK' }))
 

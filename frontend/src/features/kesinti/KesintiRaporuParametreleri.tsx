@@ -3,17 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { MultiSelectField, SelectField, type SecenekOgesi } from '@/components/SelectField'
 import { TarihInput } from '@/components/TarihInput'
 
+import { adSecenekleri, kodSecenekleri } from './filtreSecenekleri'
 import type { KesintiRaporuDurumu } from './kesintiRaporu'
-
-/** Proje / firma seçimi: "kod - ad" (ad koddan farklıysa) */
-function tanimSecenekleri(
-  liste: { id: number; kod: string; ad: string }[] | undefined,
-): SecenekOgesi[] {
-  return (liste ?? []).map((tanim) => ({
-    value: String(tanim.id),
-    label: tanim.ad && tanim.ad !== tanim.kod ? `${tanim.kod} - ${tanim.ad}` : tanim.kod,
-  }))
-}
 
 /**
  * Kesinti raporlarının parametre alanları: tarih ("itibarıyla"), çoklu proje,
@@ -29,8 +20,9 @@ export function KesintiRaporuParametreleri({
 }) {
   const { t } = useTranslation()
   const { secenekler } = durum
-  const projeSecenekleri = tanimSecenekleri(secenekler.data?.projeler)
-  const firmaSecenekleri = tanimSecenekleri(secenekler.data?.firmalar)
+  // Proje adıyla, firma koduyla (kullanıcı isteği 2026-11-16)
+  const projeSecenekleri = adSecenekleri(secenekler.data?.projeler)
+  const firmaSecenekleri = kodSecenekleri(secenekler.data?.firmalar)
   const paraSecenekleri: SecenekOgesi[] = (secenekler.data?.para_birimleri ?? []).map((para) => ({
     value: String(para.id),
     label: para.kod,

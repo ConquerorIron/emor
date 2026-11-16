@@ -23,12 +23,8 @@ import { useKolonGorunurlugu } from '@/hooks/useKolonGorunurlugu'
 import { tarihGoster } from '@/utils/tarih'
 
 import { tutarGoster } from './bicim'
-import {
-  kesintiSecenekleriniGetir,
-  type IcmalFiltresi,
-  type IcmalSatiri,
-  type KesintiTanimi,
-} from './icmalApi'
+import { adSecenekleri, kodSecenekleri } from './filtreSecenekleri'
+import { kesintiSecenekleriniGetir, type IcmalFiltresi, type IcmalSatiri } from './icmalApi'
 import { IcmalFormu } from './IcmalFormu'
 import { IcmalIceAktarimPenceresi } from './IcmalIceAktarimPenceresi'
 import { IcmalPivotTablosu } from './IcmalPivotTablosu'
@@ -52,13 +48,6 @@ const BOS_FILTRE: IcmalFiltresi = {
   kesinti_turu_id: [],
   baslangic: '',
   bitis: '',
-}
-
-function tanimSecenekleri(liste: KesintiTanimi[] | undefined) {
-  return (liste ?? []).map((tanim) => ({
-    value: String(tanim.id),
-    label: `${tanim.kod} — ${tanim.ad}`,
-  }))
 }
 
 /**
@@ -138,9 +127,9 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
     setSayfa(1)
   }
 
-  const turSecenekleri = tanimSecenekleri(filtreSecenekleri.data?.kesinti_turleri)
-  const firmaSecenekleri = tanimSecenekleri(filtreSecenekleri.data?.firmalar)
-  const projeSecenekleri = tanimSecenekleri(filtreSecenekleri.data?.projeler)
+  const turSecenekleri = kodSecenekleri(filtreSecenekleri.data?.kesinti_turleri)
+  const firmaSecenekleri = kodSecenekleri(filtreSecenekleri.data?.firmalar)
+  const projeSecenekleri = adSecenekleri(filtreSecenekleri.data?.projeler)
 
   const hucreIcerigi = (satir: T, alan: string, tur: AlanTuru) => {
     switch (tur.tur) {

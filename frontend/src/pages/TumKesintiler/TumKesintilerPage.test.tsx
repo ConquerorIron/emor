@@ -135,18 +135,35 @@ describe('TumKesintilerPage', () => {
     expect(api.secenekler).not.toHaveBeenCalled()
   })
 
-  it('kesinti türleri çoklu seçilip listeye birlikte uygulanır', async () => {
+  it('kesinti türleri (koduyla) çoklu seçilip listeye birlikte uygulanır', async () => {
     await screen.findByText('ATİLLA GIDA')
 
     const tur = screen.getByLabelText('Kesinti Türü')
     fireEvent.keyDown(tur, { key: 'ArrowDown' })
-    fireEvent.click(await screen.findByText('İŞGÜCÜ — İşgücü'))
+    fireEvent.click(await screen.findByRole('option', { name: 'İŞGÜCÜ' }))
     fireEvent.keyDown(tur, { key: 'ArrowDown' })
-    fireEvent.click(await screen.findByText('OSGB — OSGB'))
+    fireEvent.click(await screen.findByRole('option', { name: 'OSGB' }))
 
     await waitFor(() =>
       expect(api.liste).toHaveBeenLastCalledWith(
         expect.objectContaining({ kesinti_turu_id: ['1', '3'] }),
+        expect.anything(),
+        1,
+      ),
+    )
+  })
+
+  it('taşeron filtresi koduyla, proje filtresi adıyla seçilir', async () => {
+    await screen.findByText('ATİLLA GIDA')
+
+    fireEvent.keyDown(screen.getByLabelText('Taşeron'), { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('option', { name: 'TMC KABA' }))
+    fireEvent.keyDown(screen.getByLabelText('Proje'), { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('option', { name: 'Zone 10' }))
+
+    await waitFor(() =>
+      expect(api.liste).toHaveBeenLastCalledWith(
+        expect.objectContaining({ firma_id: '3', proje_id: '5' }),
         expect.anything(),
         1,
       ),
