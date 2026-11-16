@@ -992,7 +992,8 @@
       "tarih": "Date (as of)",
       "tarihZorunlu": "Select a date.",
       "projeler": "Projects",
-      "firmalar": "Companies"
+      "firmalar": "Companies",
+      "kesintiTurleri": "Deduction Types"
     },
     "ozet": {
       "baslik": "Deduction Summary",
@@ -1000,11 +1001,6 @@
       "kesintiYok": "There are no deduction records yet.",
       "secimdeKesintiYok": "No deductions for the selected date, projects and currency.",
       "kayitYok": "No records",
-      "sirket": "TERSANE İSTANBUL",
-      "raporBasligi": "DEDUCTION LIST AS OF {{donem}}",
-      "aySonu": "END OF {{ay}}",
-      "butce": "BUDGET",
-      "isveren": "EMPLOYER",
       "genel": "GENERAL",
       "hab": "HAB",
       "taseron": "SUBCONTRACTOR",

@@ -10,7 +10,8 @@ use Illuminate\Validation\Rule;
 /**
  * Kesinti raporlarının (Kesinti Özeti, Firma Özeti) ortak parametreleri:
  * tarih (o güne kadarki kesintiler), tek para birimi (kur çevrimi yok),
- * isteğe bağlı projeler ve firmalar (çoklu; boş = hepsi). Erişim rotadaki
+ * isteğe bağlı projeler, firmalar ve kesinti türleri (çoklu; boş = hepsi;
+ * kesinti türünü yalnız Kesinti Özeti ekranı gönderir). Erişim rotadaki
  * raporun `<rapor>.goruntule` izniyle.
  */
 final class KesintiRaporuRequest extends FormRequest
@@ -32,11 +33,13 @@ final class KesintiRaporuRequest extends FormRequest
             'proje_id.*' => ['integer', 'distinct'],
             'firma_id' => ['nullable', 'array', 'max:100'],
             'firma_id.*' => ['integer', 'distinct'],
+            'kesinti_turu_id' => ['nullable', 'array', 'max:100'],
+            'kesinti_turu_id.*' => ['integer', 'distinct'],
         ];
     }
 
     /**
-     * @return array{tarih: string, para_birimi_id: int, proje_id: list<int>, firma_id: list<int>}
+     * @return array{tarih: string, para_birimi_id: int, proje_id: list<int>, firma_id: list<int>, kesinti_turu_id: list<int>}
      */
     public function parametreler(): array
     {
@@ -45,6 +48,7 @@ final class KesintiRaporuRequest extends FormRequest
             'para_birimi_id' => $this->integer('para_birimi_id'),
             'proje_id' => array_values(array_map('intval', $this->validated('proje_id') ?? [])),
             'firma_id' => array_values(array_map('intval', $this->validated('firma_id') ?? [])),
+            'kesinti_turu_id' => array_values(array_map('intval', $this->validated('kesinti_turu_id') ?? [])),
         ];
     }
 }

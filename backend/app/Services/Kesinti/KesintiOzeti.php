@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Kesinti;
 
 use App\Models\Firma;
+use App\Models\KesintiTuru;
 use App\Models\ParaBirimi;
 use App\Models\Proje;
 use Collator;
@@ -36,13 +37,14 @@ final class KesintiOzeti
      * Firma süzgeci her iki yansıtma türüne uygulanır: seçilen firmanın HAB'ın
      * üstlendiği kesintileri de rapora girer.
      *
-     * @param  array{tarih: string, para_birimi_id: int, proje_id: list<int>, firma_id: list<int>}  $parametreler
+     * @param  array{tarih: string, para_birimi_id: int, proje_id: list<int>, firma_id: list<int>, kesinti_turu_id: list<int>}  $parametreler
      * @return array{
      *     tarih: string,
      *     para_birimi: string,
      *     isveren: string|null,
      *     projeler: list<string>,
      *     firmalar: list<string>,
+     *     kesinti_turleri: list<string>,
      *     genel: array<string, string>,
      *     proje_dagilimi: list<array<string, string>>,
      *     tur_dagilimi: list<array<string, string>>,
@@ -66,6 +68,9 @@ final class KesintiOzeti
         usort($projeler, fn (string $a, string $b): int => (int) $siralayici->compare($a, $b));
         $firmalar = $firmaIdleri === [] ? [] : Firma::query()->whereKey($firmaIdleri)->pluck('kod')->all();
         usort($firmalar, fn (string $a, string $b): int => (int) $siralayici->compare($a, $b));
+        $turIdleri = $parametreler['kesinti_turu_id'];
+        $kesintiTurleri = $turIdleri === [] ? [] : KesintiTuru::query()->whereKey($turIdleri)->pluck('kod')->all();
+        usort($kesintiTurleri, fn (string $a, string $b): int => (int) $siralayici->compare($a, $b));
 
         return [
             'tarih' => $parametreler['tarih'],
@@ -75,6 +80,8 @@ final class KesintiOzeti
             'projeler' => $projeler,
             // Başlıktaki "Taşeron": yalnız firma seçildiyse (yazdırılan rapor süzüldüğünü göstersin)
             'firmalar' => $firmalar,
+            // Excel üst bilgisindeki "Kesinti Türü": yalnız tür seçildiyse
+            'kesinti_turleri' => $kesintiTurleri,
             'genel' => $this->tutarlar($this->toplamlariSec($sorgu->clone()->toBase())->first()),
             'proje_dagilimi' => $projeDagilimi,
             'tur_dagilimi' => $this->gruplar($sorgu, 'kesinti_turleri', 'kesinti_turu_id', toplamaGore: true),

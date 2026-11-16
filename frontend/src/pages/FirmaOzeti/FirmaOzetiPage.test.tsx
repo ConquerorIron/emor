@@ -98,6 +98,8 @@ describe('FirmaOzetiPage', () => {
       expect.objectContaining({ para_birimi_id: 1, proje_id: [], firma_id: [] }),
     )
     expect(screen.getByText('2 taşeron / proje satırı (TL)')).toBeInTheDocument()
+    // Kesinti türü süzgeci yalnız Kesinti Özeti'nde: burada türler zaten kolon
+    expect(screen.queryByLabelText('Kesinti Türleri')).not.toBeInTheDocument()
 
     expect(metinler(within(tablo).getAllByRole('columnheader'))).toEqual([
       'Taşeron',

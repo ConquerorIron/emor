@@ -24,10 +24,12 @@ export interface KesintiOzeti {
   para_birimi: string
   /** Firmamız (Firmalar'da işaretli); yoksa null */
   isveren: string | null
-  /** Başlıktaki "Bütçe": seçilen projeler, seçim yoksa veride geçenler */
+  /** Excel başlığındaki "Bütçe": seçilen projeler, seçim yoksa veride geçenler */
   projeler: string[]
-  /** Başlıktaki "Taşeron": seçilen firmalar; seçim yoksa boş (satır çizilmez) */
+  /** Excel üst bilgisindeki "Taşeron": seçilen firmalar; seçim yoksa boş (satır çizilmez) */
   firmalar: string[]
+  /** Excel üst bilgisindeki "Kesinti Türü": seçilen türler; seçim yoksa boş */
+  kesinti_turleri: string[]
   genel: OzetTutarlari
   proje_dagilimi: OzetGrubu[]
   tur_dagilimi: OzetGrubu[]

@@ -1,5 +1,4 @@
 import { keepPreviousData, skipToken, useMutation, useQuery } from '@tanstack/react-query'
-import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -9,12 +8,10 @@ import { Button } from '@/components/Button'
 import { ErrorState } from '@/components/ErrorState'
 import { KesintiRaporuParametreleri } from '@/features/kesinti/KesintiRaporuParametreleri'
 import { useKesintiRaporuParametreleri } from '@/features/kesinti/kesintiRaporu'
-import { tarihGoster } from '@/utils/tarih'
 
 import { DagilimTablosu, type KolonGrubu } from './DagilimTablosu'
-import { kesintiOzetiApi, type KesintiOzeti } from './kesintiOzetiApi'
+import { kesintiOzetiApi } from './kesintiOzetiApi'
 import { OzetKartlari } from './OzetKartlari'
-import { aySonuMu } from './ozetBicimi'
 
 /** Backend KesintiOzeti::TASERON_SAYISI */
 const TASERON_SAYISI = 10
@@ -46,29 +43,18 @@ const TASERON_GRUPLARI: KolonGrubu[] = [
   },
 ]
 
-/** "ZONE 6 - ZONE 7 – EYLÜL SONU İTİBARIYLA KESİNTİ LİSTESİ" (backend Excel'i aynı kural) */
-function raporBasligi(ozet: KesintiOzeti, t: TFunction, dil: string) {
-  const yerel = dil === 'en' ? 'en-US' : 'tr-TR'
-  const donem = aySonuMu(ozet.tarih)
-    ? t('kesinti.ozet.aySonu', {
-        ay: new Date(`${ozet.tarih}T00:00:00`)
-          .toLocaleDateString(yerel, { month: 'long' })
-          .toLocaleUpperCase(yerel),
-      })
-    : tarihGoster(ozet.tarih)
-  const baslik = t('kesinti.ozet.raporBasligi', { donem })
-
-  return ozet.projeler.length > 0 ? `${ozet.projeler.join(' - ')} – ${baslik}` : baslik
-}
-
 /**
  * Kesinti Yönetimi → Kesinti Özeti (kullanıcı isteği 2026-11-13; örnek: Excel'deki
  * "… itibarıyla kesinti listesi"): Tüm Kesintiler'den, seçilen tarihe kadar ve
  * tek para biriminde genel özet, Zone (proje) ve kesinti türü dağılımı, en
  * yüksek kesintili taşeronlar. ERP okunmaz; parametre değişince anında yenilenir.
+ *
+ * 2026-11-16 (kullanıcı isteği): ekranda rapor üst bilgisi (şirket, "… itibarıyla
+ * kesinti listesi" başlığı, bütçe / işveren) yok — parametreler zaten üstte;
+ * Excel'in üst bilgisi duruyor. Kesinti türü süzgeci eklendi.
  */
 export function KesintiOzetiPage() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const parametreDurumu = useKesintiRaporuParametreleri('ozet', kesintiOzetiApi.secenekler)
   const { parametreler, secenekler } = parametreDurumu
 
@@ -107,7 +93,11 @@ export function KesintiOzetiPage() {
         {t('kesinti.ozet.aciklamaMetni')}
       </p>
 
-      <KesintiRaporuParametreleri durum={parametreDurumu} idOneki="kesinti-ozeti" />
+      <KesintiRaporuParametreleri
+        durum={parametreDurumu}
+        idOneki="kesinti-ozeti"
+        kesintiTuruSuzgeci
+      />
 
       {secenekler.error || ozet.error ? (
         <div className="mt-4">
@@ -135,46 +125,10 @@ export function KesintiOzetiPage() {
       ) : (
         // Kâğıt görünümü: kullanıcının örnek raporu
         <article
-          aria-labelledby="kesinti-ozeti-rapor-basligi"
+          aria-label={t('kesinti.ozet.baslik')}
           className={`mt-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6 dark:border-slate-700 dark:bg-slate-900 ${ozet.isPlaceholderData ? 'opacity-50' : ''}`}
         >
-          <header className="border-b border-slate-800 pb-2 dark:border-slate-400">
-            <div className="flex justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
-              <span>{t('kesinti.ozet.sirket')}</span>
-              <span className="tabular-nums">{tarihGoster(veri.tarih)}</span>
-            </div>
-            <h3
-              id="kesinti-ozeti-rapor-basligi"
-              className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100"
-            >
-              {raporBasligi(veri, t, i18n.language)}
-            </h3>
-            <dl className="mt-1 flex flex-wrap gap-x-8 gap-y-1 text-xs font-bold">
-              <div className="flex gap-2">
-                <dt className="text-slate-500 dark:text-slate-400">{t('kesinti.ozet.butce')}</dt>
-                <dd>{veri.projeler.join(' · ')}</dd>
-              </div>
-              <div className="flex gap-2">
-                <dt className="text-slate-500 dark:text-slate-400">{t('kesinti.ozet.isveren')}</dt>
-                <dd>{veri.isveren ?? '-'}</dd>
-              </div>
-              <div className="flex gap-2 sm:ml-auto">
-                <dt className="sr-only">{t('kesinti.alan.para_birimi')}</dt>
-                <dd>{veri.para_birimi}</dd>
-              </div>
-              {/* Firma seçildiyse: yazdırılan rapor süzüldüğünü göstersin */}
-              {veri.firmalar.length > 0 ? (
-                <div className="flex basis-full gap-2">
-                  <dt className="text-slate-500 dark:text-slate-400">
-                    {t('kesinti.ozet.taseron')}
-                  </dt>
-                  <dd>{veri.firmalar.join(' · ')}</dd>
-                </div>
-              ) : null}
-            </dl>
-          </header>
-
-          <section className="mt-5">
+          <section>
             <h4 className="text-base font-bold text-slate-800 dark:text-slate-100">
               {t('kesinti.ozet.bolum.ozet')}
             </h4>

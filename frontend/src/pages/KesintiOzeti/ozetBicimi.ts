@@ -5,10 +5,3 @@ export function oranGoster(pay: string, payda: string): string {
 
   return `%${oran.toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
 }
-
-/** Tarih ayın son günü mü ("Eylül sonu itibarıyla" başlığı için) */
-export function aySonuMu(iso: string): boolean {
-  const [yil, ay, gun] = iso.split('-').map(Number)
-
-  return new Date(yil, ay, 0).getDate() === gun
-}

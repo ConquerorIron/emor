@@ -992,7 +992,8 @@
       "tarih": "Tarih (itibarıyla)",
       "tarihZorunlu": "Tarih seçin.",
       "projeler": "Projeler",
-      "firmalar": "Firmalar"
+      "firmalar": "Firmalar",
+      "kesintiTurleri": "Kesinti Türleri"
     },
     "ozet": {
       "baslik": "Kesinti Özeti",
@@ -1000,11 +1001,6 @@
       "kesintiYok": "Henüz kesinti kaydı yok.",
       "secimdeKesintiYok": "Seçilen tarih, proje ve para biriminde kesinti yok.",
       "kayitYok": "Kayıt yok",
-      "sirket": "TERSANE İSTANBUL",
-      "raporBasligi": "{{donem}} İTİBARIYLA KESİNTİ LİSTESİ",
-      "aySonu": "{{ay}} SONU",
-      "butce": "BÜTÇE",
-      "isveren": "İŞVEREN",
       "genel": "GENEL",
       "hab": "HAB",
       "taseron": "TAŞERON",

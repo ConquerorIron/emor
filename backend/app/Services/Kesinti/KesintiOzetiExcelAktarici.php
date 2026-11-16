@@ -41,7 +41,7 @@ final class KesintiOzetiExcelAktarici
     private const TASERON_KOLONLARI = ['taseron' => 'toplam', 'iptal' => 'iptal', 'kesilen' => 'kesilen', 'kalan' => 'kalan'];
 
     /**
-     * @param  array{tarih: string, para_birimi: string, isveren: string|null, projeler: list<string>, firmalar: list<string>, genel: array<string, string>, proje_dagilimi: list<array<string, string>>, tur_dagilimi: list<array<string, string>>, taseronlar: list<array<string, string>>}  $ozet  KesintiOzeti::hesapla()
+     * @param  array{tarih: string, para_birimi: string, isveren: string|null, projeler: list<string>, firmalar: list<string>, kesinti_turleri: list<string>, genel: array<string, string>, proje_dagilimi: list<array<string, string>>, tur_dagilimi: list<array<string, string>>, taseronlar: list<array<string, string>>}  $ozet  KesintiOzeti::hesapla()
      * @return string oluşturulan geçici dosyanın yolu (çağıran siler)
      */
     public function olustur(array $ozet): string
@@ -114,9 +114,10 @@ final class KesintiOzetiExcelAktarici
 
     /**
      * Şirket + tarih, başlık, Bütçe / İşveren / para birimi; firma seçildiyse
-     * altında Taşeron satırı. Üst bilginin son satırını döner.
+     * altında Taşeron, kesinti türü seçildiyse Kesinti Türü satırı (yazdırılan
+     * rapor süzüldüğünü göstersin). Üst bilginin son satırını döner.
      *
-     * @param  array{tarih: string, para_birimi: string, isveren: string|null, projeler: list<string>, firmalar: list<string>}  $ozet
+     * @param  array{tarih: string, para_birimi: string, isveren: string|null, projeler: list<string>, firmalar: list<string>, kesinti_turleri: list<string>}  $ozet
      */
     private function ustBilgi(Worksheet $sayfa, array $ozet, string $baslik): int
     {
@@ -141,14 +142,22 @@ final class KesintiOzetiExcelAktarici
         $sayfa->getStyle('E3')->getFont()->setColor($this->renk(self::SOLUK));
         $sayfa->getStyle('E3:G3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
         $son = 3;
+        $suzgecler = [
+            __('kesinti.ozet.taseron') => $ozet['firmalar'],
+            __('kesinti.ozet.kolon.kesinti_turu') => $ozet['kesinti_turleri'],
+        ];
 
-        if ($ozet['firmalar'] !== []) {
-            $this->metin($sayfa, 'A4', __('kesinti.ozet.taseron'));
-            $this->metin($sayfa, 'B4', implode(' · ', $ozet['firmalar']));
-            $sayfa->mergeCells('B4:G4');
-            $sayfa->getStyle('A4:G4')->getFont()->setBold(true);
-            $sayfa->getStyle('A4')->getFont()->setColor($this->renk(self::SOLUK));
-            $son = 4;
+        foreach ($suzgecler as $etiket => $kodlar) {
+            if ($kodlar === []) {
+                continue;
+            }
+
+            $son++;
+            $this->metin($sayfa, "A{$son}", $etiket);
+            $this->metin($sayfa, "B{$son}", implode(' · ', $kodlar));
+            $sayfa->mergeCells("B{$son}:G{$son}");
+            $sayfa->getStyle("A{$son}:G{$son}")->getFont()->setBold(true);
+            $sayfa->getStyle("A{$son}")->getFont()->setColor($this->renk(self::SOLUK));
         }
 
         $sayfa->getStyle("A{$son}:G{$son}")->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THIN)->setColor($this->renk(self::KOYU));

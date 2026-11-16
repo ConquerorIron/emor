@@ -35,6 +35,7 @@ const OZET: KesintiOzeti = {
   isveren: 'HAB',
   projeler: ['ZONE 6', 'ZONE 10'],
   firmalar: [],
+  kesinti_turleri: [],
   genel: {
     toplam: '2050.00',
     hab: '750.00',
@@ -74,6 +75,10 @@ describe('KesintiOzetiPage', () => {
         { id: 5, kod: 'MFK', ad: 'MFK' },
         { id: 6, kod: 'ZETAŞ', ad: 'ZETAŞ ZEMİN' },
       ],
+      kesinti_turleri: [
+        { id: 1, kod: 'İŞGÜCÜ', ad: 'İşgücü' },
+        { id: 2, kod: 'YEMEK', ad: 'Yemek' },
+      ],
       // En çok satırlı önce: varsayılan TL
       para_birimleri: [
         { id: 1, kod: 'TL' },
@@ -94,18 +99,21 @@ describe('KesintiOzetiPage', () => {
     vi.clearAllMocks()
   })
 
-  it('varsayılan para birimiyle açılır; başlık, kartlar ve dağılımlar örnek rapordaki gibi', async () => {
-    expect(
-      await screen.findByRole('heading', {
-        name: 'ZONE 6 - ZONE 10 – EYLÜL SONU İTİBARIYLA KESİNTİ LİSTESİ',
-      }),
-    ).toBeInTheDocument()
-    expect(api.getir).toHaveBeenCalledWith(
-      expect.objectContaining({ para_birimi_id: 1, proje_id: [], firma_id: [] }),
-    )
-
+  it('varsayılan para birimiyle açılır; kartlar ve dağılımlar örnek rapordaki gibi, üst bilgi yok', async () => {
     // Kartlar: tam sayı + oran (HAB toplamın, iptal taşeron payının)
-    expect(screen.getByText('2.050')).toBeInTheDocument()
+    expect(await screen.findByText('2.050')).toBeInTheDocument()
+    expect(api.getir).toHaveBeenCalledWith(
+      expect.objectContaining({
+        para_birimi_id: 1,
+        proje_id: [],
+        firma_id: [],
+        kesinti_turu_id: [],
+      }),
+    )
+    // Rapor üst bilgisi ekranda çizilmez (kullanıcı isteği 2026-11-16; Excel'de duruyor)
+    expect(screen.queryByText(/KESİNTİ LİSTESİ/)).not.toBeInTheDocument()
+    expect(screen.queryByText('BÜTÇE')).not.toBeInTheDocument()
+
     expect(screen.getByText('TL · TOPLAMIN %36,6')).toBeInTheDocument()
     expect(screen.getByText('TL · TAŞERON PAYININ %7,7')).toBeInTheDocument()
 
@@ -159,10 +167,8 @@ describe('KesintiOzetiPage', () => {
     expect(api.excel.mock.calls[0][0]).toMatchObject({ para_birimi_id: 1, proje_id: [] })
   })
 
-  it('firmalar çoklu seçilir; rapor seçilen firmalarla istenir, üst bilgide Taşeron satırı çıkar', async () => {
-    await screen.findByRole('heading', { name: /KESİNTİ LİSTESİ$/ })
-    expect(screen.queryByText('MFK · ZETAŞ')).not.toBeInTheDocument()
-    api.getir.mockResolvedValue({ ...OZET, firmalar: ['MFK', 'ZETAŞ'] })
+  it('firmalar çoklu seçilir; rapor seçilen firmalarla istenir', async () => {
+    await screen.findByText('2.050')
 
     const firmalar = screen.getByLabelText('Firmalar')
     fireEvent.keyDown(firmalar, { key: 'ArrowDown' })
@@ -174,18 +180,26 @@ describe('KesintiOzetiPage', () => {
     await waitFor(() =>
       expect(api.getir).toHaveBeenLastCalledWith(expect.objectContaining({ firma_id: [6, 5] })),
     )
-    expect(await screen.findByText('MFK · ZETAŞ')).toBeInTheDocument()
   })
 
-  // Rapor isteği seçenekler gelince atılır: yanıt testin başında değiştirilebilir
-  it('ay sonu olmayan tarih başlıkta gün olarak yazılır', async () => {
-    api.getir.mockResolvedValue({ ...OZET, tarih: '2026-09-15' })
+  it('kesinti türleri koduyla çoklu seçilir; rapor ve Excel seçilen türlerle istenir', async () => {
+    await screen.findByText('2.050')
 
-    expect(
-      await screen.findByRole('heading', {
-        name: 'ZONE 6 - ZONE 10 – 15.09.2026 İTİBARIYLA KESİNTİ LİSTESİ',
-      }),
-    ).toBeInTheDocument()
+    const turler = screen.getByLabelText('Kesinti Türleri')
+    fireEvent.keyDown(turler, { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('option', { name: 'YEMEK' }))
+    fireEvent.keyDown(turler, { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('option', { name: 'İŞGÜCÜ' }))
+
+    await waitFor(() =>
+      expect(api.getir).toHaveBeenLastCalledWith(
+        expect.objectContaining({ kesinti_turu_id: [2, 1] }),
+      ),
+    )
+    await waitFor(() => expect(screen.getByRole('button', { name: "Excel'e Aktar" })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: "Excel'e Aktar" }))
+    await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
+    expect(api.excel.mock.calls[0][0]).toMatchObject({ kesinti_turu_id: [2, 1] })
   })
 
   it('seçimde kesinti yoksa rapor yerine bilgi gösterir; Excel kapalı', async () => {

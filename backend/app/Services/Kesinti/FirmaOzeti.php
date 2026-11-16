@@ -25,7 +25,7 @@ final class FirmaOzeti
     public function __construct(private readonly TumKesintilerSorgusu $kesintiler) {}
 
     /**
-     * @param  array{tarih: string, para_birimi_id: int, proje_id: list<int>, firma_id: list<int>}  $parametreler
+     * @param  array{tarih: string, para_birimi_id: int, proje_id: list<int>, firma_id: list<int>, kesinti_turu_id?: list<int>}  $parametreler  ekran kesinti türü göndermez (boş = hepsi)
      * @return array{
      *     tarih: string,
      *     para_birimi: string,

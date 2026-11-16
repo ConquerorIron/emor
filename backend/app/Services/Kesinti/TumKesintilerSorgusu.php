@@ -77,25 +77,26 @@ final class TumKesintilerSorgusu extends IcmalSorgusu
 
     /**
      * Kesinti raporlarının (Kesinti Özeti, Firma Özeti) ortak süzgeci: seçilen
-     * tarihe kadarki satırlar, tek para biriminde; projeler ve firmalar boşsa hepsi.
+     * tarihe kadarki satırlar, tek para biriminde; projeler, firmalar ve
+     * kesinti türleri boşsa hepsi.
      *
-     * @param  array{tarih: string, para_birimi_id: int, proje_id: list<int>, firma_id: list<int>}  $parametreler
+     * @param  array{tarih: string, para_birimi_id: int, proje_id: list<int>, firma_id: list<int>, kesinti_turu_id?: list<int>}  $parametreler
      * @return Builder<Model>
      */
     public function raporSorgusu(array $parametreler): Builder
     {
-        return $this->filtrele(['bitis' => $parametreler['tarih']])
+        return $this->filtrele(['bitis' => $parametreler['tarih'], 'kesinti_turu_id' => $parametreler['kesinti_turu_id'] ?? []])
             ->where(self::TABLO.'.para_birimi_id', $parametreler['para_birimi_id'])
             ->when($parametreler['proje_id'] !== [], fn (Builder $q): Builder => $q->whereIn(self::TABLO.'.proje_id', $parametreler['proje_id']))
             ->when($parametreler['firma_id'] !== [], fn (Builder $q): Builder => $q->whereIn(self::TABLO.'.firma_id', $parametreler['firma_id']));
     }
 
     /**
-     * Kesinti raporlarının parametre seçimleri: kesintide geçen projeler ve
-     * firmalar (koduna göre) ve para birimleri (en çok satırı olan önce —
-     * ekranın varsayılanı).
+     * Kesinti raporlarının parametre seçimleri: kesintide geçen projeler,
+     * firmalar ve kesinti türleri (koduna göre) ve para birimleri (en çok
+     * satırı olan önce — ekranın varsayılanı).
      *
-     * @return array{projeler: list<array{id: int, kod: string, ad: string}>, firmalar: list<array{id: int, kod: string, ad: string}>, para_birimleri: list<array{id: int, kod: string}>}
+     * @return array{projeler: list<array{id: int, kod: string, ad: string}>, firmalar: list<array{id: int, kod: string, ad: string}>, kesinti_turleri: list<array{id: int, kod: string, ad: string}>, para_birimleri: list<array{id: int, kod: string}>}
      */
     public function raporSecenekleri(): array
     {
@@ -113,6 +114,7 @@ final class TumKesintilerSorgusu extends IcmalSorgusu
         return [
             'projeler' => $tanimlar['projeler'],
             'firmalar' => $tanimlar['firmalar'],
+            'kesinti_turleri' => $tanimlar['kesinti_turleri'],
             'para_birimleri' => $paraBirimleri,
         ];
     }

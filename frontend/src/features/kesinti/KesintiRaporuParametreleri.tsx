@@ -8,28 +8,39 @@ import type { KesintiRaporuDurumu } from './kesintiRaporu'
 
 /**
  * Kesinti raporlarının parametre alanları: tarih ("itibarıyla"), çoklu proje,
- * çoklu firma, para birimi. Değişince rapor anında yenilenir (kalıcı değil).
+ * çoklu firma, (istenirse) çoklu kesinti türü, para birimi. Değişince rapor
+ * anında yenilenir (kalıcı değil).
  */
 export function KesintiRaporuParametreleri({
   durum,
   idOneki,
+  kesintiTuruSuzgeci = false,
 }: {
   durum: KesintiRaporuDurumu
   /** Element kimlikleri (ör. "kesinti-ozeti") */
   idOneki: string
+  /** Kesinti türü süzgeci (Kesinti Özeti; kullanıcı isteği 2026-11-16) */
+  kesintiTuruSuzgeci?: boolean
 }) {
   const { t } = useTranslation()
   const { secenekler } = durum
-  // Proje adıyla, firma koduyla (kullanıcı isteği 2026-11-16)
+  // Proje adıyla, firma ve kesinti türü koduyla (kullanıcı isteği 2026-11-16)
   const projeSecenekleri = adSecenekleri(secenekler.data?.projeler)
   const firmaSecenekleri = kodSecenekleri(secenekler.data?.firmalar)
+  const turSecenekleri = kodSecenekleri(secenekler.data?.kesinti_turleri)
   const paraSecenekleri: SecenekOgesi[] = (secenekler.data?.para_birimleri ?? []).map((para) => ({
     value: String(para.id),
     label: para.kod,
   }))
 
   return (
-    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[12rem_minmax(0,1fr)_minmax(0,1fr)_10rem]">
+    <div
+      className={`mt-4 grid gap-3 sm:grid-cols-2 ${
+        kesintiTuruSuzgeci
+          ? 'lg:grid-cols-[12rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_10rem]'
+          : 'lg:grid-cols-[12rem_minmax(0,1fr)_minmax(0,1fr)_10rem]'
+      }`}
+    >
       <TarihInput
         id={`${idOneki}-tarih`}
         label={t('kesinti.raporParametreleri.tarih')}
@@ -53,6 +64,16 @@ export function KesintiRaporuParametreleri({
         onChange={(secilenler) => durum.setFirmaIdleri(secilenler.map((s) => Number(s.value)))}
         placeholder={t('ortak.hepsi')}
       />
+      {kesintiTuruSuzgeci ? (
+        <MultiSelectField
+          id={`${idOneki}-kesinti-turleri`}
+          label={t('kesinti.raporParametreleri.kesintiTurleri')}
+          options={turSecenekleri}
+          value={turSecenekleri.filter((s) => durum.turIdleri.includes(Number(s.value)))}
+          onChange={(secilenler) => durum.setTurIdleri(secilenler.map((s) => Number(s.value)))}
+          placeholder={t('ortak.hepsi')}
+        />
+      ) : null}
       <SelectField
         id={`${idOneki}-para-birimi`}
         label={t('kesinti.alan.para_birimi')}

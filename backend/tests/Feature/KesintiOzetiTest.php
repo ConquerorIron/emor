@@ -179,6 +179,37 @@ final class KesintiOzetiTest extends TestCase
             ->assertJsonPath('data.tur_dagilimi.*.kod', ['İŞGÜCÜ']);
     }
 
+    public function test_secilen_kesinti_turleriyle_suzulur_secilen_turler_cikar(): void
+    {
+        $this->ornekVeri();
+        $isgucu = KesintiTuru::query()->where('kod', 'İŞGÜCÜ')->firstOrFail();
+
+        // Yalnız işgücü: MFK'ya yansıtılan 300 + HAB'ın üstlendiği 250
+        $this->actingAs($this->kullanici())
+            ->getJson($this->adres(['kesinti_turu_id' => [$isgucu->id]]))
+            ->assertOk()
+            ->assertJsonPath('data.kesinti_turleri', ['İŞGÜCÜ'])
+            ->assertJsonPath('data.genel.toplam', '550.00')
+            ->assertJsonPath('data.genel.hab', '250.00')
+            ->assertJsonPath('data.tur_dagilimi.*.kod', ['İŞGÜCÜ'])
+            ->assertJsonPath('data.taseronlar.*.kod', ['MFK']);
+    }
+
+    public function test_kesinti_turu_secilmezse_hepsi_gelir_gecersiz_tur_422(): void
+    {
+        $this->ornekVeri();
+        $this->actingAs($this->kullanici());
+
+        $this->getJson($this->adres())
+            ->assertOk()
+            ->assertJsonPath('data.kesinti_turleri', [])
+            ->assertJsonPath('data.genel.toplam', '2050.00');
+
+        $this->getJson($this->adres(['kesinti_turu_id' => ['abc']]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['kesinti_turu_id.0'], 'hatalar');
+    }
+
     public function test_tarih_ve_para_birimi_zorunludur_422(): void
     {
         $this->actingAs($this->kullanici())
@@ -192,12 +223,14 @@ final class KesintiOzetiTest extends TestCase
         $this->ornekVeri();
         Proje::factory()->create(['kod' => 'KULLANILMAYAN']);
 
-        $this->actingAs($this->kullanici())
+        $yanit = $this->actingAs($this->kullanici())
             ->getJson(self::ADRES.'/secenekler')
             ->assertOk()
             ->assertJsonPath('data.projeler.*.kod', ['ZONE 10', 'ZONE 6'])
             ->assertJsonPath('data.firmalar.*.kod', ['HAB', 'MFK', 'ZETAŞ'])
             ->assertJsonPath('data.para_birimleri.*.kod', ['TL', 'USD']);
+        // Kesintide geçen türler (sıra veritabanının harmanlamasına bağlı: İ)
+        $this->assertEqualsCanonicalizing(['İŞGÜCÜ', 'YEMEK'], array_column($yanit->json('data.kesinti_turleri'), 'kod'));
     }
 
     public function test_excel_ekrandaki_raporu_tek_sayfada_indirir(): void
@@ -248,6 +281,23 @@ final class KesintiOzetiTest extends TestCase
         $deger = fn (string $hucre): string => (string) $sayfa->getCell($hucre)->getFormattedValue();
         $this->assertSame(['TAŞERON', 'ZETAŞ'], [$deger('A4'), $deger('B4')]);
         $this->assertSame(['1. ÖZET', '1,250'], [$deger('A6'), $deger('B9')]);
+    }
+
+    public function test_excelde_secilen_kesinti_turleri_firmanin_altinda_yazilir(): void
+    {
+        $this->ornekVeri();
+        $yemek = KesintiTuru::query()->where('kod', 'YEMEK')->firstOrFail();
+
+        $yanit = $this->actingAs($this->kullanici())
+            ->get($this->adres(['firma_id' => [$this->zetas->id], 'kesinti_turu_id' => [$yemek->id]], '/excel'))
+            ->assertOk();
+
+        $sayfa = IOFactory::load($yanit->baseResponse->getFile()->getPathname())->getActiveSheet();
+        $deger = fn (string $hucre): string => (string) $sayfa->getCell($hucre)->getFormattedValue();
+        $this->assertSame(['TAŞERON', 'ZETAŞ'], [$deger('A4'), $deger('B4')]);
+        $this->assertSame(['KESİNTİ TÜRÜ', 'YEMEK'], [$deger('A5'), $deger('B5')]);
+        // ZETAŞ'ın yalnız yemeği: 1000
+        $this->assertSame(['1. ÖZET', '1,000'], [$deger('A7'), $deger('B10')]);
     }
 
     public function test_baska_kesinti_ekraninin_izni_raporu_acmaz_403(): void
