@@ -22,7 +22,8 @@ use Collator;
  *
  * Menüde "Pivot" (kullanıcı isteği 2026-11-16), üç sekme: Özet (taşeron +
  * proje), Firma Özeti (yalnız taşeron, projeler toplanır) ve Proje Özeti
- * (yalnız proje, taşeronlar toplanır). Üçü de aynı hücre sorgusundan.
+ * (yalnız proje, taşeronlar toplanır). Üçü de, tür toplamları ve genel toplam
+ * da TEK hücre sorgusundan, PHP'de kuruşla toplanır.
  */
 final class FirmaOzeti
 {
@@ -47,13 +48,17 @@ final class FirmaOzeti
         $turler = $this->kesintiTurleri();
         // Kesinti türü kimliği => kolon sırası
         $kolon = array_flip(array_column($turler, 'id'));
-        $bos = array_fill(0, count($turler), 0.0);
-        $sifirAdet = array_fill(0, count($turler), 0);
+        // Tutarlar kuruş (tam sayı) olarak toplanır: kalan_tutar decimal(18,2),
+        // toplamlar veritabanının SUM'ıyla kuruşu kuruşuna aynı
+        $bos = array_fill(0, count($turler), 0);
 
         $satirlar = [];
         $firmaSatirlari = [];
         $projeSatirlari = [];
-        $hucreler = $sorgu->clone()->toBase()
+        $toplam = ['kalanlar' => $bos, 'kayit_sayilari' => $bos];
+        // TEK sorgu (kod incelemesi 2026-11-16): üç sekme, tür toplamları ve genel
+        // toplam bu hücrelerden — birleşik 11 tablo bir kez taranır
+        $hucreler = $sorgu->toBase()
             ->join('firmalar', 'firmalar.id', '=', 'tum_kesintiler.firma_id')
             ->join('projeler', 'projeler.id', '=', 'tum_kesintiler.proje_id')
             ->groupBy('tum_kesintiler.firma_id', 'tum_kesintiler.proje_id', 'tum_kesintiler.kesinti_turu_id', 'firmalar.kod', 'firmalar.ad', 'projeler.kod', 'projeler.ad')
@@ -76,21 +81,24 @@ final class FirmaOzeti
                 'proje_ad' => (string) $hucre->proje_ad,
             ];
             $sira = $kolon[(int) $hucre->kesinti_turu_id];
-            $kalan = round((float) $hucre->kalan, 2);
+            $kurus = (int) round((float) $hucre->kalan * 100);
             $adet = (int) $hucre->adet;
 
             $anahtar = $hucre->firma_id.'-'.$hucre->proje_id;
-            $satirlar[$anahtar] ??= [...$firma, ...$proje, 'kalanlar' => $bos, 'kayit_sayilari' => $sifirAdet];
-            $satirlar[$anahtar]['kalanlar'][$sira] = $kalan;
+            $satirlar[$anahtar] ??= [...$firma, ...$proje, 'kalanlar' => $bos, 'kayit_sayilari' => $bos];
+            $satirlar[$anahtar]['kalanlar'][$sira] = $kurus;
             $satirlar[$anahtar]['kayit_sayilari'][$sira] = $adet;
 
-            // Firma Özeti / Proje Özeti sekmeleri: aynı hücreler taşerona / projeye toplanır
-            $firmaSatirlari[$firma['firma_id']] ??= [...$firma, 'kalanlar' => $bos, 'kayit_sayilari' => $sifirAdet];
-            $firmaSatirlari[$firma['firma_id']]['kalanlar'][$sira] += $kalan;
+            // Firma Özeti / Proje Özeti sekmeleri ve toplam satırı: aynı hücreler
+            // taşerona / projeye / türe toplanır
+            $firmaSatirlari[$firma['firma_id']] ??= [...$firma, 'kalanlar' => $bos, 'kayit_sayilari' => $bos];
+            $firmaSatirlari[$firma['firma_id']]['kalanlar'][$sira] += $kurus;
             $firmaSatirlari[$firma['firma_id']]['kayit_sayilari'][$sira] += $adet;
-            $projeSatirlari[$proje['proje_id']] ??= [...$proje, 'kalanlar' => $bos, 'kayit_sayilari' => $sifirAdet];
-            $projeSatirlari[$proje['proje_id']]['kalanlar'][$sira] += $kalan;
+            $projeSatirlari[$proje['proje_id']] ??= [...$proje, 'kalanlar' => $bos, 'kayit_sayilari' => $bos];
+            $projeSatirlari[$proje['proje_id']]['kalanlar'][$sira] += $kurus;
             $projeSatirlari[$proje['proje_id']]['kayit_sayilari'][$sira] += $adet;
+            $toplam['kalanlar'][$sira] += $kurus;
+            $toplam['kayit_sayilari'][$sira] += $adet;
         }
 
         // Taşeron, sonra proje; kodlar doğal sırayla (ZONE 7, ZONE 10'dan önce)
@@ -105,19 +113,6 @@ final class FirmaOzeti
         $projeSatirlari = array_values($projeSatirlari);
         usort($projeSatirlari, $projeye);
 
-        $turToplamlari = $sorgu->clone()->toBase()
-            ->groupBy('tum_kesintiler.kesinti_turu_id')
-            ->select(['tum_kesintiler.kesinti_turu_id'])
-            ->selectRaw('SUM(tum_kesintiler.kalan_tutar) AS kalan, COUNT(*) AS adet')
-            ->get();
-        $toplam = $bos;
-        $toplamAdet = $sifirAdet;
-        foreach ($turToplamlari as $turToplami) {
-            $sira = $kolon[(int) $turToplami->kesinti_turu_id];
-            $toplam[$sira] = round((float) $turToplami->kalan, 2);
-            $toplamAdet[$sira] = (int) $turToplami->adet;
-        }
-
         $cikti = fn (array $satir): array => [
             ...$satir,
             'kalanlar' => array_map($this->tutar(...), $satir['kalanlar']),
@@ -131,11 +126,7 @@ final class FirmaOzeti
             'satirlar' => array_map($cikti, $satirlar),
             'firma_satirlari' => array_map($cikti, $firmaSatirlari),
             'proje_satirlari' => array_map($cikti, $projeSatirlari),
-            'toplam' => [
-                'kalanlar' => array_map($this->tutar(...), $toplam),
-                'kayit_sayilari' => $toplamAdet,
-                'toplam_kalan' => $this->tutar((float) $sorgu->clone()->sum('tum_kesintiler.kalan_tutar')),
-            ],
+            'toplam' => $cikti($toplam),
         ];
     }
 
@@ -152,9 +143,9 @@ final class FirmaOzeti
         );
     }
 
-    /** Noktalı iki ondalıklı metin (diğer kesinti uçlarıyla aynı) */
-    private function tutar(float $deger): string
+    /** Kuruştan noktalı iki ondalıklı metin (diğer kesinti uçlarıyla aynı) */
+    private function tutar(int $kurus): string
     {
-        return number_format($deger, 2, '.', '');
+        return number_format($kurus / 100, 2, '.', '');
     }
 }
