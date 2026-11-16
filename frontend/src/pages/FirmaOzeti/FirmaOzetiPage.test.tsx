@@ -38,6 +38,7 @@ const OZET: FirmaOzeti = {
       taseron_ad: 'MFK',
       proje_id: 6,
       proje: 'ZONE 6',
+      proje_ad: 'ZONE 6 TERSANE',
       kalanlar: ['100.00', '0.00', '0.00'],
       kayit_sayilari: [1, 0, 1],
       toplam_kalan: '100.00',
@@ -48,6 +49,44 @@ const OZET: FirmaOzeti = {
       taseron_ad: 'ZETAŞ ZEMİN',
       proje_id: 10,
       proje: 'ZONE 10',
+      proje_ad: 'ZONE 10 TERSANE',
+      kalanlar: ['40.00', '0.00', '160.00'],
+      kayit_sayilari: [1, 0, 2],
+      toplam_kalan: '200.00',
+    },
+  ],
+  // Toplama backend'de (FirmaOzetiTest); burada sekmenin çizimi
+  firma_satirlari: [
+    {
+      firma_id: 2,
+      taseron: 'MFK',
+      taseron_ad: 'MFK',
+      kalanlar: ['100.00', '0.00', '0.00'],
+      kayit_sayilari: [1, 0, 1],
+      toplam_kalan: '100.00',
+    },
+    {
+      firma_id: 1,
+      taseron: 'ZETAŞ',
+      taseron_ad: 'ZETAŞ ZEMİN',
+      kalanlar: ['40.00', '0.00', '160.00'],
+      kayit_sayilari: [1, 0, 2],
+      toplam_kalan: '200.00',
+    },
+  ],
+  proje_satirlari: [
+    {
+      proje_id: 6,
+      proje: 'ZONE 6',
+      proje_ad: 'ZONE 6 TERSANE',
+      kalanlar: ['100.00', '0.00', '0.00'],
+      kayit_sayilari: [1, 0, 1],
+      toplam_kalan: '100.00',
+    },
+    {
+      proje_id: 10,
+      proje: 'ZONE 10',
+      proje_ad: 'ZONE 10 TERSANE',
       kalanlar: ['40.00', '0.00', '160.00'],
       kayit_sayilari: [1, 0, 2],
       toplam_kalan: '200.00',
@@ -128,6 +167,38 @@ describe('FirmaOzetiPage', () => {
     fireEvent.click(screen.getByRole('button', { name: "Excel'e Aktar" }))
     await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
     expect(api.excel.mock.calls[0][0]).toMatchObject({ para_birimi_id: 1, firma_id: [] })
+  })
+
+  it('Firma Özeti ve Proje Özeti sekmeleri tek kimlik kolonuyla; tutarlar ekstre açmaz', async () => {
+    await screen.findByRole('table')
+    const sekmeler = within(screen.getByRole('tablist', { name: 'Görünümler' })).getAllByRole('tab')
+    expect(metinler(sekmeler)).toEqual(['Özet', 'Firma Özeti', 'Proje Özeti'])
+    expect(screen.getByRole('tab', { name: 'Özet' })).toHaveAttribute('aria-selected', 'true')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Firma Özeti' }))
+    let tablo = screen.getByRole('table')
+    expect(metinler(within(tablo).getAllByRole('columnheader'))).toEqual([
+      'Taşeron',
+      'İŞGÜCÜ',
+      'KAMP',
+      'YEMEK',
+      'Toplam Kalan',
+    ])
+    expect(
+      metinler(within(within(tablo).getByRole('row', { name: /^ZETAŞ/ })).getAllByRole('cell')),
+    ).toEqual(['ZETAŞ', '40,00', '-', '160,00', '200,00'])
+    expect(screen.getByText('2 taşeron (TL)')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /ekstresi \(PDF\)$/ })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Proje Özeti' }))
+    tablo = screen.getByRole('table')
+    expect(metinler(within(tablo).getAllByRole('columnheader'))[0]).toBe('Proje')
+    expect(
+      metinler(within(within(tablo).getByRole('row', { name: /^ZONE 10/ })).getAllByRole('cell')),
+    ).toEqual(['ZONE 10', '40,00', '-', '160,00', '200,00'])
+    expect(within(tablo).getByText('ZONE 10')).toHaveAttribute('title', 'ZONE 10 TERSANE')
+    expect(screen.getByText('2 proje (TL)')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /ekstresi \(PDF\)$/ })).not.toBeInTheDocument()
   })
 
   it('kolon başlığından sıralanır: Toplam Kalan ikinci tıkta büyükten küçüğe', async () => {

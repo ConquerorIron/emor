@@ -49,7 +49,7 @@
     "kesinti": "Kesinti Yönetimi",
     "tumKesintiler": "Tüm Kesintiler",
     "kesintiOzeti": "Kesinti Özeti",
-    "firmaOzeti": "Firma Özeti",
+    "pivot": "Pivot",
     "isgucuKesintileri": "İşgücü Kesintileri",
     "kampKesintileri": "Kamp Kesintileri",
     "kampMalzemeKesintileri": "Kamp Malzeme Kesintileri",
@@ -537,7 +537,7 @@
       "efatura": "e-Faturalar (Gelen/Giden)",
       "tum_kesintiler": "Tüm Kesintiler",
       "kesinti_ozeti": "Kesinti Özeti",
-      "firma_ozeti": "Firma Özeti",
+      "firma_ozeti": "Pivot",
       "isgucu_kesintileri": "İşgücü Kesintileri",
       "kamp_kesintileri": "Kamp Kesintileri",
       "kamp_malzeme_kesintileri": "Kamp Malzeme Kesintileri",
@@ -1030,8 +1030,14 @@
       }
     },
     "firmaOzeti": {
-      "baslik": "Firma Özeti",
-      "aciklamaMetni": "Taşeron ve proje başına her kesinti türünden kalan tutar yan yana; Tüm Kesintiler'den, seçilen tarihe kadar ve tek para biriminde. Yalnız taşerona yansıtılan kesintiler sayılır (HAB'ın üstlendiklerinin kalanı taşerondan kesilmez; Kesinti Özeti'ndeki Kalan ile aynı). \"-\" o türde kesinti yok demektir; 0,00 kesinti var ama tamamı kesilmiş demektir. Rakama tıklanınca o hücrenin kesinti ekstresi PDF (A3 yatay) olarak iner; Toplam Kalan, taşeron ve projenin bütün türlerini içerir.",
+      "baslik": "Pivot",
+      "aciklamaMetni": "Her kesinti türünden kalan tutar yan yana; Tüm Kesintiler'den, seçilen tarihe kadar ve tek para biriminde. Özet taşeron ve proje başına, Firma Özeti taşeron başına (projeler toplanır), Proje Özeti proje başına (taşeronlar toplanır) gösterir. Yalnız taşerona yansıtılan kesintiler sayılır (HAB'ın üstlendiklerinin kalanı taşerondan kesilmez; Kesinti Özeti'ndeki Kalan ile aynı). \"-\" o türde kesinti yok demektir; 0,00 kesinti var ama tamamı kesilmiş demektir. Özet sekmesinde rakama tıklanınca o hücrenin kesinti ekstresi PDF (A3 yatay) olarak iner; Toplam Kalan, taşeron ve projenin bütün türlerini içerir. Excel'e Aktar üç sekmeyi ayrı sayfalarda indirir.",
+      "sekmeler": "Görünümler",
+      "sekme": {
+        "ozet": "Özet",
+        "firma": "Firma Özeti",
+        "proje": "Proje Özeti"
+      },
       "kolon": {
         "taseron": "Taşeron",
         "proje": "Proje",
@@ -1039,7 +1045,11 @@
       },
       "toplam": "Toplam",
       "kalanYok": "Seçilen tarih, proje, firma ve para biriminde taşerona yansıtılan kesinti yok.",
-      "satirSayisi": "{{sayi}} taşeron / proje satırı ({{para}})",
+      "satirSayisi": {
+        "ozet": "{{sayi}} taşeron / proje satırı ({{para}})",
+        "firma": "{{sayi}} taşeron ({{para}})",
+        "proje": "{{sayi}} proje ({{para}})"
+      },
       "ekstreEtiketi": "{{taseron}} / {{proje}} / {{tur}} ekstresi (PDF)",
       "tumTurler": "tüm kesinti türleri",
       "ekstreIpucu": "Kesinti ekstresini PDF olarak indir",

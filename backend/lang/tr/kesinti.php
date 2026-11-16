@@ -59,15 +59,21 @@ return [
         ],
     ],
 
-    // Firma Özeti → Excel'e Aktar: ekrandaki tablo
+    // Pivot (Firma Özeti) → Excel'e Aktar: ekranın üç sekmesi, sekme başına sayfa
     'firma_ozeti' => [
-        'sayfa' => 'Firma Özeti',
-        'baslik' => 'Firma Özeti — :tarih itibarıyla kalan kesintiler (:para)',
+        'dosya' => 'Pivot',
+        'sayfa' => [
+            'ozet' => 'Özet',
+            'firma' => 'Firma Özeti',
+            'proje' => 'Proje Özeti',
+        ],
+        'baslik' => ':sayfa — :tarih itibarıyla kalan kesintiler (:para)',
         'toplam' => 'TOPLAM',
         'kolon' => [
             'taseron' => 'Taşeron',
             'taseron_ad' => 'Taşeron Adı',
             'proje' => 'Proje',
+            'proje_ad' => 'Proje Adı',
             'toplam_kalan' => 'Toplam Kalan',
         ],
     ],

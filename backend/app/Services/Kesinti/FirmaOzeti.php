@@ -19,6 +19,10 @@ use Collator;
  * hücrenin kayıt sayısı da gelir — ekranda "-" kesinti yok, 0,00 kesinti var
  * ama tamamı kesilmiş (kullanıcı 2026-11-13: işgücünün kalanı sıfır olduğu
  * için kolon boş sanılıyordu). Hücreden ekstre: KesintiEkstresi.
+ *
+ * Menüde "Pivot" (kullanıcı isteği 2026-11-16), üç sekme: Özet (taşeron +
+ * proje), Firma Özeti (yalnız taşeron, projeler toplanır) ve Proje Özeti
+ * (yalnız proje, taşeronlar toplanır). Üçü de aynı hücre sorgusundan.
  */
 final class FirmaOzeti
 {
@@ -30,7 +34,9 @@ final class FirmaOzeti
      *     tarih: string,
      *     para_birimi: string,
      *     kesinti_turleri: list<array{id: int, kod: string, ad: string}>,
-     *     satirlar: list<array{firma_id: int, taseron: string, taseron_ad: string, proje_id: int, proje: string, kalanlar: list<string>, kayit_sayilari: list<int>, toplam_kalan: string}>,
+     *     satirlar: list<array{firma_id: int, taseron: string, taseron_ad: string, proje_id: int, proje: string, proje_ad: string, kalanlar: list<string>, kayit_sayilari: list<int>, toplam_kalan: string}>,
+     *     firma_satirlari: list<array{firma_id: int, taseron: string, taseron_ad: string, kalanlar: list<string>, kayit_sayilari: list<int>, toplam_kalan: string}>,
+     *     proje_satirlari: list<array{proje_id: int, proje: string, proje_ad: string, kalanlar: list<string>, kayit_sayilari: list<int>, toplam_kalan: string}>,
      *     toplam: array{kalanlar: list<string>, kayit_sayilari: list<int>, toplam_kalan: string},
      * }
      */
@@ -45,39 +51,59 @@ final class FirmaOzeti
         $sifirAdet = array_fill(0, count($turler), 0);
 
         $satirlar = [];
+        $firmaSatirlari = [];
+        $projeSatirlari = [];
         $hucreler = $sorgu->clone()->toBase()
             ->join('firmalar', 'firmalar.id', '=', 'tum_kesintiler.firma_id')
             ->join('projeler', 'projeler.id', '=', 'tum_kesintiler.proje_id')
-            ->groupBy('tum_kesintiler.firma_id', 'tum_kesintiler.proje_id', 'tum_kesintiler.kesinti_turu_id', 'firmalar.kod', 'firmalar.ad', 'projeler.kod')
+            ->groupBy('tum_kesintiler.firma_id', 'tum_kesintiler.proje_id', 'tum_kesintiler.kesinti_turu_id', 'firmalar.kod', 'firmalar.ad', 'projeler.kod', 'projeler.ad')
             ->select([
                 'tum_kesintiler.firma_id', 'tum_kesintiler.proje_id', 'tum_kesintiler.kesinti_turu_id',
-                'firmalar.kod AS taseron', 'firmalar.ad AS taseron_ad', 'projeler.kod AS proje',
+                'firmalar.kod AS taseron', 'firmalar.ad AS taseron_ad', 'projeler.kod AS proje', 'projeler.ad AS proje_ad',
             ])
             ->selectRaw('SUM(tum_kesintiler.kalan_tutar) AS kalan, COUNT(*) AS adet')
             ->get();
 
         foreach ($hucreler as $hucre) {
-            $anahtar = $hucre->firma_id.'-'.$hucre->proje_id;
-            $satirlar[$anahtar] ??= [
+            $firma = [
                 'firma_id' => (int) $hucre->firma_id,
                 'taseron' => (string) $hucre->taseron,
                 'taseron_ad' => (string) $hucre->taseron_ad,
+            ];
+            $proje = [
                 'proje_id' => (int) $hucre->proje_id,
                 'proje' => (string) $hucre->proje,
-                'kalanlar' => $bos,
-                'kayit_sayilari' => $sifirAdet,
+                'proje_ad' => (string) $hucre->proje_ad,
             ];
             $sira = $kolon[(int) $hucre->kesinti_turu_id];
-            $satirlar[$anahtar]['kalanlar'][$sira] = round((float) $hucre->kalan, 2);
-            $satirlar[$anahtar]['kayit_sayilari'][$sira] = (int) $hucre->adet;
+            $kalan = round((float) $hucre->kalan, 2);
+            $adet = (int) $hucre->adet;
+
+            $anahtar = $hucre->firma_id.'-'.$hucre->proje_id;
+            $satirlar[$anahtar] ??= [...$firma, ...$proje, 'kalanlar' => $bos, 'kayit_sayilari' => $sifirAdet];
+            $satirlar[$anahtar]['kalanlar'][$sira] = $kalan;
+            $satirlar[$anahtar]['kayit_sayilari'][$sira] = $adet;
+
+            // Firma Özeti / Proje Özeti sekmeleri: aynı hücreler taşerona / projeye toplanır
+            $firmaSatirlari[$firma['firma_id']] ??= [...$firma, 'kalanlar' => $bos, 'kayit_sayilari' => $sifirAdet];
+            $firmaSatirlari[$firma['firma_id']]['kalanlar'][$sira] += $kalan;
+            $firmaSatirlari[$firma['firma_id']]['kayit_sayilari'][$sira] += $adet;
+            $projeSatirlari[$proje['proje_id']] ??= [...$proje, 'kalanlar' => $bos, 'kayit_sayilari' => $sifirAdet];
+            $projeSatirlari[$proje['proje_id']]['kalanlar'][$sira] += $kalan;
+            $projeSatirlari[$proje['proje_id']]['kayit_sayilari'][$sira] += $adet;
         }
 
-        $satirlar = array_values($satirlar);
         // Taşeron, sonra proje; kodlar doğal sırayla (ZONE 7, ZONE 10'dan önce)
         $siralayici = new Collator('tr_TR');
         $siralayici->setAttribute(Collator::NUMERIC_COLLATION, Collator::ON);
-        usort($satirlar, fn (array $a, array $b): int => (int) $siralayici->compare($a['taseron'], $b['taseron'])
-            ?: (int) $siralayici->compare($a['proje'], $b['proje']));
+        $taserona = fn (array $a, array $b): int => (int) $siralayici->compare($a['taseron'], $b['taseron']);
+        $projeye = fn (array $a, array $b): int => (int) $siralayici->compare($a['proje'], $b['proje']);
+        $satirlar = array_values($satirlar);
+        usort($satirlar, fn (array $a, array $b): int => $taserona($a, $b) ?: $projeye($a, $b));
+        $firmaSatirlari = array_values($firmaSatirlari);
+        usort($firmaSatirlari, $taserona);
+        $projeSatirlari = array_values($projeSatirlari);
+        usort($projeSatirlari, $projeye);
 
         $turToplamlari = $sorgu->clone()->toBase()
             ->groupBy('tum_kesintiler.kesinti_turu_id')
@@ -92,15 +118,19 @@ final class FirmaOzeti
             $toplamAdet[$sira] = (int) $turToplami->adet;
         }
 
+        $cikti = fn (array $satir): array => [
+            ...$satir,
+            'kalanlar' => array_map($this->tutar(...), $satir['kalanlar']),
+            'toplam_kalan' => $this->tutar(array_sum($satir['kalanlar'])),
+        ];
+
         return [
             'tarih' => $parametreler['tarih'],
             'para_birimi' => (string) ParaBirimi::query()->whereKey($parametreler['para_birimi_id'])->value('kod'),
             'kesinti_turleri' => $turler,
-            'satirlar' => array_map(fn (array $satir): array => [
-                ...$satir,
-                'kalanlar' => array_map($this->tutar(...), $satir['kalanlar']),
-                'toplam_kalan' => $this->tutar(array_sum($satir['kalanlar'])),
-            ], $satirlar),
+            'satirlar' => array_map($cikti, $satirlar),
+            'firma_satirlari' => array_map($cikti, $firmaSatirlari),
+            'proje_satirlari' => array_map($cikti, $projeSatirlari),
             'toplam' => [
                 'kalanlar' => array_map($this->tutar(...), $toplam),
                 'kayit_sayilari' => $toplamAdet,

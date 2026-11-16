@@ -1,4 +1,5 @@
 import { keepPreviousData, skipToken, useMutation, useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -13,11 +14,31 @@ import { KesintiRaporuParametreleri } from '@/features/kesinti/KesintiRaporuPara
 import { useKesintiRaporuParametreleri } from '@/features/kesinti/kesintiRaporu'
 import { useKaliciSiralama } from '@/hooks/useKaliciSiralama'
 
-import { firmaOzetiApi, type EkstreParametreleri, type FirmaOzeti } from './firmaOzetiApi'
+import {
+  firmaOzetiApi,
+  type EkstreParametreleri,
+  type FirmaOzeti,
+  type FirmaSatiri,
+  type KalanSatiri,
+  type ProjeSatiri,
+} from './firmaOzetiApi'
+
+/** Özet: taşeron + proje; Firma Özeti: taşeron (projeler toplanır); Proje Özeti: proje (taşeronlar toplanır) */
+type Sekme = 'ozet' | 'firma' | 'proje'
+
+const SEKMELER: readonly Sekme[] = ['ozet', 'firma', 'proje']
+
+/** Sekmenin kimlik kolonları, soldan */
+const KIMLIKLER: Record<Sekme, readonly ('taseron' | 'proje')[]> = {
+  ozet: ['taseron', 'proje'],
+  firma: ['taseron'],
+  proje: ['proje'],
+}
 
 /**
  * Tablo satırı: kesinti türlerinin kalanı `tur_<id>` (sayı: sıralanabilir),
- * satır sayısı `adet_<id>` kolonlarında
+ * satır sayısı `adet_<id>` kolonlarında. Sekmede olmayan kimlik boş
+ * (firma_id / proje_id 0, metinler '').
  */
 type TabloSatiri = Record<string, string | number> & {
   anahtar: string
@@ -26,9 +47,12 @@ type TabloSatiri = Record<string, string | number> & {
   taseron_ad: string
   proje_id: number
   proje: string
+  proje_ad: string
 }
 
 type KesintiTuru = FirmaOzeti['kesinti_turleri'][number]
+
+type KaynakSatiri = KalanSatiri & Partial<FirmaSatiri> & Partial<ProjeSatiri>
 
 const turKolonu = (id: number) => `tur_${id}`
 const adetKolonu = (id: number) => `adet_${id}`
@@ -45,17 +69,56 @@ function tutarHucresi(deger: string | number, kalin = false, kesintiVar = true) 
   )
 }
 
+/** Sekmenin satırları, tablo biçiminde */
+function tabloSatirlari(veri: FirmaOzeti, sekme: Sekme): TabloSatiri[] {
+  const kaynak: KaynakSatiri[] =
+    sekme === 'ozet'
+      ? veri.satirlar
+      : sekme === 'firma'
+        ? veri.firma_satirlari
+        : veri.proje_satirlari
+
+  return kaynak.map((satir) => ({
+    anahtar: `${satir.firma_id ?? 0}-${satir.proje_id ?? 0}`,
+    firma_id: satir.firma_id ?? 0,
+    taseron: satir.taseron ?? '',
+    taseron_ad: satir.taseron_ad ?? '',
+    proje_id: satir.proje_id ?? 0,
+    proje: satir.proje ?? '',
+    proje_ad: satir.proje_ad ?? '',
+    ...Object.fromEntries(
+      veri.kesinti_turleri.flatMap((tur, i) => [
+        [turKolonu(tur.id), Number(satir.kalanlar[i])],
+        [adetKolonu(tur.id), satir.kayit_sayilari[i]],
+      ]),
+    ),
+    toplam_kalan: Number(satir.toplam_kalan),
+  }))
+}
+
 /**
- * Kesinti Yönetimi → Firma Özeti (kullanıcı isteği 2026-11-13): taşeron +
- * proje başına her kesinti türünden kalan tutar yan yana ve toplam kalan.
- * Yalnız taşerona yansıtılan kesintiler (Kesinti Özeti'nin "Kalan"ı ile
- * aynı); kesintisi olan her satır listelenir. Parametreler Kesinti Özeti'nin aynısı.
+ * Kesinti Yönetimi → Pivot (eski adı Firma Özeti; kullanıcı isteği 2026-11-13):
+ * her kesinti türünden kalan tutar yan yana ve toplam kalan. Yalnız taşerona
+ * yansıtılan kesintiler (Kesinti Özeti'nin "Kalan"ı ile aynı); kesintisi olan
+ * her satır listelenir. Parametreler Kesinti Özeti'nin aynısı.
+ *
+ * 2026-11-16 (kullanıcı isteği): menüde "Pivot", üç sekme — Özet (taşeron +
+ * proje), Firma Özeti (taşeron), Proje Özeti (proje). Hücreden ekstre yalnız
+ * Özet'te (ekstre bir taşeron + projenin dökümüdür); Excel üç sekmeyi ayrı
+ * sayfalarda indirir.
  */
 export function FirmaOzetiPage() {
   const { t } = useTranslation()
   const parametreDurumu = useKesintiRaporuParametreleri('firmaOzeti', firmaOzetiApi.secenekler)
   const { parametreler, secenekler } = parametreDurumu
-  const { siralama, siralamaDegistir } = useKaliciSiralama('firmaOzeti')
+  const [sekme, setSekme] = useState<Sekme>('ozet')
+  // Sekme başına ayrı sıralama tercihi (Özet'in anahtarı eskisi: kayıtlı tercih korunur)
+  const siralamalar = {
+    ozet: useKaliciSiralama('firmaOzeti'),
+    firma: useKaliciSiralama('pivotFirma'),
+    proje: useKaliciSiralama('pivotProje'),
+  }
+  const { siralama, siralamaDegistir } = siralamalar[sekme]
 
   const ozet = useQuery({
     queryKey: queryKeys.kesinti.firmaOzeti(parametreler),
@@ -86,14 +149,14 @@ export function FirmaOzetiPage() {
   const eskiVeri = ozet.isPlaceholderData
 
   /**
-   * Kalan hücresi: o türde kesinti varsa (kalanı sıfır olsa da) tıklanınca
-   * hücrenin ekstresi (PDF) iner; tür yoksa (Toplam Kalan) taşeron + projenin
-   * bütün türleri — satır yalnız kesintisi olan taşeron + proje için gelir.
+   * Kalan hücresi: Özet'te o türde kesinti varsa (kalanı sıfır olsa da)
+   * tıklanınca hücrenin ekstresi (PDF) iner; tür yoksa (Toplam Kalan) taşeron +
+   * projenin bütün türleri. Firma / Proje Özeti'nde yalnız tutar.
    */
   const kalanHucresi = (satir: TabloSatiri, tur: KesintiTuru | null, kalin = false) => {
     const deger = tur ? satir[turKolonu(tur.id)] : satir.toplam_kalan
     const kesintiVar = tur ? Number(satir[adetKolonu(tur.id)]) > 0 : true
-    if (!kesintiVar || parametreler === null) {
+    if (sekme !== 'ozet' || !kesintiVar || parametreler === null) {
       return tutarHucresi(deger, kalin, kesintiVar)
     }
     const hucre: EkstreParametreleri = {
@@ -128,24 +191,10 @@ export function FirmaOzetiPage() {
 
   const veri = ozet.data
   const turler = veri?.kesinti_turleri ?? []
-  const satirlar: TabloSatiri[] = (veri?.satirlar ?? []).map((satir) => ({
-    anahtar: `${satir.firma_id}-${satir.proje_id}`,
-    firma_id: satir.firma_id,
-    taseron: satir.taseron,
-    taseron_ad: satir.taseron_ad,
-    proje_id: satir.proje_id,
-    proje: satir.proje,
-    ...Object.fromEntries(
-      turler.flatMap((tur, i) => [
-        [turKolonu(tur.id), Number(satir.kalanlar[i])],
-        [adetKolonu(tur.id), satir.kayit_sayilari[i]],
-      ]),
-    ),
-    toplam_kalan: Number(satir.toplam_kalan),
-  }))
+  const satirlar = veri ? tabloSatirlari(veri, sekme) : []
 
-  const kolonlar: DataTableKolonu<TabloSatiri>[] = [
-    {
+  const kimlikKolonlari: Record<'taseron' | 'proje', DataTableKolonu<TabloSatiri>> = {
+    taseron: {
       anahtar: 'taseron',
       baslik: t('kesinti.firmaOzeti.kolon.taseron'),
       siralamaAnahtari: 'taseron',
@@ -158,12 +207,23 @@ export function FirmaOzetiPage() {
         </span>
       ),
     },
-    {
+    proje: {
       anahtar: 'proje',
       baslik: t('kesinti.firmaOzeti.kolon.proje'),
       siralamaAnahtari: 'proje',
-      render: (satir) => <span className="whitespace-nowrap">{satir.proje}</span>,
+      render: (satir) => (
+        <span
+          className={`whitespace-nowrap ${sekme === 'proje' ? 'font-semibold' : ''}`}
+          title={satir.proje_ad && satir.proje_ad !== satir.proje ? satir.proje_ad : undefined}
+        >
+          {satir.proje}
+        </span>
+      ),
     },
+  }
+
+  const kolonlar: DataTableKolonu<TabloSatiri>[] = [
+    ...KIMLIKLER[sekme].map((kimlik) => kimlikKolonlari[kimlik]),
     ...turler.map((tur): DataTableKolonu<TabloSatiri> => ({
       anahtar: turKolonu(tur.id),
       baslik: tur.kod,
@@ -198,7 +258,8 @@ export function FirmaOzetiPage() {
       ]
     : []
 
-  const bos = veri !== undefined && satirlar.length === 0
+  // Üç sekme aynı hücrelerden: biri boşsa hepsi boş
+  const bos = veri !== undefined && veri.satirlar.length === 0
 
   return (
     <>
@@ -245,24 +306,52 @@ export function FirmaOzetiPage() {
               : t('ortak.yukleniyor')}
         </div>
       ) : (
-        <div className={eskiVeri ? 'opacity-50' : ''}>
-          <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
-            {t('kesinti.firmaOzeti.satirSayisi', { sayi: satirlar.length, para: veri.para_birimi })}
-          </p>
-          <div className="mt-2">
-            <DataTable
-              kolonlar={kolonlar}
-              satirlar={siralaUygula(satirlar, siralama)}
-              satirAnahtari={(satir) => satir.anahtar}
-              siralama={siralama}
-              siralamaDegistir={siralamaDegistir}
-              ustKaydirma
-              toplamSatirlari={toplamSatirlari}
-              // 14 kolon: bir boy küçük (kullanıcı isteği 2026-11-13)
-              yaziBoyutu="kucuk"
-            />
+        <>
+          <div
+            role="tablist"
+            aria-label={t('kesinti.firmaOzeti.sekmeler')}
+            className="mt-4 flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-700"
+          >
+            {SEKMELER.map((anahtar) => (
+              <button
+                key={anahtar}
+                type="button"
+                role="tab"
+                aria-selected={sekme === anahtar}
+                onClick={() => setSekme(anahtar)}
+                className={`-mb-px cursor-pointer border-b-2 px-3 py-2 text-sm font-semibold ${
+                  sekme === anahtar
+                    ? 'border-violet-600 text-violet-700 dark:text-violet-300'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                {t(`kesinti.firmaOzeti.sekme.${anahtar}`)}
+              </button>
+            ))}
           </div>
-        </div>
+          <div className={eskiVeri ? 'opacity-50' : ''}>
+            <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
+              {t(`kesinti.firmaOzeti.satirSayisi.${sekme}`, {
+                sayi: satirlar.length,
+                para: veri.para_birimi,
+              })}
+            </p>
+            <div className="mt-2">
+              <DataTable
+                key={sekme}
+                kolonlar={kolonlar}
+                satirlar={siralaUygula(satirlar, siralama)}
+                satirAnahtari={(satir) => satir.anahtar}
+                siralama={siralama}
+                siralamaDegistir={siralamaDegistir}
+                ustKaydirma
+                toplamSatirlari={toplamSatirlari}
+                // 14 kolon: bir boy küçük (kullanıcı isteği 2026-11-13)
+                yaziBoyutu="kucuk"
+              />
+            </div>
+          </div>
+        </>
       )}
     </>
   )

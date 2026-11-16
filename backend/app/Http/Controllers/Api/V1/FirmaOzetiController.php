@@ -19,9 +19,11 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\HeaderUtils;
 
 /**
- * Kesinti Yönetimi → Firma Özeti: taşeron + proje başına kesinti türlerinin
- * kalanı yan yana (Tüm Kesintiler'den; ERP okunmaz). Yalnız rapor;
- * `firma_ozeti.goruntule` izniyle korunur.
+ * Kesinti Yönetimi → Pivot (eski adı Firma Özeti; kullanıcı isteği 2026-11-16):
+ * kesinti türlerinin kalanı yan yana — taşeron + proje, taşeron ve proje
+ * başına üç sekme (Tüm Kesintiler'den; ERP okunmaz). Yalnız rapor;
+ * `firma_ozeti.goruntule` izniyle korunur (izin anahtarı ve API adresi aynı
+ * kaldı: rol atamaları bozulmasın).
  */
 final class FirmaOzetiController extends Controller
 {
@@ -30,11 +32,11 @@ final class FirmaOzetiController extends Controller
         return response()->json(['data' => $ozet->hesapla($request->parametreler())]);
     }
 
-    /** Ekrandaki tablo + toplam satırı */
+    /** Ekrandaki üç sekme, sekme başına sayfa (tablo + toplam satırı) */
     public function excel(KesintiRaporuRequest $request, FirmaOzeti $ozet, FirmaOzetiExcelAktarici $aktarici): BinaryFileResponse
     {
         return response()
-            ->download($aktarici->olustur($ozet->hesapla($request->parametreler())), 'firma-ozeti.xlsx', [
+            ->download($aktarici->olustur($ozet->hesapla($request->parametreler())), 'pivot.xlsx', [
                 'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 'Cache-Control' => 'private, no-store',
             ])

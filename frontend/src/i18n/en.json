@@ -49,7 +49,7 @@
     "kesinti": "Deduction Management",
     "tumKesintiler": "All Deductions",
     "kesintiOzeti": "Deduction Summary",
-    "firmaOzeti": "Company Summary",
+    "pivot": "Pivot",
     "isgucuKesintileri": "Labour Deductions",
     "kampKesintileri": "Camp Deductions",
     "kampMalzemeKesintileri": "Camp Material Deductions",
@@ -537,7 +537,7 @@
       "efatura": "e-Invoices (Incoming/Outgoing)",
       "tum_kesintiler": "All Deductions",
       "kesinti_ozeti": "Deduction Summary",
-      "firma_ozeti": "Company Summary",
+      "firma_ozeti": "Pivot",
       "isgucu_kesintileri": "Labour Deductions",
       "kamp_kesintileri": "Camp Deductions",
       "kamp_malzeme_kesintileri": "Camp Material Deductions",
@@ -1030,8 +1030,14 @@
       }
     },
     "firmaOzeti": {
-      "baslik": "Company Summary",
-      "aciklamaMetni": "Remaining amount of each deduction type per subcontractor and project, side by side; from All Deductions up to the selected date, in a single currency. Only deductions re-invoiced to the subcontractor count (the remainder of those assumed by HAB is not deducted from the subcontractor; same as Remaining in Deduction Summary). \"-\" means no deductions of that type; 0.00 means there are deductions but all were deducted. Click an amount to download that cell’s deduction statement as a PDF (A3 landscape); Total Remaining covers all types of the subcontractor and project.",
+      "baslik": "Pivot",
+      "aciklamaMetni": "Remaining amount of each deduction type side by side; from All Deductions up to the selected date, in a single currency. Summary shows it per subcontractor and project, Company Summary per subcontractor (projects added up), Project Summary per project (subcontractors added up). Only deductions re-invoiced to the subcontractor count (the remainder of those assumed by HAB is not deducted from the subcontractor; same as Remaining in Deduction Summary). \"-\" means no deductions of that type; 0.00 means there are deductions but all were deducted. On the Summary tab, click an amount to download that cell’s deduction statement as a PDF (A3 landscape); Total Remaining covers all types of the subcontractor and project. Export to Excel downloads the three tabs as separate sheets.",
+      "sekmeler": "Views",
+      "sekme": {
+        "ozet": "Summary",
+        "firma": "Company Summary",
+        "proje": "Project Summary"
+      },
       "kolon": {
         "taseron": "Subcontractor",
         "proje": "Project",
@@ -1039,7 +1045,11 @@
       },
       "toplam": "Total",
       "kalanYok": "No deductions re-invoiced to subcontractors for the selected date, projects, companies and currency.",
-      "satirSayisi": "{{sayi}} subcontractor / project rows ({{para}})",
+      "satirSayisi": {
+        "ozet": "{{sayi}} subcontractor / project rows ({{para}})",
+        "firma": "{{sayi}} subcontractors ({{para}})",
+        "proje": "{{sayi}} projects ({{para}})"
+      },
       "ekstreEtiketi": "{{taseron}} / {{proje}} / {{tur}} statement (PDF)",
       "tumTurler": "all deduction types",
       "ekstreIpucu": "Download the deduction statement as PDF",

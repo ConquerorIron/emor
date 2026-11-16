@@ -5,28 +5,43 @@ import type {
   KesintiRaporuSecenekleri,
 } from '@/features/kesinti/kesintiRaporu'
 
-/** Taşeron + proje satırı: kalanlar kesinti_turleri ile aynı sırada (noktalı iki ondalıklı metin) */
-export interface FirmaOzetiSatiri {
-  firma_id: number
-  /** Firma kodu (ekranda); tam unvan taseron_ad */
-  taseron: string
-  taseron_ad: string
-  proje_id: number
-  proje: string
+/** Satırın tutarları: kalanlar kesinti_turleri ile aynı sırada (noktalı iki ondalıklı metin) */
+export interface KalanSatiri {
   kalanlar: string[]
   /** Kesinti türü başına satır sayısı: 0 → o türde kesinti yok ("-"), kalan 0 olsa da >0 → "0,00" */
   kayit_sayilari: number[]
   toplam_kalan: string
 }
 
-/** Backend FirmaOzeti::hesapla — yalnız taşerona yansıtılan kesintilerin kalanı */
+/** Firma Özeti sekmesi: taşeron başına (projeler toplanır) */
+export interface FirmaSatiri extends KalanSatiri {
+  firma_id: number
+  /** Firma kodu (ekranda); tam unvan taseron_ad */
+  taseron: string
+  taseron_ad: string
+}
+
+/** Proje Özeti sekmesi: proje başına (taşeronlar toplanır) */
+export interface ProjeSatiri extends KalanSatiri {
+  proje_id: number
+  /** Proje kodu (ekranda); adı proje_ad */
+  proje: string
+  proje_ad: string
+}
+
+/** Özet sekmesi: taşeron + proje */
+export interface FirmaOzetiSatiri extends FirmaSatiri, ProjeSatiri {}
+
+/** Backend FirmaOzeti::hesapla — yalnız taşerona yansıtılan kesintilerin kalanı; üç sekmenin satırları */
 export interface FirmaOzeti {
   tarih: string
   para_birimi: string
   /** Kolonlar: kesinti türleri, bağlı oldukları ekranın menü sırasıyla */
   kesinti_turleri: { id: number; kod: string; ad: string }[]
   satirlar: FirmaOzetiSatiri[]
-  toplam: { kalanlar: string[]; kayit_sayilari: number[]; toplam_kalan: string }
+  firma_satirlari: FirmaSatiri[]
+  proje_satirlari: ProjeSatiri[]
+  toplam: KalanSatiri
 }
 
 /** Tıklanan hücre: raporun tarihi ve para birimi + satırın taşeronu ve projesi; tür yoksa (Toplam Kalan) bütün türler */
@@ -51,13 +66,13 @@ export const firmaOzetiApi = {
 
     return yanit.data.data
   },
-  /** Ekrandaki tablo + toplam satırı .xlsx */
+  /** Üç sekme, sekme başına sayfa (tablo + toplam satırı) .xlsx */
   excel: async (parametreler: KesintiRaporuParametreleri): Promise<void> => {
     const yanit = await api
       .get<Blob>(`${ADRES}/excel`, { params: parametreler, responseType: 'blob' })
       .catch(blobHatasiniCoz)
 
-    dosyayiIndir(yanit.data, 'firma-ozeti.xlsx')
+    dosyayiIndir(yanit.data, 'pivot.xlsx')
   },
   /** Hücrenin kesinti ekstresi: PDF, A3 yatay */
   ekstre: async (parametreler: EkstreParametreleri, dosyaAdi: string): Promise<void> => {

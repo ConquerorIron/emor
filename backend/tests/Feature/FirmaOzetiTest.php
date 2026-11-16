@@ -51,8 +51,8 @@ final class FirmaOzetiTest extends TestCase
         $this->zetas = Firma::factory()->create(['kod' => 'ZETAŞ', 'ad' => 'ZETAŞ ZEMİN TEKNOLOJİSİ']);
         $mfk = Firma::factory()->create(['kod' => 'MFK', 'ad' => 'MFK']);
         $hab = Firma::factory()->create(['kod' => 'HAB', 'firmamiz' => true]);
-        $zone6 = Proje::factory()->create(['kod' => 'ZONE 6']);
-        $zone10 = Proje::factory()->create(['kod' => 'ZONE 10']);
+        $zone6 = Proje::factory()->create(['kod' => 'ZONE 6', 'ad' => 'ZONE 6 TERSANE']);
+        $zone10 = Proje::factory()->create(['kod' => 'ZONE 10', 'ad' => 'ZONE 10 TERSANE']);
         KesintiTuru::factory()->create(['kod' => 'ESKİ', 'icmal' => null]);
         $yemek = KesintiTuru::factory()->create(['kod' => 'YEMEK', 'icmal' => 'yemek']);
         KesintiTuru::factory()->create(['kod' => 'KAMP', 'icmal' => 'kamp']);
@@ -115,6 +115,30 @@ final class FirmaOzetiTest extends TestCase
             ]);
     }
 
+    public function test_firma_ozeti_projeleri_proje_ozeti_taseronlari_toplar(): void
+    {
+        $this->ornekVeri();
+
+        $this->actingAs($this->kullanici())
+            ->getJson($this->adres())
+            ->assertOk()
+            // Firma Özeti: MFK'nın ZONE 6 + ZONE 10'u tek satır
+            ->assertJsonPath('data.firma_satirlari.*.taseron', ['MFK', 'ZETAŞ'])
+            ->assertJsonPath('data.firma_satirlari.0.kalanlar', ['100.00', '0.00', '0.00', '0.00'])
+            ->assertJsonPath('data.firma_satirlari.0.kayit_sayilari', [1, 0, 1, 0])
+            ->assertJsonPath('data.firma_satirlari.0.toplam_kalan', '100.00')
+            ->assertJsonPath('data.firma_satirlari.1.taseron_ad', 'ZETAŞ ZEMİN TEKNOLOJİSİ')
+            ->assertJsonPath('data.firma_satirlari.1.toplam_kalan', '200.00')
+            ->assertJsonMissingPath('data.firma_satirlari.0.proje_id')
+            // Proje Özeti: ZONE 10'da ZETAŞ + MFK tek satır; doğal sıra (ZONE 6, ZONE 10)
+            ->assertJsonPath('data.proje_satirlari.*.proje', ['ZONE 6', 'ZONE 10'])
+            ->assertJsonPath('data.proje_satirlari.1.proje_ad', 'ZONE 10 TERSANE')
+            ->assertJsonPath('data.proje_satirlari.1.kalanlar', ['40.00', '0.00', '160.00', '0.00'])
+            ->assertJsonPath('data.proje_satirlari.1.kayit_sayilari', [1, 0, 3, 0])
+            ->assertJsonPath('data.proje_satirlari.1.toplam_kalan', '200.00')
+            ->assertJsonMissingPath('data.proje_satirlari.0.firma_id');
+    }
+
     public function test_secilen_firmayla_suzulur(): void
     {
         $this->ornekVeri();
@@ -126,29 +150,44 @@ final class FirmaOzetiTest extends TestCase
             ->assertJsonPath('data.toplam.toplam_kalan', '200.00');
     }
 
-    public function test_excel_tabloyu_toplam_satiriyla_indirir(): void
+    public function test_excel_uc_sekmeyi_ayri_sayfalarda_toplam_satiriyla_indirir(): void
     {
         $this->ornekVeri();
 
         $yanit = $this->actingAs($this->kullanici())
             ->get($this->adres(uc: '/excel'))
             ->assertOk();
-        $this->assertStringContainsString('firma-ozeti.xlsx', (string) $yanit->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('pivot.xlsx', (string) $yanit->headers->get('Content-Disposition'));
 
         $kitap = IOFactory::load($yanit->baseResponse->getFile()->getPathname());
-        $this->assertSame(['Firma Özeti'], $kitap->getSheetNames());
-        $sayfa = $kitap->getActiveSheet();
-        $satir = fn (int $no): array => array_map(
-            fn (string $kolon): string => (string) $sayfa->getCell($kolon.$no)->getFormattedValue(),
-            range('A', 'H'),
+        $this->assertSame(['Özet', 'Firma Özeti', 'Proje Özeti'], $kitap->getSheetNames());
+        $this->assertSame('Özet', $kitap->getActiveSheet()->getTitle());
+        $satir = fn (string $sayfaAdi, int $no, string $son = 'H'): array => array_map(
+            fn (string $kolon): string => (string) $kitap->getSheetByNameOrThrow($sayfaAdi)->getCell($kolon.$no)->getFormattedValue(),
+            range('A', $son),
         );
-        $this->assertSame('Firma Özeti — 30.09.2026 itibarıyla kalan kesintiler (TL)', $sayfa->getCell('A1')->getValue());
-        $this->assertSame(['Taşeron', 'Taşeron Adı', 'Proje', 'İŞGÜCÜ', 'KAMP', 'YEMEK', 'ESKİ', 'Toplam Kalan'], $satir(3));
+        $sayfa = $kitap->getSheetByNameOrThrow('Özet');
+        $this->assertSame('Özet — 30.09.2026 itibarıyla kalan kesintiler (TL)', $sayfa->getCell('A1')->getValue());
+        $this->assertSame(['Taşeron', 'Taşeron Adı', 'Proje', 'İŞGÜCÜ', 'KAMP', 'YEMEK', 'ESKİ', 'Toplam Kalan'], $satir('Özet', 3));
         // Kesintisi olmayan tür boş, kesintisi olup kalanı sıfır olan 0.00
-        $this->assertSame(['MFK', 'MFK', 'ZONE 6', '100.00', '', '', '', '100.00'], $satir(4));
-        $this->assertSame(['MFK', 'MFK', 'ZONE 10', '', '', '0.00', '', '0.00'], $satir(5));
-        $this->assertSame(['ZETAŞ', 'ZETAŞ ZEMİN TEKNOLOJİSİ', 'ZONE 10', '40.00', '', '160.00', '', '200.00'], $satir(6));
-        $this->assertSame(['TOPLAM', '', '', '140.00', '', '160.00', '', '300.00'], $satir(7));
+        $this->assertSame(['MFK', 'MFK', 'ZONE 6', '100.00', '', '', '', '100.00'], $satir('Özet', 4));
+        $this->assertSame(['MFK', 'MFK', 'ZONE 10', '', '', '0.00', '', '0.00'], $satir('Özet', 5));
+        $this->assertSame(['ZETAŞ', 'ZETAŞ ZEMİN TEKNOLOJİSİ', 'ZONE 10', '40.00', '', '160.00', '', '200.00'], $satir('Özet', 6));
+        $this->assertSame(['TOPLAM', '', '', '140.00', '', '160.00', '', '300.00'], $satir('Özet', 7));
+
+        // Firma Özeti: proje kolonu yok, taşeron başına tek satır
+        $this->assertSame(['Taşeron', 'Taşeron Adı', 'İŞGÜCÜ', 'KAMP', 'YEMEK', 'ESKİ', 'Toplam Kalan'], $satir('Firma Özeti', 3, 'G'));
+        $this->assertSame(['MFK', 'MFK', '100.00', '', '0.00', '', '100.00'], $satir('Firma Özeti', 4, 'G'));
+        $this->assertSame(['ZETAŞ', 'ZETAŞ ZEMİN TEKNOLOJİSİ', '40.00', '', '160.00', '', '200.00'], $satir('Firma Özeti', 5, 'G'));
+        $this->assertSame(['TOPLAM', '', '140.00', '', '160.00', '', '300.00'], $satir('Firma Özeti', 6, 'G'));
+
+        // Proje Özeti: taşeron kolonu yok, proje başına tek satır
+        $sayfa = $kitap->getSheetByNameOrThrow('Proje Özeti');
+        $this->assertSame('Proje Özeti — 30.09.2026 itibarıyla kalan kesintiler (TL)', $sayfa->getCell('A1')->getValue());
+        $this->assertSame(['Proje', 'Proje Adı', 'İŞGÜCÜ', 'KAMP', 'YEMEK', 'ESKİ', 'Toplam Kalan'], $satir('Proje Özeti', 3, 'G'));
+        $this->assertSame(['ZONE 6', 'ZONE 6 TERSANE', '100.00', '', '', '', '100.00'], $satir('Proje Özeti', 4, 'G'));
+        $this->assertSame(['ZONE 10', 'ZONE 10 TERSANE', '40.00', '', '160.00', '', '200.00'], $satir('Proje Özeti', 5, 'G'));
+        $this->assertSame(['TOPLAM', '', '140.00', '', '160.00', '', '300.00'], $satir('Proje Özeti', 6, 'G'));
     }
 
     public function test_parametre_secenekleri_kesintide_gecenlerden(): void
