@@ -109,21 +109,39 @@ final class KesintiEkstresiPdf
     }
 
     /**
-     * "Etiket: değer" çiftleri yan yana, tek satır.
+     * "Etiket: değer" çiftleri yan yana. Sığmayan çift alt satıra geçer; tek
+     * başına satıra sığmayan değer (uzun proje / taşeron adı) kendi içinde kırılır.
      *
      * @param  list<array{0: string, 1: string}>  $ciftler
      */
     private function etiketliSatir(array $ciftler): void
     {
         $pdf = $this->pdf;
+        $sag = self::KENAR + self::GENISLIK;
+        $satirBasi = true;
         foreach ($ciftler as [$etiket, $deger]) {
             $this->yazi(8, 'B', self::SOLUK);
             $metin = $etiket.': ';
-            $pdf->Cell($pdf->GetStringWidth($metin) + 0.5, 5, $metin, 0, 0, 'L');
+            $etiketGenisligi = $pdf->GetStringWidth($metin) + 0.5;
+            $degerGenisligi = $pdf->GetStringWidth($deger) + 8;
+            if (! $satirBasi && $pdf->GetX() + $etiketGenisligi + $degerGenisligi > $sag) {
+                $pdf->Ln(5);
+            }
+            $pdf->Cell($etiketGenisligi, 5, $metin, 0, 0, 'L');
             $this->yazi(8, 'B', self::KOYU);
-            $pdf->Cell($pdf->GetStringWidth($deger) + 8, 5, $deger, 0, 0, 'L');
+            $kalan = $sag - $pdf->GetX();
+            if ($degerGenisligi > $kalan) {
+                $pdf->MultiCell($kalan, 5, $deger, 0, 'L', false, 1);
+                $satirBasi = true;
+
+                continue;
+            }
+            $pdf->Cell($degerGenisligi, 5, $deger, 0, 0, 'L');
+            $satirBasi = false;
         }
-        $pdf->Ln(5);
+        if (! $satirBasi) {
+            $pdf->Ln(5);
+        }
     }
 
     /**

@@ -13,6 +13,7 @@ use App\Models\Rol;
 use App\Models\User;
 use App\Models\YemekKesintisi;
 use App\Services\Kesinti\KesintiEkstresi;
+use App\Services\Kesinti\KesintiEkstresiPdf;
 use App\Services\Kesinti\YansitmaTuru;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -160,6 +161,45 @@ final class KesintiEkstresiTest extends TestCase
 
         $this->assertStringStartsWith('%PDF-', (string) $yanit->getContent());
         $this->assertStringContainsString('kesinti-ekstresi-zetas-zone-10-yemek.pdf', (string) $yanit->headers->get('Content-Disposition'));
+    }
+
+    /**
+     * Üst bilgideki "etiket: değer" çiftleri yan yana yazılır; uzun proje adı
+     * sonrakileri (tarih, para birimi, işveren) sayfanın dışına itmemeli.
+     */
+    public function test_uzun_proje_adi_ust_bilgiyi_sayfa_disina_tasirmaz(): void
+    {
+        $this->ornekVeri();
+        $this->zone10->update(['ad' => rtrim(str_repeat('ZONE 10 TERSANE GENİŞLETME SAHASI ', 6))]);
+
+        $pdf = app(KesintiEkstresiPdf::class)->olustur(
+            app(KesintiEkstresi::class)->veri($this->parametreler($this->yemek->id)),
+        );
+
+        // A3 yatay: 420 mm − 10 mm kenar, punto cinsinden
+        $sagSinir = (420 - 10) * 72 / 25.4;
+        $baslangiclar = $this->metinBaslangiclari($pdf);
+        $this->assertNotEmpty($baslangiclar);
+        $this->assertLessThanOrEqual($sagSinir, max($baslangiclar));
+    }
+
+    /**
+     * PDF'teki her metin parçasının başladığı x konumu (punto).
+     *
+     * @return list<float>
+     */
+    private function metinBaslangiclari(string $pdf): array
+    {
+        preg_match_all('/stream\r?\n(.*?)\r?\nendstream/s', $pdf, $akislar);
+        $baslangiclar = [];
+        foreach ($akislar[1] as $akis) {
+            $icerik = @gzuncompress($akis);
+            if ($icerik !== false && preg_match_all('/BT (-?[\d.]+) -?[\d.]+ Td/', $icerik, $konumlar) > 0) {
+                $baslangiclar = [...$baslangiclar, ...array_map(floatval(...), $konumlar[1])];
+            }
+        }
+
+        return $baslangiclar;
     }
 
     public function test_firma_ve_proje_zorunlu_422(): void

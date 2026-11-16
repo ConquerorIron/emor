@@ -92,7 +92,7 @@ describe('FirmaOzetiPage', () => {
     vi.clearAllMocks()
   })
 
-  it('taşeron + proje satırlarında kesinti türlerinin kalanı yan yana; toplam satırı, sıfır "-"', async () => {
+  it('taşeron + proje satırlarında kesinti türlerinin kalanı yan yana; toplam satırı, kesintisi olmayan hücre "-"', async () => {
     const tablo = await screen.findByRole('table')
     expect(api.getir).toHaveBeenCalledWith(
       expect.objectContaining({ para_birimi_id: 1, proje_id: [], firma_id: [] }),
@@ -157,17 +157,59 @@ describe('FirmaOzetiPage', () => {
     expect(
       screen.getByRole('button', { name: 'MFK / ZONE 6 / YEMEK ekstresi (PDF)' }),
     ).toHaveTextContent('0,00')
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'MFK / ZONE 6 / YEMEK ekstresi (PDF)' }),
+    )
+    await waitFor(() => expect(api.ekstre).toHaveBeenCalledTimes(2))
+    expect(api.ekstre).toHaveBeenLastCalledWith(
+      expect.objectContaining({ firma_id: 2, proje_id: 6, kesinti_turu_id: 5 }),
+      'kesinti-ekstresi-MFK-ZONE-6-YEMEK.pdf',
+    )
 
     fireEvent.click(
       await screen.findByRole('button', {
         name: 'MFK / ZONE 6 / tüm kesinti türleri ekstresi (PDF)',
       }),
     )
-    await waitFor(() => expect(api.ekstre).toHaveBeenCalledTimes(2))
-    const [hucre, dosyaAdi] = api.ekstre.mock.calls[1]
+    await waitFor(() => expect(api.ekstre).toHaveBeenCalledTimes(3))
+    const [hucre, dosyaAdi] = api.ekstre.mock.calls[2]
     expect(hucre).toMatchObject({ firma_id: 2, proje_id: 6 })
     expect(hucre).not.toHaveProperty('kesinti_turu_id')
     expect(dosyaAdi).toBe('kesinti-ekstresi-MFK-ZONE-6.pdf')
+  })
+
+  it('parametre değişip yeni yanıt beklenirken eski tablodan ekstre ve Excel indirilemez', async () => {
+    api.ekstre.mockResolvedValue(undefined)
+    await screen.findByRole('table')
+    const ekstreDugmesi = () =>
+      screen.getByRole('button', { name: 'ZETAŞ / ZONE 10 / YEMEK ekstresi (PDF)' })
+    const excelDugmesi = screen.getByRole('button', { name: "Excel'e Aktar" })
+
+    let yanitla: (ozet: FirmaOzeti) => void = () => {}
+    api.getir.mockReturnValue(
+      new Promise<FirmaOzeti>((coz) => {
+        yanitla = coz
+      }),
+    )
+    fireEvent.change(document.getElementById('firma-ozeti-tarih')!, {
+      target: { value: '01.01.2020' },
+    })
+    await waitFor(() =>
+      expect(api.getir).toHaveBeenLastCalledWith(expect.objectContaining({ tarih: '2020-01-01' })),
+    )
+
+    // Önceki tablo hâlâ görünür ama indirmeler kapalı
+    expect(ekstreDugmesi()).toBeDisabled()
+    expect(excelDugmesi).toBeDisabled()
+    fireEvent.click(ekstreDugmesi())
+    expect(api.ekstre).not.toHaveBeenCalled()
+
+    yanitla({ ...OZET, tarih: '2020-01-01' })
+    await waitFor(() => expect(ekstreDugmesi()).toBeEnabled())
+    expect(excelDugmesi).toBeEnabled()
+    fireEvent.click(ekstreDugmesi())
+    await waitFor(() => expect(api.ekstre).toHaveBeenCalledTimes(1))
+    expect(api.ekstre.mock.calls[0][0]).toMatchObject({ tarih: '2020-01-01' })
   })
 
   it('kalan yoksa tablo yerine bilgi gösterir; Excel kapalı', async () => {

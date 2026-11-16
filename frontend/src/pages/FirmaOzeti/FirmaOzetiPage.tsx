@@ -79,6 +79,13 @@ export function FirmaOzetiPage() {
   })
 
   /**
+   * Parametre değişince yeni yanıt gelene dek ÖNCEKİ tablo (soluk) görünür;
+   * indirmeler yeni parametrelerle gideceğinden o arada kapalıdır — görülen
+   * tutar ile inen ekstre/Excel'in kapsamı ayrışmasın.
+   */
+  const eskiVeri = ozet.isPlaceholderData
+
+  /**
    * Kalan hücresi: o türde kesinti varsa (kalanı sıfır olsa da) tıklanınca
    * hücrenin ekstresi (PDF) iner; tür yoksa (Toplam Kalan) taşeron + projenin
    * bütün türleri — satır yalnız kesintisi olan taşeron + proje için gelir.
@@ -104,7 +111,7 @@ export function FirmaOzetiPage() {
     return (
       <button
         type="button"
-        disabled={ekstre.isPending}
+        disabled={ekstre.isPending || eskiVeri}
         aria-label={t('kesinti.firmaOzeti.ekstreEtiketi', {
           taseron: satir.taseron,
           proje: satir.proje,
@@ -200,7 +207,7 @@ export function FirmaOzetiPage() {
         <Button
           variant="secondary"
           yukleniyor={excel.isPending}
-          disabled={parametreler === null || veri === undefined || bos}
+          disabled={parametreler === null || veri === undefined || bos || eskiVeri}
           onClick={() => {
             if (parametreler) {
               excel.mutate(parametreler)
@@ -238,7 +245,7 @@ export function FirmaOzetiPage() {
               : t('ortak.yukleniyor')}
         </div>
       ) : (
-        <div className={ozet.isPlaceholderData ? 'opacity-50' : ''}>
+        <div className={eskiVeri ? 'opacity-50' : ''}>
           <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
             {t('kesinti.firmaOzeti.satirSayisi', { sayi: satirlar.length, para: veri.para_birimi })}
           </p>
