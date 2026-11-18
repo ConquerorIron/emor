@@ -36,6 +36,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   *(BY-001-R1: tırnak içeren ve satır sonu yorumlu parola yanlış okundu.
   BY-001-R3: ayrıştırıcı doğru kullanıldı ama Laravel'in `env()` dönüşümü elle
   yazıldı; `true` / `false` dalları eksik kaldı.)*
+  Çerçevenin fonksiyonunu çağırınca onun **bütün kaynaklarını** da devralırsın:
+  `Env::get` yalnız verdiğin diziye değil sürecin ortam değişkenlerine de bakar.
+  "Dosyada yoksa boş döner" gibi bir sözleşme yazdıysan, ortamda aynı adlı
+  değişken varken de sına.
+  *(Fable incelemesi F8: `gecici-env-oku.php` `.env`'de olmayan anahtar için
+  süreç ortamındaki değeri döndürüyordu.)*
 - **G4 — Değişken uzunluktaki veriyi sabit alana yazan kodu en uzun geçerli
   değerle dene.** Alan sınırı 200 karakterse 200 karakterle; kısa örnekle
   geçmesi kanıt değildir.
@@ -80,7 +86,11 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   Ayarı tüketen kod yalnız geçerli aralığı kabul etsin (ör. pozitif tam sayı),
   geçersizde açık hatayla dursun; boş değer G6'ya göre varsayılana döner.
   "Boş / geçerli / geçersiz" üç durumu sına.
-  *(BY-004-R5: geçersiz süre ayarı sınırsız çalışmaya dönüşebiliyordu.)*
+  Aç/kapa ayarında `(bool)` kullanma: `(bool) 'off'`, `'no'`, `'hayir'`,
+  `' false'` hepsi **true**'dur. `filter_var(…, FILTER_VALIDATE_BOOLEAN,
+  FILTER_NULL_ON_FAILURE)` ile oku; tanınmayan değeri kapalı say ya da hata ver.
+  *(BY-004-R5: geçersiz süre ayarı sınırsız çalışmaya dönüşebiliyordu.
+  Fable incelemesi F9: `YEDEKLEME_AKTIF=off` modülü açıyordu.)*
 - **G10 — Yazan da okuyanın doğrulamasından geçsin.** Okurken denetlenen bir
   biçim (şema, dosya, kayıt) yazılırken de AYNI denetimden geçmeli; yoksa tek
   hatalı çağrı son geçerli veriyi okunamaz bir veriyle değiştirir. Geçersiz
@@ -136,6 +146,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   sınatır. Farklı kurgu gerekiyorsa adlı durum (`plansiz()`) kullan.
   *(BY-004-R3: planlı kopyanın yedeği `elle`, hedefi plana bağlı değildi.
   BY-004-R6: `plan` kaynaklı yedeğin dosya adı `erp_elle_` ile başlıyordu.)*
+- **T11 — Testin ortam varsayımını koru.** İzin kaldırarak sınayan test
+  (`chmod 0000`) root altında anlamsızdır; `SIGKILL` sabiti `pcntl` ister;
+  `flock` gibi dış komut her yerde yoktur. Varsayım tutmuyorsa testi nedeniyle
+  birlikte atla (`markTestSkipped`), yanlış kırmızı verme. Testin başlattığı
+  alt süreci `try / finally` ile kapat; doğrulama düşerse yetim süreç kalmasın.
+  *(Fable incelemesi F13: `YedekKilidiTest` / `IslemDurumuTest`.)*
 
 ## 4. Betikler ve dış komutlar
 
@@ -148,7 +164,11 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   *(BY-001-R2. BY-005-R5: kilit beklemesi `microtime` ile ölçülüyordu.)*
 - **D2 — Sır hiçbir yere sızmasın.** Parola komut satırında, ortam
   değişkeninde ya da günlükte olmaz. Hata mesajına ham girdiyi / hatalı
-  satırı yazma; kütüphanenin hata metni de sır içerebilir.
+  satırı yazma; kütüphanenin hata metni de sır içerebilir. **Karşı tarafın
+  günlüğünü de say:** SQL metnine yazılan parola (`ALTER ROLE … PASSWORD '…'`)
+  sunucunun günlüğüne düşebilir (`log_statement`, hata günlüğü); aynı oturumda
+  günlüğü kapat ya da özetlenmiş (SCRAM) değeri gönder.
+  *(Fable incelemesi F3: kurulum betiği yeni parolayı düz metin SQL ile yazıyordu.)*
 - **D3 — Önce geçici ada yaz, doğrula, sonra taşı.** Yarım çıktı hiçbir zaman
   bitmiş gibi görünmemeli; hata ve sinyal yolunda geçici dosya silinmeli.
   Elektrik kesintisine dayanması gereken dosyada: geçici dosyayı `fsync`,
@@ -160,7 +180,21 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   benzerleri üst klasöre girilemediğinde de false döner. Yokluk bir karar
   dayanağıysa (ör. "açık işlem yok → yayına devam") yalnız doğrulanmış
   yoklukta "yok" de; erişim hatası istisnadır. Testte erişimi kesilmiş klasörü sına.
-  *(BY-005-R1: erişilemeyen durum dosyası "açık geri yükleme yok" sayılıyordu.)*
+  Aynı ayrım "meşgul" için de geçerli: bir çağrı başarısız olunca nedenini
+  sor (`flock`'ta `$would_block`); desteklenmeyen dosya sistemi ya da izin
+  hatası "başka işlem çalışıyor" diye raporlanırsa iş sonsuza dek sessizce atlanır.
+  *(BY-005-R1: erişilemeyen durum dosyası "açık geri yükleme yok" sayılıyordu.
+  Fable incelemesi F4: `YedekKilidi` her `flock` hatasını "meşgul" sayıyordu.)*
+- **D7 — Ayrı hesap, daha az güvenilen hesabın yazabildiği kodu çalıştırmasın.**
+  Bir işi "ele geçirilse bile X'e ulaşamasın" diye ayrı hesaba veriyorsan, o
+  hesabın çalıştırdığı / yüklediği her dosyayı say: PHP önbellekleri
+  (`bootstrap/cache/*.php`), derlenmiş view'lar, `storage/` — web kullanıcısı
+  bunları yazabiliyorsa sınır yoktur. Ayrı hesap kendi önbellek ve depolama
+  yolunu kullanır (`APP_*_CACHE`, `VIEW_COMPILED_PATH`, `LARAVEL_STORAGE_PATH`).
+  Paylaşılan klasöre farklı `umask` ile yazan ikinci hesap da sorundur: açtığı
+  günlük dosyasını diğeri yazamaz. Sunucudaki gerçek izinlere bakarak doğrula.
+  *(Fable incelemesi F1, F2: servis hesabı web grubuna alınmış, tanımı
+  `UMask=0027` ile uygulamanın `storage/` ve `bootstrap/cache`'ini kullanacaktı.)*
 - **D4 — Eskiyi, yenisi gerçekten çalıştığı doğrulanmadan silme.** Taşıma /
   değiştirme işinde yeni kopyanın var olması doğru olduğunu göstermez (T9);
   eski kopya son çalışan kopya olabilir. Silme, yeninin gerçek kullanımla
@@ -189,6 +223,15 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
 - **P3 — Adımların sırasını "arada ne olur" sorusuyla denetle.** İki adım
   arasında girilen kayıt, kopan bağlantı, yeniden başlayan sunucu.
   *(Geri yükleme öncesi yedek bakım modundan önce alınıyordu.)*
+- **P4 — Kalıcı bir biçimi dondurmadan önce onu okuyacak en zor akışı yürüt.**
+  Tablo ya da dosya şeması yazarken görev metnindeki alan listesiyle yetinme;
+  tasarımdaki en zor tüketiciyi (çökmeden sonra kurtarma, dizini yeniden kurma,
+  saklama temizliği) kâğıt üstünde o şemayla çalıştır: "bu adımda neyi bilmem
+  gerekiyor, şemada var mı?" Bir fiziksel nesneyi (dosya) birden çok kayıt
+  temsil edebiliyorsa "hangisi silince dosya gider" kuralını şemayla birlikte yaz.
+  *(Fable incelemesi F5–F7: durum dosyasında anahtarın bitişi ve kurtarma
+  bağlamı yok; aynı hedefi paylaşan iki planın kopyası; yerel dosya silinince
+  yedeğin durumu.)*
 
 ## 6. Araçlar
 
@@ -212,3 +255,20 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   defect*). Katalog / kablolama testi çoğu zaman yeter.
   *(BY-004 öz-incelemesi: "ek izin görüntülemeyi getirir" zaten genel testte
   vardı; yedekleme için yazılan kopyası kaldırıldı.)*
+- **K3 — Yorumda yazan değişmez kodda zorlanmalı.** "Salt eklemeli", "tek
+  satır", "yalnız X yazar" gibi bir kural yalnız PHPDoc'ta duruyorsa kural
+  değildir. Modelde (güncelleme / silme engeli), veritabanında (kısıt) ya da
+  tek giriş noktasında zorla ve ihlalini sına; zorlanmayacaksa öyle yazma.
+  *(Fable incelemesi F10: "salt eklemeli" denetim kaydı `update()` ile değişiyordu.)*
+- **K4 — Veritabanı varsayılanı yeni model nesnesinde yoktur.** `create()` /
+  `firstOrCreate()` sonrası, migration'daki `default(…)` kolonları nesnede
+  `null`'dır (kayıt doğrudur). Varsayılana hemen ihtiyaç varsa modelde
+  `$attributes` ile yansıt ya da `refresh()` et; `null`'ı sayı gibi kullanan
+  hesap (ör. "en az N yedek tut") sessizce 0 ile çalışır
+  (laravel-best-practices: *Mirror Defaults Only When Unsaved Models Need Them*).
+  *(Fable incelemesi F11: `YedekAyari`.)*
+- **K5 — Ortak altyapıyı yeniden kullanırken kullanıcıya giden metni de oku.**
+  Ortak bir yardımcı (hata kodu, bileşen) ilk yazıldığı ekranın diliyle
+  konuşuyor olabilir; yeni yerde yanlış bilgi verir.
+  *(Fable incelemesi F12: `KAYIT_KULLANILIYOR` mesajı "kesinti satırlarında
+  kullanıldığı için" diyor; yedek hedefi silinirken de bu çıkacaktı.)*
