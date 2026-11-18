@@ -77,7 +77,8 @@ final readonly class IslemKaydi
             throw $bozuk('bilinmeyen şema sürümü');
         }
 
-        if (! is_string($veri['kimlik']) || preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $veri['kimlik']) !== 1) {
+        // D bayrağı: onsuz `$` metin sonundaki satır sonunu da kabul eder
+        if (! is_string($veri['kimlik']) || preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/Di', $veri['kimlik']) !== 1) {
             throw $bozuk('kimlik UUID değil');
         }
 
@@ -100,7 +101,7 @@ final readonly class IslemKaydi
         }
 
         $ozet = $veri['erisim_anahtari_ozeti'];
-        if ($ozet !== null && (! is_string($ozet) || preg_match('/^[0-9a-f]{64}$/', $ozet) !== 1)) {
+        if ($ozet !== null && (! is_string($ozet) || preg_match('/^[0-9a-f]{64}$/D', $ozet) !== 1)) {
             throw $bozuk('erişim anahtarı özeti SHA-256 değil');
         }
 
@@ -131,9 +132,12 @@ final readonly class IslemKaydi
             $tarih = null;
         }
 
-        // Ham değer mesaja yazılmaz (Dikkat_Edilecekler D2)
-        if (! $tarih instanceof CarbonImmutable) {
-            throw $bozuk('tarih "YYYY-AA-GGTSS:DD:SS.mikrosaniye+00:00" biçiminde değil');
+        // createFromFormat taşan değeri sessizce kaydırır (30 Şubat → 2 Mart) ve
+        // kısa mikrosaniyeyi kabul eder: aynı biçime geri çevrilip girdiyle
+        // birebir karşılaştırılır; saat farkı yalnız UTC. Ham değer mesaja
+        // yazılmaz (Dikkat_Edilecekler D2).
+        if (! $tarih instanceof CarbonImmutable || $tarih->getOffset() !== 0 || $tarih->format(self::TARIH_BICIMI) !== $deger) {
+            throw $bozuk('tarih "YYYY-AA-GGTSS:DD:SS.mikrosaniye+00:00" (UTC) biçiminde değil');
         }
 
         return $tarih->utc();

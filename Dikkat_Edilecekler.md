@@ -81,6 +81,19 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   geçersizde açık hatayla dursun; boş değer G6'ya göre varsayılana döner.
   "Boş / geçerli / geçersiz" üç durumu sına.
   *(BY-004-R5: geçersiz süre ayarı sınırsız çalışmaya dönüşebiliyordu.)*
+- **G10 — Yazan da okuyanın doğrulamasından geçsin.** Okurken denetlenen bir
+  biçim (şema, dosya, kayıt) yazılırken de AYNI denetimden geçmeli; yoksa tek
+  hatalı çağrı son geçerli veriyi okunamaz bir veriyle değiştirir. Geçersiz
+  kayıt dosyaya dokunmadan reddedilir; testte önceki içeriğin baytlarıyla
+  korunduğunu sına.
+  *(BY-005-R2: boş adımlı kayıt yazıldı, önceki geçerli durum kayboldu.)*
+- **G11 — Biçim doğrulaması metnin tamamını ve geçerli değeri denetlesin.**
+  PCRE'de `$` sondaki satır sonunu da kabul eder: `/…$/D` ya da `\z` kullan.
+  Tarih ayrıştırıcılar taşan değeri sessizce kaydırır (30 Şubat → 2 Mart) ve
+  eksik alanı tamamlar: ayrıştırdığını aynı biçime geri çevirip girdiyle
+  birebir karşılaştır; saat dilimi şartını ayrıca denetle.
+  *(BY-005-R4: 30 Şubat, `+03:00`, kısa mikrosaniye, sonunda satır sonu olan
+  UUID / özet kabul ediliyordu.)*
 
 ## 2. Ön yüz
 
@@ -128,13 +141,26 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
 
 - **D1 — Dış komuta ve ağ çağrısına süre sınırı koy.** Asılı kalan süreç
   kilidi tutar ve sonraki çalışmaları sessizce engeller. Süre aşımı günlüğe
-  hata olarak yazılmalı, alt süreçler sonlanmalı.
-  *(BY-001-R2.)*
+  hata olarak yazılmalı, alt süreçler sonlanmalı. Süreyi **monoton saatle**
+  ölç (`hrtime`), sistem saatiyle (`microtime`, `time`) değil — saat
+  ayarlanınca bekleme uzar ya da erken biter; sonlu olmayan / negatif süreyi
+  baştan reddet.
+  *(BY-001-R2. BY-005-R5: kilit beklemesi `microtime` ile ölçülüyordu.)*
 - **D2 — Sır hiçbir yere sızmasın.** Parola komut satırında, ortam
   değişkeninde ya da günlükte olmaz. Hata mesajına ham girdiyi / hatalı
   satırı yazma; kütüphanenin hata metni de sır içerebilir.
 - **D3 — Önce geçici ada yaz, doğrula, sonra taşı.** Yarım çıktı hiçbir zaman
   bitmiş gibi görünmemeli; hata ve sinyal yolunda geçici dosya silinmeli.
+  Elektrik kesintisine dayanması gereken dosyada: geçici dosyayı `fsync`,
+  taşıdıktan sonra **klasörü de `fsync`** (taşıma klasör girdisidir), yeni
+  açılan klasörün üst klasörünü de; eşitleme hatası başarı sayılmaz. Geçici
+  dosyayı `tempnam` ile açma — klasör yazılamazsa sistem geçici klasörüne düşer.
+  *(BY-005-R3: taşıma sonrası klasör eşitlenmiyordu.)*
+- **D6 — "Yok" ile "erişemiyorum"u ayır.** `file_exists`, `is_file` ve
+  benzerleri üst klasöre girilemediğinde de false döner. Yokluk bir karar
+  dayanağıysa (ör. "açık işlem yok → yayına devam") yalnız doğrulanmış
+  yoklukta "yok" de; erişim hatası istisnadır. Testte erişimi kesilmiş klasörü sına.
+  *(BY-005-R1: erişilemeyen durum dosyası "açık geri yükleme yok" sayılıyordu.)*
 - **D4 — Eskiyi, yenisi gerçekten çalıştığı doğrulanmadan silme.** Taşıma /
   değiştirme işinde yeni kopyanın var olması doğru olduğunu göstermez (T9);
   eski kopya son çalışan kopya olabilir. Silme, yeninin gerçek kullanımla

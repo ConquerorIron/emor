@@ -8,6 +8,8 @@ use App\Services\Yedekleme\YedekKilidi;
 use Illuminate\Contracts\Process\InvokedProcess;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -129,6 +131,28 @@ final class YedekKilidiTest extends TestCase
 
         $surec->signal(SIGKILL);
         $surec->wait();
+    }
+
+    /**
+     * @return array<string, array{float}>
+     */
+    public static function gecersizSureler(): array
+    {
+        return [
+            'sonsuz' => [INF],
+            'sayı değil' => [NAN],
+            'negatif' => [-1.0],
+        ];
+    }
+
+    #[DataProvider('gecersizSureler')]
+    public function test_bekleyerek_al_gecersiz_sureyi_beklemeden_reddeder(float $saniye): void
+    {
+        $kilit = new YedekKilidi($this->yol);
+
+        $this->expectException(InvalidArgumentException::class);
+
+        $kilit->bekleyerekAl($saniye);
     }
 
     public function test_yazma_izni_olmayan_kilit_dosyasinda_da_kilit_alinir(): void

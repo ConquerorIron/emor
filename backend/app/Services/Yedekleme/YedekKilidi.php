@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Yedekleme;
 
+use InvalidArgumentException;
 use RuntimeException;
 
 /**
@@ -56,23 +57,30 @@ final class YedekKilidi
 
     /**
      * En çok $saniye bekleyerek kilidi almaya çalışır; süre dolarsa false.
-     * Süresiz bekleme yoktur (Dikkat_Edilecekler D1).
+     * Süresiz bekleme yoktur (Dikkat_Edilecekler D1). Süre monoton saatle
+     * ölçülür: sistem saati ayarlansa da bekleme uzamaz / erken bitmez.
+     *
+     * @throws InvalidArgumentException Süre sonlu ve negatif olmayan bir sayı değil
      */
     public function bekleyerekAl(float $saniye): bool
     {
-        $son = microtime(true) + $saniye;
+        if (! is_finite($saniye) || $saniye < 0) {
+            throw new InvalidArgumentException('Kilit bekleme süresi sonlu ve negatif olmayan bir sayı olmalı.');
+        }
+
+        $son = hrtime(true) + (int) ($saniye * 1e9);
 
         while (true) {
             if ($this->al()) {
                 return true;
             }
 
-            $kalan = $son - microtime(true);
-            if ($kalan <= 0) {
+            $kalanNs = $son - hrtime(true);
+            if ($kalanNs <= 0) {
                 return false;
             }
 
-            usleep((int) min(self::BEKLEME_ARALIGI_US, $kalan * 1_000_000));
+            usleep(min(self::BEKLEME_ARALIGI_US, intdiv($kalanNs, 1000) + 1));
         }
     }
 

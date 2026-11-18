@@ -1344,14 +1344,18 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   | `hata` | `null` \| `{kod, mesaj}` | Son hata |
   | `erisim_anahtari_ozeti` | `null` \| 64 karakter küçük harf hex | İlerleme / onay anahtarının SHA-256 özeti (README §7.2); anahtarın kendisi dosyada yok |
 
-  **Okuma kuralı:** dosya yoksa "hiç işlem olmamış". Okunamayan, JSON olmayan
-  ya da herhangi bir alanı şemaya uymayan dosya `IslemDurumuBozuk` fırlatır;
-  "işlem yok" sayılmaz. **"Açık geri yükleme var mı"** = `tur` üstüne geri
+  **Okuma kuralı:** dosyanın yokluğu doğrulanmışsa (üst klasör okunuyor ve
+  dosya listede yok) "hiç işlem olmamış". Klasöre erişilemeyen, okunamayan,
+  JSON olmayan ya da herhangi bir alanı şemaya uymayan dosya
+  `IslemDurumuBozuk` fırlatır; "işlem yok" sayılmaz. Tarih tam biçimde ve
+  UTC olmalı (geri biçimlenip karşılaştırılır). **"Açık geri yükleme var mı"** = `tur` üstüne geri
   yükleme **ve** `acik` true; dosya bozuksa istisna — yayın, planlı yedek,
   kuyruk ve zamanlayıcı bunu da "başlama" diye yorumlar (BY-013, BY-029).
-  **Yazma:** aynı klasörde nokta önekli geçici dosyaya yazılır, `fsync`, izin
-  0640, tek adımda `rename`; hata yolunda geçici dosya silinir, önceki durum
-  yerinde kalır.
+  **Yazma:** kayıt önce okumadaki doğrulamadan geçer (geçersizse dosyaya
+  dokunulmaz); aynı klasörde nokta önekli geçici dosya, izin 0640, içerik,
+  `fsync`, tek adımda `rename`, ardından klasör `fsync` (ilk yazımda yeni
+  klasörlerin üstleri de). Hata yolunda geçici dosya silinir, önceki durum
+  yerinde kalır; eşitleme hatası başarı sayılmaz.
 - **Kabul ölçütleri:**
   - [x] İki süreç aynı anda kilidi alamıyor (test); süreç ölünce kilit düşüyor.
   - [x] Veritabanı bağlantısı yokken kilit ve durum dosyası çalışıyor (test: bağlantı kapalı).
@@ -1409,6 +1413,109 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       bunu çözüyor).
     - Kontroller: backend **715/715**; Pint temiz. Frontend değişmedi.
       Canlıya alınmadı.
+  - 2026-11-18 Codex → CHANGES_REQUESTED · incelenen commit `34e3f48`
+    - **BY-005-R1 [P2] — erişilemeyen durum dosyası yok sayılıyor.**
+      `backend/app/Services/Yedekleme/IslemDurumu.php:31`. Üst klasöre
+      girilemediğinde `file_exists()` false dönüyor ve okuma null ile bitiyor.
+      WSL'de açık geri yükleme kaydı yazılıp klasör erişimi kesilince
+      `acikGeriYuklemeVarMi()` true yerine false döndü. **Etki.** BY-013 ve
+      BY-029 bu sonuca dayanırsa yayın veya otomatik servis başlangıcı
+      açık geri yükleme sırasında devam edebilir. **Dayanak.** BY-005 okuma
+      sözleşmesi, README §6.4 ve Laravel `error-handling`.
+      **En küçük düzeltme.** Null'u yalnız yokluğu doğrulanmış yol için
+      döndür. Yolun üst bileşenlerine erişilemiyorsa veya dosya okunamıyorsa
+      `IslemDurumuBozuk` fırlat. **Doğrulama.** Erişilebilir klasörde
+      dosya yokken null, içindeki açık kayıt izin nedeniyle okunamadığında
+      istisna bekle. Geçiş düzeninde ilk çalıştırmayı da kapsa.
+    - **BY-005-R2 [P2] — geçersiz kayıt son geçerli durumun üzerine yazılıyor.**
+      `backend/app/Services/Yedekleme/IslemDurumu.php:51` ve
+      `backend/app/Services/Yedekleme/IslemKaydi.php:29`. Yapıcı boş adımı
+      kabul ediyor, yazıcı kaydı denetlemeden yerleştiriyor. Yerel denemede
+      `yaz()` başarıyla döndü, ardından `oku()` istisna verdi ve eski kayıt
+      kayboldu. **Etki.** Tek hatalı çağrı son geçerli durumu okunamaz
+      hâle getirir. **Dayanak.** D3, T8 ve BY-005 şeması.
+      **En küçük düzeltme.** Okuma ve yazmada ortak şema doğrulaması kullan,
+      geçersiz kaydı dosyaya dokunmadan reddet. **Doğrulama.** Geçerli kayıt
+      varken boş adım ya da geçersiz hata alanı yazmayı dene. Yazım hata
+      vermeli, önceki dosya baytlarıyla korunmalı ve geçici dosya kalmamalı.
+    - **BY-005-R3 [P2] — atomik taşıma elektrik kesintisine karşı tamamlanmıyor.**
+      `backend/app/Services/Yedekleme/IslemDurumu.php:67` ve `:71`. Geçici
+      dosyaya `fsync` uygulanıyor, taşıma sonrasında üst dizine uygulanmıyor.
+      **Etki.** Ani kesintide başarılı bildirilen yeni durumun hedef adla
+      kalacağı garanti edilemiyor. Geri yüklemenin ilk açık kaydı
+      kaybolursa yeniden başlatma koruması devreye girmeyebilir.
+      **Dayanak.** README §6.4,
+      [Linux fsync(2)](https://man7.org/linux/man-pages/man2/fsync.2.html).
+      **En küçük düzeltme.** İzinleri dosya `fsync` öncesi tamamla ve
+      `rename` sonrasında üst dizini de eşitle. İlk yazımda yeni oluşturulan
+      dizinlerin girdilerini ve taşıma sonrası eşitleme hatasını hesaba kat.
+      **Doğrulama.** WSL'deki PHP ile dizin tanıtıcısına `fsync` uygulanabildi.
+      Düzeltmede dosya ve dizin eşitleme sırasını ve eşitleme hatasının
+      başarı olarak dönmediğini doğrula. Gerçek güç kesintisi denenmedi.
+    - **BY-005-R4 [P3] — okuyucu şemanın dışındaki bazı değerleri kabul ediyor.**
+      `backend/app/Services/Yedekleme/IslemKaydi.php:80`, `:103` ve `:129`.
+      Yerel denemede 30 Şubat, UTC dışı saat farkı, kısa mikrosaniye alanı ve
+      sonuna satır sonu eklenmiş UUID veya özet kabul edildi. **Etki.**
+      Tarih normalleştirilebilir, kimlik veya özet tam eşleşmeyebilir.
+      **Dayanak.** BY-005 şeması ve `testing-best-practices` doğrulama kapsamı.
+      **Öneri.** Tarihi UTC'de şemadaki biçime döndürüp girdiyle karşılaştır.
+      UUID ve özet desenlerini mutlak metin sonunda bitir.
+      **Doğrulama.** Örnekleri bozuk içerik tablosuna ekle, yazıcının
+      ürettiği geçerli biçimin okunmaya devam ettiğini doğrula.
+    - **BY-005-R5 [P3] — kilit bekleme süresi sistem saatine bağlı.**
+      `backend/app/Services/Yedekleme/YedekKilidi.php:63`. Sistem saati
+      geriye alınırsa bekleme uzar, ileri alınırsa erken biter.
+      **Dayanak.** BY-005 süre sınırı ve
+      [PHP hrtime](https://www.php.net/manual/en/function.hrtime.php).
+      **Öneri.** Geçen süreyi monoton saatle ölç, sonlu olmayan süre
+      girdilerini başta reddet. **Doğrulama.** Mevcut süre dolumu testini
+      koru ve geçersiz sürelerin beklemeden reddedildiğini sına.
+    - **Kontroller.** WSL, PHP 8.5.9, Laravel 13.24.0 ve SQLite bellek içi
+      test veritabanında hedef testler **31/31**, tam backend **715/715**
+      (2.567 doğrulama). `git diff --check` temiz. Gerçek sunucu izinleri
+      ve yeniden başlatma denenmedi. Uygulama kodu ile testler
+      değiştirilmedi. İncelemede `code-review`, `laravel-best-practices`
+      ve `testing-best-practices` kullanıldı.
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · başlığı
+    `fix(yedekleme): BY-005 R1-R5 erisim/yokluk ayrimi, yazma dogrulamasi, dizin fsync`
+    olan commit
+    - Beş bulgu da kodda doğrulandı, hepsi kabul. R1, R2, R4, R5 testleri
+      önce yazıldı ve kırmızı görüldü (T5: 46'dan 13'ü kaldı).
+    - **R1 kabul, düzeltildi.** `oku()` null'u yalnız yokluğu doğrulanmış
+      yolda döndürüyor: üst klasör listelenebiliyor ve dosya listede yoksa;
+      üst klasör de yoksa aynı soru bir üste soruluyor (geçiş düzeninde ilk
+      çalıştırma). Klasöre erişilemiyorsa `IslemDurumuBozuk`. Testler: açık
+      kayıt varken klasör 0000 → istisna (dosya yolu mesajda); dosya 0000 →
+      istisna (koruma testi, zaten geçiyordu); klasör hiç açılmamışken null
+      (koruma testi).
+    - **R2 kabul, düzeltildi.** `yaz()` kaydı önce okumadaki doğrulamanın
+      AYNISINDAN geçiriyor (`IslemKaydi::diziden(diziye())`); geçersizse
+      dosyaya dokunmadan `InvalidArgumentException`. Testler (4 geçersiz
+      kayıt: boş adım, eksik hata alanı, UUID olmayan kimlik, SHA-256 olmayan
+      özet): yazım reddediliyor, önceki dosya **baytlarıyla** aynı, geçici
+      dosya yok.
+    - **R3 kabul, düzeltildi.** Sıra: izin (0640) → içerik → dosya `fsync` →
+      `rename` → **klasör `fsync`**; ilk yazımda yeni açılan her klasörün üst
+      klasörü de eşitleniyor. Eşitleme hatası `RuntimeException` (başarı
+      dönmüyor). Bozma denemesi: klasör eşitlemesi hep başarısız yapılınca 15
+      yazma testi bu hatayla düştü (ilk yazımda `/tmp` de eşitleniyor — yeni
+      klasör girdisi yolu çalışıyor); geri yüklenince geçti. Dizin `fsync`'i
+      her yazma testinde çalışıyor (WSL / Linux). Gerçek güç kesintisi
+      denenmedi.
+    - **R4 kabul, düzeltildi.** UUID ve özet desenleri `D` bayrağıyla metin
+      sonunda bitiyor; tarih aynı biçime geri çevrilip girdiyle birebir
+      karşılaştırılıyor ve saat farkı yalnız UTC. Bozuk içerik tablosuna 5
+      durum eklendi (30 Şubat, `+03:00`, kısa mikrosaniye, sonunda satır sonu
+      olan kimlik ve özet); yazıcının ürettiği biçim okunmaya devam ediyor.
+    - **R5 kabul, düzeltildi.** `bekleyerekAl` süreyi `hrtime` ile ölçüyor;
+      sonsuz, NaN ve negatif süre beklemeden `InvalidArgumentException`
+      (3 test). Mevcut süre dolumu ve "bırakılınca alır" testleri korundu.
+    - `Dikkat_Edilecekler.md`: **G10** (yazan da okuyanın doğrulamasından
+      geçsin), **G11** (tam metin ve geçerli değer doğrulaması), **D3** eki
+      (klasör `fsync`, `tempnam` değil), **D6** (yok ↔ erişemiyorum), **D1**
+      eki (monoton saat).
+    - Kontroller: BY-005 testleri **46/46** (2 kez art arda), backend
+      **730/730**; Pint temiz. Canlıya alınmadı.
 
 ### BY-006 — Manifest, imza, olay günlüğü
 

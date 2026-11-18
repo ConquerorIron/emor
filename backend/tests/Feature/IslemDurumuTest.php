@@ -12,6 +12,7 @@ use App\Services\Yedekleme\YedekKilidi;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\TestCase;
@@ -165,7 +166,89 @@ final class IslemDurumuTest extends TestCase
             'boş adım' => [$degistir(['adim' => ''])],
             'hata biçimi yanlış' => [$degistir(['hata' => 'patladı'])],
             'özet biçimi yanlış' => [$degistir(['erisim_anahtari_ozeti' => 'kisa'])],
+            'olmayan gün (30 Şubat)' => [$degistir(['baslangic' => '2026-02-30T10:00:00.000000+00:00'])],
+            'UTC dışı saat farkı' => [$degistir(['baslangic' => '2026-11-18T13:00:00.000000+03:00'])],
+            'kısa mikrosaniye' => [$degistir(['baslangic' => '2026-11-18T10:00:00.5+00:00'])],
+            'kimliğin sonunda satır sonu' => [$degistir(['kimlik' => self::KIMLIK."\n"])],
+            'özetin sonunda satır sonu' => [$degistir(['erisim_anahtari_ozeti' => hash('sha256', 'x')."\n"])],
         ];
+    }
+
+    public function test_klasore_erisilemiyorsa_islem_yok_sanilmaz_hata_verir(): void
+    {
+        $durum = new IslemDurumu($this->yol);
+        $durum->yaz($this->kayit(IslemTuru::GeriYuklemeUstune, true));
+        chmod($this->klasor, 0000);
+
+        try {
+            $durum->acikGeriYuklemeVarMi();
+            $this->fail('Erişilemeyen durum dosyası "işlem yok" sayıldı.');
+        } catch (IslemDurumuBozuk $hata) {
+            $this->assertStringContainsString($this->yol, $hata->getMessage());
+        } finally {
+            chmod($this->klasor, 0750);
+        }
+    }
+
+    public function test_dosya_okunamiyorsa_hata_verir(): void
+    {
+        $durum = new IslemDurumu($this->yol);
+        $durum->yaz($this->kayit(IslemTuru::GeriYuklemeUstune, true));
+        chmod($this->yol, 0000);
+
+        $this->expectException(IslemDurumuBozuk::class);
+
+        $durum->oku();
+    }
+
+    public function test_klasor_hic_acilmamisken_ilk_calismada_islem_yok_doner(): void
+    {
+        // Geçiş düzeni: durum klasörü ilk yazımda açılır
+        $durum = new IslemDurumu($this->klasor.'/alt/islem.json');
+
+        $this->assertNull($durum->oku());
+        $this->assertFalse($durum->acikGeriYuklemeVarMi());
+    }
+
+    /**
+     * @return array<string, array{IslemKaydi}>
+     */
+    public static function gecersizKayitlar(): array
+    {
+        $kayit = fn (array $fark): IslemKaydi => new IslemKaydi(...array_merge([
+            'kimlik' => self::KIMLIK,
+            'tur' => IslemTuru::Yedek,
+            'adim' => 'pg_dump',
+            'acik' => false,
+            'baslangic' => CarbonImmutable::parse('2026-11-18 10:00:00', 'UTC'),
+            'sonGuncelleme' => CarbonImmutable::parse('2026-11-18 10:05:30', 'UTC'),
+            'hata' => null,
+            'erisimAnahtariOzeti' => null,
+        ], $fark));
+
+        return [
+            'boş adım' => [$kayit(['adim' => ' '])],
+            'hata biçimi yanlış' => [$kayit(['hata' => ['kod' => 'X']])],
+            'kimlik UUID değil' => [$kayit(['kimlik' => 'abc'])],
+            'özet SHA-256 değil' => [$kayit(['erisimAnahtariOzeti' => 'kisa'])],
+        ];
+    }
+
+    #[DataProvider('gecersizKayitlar')]
+    public function test_gecersiz_kayit_yazilmaz_onceki_durum_baytlariyla_korunur(IslemKaydi $gecersiz): void
+    {
+        $durum = new IslemDurumu($this->yol);
+        $durum->yaz($this->kayit(adim: 'once'));
+        $onceki = file_get_contents($this->yol);
+
+        try {
+            $durum->yaz($gecersiz);
+            $this->fail('Geçersiz kayıt yazıldı.');
+        } catch (InvalidArgumentException) {
+        }
+
+        $this->assertSame($onceki, file_get_contents($this->yol));
+        $this->assertSame(['islem.json'], array_values(array_diff(scandir($this->klasor), ['.', '..'])));
     }
 
     #[DataProvider('bozukIcerikler')]
