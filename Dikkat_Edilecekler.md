@@ -26,8 +26,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   *(BY-001: `.env` okuma `deploy.sh`'tan kopyalandı; ikisi de hatalıydı.)*
 - **G3 — Bir biçimi elle ayrıştırma; projenin kullandığı ayrıştırıcıyı kullan.**
   `.env`, tarih, sayı, CSV, JSON… `grep | cut | tr` ya da el yazımı düzenli
-  ifade, tırnak / kaçış / yorum kurallarını kaçırır.
-  *(BY-001-R1: tırnak içeren ve satır sonu yorumlu parola yanlış okundu.)*
+  ifade, tırnak / kaçış / yorum kurallarını kaçırır. Bu, ayrıştırıcının
+  **üstündeki dönüşüm katmanı** için de geçerlidir: çerçevenin yaptığı
+  dönüşümü elle yeniden yazma, çerçevenin fonksiyonunu çağır.
+  *(BY-001-R1: tırnak içeren ve satır sonu yorumlu parola yanlış okundu.
+  BY-001-R3: ayrıştırıcı doğru kullanıldı ama Laravel'in `env()` dönüşümü elle
+  yazıldı; `true` / `false` dalları eksik kaldı.)*
 - **G4 — Değişken uzunluktaki veriyi sabit alana yazan kodu en uzun geçerli
   değerle dene.** Alan sınırı 200 karakterse 200 karakterle; kısa örnekle
   geçmesi kanıt değildir.

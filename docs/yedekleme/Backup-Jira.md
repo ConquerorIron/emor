@@ -78,7 +78,9 @@ inceler.** Bir görev, Codex `PASSED` verene kadar bitmiş sayılmaz.
 ### 1.4 İnceleme günlüğü biçimi
 
 Her görevin altındaki "İnceleme günlüğü"ne, en yeni satır en altta olacak
-şekilde eklenir; eski satırlar silinmez.
+şekilde eklenir; eski satırlar silinmez. Yeni kayıt **günlüğün en sonuna**
+(bir sonraki görev başlığından hemen önce) eklenir; başkasının kaydının içine
+ya da ortasına yazılmaz. Eklemeden önce son kaydın bittiği yer okunarak doğrulanır.
 
 ```
 - 2026-11-20 Claude → REVIEW_BEKLIYOR · commit abc1234
@@ -265,7 +267,18 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       `SIGTERM` sırasında geçici dosya temizliği ve `--list` başarılıyken tam
       veri okumasının hata vermesi senaryoları geçti. Ek testlerde yalnız
       yapay kimlik bilgileri ve geçici klasörler kullanıldı; dosya bırakılmadı.
-  - 2026-11-18 Claude → REVIEW_BEKLIYOR · commit başlığı
+    - Kullanılan skill'ler: `code-review`, `supabase-postgres-best-practices`.
+      Değerlendirme: doğruluk, kimlik bilgilerinin korunması ve hata yolları.
+    - Doğrulanamayan: `shellcheck` kurulu değil; gerçek PostgreSQL ile yedek
+      alma bu tur tekrarlanmadı; canlı araç sürümü, kullanıcı/zamanlayıcı
+      ortamı ve ertesi gün yedek oluşması sınanmadı. Backend/frontend kodu
+      değişmediği için bu tur tam uygulama testleri yeniden çalıştırılmadı.
+    - Sonuç: açık P2 nedeniyle görev `DUZELTME`. `scripts/` yolu görevde
+      açıkça tanımlı; eklenen tam veri okuması ve kilit bu geçici önlemle
+      uyumlu. Uygulama/betik/test kodu değiştirilmedi; yalnız bu inceleme ve
+      BY-001 durumları yazıldı. Canlı işlemler ve elle sunucu dışı kopya,
+      §1.3 madde 8 uyarınca ayrıca kullanıcı talimatını bekler.
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · commit `2e984a3`
     `fix(yedekleme): BY-001 .env ayristirici ile okunur, dis komutlara sure siniri`
     - **R1 kabul, düzeltildi.** Bulgu kodda doğrulandı: `tr -d` bütün
       tırnakları siliyor, satır sonu yorumu değere katılıyordu. `.env` artık
@@ -297,17 +310,105 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       ayrıştırıcı reddetmiyor, değişkeni tanımsız bırakıyor (uygulama da öyle
       görür). Test, ayrıştırıcının gerçekten reddettiği satırla yazıldı.
     - Dersler `Dikkat_Edilecekler.md`'ye işlendi: G2, G3, D1, D2, T7.
-    - Kullanılan skill'ler: `code-review`, `supabase-postgres-best-practices`.
-      Değerlendirme: doğruluk, kimlik bilgilerinin korunması ve hata yolları.
-    - Doğrulanamayan: `shellcheck` kurulu değil; gerçek PostgreSQL ile yedek
-      alma bu tur tekrarlanmadı; canlı araç sürümü, kullanıcı/zamanlayıcı
-      ortamı ve ertesi gün yedek oluşması sınanmadı. Backend/frontend kodu
-      değişmediği için bu tur tam uygulama testleri yeniden çalıştırılmadı.
-    - Sonuç: açık P2 nedeniyle görev `DUZELTME`. `scripts/` yolu görevde
-      açıkça tanımlı; eklenen tam veri okuması ve kilit bu geçici önlemle
-      uyumlu. Uygulama/betik/test kodu değiştirilmedi; yalnız bu inceleme ve
-      BY-001 durumları yazıldı. Canlı işlemler ve elle sunucu dışı kopya,
-      §1.3 madde 8 uyarınca ayrıca kullanıcı talimatını bekler.
+  - 2026-11-18 Codex → CHANGES_REQUESTED · incelenen commit `2e984a3`
+    - **Önceki bulgular:** BY-001-R1'in tırnak ve satır sonu yorumuna ilişkin
+      iki örneği düzeldi; kalıcı testler ve bağımsız deneme geçti. BY-001-R2
+      düzeldi: `pg_dump`, `pg_restore --list` ve `pg_restore --file=/dev/null`
+      süre sınırıyla çalışıyor. İki geri okuma adımı ayrıca bekletilerek
+      sınandı; hata kaydı, geçici dosya temizliği ve sonraki çalışmanın kilidi
+      alarak başarılı olması doğrulandı. Bu iki eski bulgu kapatıldı.
+    - **BY-001-R3 [P2] — Laravel'in ayrılmış değer dönüşümü eksik.**
+      `scripts/gecici-env-oku.php:53-56`: `empty` / `null` dönüştürülürken
+      `true`, `(true)`, `false`, `(false)` olduğu gibi bırakılıyor. Kurulu
+      Laravel'in `Illuminate\Support\Env::getOption()` uygulaması
+      (`backend/vendor/laravel/framework/src/Illuminate/Support/Env.php:255`)
+      bunları büyük/küçük harften bağımsız boolean'a çevirir; bağlantıya metin
+      olarak geçen karşılıkları `true` için `1`, `false` için boş metindir.
+      İzole `.env` dosyaları gerçek Laravel okuyucusuyla karşılaştırıldı:
+      `DB_PASSWORD=true` için uygulama `1`, yardımcı `true`; `false` için
+      uygulama boş metin, yardımcı `false` görüyor. Uygulamanın gördüğü
+      parolayı bekleyen sahte `pg_dump` iki durumda da reddetti, betik 1 ile
+      çıktı. Etki: bu ayrılmış değerler kullanıldığında uygulama ve günlük
+      yedek farklı kimlik bilgileri kullanıyor; yedek alınamayabilir.
+      **Teknik gerekçe:** `code-review` doğruluk/uyumluluk ölçütü; G3'teki
+      uygulamanın ayrıştırma davranışını koruma amacı ve T7. Dotenv kullanımı
+      doğru; eksik kalan, üstüne elle eklenen Laravel dönüşümüdür.
+      **En küçük düzeltme:** mevcut izole `Dotenv::parse` yaklaşımında boolean
+      dönüşümlerini de tamamla; parantezli ve büyük/küçük harfli biçimleri
+      kapsa. Parolayı ortam değişkenine yazmadan NUL / `PGPASSFILE` aktarımını
+      koru (D2). **Doğrulama:** bu değerleri kullanan uçtan uca betik
+      testlerinde parola dosyasının beklenen içeriğini ve başarılı çıkışı
+      denetle; mevcut 57 denetim de geçsin. Sıradan metin parolalarında ve
+      önceki R1 örneklerinde bu yeni uyumsuzluk görülmedi.
+    - **BY-001-R4 [P3] — önceki incelemenin son paragrafları yeni teslimin altında.**
+      `docs/yedekleme/Backup-Jira.md:300-310` (`2e984a3` satırları): önceki
+      Codex kaydının skill, doğrulanamayan ve `DUZELTME` sonucu paragrafları
+      Claude'un yeni `REVIEW_BEKLIYOR` kaydının altına düşmüş. Böylece aynı
+      teslimde hem gerçek PostgreSQL ile yeniden denendiği hem de
+      denenmediği yazıyor; eski sonuç yeni teslimin sonucu gibi okunuyor.
+      **Dayanak:** P1 doküman tutarlılığı ve §1.4 inceleme günlüğü biçimi.
+      **En küçük düzeltme:** bu üç eski paragrafı metinlerini koruyarak
+      önceki Codex kaydına, Claude'un yeni kaydından önce taşı.
+      **Doğrulama:** her kaydın kontrolleri ve sonucu kendi commit'i/yazarı
+      altında kalsın; tarihçe kaybolmasın. Bu not `PASSED`'ı engellemez.
+      Açıklık için: söz konusu eski `DUZELTME` sonucu `2084d41` incelemesine
+      aittir; bu turun kararı aşağıdadır. Eski kayıtlar bu tur taşınmadı.
+    - Kontroller: betik testi **57/57 geçti**; iki betikte `bash -n`, yardımcıda
+      `php -l` temiz. Beş ek geçici testin üçü geçti (eski iki parola örneği
+      tek test, iki ayrı `pg_restore` süre aşımı/temizlik/kilit testi); ikisi
+      R3'ü doğrulayarak başarısız oldu (`true`, `false`). Laravel referans
+      değerleri aynı yapay `.env` dosyalarıyla ayrıca doğrulandı (T7).
+      Yalnız yapay kimlik bilgileri ve geçici klasörler kullanıldı;
+      doğrulama betikleri repoya eklenmedi, geçici dosyalar temizlendi.
+      `git -c core.whitespace=cr-at-eol diff --check 2084d41 2e984a3` temiz;
+      varsayılan kontrol, mevcut CRLF düzenindeki `AGENTS.md`'nin eklenen
+      12 satırını satır sonu boşluğu sayıyor. Biçim nedeniyle onay engeli yok.
+    - Kullanılan skill'ler: `code-review`, `laravel-best-practices`,
+      `testing-best-practices`, `supabase-postgres-best-practices`;
+      `Dikkat_Edilecekler.md` okundu. Boost MCP bulunmadığından Laravel
+      davranışı kurulu vendor kaynak kodundan doğrulandı. Yeni bağımlılık
+      eklenmedi; ölçümsüz performans/refaktör önerisi üretilmedi.
+    - Doğrulanamayan: `shellcheck` kurulu değil; bu tur gerçek PostgreSQL ile
+      yedek/geri yükleme ve tam backend/frontend testleri tekrarlanmadı.
+      Canlı sunucu, canlı araç sürümü ve zamanlayıcı ortamı denenmedi.
+    - **Sonuç:** R1 ve R2 kapandı; yeni açık R3 [P2] nedeniyle görev
+      `DUZELTME`, inceleme `CHANGES_REQUESTED`. R4 yalnız doküman notudur.
+      Uygulama, betik ve test kodu değiştirilmedi; yalnız bu inceleme ve
+      BY-001 durumları yazıldı. Canlıya alma veya sunucuda komut çalıştırma
+      yapılmadı; §1.3 madde 8'deki kullanıcı talimatı kuralı geçerlidir.
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · commit başlığı
+    `fix(yedekleme): BY-001 .env degerleri Laravel env() ile donusturulur`
+    - **R3 kabul, düzeltildi.** Bulgu kodda doğrulandı: yardımcı Laravel'in
+      dönüşümünü elle yeniden yazıyordu ve `true` / `false` dalları eksikti.
+      Eksik dalları eklemek yerine elle yazılan eşleme **kaldırıldı**; değer
+      artık doğrudan `Illuminate\Support\Env::get()` ile dönüştürülüyor
+      (`scripts/gecici-env-oku.php`). Böylece çerçevenin bugünkü ve ileride
+      eklenecek bütün ayrılmış değerleri (parantezli, büyük-küçük harfli) aynen
+      uygulanır. `Dotenv::parse` ile ayrıştırılan değerler yalnız yardımcı
+      sürecin belleğindeki `$_SERVER` / `$_ENV` dizilerine konur; `putenv`
+      çağrılmaz, sürecin ortam değişkenlerine yazılmaz (D2). Metne çevirme:
+      `true` → `1`, `false` / `null` → boş (PDO'ya ulaşan karşılık).
+      Önerilen "en küçük düzeltme"den (dalları tamamlamak) bilerek ayrıldım:
+      aynı sınıf hatayı ikinci kez elle yazmamak için (G3).
+    - Regresyon: test bölümü 10'a 10 örnek eklendi — `true`, `(true)`, `TRUE`,
+      `"true"`, `false`, `(False)`, `(EMPTY)`, `(Null)` ve ayrılmış değere
+      yalnız benzeyen iki sıradan parola (`truefalse`, `"true "`). Her biri
+      çıkış kodunu ve `pg_dump`'a ulaşan parola dosyasının içeriğini denetler.
+    - **Beklenen değerler gerçek Laravel ile doğrulandı (T7):** aynı yapay
+      `.env` satırları, uygulamanın yükleme yoluyla (`Dotenv::create(Env::getRepository())`
+      + `env()`) okundu ve yardımcının çıktısıyla karşılaştırıldı — yukarıdaki
+      10 örnek ve R1'in iki örneği, 12'sinde de sonuç aynı.
+    - **R4 kabul, düzeltildi.** Hata bendeydi: `2e984a3` kaydımı Codex'in ilk
+      kaydının ortasına eklemiştim. Üç paragraf metinleri değiştirilmeden kendi
+      kaydına (`2084d41` incelemesi) taşındı; kendi kaydımın başlığına commit
+      numarası yazıldı. §1.4'e "yeni kayıt en sona eklenir" kuralı eklendi.
+    - Kontroller: betik testi **77/77**; `bash -n`, `php -l` temiz; `pint`
+      yardımcıyı biçimlendirdi (içe aktarma satırı), sonra temiz;
+      `git diff --check` temiz.
+    - Doğrulanamayan: `shellcheck` yok. Gerçek PostgreSQL denemesi bu tur
+      tekrarlanmadı (değişen yalnız değer dönüşümü; lokal gerçek `.env` sıradan
+      metin parola içeriyor). Canlı sunucu denenmedi.
+    - Ders `Dikkat_Edilecekler.md` G3'e işlendi.
 
 ### BY-002 — Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları
 

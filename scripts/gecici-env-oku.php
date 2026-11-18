@@ -1,15 +1,24 @@
 <?php
 
 declare(strict_types=1);
+use Illuminate\Support\Env;
 
 /**
  * scripts/gecici-gunluk-yedek.sh için .env okuyucu (BY-001).
  *
- * .env'i kabukta elle ayrıştırmak yerine uygulamanın kendi ayrıştırıcısını
- * (vlucas/phpdotenv) kullanır: tırnak, kaçış ve satır sonu yorumu kuralları
- * uygulamanın gördüğüyle aynıdır. Ardından Laravel'in env() dönüşümünün metin
- * değerleri etkileyen kısmı uygulanır: "empty" / "null" (parantezli hâlleriyle)
- * boş değer olur, değeri saran artık tırnaklar atılır.
+ * .env'i kabukta elle ayrıştırmak yerine uygulamanın kendi kodunu kullanır:
+ *  1. vlucas/phpdotenv dosyayı ayrıştırır (tırnak, kaçış, satır sonu yorumu);
+ *  2. Laravel'in env() dönüşümü (Illuminate\Support\Env) değeri uygulamanın
+ *     gördüğü hâle getirir: true / false / empty / null (parantezli ve
+ *     büyük-küçük harfli biçimleriyle) ve saran artık tırnaklar.
+ * Dönüşüm burada yeniden yazılmaz; çerçevenin fonksiyonu çağrılır (elle yazılan
+ * ilk sürüm true / false'u atlamıştı — BY-001-R3).
+ *
+ * Veritabanı sürücüsüne metin olarak giden karşılık: true → "1", false ve
+ * null → "" (PHP'nin metne çevirme kuralı; uygulamada PDO'ya böyle ulaşır).
+ *
+ * Değerler yalnız bu sürecin belleğindeki $_SERVER / $_ENV dizilerine konur;
+ * putenv çağrılmaz, sürecin ortam değişkenlerine yazılmaz.
  *
  * Kullanım: php gecici-env-oku.php <vendor/autoload.php> <.env> ANAHTAR [ANAHTAR…]
  * Çıktı:    istenen sırayla, her değerin sonunda bir NUL baytı (kabuk bunu
@@ -48,13 +57,15 @@ try {
 }
 
 foreach ($anahtarlar as $anahtar) {
-    $deger = (string) ($degerler[$anahtar] ?? '');
+    // Dosyadaki değer, sürecin devraldığı aynı adlı ortam değişkeninin önüne geçer
+    unset($_SERVER[$anahtar], $_ENV[$anahtar]);
 
-    if (in_array(strtolower($deger), ['empty', '(empty)', 'null', '(null)'], true)) {
-        $deger = '';
-    } elseif (preg_match('/\A([\'"])(.*)\1\z/s', $deger, $eslesme) === 1) {
-        $deger = $eslesme[2];
+    if (isset($degerler[$anahtar])) {
+        $_SERVER[$anahtar] = $_ENV[$anahtar] = $degerler[$anahtar];
     }
+
+    $laravelDegeri = Env::get($anahtar);
+    $deger = is_bool($laravelDegeri) ? ($laravelDegeri ? '1' : '') : (string) ($laravelDegeri ?? '');
 
     if (str_contains($deger, "\0")) {
         $durdur("{$anahtar} değeri NUL baytı içeriyor.");

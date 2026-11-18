@@ -178,6 +178,26 @@ hazirla 'DB_PASSWORD=null'
 calistir env; esit "null → boş parola (Laravel env kuralı): çıkış kodu" "$?" "0"
 esit "parola boş yazıldı" "$(pgpass_icerigi)" '127.0.0.1:5432:erp:erp:'
 
+# Laravel'in ayrılmış değerleri (BY-001-R3): uygulama true'yu "1", false / empty /
+# null'u boş metin olarak görür; parantezli ve büyük-küçük harfli biçimler dahil.
+# Beklenen değerler gerçek Laravel okuyucusuyla doğrulandı (inceleme günlüğü).
+ayrilmis_deger() { # $1: .env satırı, $2: pg_dump'a ulaşması beklenen parola
+  hazirla "$1"
+  calistir env; esit "$1 → çıkış kodu" "$?" "0"
+  esit "$1 → parola '$2'" "$(pgpass_icerigi)" "127.0.0.1:5432:erp:erp:$2"
+}
+ayrilmis_deger 'DB_PASSWORD=true' '1'
+ayrilmis_deger 'DB_PASSWORD=(true)' '1'
+ayrilmis_deger 'DB_PASSWORD=TRUE' '1'
+ayrilmis_deger 'DB_PASSWORD="true"' '1'
+ayrilmis_deger 'DB_PASSWORD=false' ''
+ayrilmis_deger 'DB_PASSWORD=(False)' ''
+ayrilmis_deger 'DB_PASSWORD=(EMPTY)' ''
+ayrilmis_deger 'DB_PASSWORD=(Null)' ''
+# Ayrılmış değere yalnız benzeyen sıradan parolalar değişmemeli
+ayrilmis_deger 'DB_PASSWORD=truefalse' 'truefalse'
+ayrilmis_deger 'DB_PASSWORD="true "' 'true '
+
 echo "11. Okunamayan / parola dosyasına yazılamayan .env"
 # Ayrıştırıcının reddettiği satır: kapanan tırnaktan sonra karakter
 hazirla 'DB_PASSWORD="sizmamali"x'
