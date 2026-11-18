@@ -910,6 +910,138 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     - Doğrulanamayan (önceki gibi): gerçek systemd / `/etc/sudoers.d`
       (geçici dizine yazıldı), gerçek adlarla kaldırma, `shellcheck` (kurulu
       değil). Betik sunucuda çalıştırılmadı (BY-025); canlıya alınmadı.
+  - 2026-11-18 Codex → CHANGES_REQUESTED · incelenen commit `9112994`
+    - **Önceki R1–R4 kapandı.** Geçerli eski parola kopyası bozuk hedefte
+      korunuyor; aynı içerik ve gerçek bağlantı doğrulanmadan silinmiyor.
+      İnceleme rolünün geniş özellikleri ve beklenmeyen üyelikler bildiriliyor;
+      denetim değişiklik yapmıyor. Fazla ACL'ler yakalanıp kurulumda kaldırılıyor.
+      Servis/sudoers içeriği, dosya türü ve sahip/izin kontrolleri ortak,
+      yazım geçici addan atomik taşıma ile. Eski dört senaryo bağımsız
+      testlerle yeniden denendi ve geçti. G5/D4 eklentileri uygun; BY-002-R3'ün
+      BY-007 metnindeki kopyası da düzeltilmiş.
+    - **BY-003-R5 [P1] — servis hesabının koyduğu sembolik bağlantı üzerinden root dosyası değiştirilebiliyor.**
+      `scripts/sunucu-yedekleme-kurulumu.sh:231-246` (`izin_denetle` /
+      `klasor`), ayrıca `310-312` ve `353-355`: yönetilen nesneye sahiplik,
+      mod ve ACL uygulanmadan önce bağlantı/tür sınırı doğrulanmıyor. `-f`
+      ve `-d` bağlantının hedefini kabul ediyor; `stat` bağlantının kendisini
+      farklı izinli görünce "düzeltme" dalına giriliyor. Ardından `chown`,
+      `chmod` ve ACL işlemleri hedefe uygulanıyor. Yeni sistem dosyası
+      denetimindeki `-L` koruması bu yollarda yok (G1).
+      **Ön koşul:** root kurulumunun yeniden çalıştırılmasından önce servis
+      hesabı, yazabildiği yönetilen dizinde bir dosya/alt dizini sembolik
+      bağlantıyla değiştirebiliyor. Bunun için root izni gerekmiyor.
+      **Bağımsız kanıt:** yalnız test alanında, yönetilen yedek kökünün
+      dışında root'a ait bir `0600` dosya ve bir `0700` dizin hazırlandı.
+      Servis hesabının başlangıçta bunlara erişemediği doğrulandı. Sonra:
+
+      1. Servis hesabı `gizli/pgpass` yerine root dosyasına bağlantı koydu.
+         Root kurulumundan sonra dosyanın sahibi servis hesabı oldu ve
+         hesap dosyayı okuyabildi. Betik bağlantı denemesinde 1 ile çıkmış
+         olsa da korunan dosyanın sahipliği çoktan değişmişti.
+      2. Servis hesabı `yedekler/` yerine root dizinine bağlantı koydu.
+         Root kurulumundan sonra dizinin sahibi servis hesabı oldu, hesap
+         dizine yazabildi; betik **0** ile çıktı.
+
+      **Etki:** servis hesabı işletim sistemi yöneticisi olmamasına rağmen
+      root kurulumunu kullanarak yönetilen alan dışındaki korunan nesnelere
+      erişim kazanabiliyor. Bu, servis/root yetki sınırını bozan P1 güvenlik
+      açığıdır; normal kurulum testlerinin geçmesi bunu engellemiyor.
+      **Köken:** aynı yol tabanlı `chown`/`chmod` satırı `53e0b39`'da da vardı;
+      açık bu düzeltmeyle getirilmedi, bu incelemede yeni saptandı.
+      **Dayanak:** `code-review` güvenlik ölçütü, `security-privileges`, G1/G5
+      ve [CWE-59: bağlantı hedefinin yanlış çözülmesi](https://cwe.mitre.org/data/definitions/59.html).
+      **En küçük düzeltme:** yönetilen kök, üst bileşenler ve nesnelerde
+      sembolik bağlantı/beklenmeyen türü sahiplik veya ACL değişikliğinden
+      önce reddet; bağlantıyı normal bir izin farkı olarak onarma. Dosyayı
+      değiştirme seçilecekse hedefini izlemeyen güvenli atomik değiştirme
+      kullan. Yol doğrulaması ile değişiklik arasında servis hesabının yolu
+      başka nesneye çevirebilmesini de önle; yalnız `chown -h` eklemek,
+      sonraki `chmod`/ACL ve üst dizin bağlantılarını güvenli yapmaz.
+      **Doğrulama:** iki senaryo kalıcı regresyon olsun; hedef root nesnesinin
+      sahibi, modu, ACL'si ve içeriği değişmemeli, servis hesabı erişim
+      kazanmamalı. `pgpass`, imza anahtarı, kilit ve yönetilen alt dizinlerde
+      aynı kalıbı tara (G1); normal kurulum, salt denetim ve tekrar kurulum
+      kontrolleri geçmeye devam etsin. Gerçek sistem dosyasıyla deneme yapma.
+    - Kontroller: mevcut betik testi **125/125 geçti**; iki betikte `bash -n`
+      ve `git diff --check 53e0b39 9112994` temiz. Altı bağımsız geçici testin
+      dördü eski R1–R4'ün düzeltmelerini doğrulayarak geçti; ikisi R5'teki
+      dosya/dizin bağlantısı açıklarını doğrulayarak başarısız oldu.
+      Denemeler yalnız rastgele adlı yerel Linux hesapları, PostgreSQL
+      rolleri, yapay `.env`/parola ve geçici root nesneleriyle yapıldı.
+      `/etc` dosyalarına, gerçek parola dosyalarına veya canlıya dokunulmadı.
+      Bütün deneme hesapları/grupları/rolleri ve geçici dizinler temizlendi;
+      kalan sayıları **0** olarak ayrıca kontrol edildi. Başlangıçtaki
+      `www-data` grup üyelikleri korundu; testler repoya eklenmedi.
+    - Kullanılan skill'ler: `code-review`, `supabase-postgres-best-practices`,
+      `laravel-best-practices`, `testing-best-practices`;
+      `Dikkat_Edilecekler.md`, G5 ve D4 okundu. Kurulu Laravel `v13.24.0`.
+      Doğrulanamayan: `shellcheck` kurulu değil; gerçek systemd çalıştırması,
+      gerçek `/etc/sudoers.d` yolu ve gerçek adlarla kaldırma tekrarlanmadı.
+      Backend/frontend kodu değişmediği için tam uygulama testleri/build/Pint
+      çalıştırılmadı; canlı PostgreSQL/sunucuya bağlanılmadı.
+    - **Sonuç:** R1–R4 kapalı; yeni açık R5 [P1] nedeniyle `CHANGES_REQUESTED`,
+      görev `DUZELTME`. Bu tur yalnız inceleme günlüğü ve BY-003 durumları
+      yazıldı; uygulama/kurulum/test kodu değiştirilmedi. Commit/gönderme veya
+      canlı işlem yapılmadı. BY-025 ve açık kullanıcı talimatı koşulu sürer.
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · başlığı
+    `fix(yedekleme): BY-003 R5 baglanti guvenligi` olan commit
+    - **R5 kabul, düzeltildi.** Kodda doğrulandı: `izin_denetle` / ACL
+      düzeltmeleri yolu izliyordu; kökün sahibi servis olduğundan alt
+      klasörler de değiştirilebiliyordu. Önce testler (F3) yazıldı, kırmızı
+      görüldü (T5: 158'den 32'si kaldı; korunan root dosyası gerçekten
+      servisin oldu), sonra düzeltildi.
+    - Düzeltme (betikteki "Bağlantı güvenliği" notu):
+      - **Kök klasörün sahibi root** (`root:emor-yedek 0750`; ACL aynı). Servis
+        hesabı alt klasörleri silemez / yerine bağlantı koyamaz; böylece
+        kökten itibaren yol bileşenleri sabit. Kurulum kökü (sahip, izin,
+        ACL) alt klasörlerden önce düzeltir; eski kurulumdan servis sahipli
+        kök kalmışsa `chown -h` ile root'a geçer.
+      - **Üst klasörler:** kökün üstü, systemd ve sudoers klasörleri her
+        bileşende bağlantı değil, sahibi root, grup/başkaları yazamaz
+        (yapışkan bitli `/tmp` hariç) — değilse betik başta durur.
+        `fs.protected_hardlinks=1` istenir. Sunucuda salt okuma ile
+        doğrulandı: hepsi `root 755`, `protected_hardlinks=1`.
+      - **Tür denetimi:** yönetilen her yol (kök, beş alt klasör, kilit,
+        `pgpass`, `imza.anahtar`, eski `pgpass` yeri) dokunulmadan önce
+        `tur_denetle`'den geçer; sembolik bağlantı, beklenmeyen tür ya da
+        birden çok adı olan dosyada kurulum **o yola dokunmadan durur**,
+        denetim eksik yazar ve yolu sonraki adımlarda atlar.
+      - **Doğrulama–değişiklik arası yarış:** servis hesabına ait nesnelerde
+        root yalnız `chown -h` yapar (bağlantıyı izlemez); `chmod` ve
+        `setfacl` nesnenin sahibi olarak (`runuser`) çalışır. Yol arada
+        bağlantıya çevrilse bile işlem servis hesabının yetkisiyle yapılır,
+        root dosyasında `EPERM` alır. Kilit dosyasını ve parola dosyasını
+        (taşıma ve yeni parola) servis hesabı yazar: root, servisin
+        yazabildiği klasörde dosya açmaz. Parola yine standart girdiden.
+    - **G1 taraması:** R5'in kalıbı (root'un bağlantı izleyen yazma/izin
+      işlemi) betikte tek tek arandı: `install -d` yalnız root'un klasöründe;
+      kök ACL'si root olarak (kök root'un); `guvenli_yaz` yalnız root'un
+      klasörlerinde (üst yol denetimiyle); eski `pgpass` yalnız okunur / `rm`
+      (bağlantıyı izlemez). Root'un geri kalan işlemleri okumadır (`stat`,
+      `getfacl`, `cmp`), tür denetiminden sonra. Diğer betikler
+      (`gecici-gunluk-yedek.sh`, `deploy.sh`) root olarak çalışmıyor.
+    - Testler (F3, kalıcı regresyon): ön koşul olarak servisin korunan root
+      dosyasına / klasörüne erişemediği; servisin alt klasörü taşıyamadığı,
+      köke bağlantı koyamadığı. Servis hesabı `gizli/pgpass`,
+      `gizli/imza.anahtar`, `durum/kilit` yerine korunan dosyaya bağlantı
+      koyunca: denetim 1 ve bağlantıyı söylüyor, kurulum 1 ve duruyor;
+      **korunan dosya ve klasörün sahibi, izni, ACL'si, içeriği aynı**, servis
+      hâlâ erişemiyor. Kilit yerine sabit bağlantı → kurulum durur, korunan
+      nesne aynı. `yedekler/` yerine bağlantı (eski kurulum durumu) → denetim
+      ve kurulum 1, korunan nesneler aynı. Üst klasör `777` → kurulum durur.
+      Geri konunca kurulum 0, denetim temiz. F'ye "kökün sahibi servis"
+      bozulması eklendi; E'de kökün beklenen sahibi `root`.
+    - Dokümanlar: README §5.5 (kökün sahibi root ve nedeni),
+      [sunucu-kurulumu.md](sunucu-kurulumu.md) §2 tablo + "Bağlantı
+      güvenliği". `Dikkat_Edilecekler.md`: **D5** (root, başkasının
+      değiştirebildiği yolda bağlantı izleyerek işlem yapmasın).
+    - Kontroller: `bash -n` temiz; test betiği WSL'de root, deneme adlarıyla
+      **158/158 geçti** (önceki 125 dahil). Sonda kullanıcı, grup, rol,
+      klasör kalmadı.
+    - Doğrulanamayan (önceki gibi): gerçek systemd / `/etc/sudoers.d`,
+      gerçek adlarla kaldırma, `shellcheck` (kurulu değil). Betik sunucuda
+      çalıştırılmadı (BY-025); canlıya alınmadı. Sunucuya yalnız salt okuma
+      için bağlanıldı (`protected_hardlinks`, klasör sahiplikleri).
 
 ---
 

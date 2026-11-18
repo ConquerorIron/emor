@@ -71,7 +71,7 @@ calistir "denetim temiz" 0 --denetle
 cp "$D/son.txt" "$D/denetim_temiz.txt"
 
 echo "== E. İzinler (§5.5)"
-bekle "kök 0750"        bash -c "[[ \$(stat -c '%U:%G %a' $K) == 'emor-yedek-deneme:emor-yedek-deneme 750' ]]"
+bekle "kök root:servis 0750" bash -c "[[ \$(stat -c '%U:%G %a' $K) == 'root:emor-yedek-deneme 750' ]]"
 bekle "gizli 0700"      bash -c "[[ \$(stat -c '%a' $K/gizli) == 700 ]]"
 bekle "pgpass 0600"     bash -c "[[ \$(stat -c '%U %a' $K/gizli/pgpass) == 'emor-yedek-deneme 600' ]]"
 bekle "pgpass'ta deneme rolü" grep -q ":emor_yedek_deneme:" "$K/gizli/pgpass"
@@ -108,7 +108,7 @@ bekle "yayın gruba alınmadı"        bash -c "! id -nG $Y | tr ' ' '\n' | grep
 bekle "inceleme rolü NOLOGIN"       bash -c "[[ \$(runuser -u postgres -- psql -X -A -t -c \"select rolcanlogin from pg_roles where rolname='emor_inceleme_deneme'\") == f ]]"
 
 echo "== F. Bozulan durumlar: denetim yakalar, kurulum düzeltir"
-chmod 755 $K/yedekler; chmod 644 $K/gizli/pgpass; chmod 2750 $K
+chmod 755 $K/yedekler; chmod 644 $K/gizli/pgpass; chmod 2750 $K; chown emor-yedek-deneme $K
 psqlp "revoke erp from emor_yedek_deneme" >/dev/null; psqlp "grant erp to emor_yedek_deneme with inherit false, set true, admin true" >/dev/null
 setfacl -x u:$Y $K/istekler
 rm -f "$EMOR_SYSTEMD_DIZINI/emor-yedek.service"; echo bozuk > "$EMOR_SUDOERS_DOSYASI"
@@ -176,6 +176,55 @@ calistir "servis dosyasının sahibi farklı: denetim eksik" 1 --denetle
 calistir "kurulum sahibi düzeltir" 0
 bekle "servis dosyası yine root:root 644" bash -c "[[ \$(stat -c '%U:%G %a' $SERVIS_DOSYASI) == 'root:root 644' ]]"
 calistir "denetim temiz" 0 --denetle
+
+echo "== F3. Bağlantılar: kurulum yönetilen alanın dışındaki nesneye dokunmaz (BY-003-R5)"
+KD=$D/korunan_dosya; KZ=$D/korunan_dizin
+printf 'korunan-icerik\n' > $KD; chmod 600 $KD; mkdir -p $KZ; chmod 700 $KZ
+yalniz_temel_acl() { [[ -z "$(getfacl -cpE "$1" | grep -v -e '^user::' -e '^group::' -e '^other::' -e '^$')" ]]; }
+korunan_ayni() {
+  [[ "$(stat -c '%U:%G %a' $KD)" == "root:root 600" && "$(cat $KD)" == korunan-icerik \
+     && "$(stat -c '%U:%G %a' $KZ)" == "root:root 700" && -z "$(ls -A $KZ)" ]] \
+    && yalniz_temel_acl $KD && yalniz_temel_acl $KZ
+}
+servis_erisemez() { ! runuser -u emor-yedek-deneme -- cat $KD 2>/dev/null && ! runuser -u emor-yedek-deneme -- touch $KZ/x 2>/dev/null; }
+bekle "ön koşul: servis korunan nesnelere erişemez" servis_erisemez
+bekle "servis yönetilen alt klasörü yerinden oynatamaz" bash -c "! runuser -u emor-yedek-deneme -- mv $K/yedekler $K/yedekler.x 2>/dev/null"
+bekle "servis kök klasöre bağlantı koyamaz"   bash -c "! runuser -u emor-yedek-deneme -- ln -s $KZ $K/yeni 2>/dev/null"
+cp -p $K/gizli/pgpass $D/pgpass.yedek
+for yaprak in gizli/pgpass gizli/imza.anahtar durum/kilit; do
+  # Servis hesabı, yazabildiği klasörde dosyayı korunan dosyaya bağlantıyla değiştirir
+  runuser -u emor-yedek-deneme -- bash -c "rm -f $K/$yaprak && ln -s $KD $K/$yaprak"
+  calistir "$yaprak bağlantı: denetim eksik" 1 --denetle
+  bekle "$yaprak: denetim bağlantıyı söyledi" grep -q "$yaprak sembolik bağlantı" "$D/son.txt"
+  calistir "$yaprak bağlantı: kurulum durur" 1
+  bekle "$yaprak: kurulum bağlantıyı söyledi" grep -q "$yaprak sembolik bağlantı" "$D/son.txt"
+  bekle "$yaprak: korunan nesneler değişmedi" korunan_ayni
+  bekle "$yaprak: servis korunan nesnelere hâlâ erişemez" servis_erisemez
+  rm -f $K/$yaprak
+done
+cp -p $D/pgpass.yedek $K/gizli/pgpass
+# Sabit bağlantı (servis bunu fs.protected_hardlinks yüzünden yapamaz; eski / elle bozulmuş durum)
+ln $KD $K/durum/kilit
+calistir "kilit sabit bağlantı: kurulum durur" 1
+bekle "sabit bağlantı söylendi" grep -q "kilit birden çok adı var" "$D/son.txt"
+bekle "sabit bağlantıda korunan nesneler değişmedi" korunan_ayni
+rm -f $K/durum/kilit
+# Alt klasör yerine bağlantı (servis artık koyamaz; eski kurulumdan kalmış olabilir)
+mv $K/yedekler $D/yedekler.asil; ln -s $KZ $K/yedekler
+calistir "yedekler bağlantı: denetim eksik" 1 --denetle
+calistir "yedekler bağlantı: kurulum durur" 1
+bekle "klasör bağlantısı söylendi" grep -q "yedekler sembolik bağlantı" "$D/son.txt"
+bekle "klasör bağlantısında korunan nesneler değişmedi" korunan_ayni
+bekle "klasör bağlantısında servis korunan nesnelere erişemez" servis_erisemez
+rm $K/yedekler; mv $D/yedekler.asil $K/yedekler
+# Üst klasörü başkaları yazabiliyorsa (yapışkan bit yok) yol kurulum sırasında değiştirilebilir
+chmod 777 $D
+calistir "üst klasör herkese yazılabilir: kurulum durur" 1
+bekle "üst klasör söylendi" grep -q "$D: .*yazabiliyor" "$D/son.txt"
+chmod 755 $D
+calistir "geri konunca kurulum" 0
+calistir "geri konunca denetim temiz" 0 --denetle
+rm -f $D/pgpass.yedek
 
 echo "== G. Eski yerdeki parola dosyası: yeni yer doğrulanmadan silinmez (BY-003-R1)"
 P=$K/gizli/pgpass; E="$EMOR_ESKI_PGPASS"

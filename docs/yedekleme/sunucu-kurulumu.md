@@ -35,13 +35,13 @@ eski yedeklerin imzasını geçersiz kılardı).
 
 ## 2. Dosya yetkileri (README §5.5)
 
-Sahip:grup her yerde `emor-yedek:emor-yedek`. Web kullanıcısı (`www-data`)
-`emor-yedek` grubuna alınır; yayın kullanıcısı (`admin`) alınmaz, ona ACL ile
-yalnız gereken yerde izin verilir.
+Sahip:grup `emor-yedek:emor-yedek`; yalnız kök klasör `root:emor-yedek`.
+Web kullanıcısı (`www-data`) `emor-yedek` grubuna alınır; yayın kullanıcısı
+(`admin`) alınmaz, ona ACL ile yalnız gereken yerde izin verilir.
 
 | Yol | İzin | Servis | Web (grup) | Yayın (ACL) |
 |---|---|---|---|---|
-| `/var/lib/emor-yedek` | 0750 | her şey | geçer | yalnız geçer |
+| `/var/lib/emor-yedek` (sahibi root) | 0750 | geçer | geçer | yalnız geçer |
 | `yedekler/` — yedek, manifest, olay günlüğü | 2750 | okur, yazar | okur | erişmez |
 | `istekler/` | 2770 | okur, siler | yazar | yazar |
 | `durum/` — işlem durumu | 2750 | okur, yazar | okur | okur (sonradan açılan dosyalar dahil: varsayılan ACL) |
@@ -65,6 +65,27 @@ da sorundur. İzin bitleri doğru görünse de ek bir ACL girdisi (ör. `yedekle
 - Servis tanımı `root:root 644`, sudo kuralı `root:root 440` olmalı; içerik
   aynı olsa da sahip / izin farklıysa dosya yeniden yazılır. İkisi de geçici
   adla yazılıp tek adımda yerine taşınır.
+
+**Bağlantı güvenliği (BY-003-R5).** Kurulum root olarak çalışır; servis hesabı
+ise kendi klasörlerindeki bir dosyayı başka bir yere giden sembolik bağlantıyla
+değiştirebilir. Root o yolu izleyip sahibini / iznini değiştirseydi, servis
+hesabı yönetilen alanın dışındaki bir root dosyasına erişim kazanırdı. Önlemler:
+
+- Kök klasörün sahibi root: servis hesabı `yedekler/`, `gizli/` gibi alt
+  klasörleri silemez, yerine bağlantı koyamaz. Kurulum kökü alt klasörlerden
+  önce düzeltir.
+- Kökün üst klasörleri, systemd ve sudoers klasörleri root'un olmalı ve
+  başkası yazamamalı (yapışkan bitli `/tmp` hariç); değilse betik başta durur.
+  `fs.protected_hardlinks=1` istenir (root dosyasına sabit bağlantıyla ikinci
+  ad verilmesini çekirdek önler; sunucuda açık, 2026-11-18).
+- Yönetilen her yol dokunulmadan önce denetlenir: sembolik bağlantı, beklenmeyen
+  tür ya da birden çok adı olan dosya görülürse kurulum **o yola dokunmadan
+  durur**; denetim eksik yazar.
+- Servis hesabına ait nesnelerde root yalnız sahibi değiştirir (`chown -h`,
+  bağlantıyı izlemez). İzni, ACL'yi ve dosya içeriğini (kilit dosyası, parola
+  dosyası) nesnenin sahibi olan servis hesabı verir / yazar. Denetimle
+  değişiklik arasında yol bağlantıya çevrilse bile servis hesabı kendi
+  yetkisinin dışına çıkamaz.
 
 ## 3. Sunucuda çalıştırma (BY-025, kullanıcı talimatıyla)
 

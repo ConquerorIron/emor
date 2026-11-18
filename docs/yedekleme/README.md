@@ -512,6 +512,11 @@ Yedek durumları: `kuyrukta → calisiyor → tamam | basarisiz`; ayrıca `silin
 | İmza anahtarı, parola dosyası | yalnız okur | erişmez | erişmez |
 | Ayar kopyası, denetim günlüğü | okur, yazar | yalnız okur | erişmez |
 
+Yedek kökünün (`/var/lib/emor-yedek`) sahibi **root**'tur; alt klasörlerin
+sahibi servis hesabı. Servis hesabı alt klasörleri silemez, yerine bağlantı
+koyamaz: root'un çalıştırdığı kurulum betiği onları izleyip yönetilen alanın
+dışındaki bir dosyaya dokunamaz (BY-003-R5, sunucu-kurulumu.md §2).
+
 `deploy.sh` `pg_dump`'ı kendisi çalıştırmaz; yayın öncesi yedeği çalıştırıcıdan
 ister ve bitmesini bekler. Böylece yayın öncesi yedekler de imzalı, manifestli
 ve aynı kilit altında alınır.

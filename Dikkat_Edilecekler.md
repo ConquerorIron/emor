@@ -96,6 +96,15 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   (bağlantı, okuma, açılış) doğrulanmasından sonra; iki kopya farklıysa hiçbiri
   silinmez, elle bakılır.
   *(BY-003-R1: hedefte bozuk parola dosyası varken geçerli eski kopya silindi.)*
+- **D5 — Root, başkasının değiştirebildiği yolda bağlantı izleyerek işlem
+  yapmasın.** `chown`, `chmod`, `setfacl`, `cp`, `>` hedefteki sembolik
+  bağlantıyı izler; yolu yazabilen hesap root'u yönetilen alanın dışına
+  yönlendirir (CWE-59). Yolun üst klasörleri yalnız root'un olsun; dokunmadan
+  önce türü denetle (bağlantı / sabit bağlantı → dur); root yalnız `chown -h`
+  yapsın, izni ve içeriği nesnenin sahibi yazsın. Testte, o hesabın koyduğu
+  bağlantıyla root dosyasının değişmediğini sına.
+  *(BY-003-R5: servis hesabının `gizli/pgpass` ve `yedekler/` yerine koyduğu
+  bağlantılar, root'a ait dosya ve klasörü servise geçirdi.)*
 
 ## 5. Tasarım dokümanları
 

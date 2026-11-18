@@ -113,6 +113,68 @@ guvenli_yaz() {
   GECICI=""
 }
 
+# --- Bağlantı güvenliği (CWE-59; BY-003-R5) --------------------------------
+# Servis hesabı kendi klasörlerindeki bir dosyayı, root'un dokunacağı bir yere
+# giden sembolik bağlantıyla değiştirebilir. Bu yüzden:
+#   - yedek kökünün sahibi root'tur: servis alt klasörleri değiştiremez;
+#   - kökün üst klasörleri ve sistem dosyalarının klasörleri root dışında
+#     kimsenin değiştiremeyeceği yerler olmalıdır (ust_yol_denetle);
+#   - yönetilen her yol, dokunulmadan önce beklenen türde olmalıdır:
+#     bağlantı, başka tür ya da birden çok adı olan dosya görülürse kurulum o
+#     yola DOKUNMADAN durur (tur_denetle);
+#   - servis hesabına ait nesnelerde root yalnız sahibi bağlantıyı izlemeden
+#     değiştirir (chown -h); izni ve ACL'yi nesnenin sahibi (servis hesabı)
+#     verir. Doğrulama ile değişiklik arasında yol değiştirilse bile servis
+#     hesabı kendi yetkisinin dışına çıkamaz. Dosya içeriğini de servis yazar.
+#   - Sabit bağlantıyla root dosyasına ikinci ad verilmesini çekirdek önler
+#     (fs.protected_hardlinks=1; ön denetimde istenir).
+
+# Bir klasör ve bütün üst klasörleri: bağlantı değil, sahibi root, grup /
+# başkaları yazamaz (yapışkan bitli klasör hariç, ör. /tmp).
+ust_yol_denetle() { # $1 mutlak klasör yolu (olmayan son parçalar atlanır)
+  local yol="$1" p="" parca durum sahip kip parcalar=()
+  [[ "$yol" == /* && "$yol/" != *"/../"* && "$yol/" != *"/./"* && "$yol" != *//* ]] \
+    || hata "yol mutlak ve sade olmalı: $yol"
+  IFS=/ read -r -a parcalar <<<"${yol#/}"
+  for parca in "" "${parcalar[@]}"; do
+    p="${p%/}/$parca"
+    if [[ -L "$p" ]]; then hata "$p sembolik bağlantı; yol root dışında biri tarafından değiştirilebilir."; fi
+    if [[ ! -e "$p" ]]; then return 0; fi
+    [[ -d "$p" ]] || hata "$p klasör değil."
+    durum="$(stat -c '%U %a' "$p")"; sahip="${durum% *}"; kip="${durum#* }"
+    if [[ "$sahip" != root ]]; then hata "$p: sahibi $sahip; root olmalı (yol root dışında biri tarafından değiştirilebilir)."; fi
+    if (( 8#$kip & 8#022 )) && ! (( 8#$kip & 8#1000 )); then
+      hata "$p: grup ya da başkaları yazabiliyor ($kip); yol kurulum sırasında değiştirilebilir."
+    fi
+  done
+}
+
+declare -A REDDEDILEN=()
+# Yönetilen yol beklenen türde mi. 0: yok ya da uygun. Değilse kurulum durur
+# (o yola dokunmadan); denetimde eksik yazılır, yol sonraki adımlarda atlanır.
+tur_denetle() { # $1 yol, $2 f (düz dosya) | d (klasör)
+  local yol="$1" neden=""
+  if [[ -L "$yol" ]]; then neden="sembolik bağlantı"
+  elif [[ ! -e "$yol" ]]; then return 0
+  elif [[ "$2" == d && ! -d "$yol" ]]; then neden="klasör değil"
+  elif [[ "$2" == f && ! -f "$yol" ]]; then neden="düz dosya değil"
+  elif [[ "$2" == f && "$(stat -c %h "$yol")" != 1 ]]; then neden="birden çok adı var (sabit bağlantı)"
+  fi
+  if [[ -z "$neden" ]]; then return 0; fi
+  REDDEDILEN["$yol"]=1
+  if [[ "$KIP" == kur ]]; then
+    hata "$yol $neden — hedefi yönetilen alanın dışında olabilir; betik bu yola dokunmadan durdu. Elle inceleyip kaldırın, sonra yeniden çalıştırın."
+  fi
+  eksik "$yol $neden — hedefi yönetilen alanın dışında olabilir; betik dokunmaz, elle inceleyin"
+  return 1
+}
+
+# Komutu nesnenin sahibi olarak çalıştırır (root'a ait nesnede root olarak)
+sahibi_olarak() { # $1 kullanıcı, sonra komut
+  local kullanici="$1"; shift
+  if [[ "$kullanici" == root ]]; then "$@"; else runuser -u "$kullanici" -- "$@"; fi
+}
+
 # ---------------------------------------------------------------------------
 # 0. Ön denetimler
 # ---------------------------------------------------------------------------
@@ -124,6 +186,12 @@ done
 [[ -f "$UYGULAMA_KOKU/scripts/gecici-env-oku.php" ]] || hata "$UYGULAMA_KOKU/scripts/gecici-env-oku.php bulunamadı."
 getent passwd "$WEB_KULLANICI" >/dev/null || hata "web kullanıcısı yok: $WEB_KULLANICI"
 getent passwd "$YAYIN_KULLANICI" >/dev/null || hata "yayın kullanıcısı yok: $YAYIN_KULLANICI"
+[[ "$(cat /proc/sys/fs/protected_hardlinks 2>/dev/null)" == 1 ]] \
+  || hata "fs.protected_hardlinks açık değil: servis hesabı root dosyalarına sabit bağlantı verebilir."
+# Yedek kökünün üstü ve sistem dosyalarının klasörleri yalnız root'un elinde mi
+ust_yol_denetle "$(dirname "$YEDEK_KOKU")"
+ust_yol_denetle "$SYSTEMD_DIZINI"
+ust_yol_denetle "$(dirname "$SUDOERS_DOSYASI")"
 
 # Uygulamanın veritabanı bilgileri, uygulamanın kendi ayrıştırıcısıyla (.env;
 # Dikkat_Edilecekler G3). Parola OKUNMAZ: yalnız sunucu, port ve uygulama rolünün adı.
@@ -208,11 +276,13 @@ fi
 
 # ---------------------------------------------------------------------------
 # 3. Klasörler ve izinler (README §5.5)
-#    Sahip:grup emor-yedek:emor-yedek. setgid (2xxx): içinde açılan dosya
-#    grubu devralır; web kullanıcısı grup üyesi olarak okur.
+#    Sahip:grup emor-yedek:emor-yedek; kökün sahibi root (root:emor-yedek):
+#    servis hesabı alt klasörleri silemez, yerine bağlantı koyamaz (R5).
+#    setgid (2xxx): içinde açılan dosya grubu devralır; web kullanıcısı grup
+#    üyesi olarak okur.
 #
 #      klasör     izin  servis       web (grup)   yayın (admin, ACL)
-#      (kök)      0750  her şey      geçer        yalnız geçer (--x)
+#      (kök)      0750  geçer        geçer        yalnız geçer (--x)   sahibi root
 #      yedekler/  2750  okur, yazar  okur         erişmez
 #      istekler/  2770  okur, siler  yazar        yazar (rwx)
 #      durum/     2750  okur, yazar  okur         okur (r-x; yeni dosyalara da)
@@ -226,27 +296,40 @@ fi
 #    ACL her yolda TAMAMEN karşılaştırılır: izin bitleri doğru görünse de ek
 #    bir ACL girdisi (ör. yedekler/'e u:admin:r-x) yasak erişimi açar. Fark
 #    varsa kurulum ACL'yi tablodaki tam kümeyle değiştirir (setfacl --set).
+#
+#    Bağlantı güvenliği (yukarıdaki "Bağlantı güvenliği" notu): her yol önce
+#    tur_denetle'den geçer; root yalnız sahibi değiştirir (chown -h), izni ve
+#    ACL'yi nesnenin sahibi verir. Kök, alt klasörlerden ÖNCE root'a geçer.
 # ---------------------------------------------------------------------------
 baslik "3. Klasörler ve izinler"
-izin_denetle() { # $1 yol, $2 beklenen izin (ör. 2750)
-  local yol="$1" kip="$2" mevcut beklenen
+izin_denetle() { # $1 yol, $2 beklenen izin (ör. 2750), $3 beklenen sahip (varsayılan servis)
+  local yol="$1" kip="$2" sahip="${3:-$YEDEK_KULLANICI}" mevcut beklenen
+  if [[ -n "${REDDEDILEN[$yol]:-}" ]]; then return 0; fi
   mevcut="$(stat -c '%U:%G %a' "$yol")"
-  beklenen="$YEDEK_KULLANICI:$YEDEK_KULLANICI ${kip#0}"
+  beklenen="$sahip:$YEDEK_KULLANICI ${kip#0}"
   if [[ "$mevcut" == "$beklenen" ]]; then
     tamam "$yol ($mevcut)"
   else
-    # Başa eklenen 0 beş haneli kip yapar: GNU chmod klasörde dört haneli
-    # "0750" ile setgid bitini KORUR, "00750" ile temizler.
-    duzelt "$yol: $mevcut → $beklenen" \
-      bash -c 'chown "$1:$1" "$2" && chmod "0$3" "$2"' _ "$YEDEK_KULLANICI" "$yol" "$kip"
+    duzelt "$yol: $mevcut → $beklenen" izin_duzelt "$yol" "$sahip" "$kip"
   fi
 }
-klasor() { # $1 yol, $2 izin
+izin_duzelt() { # $1 yol, $2 sahip, $3 izin
+  # Sahip bağlantı izlenmeden (chown -h); izni yeni sahip verir: yol arada
+  # bağlantıya çevrilse de servis hesabı yalnız kendi yetkisiyle işlem yapar.
+  chown -h "$2:$YEDEK_KULLANICI" "$1"
+  # Başa eklenen 0 beş haneli kip yapar: GNU chmod klasörde dört haneli
+  # "0750" ile setgid bitini KORUR, "00750" ile temizler.
+  sahibi_olarak "$2" chmod "0$3" "$1"
+}
+klasor() { # $1 yol, $2 izin, $3 sahip (varsayılan servis)
+  local sahip="${3:-$YEDEK_KULLANICI}"
+  tur_denetle "$1" d || return 0
   if [[ -d "$1" ]]; then
-    izin_denetle "$1" "$2"
+    izin_denetle "$1" "$2" "$sahip"
   else
-    duzelt "$1 açıldı ($YEDEK_KULLANICI:$YEDEK_KULLANICI $2)" \
-      install -d -o "$YEDEK_KULLANICI" -g "$YEDEK_KULLANICI" -m "$2" "$1"
+    # Üst klasör (kök ya da /var/lib) yalnız root'un: arada başkası araya giremez
+    duzelt "$1 açıldı ($sahip:$YEDEK_KULLANICI $2)" \
+      install -d -o "$sahip" -g "$YEDEK_KULLANICI" -m "$2" "$1"
   fi
 }
 HARF=(--- --x -w- -wx r-- r-x rw- rwx)
@@ -270,8 +353,9 @@ acl_tanimi() {
     ACL_TANIMI+=",d:u::$u,d:u:$adli,d:g::$g,d:m::$g,d:o::$o"
   fi
 }
-acl_denetle() { # $1 yol, $2 izin, $3 yayın izni ya da "", $4 "varsayilan" ya da ""
-  local yol="$1" mevcut fazla eksikler fark komut
+acl_denetle() { # $1 yol, $2 izin, $3 yayın izni ya da "", $4 "varsayilan" ya da "", $5 sahip (varsayılan servis)
+  local yol="$1" sahip="${5:-$YEDEK_KULLANICI}" mevcut fazla eksikler fark komut
+  if [[ -n "${REDDEDILEN[$yol]:-}" ]]; then return 0; fi
   acl_tanimi "$2" "$3" "${4:-}"
   mevcut="$(getfacl -cpE "$yol" 2>/dev/null | sed '/^$/d')"
   if [[ "$mevcut" == "$ACL_BEKLENEN" ]]; then
@@ -286,10 +370,13 @@ acl_denetle() { # $1 yol, $2 izin, $3 yayın izni ya da "", $4 "varsayilan" ya d
   # --set varsayılan ACL'ye dokunmaz; beklenmiyorsa ayrıca kaldırılır (-k)
   komut='setfacl --set "$1" "$2"'
   if [[ -d "$yol" && "${4:-}" != varsayilan ]]; then komut+=' && setfacl -k "$2"'; fi
-  duzelt "$yol ACL farklı — $fark" bash -c "$komut" _ "$ACL_TANIMI" "$yol"
+  duzelt "$yol ACL farklı — $fark" sahibi_olarak "$sahip" bash -c "$komut" _ "$ACL_TANIMI" "$yol"
 }
 if (( KULLANICI_VAR )); then
-  klasor "$YEDEK_KOKU" 0750
+  # Önce kök: sahibi, izni ve ACL'si düzelmeden servis (ya da ACL ile yazma
+  # izni almış biri) alt klasörleri değiştirebilir.
+  klasor "$YEDEK_KOKU" 0750 root
+  if [[ -d "$YEDEK_KOKU" ]]; then acl_denetle "$YEDEK_KOKU" 0750 "--x" "" root; fi
   klasor "$YEDEK_KOKU/yedekler" 2750
   klasor "$YEDEK_KOKU/istekler" 2770
   klasor "$YEDEK_KOKU/durum" 2750
@@ -299,7 +386,6 @@ else
   eksik "klasörler (önce servis kullanıcısı açılmalı)"
 fi
 if [[ -d "$YEDEK_KOKU/durum" ]]; then
-  acl_denetle "$YEDEK_KOKU" 0750 "--x"
   acl_denetle "$YEDEK_KOKU/yedekler" 2750 ""
   acl_denetle "$YEDEK_KOKU/istekler" 2770 "rwx"
   # Varsayılan ACL: durum/ içinde sonradan açılan dosyaları da yayın kullanıcısı
@@ -307,14 +393,17 @@ if [[ -d "$YEDEK_KOKU/durum" ]]; then
   acl_denetle "$YEDEK_KOKU/durum" 2750 "r-x" varsayilan
   acl_denetle "$YEDEK_KOKU/gunluk" 2750 ""
   acl_denetle "$YEDEK_KOKU/gizli" 0700 ""
-  if [[ -f "$KILIT_DOSYASI" ]]; then
-    izin_denetle "$KILIT_DOSYASI" 0640
-    acl_denetle "$KILIT_DOSYASI" 0640 "r--"
-  else
-    acl_tanimi 0640 "r--" ""
-    duzelt "$KILIT_DOSYASI açıldı (0640; yayın kullanıcısı okur)" \
-      bash -c 'install -o "$1" -g "$1" -m 640 /dev/null "$2" && setfacl --set "$3" "$2"' \
-        _ "$YEDEK_KULLANICI" "$KILIT_DOSYASI" "$ACL_TANIMI"
+  if [[ -z "${REDDEDILEN[$YEDEK_KOKU/durum]:-}" ]] && tur_denetle "$KILIT_DOSYASI" f; then
+    if [[ -f "$KILIT_DOSYASI" ]]; then
+      izin_denetle "$KILIT_DOSYASI" 0640
+      acl_denetle "$KILIT_DOSYASI" 0640 "r--"
+    else
+      # Servis hesabı açar: root, servisin yazabildiği klasörde dosya açmaz
+      acl_tanimi 0640 "r--" ""
+      duzelt "$KILIT_DOSYASI açıldı (0640; yayın kullanıcısı okur)" \
+        runuser -u "$YEDEK_KULLANICI" -- bash -c 'install -m 640 /dev/null "$1" && setfacl --set "$2" "$1"' \
+          _ "$KILIT_DOSYASI" "$ACL_TANIMI"
+    fi
   fi
 elif [[ "$KIP" == denetle ]]; then
   eksik "ACL'ler ve kilit dosyası (klasörler yok)"
@@ -339,43 +428,53 @@ fi
 baslik "4. Gizli dosyalar"
 YENI_PAROLA_GEREK=0
 ESKI_KOPYA_SILINEBILIR=0   # 1: eski kopya yenisinin aynısı; bağlantı doğrulanırsa silinir
-pgpass_kopyala() { # eski kopyayı geçici ada yazar, sahibini / iznini verir, yerine taşır
-  GECICI="$(mktemp "$YEDEK_KOKU/gizli/.pgpass.XXXXXX")"
-  cp "$ESKI_PGPASS" "$GECICI"
-  chown "$YEDEK_KULLANICI:$YEDEK_KULLANICI" "$GECICI"
-  chmod 600 "$GECICI"
-  mv -T "$GECICI" "$PGPASS_DOSYASI"
-  GECICI=""
+# Standart girdideki içeriği SERVİS HESABI olarak parola dosyasına yazar
+# (geçici ad → tek adımda taşı; yarıda kalırsa geçici dosya silinir). Root,
+# servisin yazabildiği gizli/ klasöründe dosya açmaz (bağlantı güvenliği).
+pgpass_servis_yaz() {
+  runuser -u "$YEDEK_KULLANICI" -- bash -c '
+    umask 077
+    t="$(mktemp "$1/.pgpass.XXXXXX")" || exit 1
+    trap "rm -f \"\$t\"" EXIT
+    cat > "$t" && mv -T "$t" "$2"' _ "$YEDEK_KOKU/gizli" "$PGPASS_DOSYASI"
 }
-if [[ ! -d "$YEDEK_KOKU/gizli" ]]; then
+pgpass_kopyala() { pgpass_servis_yaz < "$ESKI_PGPASS"; }
+if [[ -n "${REDDEDILEN[$YEDEK_KOKU/gizli]:-}" ]]; then
+  :   # bölüm 3'te bildirildi
+elif [[ ! -d "$YEDEK_KOKU/gizli" ]]; then
   eksik "gizli dosyalar (klasör yok)"
 else
-  if [[ -f "$PGPASS_DOSYASI" ]]; then
-    izin_denetle "$PGPASS_DOSYASI" 0600
-    acl_denetle "$PGPASS_DOSYASI" 0600 ""
-    if [[ -f "$ESKI_PGPASS" ]]; then
-      if cmp -s "$ESKI_PGPASS" "$PGPASS_DOSYASI"; then
-        ESKI_KOPYA_SILINEBILIR=1
-        bilgi "eski kopya da duruyor (içerik aynı): $ESKI_PGPASS — yeni yerdekiyle bağlantı doğrulanırsa silinir"
-      else
-        eksik "iki parola dosyası farklı: $ESKI_PGPASS ve $PGPASS_DOSYASI — betik hiçbirini silmez; hangisiyle bağlanılabildiğine bakıp yanlış olanı kaldırın"
+  # Eski kopyanın yeri yayın kullanıcısının evinde: o da bağlantı olmamalı
+  if tur_denetle "$PGPASS_DOSYASI" f && tur_denetle "$ESKI_PGPASS" f; then
+    if [[ -f "$PGPASS_DOSYASI" ]]; then
+      izin_denetle "$PGPASS_DOSYASI" 0600
+      acl_denetle "$PGPASS_DOSYASI" 0600 ""
+      if [[ -f "$ESKI_PGPASS" ]]; then
+        if cmp -s "$ESKI_PGPASS" "$PGPASS_DOSYASI"; then
+          ESKI_KOPYA_SILINEBILIR=1
+          bilgi "eski kopya da duruyor (içerik aynı): $ESKI_PGPASS — yeni yerdekiyle bağlantı doğrulanırsa silinir"
+        else
+          eksik "iki parola dosyası farklı: $ESKI_PGPASS ve $PGPASS_DOSYASI — betik hiçbirini silmez; hangisiyle bağlanılabildiğine bakıp yanlış olanı kaldırın"
+        fi
       fi
+    elif [[ -f "$ESKI_PGPASS" ]]; then
+      duzelt "parola dosyası kopyalandı: $ESKI_PGPASS → $PGPASS_DOSYASI (eski kopya bağlantı doğrulanınca silinir)" \
+        pgpass_kopyala
+      if [[ "$KIP" == kur ]]; then ESKI_KOPYA_SILINEBILIR=1; fi
+    elif [[ "$KIP" == denetle ]]; then
+      eksik "parola dosyası yok: $PGPASS_DOSYASI"
+    else
+      YENI_PAROLA_GEREK=1
+      bilgi "parola dosyası yok; bölüm 5'te yeni parola üretilecek"
     fi
-  elif [[ -f "$ESKI_PGPASS" ]]; then
-    duzelt "parola dosyası kopyalandı: $ESKI_PGPASS → $PGPASS_DOSYASI (eski kopya bağlantı doğrulanınca silinir)" \
-      pgpass_kopyala
-    if [[ "$KIP" == kur ]]; then ESKI_KOPYA_SILINEBILIR=1; fi
-  elif [[ "$KIP" == denetle ]]; then
-    eksik "parola dosyası yok: $PGPASS_DOSYASI"
-  else
-    YENI_PAROLA_GEREK=1
-    bilgi "parola dosyası yok; bölüm 5'te yeni parola üretilecek"
   fi
-  if [[ -f "$IMZA_ANAHTARI" ]]; then
-    izin_denetle "$IMZA_ANAHTARI" 0600
-    acl_denetle "$IMZA_ANAHTARI" 0600 ""
-  else
-    bilgi "imza anahtarı henüz yok: $IMZA_ANAHTARI (BY-025'te uygulamadan taşınır; betik üretmez)"
+  if tur_denetle "$IMZA_ANAHTARI" f; then
+    if [[ -f "$IMZA_ANAHTARI" ]]; then
+      izin_denetle "$IMZA_ANAHTARI" 0600
+      acl_denetle "$IMZA_ANAHTARI" 0600 ""
+    else
+      bilgi "imza anahtarı henüz yok: $IMZA_ANAHTARI (BY-025'te uygulamadan taşınır; betik üretmez)"
+    fi
   fi
 fi
 
@@ -426,13 +525,8 @@ yeni_parola_yaz() { # Parolayı role yazar; başarılıysa parola dosyasını ya
   local parola
   parola="$(openssl rand -hex 24)"
   printf "alter role %s password '%s';\n" "$VT_YEDEK_ROLU" "$parola" | pg_yonetici -f -
-  GECICI="$(mktemp "$YEDEK_KOKU/gizli/.pgpass.XXXXXX")"
   printf '%s:%s:*:%s:%s\n' "$(pgpass_kacir "$VT_SUNUCU")" "$(pgpass_kacir "$VT_PORT")" \
-    "$VT_YEDEK_ROLU" "$parola" > "$GECICI"
-  chown "$YEDEK_KULLANICI:$YEDEK_KULLANICI" "$GECICI"
-  chmod 600 "$GECICI"
-  mv "$GECICI" "$PGPASS_DOSYASI"
-  GECICI=""
+    "$VT_YEDEK_ROLU" "$parola" | pgpass_servis_yaz
 }
 
 OZ="$(rol_ozellikleri "$VT_YEDEK_ROLU")"
@@ -498,7 +592,7 @@ fi
 
 # Servis hesabı, parola dosyasıyla gerçekten bağlanabiliyor mu
 BAGLANTI_TAMAM=0
-if [[ -f "$PGPASS_DOSYASI" ]] && (( KULLANICI_VAR )); then
+if [[ -f "$PGPASS_DOSYASI" && ! -L "$PGPASS_DOSYASI" ]] && (( KULLANICI_VAR )); then
   if runuser -u "$YEDEK_KULLANICI" -- env PGPASSFILE="$PGPASS_DOSYASI" PGCONNECT_TIMEOUT=10 \
        psql -h "$VT_SUNUCU" -p "$VT_PORT" -U "$VT_YEDEK_ROLU" -d postgres -X -A -t -q -w -c 'select 1' >/dev/null 2>&1; then
     tamam "$YEDEK_KULLANICI, parola dosyasıyla $VT_YEDEK_ROLU olarak postgres veritabanına bağlanabiliyor"
