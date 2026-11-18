@@ -24,7 +24,7 @@ lokalde denendi; sunucuda çalıştırılmadı.
 | 3. Ayrı servis tanımı | Bölüm 6 | `emor-yedek.service` kurulur, **etkinleştirilmez**; komutu (`yedek:calistir`) BY-025'te yazılır |
 | 4. Sunucu dışı hedef ve erişim | — | Betikte değil: hedefler ve erişim bilgileri ekrandan tanımlanır (BY-016, BY-020…BY-023) |
 | 5. Uygulama dışı sessizlik izleyicisi | — | Betikte değil: yaşam sinyali BY-012; izleyicinin kim / nerede olacağı açık karar (README §13, madde 11) |
-| 6. Salt okunur inceleme rolü | Bölüm 5 | `emor_inceleme`, `NOLOGIN`; geri yüklenen kopyalarda okuma yetkisini çalıştırıcı verir |
+| 6. Salt okunur inceleme rolü | Bölüm 5 | `emor_inceleme`, `NOLOGIN`; geri yüklenen kopyalarda okuma yetkisini çalıştırıcı verir. `NOLOGIN` salt okunur yapmaz: yönetici / veritabanı açma / rol açma / çoğaltma / RLS atlama açıksa denetim bildirir, kurulum kapatır; başka bir role üyeliği bildirilir |
 | 7. §5.5 dosya yetkileri | Bölüm 2, 3, 4 | Aşağıdaki tablo |
 | 8. Sanal makine yedeği var mı | — | Betikle öğrenilemez; açık soru (README §13, madde 9) |
 
@@ -52,6 +52,20 @@ yalnız gereken yerde izin verilir.
 Servis hesabı da web grubuna alınır: geri yüklemede uygulamayı bakım moduna
 almak ve önbelleği temizlemek, uygulamanın `storage/` klasörüne yazmayı ister.
 
+**Yetkiler tam kümeyle karşılaştırılır.** Gerekenin bulunması yetmez, fazlası
+da sorundur. İzin bitleri doğru görünse de ek bir ACL girdisi (ör. `yedekler/`
+üzerinde `u:admin:r-x`) yasak erişimi açar. Bu yüzden:
+
+- Tablodaki her yolun ACL'si (varsayılan ACL dahil) tablonun tam karşılığıyla
+  karşılaştırılır; fark "fazla" / "eksik" girdi olarak raporlanır, kurulum
+  ACL'yi tam kümeyle değiştirir (`setfacl --set`).
+- Rol özelliklerinin hepsi (giriş, veritabanı açma, yönetici, rol açma,
+  çoğaltma, RLS atlama) denetlenir; rollerin beklenmeyen üyelikleri bildirilir
+  (betik vermediği üyeliği geri almaz, elle bakılır).
+- Servis tanımı `root:root 644`, sudo kuralı `root:root 440` olmalı; içerik
+  aynı olsa da sahip / izin farklıysa dosya yeniden yazılır. İkisi de geçici
+  adla yazılıp tek adımda yerine taşınır.
+
 ## 3. Sunucuda çalıştırma (BY-025, kullanıcı talimatıyla)
 
 Gerekenler: `acl` (setfacl/getfacl), `visudo`, `openssl`, `runuser`, `psql`,
@@ -76,6 +90,13 @@ Betiğin **yapmadıkları** (sonunda hatırlatır):
 Parola hiçbir komut satırına, ortam değişkenine ya da çıktıya yazılmaz; yeni
 parola gerekirse psql'e standart girdiden verilir, parola dosyası rol
 güncellendikten sonra geçici addan taşınarak yazılır.
+
+**Parola dosyasının taşınması** (`/home/admin/.emor_yedek_pgpass` →
+`gizli/pgpass`): kopya geçici ada yazılıp tek adımda yerine konur. Eski kopya
+ancak yeni yerdeki aynı içerikli dosyayla servis hesabı gerçekten
+bağlanabildiyse silinir. İki dosya farklıysa ya da bağlantı kurulamazsa hiçbiri
+silinmez; betik "elle bakılacak madde" ile çıkar. O durumda hangi dosyayla
+bağlanılabildiğine bakılıp yanlış olan kaldırılır, betik yeniden çalıştırılır.
 
 ## 4. Lokal deneme
 

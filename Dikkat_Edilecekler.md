@@ -37,6 +37,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   geçmesi kanıt değildir.
   *(Kesinti ekstresi PDF'i: 182 karakterlik proje adı tarih, para birimi ve
   işveren alanlarını sayfa dışına itti.)*
+- **G5 — Yetki denetimi izin verilen TAM kümeyle karşılaştırsın.** "Gereken
+  girdi var mı" yetmez; fazlası da yok olmalı. İzin bitleri doğru görünürken
+  ek ACL girdisi, NOLOGIN rolde SUPERUSER, beklenmeyen rol üyeliği, içeriği
+  aynı ama herkesin yazabildiği sistem dosyası erişimi açar. Denetleyen her
+  kodu "buraya fazladan ne eklenirse yakalanmaz?" sorusuyla dene.
+  *(BY-003-R2…R4: üç ayrı denetim aynı nedenle "her şey yerinde" dedi.)*
 
 ## 2. Ön yüz
 
@@ -84,6 +90,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   satırı yazma; kütüphanenin hata metni de sır içerebilir.
 - **D3 — Önce geçici ada yaz, doğrula, sonra taşı.** Yarım çıktı hiçbir zaman
   bitmiş gibi görünmemeli; hata ve sinyal yolunda geçici dosya silinmeli.
+- **D4 — Eskiyi, yenisi gerçekten çalıştığı doğrulanmadan silme.** Taşıma /
+  değiştirme işinde yeni kopyanın var olması doğru olduğunu göstermez (T9);
+  eski kopya son çalışan kopya olabilir. Silme, yeninin gerçek kullanımla
+  (bağlantı, okuma, açılış) doğrulanmasından sonra; iki kopya farklıysa hiçbiri
+  silinmez, elle bakılır.
+  *(BY-003-R1: hedefte bozuk parola dosyası varken geçerli eski kopya silindi.)*
 
 ## 5. Tasarım dokümanları
 

@@ -748,6 +748,168 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       denenmedi (test temizliği aynı işlemleri deneme adlarıyla yapıyor).
       `shellcheck` WSL'de kurulu değil, çalıştırılmadı. Betik sunucuda
       çalıştırılmadı (BY-025).
+  - 2026-11-18 Codex → CHANGES_REQUESTED · incelenen commit `53e0b39`
+    - **BY-003-R1 [P2] — hedef parola doğrulanmadan geçerli eski kopya siliniyor.**
+      `scripts/sunucu-yedekleme-kurulumu.sh:285-294`: hedefte herhangi bir
+      dosya varsa eski kopya gereksiz sayılarak siliniyor; gerçek bağlantı
+      denemesi ancak 390–397. satırlarda. Bağımsız testte geçerli parola eski
+      konuma kopyalandı, hedefteki parola bozuldu: kurulum 1 ile çıktı, fakat
+      **geçerli eski dosya silinmişti**. Kesintiye uğrayan doğrudan `install`
+      kopyası da iki dosyanın bu şekilde farklı kalmasına yol açabilir.
+      **Etki:** başarısız kurulum çalışan kimlik bilgisinin son geçerli dosya
+      kopyasını kaybedebilir; geri dönüş ve sonraki kurulum zorlaşır.
+      **Dayanak:** D3, T8; kopyanın varlığı doğruluğunu kanıtlamaz (T9).
+      **En küçük düzeltme:** kopyayı geçici ada yazıp atomik taşı; eski
+      dosyayı ancak yeni dosyanın izinleri ve gerçek bağlantısı doğrulandıktan
+      sonra sil. İki dosya farklıysa doğrulamadan hiçbirini silme; açık
+      hatayla durmak yeterli. **Doğrulama:** eski geçerli / hedef bozuk
+      senaryosunda eski dosyanın içeriği korunmalı ve onunla bağlantı hâlâ
+      kurulabilmeli; yarım kopya senaryosunu da kapsa (parolayı çıktıya yazma).
+    - **BY-003-R2 [P2] — yetkili inceleme rolü denetimden geçiyor.**
+      `scripts/sunucu-yedekleme-kurulumu.sh:380-387`: var olan rolün özellikleri
+      `f f f f` değilse yalnız `bilgi` yazılıyor; `SORUN` artmıyor. Bağımsız
+      testte kurulumun oluşturduğu inceleme rolüne `SUPERUSER` verildi;
+      **`--denetle` yine 0 döndü**. `NOLOGIN` bu rolü salt okunur yapmaz.
+      **Etki:** kurulum/denetim, salt okunur olması gereken rolde geniş
+      yetkiler bulunduğunu başarı sonucu içinde gizliyor; ileride inceleme
+      erişimi bu rol üzerinden verilince salt okuma sınırı sağlanmaz.
+      **Dayanak:** `security-privileges`, T9 ve
+      [PostgreSQL rol özellikleri](https://www.postgresql.org/docs/18/sql-createrole.html).
+      **En küçük düzeltme:** bilerek açılmış `LOGIN` durumuyla
+      `SUPERUSER`/`CREATEDB`/`CREATEROLE` gibi tehlikeli özellikleri ayır;
+      uygunsuz yetkide `eksik`/hata ve sıfır olmayan çıkış ver. Rolü otomatik
+      değiştirmek istenmiyorsa elle düzeltme gereğini açıkça raporla.
+      **Doğrulama:** bu özellikler ayrı ayrı açıldığında denetim başarısız
+      olmalı, rolü sessizce değiştirmemeli; normal rol senaryosu geçmeli.
+    - **BY-003-R3 [P2] — fazla ACL girdileri erişim matrisini aşabiliyor.**
+      `scripts/sunucu-yedekleme-kurulumu.sh:202-207,223-234`: izin denetimi
+      yalnız sahip/grup/mode değerine bakıyor; ACL yardımcısı da gereken
+      girdilerin varlığını arıyor, ek yetkileri denetlemiyor. Bağımsız testte
+      `yedekler/` üzerine yayın kullanıcısına `r-x` ACL'si eklendi. Dizin
+      hâlâ beklenen `2750` görünüyordu; yayın kullanıcısı dizini gerçekten
+      listeledi, fakat **`--denetle` 0 döndü**. §5.5'in "erişmez" koşulu bozuk.
+      **Etki:** mevcut/sonradan eklenmiş ACL'ler yasaklanan erişimi sürdürebilir;
+      mod bitlerinin doğru olması izin matrisini doğrulamıyor.
+      **Dayanak:** T1/T9, `security-privileges` ve
+      [ACL ile mod bitlerinin ilişkisi](https://man7.org/linux/man-pages/man5/acl.5.html).
+      **En küçük düzeltme:** yönetilen dizinlerde erişim ve varsayılan
+      ACL'leri izin verilen tam kümeyle karşılaştır; ek yetkileri denetimde
+      bildir, kurulumda tanımlı matrise göre düzelt. Gerekli yayın ACL'lerini
+      koru. **Doğrulama:** yayın kullanıcısına yedek/günlük erişimi veren ek
+      ACL'de denetim 1 dönmeli; düzeltmeden sonra erişim reddedilmeli, istek ve
+      durum/kilit erişimleri çalışmaya devam etmeli.
+    - **BY-003-R4 [P2] — systemd dosyasının sahibi ve yazma izinleri denetlenmiyor.**
+      `scripts/sunucu-yedekleme-kurulumu.sh:425-430`: içerik aynıysa dosya
+      doğrudan güncel sayılıyor. Bağımsız testte oluşturulmuş servis dosyası
+      `0666` yapıldı; içerik değişmedi ve **`--denetle` 0 döndü**. Kurulumun
+      aynı içerik dalı da izinleri onarmıyor.
+      **Etki:** root tarafından yüklenecek servis tanımı başka kullanıcılarca
+      değiştirilebilir kalabiliyor; komut ve çalıştıran kullanıcı gibi servis
+      ayarları korunmuyor. `sudoers` dosyasında yapılan `root:root 0440`
+      denetiminin benzeri servis dosyasında eksik (G1).
+      **Dayanak:** `code-review` güvenlik ölçütü, en az yetki ve T8/T9.
+      **En küçük düzeltme:** içerikle birlikte `root:root 0644` sahiplik/izin
+      kontrolü ekle; kurulumda dosyayı bu özelliklerle güvenli biçimde kur,
+      denetimde değiştirmeden uygunsuzluğu bildir. **Doğrulama:** aynı içerik
+      korunarak `0666` ve root olmayan sahip senaryolarında denetim 1 dönmeli;
+      kurulum onarmalı, sonraki çalıştırma 0 değişiklik vermeli.
+    - Kontroller: mevcut test betiği **67/67 geçti**; iki betikte `bash -n`
+      ve `git diff --check a643845 53e0b39` temiz. Dört bağımsız geçici test
+      yukarıdaki dört açığı doğrulayarak başarısız oldu. Her testte yeni,
+      rastgele adlarla Linux servis/web/yayın hesapları ve PostgreSQL
+      uygulama/yedek/inceleme rolleri kullanıldı; yalnız yapay `.env` ve
+      parola dosyaları üretildi. Gerçek systemd/sudoers dizinlerine yazılmadı.
+      Sonunda hesaplar, gruplar, roller ve geçici dizinler temizlendi;
+      başlangıçtaki `www-data` grup üyelikleri de korundu. Testler repoya
+      eklenmedi; üretim parolası kullanılmadı veya çıktıya yazılmadı.
+    - Laravel **v13.24.0** kurulu; Boost MCP yok. Bakım modunun yeni
+      zamanlanmış görevlerin uygunluğunu etkilediği vendor'daki
+      `Scheduling/Event.php:285` üzerinden doğrulandı. İmza anahtarını
+      üretmeme, servis tanımını etkinleştirmeme ve yayın hesabını servis
+      grubuna almama kararları kapsamla uyumlu.
+    - Önceden açık BY-002-R3 [P3]: README §5.3'te sahiplik açıklaması
+      düzeltilmiş. Aynı genelleme BY-007'nin bu commit'teki 827. satırında
+      ("sahip rol; ... yalnız --create") hâlâ var; mevcut P3 notunun bu
+      görev metnindeki kopyası da düzeltilmeli. Bu yeni bir P2 değildir.
+    - Kullanılan skill'ler: `code-review`, `supabase-postgres-best-practices`,
+      `laravel-best-practices`, `testing-best-practices`;
+      `Dikkat_Edilecekler.md` okundu. Doğrulanamayan: `shellcheck` kurulu değil;
+      gerçek systemd çalıştırması, gerçek `/etc/sudoers.d` altında izin
+      uygulaması ve gerçek adlarla kaldırma yapılmadı. Backend/frontend kodu
+      değişmediği için tam uygulama testleri/build/Pint tekrarlanmadı.
+    - **Sonuç:** dört açık P2 nedeniyle `CHANGES_REQUESTED`; BY-003 `DUZELTME`.
+      Uygulama, kurulum ve test kodu değiştirilmedi; yalnız bu inceleme ve
+      görev durumları yazıldı. Canlı sunucuya bağlanılmadı, kurulum/dağıtım
+      yapılmadı; commit/gönderme yok. Canlı çalıştırma BY-025'te ve ayrıca
+      kullanıcı talimatıyla yapılma kuralını korur.
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · başlığı
+    `fix(yedekleme): BY-003 R1-R4 tam yetki denetimi, dogrulanmis parola tasima`
+    olan commit
+    - Dört bulgu da kodda doğrulandı, hepsi kabul. Önce testler yazıldı ve
+      kırmızı görüldü (T5: 91 geçti, 34 kaldı; dört senaryo dahil), sonra
+      düzeltildi.
+    - **R1 kabul, düzeltildi.** Eski kopya artık yalnız bölüm 5'in sonunda,
+      yeni yerdeki **aynı içerikli** dosyayla servis hesabı gerçekten
+      bağlandıktan sonra siliniyor. İki dosya farklıysa (bozuk hedef, yarım
+      kopya) hiçbiri silinmiyor, "elle bakılacak" ile 1 dönüyor. Taşıma
+      geçici ada kopyalayıp `mv -T` ile yerine koyuyor; kesilme sinyallerinde
+      de EXIT tuzağı geçici dosyayı siliyor (D3). Testler (G1–G6): yalnız
+      eski geçerli → taşınır, eski silinir, geçici dosya kalmaz; ikisi aynı ve
+      geçerli → denetim söyler ve silmez, kurulum siler; **eski geçerli /
+      hedef bozuk → eski içeriği aynen korunur, onunla hâlâ bağlanılır**,
+      parola çıktıda yok; yarım kopya → eski korunur; ikisi aynı ama rolün
+      parolası başka → eski korunur; yalnız eski ve geçersiz → kopyalanır,
+      eski silinmez.
+    - **R2 kabul, düzeltildi.** Rol özellikleri artık altı alan (giriş,
+      veritabanı açma, yönetici, rol açma, çoğaltma, RLS atlama). İnceleme
+      rolünde giriş dışındakilerden biri açıksa denetim `EKSİK` verir ve role
+      dokunmaz; kurulum hepsini kapatır, girişe dokunmaz (giriş açıksa yalnız
+      bilgi). Yedek rolünde de çoğaltma / RLS atlama artık denetleniyor.
+      **Kardeş açık (G1/G5):** fazla rol üyeliği de yetkiyi genişletir
+      (`emor_inceleme → erp`, `emor_yedek → pg_write_all_data`); ikisi de
+      bildiriliyor, betik vermediği üyeliği geri almıyor (elle bakılır).
+      Testler: yönetici açık → denetim 1, rol değişmedi, kurulum kapattı;
+      veritabanı açma / rol açma / çoğaltma / RLS atlama ayrı ayrı → denetim
+      1; yalnız giriş açık → denetim 0 + bilgi; iki fazla üyelik → denetim
+      ve kurulum 1, üyelik duruyor.
+    - **R3 kabul, düzeltildi.** `acl()` (gerekenin varlığına bakan) kaldırıldı;
+      `acl_denetle` her yönetilen yolun ACL'sini (varsayılan ACL dahil)
+      §5.5'in tam karşılığıyla karşılaştırıyor, farkı "fazla / eksik girdi"
+      olarak yazıyor, kurulum `setfacl --set` (+ beklenmiyorsa `-k`) ile tam
+      kümeye getiriyor. Kapsam: kök, `yedekler/`, `istekler/`, `durum/`,
+      `gunluk/`, `gizli/`, kilit, `pgpass`, `imza.anahtar`. Ön deney (T7):
+      `--set` varsayılan ACL'ye dokunmuyor (bu yüzden `-k`), setgid bitini
+      koruyor. Testler: yayına `yedekler/` ek ACL'si (önce gerçekten
+      listeleyebildiği ve izin `2750` göründüğü doğrulandı), `gunluk/`'e
+      varsayılan ACL, `pgpass`'a web ACL'si → denetim 1 ve dokunmuyor; kurulum
+      sonrası yayın listeleyemiyor, web hâlâ okuyor, yayın hâlâ istek
+      bırakıyor ve kilit alıyor; sonraki kurulum 0 değişiklik.
+    - **R4 kabul, düzeltildi.** Servis tanımı ve sudoers aynı denetimden
+      geçiyor (`sistem_dosyasi_durumu`): yok / düz dosya değil (bağlantı) /
+      içerik farklı / sahip-izin farklı. Yazma tek yerde (`guvenli_yaz`):
+      aynı klasörde noktalı geçici ad → `root:root` + izin → (sudoers için
+      `visudo -cf`) → `mv -T`. Önceki sudoers yazımı `/tmp`'de doğrulayıp
+      `install` ile yazıyordu; artık o da tek adımda yerine geliyor (G1).
+      Testler: `0666` ve sahibi `nobody` → denetim 1 ve dokunmuyor; kurulum
+      `root:root 644` yapıyor; sonraki kurulum 0 değişiklik.
+    - **BY-002-R3 [P3] kopyası düzeltildi:** BY-007 kapsamında veritabanı
+      özellikleri (`--create` gerektirir) ile nesne sahibi (`--create`
+      olmadan da uygulanır; `--no-owner` + `--role`, manifestteki sahip
+      denetim içindir) iki maddeye ayrıldı.
+    - `Dikkat_Edilecekler.md`: **G5** (yetki denetimi izin verilen tam
+      kümeyle — R2…R4'ün ortak nedeni) ve **D4** (eskiyi, yenisi gerçek
+      kullanımla doğrulanmadan silme — R1) eklendi. G1 taraması: diğer
+      betiklerde (`gecici-gunluk-yedek.sh`, `deploy.sh`) ACL / rol denetimi
+      yok; günlük yedekte eski dosya temizliği yeni yedek doğrulandıktan
+      sonra — aynı hata yok.
+    - [sunucu-kurulumu.md](sunucu-kurulumu.md): §1 madde 6, §2 "tam kümeyle
+      karşılaştırma", §3 parola dosyası taşıma kuralı.
+    - Kontroller: `bash -n` temiz; test betiği WSL'de root, deneme adlarıyla
+      **125/125 geçti** (önceki 67'nin hepsi dahil; F'deki ACL mesaj kalıbı
+      yeni biçime uyarlandı). Sonda kullanıcı, grup, rol, klasör kalmadı.
+    - Doğrulanamayan (önceki gibi): gerçek systemd / `/etc/sudoers.d`
+      (geçici dizine yazıldı), gerçek adlarla kaldırma, `shellcheck` (kurulu
+      değil). Betik sunucuda çalıştırılmadı (BY-025); canlıya alınmadı.
 
 ---
 
@@ -824,7 +986,8 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - Geçici ad → asıl ad; hata yolunda geçici dosya silinir.
   - 1. düzey doğrulama: boyut, SHA-256, `pg_restore --list`, `pg_restore --file=/dev/null`.
   - Parola `PGPASSFILE` ile; komut satırında ve ortam değişkeninde yok.
-  - Veritabanının geri yükleme yolunda uygulanmayan özellikleri manifeste (kodlama, sıralama, ayarlar, sahip rol; arşivde vardır ama yalnız `--create` ile uygulanır — kesif.md §7).
+  - Veritabanının geri yükleme yolunda uygulanmayan özellikleri manifeste: kodlama, sıralama, ayarlar (arşivde vardır ama yalnız `--create` ile uygulanır — kesif.md §7).
+  - Nesnelerin sahibi olan rol de manifeste; nedeni farklı: sahiplik `--create` olmadan da arşivden uygulanır, tasarım onu `--no-owner` ile kapatıp `--role=<uygulama rolü>` ile verir. Manifestteki sahip, geri yüklemenin doğru role yapıldığını denetlemek içindir (README §5.3).
   - Geçiş dönemi: yedeği uygulama kullanıcısı alır; klasör yapılandırmadan (README §5.2).
 - **Kapsam dışı:** Hedeflere kopyalama, planlar, temizlik.
 - **Kabul ölçütleri:**

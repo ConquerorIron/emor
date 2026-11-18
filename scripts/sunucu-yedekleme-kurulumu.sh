@@ -20,8 +20,13 @@
 #
 # Tekrar çalıştırılabilir: ikinci çalıştırmada hiçbir şeyi değiştirmez
 # ("0 değişiklik"). Var olan hiçbir şeyi silmez (tek istisna: taşınan parola
-# dosyasının eski kopyası). Parolayı yalnız parola dosyası hiçbir yerde yoksa
-# yeniler. Uygulamanın veritabanına (erp) bağlanmaz, yazmaz.
+# dosyasının eski kopyası — yeni yerdeki kopyayla bağlantı DOĞRULANDIKTAN
+# sonra). Parolayı yalnız parola dosyası hiçbir yerde yoksa yeniler.
+# Uygulamanın veritabanına (erp) bağlanmaz, yazmaz.
+#
+# Yetkiler TAM kümeyle karşılaştırılır: gerekenin bulunması yetmez, fazlası
+# da sorun sayılır (ACL girdileri, rol özellikleri, rol üyelikleri, sistem
+# dosyalarının sahibi / izni).
 #
 # Kullanım (sunucuda, proje kökünden):
 #   sudo scripts/sunucu-yedekleme-kurulumu.sh            # kur / eksikleri tamamla
@@ -38,7 +43,7 @@ KIP=kur
 case "${1:-}" in
   "") ;;
   --denetle) KIP=denetle ;;
-  -h|--help) sed -n '2,33p' "$0"; exit 0 ;;
+  -h|--help) sed -n '2,38p' "$0"; exit 0 ;;
   *) echo "Bilinmeyen seçenek: $1 (yalnız --denetle)" >&2; exit 2 ;;
 esac
 
@@ -68,6 +73,8 @@ DEGISIKLIK=0
 SORUN=0
 GECICI=""
 trap '[[ -z "$GECICI" ]] || rm -f "$GECICI"' EXIT
+# Kesilirse de EXIT tuzağı çalışsın, yarım geçici dosya kalmasın (D3)
+trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM
 
 tamam()   { echo "  [TAMAM]   $*"; }
 eksik()   { echo "  [EKSİK]   $*"; SORUN=$((SORUN + 1)); }
@@ -88,11 +95,29 @@ duzelt() {
   fi
 }
 
+# Sistem dosyasını güvenle yazar: aynı klasörde geçici ada yazar, sahibini /
+# iznini verir, (varsa) doğrular, sonra tek adımda yerine taşır (D3). Hedef
+# hiçbir an yarım ya da geniş izinli kalmaz; hedef bağlantıysa bağlantının
+# yerine dosya gelir. Geçici adın başındaki nokta: systemd ve sudo onu yok sayar.
+# Kullanım: guvenli_yaz hedef içerik izin [doğrulama komutu...]
+guvenli_yaz() {
+  local hedef="$1" icerik="$2" kip="$3"; shift 3
+  GECICI="$(mktemp "$(dirname "$hedef")/.$(basename "$hedef").XXXXXX")"
+  printf '%s\n' "$icerik" > "$GECICI"
+  chown root:root "$GECICI"
+  chmod "$kip" "$GECICI"
+  if (( $# )) && ! "$@" "$GECICI" >/dev/null; then
+    hata "$hedef doğrulamadan geçmedi ($1); dosya yazılmadı."
+  fi
+  mv -T "$GECICI" "$hedef"
+  GECICI=""
+}
+
 # ---------------------------------------------------------------------------
 # 0. Ön denetimler
 # ---------------------------------------------------------------------------
 (( EUID == 0 )) || hata "root olarak çalıştırılmalı: sudo $0 ${1:-}"
-for komut in useradd groupadd usermod getent install visudo openssl runuser psql php stat setfacl getfacl; do
+for komut in useradd groupadd usermod getent install visudo openssl runuser psql php stat setfacl getfacl cmp comm; do
   command -v "$komut" >/dev/null 2>&1 || hata "$komut bulunamadı."
 done
 [[ -f "$UYGULAMA_KOKU/backend/.env" ]] || hata "$UYGULAMA_KOKU/backend/.env bulunamadı."
@@ -197,6 +222,10 @@ fi
 #    durum/kilit: herkes salt okunur açıp kilit alır (flock, okuma için
 #    açılmış dosyada da çalışır). Önceden açılır; yoksa yazma izni olmayan
 #    yayın betiği (deploy.sh) onu yaratamazdı.
+#
+#    ACL her yolda TAMAMEN karşılaştırılır: izin bitleri doğru görünse de ek
+#    bir ACL girdisi (ör. yedekler/'e u:admin:r-x) yasak erişimi açar. Fark
+#    varsa kurulum ACL'yi tablodaki tam kümeyle değiştirir (setfacl --set).
 # ---------------------------------------------------------------------------
 baslik "3. Klasörler ve izinler"
 izin_denetle() { # $1 yol, $2 beklenen izin (ör. 2750)
@@ -220,19 +249,44 @@ klasor() { # $1 yol, $2 izin
       install -d -o "$YEDEK_KULLANICI" -g "$YEDEK_KULLANICI" -m "$2" "$1"
   fi
 }
-acl() { # $1 yol, $2 setfacl girdisi (ör. u:admin:r-x, d:o::---)
-  local yol="$1" girdi="$2" onek="" tur beklenen
-  # getfacl'ın yazdığı biçime çevir: d:u:ad:izin → default:user:ad:izin
-  if [[ "$girdi" == d:* ]]; then onek="default:"; girdi="${girdi#d:}"; fi
-  case "${girdi%%:*}" in
-    u) tur=user ;; g) tur=group ;; o) tur=other ;; *) hata "ACL girdisi anlaşılmadı: $2" ;;
-  esac
-  beklenen="$onek$tur:${girdi#*:}"
-  if getfacl -cp "$yol" 2>/dev/null | grep -qxF "$beklenen"; then
-    tamam "$yol ACL $beklenen"
-  else
-    duzelt "$yol ACL $beklenen" setfacl -m "$2" "$yol"
+HARF=(--- --x -w- -wx r-- r-x rw- rwx)
+# Bir yolun izin verilen TAM ACL'si. Sonuç iki değişkende:
+#   ACL_BEKLENEN  getfacl -cpE çıktısı biçiminde (karşılaştırma için)
+#   ACL_TANIMI    setfacl --set girdisi (düzeltme için)
+# $1 izin (ör. 2750), $2 yayın kullanıcısının izni (ör. r-x; yoksa ""),
+# $3 "varsayilan" ise aynı girdiler varsayılan ACL olarak da (durum/).
+# Maske grup izninin aynısıdır: yayın izni hiçbir yerde grubunkini aşmaz.
+acl_tanimi() {
+  local kip="${1: -3}" yayin="$2" vars="$3" u g o adli=""
+  u="${HARF[${kip:0:1}]}"; g="${HARF[${kip:1:1}]}"; o="${HARF[${kip:2:1}]}"
+  if [[ -n "$yayin" ]]; then adli="$YAYIN_KULLANICI:$yayin"; fi
+  ACL_BEKLENEN="user::$u"; ACL_TANIMI="u::$u,g::$g,o::$o"
+  if [[ -n "$adli" ]]; then ACL_BEKLENEN+=$'\n'"user:$adli"; ACL_TANIMI+=",u:$adli,m::$g"; fi
+  ACL_BEKLENEN+=$'\n'"group::$g"
+  if [[ -n "$adli" ]]; then ACL_BEKLENEN+=$'\n'"mask::$g"; fi
+  ACL_BEKLENEN+=$'\n'"other::$o"
+  if [[ "$vars" == varsayilan ]]; then
+    ACL_BEKLENEN+=$'\n'"default:user::$u"$'\n'"default:user:$adli"$'\n'"default:group::$g"$'\n'"default:mask::$g"$'\n'"default:other::$o"
+    ACL_TANIMI+=",d:u::$u,d:u:$adli,d:g::$g,d:m::$g,d:o::$o"
   fi
+}
+acl_denetle() { # $1 yol, $2 izin, $3 yayın izni ya da "", $4 "varsayilan" ya da ""
+  local yol="$1" mevcut fazla eksikler fark komut
+  acl_tanimi "$2" "$3" "${4:-}"
+  mevcut="$(getfacl -cpE "$yol" 2>/dev/null | sed '/^$/d')"
+  if [[ "$mevcut" == "$ACL_BEKLENEN" ]]; then
+    tamam "$yol ACL (yalnız izin verilen girdiler)"
+    return
+  fi
+  fazla="$(comm -23 <(sort <<<"$mevcut") <(sort <<<"$ACL_BEKLENEN") | paste -sd ' ')"
+  eksikler="$(comm -13 <(sort <<<"$mevcut") <(sort <<<"$ACL_BEKLENEN") | paste -sd ' ')"
+  fark=""
+  if [[ -n "$fazla" ]]; then fark="fazla: $fazla"; fi
+  if [[ -n "$eksikler" ]]; then fark="${fark:+$fark; }eksik: $eksikler"; fi
+  # --set varsayılan ACL'ye dokunmaz; beklenmiyorsa ayrıca kaldırılır (-k)
+  komut='setfacl --set "$1" "$2"'
+  if [[ -d "$yol" && "${4:-}" != varsayilan ]]; then komut+=' && setfacl -k "$2"'; fi
+  duzelt "$yol ACL farklı — $fark" bash -c "$komut" _ "$ACL_TANIMI" "$yol"
 }
 if (( KULLANICI_VAR )); then
   klasor "$YEDEK_KOKU" 0750
@@ -245,21 +299,22 @@ else
   eksik "klasörler (önce servis kullanıcısı açılmalı)"
 fi
 if [[ -d "$YEDEK_KOKU/durum" ]]; then
-  acl "$YEDEK_KOKU" "u:$YAYIN_KULLANICI:--x"
-  acl "$YEDEK_KOKU/istekler" "u:$YAYIN_KULLANICI:rwx"
-  acl "$YEDEK_KOKU/durum" "u:$YAYIN_KULLANICI:r-x"
+  acl_denetle "$YEDEK_KOKU" 0750 "--x"
+  acl_denetle "$YEDEK_KOKU/yedekler" 2750 ""
+  acl_denetle "$YEDEK_KOKU/istekler" 2770 "rwx"
   # Varsayılan ACL: durum/ içinde sonradan açılan dosyaları da yayın kullanıcısı
   # okur. Varsayılan ACL olan klasörde umask uygulanmaz; izinler bu girdilerden gelir.
-  for girdi in "d:u::rwx" "d:g::r-x" "d:o::---" "d:u:$YAYIN_KULLANICI:r-x"; do
-    acl "$YEDEK_KOKU/durum" "$girdi"
-  done
+  acl_denetle "$YEDEK_KOKU/durum" 2750 "r-x" varsayilan
+  acl_denetle "$YEDEK_KOKU/gunluk" 2750 ""
+  acl_denetle "$YEDEK_KOKU/gizli" 0700 ""
   if [[ -f "$KILIT_DOSYASI" ]]; then
     izin_denetle "$KILIT_DOSYASI" 0640
-    acl "$KILIT_DOSYASI" "u:$YAYIN_KULLANICI:r--"
+    acl_denetle "$KILIT_DOSYASI" 0640 "r--"
   else
+    acl_tanimi 0640 "r--" ""
     duzelt "$KILIT_DOSYASI açıldı (0640; yayın kullanıcısı okur)" \
-      bash -c 'install -o "$1" -g "$1" -m 640 /dev/null "$2" && setfacl -m "u:$3:r--" "$2"' \
-        _ "$YEDEK_KULLANICI" "$KILIT_DOSYASI" "$YAYIN_KULLANICI"
+      bash -c 'install -o "$1" -g "$1" -m 640 /dev/null "$2" && setfacl --set "$3" "$2"' \
+        _ "$YEDEK_KULLANICI" "$KILIT_DOSYASI" "$ACL_TANIMI"
   fi
 elif [[ "$KIP" == denetle ]]; then
   eksik "ACL'ler ve kilit dosyası (klasörler yok)"
@@ -269,6 +324,10 @@ fi
 # 4. Gizli dosyalar
 #    pgpass        emor_yedek rolünün parolası (libpq parola dosyası, 0600).
 #                  BY-002'de /home/admin altında açılmıştı: oradan TAŞINIR.
+#                  Taşıma: geçici ada kopyalanır, tek adımda yerine konur;
+#                  eski kopya ancak bölüm 5'in sonunda yeni yerdeki dosyayla
+#                  GERÇEK bağlantı kurulduktan sonra silinir. İki kopya farklıysa
+#                  ya da bağlantı kurulamazsa hiçbiri silinmez (elle bakılır).
 #                  Hiçbir yerde yoksa bölüm 5 yeni parola üretir, role yazar,
 #                  dosyayı ancak ondan sonra yazar (yarım kalan kurulumda rol
 #                  ile dosya birbirini tutmaz hâle gelmesin).
@@ -279,19 +338,33 @@ fi
 # ---------------------------------------------------------------------------
 baslik "4. Gizli dosyalar"
 YENI_PAROLA_GEREK=0
+ESKI_KOPYA_SILINEBILIR=0   # 1: eski kopya yenisinin aynısı; bağlantı doğrulanırsa silinir
+pgpass_kopyala() { # eski kopyayı geçici ada yazar, sahibini / iznini verir, yerine taşır
+  GECICI="$(mktemp "$YEDEK_KOKU/gizli/.pgpass.XXXXXX")"
+  cp "$ESKI_PGPASS" "$GECICI"
+  chown "$YEDEK_KULLANICI:$YEDEK_KULLANICI" "$GECICI"
+  chmod 600 "$GECICI"
+  mv -T "$GECICI" "$PGPASS_DOSYASI"
+  GECICI=""
+}
 if [[ ! -d "$YEDEK_KOKU/gizli" ]]; then
   eksik "gizli dosyalar (klasör yok)"
 else
   if [[ -f "$PGPASS_DOSYASI" ]]; then
     izin_denetle "$PGPASS_DOSYASI" 0600
+    acl_denetle "$PGPASS_DOSYASI" 0600 ""
     if [[ -f "$ESKI_PGPASS" ]]; then
-      # İkisi birden varsa eskisi gereksiz bir sır kopyasıdır
-      duzelt "eski parola kopyası silindi: $ESKI_PGPASS" rm -f "$ESKI_PGPASS"
+      if cmp -s "$ESKI_PGPASS" "$PGPASS_DOSYASI"; then
+        ESKI_KOPYA_SILINEBILIR=1
+        bilgi "eski kopya da duruyor (içerik aynı): $ESKI_PGPASS — yeni yerdekiyle bağlantı doğrulanırsa silinir"
+      else
+        eksik "iki parola dosyası farklı: $ESKI_PGPASS ve $PGPASS_DOSYASI — betik hiçbirini silmez; hangisiyle bağlanılabildiğine bakıp yanlış olanı kaldırın"
+      fi
     fi
   elif [[ -f "$ESKI_PGPASS" ]]; then
-    duzelt "parola dosyası taşındı: $ESKI_PGPASS → $PGPASS_DOSYASI" \
-      bash -c 'install -o "$1" -g "$1" -m 600 "$2" "$3" && rm -f "$2"' \
-        _ "$YEDEK_KULLANICI" "$ESKI_PGPASS" "$PGPASS_DOSYASI"
+    duzelt "parola dosyası kopyalandı: $ESKI_PGPASS → $PGPASS_DOSYASI (eski kopya bağlantı doğrulanınca silinir)" \
+      pgpass_kopyala
+    if [[ "$KIP" == kur ]]; then ESKI_KOPYA_SILINEBILIR=1; fi
   elif [[ "$KIP" == denetle ]]; then
     eksik "parola dosyası yok: $PGPASS_DOSYASI"
   else
@@ -300,6 +373,7 @@ else
   fi
   if [[ -f "$IMZA_ANAHTARI" ]]; then
     izin_denetle "$IMZA_ANAHTARI" 0600
+    acl_denetle "$IMZA_ANAHTARI" 0600 ""
   else
     bilgi "imza anahtarı henüz yok: $IMZA_ANAHTARI (BY-025'te uygulamadan taşınır; betik üretmez)"
   fi
@@ -314,12 +388,38 @@ fi
 #                   postgres veritabanına bağlanabilir (ad değiştirme oradan).
 #    emor_inceleme  NOLOGIN, yetkisiz: geri yüklenen kopyalarda salt okuma
 #                   yetkisini çalıştırıcı verir (README §4.5-A). Girişin
-#                   açılması ayrı bir karardır; betik açmaz.
+#                   açılması ayrı bir karardır; betik açmaz, açıksa dokunmaz.
+#                   NOLOGIN rolü salt okunur yapmaz: yönetici / veritabanı açma /
+#                   rol açma / çoğaltma / RLS atlama özelliklerinden biri açıksa
+#                   denetim bildirir, kurulum kapatır.
+#    Fazla rol üyeliği (ör. emor_inceleme → erp, emor_yedek → pg_write_all_data)
+#    yetkiyi genişletir: bildirilir, betik geri almaz (betiğin verdiği bir şey değil).
 #    Parola hiçbir komut satırına yazılmaz: psql'e standart girdiden verilir.
 # ---------------------------------------------------------------------------
 baslik "5. PostgreSQL rolleri"
+# Sıra: giriş, veritabanı açma, yönetici, rol açma, çoğaltma, RLS atlama
 rol_ozellikleri() {
-  pg_yonetici -c "select concat_ws(' ', rolcanlogin, rolcreatedb, rolsuper, rolcreaterole) from pg_roles where rolname = '$1'"
+  pg_yonetici -c "select concat_ws(' ', rolcanlogin, rolcreatedb, rolsuper, rolcreaterole, rolreplication, rolbypassrls) from pg_roles where rolname = '$1'"
+}
+acik_yetkiler() { # rol_ozellikleri çıktısından girişten sonraki açık özelliklerin adları
+  local adlar=("veritabanı açma" yönetici "rol açma" çoğaltma "RLS atlama") oz i sonuc=""
+  read -r -a oz <<<"$1"
+  for i in 0 1 2 3 4; do
+    if [[ "${oz[i+1]}" == t ]]; then sonuc="${sonuc:+$sonuc, }${adlar[i]}"; fi
+  done
+  printf '%s' "$sonuc"
+}
+fazla_uyelikler() { # $1 rol, $2 beklenen tek üyelik (yoksa "")
+  pg_yonetici -c "select coalesce(string_agg(r.rolname, ', ' order by r.rolname), '') from pg_auth_members m join pg_roles r on r.oid = m.roleid join pg_roles u on u.oid = m.member where u.rolname = '$1' and r.rolname <> '$2'"
+}
+uyelik_denetle() { # $1 rol, $2 beklenen tek üyelik (yoksa "")
+  local fazla
+  fazla="$(fazla_uyelikler "$1" "$2")"
+  if [[ -z "$fazla" ]]; then
+    tamam "$1 başka rollere üye değil"
+  else
+    eksik "$1 başka rollere üye: $fazla — yetkisini genişletir; betik geri almaz, elle inceleyin (revoke <rol> from $1)"
+  fi
 }
 pgpass_kacir() { local d="${1//\\/\\\\}"; printf '%s' "${d//:/\\:}"; }
 yeni_parola_yaz() { # Parolayı role yazar; başarılıysa parola dosyasını yazar (geçici ad → taşı)
@@ -342,14 +442,14 @@ if [[ -z "$OZ" ]]; then
   elif (( ! YENI_PAROLA_GEREK )); then
     hata "rol $VT_YEDEK_ROLU yok ama parola dosyası var ($PGPASS_DOSYASI). Hangisinin doğru olduğu belli değil; dosyayı inceleyip kaldırın ve yeniden çalıştırın."
   else
-    pg_yonetici -c "create role $VT_YEDEK_ROLU login createdb nosuperuser nocreaterole"
+    pg_yonetici -c "create role $VT_YEDEK_ROLU login createdb nosuperuser nocreaterole noreplication nobypassrls"
     yapildi "rol açıldı: $VT_YEDEK_ROLU (LOGIN CREATEDB)"
   fi
-elif [[ "$OZ" == "t t f f" ]]; then
-  tamam "rol $VT_YEDEK_ROLU: giriş evet, veritabanı açma evet, yönetici hayır, rol açma hayır"
+elif [[ "$OZ" == "t t f f f f" ]]; then
+  tamam "rol $VT_YEDEK_ROLU: giriş ve veritabanı açma evet; yönetici, rol açma, çoğaltma, RLS atlama hayır"
 else
-  duzelt "rol $VT_YEDEK_ROLU özellikleri ($OZ) → LOGIN CREATEDB NOSUPERUSER NOCREATEROLE" \
-    pg_yonetici -c "alter role $VT_YEDEK_ROLU login createdb nosuperuser nocreaterole"
+  duzelt "rol $VT_YEDEK_ROLU özellikleri ($OZ) → LOGIN CREATEDB NOSUPERUSER NOCREATEROLE NOREPLICATION NOBYPASSRLS" \
+    pg_yonetici -c "alter role $VT_YEDEK_ROLU login createdb nosuperuser nocreaterole noreplication nobypassrls"
 fi
 if (( YENI_PAROLA_GEREK )); then
   yeni_parola_yaz
@@ -375,25 +475,48 @@ if [[ -n "$(rol_ozellikleri "$VT_YEDEK_ROLU")" ]]; then
     duzelt "$VT_YEDEK_ROLU → postgres veritabanına bağlanma yetkisi" \
       pg_yonetici -c "grant connect on database postgres to $VT_YEDEK_ROLU"
   fi
+  uyelik_denetle "$VT_YEDEK_ROLU" "$VT_UYGULAMA_ROLU"
 fi
 
 OZ="$(rol_ozellikleri "$VT_INCELEME_ROLU")"
 if [[ -z "$OZ" ]]; then
   duzelt "rol açıldı: $VT_INCELEME_ROLU (NOLOGIN, salt okunur inceleme)" \
-    pg_yonetici -c "create role $VT_INCELEME_ROLU nologin nosuperuser nocreatedb nocreaterole"
-elif [[ "$OZ" == "f f f f" ]]; then
-  tamam "rol $VT_INCELEME_ROLU: giriş hayır, yetki yok"
+    pg_yonetici -c "create role $VT_INCELEME_ROLU nologin nosuperuser nocreatedb nocreaterole noreplication nobypassrls"
 else
-  bilgi "rol $VT_INCELEME_ROLU özellikleri: $OZ (giriş elle açılmış olabilir; dokunulmadı)"
+  ACIK="$(acik_yetkiler "$OZ")"
+  if [[ -z "$ACIK" ]]; then
+    tamam "rol $VT_INCELEME_ROLU: yönetici, veritabanı açma, rol açma, çoğaltma, RLS atlama hayır"
+  else
+    duzelt "rol $VT_INCELEME_ROLU salt okunur değil: $ACIK açık → hepsi kapatıldı (giriş durumuna dokunulmadı)" \
+      pg_yonetici -c "alter role $VT_INCELEME_ROLU nosuperuser nocreatedb nocreaterole noreplication nobypassrls"
+  fi
+  if [[ "${OZ%% *}" == t ]]; then
+    bilgi "rol $VT_INCELEME_ROLU: giriş açık (elle açılmış olabilir; ayrı karar, dokunulmadı)"
+  fi
+  uyelik_denetle "$VT_INCELEME_ROLU" ""
 fi
 
 # Servis hesabı, parola dosyasıyla gerçekten bağlanabiliyor mu
+BAGLANTI_TAMAM=0
 if [[ -f "$PGPASS_DOSYASI" ]] && (( KULLANICI_VAR )); then
   if runuser -u "$YEDEK_KULLANICI" -- env PGPASSFILE="$PGPASS_DOSYASI" PGCONNECT_TIMEOUT=10 \
        psql -h "$VT_SUNUCU" -p "$VT_PORT" -U "$VT_YEDEK_ROLU" -d postgres -X -A -t -q -w -c 'select 1' >/dev/null 2>&1; then
     tamam "$YEDEK_KULLANICI, parola dosyasıyla $VT_YEDEK_ROLU olarak postgres veritabanına bağlanabiliyor"
+    BAGLANTI_TAMAM=1
   else
     eksik "$YEDEK_KULLANICI, $VT_YEDEK_ROLU olarak bağlanamıyor (parola dosyası ile rol parolası uyuşmuyor ya da sunucu / port farklı)"
+  fi
+fi
+
+# Taşınan parola dosyasının eski kopyası: yalnız yeni yerdeki aynı içerikli
+# dosyayla bağlantı kurulduysa silinir (bölüm 4). Aksi hâlde son çalışan kopya
+# o olabilir; korunur.
+if (( ESKI_KOPYA_SILINEBILIR )) && [[ -f "$ESKI_PGPASS" ]]; then
+  if (( BAGLANTI_TAMAM )) && cmp -s "$ESKI_PGPASS" "$PGPASS_DOSYASI"; then
+    duzelt "eski parola kopyası silindi: $ESKI_PGPASS (yeni yerdeki dosyayla bağlantı doğrulandı)" \
+      rm -f "$ESKI_PGPASS"
+  else
+    bilgi "eski parola kopyası korunuyor: $ESKI_PGPASS (yeni yerdeki dosyayla bağlantı doğrulanamadı)"
   fi
 fi
 
@@ -422,12 +545,24 @@ RestartSec=5
 
 [Install]
 WantedBy=multi-user.target"
-if [[ -f "$SERVIS_DOSYASI" && "$(cat "$SERVIS_DOSYASI")" == "$SERVIS_ICERIGI" ]]; then
-  tamam "$SERVIS_DOSYASI güncel"
+# Sistem dosyası: içerik kadar sahibi ve izni de denetlenir (root:root 644).
+# Başkasının yazabildiği bir servis tanımı, root'un başlatacağı komutu ve
+# çalıştıran kullanıcıyı değiştirmeye açıktır. stat bağlantıyı izlemez:
+# hedef bağlantıysa izni "777" görünür ve dosya yeniden yazılır.
+sistem_dosyasi_durumu() { # $1 yol, $2 beklenen içerik, $3 beklenen izin → boşsa uygun, değilse neden
+  local yol="$1" sahip
+  if [[ ! -e "$yol" && ! -L "$yol" ]]; then echo "yok"; return; fi
+  sahip="$(stat -c '%U:%G %a' "$yol")"
+  if [[ -L "$yol" || ! -f "$yol" ]]; then echo "düz dosya değil ($sahip)"; return; fi
+  if [[ "$(cat "$yol")" != "$2" ]]; then echo "içeriği farklı"; return; fi
+  if [[ "$sahip" != "root:root $3" ]]; then echo "sahibi / izni $sahip, beklenen root:root $3"; fi
+}
+neden="$(sistem_dosyasi_durumu "$SERVIS_DOSYASI" "$SERVIS_ICERIGI" 644)"
+if [[ -z "$neden" ]]; then
+  tamam "$SERVIS_DOSYASI güncel (root:root 644)"
 else
-  if [[ -f "$SERVIS_DOSYASI" ]]; then neden="içeriği farklı"; else neden="yok"; fi
   duzelt "$SERVIS_DOSYASI yazıldı ($neden; etkinleştirilmedi)" \
-    bash -c 'printf "%s\n" "$1" > "$2" && chmod 644 "$2"' _ "$SERVIS_ICERIGI" "$SERVIS_DOSYASI"
+    guvenli_yaz "$SERVIS_DOSYASI" "$SERVIS_ICERIGI" 644
   if [[ "$KIP" == kur ]] && (( GERCEK_SISTEM )); then
     systemctl daemon-reload
   fi
@@ -449,20 +584,14 @@ baslik "7. Dar sudo kuralı"
 SYSTEMCTL="$(command -v systemctl || echo /usr/bin/systemctl)"
 SUDOERS_ICERIGI="# emor yedekleme (scripts/sunucu-yedekleme-kurulumu.sh) - yalniz kuyruk servisi
 $YEDEK_KULLANICI ALL=(root) NOPASSWD: $SYSTEMCTL stop $KUYRUK_SERVISI, $SYSTEMCTL start $KUYRUK_SERVISI, $SYSTEMCTL is-active $KUYRUK_SERVISI"
-if [[ -f "$SUDOERS_DOSYASI" && "$(cat "$SUDOERS_DOSYASI")" == "$SUDOERS_ICERIGI" \
-      && "$(stat -c '%U:%G %a' "$SUDOERS_DOSYASI")" == "root:root 440" ]]; then
+neden="$(sistem_dosyasi_durumu "$SUDOERS_DOSYASI" "$SUDOERS_ICERIGI" 440)"
+if [[ -z "$neden" ]]; then
   tamam "$SUDOERS_DOSYASI güncel (root:root 440)"
-elif [[ "$KIP" == denetle ]]; then
-  eksik "$SUDOERS_DOSYASI yok ya da farklı"
 else
-  # Önce geçici dosyada doğrulanır: hatalı bir sudoers dosyası sudo'yu tümden bozar
-  GECICI="$(mktemp)"
-  printf '%s\n' "$SUDOERS_ICERIGI" > "$GECICI"
-  visudo -cf "$GECICI" >/dev/null || hata "sudo kuralı visudo denetiminden geçmedi; dosya yazılmadı."
-  install -o root -g root -m 440 "$GECICI" "$SUDOERS_DOSYASI"
-  rm -f "$GECICI"
-  GECICI=""
-  yapildi "$SUDOERS_DOSYASI yazıldı (visudo ile doğrulandı)"
+  # Yerine konmadan önce geçici adda doğrulanır: hatalı bir sudoers dosyası
+  # sudo'yu tümden bozar. (sudo, adında nokta olan geçici dosyayı okumaz.)
+  duzelt "$SUDOERS_DOSYASI yok ya da farklı ($neden) → yazıldı (visudo ile doğrulandı)" \
+    guvenli_yaz "$SUDOERS_DOSYASI" "$SUDOERS_ICERIGI" 440 visudo -cf
 fi
 
 # ---------------------------------------------------------------------------

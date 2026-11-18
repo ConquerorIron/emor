@@ -113,23 +113,115 @@ psqlp "revoke erp from emor_yedek_deneme" >/dev/null; psqlp "grant erp to emor_y
 setfacl -x u:$Y $K/istekler
 rm -f "$EMOR_SYSTEMD_DIZINI/emor-yedek.service"; echo bozuk > "$EMOR_SUDOERS_DOSYASI"
 calistir "bozuk durumda denetim eksik" 1 --denetle
-for ifade in "kok: .*2750 →" "yedekler: .*755 →" "pgpass: .* 600" "üyelik seçenekleri (f t t)" "istekler ACL user:$Y:rwx" "emor-yedek.service" "sudoers-emor-yedek yok ya da farklı"; do
+for ifade in "kok: .*2750 →" "yedekler: .*755 →" "pgpass: .* 600" "üyelik seçenekleri (f t t)" "istekler ACL farklı — eksik: user:$Y:rwx" "emor-yedek.service" "sudoers-emor-yedek yok ya da farklı"; do
   bekle "denetim yakaladı: $ifade" grep -q -- "$ifade" "$D/son.txt"
 done
 calistir "kurulum düzeltir" 0
 calistir "ardından denetim temiz" 0 --denetle
 
-echo "== G. Eski yerdeki parola dosyası taşınır"
-cp -p $K/gizli/pgpass "$EMOR_ESKI_PGPASS"; chown $Y "$EMOR_ESKI_PGPASS"; rm $K/gizli/pgpass
-calistir "denetim: parola dosyası yok" 1 --denetle
-calistir "kurulum taşır" 0
-bekle "taşındı mesajı" grep -q "parola dosyası taşındı" "$D/son.txt"
-bekle "eski kopya silindi" test ! -e "$EMOR_ESKI_PGPASS"
-bekle "taşınan dosya servisin, 600" bash -c "[[ \$(stat -c '%U %a' $K/gizli/pgpass) == 'emor-yedek-deneme 600' ]]"
-bekle "parola yenilenmedi (taşınan dosyayla bağlanıyor)" grep -q "postgres veritabanına bağlanabiliyor" "$D/son.txt"
+echo "== F2. Fazla yetkiler: denetim yakalar ve dokunmaz, kurulum geri alır (BY-003-R2…R4)"
+SERVIS_DOSYASI="$EMOR_SYSTEMD_DIZINI/emor-yedek.service"
+rolde() { runuser -u postgres -- psql -X -A -t -c "select $2 from pg_roles where rolname='$1'"; }
+export -f rolde
+setfacl -m u:$Y:r-x $K/yedekler
+setfacl -m d:u:$Y:r-x $K/gunluk
+setfacl -m u:www-data:r-- $K/gizli/pgpass
+bekle "ön koşul: ek ACL ile yayın yedekleri listeleyebiliyor" runuser -u $Y -- ls $K/yedekler
+bekle "ön koşul: yedekler izni hâlâ 2750 görünüyor" bash -c "[[ \$(stat -c %a $K/yedekler) == 2750 ]]"
+chmod 666 "$SERVIS_DOSYASI"
+psqlp "alter role emor_inceleme_deneme superuser" >/dev/null
+psqlp "alter role emor_yedek_deneme replication" >/dev/null
+calistir "fazla yetkide denetim eksik" 1 --denetle
+for ifade in "yedekler ACL farklı — fazla: .*user:$Y:r-x" "gunluk ACL farklı — fazla: default:" "pgpass ACL farklı — fazla: .*user:www-data:r--" \
+             "emor-yedek.service .*666" "emor_inceleme_deneme salt okunur değil: yönetici" "emor_yedek_deneme özellikleri"; do
+  bekle "denetim yakaladı: $ifade" grep -q -- "$ifade" "$D/son.txt"
+done
+bekle "denetim inceleme rolüne dokunmadı" bash -c "[[ \$(rolde emor_inceleme_deneme rolsuper) == t ]]"
+bekle "denetim ACL'ye dokunmadı" bash -c "getfacl -cp $K/yedekler | grep -qx 'user:$Y:r-x'"
+bekle "denetim servis dosyasına dokunmadı" bash -c "[[ \$(stat -c %a $SERVIS_DOSYASI) == 666 ]]"
+calistir "kurulum fazla yetkileri geri alır" 0
+bekle "yayın artık yedekleri listeleyemez" bash -c "! runuser -u $Y -- ls $K/yedekler 2>/dev/null"
+bekle "web hâlâ yedekleri listeler"         runuser -u www-data -- ls $K/yedekler
+bekle "web pgpass'ı okuyamaz"               bash -c "! getfacl -cp $K/gizli/pgpass | grep -q www-data"
+bekle "günlük klasöründe varsayılan ACL yok" bash -c "! getfacl -cp $K/gunluk | grep -q '^default:'"
+bekle "yayın hâlâ istek bırakır"            runuser -u $Y -- touch $K/istekler/yayin.istek
+bekle "yayın hâlâ kilidi alır"              runuser -u $Y -- flock -n $K/durum/kilit true
+rm -f $K/istekler/yayin.istek
+bekle "servis dosyası root:root 644"        bash -c "[[ \$(stat -c '%U:%G %a' $SERVIS_DOSYASI) == 'root:root 644' ]]"
+bekle "inceleme rolü yönetici değil"        bash -c "[[ \$(rolde emor_inceleme_deneme rolsuper) == f ]]"
+bekle "yedek rolü çoğaltma yetkisiz"        bash -c "[[ \$(rolde emor_yedek_deneme rolreplication) == f ]]"
+calistir "ardından kurulum" 0
+bekle "ardından kurulumda 0 değişiklik" grep -q "KURULUM: 0 değişiklik" "$D/son.txt"
+calistir "ardından denetim temiz" 0 --denetle
+for oz in createdb createrole replication bypassrls; do
+  psqlp "alter role emor_inceleme_deneme $oz" >/dev/null
+  calistir "inceleme rolünde $oz: denetim eksik" 1 --denetle
+  psqlp "alter role emor_inceleme_deneme no$oz" >/dev/null
+done
+psqlp "alter role emor_inceleme_deneme login" >/dev/null
+calistir "inceleme rolünde yalnız giriş açık: denetim temiz" 0 --denetle
+bekle "giriş bilgi olarak bildirildi" grep -q "giriş açık" "$D/son.txt"
+psqlp "alter role emor_inceleme_deneme nologin" >/dev/null
+psqlp "grant erp to emor_inceleme_deneme" >/dev/null
+psqlp "grant pg_write_all_data to emor_yedek_deneme" >/dev/null
+calistir "fazla üyelikte denetim eksik" 1 --denetle
+bekle "denetim yakaladı: inceleme rolünün üyeliği" grep -q "emor_inceleme_deneme başka rollere üye: erp" "$D/son.txt"
+bekle "denetim yakaladı: yedek rolünün fazla üyeliği" grep -q "emor_yedek_deneme başka rollere üye: pg_write_all_data" "$D/son.txt"
+calistir "fazla üyelikte kurulum geri almaz, elle bakılacak der" 1
+bekle "üyelik duruyor" bash -c "[[ -n \$(runuser -u postgres -- psql -X -A -t -c \"select 1 from pg_auth_members m join pg_roles r on r.oid=m.roleid join pg_roles u on u.oid=m.member where r.rolname='erp' and u.rolname='emor_inceleme_deneme'\") ]]"
+psqlp "revoke erp from emor_inceleme_deneme" >/dev/null
+psqlp "revoke pg_write_all_data from emor_yedek_deneme" >/dev/null
+chown nobody "$SERVIS_DOSYASI"
+calistir "servis dosyasının sahibi farklı: denetim eksik" 1 --denetle
+calistir "kurulum sahibi düzeltir" 0
+bekle "servis dosyası yine root:root 644" bash -c "[[ \$(stat -c '%U:%G %a' $SERVIS_DOSYASI) == 'root:root 644' ]]"
 calistir "denetim temiz" 0 --denetle
 
-echo "== H. Parola dosyası hiçbir yerde yoksa parola yenilenir"
+echo "== G. Eski yerdeki parola dosyası: yeni yer doğrulanmadan silinmez (BY-003-R1)"
+P=$K/gizli/pgpass; E="$EMOR_ESKI_PGPASS"
+eskiyle_baglan() { runuser -u $Y -- env PGPASSFILE="$E" psql -h 127.0.0.1 -U emor_yedek_deneme -d postgres -X -A -t -w -c 'select 1'; }
+# G1: yalnız eski yerde, geçerli → taşınır, eski silinir
+cp -p $P "$E"; chown $Y "$E"; rm $P
+calistir "denetim: parola dosyası yok" 1 --denetle
+calistir "kurulum taşır" 0
+bekle "taşındı mesajı" grep -q "parola dosyası kopyalandı" "$D/son.txt"
+bekle "eski kopya silindi" test ! -e "$E"
+bekle "taşınan dosya servisin, 600" bash -c "[[ \$(stat -c '%U %a' $P) == 'emor-yedek-deneme 600' ]]"
+bekle "geçici dosya kalmadı" bash -c "[[ -z \$(ls -A $K/gizli | grep -v -x -e pgpass) ]]"
+bekle "parola yenilenmedi (taşınan dosyayla bağlanıyor)" grep -q "postgres veritabanına bağlanabiliyor" "$D/son.txt"
+calistir "denetim temiz" 0 --denetle
+# G2: ikisi de var, aynı, geçerli → denetim söyler; kurulum eskiyi siler
+cp -p $P "$E"; chown $Y "$E"
+calistir "denetim: eski kopya duruyor" 1 --denetle
+bekle "denetim eski kopyayı silmedi" test -e "$E"
+calistir "kurulum eski kopyayı siler" 0
+bekle "eski kopya silindi (aynı ve geçerli)" test ! -e "$E"
+# G3: eski geçerli, hedef bozuk → hiçbiri silinmez
+cp -p $P "$E"; chown $Y "$E"; GECERLI="$(cat "$E")"; GECERLI_PAROLA="$(cut -d: -f5 "$E")"
+BOZUK="$(sed 's/:[^:]*$/:bozukparola/' $P)"; printf '%s\n' "$BOZUK" > $P
+calistir "eski geçerli / hedef bozuk: kurulum elle bakılacak der" 1
+bekle "iki dosyanın farklı olduğu söylendi" grep -q "iki parola dosyası farklı" "$D/son.txt"
+bekle "eski dosya korundu, içeriği aynı" bash -c "[[ \"\$(cat '$E')\" == '$GECERLI' ]]"
+bekle "eski dosyayla hâlâ bağlanılıyor" eskiyle_baglan
+bekle "parola çıktıda yok" bash -c "! grep -qF '$GECERLI_PAROLA' '$D/son.txt'"
+# G4: yarım kopya (hedef eskinin kesik hâli) → hiçbiri silinmez
+head -c 20 "$E" > $P
+calistir "yarım kopya: kurulum elle bakılacak der" 1
+bekle "yarım kopyada eski dosya korundu" bash -c "[[ \"\$(cat '$E')\" == '$GECERLI' ]]"
+# G5: ikisi aynı ama rolün parolası başka → eski silinmez
+cat "$E" > $P
+psqlp "alter role emor_yedek_deneme password 'baska-bir-parola'" >/dev/null
+calistir "aynı içerik ama bağlanamıyor: kurulum elle bakılacak der" 1
+bekle "bağlanamayınca eski korundu" test -e "$E"
+bekle "korunduğu söylendi" grep -q "eski parola kopyası korunuyor" "$D/son.txt"
+# G6: yalnız eski yerde, geçersiz → kopyalanır ama eski silinmez
+rm $P
+calistir "geçersiz eski dosya: kurulum elle bakılacak der" 1
+bekle "yeni yere kopyalandı" test -f $P
+bekle "geçersiz eski dosya silinmedi" test -e "$E"
+rm -f "$E"
+
+echo "== H. Parola dosyası hiçbir yerde yoksa parola yenilenir (G6'daki geçersiz dosya da gider)"
 ESKI_SATIR="$(cat $K/gizli/pgpass)"; rm $K/gizli/pgpass
 calistir "kurulum yeni parola" 0
 bekle "yenilendi mesajı" grep -q "yeni parola role yazıldı" "$D/son.txt"
