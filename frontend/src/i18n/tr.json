@@ -562,14 +562,19 @@
       "alarm_kurallari": "Alarm Kuralları",
       "kullanicilar": "Kullanıcılar",
       "roller": "Roller",
-      "ekran_tasarimi": "Ekran Tasarımı"
+      "ekran_tasarimi": "Ekran Tasarımı",
+      "yedekler": "Yedekler (görüntüle / yedek al)",
+      "yedek_planlari": "Yedek Planları ve Hedefleri"
     },
     "izin": {
       "efatura_goruntule": "e-Fatura listelerini görüntüleme",
       "efatura_pdf": "e-Fatura PDF/XML görüntüleme",
       "efatura_disari_aktar": "e-Fatura listesini Excel'e aktarma",
       "efatura_senkron": "e-Fatura senkronunu elle başlatma",
-      "efatura_gizle": "e-Faturayı listede gizleme / geri alma"
+      "efatura_gizle": "e-Faturayı listede gizleme / geri alma",
+      "yedekler_sil": "Yedek silme / sabitleme",
+      "yedekler_indir": "Yedek dosyasını indirme (bütün veri)",
+      "geri_yukleme_kopya": "Yedeği farklı adla geri yükleme (kopya)"
     }
   },
   "efatura": {

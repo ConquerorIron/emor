@@ -1,0 +1,80 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use App\Services\Yedekleme\KopyaDurumu;
+use Carbon\CarbonImmutable;
+use Database\Factories\YedekKopyasiFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+/**
+ * Bir yedeğin bir hedefteki kopyası (README §4.3, §4.6). Saklama, kopyayı
+ * isteyen planın o hedefteki kuralıyla yapılır; bir hedefteki silme
+ * diğerini etkilemez.
+ *
+ * @property int $id
+ * @property int $yedek_id
+ * @property int $yedek_hedefi_id
+ * @property int|null $yedek_plani_id
+ * @property KopyaDurumu $durum
+ * @property string|null $uzak_kimlik
+ * @property bool $sifreli
+ * @property string|null $sifreli_sha256
+ * @property int $deneme
+ * @property string|null $hata_kodu
+ * @property string|null $hata_mesaji
+ * @property CarbonImmutable|null $tamamlanma_zamani
+ * @property CarbonImmutable|null $silinme_zamani
+ */
+final class YedekKopyasi extends Model
+{
+    /** @use HasFactory<YedekKopyasiFactory> */
+    use HasFactory;
+
+    protected $table = 'yedek_kopyalari';
+
+    /** Yalnız uygulama kodu doldurur (istekten toplu atama yok) */
+    protected $guarded = ['id'];
+
+    /**
+     * @return BelongsTo<Yedek, $this>
+     */
+    public function yedek(): BelongsTo
+    {
+        return $this->belongsTo(Yedek::class, 'yedek_id');
+    }
+
+    /**
+     * @return BelongsTo<YedekHedefi, $this>
+     */
+    public function hedef(): BelongsTo
+    {
+        return $this->belongsTo(YedekHedefi::class, 'yedek_hedefi_id');
+    }
+
+    /**
+     * @return BelongsTo<YedekPlani, $this>
+     */
+    public function plan(): BelongsTo
+    {
+        return $this->belongsTo(YedekPlani::class, 'yedek_plani_id');
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'durum' => KopyaDurumu::class,
+            'sifreli' => 'boolean',
+            'deneme' => 'integer',
+            'tamamlanma_zamani' => 'immutable_datetime',
+            'silinme_zamani' => 'immutable_datetime',
+        ];
+    }
+}

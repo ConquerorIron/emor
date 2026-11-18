@@ -109,6 +109,23 @@ enum Izin: string
     case EkranTasarimiGuncelle = 'ekran_tasarimi.guncelle';
 
     /**
+     * Yedekleme (docs/yedekleme README §4.9). Görüntüleme: yedek listesi,
+     * geri yükleme geçmişi, işlem günlüğü. "Güncelle": elle yedek alma ve
+     * doğrulama başlatma. Üstüne geri yükleme izinle VERİLMEZ — yalnız
+     * sistem yöneticisi.
+     */
+    case YedeklerGoruntule = 'yedekler.goruntule';
+    case YedeklerAl = 'yedekler.al';
+    case YedeklerSil = 'yedekler.sil';
+    /** Yedek dosyasını tarayıcıya indirme (bütün veri; README §8) */
+    case YedeklerIndir = 'yedekler.indir';
+    case GeriYuklemeKopya = 'geri_yukleme.kopya';
+
+    /** Planlar, hedef başına saklama kuralları ve yedek hedefleri */
+    case YedekPlanlariGoruntule = 'yedek_planlari.goruntule';
+    case YedekPlanlariGuncelle = 'yedek_planlari.guncelle';
+
+    /**
      * @return list<string>
      */
     public static function degerler(): array
@@ -165,6 +182,9 @@ enum Izin: string
             $ekran('kullanicilar', self::KullanicilarGoruntule, self::KullanicilarGuncelle),
             $ekran('roller', self::RollerGoruntule, self::RollerGuncelle),
             $ekran('ekran_tasarimi', self::EkranTasarimiGoruntule, self::EkranTasarimiGuncelle),
+            // Yedekleme (menüye ekranlarla birlikte girer: BY-015, BY-017)
+            $ekran('yedekler', self::YedeklerGoruntule, self::YedeklerAl, self::YedeklerSil, self::YedeklerIndir, self::GeriYuklemeKopya),
+            $ekran('yedek_planlari', self::YedekPlanlariGoruntule, self::YedekPlanlariGuncelle),
         ];
     }
 

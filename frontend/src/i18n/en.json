@@ -562,14 +562,19 @@
       "alarm_kurallari": "Alarm Rules",
       "kullanicilar": "Users",
       "roller": "Roles",
-      "ekran_tasarimi": "Screen Design"
+      "ekran_tasarimi": "Screen Design",
+      "yedekler": "Backups (view / take backup)",
+      "yedek_planlari": "Backup Plans and Targets"
     },
     "izin": {
       "efatura_goruntule": "View e-Invoice lists",
       "efatura_pdf": "View e-Invoice PDF/XML",
       "efatura_disari_aktar": "Export e-Invoice list to Excel",
       "efatura_senkron": "Start e-Invoice sync manually",
-      "efatura_gizle": "Hide / restore e-invoices in the list"
+      "efatura_gizle": "Hide / restore e-invoices in the list",
+      "yedekler_sil": "Delete / pin backups",
+      "yedekler_indir": "Download backup files (all data)",
+      "geri_yukleme_kopya": "Restore a backup under a new name (copy)"
     }
   },
   "efatura": {

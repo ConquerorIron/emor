@@ -139,7 +139,7 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 | BY-001 | Geçici önlem: günlük yedek ve elle sunucu dışı kopya | 0 | — | PASSED |
 | BY-002 | Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları | 0 | — | PASSED |
 | BY-003 | Sunucu kurulum betiği | 0 | BY-002 | PASSED |
-| BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | YAPILACAK |
+| BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | REVIEW_BEKLIYOR |
 | BY-005 | Dosya kilidi ve işlem durumu dosyası | 1 | BY-004 | YAPILACAK |
 | BY-006 | Manifest, imza, olay günlüğü | 1 | BY-004 | YAPILACAK |
 | BY-007 | Yedek alma (`yedek:al`) | 1 | BY-005, BY-006 | YAPILACAK |
@@ -1057,7 +1057,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-004 — Veri modeli, yapılandırma, izinler
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-002
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-002
 - **Tasarım:** README §5.4, §4.9, §4.2, §4.3
 - **Kapsam:**
   - Migration'lar: `yedek_hedefleri`, `yedek_planlari`, `yedek_plan_hedefleri`,
@@ -1069,12 +1069,78 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - İzin kataloğu (`App\Yetki\Izin`): README §4.9'daki izinler; Roller ekranı etiketleri.
 - **Kapsam dışı:** İş mantığı, komutlar, ekranlar.
 - **Kabul ölçütleri:**
-  - [ ] `migrate` ve `migrate:rollback` temiz çalışıyor (SQLite ve PostgreSQL).
-  - [ ] Hedef parolası `encrypted` cast ile saklanıyor; API çıktısında hiç dönmüyor (test).
-  - [ ] Kullanılan hedef / plan silinemiyor (mevcut `KayitSilme` kalıbı → 409).
-  - [ ] Yeni izinler Roller ekranında görünüyor; izin testleri güncel.
+  - [x] `migrate` ve `migrate:rollback` temiz çalışıyor (SQLite ve PostgreSQL).
+  - [x] Hedef parolası `encrypted` cast ile saklanıyor; API çıktısında hiç dönmüyor (test).
+    (Hedef ucu henüz yok — BY-016; model serileştirmesinde gizli olduğu sınandı.)
+  - [x] Kullanılan hedef / plan silinemiyor (mevcut `KayitSilme` kalıbı → 409).
+  - [x] Yeni izinler Roller ekranında görünüyor; izin testleri güncel.
 - **Canlı:** Evet (etkisiz; `YEDEKLEME_AKTIF` kapalı).
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · başlığı
+    `feat(yedekleme): BY-004 veri modeli, yapilandirma, izinler` olan commit
+    - Skill'ler: `laravel-best-practices` (migrations, eloquent, config,
+      security, style), `testing-best-practices` (test-data, naming,
+      assertions, review), `supabase-postgres-best-practices` (schema-*,
+      query-partial-indexes). Boost MCP yok; Laravel 13 API'leri mevcut
+      kodla (alarm migration'ı, EntegratorBaglanti / MailAyari) karşılaştırıldı.
+    - **Migration** `2026_11_18_120043_create_yedekleme_tables` (tek dosya,
+      alarm tabloları kalıbı): `yedek_hedefleri`, `yedek_planlari`,
+      `yedek_plan_hedefleri`, `yedek_ayarlari`, `yedekler`, `yedek_kopyalari`,
+      `geri_yuklemeler`, `yedek_islem_kayitlari`. Silme kuralları:
+      kullanılan hedef (plan bağı ya da kopya) ve kopyası olan plan
+      **RESTRICT**; kopyasız planın hedef bağları planla gider (CASCADE);
+      yedek kaydı silinmez (durum `silindi`), silinirse kopyaları gider,
+      geri yükleme geçmişi yedeği tutar (RESTRICT); kullanıcı silinirse
+      kişi alanı boşalır. Durum / tür kolonları metin (mevcut kalıp),
+      geçerli değerler enum'larda.
+    - **Hedef sırları:** `gizli_bilgiler` (`encrypted:array`, `$hidden`) —
+      parola, Drive yenileme anahtarı, S3 gizli anahtarı tek alanda; sır
+      olmayan bağlantı bilgileri `baglanti` (jsonb).
+    - **Enum'lar** (`App\Services\Yedekleme`, mevcut Kesinti / Entegrator
+      yeri): YedekKaynagi, YedekDurumu, DogrulamaDurumu, HedefTuru,
+      SiklikTuru + kolonları olan KopyaDurumu, GeriYuklemeTuru,
+      GeriYuklemeDurumu (README §6.4 durumları). Modeller enum cast'li.
+    - **Modeller:** YedekHedefi, YedekPlani (hedefler: pivot + saklama
+      kolonları), YedekAyari (tek satır, `ANAHTAR`), Yedek, YedekKopyasi,
+      GeriYukleme, YedekIslemKaydi (salt eklemeli, `UPDATED_AT = null`).
+      İstekten doldurulacaklar (hedef, plan, ayar) `$fillable`; yalnız kodun
+      doldurduğu kayıtlar `$guarded = ['id']` (EFaturaSenkronCalismasi kalıbı).
+      **Factory'ler:** hedef (+ `ftp()`), plan, yedek, kopya. GeriYukleme ve
+      işlem kaydı factory'si kullanan görevde eklenir (BY-026, BY-006/012).
+    - **Yapılandırma** `config/yedekleme.php`: `aktif` (varsayılan kapalı),
+      `klasor` (varsayılan `storage/app/yedekler`; BY-025'te
+      `/var/lib/emor-yedek/yedekler`), verisi alınmayan tablolar, araç
+      yolları, süre sınırları (D1). `.env.example` güncellendi.
+    - **İzinler:** `yedekler.goruntule/al/sil/indir`, `geri_yukleme.kopya`,
+      `yedek_planlari.goruntule/guncelle`; Roller ekranında iki satır
+      (tr/en etiketleri). README §4.9 tablosuna `yedek_planlari.goruntule`
+      eklendi (katalog her ekrana görüntüleme izni ister) ve eşleme yazıldı.
+      Menüde henüz yedekleme ekranı olmadığından satırlar matrisin "Diğer"
+      grubunda; menüye ekranlarla girer (BY-015, BY-017).
+    - **İndeksler:** PostgreSQL'de "indekssiz yabancı anahtar" sorgusu
+      (skill `schema-foreign-key-indexes`) **0 satır**. Kopya tablosunda
+      saklama sorgusu için (plan, hedef, durum); `yedekler.alinma_zamani`;
+      işlem kaydında `created_at`. Plan tablosuna "vadesi gelen" indeksi
+      konmadı: birkaç satırlık tablo.
+    - Testler: `YedeklemeVeriModeliTest` (7): sır ham kolonda düz metin
+      değil, model çözüyor, `toArray` / `toJson`'da yok; plana bağlı hedef,
+      kopyası olan hedef, kopyası olan plan → 409 `KAYIT_KULLANILIYOR` ve
+      kayıt yerinde; kopyasız plan silinince bağları gider hedef kalır;
+      kullanılmayan hedef silinir; yedek silinince kopyaları gider.
+      `RolTest` katalog testi 32 ekran + iki yedekleme satırının tam içeriği.
+      **Bozma denemesi:** RESTRICT'ler CASCADE yapılıp `$hidden` kaldırılınca
+      4 test kırmızı; geri yüklenince 7/7.
+    - Kontroller: backend **666/666**; Pint temiz; frontend typecheck, lint,
+      Roller testleri (11/11) temiz. Migration: geçici SQLite dosyasında ve
+      PostgreSQL `erp_test`'te migrate → rollback → migrate temiz
+      (`erp_test`'te bekleyen eski bir migration da — pivot izin adı —
+      bu sırada uygulandı).
+    - Notlar / doğrulanamayan: `yedek_kopyalari` benzersizliği plan boşken
+      (elle / yayın yedeği) PostgreSQL'de NULL'lar farklı sayıldığı için
+      tekrarı engellemez; o kopyaların akışı BY-008'de belirlenir. Canlıya
+      alınmadı. Başka bir iş için deploy olursa: tablolar boş açılır, modül
+      kapalı; Roller ekranının "Diğer" grubunda iki yedekleme satırı görünür
+      (izin vermek henüz bir şey açmaz — uç yok).
 
 ### BY-005 — Dosya kilidi ve işlem durumu dosyası
 

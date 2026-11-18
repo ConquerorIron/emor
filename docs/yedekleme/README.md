@@ -330,9 +330,17 @@ yönetici komutuyla içeri alınır (YDK-09). Tarayıcıdan yedek yükleme yok
   | `yedekler.al` | Elle yedek alma, doğrulama başlatma |
   | `yedekler.sil` | Yedek silme, sabitleme |
   | `yedekler.indir` | Yedek dosyasını tarayıcıya indirme (varsayılan kapalı, §8) |
+  | `yedek_planlari.goruntule` | Planları, saklama kurallarını ve hedefleri görme |
   | `yedek_planlari.guncelle` | Plan, saklama ve hedef tanımları |
   | `geri_yukleme.kopya` | Farklı adla geri yükleme |
   | — | Üstüne geri yükleme izinle verilmez; yalnız sistem yöneticisi |
+
+  Roller ekranında iki satır olarak görünür (BY-004): **Yedekler**
+  (görüntüle = `yedekler.goruntule`, güncelle = `yedekler.al`; ek izinler
+  `yedekler.sil`, `yedekler.indir`, `geri_yukleme.kopya`) ve **Yedek Planları
+  ve Hedefleri** (`yedek_planlari.goruntule` / `.guncelle`). Katalog her ekrana
+  bir görüntüleme izni ister; bu yüzden `yedek_planlari.goruntule` eklendi. Ek
+  izin verilen role ekranın görüntüleme izni de eklenir (mevcut kural).
 
 - Her işlem kaydedilir: kim, ne zaman, hangi yedek, sonuç, süre, hata.
 - Denetim kaydı veritabanına **ve** ayrıca bir günlük dosyasına yazılır;

@@ -57,7 +57,7 @@ final class RolTest extends TestCase
 
         $this->getJson('/api/v1/ayarlar/izinler')
             ->assertOk()
-            ->assertJsonCount(30, 'data')
+            ->assertJsonCount(32, 'data')
             ->assertJsonPath('data.0', [
                 'ekran' => 'satinalma_talebi',
                 'goruntule' => 'satinalma_talebi.goruntule',
@@ -69,6 +69,18 @@ final class RolTest extends TestCase
                 'goruntule' => 'efatura.goruntule',
                 'guncelle' => 'efatura.senkron',
                 'ekler' => ['efatura.pdf', 'efatura.disari_aktar', 'efatura.gizle'],
+            ])
+            ->assertJsonPath('data.30', [
+                'ekran' => 'yedekler',
+                'goruntule' => 'yedekler.goruntule',
+                'guncelle' => 'yedekler.al',
+                'ekler' => ['yedekler.sil', 'yedekler.indir', 'geri_yukleme.kopya'],
+            ])
+            ->assertJsonPath('data.31', [
+                'ekran' => 'yedek_planlari',
+                'goruntule' => 'yedek_planlari.goruntule',
+                'guncelle' => 'yedek_planlari.guncelle',
+                'ekler' => [],
             ]);
     }
 
