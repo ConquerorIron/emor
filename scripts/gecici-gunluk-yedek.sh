@@ -172,14 +172,18 @@ KOD=0
 sureli pg_restore --file=/dev/null "$GECICI" >/dev/null 2>&1 || KOD=$?
 (( KOD == 0 )) || komut_hatasi "$KOD" "pg_restore" "Yedeğin verisi okunamıyor (pg_restore)."
 
+# pg_dump çıktıyı kendisi diske zorlar (--no-sync verilmedi); taşımadan sonra
+# klasör girdisi de diske zorlanır, yoksa kesintide yedek kaybolabilir (D3)
 mv "$GECICI" "$HEDEF"
 GECICI=""
+sync -- "$YEDEK_KLASORU"
 BOYUT="$(stat -c %s "$HEDEF")"
 gunluge_yaz "TAMAM: $(basename "$HEDEF") ($BOYUT bayt)"
 
 # --------- 5. Temizlik (yalnız bu betiğin dosyaları) ---------
 # En yeni EN_AZ dosya her durumda kalır; kalanlardan SAKLA_GUN günden eskiler silinir.
-# Ad zaman damgası taşıdığı için ada göre ters sıra = yeniden eskiye.
+# Ad zaman damgası taşıdığı için ada göre ters sıra = yeniden eskiye
+# (bayt sırasıyla: yerel ayara göre sıralama değişmesin).
 SILINEN=0
 SAYAC=0
 while IFS= read -r DOSYA; do
@@ -189,7 +193,7 @@ while IFS= read -r DOSYA; do
     rm -f "$DOSYA"
     SILINEN=$((SILINEN + 1))
   fi
-done < <(find "$YEDEK_KLASORU" -maxdepth 1 -type f -name "${VT_ADI}_gunluk_*.dump" | sort -r)
+done < <(find "$YEDEK_KLASORU" -maxdepth 1 -type f -name "${VT_ADI}_gunluk_*.dump" | LC_ALL=C sort -r)
 
 # Çökmüş eski çalışmalardan kalan geçici dosyalar (bir günden eski)
 find "$YEDEK_KLASORU" -maxdepth 1 -type f \

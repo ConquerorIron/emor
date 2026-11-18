@@ -78,7 +78,7 @@ return [
     'kesinti_turu_baska_ekranin' => 'Bu kesinti türü bu ekrana bağlı değil (Kesinti Türleri → Ekran).',
     'proje_kod_tekrar' => 'Bu kod başka bir projede kullanılıyor.',
     'para_birimi_kod_tekrar' => 'Bu kod başka bir para biriminde kullanılıyor.',
-    'kayit_kullaniliyor' => 'Bu kayıt kesinti satırlarında kullanıldığı için silinemez.',
+    'kayit_kullaniliyor' => 'Bu kayıt başka kayıtlarda kullanıldığı için silinemez.',
     'ice_aktarim_hatali' => 'Hatalı satırlar var; hiçbir satır kaydedilmedi. Hataları düzeltip tekrar kontrol edin.',
 
     // ERP okuma (App\Services\ErpOkumaHatasi)

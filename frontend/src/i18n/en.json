@@ -517,7 +517,7 @@
     "ERP_CANLI_TANIMSIZ": "No live ERP connection is defined. Define the Live environment under Settings → SQL Connections.",
     "ERP_OKUMA_YETKISI_YOK": "The ERP database user is not allowed to read this data. Ask the database administrator for SELECT permission.",
     "ERP_OKUMA_HATASI": "ERP could not be read. Please try again shortly.",
-    "KAYIT_KULLANILIYOR": "This record is used by deduction rows and cannot be deleted.",
+    "KAYIT_KULLANILIYOR": "This record is used by other records and cannot be deleted.",
     "ICE_AKTARIM_HATALI": "There are invalid rows; nothing was saved. Fix the errors below and check again.",
     "KESINTI_EXCEL_COK_BUYUK": "The selected filter has more rows than the Excel limit. Narrow the filter."
   },

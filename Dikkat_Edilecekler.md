@@ -189,12 +189,19 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   Bir işi "ele geçirilse bile X'e ulaşamasın" diye ayrı hesaba veriyorsan, o
   hesabın çalıştırdığı / yüklediği her dosyayı say: PHP önbellekleri
   (`bootstrap/cache/*.php`), derlenmiş view'lar, `storage/` — web kullanıcısı
-  bunları yazabiliyorsa sınır yoktur. Ayrı hesap kendi önbellek ve depolama
-  yolunu kullanır (`APP_*_CACHE`, `VIEW_COMPILED_PATH`, `LARAVEL_STORAGE_PATH`).
+  bunları yazabiliyorsa sınır yoktur. Ayrı hesap kendi önbellek yolunu
+  kullanır (`APP_*_CACHE`, `VIEW_COMPILED_PATH`). Bütün `storage/`'ı ayırmadan
+  önce (`LARAVEL_STORAGE_PATH`) iki hesabın PAYLAŞMASI gereken dosyaları say:
+  bakım modu dosyası (`storage/framework/down`) ayrılırsa servis siteyi bakım
+  moduna alamaz. Yalnız çalıştırılan kodu ayır, paylaşılan veriyi değil.
   Paylaşılan klasöre farklı `umask` ile yazan ikinci hesap da sorundur: açtığı
-  günlük dosyasını diğeri yazamaz. Sunucudaki gerçek izinlere bakarak doğrula.
+  günlük dosyasını diğeri yazamaz — dosyayı açan kod izni açıkça versin
+  (günlük kanalında `'permission' => 0664`). Sunucudaki gerçek izinlere
+  bakarak doğrula; testte uygulamayı servisin ortamıyla açıp
+  `get_included_files()`'ı denetle.
   *(Fable incelemesi F1, F2: servis hesabı web grubuna alınmış, tanımı
-  `UMask=0027` ile uygulamanın `storage/` ve `bootstrap/cache`'ini kullanacaktı.)*
+  `UMask=0027` ile uygulamanın `storage/` ve `bootstrap/cache`'ini kullanacaktı.
+  Önerilen `LARAVEL_STORAGE_PATH` bakım modunu bozacağı için uygulanmadı.)*
 - **D4 — Eskiyi, yenisi gerçekten çalıştığı doğrulanmadan silme.** Taşıma /
   değiştirme işinde yeni kopyanın var olması doğru olduğunu göstermez (T9);
   eski kopya son çalışan kopya olabilir. Silme, yeninin gerçek kullanımla

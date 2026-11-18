@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+use App\Support\AcKapa;
 
 // e-Fatura ekranları (EFAT-11) ve alarmları (EFAT-13). İzibiz uç adresleri
 // ve senkron sınırları config/entegrator.php'de.
@@ -49,5 +50,5 @@ return [
     // ERP'de boş olan vergi istisna kodu entegratördekiyle doldurulsun mu
     // (TOHOM_E_FATURA'ya doğrudan UPDATE; yalnız boş koda). Varsayılan KAPALI:
     // sunucuda yazılacak liste kullanıcıya onaylatıldıktan sonra .env ile açılır.
-    'erp_istisna_kodu_yaz' => (bool) env('EFATURA_ERP_ISTISNA_YAZ', false),
+    'erp_istisna_kodu_yaz' => AcKapa::cevir(env('EFATURA_ERP_ISTISNA_YAZ'), false),
 ];

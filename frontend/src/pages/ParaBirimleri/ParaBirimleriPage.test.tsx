@@ -75,7 +75,7 @@ describe('ParaBirimleriPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Sil' }))
 
     expect(
-      await screen.findByText('Bu kayıt kesinti satırlarında kullanıldığı için silinemez.'),
+      await screen.findByText('Bu kayıt başka kayıtlarda kullanıldığı için silinemez.'),
     ).toBeInTheDocument()
   })
 })

@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+use App\Support\AcKapa;
 
 // e-Belge entegratörü uç adresleri. Kullanıcıdan ALINMAZ ve veritabanında
 // tutulmaz: kayıtlı şifre yalnız buradaki sabit adreslere gönderilir.
@@ -44,7 +45,8 @@ return [
         'azami_gun' => 366,
 
         // Zamanlanmış e-Fatura senkronu (EFAT-10). Acil durumda .env ile kapatılır.
-        'senkron_aktif' => (bool) env('EFATURA_SENKRON_AKTIF', true),
+        // Tanınmayan değer (ör. "hayir") KAPALI sayılır; boş bırakılırsa açık (AcKapa)
+        'senkron_aktif' => AcKapa::cevir(env('EFATURA_SENKRON_AKTIF'), true),
         // Faz 1 ilk tarama başlangıcı (kullanıcı kararı S11)
         'ilk_tarama_tarihi' => '2026-01-01',
     ],

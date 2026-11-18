@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+use App\Support\AcKapa;
 
 // Yedekleme modülü (docs/yedekleme/README.md). Planlar, hedefler ve saklama
 // kuralları veritabanında (ekrandan); burada yalnız sunucuya özgü olanlar.
@@ -11,7 +12,8 @@ declare(strict_types=1);
 return [
     // Modülün ana anahtarı. KAPALIYKEN modül hiçbir şey yapmaz: yedek almaz,
     // zamanlayıcıda iş başlatmaz (Backup-Jira §1.3: kod canlıya gitse de etkisiz).
-    'aktif' => (bool) env('YEDEKLEME_AKTIF', false),
+    // (bool) değil: "off", "hayir" gibi değerler modülü açardı (G9, AcKapa)
+    'aktif' => AcKapa::cevir(env('YEDEKLEME_AKTIF'), false),
 
     // Yedeklerin, manifestlerin ve olay günlüğünün klasörü. Geçiş döneminde
     // yedeği uygulama kullanıcısı alır (README §5.2); servis hesabına geçişte

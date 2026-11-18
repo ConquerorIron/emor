@@ -11,7 +11,7 @@
 #
 #   1. Linux kullanıcısı ve grubu   emor-yedek (giriş yapamaz)
 #   2. Grup üyelikleri              web kullanıcısı yedekleri okuyabilsin, istek bırakabilsin
-#   3. Klasörler ve izinler         /var/lib/emor-yedek/{yedekler,istekler,durum,gunluk,gizli}
+#   3. Klasörler ve izinler         /var/lib/emor-yedek/{yedekler,istekler,durum,gunluk,gizli,onbellek}
 #                                   (README §5.5 tablosu; yayın kullanıcısına ACL ile dar erişim)
 #   4. Gizli dosyalar               veritabanı parola dosyası; imza anahtarının yeri
 #   5. PostgreSQL rolleri           emor_yedek (yedek / geri yükleme), emor_inceleme (salt okunur)
@@ -109,8 +109,12 @@ guvenli_yaz() {
   if (( $# )) && ! "$@" "$GECICI" >/dev/null; then
     hata "$hedef doğrulamadan geçmedi ($1); dosya yazılmadı."
   fi
+  # İçerik diske, taşımadan sonra klasör girdisi diske (D3): kesintide yarım
+  # ya da kaybolmuş sistem dosyası kalmasın
+  sync -- "$GECICI"
   mv -T "$GECICI" "$hedef"
   GECICI=""
+  sync -- "$(dirname "$hedef")"
 }
 
 # --- Bağlantı güvenliği (CWE-59; BY-003-R5) --------------------------------
@@ -288,6 +292,7 @@ fi
 #      durum/     2750  okur, yazar  okur         okur (r-x; yeni dosyalara da)
 #      gunluk/    2750  okur, yazar  okur         erişmez   (olay / denetim günlüğü, ayar kopyası)
 #      gizli/     0700  okur         erişmez      erişmez   (parola dosyası, imza anahtarı)
+#      onbellek/  0700  okur, yazar  erişmez      erişmez   (servisin Laravel önbellekleri — bölüm 6)
 #
 #    durum/kilit: herkes salt okunur açıp kilit alır (flock, okuma için
 #    açılmış dosyada da çalışır). Önceden açılır; yoksa yazma izni olmayan
@@ -382,6 +387,7 @@ if (( KULLANICI_VAR )); then
   klasor "$YEDEK_KOKU/durum" 2750
   klasor "$YEDEK_KOKU/gunluk" 2750
   klasor "$YEDEK_KOKU/gizli" 0700
+  klasor "$YEDEK_KOKU/onbellek" 0700
 else
   eksik "klasörler (önce servis kullanıcısı açılmalı)"
 fi
@@ -393,6 +399,8 @@ if [[ -d "$YEDEK_KOKU/durum" ]]; then
   acl_denetle "$YEDEK_KOKU/durum" 2750 "r-x" varsayilan
   acl_denetle "$YEDEK_KOKU/gunluk" 2750 ""
   acl_denetle "$YEDEK_KOKU/gizli" 0700 ""
+  # Sonradan eklendi: önceki kurulumda yoksa yukarıda "eksik" bildirildi
+  if [[ -d "$YEDEK_KOKU/onbellek" ]]; then acl_denetle "$YEDEK_KOKU/onbellek" 0700 ""; fi
   if [[ -z "${REDDEDILEN[$YEDEK_KOKU/durum]:-}" ]] && tur_denetle "$KILIT_DOSYASI" f; then
     if [[ -f "$KILIT_DOSYASI" ]]; then
       izin_denetle "$KILIT_DOSYASI" 0640
@@ -436,7 +444,7 @@ pgpass_servis_yaz() {
     umask 077
     t="$(mktemp "$1/.pgpass.XXXXXX")" || exit 1
     trap "rm -f \"\$t\"" EXIT
-    cat > "$t" && mv -T "$t" "$2"' _ "$YEDEK_KOKU/gizli" "$PGPASS_DOSYASI"
+    cat > "$t" && sync -- "$t" && mv -T "$t" "$2" && sync -- "$1"' _ "$YEDEK_KOKU/gizli" "$PGPASS_DOSYASI"
 }
 pgpass_kopyala() { pgpass_servis_yaz < "$ESKI_PGPASS"; }
 if [[ -n "${REDDEDILEN[$YEDEK_KOKU/gizli]:-}" ]]; then
@@ -521,10 +529,30 @@ uyelik_denetle() { # $1 rol, $2 beklenen tek üyelik (yoksa "")
   fi
 }
 pgpass_kacir() { local d="${1//\\/\\\\}"; printf '%s' "${d//:/\\:}"; }
-yeni_parola_yaz() { # Parolayı role yazar; başarılıysa parola dosyasını yazar (geçici ad → taşı)
-  local parola
+# Standart girdideki parolanın PostgreSQL SCRAM-SHA-256 doğrulayıcısı (RFC 5802;
+# PostgreSQL'in sakladığı biçim). Parola argümanda / ortamda durmaz (D2).
+scram_ozeti() {
+  php -r '
+    $parola = stream_get_contents(STDIN);
+    $tuz = random_bytes(16);
+    $tekrar = 4096;
+    $anahtar = hash_pbkdf2("sha256", $parola, $tuz, $tekrar, 32, true);
+    $istemci = hash_hmac("sha256", "Client Key", $anahtar, true);
+    $sunucu = hash_hmac("sha256", "Server Key", $anahtar, true);
+    printf("SCRAM-SHA-256\$%d:%s\$%s:%s", $tekrar, base64_encode($tuz), base64_encode(hash("sha256", $istemci, true)), base64_encode($sunucu));'
+}
+# Parolayı role yazar; başarılıysa parola dosyasını yazar (geçici ad → taşı).
+# Role düz parola değil SCRAM doğrulayıcısı gönderilir: `alter role … password
+# '<düz parola>'` metni sunucu günlüğüne (log_statement, hata günlüğü) ve
+# pg_stat_statements'a düşebilir (D2, Fable incelemesi F3). PostgreSQL
+# doğrulayıcı biçimindeki metni olduğu gibi saklar.
+yeni_parola_yaz() {
+  local parola ozet
   parola="$(openssl rand -hex 24)"
-  printf "alter role %s password '%s';\n" "$VT_YEDEK_ROLU" "$parola" | pg_yonetici -f -
+  ozet="$(printf '%s' "$parola" | scram_ozeti)"
+  [[ "$ozet" =~ ^SCRAM-SHA-256\$4096:[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$ ]] \
+    || hata "Parolanın SCRAM özeti üretilemedi (php); rol parolası değiştirilmedi."
+  printf "alter role %s password '%s';\n" "$VT_YEDEK_ROLU" "$ozet" | pg_yonetici -f -
   printf '%s:%s:*:%s:%s\n' "$(pgpass_kacir "$VT_SUNUCU")" "$(pgpass_kacir "$VT_PORT")" \
     "$VT_YEDEK_ROLU" "$parola" | pgpass_servis_yaz
 }
@@ -617,7 +645,18 @@ fi
 # ---------------------------------------------------------------------------
 # 6. Servis tanımı (README §9 madde 3)
 #    Yedekleme çalıştırıcısı bu hesapla, arka planda sürekli çalışır.
-#    UMask 0027: ürettiği dosyaları grup okur, başkalarına kapalı.
+#    UMask 0027: ürettiği dosyaları grup okur, başkalarına kapalı. (Uygulamanın
+#    storage/logs'unda açtığı günlük dosyaları yine 0664 olur: kanalların
+#    'permission' ayarı — config/logging.php.)
+#    Laravel önbellekleri (APP_*_CACHE, VIEW_COMPILED_PATH) servisin kendi
+#    onbellek/ klasöründe: uygulamanın bootstrap/cache'ini ve derlenmiş
+#    görünümlerini web kullanıcısı YAZABİLİR (grubu www-data, g+w). Servis
+#    onları yüklerse ele geçirilmiş bir web süreci servis hesabıyla kod
+#    çalıştırır, imza anahtarına ve parola dosyasına ulaşır (D7, Fable
+#    incelemesi F1). storage/ yolu (LARAVEL_STORAGE_PATH) bilerek DEĞİŞMEZ:
+#    servis geri yüklemede uygulamayı bakım moduna alır; bakım modu dosyası
+#    uygulamanın storage/framework'ünde olmalıdır (bölüm 2). Oradan PHP
+#    dosyası yüklenmez.
 #    Çalıştırdığı komut BY-025'te yazılır: tanım şimdi KURULUR ama
 #    etkinleştirilmez, başlatılmaz (komut adı değişirse betik tanımı günceller).
 # ---------------------------------------------------------------------------
@@ -633,6 +672,12 @@ UMask=0027
 WorkingDirectory=$UYGULAMA_KOKU/backend
 Environment=PGPASSFILE=$PGPASS_DOSYASI
 Environment=EMOR_YEDEK_KOKU=$YEDEK_KOKU
+Environment=APP_CONFIG_CACHE=$YEDEK_KOKU/onbellek/config.php
+Environment=APP_SERVICES_CACHE=$YEDEK_KOKU/onbellek/services.php
+Environment=APP_PACKAGES_CACHE=$YEDEK_KOKU/onbellek/packages.php
+Environment=APP_ROUTES_CACHE=$YEDEK_KOKU/onbellek/routes.php
+Environment=APP_EVENTS_CACHE=$YEDEK_KOKU/onbellek/events.php
+Environment=VIEW_COMPILED_PATH=$YEDEK_KOKU/onbellek/views
 ExecStart=/usr/bin/php $UYGULAMA_KOKU/backend/artisan yedek:calistir
 Restart=always
 RestartSec=5

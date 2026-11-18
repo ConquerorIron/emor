@@ -41,6 +41,7 @@ bekle() { local ad="$1"; shift; if "$@" >/dev/null; then ok "$ad"; else bad "$ad
 calistir() { local ad="$1" beklenen_kod="$2"; shift 2; local cikti kod; cikti="$(bash "$B" "$@" 2>&1)"; kod=$?; echo "$cikti" > "$D/son.txt"; if [[ $kod == "$beklenen_kod" ]]; then ok "$ad (çıkış $kod)"; else bad "$ad (çıkış $kod, beklenen $beklenen_kod)"; echo "$cikti" | sed 's/^/      /'; fi; }
 psqlp() { runuser -u postgres -- psql -X -A -t -q -c "$1"; }
 temizle() {
+  psqlp "alter role postgres reset log_statement" >/dev/null 2>&1   # H bölümü yarıda kaldıysa
   psqlp "drop role if exists $EMOR_VT_YEDEK_ROLU" >/dev/null 2>&1
   psqlp "drop role if exists $EMOR_VT_INCELEME_ROLU" >/dev/null 2>&1
   gpasswd -d www-data emor-yedek-deneme >/dev/null 2>&1
@@ -106,6 +107,24 @@ bekle "servis tanımı yazıldı"       grep -q "^User=emor-yedek-deneme$" "$EMO
 bekle "kullanıcı giriş yapamaz"     bash -c "[[ \$(getent passwd emor-yedek-deneme | cut -d: -f7) == /usr/sbin/nologin ]]"
 bekle "yayın gruba alınmadı"        bash -c "! id -nG $Y | tr ' ' '\n' | grep -qx emor-yedek-deneme"
 bekle "inceleme rolü NOLOGIN"       bash -c "[[ \$(runuser -u postgres -- psql -X -A -t -c \"select rolcanlogin from pg_roles where rolname='emor_inceleme_deneme'\") == f ]]"
+bekle "onbellek servisin, 0700"     bash -c "[[ \$(stat -c '%U %a' $K/onbellek) == 'emor-yedek-deneme 700' ]]"
+bekle "web onbellek'e giremez"      bash -c "! runuser -u www-data -- ls $K/onbellek 2>/dev/null"
+
+echo "== E2. Servis, web kullanıcısının yazabildiği PHP dosyalarını yüklemez (Fable incelemesi F1)"
+# Uygulama servis tanımındaki ortamla açılır; yüklenen dosyalar arasında
+# uygulamanın bootstrap/cache'i ve storage'ı (web yazabilir) olmamalı.
+SERVIS_ORTAMI=()
+while IFS= read -r satir; do SERVIS_ORTAMI+=("${satir#Environment=}"); done < <(grep '^Environment=' "$EMOR_SYSTEMD_DIZINI/emor-yedek.service")
+YUKLENEN="$(cd "$PROJE/backend" && env "${SERVIS_ORTAMI[@]}" php -r '
+  require "vendor/autoload.php";
+  $app = require "bootstrap/app.php";
+  $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+  echo "gorunum:", config("view.compiled"), "\n", implode("\n", get_included_files()), "\n";' 2>&1)"
+bekle "uygulama servisin ortamıyla açılıyor"      grep -qx "$PROJE/backend/vendor/autoload.php" <<<"$YUKLENEN"
+bekle "bootstrap/cache'ten PHP yüklenmedi"         bash -c "! grep -q '^$PROJE/backend/bootstrap/cache/' <<<\"\$1\"" _ "$YUKLENEN"
+bekle "storage'dan PHP yüklenmedi"                 bash -c "! grep -q '^$PROJE/backend/storage/' <<<\"\$1\"" _ "$YUKLENEN"
+bekle "derlenmiş görünümler servisin klasöründe"   grep -qx "gorunum:$K/onbellek/views" <<<"$YUKLENEN"
+bekle "paket önbelleği servisin klasöründe üretildi" test -f "$K/onbellek/packages.php"
 
 echo "== F. Bozulan durumlar: denetim yakalar, kurulum düzeltir"
 chmod 755 $K/yedekler; chmod 644 $K/gizli/pgpass; chmod 2750 $K; chown emor-yedek-deneme $K
@@ -272,7 +291,17 @@ rm -f "$E"
 
 echo "== H. Parola dosyası hiçbir yerde yoksa parola yenilenir (G6'daki geçersiz dosya da gider)"
 ESKI_SATIR="$(cat $K/gizli/pgpass)"; rm $K/gizli/pgpass
+# Yönetici oturumlarının bütün komutları günlüğe yazılır: düz parola sunucu
+# günlüğüne düşmemeli (D2, Fable incelemesi F3)
+PG_GUNLUGU="$(ls -t /var/log/postgresql/postgresql-*.log 2>/dev/null | head -n1)"
+GUNLUK_BOYU="$(stat -c %s "$PG_GUNLUGU" 2>/dev/null || echo 0)"
+psqlp "alter role postgres set log_statement = 'all'" >/dev/null
 calistir "kurulum yeni parola" 0
+psqlp "alter role postgres reset log_statement" >/dev/null
+tail -c +"$((GUNLUK_BOYU + 1))" "$PG_GUNLUGU" > "$D/pg_gunlugu.txt" 2>/dev/null
+bekle "deneme günlüğe yazdı (rol parolası komutu görünüyor)" grep -q "alter role emor_yedek_deneme password" "$D/pg_gunlugu.txt"
+bekle "role SCRAM doğrulayıcısı gönderildi" grep -qF "password 'SCRAM-SHA-256\$4096:" "$D/pg_gunlugu.txt"
+bekle "düz parola PostgreSQL günlüğüne düşmedi" bash -c "! grep -qF \"\$(cut -d: -f5 $K/gizli/pgpass)\" '$D/pg_gunlugu.txt'"
 bekle "yenilendi mesajı" grep -q "yeni parola role yazıldı" "$D/son.txt"
 bekle "parola değişti" bash -c "[[ \"\$(cat $K/gizli/pgpass)\" != '$ESKI_SATIR' ]]"
 bekle "geçici dosya kalmadı" bash -c "[[ -z \$(ls -A $K/gizli | grep -v -x -e pgpass) ]]"

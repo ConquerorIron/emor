@@ -22,7 +22,9 @@ use Illuminate\Support\Env;
  *
  * Kullanım: php gecici-env-oku.php <vendor/autoload.php> <.env> ANAHTAR [ANAHTAR…]
  * Çıktı:    istenen sırayla, her değerin sonunda bir NUL baytı (kabuk bunu
- *           eval / source etmeden okur). Tanımsız anahtar boş değer verir.
+ *           eval / source etmeden okur). Tanımsız anahtar boş değer verir:
+ *           yalnız dosyaya bakılır, sürecin ortamındaki aynı adlı değişken
+ *           okunmaz (Env::get getenv'e de bakar — Fable incelemesi F8).
  * Hata:     2 ile çıkar; stderr'e yalnız neden yazılır, hiçbir değer yazılmaz.
  */
 $durdur = static function (string $neden): never {
@@ -57,12 +59,16 @@ try {
 }
 
 foreach ($anahtarlar as $anahtar) {
-    // Dosyadaki değer, sürecin devraldığı aynı adlı ortam değişkeninin önüne geçer
-    unset($_SERVER[$anahtar], $_ENV[$anahtar]);
+    if (! array_key_exists($anahtar, $degerler)) {
+        echo "\0";
 
-    if (isset($degerler[$anahtar])) {
-        $_SERVER[$anahtar] = $_ENV[$anahtar] = $degerler[$anahtar];
+        continue;
     }
+
+    // Dosyadaki değer, sürecin devraldığı aynı adlı ortam değişkeninin önüne
+    // geçer: Env önce $_SERVER'a bakar. Boş (null) değer de konur; yoksa okuma
+    // getenv'e düşerdi.
+    $_SERVER[$anahtar] = $_ENV[$anahtar] = $degerler[$anahtar] ?? '';
 
     $laravelDegeri = Env::get($anahtar);
     $deger = is_bool($laravelDegeri) ? ($laravelDegeri ? '1' : '') : (string) ($laravelDegeri ?? '');

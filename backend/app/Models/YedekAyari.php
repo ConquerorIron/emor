@@ -9,7 +9,11 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * Yedekleme ayarları — tek satır (MailAyari kalıbı): zamanlanmamış yedeklerin
  * saklama süreleri, hedef başına en az yedek sayısı, disk eşiği, bildirim
- * alıcıları (README §4.3, §4.8). Varsayılanlar migration'dadır.
+ * alıcıları (README §4.3, §4.8).
+ *
+ * Varsayılanlar migration'dadır ve `$attributes`'ta AYNEN yansıtılır: yeni
+ * nesne kaydedilmeden önce de onları taşır (Dikkat_Edilecekler K4). İkisi
+ * birlikte değişir; YedeklemeVeriModeliTest farkı yakalar.
  *
  * @property int $id
  * @property string $anahtar
@@ -26,6 +30,18 @@ final class YedekAyari extends Model
     public const ANAHTAR = 'varsayilan';
 
     protected $table = 'yedek_ayarlari';
+
+    /** @var array<string, mixed> Migration varsayılanlarının aynısı (tek satırın anahtarı dahil) */
+    protected $attributes = [
+        'anahtar' => self::ANAHTAR,
+        'yayin_oncesi_son_adet' => 20,
+        'yayin_oncesi_gun' => 30,
+        'elle_gun' => 30,
+        'geri_yukleme_oncesi_gun' => 30,
+        'enaz_adet' => 3,
+        'enaz_bos_alan_yuzde' => 15,
+        'bildirim_alicilari' => '[]',
+    ];
 
     protected $fillable = [
         'anahtar',

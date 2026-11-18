@@ -40,4 +40,13 @@ class YedekFactory extends Factory
             'bitti' => $zaman,
         ];
     }
+
+    /** Planın aldığı yedek; dosya adı öneki kaynakla aynı (README §5.5, T10) */
+    public function plan(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'kaynak' => YedekKaynagi::Plan,
+            'dosya_adi' => preg_replace('/^erp_elle_/', 'erp_plan_', (string) $attributes['dosya_adi']),
+        ]);
+    }
 }

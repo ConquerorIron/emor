@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Process;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Symfony\Component\Process\ExecutableFinder;
 use Tests\TestCase;
 
 /**
@@ -18,12 +19,22 @@ use Tests\TestCase;
  * olarak gerçek bir PHP süreci ve `flock` komutu (deploy.sh'ın kullanacağı)
  * kullanılır — aynı süreç içindeki iki tutamaç süreçler arası davranışı
  * kanıtlamaz.
+ *
+ * Ortam varsayımları korunur (Dikkat_Edilecekler T11): izin kaldırarak sınayan
+ * test root altında, `flock` komutuna dayanan test komut yoksa atlanır; başlatılan
+ * alt süreçler doğrulama düşse de tearDown'da öldürülür.
  */
 final class YedekKilidiTest extends TestCase
 {
+    /** pcntl eklentisine bağlı olmamak için sabitin değeri (Symfony Process de böyle yapar) */
+    private const SIGKILL = 9;
+
     private string $klasor;
 
     private string $yol;
+
+    /** @var list<InvokedProcess> */
+    private array $surecler = [];
 
     protected function setUp(): void
     {
@@ -35,6 +46,13 @@ final class YedekKilidiTest extends TestCase
 
     protected function tearDown(): void
     {
+        foreach ($this->surecler as $surec) {
+            if ($surec->running()) {
+                $surec->signal(self::SIGKILL);
+                $surec->wait();
+            }
+        }
+
         if (is_dir($this->klasor)) {
             chmod($this->klasor, 0700);
             File::deleteDirectory($this->klasor);
@@ -48,6 +66,7 @@ final class YedekKilidiTest extends TestCase
     {
         $kod = '$f = fopen($argv[1], "r"); flock($f, LOCK_EX); echo "tutuyor\n"; sleep((int) $argv[2]);';
         $surec = Process::timeout(60)->start([PHP_BINARY, '-r', $kod, $this->yol, (string) $saniye]);
+        $this->surecler[] = $surec;
         $surec->waitUntil(fn (string $tur, string $cikti): bool => str_contains($cikti, 'tutuyor'));
 
         return $surec;
@@ -57,6 +76,20 @@ final class YedekKilidiTest extends TestCase
     {
         File::ensureDirectoryExists($this->klasor, 0750);
         touch($this->yol);
+    }
+
+    private function flockKomutuGerekli(): void
+    {
+        if ((new ExecutableFinder)->find('flock') === null) {
+            $this->markTestSkipped('`flock` komutu yok (util-linux); deploy.sh uyumu sınanamıyor.');
+        }
+    }
+
+    private function rootDegilGerekli(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('root dosya izinlerini aşar; izin kaldırarak sınanamaz.');
+        }
     }
 
     public function test_kilit_tutulurken_ikinci_tutamac_alamaz_birakilinca_alir(): void
@@ -72,6 +105,20 @@ final class YedekKilidiTest extends TestCase
         $this->assertTrue($ikinci->al());
     }
 
+    public function test_tutuyor_mu_yalniz_kilit_alinmisken_dogru(): void
+    {
+        $kilit = new YedekKilidi($this->yol);
+        $baska = new YedekKilidi($this->yol);
+
+        $this->assertFalse($kilit->tutuyorMu());
+        $kilit->al();
+        $this->assertTrue($kilit->tutuyorMu());
+        $baska->al();
+        $this->assertFalse($baska->tutuyorMu());
+        $kilit->birak();
+        $this->assertFalse($kilit->tutuyorMu());
+    }
+
     public function test_baska_surec_tutarken_alinamaz_surec_olunce_kilit_duser(): void
     {
         $this->kilitDosyasiAc();
@@ -80,7 +127,7 @@ final class YedekKilidiTest extends TestCase
 
         $this->assertFalse($kilit->al());
 
-        $surec->signal(SIGKILL);
+        $surec->signal(self::SIGKILL);
         $surec->wait();
 
         $this->assertTrue($kilit->al());
@@ -88,6 +135,7 @@ final class YedekKilidiTest extends TestCase
 
     public function test_kilit_tutulurken_flock_komutu_da_alamaz(): void
     {
+        $this->flockKomutuGerekli();
         $kilit = new YedekKilidi($this->yol);
         $this->assertTrue($kilit->al());
 
@@ -118,7 +166,7 @@ final class YedekKilidiTest extends TestCase
     public function test_bekleyerek_al_sure_dolunca_vazgecer(): void
     {
         $this->kilitDosyasiAc();
-        $surec = $this->kilidiTutanSurec(60);
+        $this->kilidiTutanSurec(60);
         $kilit = new YedekKilidi($this->yol);
 
         $baslangic = microtime(true);
@@ -128,9 +176,6 @@ final class YedekKilidiTest extends TestCase
         $this->assertFalse($alindi);
         $this->assertGreaterThanOrEqual(0.5, $gecen);
         $this->assertLessThan(3, $gecen);
-
-        $surec->signal(SIGKILL);
-        $surec->wait();
     }
 
     /**
@@ -142,6 +187,10 @@ final class YedekKilidiTest extends TestCase
             'sonsuz' => [INF],
             'sayı değil' => [NAN],
             'negatif' => [-1.0],
+            // Nanosaniyeye çevrilince tam sayıya sığmaz: uyarıyla 0'a düşüp
+            // hemen vazgeçmesin (Fable incelemesi F15)
+            'çok büyük sonlu' => [1e300],
+            'bir günden uzun' => [86_400.5],
         ];
     }
 
@@ -158,6 +207,7 @@ final class YedekKilidiTest extends TestCase
     public function test_yazma_izni_olmayan_kilit_dosyasinda_da_kilit_alinir(): void
     {
         // Sunucuda yayın kullanıcısı kilit dosyasına yalnız okuma iznine sahip (BY-003)
+        $this->flockKomutuGerekli();
         $this->kilitDosyasiAc();
         chmod($this->yol, 0440);
         $kilit = new YedekKilidi($this->yol);
@@ -177,6 +227,7 @@ final class YedekKilidiTest extends TestCase
 
     public function test_kilit_dosyasi_acilamazsa_mesgul_sanilmaz_hata_verir(): void
     {
+        $this->rootDegilGerekli();
         File::ensureDirectoryExists($this->klasor, 0750);
         chmod($this->klasor, 0500);
         $kilit = new YedekKilidi($this->yol);

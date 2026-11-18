@@ -58,11 +58,17 @@ return [
             'ignore_exceptions' => false,
         ],
 
+        // Dosya kanallarında 'permission' => 0664: storage/logs'a web (www-data)
+        // ve yedekleme servisi (UMask 0027) yazar. Günün dosyasını hangisi
+        // açarsa açsın diğeri de yazabilmeli; izin umask'tan bağımsız verilir
+        // (GunlukDosyasiIzniTest).
+
         'single' => [
             'driver' => 'single',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
+            'permission' => 0664,
         ],
 
         'daily' => [
@@ -71,6 +77,7 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => true,
+            'permission' => 0664,
         ],
 
         // Denetim kaydı: ERP'ye yapılan yazımlar gibi izi kalması gereken işlemler.
@@ -81,6 +88,7 @@ return [
             'level' => 'info',
             'days' => 365,
             'replace_placeholders' => true,
+            'permission' => 0664,
         ],
 
         'slack' => [

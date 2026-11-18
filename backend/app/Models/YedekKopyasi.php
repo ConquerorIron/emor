@@ -10,16 +10,17 @@ use Database\Factories\YedekKopyasiFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 /**
- * Bir yedeğin bir hedefteki kopyası (README §4.3, §4.6). Saklama, kopyayı
- * isteyen planın o hedefteki kuralıyla yapılır; bir hedefteki silme
- * diğerini etkilemez.
+ * Bir yedeğin bir hedefteki TEK fiziksel kopyası (README §4.3, §4.6). Aynı
+ * hedefi paylaşan planlar bu kopyaya bağlanır (`planlar`); her plan kendi
+ * kuralıyla yalnız kendi bağını kaldırır, dosya hiçbir bağ kalmayınca
+ * silinir (BY-010). Bir hedefteki silme diğer hedefleri etkilemez.
  *
  * @property int $id
  * @property int $yedek_id
  * @property int $yedek_hedefi_id
- * @property int|null $yedek_plani_id
  * @property KopyaDurumu $durum
  * @property string|null $uzak_kimlik
  * @property bool $sifreli
@@ -57,11 +58,13 @@ final class YedekKopyasi extends Model
     }
 
     /**
-     * @return BelongsTo<YedekPlani, $this>
+     * Kopyayı tutan planlar; boşsa zamanlanmamış bir yedeğin kopyası.
+     *
+     * @return BelongsToMany<YedekPlani, $this>
      */
-    public function plan(): BelongsTo
+    public function planlar(): BelongsToMany
     {
-        return $this->belongsTo(YedekPlani::class, 'yedek_plani_id');
+        return $this->belongsToMany(YedekPlani::class, 'yedek_kopya_planlari', 'yedek_kopyasi_id', 'yedek_plani_id');
     }
 
     /**

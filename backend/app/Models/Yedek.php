@@ -17,7 +17,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * Yedek klasöründeki bir yedeğin DİZİN kaydı (README §5.2, §5.4). Doğruluk
  * kaynağı dosyadır (manifest + olay günlüğü); kayıt klasör taranarak yeniden
- * kurulabilir. Kayıt silinmez: dosya gidince durum `silindi` olur.
+ * kurulabilir. Kayıt silinmez. Yedek klasöründeki dosya gidince
+ * `yerel_silinme_zamani` dolar; uzak kopyası kalan yedek geri yüklenebilir
+ * kalır. Durum ancak hiçbir yerde kopyası kalmayınca `silindi` olur.
  *
  * @property int $id
  * @property string $kimlik
@@ -35,6 +37,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null $alan_kullanici_id
  * @property string|null $hata_kodu
  * @property string|null $hata_mesaji
+ * @property CarbonImmutable|null $yerel_silinme_zamani
  * @property CarbonImmutable|null $silinme_zamani
  */
 final class Yedek extends Model
@@ -85,6 +88,7 @@ final class Yedek extends Model
             'alinma_zamani' => 'immutable_datetime',
             'bitti' => 'immutable_datetime',
             'sabit' => 'boolean',
+            'yerel_silinme_zamani' => 'immutable_datetime',
             'silinme_zamani' => 'immutable_datetime',
         ];
     }

@@ -17,13 +17,21 @@ use RuntimeException;
  * dosyası önceden açılır ve yayın kullanıcısı ona yalnız okuma iznine sahiptir
  * (BY-003): dosya bu yüzden salt okunur açılır — flock için yazma izni gerekmez.
  *
- * "Meşgul" ile "kilit dosyası açılamıyor" ayrıdır: ilki false döner, ikincisi
- * istisnadır (yanlış izin, sessizce "başka işlem var" sanılmasın).
+ * "Meşgul" ile hata ayrıdır: yalnız başka sürecin tuttuğu kilit false döner.
+ * Kilit dosyası açılamıyorsa (yanlış izin) ya da flock başka nedenle
+ * başarısızsa (kilit desteklemeyen dosya sistemi, ENOLCK) istisnadır; yoksa
+ * yedekler sonsuza dek "başka işlem çalışıyor" diye atlanırdı (D6).
  */
 final class YedekKilidi
 {
     /** bekleyerekAl() denemeleri arası (mikrosaniye) */
     private const BEKLEME_ARALIGI_US = 200_000;
+
+    /**
+     * bekleyerekAl() üst sınırı (saniye). Nanosaniyeye çevrilen süre tam sayıya
+     * sığmalı: sığmayan değer uyarıyla 0'a düşer ve bekleme hiç yapılmaz.
+     */
+    private const EN_UZUN_BEKLEME_SN = 86_400;
 
     /** @var resource|null */
     private $tutamac = null;
@@ -35,7 +43,11 @@ final class YedekKilidi
         $this->birak();
     }
 
-    /** Kilidi almayı bir kez dener; başka işlem tutuyorsa beklemeden false döner. */
+    /**
+     * Kilidi almayı bir kez dener; başka işlem tutuyorsa beklemeden false döner.
+     *
+     * @throws RuntimeException Kilit dosyası açılamıyor ya da flock meşguliyet dışında bir nedenle başarısız
+     */
     public function al(): bool
     {
         if ($this->tutamac !== null) {
@@ -43,11 +55,16 @@ final class YedekKilidi
         }
 
         $tutamac = $this->ac();
+        $mesgul = 0;
 
-        if (! flock($tutamac, LOCK_EX | LOCK_NB)) {
+        if (! flock($tutamac, LOCK_EX | LOCK_NB, $mesgul)) {
             fclose($tutamac);
 
-            return false;
+            if ($mesgul === 1) {
+                return false;
+            }
+
+            throw new RuntimeException("Yedekleme kilidi alınamadı: {$this->yol} (başka işlem tutmuyor; dosya sistemi kilidi desteklemiyor olabilir).");
         }
 
         $this->tutamac = $tutamac;
@@ -55,17 +72,23 @@ final class YedekKilidi
         return true;
     }
 
+    /** Bu nesne kilidi şu an tutuyor mu (işlem durumunu yalnız tutan yazar). */
+    public function tutuyorMu(): bool
+    {
+        return $this->tutamac !== null;
+    }
+
     /**
      * En çok $saniye bekleyerek kilidi almaya çalışır; süre dolarsa false.
      * Süresiz bekleme yoktur (Dikkat_Edilecekler D1). Süre monoton saatle
      * ölçülür: sistem saati ayarlansa da bekleme uzamaz / erken bitmez.
      *
-     * @throws InvalidArgumentException Süre sonlu ve negatif olmayan bir sayı değil
+     * @throws InvalidArgumentException Süre 0 ile EN_UZUN_BEKLEME_SN arasında sonlu bir sayı değil
      */
     public function bekleyerekAl(float $saniye): bool
     {
-        if (! is_finite($saniye) || $saniye < 0) {
-            throw new InvalidArgumentException('Kilit bekleme süresi sonlu ve negatif olmayan bir sayı olmalı.');
+        if (! is_finite($saniye) || $saniye < 0 || $saniye > self::EN_UZUN_BEKLEME_SN) {
+            throw new InvalidArgumentException('Kilit bekleme süresi 0 ile '.self::EN_UZUN_BEKLEME_SN.' saniye arasında sonlu bir sayı olmalı.');
         }
 
         $son = hrtime(true) + (int) ($saniye * 1e9);

@@ -222,6 +222,12 @@ calistir env; esit "sonraki çalışma kilidi alıp başarıyla bitti" "$?" "0"
 esit "sonraki çalışmada yedek oluştu" "$(yedek_sayisi)" "1"
 calistir env EMOR_GUNLUK_SURE_SINIRI=0; esit "süre sınırı 0 kabul edilmez" "$?" "1"
 
+echo "13. .env'de olmayan anahtar sürecin ortamından okunmaz (Fable incelemesi F8)"
+hazirla
+sed -i '/^DB_HOST=/d; /^DB_PORT=/d' "$ENV"
+calistir env DB_HOST=ortamdan.gelen DB_PORT=9999 DB_PASSWORD=ortam-parolasi; esit "çıkış kodu" "$?" "0"
+esit "sunucu / port betiğin varsayılanı, parola .env'den" "$(pgpass_icerigi)" '127.0.0.1:5432:erp:erp:gizli-parola'
+
 echo
 echo "Geçen: $GECEN, kalan: $KALAN"
 [[ "$KALAN" -eq 0 ]]

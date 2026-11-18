@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -21,11 +20,18 @@ use Illuminate\Support\Facades\Schema;
  * - Kopyası olan plan silinmez (RESTRICT); kopyasız planın hedef bağları
  *   planla birlikte gider (CASCADE). Kullanılmayan plan pasife alınır.
  * - Yedek kaydı silinmez, durumu `silindi` olur (geçmiş kaybolmaz); kopyalar
- *   yedekle gider, geri yükleme geçmişi yedeği tutar (RESTRICT).
+ *   ve plan bağları yedekle gider, geri yükleme geçmişi yedeği tutar
+ *   (RESTRICT). Dizin yeniden kurulurken de kayıt silinip açılmaz, kimliğiyle
+ *   güncellenir (BY-011).
  * - Kullanıcı silinirse kayıtlar kalır, kişi alanı boşalır.
  *
- * Bir yedeğin bir hedefteki kopyası plan başına tektir; plansız kopya için
- * koşullu benzersiz indeks ayrıca vardır (NULL benzersizlikte eşit sayılmaz).
+ * Bir yedeğin bir hedefte TEK fiziksel kopyası vardır: kopya (yedek, hedef)
+ * çiftinde tekildir. Aynı ana düşen ve aynı hedefi paylaşan planlar bu tek
+ * kopyaya `yedek_kopya_planlari` ile bağlanır (README §4.2–4.3). Her plan
+ * kendi kuralıyla yalnız KENDİ bağını kaldırır; dosya, hiçbir planın bağı
+ * kalmayınca (ve koruma kuralı yoksa) silinir (BY-010). Plan başına ayrı
+ * kopya satırı tek dosyayı iki satırla temsil ederdi: birinin temizliği
+ * dosyayı silince diğeri "tamam" kalırdı (Fable incelemesi F6).
  */
 return new class extends Migration
 {
@@ -114,6 +120,12 @@ return new class extends Migration
             $table->foreignId('alan_kullanici_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('hata_kodu', 48)->nullable();
             $table->text('hata_mesaji')->nullable();
+            // Yedek klasöründeki dosyanın silindiği an. Uzak kopyası kalan yedek
+            // geri yüklenebilir kalır, durumu `silindi` OLMAZ (README §4.2: planın
+            // hedefleri arasında yerel disk yoksa yerel dosya kopyalardan sonra
+            // silinir). Fable incelemesi F7.
+            $table->timestampTz('yerel_silinme_zamani')->nullable();
+            // Yedek hiçbir yerde (yerel ve uzak) kalmadığında; durum `silindi`
             $table->timestampTz('silinme_zamani')->nullable();
             $table->timestampsTz();
 
@@ -126,8 +138,6 @@ return new class extends Migration
             $table->id();
             $table->foreignId('yedek_id')->constrained('yedekler')->cascadeOnDelete();
             $table->foreignId('yedek_hedefi_id')->constrained('yedek_hedefleri')->restrictOnDelete();
-            // Kopyayı isteyen plan; saklama bu planın bu hedefteki kuralıyla (README §4.3)
-            $table->foreignId('yedek_plani_id')->nullable()->constrained('yedek_planlari')->restrictOnDelete();
             // KopyaDurumu: bekliyor | kopyalaniyor | tamam | basarisiz | silindi
             $table->string('durum', 16);
             // Hedefteki yol ya da dosya kimliği (ör. Drive dosya kimliği)
@@ -142,20 +152,26 @@ return new class extends Migration
             $table->timestampTz('silinme_zamani')->nullable();
             $table->timestampsTz();
 
-            // Bir yedeğin bir hedefteki kopyası plan başına bir kez. Benzersizlik
-            // NULL'ları eşit saymaz (PostgreSQL ve SQLite): plansız kopyalar için
-            // aşağıdaki koşullu indeks ayrıca gerekir (BY-004-R1).
-            $table->unique(['yedek_id', 'yedek_hedefi_id', 'yedek_plani_id']);
-            // Saklama: bir planın bir hedefteki kopyaları; plan silinirken RESTRICT denetimi
-            $table->index(['yedek_plani_id', 'yedek_hedefi_id', 'durum']);
-            // Hedef silinirken RESTRICT denetimi
-            $table->index('yedek_hedefi_id');
+            // Bir yedeğin bir hedefte tek fiziksel kopyası (F6). Kolonlar NULL
+            // olamaz: benzersizlik planlı ve plansız kopyada aynı çalışır (G7).
+            $table->unique(['yedek_id', 'yedek_hedefi_id']);
+            // Saklama (bir hedefteki kopyalar) ve hedef silinirken RESTRICT denetimi
+            $table->index(['yedek_hedefi_id', 'durum']);
         });
 
-        DB::statement(
-            'CREATE UNIQUE INDEX yedek_kopyalari_plansiz_tek
-             ON yedek_kopyalari (yedek_id, yedek_hedefi_id) WHERE yedek_plani_id IS NULL'
-        );
+        // Kopyayı tutan planlar; saklama her planın bu hedefteki kuralıyla
+        // (README §4.3). Bağı olmayan kopya zamanlanmamış bir yedeğindir
+        // (kuralı yedek_ayarlari'nda).
+        Schema::create('yedek_kopya_planlari', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('yedek_kopyasi_id')->constrained('yedek_kopyalari')->cascadeOnDelete();
+            $table->foreignId('yedek_plani_id')->constrained('yedek_planlari')->restrictOnDelete();
+
+            // Bir plan bir kopyaya bir kez; kopya tarafındaki aramaları da karşılar
+            $table->unique(['yedek_kopyasi_id', 'yedek_plani_id']);
+            // Saklama: bir planın kopyaları; plan silinirken RESTRICT denetimi
+            $table->index('yedek_plani_id');
+        });
 
         Schema::create('geri_yuklemeler', function (Blueprint $table) {
             $table->id();
@@ -184,7 +200,8 @@ return new class extends Migration
             $table->index('isteyen_kullanici_id');
         });
 
-        // Denetim kaydı: salt eklemeli (güncellenmez). Ayrıca günlük dosyasına da
+        // Denetim kaydı: salt eklemeli (YedekIslemKaydi güncellemeyi ve silmeyi
+        // reddeder). Ayrıca günlük dosyasına da
         // yazılır; veritabanı geri yüklenince buradaki kayıtlar da eskir (README §4.9, §7.3).
         Schema::create('yedek_islem_kayitlari', function (Blueprint $table) {
             $table->id();
@@ -194,7 +211,7 @@ return new class extends Migration
             $table->string('islem', 48);
             $table->foreignId('yedek_id')->nullable()->constrained('yedekler')->nullOnDelete();
             $table->foreignId('geri_yukleme_id')->nullable()->constrained('geri_yuklemeler')->nullOnDelete();
-            // basarili | basarisiz
+            // IslemSonucu: basarili | basarisiz
             $table->string('sonuc', 12);
             $table->unsignedInteger('sure_ms')->nullable();
             $table->jsonb('ayrinti')->nullable();
@@ -213,6 +230,7 @@ return new class extends Migration
     {
         Schema::dropIfExists('yedek_islem_kayitlari');
         Schema::dropIfExists('geri_yuklemeler');
+        Schema::dropIfExists('yedek_kopya_planlari');
         Schema::dropIfExists('yedek_kopyalari');
         Schema::dropIfExists('yedekler');
         Schema::dropIfExists('yedek_ayarlari');

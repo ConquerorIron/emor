@@ -136,10 +136,10 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 
 | No | Görev | Faz | Bağımlı | Durum |
 |---|---|---|---|---|
-| BY-001 | Geçici önlem: günlük yedek ve elle sunucu dışı kopya | 0 | — | PASSED |
+| BY-001 | Geçici önlem: günlük yedek ve elle sunucu dışı kopya | 0 | — | REVIEW_BEKLIYOR |
 | BY-002 | Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları | 0 | — | PASSED |
-| BY-003 | Sunucu kurulum betiği | 0 | BY-002 | PASSED |
-| BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | PASSED |
+| BY-003 | Sunucu kurulum betiği | 0 | BY-002 | REVIEW_BEKLIYOR |
+| BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | REVIEW_BEKLIYOR |
 | BY-005 | Dosya kilidi ve işlem durumu dosyası | 1 | BY-004 | REVIEW_BEKLIYOR |
 | BY-006 | Manifest, imza, olay günlüğü | 1 | BY-004 | YAPILACAK |
 | BY-007 | Yedek alma (`yedek:al`) | 1 | BY-005, BY-006 | YAPILACAK |
@@ -191,7 +191,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-001 — Geçici önlem: günlük yedek ve elle sunucu dışı kopya
 
-- **Durum:** PASSED · **Bağımlı:** —
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** —
 - **Tasarım:** README §2, §11 (YDK-00)
 - **Ön koşul:** Kullanıcı onayı (canlı sunucuda zamanlayıcı değişikliği); `.env`
   ve yedeğin kopyalanacağı yer kullanıcıdan.
@@ -453,6 +453,19 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       Canlı işlem, zamanlayıcı kurulumu, commit veya gönderme yapılmadı.
       Görev `CANLIDA` yapılmadı; canlı adımları ve elle sunucu dışı kopya,
       §1.3 madde 8 gereği kullanıcının ayrıca vereceği talimatı bekler.
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · Fable incelemesi (BY-001…005
+    bağımsız inceleme) düzeltmeleri; başlığı
+    `fix(yedekleme): Fable incelemesi F1-F19` olan commit. Ayrıntı ve
+    kontroller BY-005 günlüğünde. Bu göreve düşenler:
+    - **F8 kabul.** `gecici-env-oku.php` `.env`'de olmayan anahtar için
+      sürecin ortamındaki aynı adlı değişkeni döndürüyordu (Env::get getenv'e
+      de bakar); başlıktaki "tanımsız anahtar boş değer verir" sözleşmesi
+      tutmuyordu. Artık yalnız dosya. Test 13: ortamda
+      `DB_HOST=ortamdan.gelen DB_PORT=9999` varken pgpass `127.0.0.1:5432`
+      (önce kırmızı görüldü: `ortamdan.gelen:9999`).
+    - **F18 kabul.** Taşımadan sonra klasör `sync` (D3); temizlik sırası
+      `LC_ALL=C sort -r`. Güç kesintisi denenmedi.
+    - Betik testleri 79/79.
 
 ### BY-002 — Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları
 
@@ -671,7 +684,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-003 — Sunucu kurulum betiği
 
-- **Durum:** PASSED · **Bağımlı:** BY-002
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-002
 - **Tasarım:** README §9, §5.5, §5.2, §4.8
 - **Karar (kullanıcı, 2026-11-18):** bilgi işlemden bir şey istenmez. Sunucu
   ayarları `admin` kullanıcısı ve `sudo` ile yapılır; şifre kullanıcıdadır.
@@ -1050,6 +1063,37 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       bağımsız incelemeden geçmedi**; yalnız Claude'un testleriyle (158/158,
       önce kırmızı) doğrulandı. BY-025'te betik sunucuda çalıştırılmadan önce
       `fc8d86a`'nın bağlantı güvenliği bölümüne yeniden bakılması önerilir.
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · Fable incelemesi düzeltmeleri;
+    başlığı `fix(yedekleme): Fable incelemesi F1-F19` olan commit (ayrıntı
+    BY-005 günlüğünde). Bu göreve düşenler:
+    - **F1 kabul, yöntemi değiştirilerek.** Sunucuda (salt okuma)
+      `bootstrap/cache/*.php` ve `storage/framework/views` `admin:www-data`,
+      g+w; kod klasörleri (`app`, `vendor`, `config`, `routes`) `admin:admin`.
+      Servis bunları yükleseydi ele geçirilmiş web süreci servis hesabıyla
+      kod çalıştırırdı. Servis tanımı artık `APP_CONFIG_CACHE`,
+      `APP_SERVICES_CACHE`, `APP_PACKAGES_CACHE`, `APP_ROUTES_CACHE`,
+      `APP_EVENTS_CACHE`, `VIEW_COMPILED_PATH`'i yeni `onbellek/` (0700,
+      servisin) klasörüne yönlendiriyor. **Önerilen `LARAVEL_STORAGE_PATH`
+      uygulanmadı:** servis geri yüklemede `php artisan down` ile bakım
+      moduna alır; storage yolu değişirse `down` dosyası servisin klasörüne
+      yazılır, site bakım moduna girmez. Test E2: uygulama servis tanımındaki
+      ortamla açılınca `get_included_files()`'ta uygulamanın
+      `bootstrap/cache`'i ve `storage`'ı yok, `view.compiled` servisin
+      klasöründe (eski betikte kırmızı görüldü).
+    - **F2 kabul, yöntemi değiştirilerek.** Günlük kanalları (`single`,
+      `daily`, `denetim`) `'permission' => 0664`: günün dosyasını servis
+      (UMask 0027) açsa da web yazar, tersi de. `GunlukDosyasiIzniTest`.
+    - **F3 kabul.** Role düz parola yerine SCRAM-SHA-256 doğrulayıcısı
+      gönderiliyor. Test H: `log_statement=all` açıkken PostgreSQL
+      günlüğünde komut var, düz parola yok (eski betikte düz parola günlükte
+      bulundu — bulgu gerçek veriyle doğrulandı); yeni parolayla bağlanılıyor.
+    - **F18 kabul.** `guvenli_yaz` ve parola dosyası yazımı: dosya ve
+      taşımadan sonra klasör `sync`.
+    - Kurulum testleri root ile 168/168 (eski betik: 162/168, yalnız yeni 6
+      kontrol kırmızı).
+    - **Kapsam dışı, kullanıcıya bildirildi:** aynı yazılabilir önbelleği
+      bugün `deploy.sh` de `admin` (sudo yetkili) olarak yüklüyor. Ayrı iş
+      olarak önerildi; değiştirilmedi.
 
 ---
 
@@ -1057,7 +1101,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-004 — Veri modeli, yapılandırma, izinler
 
-- **Durum:** PASSED · **Bağımlı:** BY-002
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-002
 - **Tasarım:** README §5.4, §4.9, §4.2, §4.3
 - **Kapsam:**
   - Migration'lar: `yedek_hedefleri`, `yedek_planlari`, `yedek_plan_hedefleri`,
@@ -1312,6 +1356,40 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     - **R6 kabul, gerektiğinde:** kaynak ve dosya adı önekini birlikte üreten
       factory durumu, adı kaynağa göre sınayan ilk testte (BY-011 tarama /
       BY-013 içe alma) eklenecek.
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · Fable incelemesi düzeltmeleri;
+    başlığı `fix(yedekleme): Fable incelemesi F1-F19` olan commit (ayrıntı
+    BY-005 günlüğünde). Migration canlıya ve yerel veritabanlarına gitmediği
+    için yerinde değiştirildi. Bu göreve düşenler:
+    - **F6 kabul (şema).** Aynı hedefi paylaşan iki plan aynı yedek + hedef
+      için iki kopya satırı açıyordu; fiziksel dosya tek. Kopya artık
+      `(yedek_id, yedek_hedefi_id)` tekil; plan bağı yeni
+      `yedek_kopya_planlari` tablosunda (kopya CASCADE, plan RESTRICT).
+      BY-004-R1'in koşullu indeksi gereksizleşti (kolonlar NULL olamaz).
+      "Bir hedef tek plana bağlanır" seçeneği seçilmedi: README §4.2'nin
+      varsayılan önerisi (günlük + saatlik + haftalık) aynı hedefi paylaşır.
+      `YedekKopyasi::planlar()`, `YedekPlani::kopyalar()` BelongsToMany.
+    - **F7 kabul (şema).** `yedekler.yerel_silinme_zamani`: yerel dosya
+      gidip uzak kopya kalınca durum `silindi` olmaz. Davranışı BY-010'un
+      kabul ölçütüne yazıldı.
+    - **F10 kabul.** `YedekIslemKaydi` güncellemeyi ve silmeyi reddediyor
+      (model olayı, LogicException); `SONUC_*` sabitleri yerine
+      `IslemSonucu` enum'u ve cast.
+    - **F11 kabul.** `YedekAyari::$attributes` migration varsayılanlarını
+      aynen yansıtıyor (tek satırın anahtarı `ANAHTAR` dahil — sabit artık
+      kullanılıyor); test kaydedilen satırla nesneyi karşılaştırıyor.
+    - **F9 kabul + G1.** `(bool) env()` → `App\Support\AcKapa::cevir()`
+      (boş → varsayılan, tanınmayan → kapalı): `YEDEKLEME_AKTIF`,
+      `EFATURA_SENKRON_AKTIF`, `EFATURA_ERP_ISTISNA_YAZ`, `APP_DEBUG`.
+      Canlı `.env` değerleri (salt okuma) davranışı değiştirmiyor:
+      `APP_DEBUG=false`, `EFATURA_ERP_ISTISNA_YAZ=true`, diğer ikisi
+      tanımsız. `AcKapaAyarlariTest` (36 durum).
+    - **F12 kabul.** `KAYIT_KULLANILIYOR` mesajı genel: "Bu kayıt başka
+      kayıtlarda kullanıldığı için silinemez." (tr, en, ön yüz testi).
+    - **F14 kısmen.** İlişki metotları migration'daki yabancı anahtarların
+      karşılığı olarak kaldı. `GeriYukleme` RESTRICT kuralı test edildi
+      (geri yükleme geçmişi olan yedek silinemez — 409).
+    - **R6 artık gerekli:** `YedekFactory::plan()` (kaynak `plan`, ad
+      `erp_plan_`); plan kopyası factory'si onu kullanıyor (T10).
 
 ### BY-005 — Dosya kilidi ve işlem durumu dosyası
 
@@ -1343,6 +1421,21 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   | `baslangic`, `son_guncelleme` | `YYYY-AA-GGTSS:DD:SS.mikrosaniye+00:00` (UTC) | — |
   | `hata` | `null` \| `{kod, mesaj}` | Son hata |
   | `erisim_anahtari_ozeti` | `null` \| 64 karakter küçük harf hex | İlerleme / onay anahtarının SHA-256 özeti (README §7.2); anahtarın kendisi dosyada yok |
+  | `erisim_anahtari_bitis` | `null` \| tarih (yukarıdaki biçim) | Anahtarın geçerliliğinin bittiği an. Özetle **birlikte** verilir ya da ikisi de `null` (süresiz anahtar yok) |
+  | `yedek_kimligi` | `null` \| UUID | İşlemin yedeği (alınan ya da geri yüklenen) — manifest kimliği |
+  | `hedef_veritabani` | `null` \| `^[a-z_][a-z0-9_]{0,62}$` | Geri yüklemenin açtığı veritabanı (ör. `erp_geri_*`); tırnak gerektirmeyen ad |
+  | `onceki_veritabani` | `null` \| aynı desen | Üstüne geri yüklemede eski veritabanının yeni adı (`erp_onceki_*`) |
+  | `isteyen_kullanici_id` | `null` \| pozitif tam sayı | İşlemi isteyen; `null` = sistem / komut satırı |
+
+  Son beş alan **kurtarma bağlamıdır** (Fable incelemesi F5): üstüne geri
+  yüklemede yer değiştirmeden sonra `geri_yuklemeler` satırı eski veritabanında
+  kalır; çökmeden sonra devam / geri sarma kararı, hangi veritabanının
+  silineceği ve geçmiş kaydının yeniden yazılması yalnız bu dosyaya dayanabilir.
+  Alanların hepsi her zaman bulunur (`null` olabilir); eksik alan bozuk sayılır.
+
+  **Tek yazar:** dosyayı yalnız yedek kilidini tutan süreç yazar;
+  `IslemDurumu::yaz($kayit, $kilit)` kilit tutulmuyorsa dosyaya dokunmadan
+  reddeder (Fable incelemesi F16). Okumak için kilit gerekmez.
 
   **Okuma kuralı:** dosyanın yokluğu doğrulanmışsa (üst klasör okunuyor ve
   dosya listede yok) "hiç işlem olmamış". Klasöre erişilemeyen, okunamayan,
@@ -1516,6 +1609,52 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       eki (monoton saat).
     - Kontroller: BY-005 testleri **46/46** (2 kez art arda), backend
       **730/730**; Pint temiz. Canlıya alınmadı.
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · başlığı
+    `fix(yedekleme): Fable incelemesi F1-F19` olan commit
+    - **Bağlam.** Kullanıcı BY-001…BY-005 kodunu Claude Fable 5.2'ye bağımsız
+      olarak inceletti (19 bulgu: 7 P2, 12 P3). Her bulgu kodda ve mümkünse
+      çalıştırılarak doğrulandı. Dersler `ff5e0fc`'de Dikkat_Edilecekler'e
+      işlenmişti; D7 bu commit'te düzeltildi (aşağıda F1). BY-001, BY-003
+      ve BY-004'e düşen düzeltmeler kendi günlüklerinde; bu commit dört
+      görevi birlikte incelemeye açar.
+    - Skill'ler: `laravel-best-practices` (eloquent, config, migrations,
+      error-handling), `testing-best-practices` (isolation, assertions,
+      test-data, review), `supabase-postgres-best-practices`
+      (schema-constraints, partial-indexes), `code-review`.
+    - **F4 kabul.** `YedekKilidi::al()` her flock hatasını "meşgul" sayıyordu.
+      Artık `$would_block` soruluyor; meşgul değilse `RuntimeException`.
+      **Doğrulanamadı:** WSL'de flock'u desteklemeyen dosya sistemi
+      bulunamadı (`/mnt/c`, `/proc`, `/sys` destekliyor); hata yolu test
+      edilemedi. Meşgul yolu mevcut testlerle korunuyor ($would_block
+      gelmeseydi kırmızı olurlardı).
+    - **F5 kabul.** Şemaya kurtarma bağlamı eklendi (yukarıdaki tablo):
+      `erisim_anahtari_bitis` (özetle birlikte zorunlu), `yedek_kimligi`,
+      `hedef_veritabani`, `onceki_veritabani` (tırnak gerektirmeyen ad
+      deseni — ad SQL'e güvenle girer), `isteyen_kullanici_id`. Dosya hiçbir
+      yerde yazılmadığı için sürüm 1 kaldı. 10 yeni bozuk içerik ve 2 yeni
+      geçersiz kayıt durumu (önce kırmızı).
+    - **F13 kabul.** İzin kaldıran 4 test root altında atlanıyor (root ile
+      çalıştırıldı: 62 test, 4 atlandı, 0 kırmızı); `SIGKILL` sabiti yerine
+      9 (pcntl gerekmez; Symfony Process de böyle yapar); `flock` komutu
+      yoksa ilgili 2 test atlanıyor; alt süreçler doğrulama düşse de
+      tearDown'da öldürülüyor.
+    - **F15 kabul.** `bekleyerekAl` üst sınırı 86 400 sn; `1e300` ve
+      `86400.5` beklemeden reddediliyor (önce kırmızı).
+    - **F16 kabul.** Tek yazar: `IslemDurumu::yaz($kayit, $kilit)` kilit
+      tutulmuyorsa dosyaya dokunmadan `LogicException`
+      (`YedekKilidi::tutuyorMu()`). Eşzamanlı okuyucu testinde yazıcı süreç
+      kilidi kendisi alıyor. Acil durum komutunun kilidi alması BY-029
+      kabul ölçütüne yazıldı.
+    - **F17, F19 not.** Henüz kodları yok: `adim` sabit / enum (BY-028) ve
+      dizinin kimlikle güncellenmesi (BY-011) kabul ölçütlerine yazıldı.
+    - **T5:** her düzeltmenin testi önce kırmızı görüldü — veri modeli 8,
+      kilit / durum 17, ayarlar + günlük izni 24 test; kurulum betiği eski
+      sürümle 6 kontrol; geçici yedek betiği 1 kontrol.
+    - Kontroller: backend **788/788** (SQLite); yedekleme modeli, kilit ve
+      durum testleri PostgreSQL `erp_test`'te **76/76**; kurulum betiği
+      (root) **168/168**; geçici yedek betiği **79/79**; ön yüz Para
+      Birimleri testi geçti (mesaj metni); Pint uygulandı. Güç kesintisi ve
+      gerçek sunucu izinleriyle çalıştırma denenmedi. Canlıya alınmadı.
 
 ### BY-006 — Manifest, imza, olay günlüğü
 
@@ -1627,6 +1766,14 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - [ ] Son 10 yedek de başarısızsa hiçbir başarılı yedek silinmiyor (test).
   - [ ] Önizleme ile gerçek çalıştırma aynı listeyi veriyor (test).
   - [ ] Hedef erişilemezken temizlik o hedefi atlayıp diğerlerini sürdürüyor (test).
+  - [ ] Aynı hedefi paylaşan iki planda (tek kopya, iki bağ — BY-004 / Fable F6):
+    bir planın kuralı yalnız KENDİ bağını kaldırıyor; dosya, diğer plan hâlâ
+    tutuyorken silinmiyor, son bağ gidince siliniyor (test).
+  - [ ] Yerel dosya silinip uzak kopya kalınca yedek `silindi` olmuyor,
+    `yerel_silinme_zamani` doluyor; durum yalnız hiçbir kopya kalmayınca
+    `silindi` (test; Fable F7). Manifest yerelde kalır mı — dizin yeniden
+    kurulurken (BY-011) uzak kopyası olan yedek kaybolmasın: bu görevde karar
+    verilip README'ye yazılır.
 - **Canlı:** Evet (kapalı).
 - **İnceleme günlüğü:** —
 
@@ -1643,6 +1790,10 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - [ ] İmzasız dosya listede "güvenilmeyen"; geri yükleme için seçilemiyor (test).
   - [ ] Tarama iki kez çalışınca kayıt çoğalmıyor (test).
   - [ ] Tek bir bozuk manifest taramanın tamamını durdurmuyor (test).
+  - [ ] Kayıtlar manifest kimliğiyle GÜNCELLENİR, silinip yeniden açılmaz:
+    `yedekler` satırı silinse kopyalar ve plan bağları CASCADE ile gider,
+    geri yükleme geçmişi RESTRICT ile silmeyi engeller, denetim kaydının bağı
+    boşalır (test: geri yükleme geçmişi olan yedekte tarama hatasız; Fable F19).
 - **Canlı:** Evet (etkisiz).
 - **İnceleme günlüğü:** —
 
@@ -1952,6 +2103,11 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - [ ] Migration adımı canlı `erp`'ye tek sorgu göndermiyor (test: bağlantı izleme).
   - [ ] Yedekte olup kodda bulunmayan migration varsa işlem başlamıyor (test).
   - [ ] Süreç her adımda öldürülüp devam ettirildiğinde sonuç tutarlı (lokal PostgreSQL'de denendi, günlükte tablo).
+  - [ ] Durum dosyasındaki `adim` değerleri serbest metin değil, tek yerde
+    tanımlı sabit / enum; karar veren her kod (devam, geri sarma, onay) onları
+    kullanıyor (Fable F17). Kurtarma bağlamı (yedek kimliği, hedef / önceki
+    veritabanı, isteyen) ilk yazımda dolduruluyor; yer değiştirmeden sonra
+    `geri_yuklemeler` satırı bu dosyadan yeniden yazılıyor (test).
   - [ ] Eski veritabanı `erp_onceki_*` adıyla duruyor ve bağlantıya kapalı.
 - **Canlı:** Hayır — BY-029 ve BY-031 `PASSED` olana kadar canlıda kullanılmaz.
 - **İnceleme günlüğü:** —
@@ -1972,6 +2128,11 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - [ ] Onaydan önce hiçbir alarm maili / senkron çalışmıyor (test).
   - [ ] "Geri dön" sonrası `erp` eski veritabanı; geri yüklenen kopya silinmemiş, adı belirli.
   - [ ] Acil durum komutu, web ve veritabanı erişilemezken çalışıyor.
+  - [ ] Acil durum komutu durumu yazmadan önce yedek kilidini alıyor
+    (`IslemDurumu::yaz` kilitsiz yazmayı reddeder — tek yazar, Fable F16);
+    çalıştırıcı kilidi tutuyorsa komut beklemeden anlaşılır mesajla duruyor.
+  - [ ] Erişim anahtarı süresi (`erisim_anahtari_bitis`) dolunca ilerleme ve
+    onay ucu anahtarı reddediyor; komut satırı yolu açık kalıyor (test).
 - **Canlı:** Hayır — BY-031'e kadar.
 - **İnceleme günlüğü:** —
 

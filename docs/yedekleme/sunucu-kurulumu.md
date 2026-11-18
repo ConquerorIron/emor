@@ -48,9 +48,26 @@ Web kullanıcısı (`www-data`) `emor-yedek` grubuna alınır; yayın kullanıc�
 | `durum/kilit` | 0640 | alır | alır | alır (salt okunur açıp `flock`) |
 | `gunluk/` — denetim günlüğü, ayar kopyası | 2750 | okur, yazar | okur | erişmez |
 | `gizli/` — `pgpass`, `imza.anahtar` | 0700 / 0600 | okur | erişmez | erişmez |
+| `onbellek/` — servisin Laravel önbellekleri | 0700 | okur, yazar | erişmez | erişmez |
 
 Servis hesabı da web grubuna alınır: geri yüklemede uygulamayı bakım moduna
 almak ve önbelleği temizlemek, uygulamanın `storage/` klasörüne yazmayı ister.
+
+**Servis web kullanıcısının yazabildiği PHP dosyasını yüklemez.** Uygulamanın
+`bootstrap/cache/*.php` dosyalarını ve derlenmiş görünümlerini (`storage/framework/views`)
+web kullanıcısı yazabilir (sunucuda `admin:www-data`, g+w). Servis bunları
+yükleseydi ele geçirilmiş bir web süreci servis hesabıyla kod çalıştırır, imza
+anahtarına ve parola dosyasına ulaşırdı. Servis tanımı bu yüzden Laravel
+önbelleklerini `onbellek/`'e yönlendirir (`APP_CONFIG_CACHE`,
+`APP_SERVICES_CACHE`, `APP_PACKAGES_CACHE`, `APP_ROUTES_CACHE`,
+`APP_EVENTS_CACHE`, `VIEW_COMPILED_PATH`). `storage/` yolu bilerek değişmez:
+bakım modu dosyası uygulamanın `storage/framework/` klasöründe olmalıdır; oradan
+PHP dosyası yüklenmez. Uygulamanın günlük kanalları dosyayı `0664` açar: günün
+dosyasını servis (`UMask=0027`) açsa da web yazabilir (Fable incelemesi F1, F2).
+
+**Parola role SCRAM doğrulayıcısı olarak yazılır.** `alter role … password
+'<düz parola>'` metni sunucu günlüğüne düşebilir; betik parolanın SCRAM-SHA-256
+özetini gönderir (Fable incelemesi F3).
 
 **Yetkiler tam kümeyle karşılaştırılır.** Gerekenin bulunması yetmez, fazlası
 da sorundur. İzin bitleri doğru görünse de ek bir ACL girdisi (ör. `yedekler/`

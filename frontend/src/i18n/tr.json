@@ -517,7 +517,7 @@
     "ERP_CANLI_TANIMSIZ": "Canlı ERP bağlantısı tanımlanmamış. Ayarlar → SQL Bağlantıları ekranından Canlı ortamı tanımlayın.",
     "ERP_OKUMA_YETKISI_YOK": "ERP veritabanı kullanıcısının bu veriyi okuma yetkisi yok. Veritabanı yöneticisinden okuma (SELECT) yetkisi isteyin.",
     "ERP_OKUMA_HATASI": "ERP okunamadı. Biraz sonra tekrar deneyin.",
-    "KAYIT_KULLANILIYOR": "Bu kayıt kesinti satırlarında kullanıldığı için silinemez.",
+    "KAYIT_KULLANILIYOR": "Bu kayıt başka kayıtlarda kullanıldığı için silinemez.",
     "ICE_AKTARIM_HATALI": "Hatalı satırlar var; hiçbir satır kaydedilmedi. Aşağıdaki hataları düzeltip tekrar kontrol edin.",
     "KESINTI_EXCEL_COK_BUYUK": "Seçilen filtrede Excel sınırından fazla satır var. Filtreyi daraltın."
   },

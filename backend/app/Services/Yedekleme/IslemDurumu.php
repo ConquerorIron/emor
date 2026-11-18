@@ -6,6 +6,7 @@ namespace App\Services\Yedekleme;
 
 use InvalidArgumentException;
 use JsonException;
+use LogicException;
 use RuntimeException;
 
 /**
@@ -18,6 +19,10 @@ use RuntimeException;
  * yerine taşınır, sonra klasör de diske zorlanır (yoksa elektrik kesintisinde
  * taşıma kaybolabilir — fsync(2)). Okuyan hiçbir an yarım dosya görmez; yazma
  * yarıda kalırsa önceki durum yerinde kalır (Dikkat_Edilecekler D3).
+ *
+ * Tek yazar: dosyayı yalnız yedek kilidini tutan süreç yazar (çalıştırıcı;
+ * acil durum komutu da önce kilidi alır). Oku-değiştir-yaz yapan iki süreç
+ * birbirinin kaydını ezerdi (Fable incelemesi F16). Okumak için kilit gerekmez.
  */
 final class IslemDurumu
 {
@@ -55,11 +60,18 @@ final class IslemDurumu
     }
 
     /**
+     * @param  YedekKilidi  $kilit  Yazanın tuttuğu yedek kilidi (tek yazar kuralı)
+     *
+     * @throws LogicException Kilit tutulmuyor; dosyaya dokunulmadı
      * @throws InvalidArgumentException Kayıt şemaya uymuyor; dosyaya dokunulmadı
      * @throws RuntimeException Yazılamadı ya da diske eşitlenemedi
      */
-    public function yaz(IslemKaydi $kayit): void
+    public function yaz(IslemKaydi $kayit, YedekKilidi $kilit): void
     {
+        if (! $kilit->tutuyorMu()) {
+            throw new LogicException('İşlem durumu yalnız yedek kilidini tutan süreç tarafından yazılır; önceki durum korundu.');
+        }
+
         $dizi = $kayit->diziye();
 
         // Okumadaki doğrulamanın aynısı: okunamayacak bir kayıt son geçerli

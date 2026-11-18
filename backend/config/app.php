@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\AcKapa;
+
 return [
 
     /*
@@ -39,7 +41,8 @@ return [
     |
     */
 
-    'debug' => (bool) env('APP_DEBUG', false),
+    // (bool) değil: APP_DEBUG=off canlıda hata ayrıntısını açardı (G9)
+    'debug' => AcKapa::cevir(env('APP_DEBUG'), false),
 
     /*
     |--------------------------------------------------------------------------

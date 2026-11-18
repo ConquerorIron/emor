@@ -116,6 +116,10 @@ sunucu yöneticisi yetkisi ister ve bu dokümanın kapsamı dışındadır.
   N tanesini tut" ve / veya "N günden eskileri sil".
 - Bir yedek birden çok planın hedefine gittiyse her hedefteki kopya kendi
   planının kuralıyla temizlenir; bir hedefteki silme diğerini etkilemez.
+- Aynı hedefi paylaşan iki plan aynı yedeği aynı hedefe İKİ KEZ koymaz: hedefte
+  tek dosya olur, iki plan ona bağlanır. Her plan kendi kuralıyla yalnız kendi
+  bağını kaldırır; dosya, onu tutan plan kalmayınca silinir (Fable incelemesi
+  F6; veri modeli §5.4).
 - Zamanlanmamış yedeklerin kuralı ayrıdır:
   - yayın öncesi: son 20 yedek ya da 30 gün (öneri),
   - elle alınan: 30 gün (öneri); uzun kalacaksa sabitlenir,
@@ -493,13 +497,16 @@ yöneticiye gösterilir ve hangisinin geçerli olacağı sorulur (§6.4).
 | `yedek_plan_hedefleri` | plan ↔ hedef; o hedefteki saklama kuralı (son N yedek, N gün) |
 | `yedek_ayarlari` | zamanlanmamış yedeklerin süreleri, hedef başına en az sayı, bildirim alıcıları |
 | `yedekler` | manifestin dizini: kimlik, dosya adı, kaynak, boyut, özet, durum, doğrulama durumu, sabit, not |
-| `yedek_kopyalari` | bir yedeğin bir hedefteki kopyası: hedef, plan, durum, şifreli kopyanın özeti, hata, silinme zamanı |
+| `yedekler` (ek) | `yerel_silinme_zamani`: yedek klasöründeki dosya silindi ama uzak kopya duruyor olabilir; durum değişmez |
+| `yedek_kopyalari` | bir yedeğin bir hedefteki TEK fiziksel kopyası (yedek + hedef tekil): durum, şifreli kopyanın özeti, hata, silinme zamanı |
+| `yedek_kopya_planlari` | kopyayı tutan planlar; aynı hedefi paylaşan planlar tek kopyaya bağlanır, her plan kendi bağını kaldırır, dosya bağ kalmayınca silinir |
 | `yedek_hedefleri` | hedef tanımları: tür (yerel / FTP / FTPS / SFTP / Google Drive / …), bağlantı bilgileri (şifre `encrypted` cast) |
 | `geri_yuklemeler` | hangi yedek, tür (kopya/üstüne), hedef ad, isteyen, durum, adımlar, hata |
 | `yedek_islem_kayitlari` | denetim: kim, ne, ne zaman, sonuç |
 
 Yedek durumları: `kuyrukta → calisiyor → tamam | basarisiz`; ayrıca `silindi`
-(kayıt kalır, dosya gider — geçmiş kaybolmaz).
+(yedeğin hiçbir yerde kopyası kalmadı; kayıt kalır — geçmiş kaybolmaz). Yalnız
+yerel dosya gittiyse durum `silindi` olmaz (§4.2).
 
 ### 5.5 Dosya düzeni
 

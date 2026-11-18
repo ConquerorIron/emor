@@ -10,7 +10,6 @@ use Database\Factories\YedekPlaniFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Yedek planı: ne zaman, nereye, ne kadar süre (README §4.2). Hedefler ve
@@ -53,11 +52,13 @@ final class YedekPlani extends Model
     }
 
     /**
-     * @return HasMany<YedekKopyasi, $this>
+     * Planın tuttuğu kopyalar (kopya birden çok plana bağlı olabilir).
+     *
+     * @return BelongsToMany<YedekKopyasi, $this>
      */
-    public function kopyalar(): HasMany
+    public function kopyalar(): BelongsToMany
     {
-        return $this->hasMany(YedekKopyasi::class, 'yedek_plani_id');
+        return $this->belongsToMany(YedekKopyasi::class, 'yedek_kopya_planlari', 'yedek_plani_id', 'yedek_kopyasi_id');
     }
 
     /**
