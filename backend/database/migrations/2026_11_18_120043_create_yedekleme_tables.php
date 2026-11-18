@@ -163,8 +163,11 @@ return new class extends Migration
         });
 
         // Kopyayı tutan planlar; saklama her planın bu hedefteki kuralıyla
-        // (README §4.3). Bağı olmayan kopya zamanlanmamış bir yedeğindir
-        // (kuralı yedek_ayarlari'nda).
+        // (README §4.3). Bağ sayısı yedeğin türünü SÖYLEMEZ: bağsız kopya
+        // zamanlanmamış bir yedeğin olabileceği gibi, son plan bağı kalkmış ama
+        // koruma kuralıyla tutulan bir plan yedeğinin de olabilir (kullanıcı
+        // kararı F6). Hangi saklama kuralının uygulanacağı yedeğin kaynağından
+        // (`yedekler.kaynak`) çıkar; zamanlanmamışlarınki yedek_ayarlari'nda.
         //
         // Bağ, planın KOPYANIN HEDEFİNDEKİ saklama kuralına (yedek_plan_hedefleri
         // satırı) bağlıdır (BY-004-R8). İki bileşik yabancı anahtar bunu

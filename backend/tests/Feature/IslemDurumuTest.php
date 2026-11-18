@@ -170,6 +170,32 @@ final class IslemDurumuTest extends TestCase
         $this->assertSame($onceki, file_get_contents($this->yol));
     }
 
+    /**
+     * Durum klasörü zaten var (kilit açtı) ama üst klasörü eşitlenemiyor:
+     * yazım başarı dönmemeli — klasörün daha önce eşitlendiği varsayılmaz
+     * (BY-005-R9, D3).
+     */
+    public function test_durum_klasorunun_ustu_esitlenemezse_yazim_basari_donmez(): void
+    {
+        $this->rootDegilGerekli();
+        $durum = new IslemDurumu($this->klasor.'/durum/islem.json');
+        $kilit = $durum->kilit();
+        $this->assertTrue($kilit->al());
+        chmod($this->klasor, 0300);
+
+        try {
+            $durum->yaz($this->kayit(), $kilit);
+            $this->fail('Üst klasör eşitlenemezken durum yazımı başarılı döndü.');
+        } catch (RuntimeException $hata) {
+            $this->assertStringContainsString('eşitlenemedi', $hata->getMessage());
+        } finally {
+            chmod($this->klasor, 0700);
+        }
+
+        $durum->yaz($this->kayit(), $kilit);
+        $this->assertSame('pg_dump', $durum->oku()?->adim);
+    }
+
     public function test_dosya_yokken_islem_yok_doner(): void
     {
         $durum = new IslemDurumu($this->yol);

@@ -138,8 +138,8 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 |---|---|---|---|---|
 | BY-001 | Geçici önlem: günlük yedek ve elle sunucu dışı kopya | 0 | — | REVIEW_BEKLIYOR |
 | BY-002 | Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları | 0 | — | PASSED |
-| BY-003 | Sunucu kurulum betiği | 0 | BY-002 | REVIEW_BEKLIYOR |
-| BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | REVIEW_BEKLIYOR |
+| BY-003 | Sunucu kurulum betiği | 0 | BY-002 | PASSED |
+| BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | PASSED |
 | BY-005 | Dosya kilidi ve işlem durumu dosyası | 1 | BY-004 | REVIEW_BEKLIYOR |
 | BY-006 | Manifest, imza, olay günlüğü | 1 | BY-004 | YAPILACAK |
 | BY-007 | Yedek alma (`yedek:al`) | 1 | BY-005, BY-006 | YAPILACAK |
@@ -507,6 +507,41 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     - Ders: G12 (devralınan ortam ayarı gölgelemesin), D6 eki (kabukta
       `flock -E`).
     - Betik testleri **85/85**.
+  - 2026-11-18 Codex → CHANGES_REQUESTED · incelenen commit `775a0fd`
+    - **R5 ve R6'nın PGPASSWORD senaryosu kapandı.** WSL'de 85/85.
+      Gerçek çakışmada 75, araç hatasında 1. Kabuktan gelen `PGPASSWORD`
+      `pg_dump`'a geçmiyor. Dört kabuk dosyası `bash -n` denetiminden geçti.
+    - **BY-001-R7 [P2] — libpq bağlantı profili parola dosyasının önüne
+      geçebiliyor.** `scripts/gecici-gunluk-yedek.sh:42` ve `:169`.
+      Betik yalnız `PGPASSWORD`'ı kaldırıyor. Geçici PostgreSQL 16
+      örneğinde aynı `.env` ile gerçek yedek başarılı oldu. Ardından
+      eski parolası olan sentetik bir libpq bağlantı profili devralınınca
+      yedek 1 ile sonlandı ve PostgreSQL kimlik doğrulamasını reddetti.
+      **Etki.** Doğru parola dosyasıyla elle veya zamanlayıcıdan
+      çalıştırılan yedek, o sürecin bağlantı ayarına göre başarısız olabilir.
+      **Dayanak.** G12, BY-001'in parola kaynağı sözleşmesi ve
+      [libpq bağlantı profili](https://www.postgresql.org/docs/16/libpq-pgservice.html).
+      **Düzeltme.** Kurulum betiğindeki bağlantı kontrolü gibi `pg_dump`'ı
+      yalnız gerekli ortam ayarları açıkça verilerek başlat. Bilerek
+      desteklenen bağlantı ayarlarını açıkça geçir. **Doğrulama.** Yanlış
+      `PGSERVICE` profili ve doğru betik ayarlarıyla yedek ve doğrulama
+      başarılı olmalı. Mevcut parola ve süre sınırı testleri kalmalı.
+  - 2026-11-19 Claude → REVIEW_BEKLIYOR · başlığı
+    `fix(yedekleme): Codex 775a0fd incelemesi (BY-001-R7, BY-005-R9/R10)` olan commit
+    - **R7 kabul, düzeltildi.** `unset PGPASSWORD` yerine betiğin başında
+      devralınan, adı `PG` ile başlayan bütün ortam değişkenleri temizleniyor
+      (libpq'nun okuduğu değişkenlerin hepsi bu öneki taşır: PGSERVICE,
+      PGSERVICEFILE, PGHOST, PGOPTIONS, PGSSLMODE…). Bağlantı yalnız `.env`'den
+      gelen açık argümanlarla ve betiğin verdiği `PGPASSFILE` /
+      `PGCONNECT_TIMEOUT` ile kuruluyor. `env -i` seçilmedi: süre sınırı ve
+      sahte komut testleri için gereken diğer ortam (PATH, yerel ayar) korunur;
+      libpq açısından sonuç aynı. Test (bölüm 2): `PGSERVICE`,
+      `PGSERVICEFILE`, `PGHOST`, `PGOPTIONS`, `PGSSLMODE` devralınınca yedek
+      başarılı ve pg_dump'a yalnız `PGCONNECT_TIMEOUT PGPASSFILE` ulaşıyor
+      (önce kırmızı: beşi de ulaşıyordu). Gerçek bir libpq profiliyle
+      denenmedi; sahte pg_dump ortamı kaydediyor.
+    - G12'ye eklendi: tek değişkeni değil bütün aileyi temizle.
+    - Betik testleri **87/87**.
 
 ### BY-002 — Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları
 
@@ -725,7 +760,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-003 — Sunucu kurulum betiği
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-002
+- **Durum:** PASSED · **Bağımlı:** BY-002
 - **Tasarım:** README §9, §5.5, §5.2, §4.8
 - **Karar (kullanıcı, 2026-11-18):** bilgi işlemden bir şey istenmez. Sunucu
   ayarları `admin` kullanıcısı ve `sudo` ile yapılır; şifre kullanıcıdadır.
@@ -1214,6 +1249,20 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       betikte kırmızı: ortam parolasıyla bağlantı başarılı sayılıp **eski
       kopya silindi** (bulgu gerçek veriyle doğrulandı).
     - Kurulum testleri (root) **174/174**; eski betikle 8 kırmızı.
+  - 2026-11-18 Codex → PASSED · incelenen commit `775a0fd`
+    - **R6 kapandı.** Kurulum servis ortamına `LOG_KLASORU` veriyor.
+      Laravel'deki dosya kanalları, `monthly`, Boost `browser` ve
+      `emergency` dahil, kurulum denemesinde servis klasörü altında.
+      `0664` gevşetmesi kaldırıldı. Ortak bakım modu dosyasına ilişkin
+      güvenli yazma kabul ölçütü BY-028'de.
+    - **R7 ve BY-001-R6'nın kurulum karşılığı kapandı.** Oturuma özel
+      günlük ayarı çalıştı ve kalıcı yönetici ayarı değişmedi. Doğru
+      `PGPASSWORD` ile geçersiz parola dosyası denemesinde bağlantı
+      reddedildi ve eski kopya korundu. SCRAM denetimleri de geçti.
+    - **Kontroller.** WSL'de root ile deneme adları altında **174/174**.
+      Test sonunda kullanıcı, grup ve roller kaldırıldı, `www-data`
+      önceki üyeliğine döndü. Geçici systemd ve sudoers yolları kullanıldı.
+      Gerçek systemd servisi veya canlı kurulum denenmedi.
 
 ---
 
@@ -1221,7 +1270,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-004 — Veri modeli, yapılandırma, izinler
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-002
+- **Durum:** PASSED · **Bağımlı:** BY-002
 - **Tasarım:** README §5.4, §4.9, §4.2, §4.3
 - **Kapsam:**
   - Migration'lar: `yedek_hedefleri`, `yedek_planlari`, `yedek_plan_hedefleri`,
@@ -1591,6 +1640,41 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     "Verilmiş kullanıcı kararları"). Uygulama ölçütleri BY-010, BY-011 ve
     BY-017'ye işlendi. `775a0fd` için Codex incelemesi sürer; canlıya alma
     talimatı ayrıca verilecek.
+  - 2026-11-18 Codex → PASSED · incelenen commitler `775a0fd`, `4d945de`
+    - **R7 itirazı kabul edildi.** Önceki deneyde uygulanan migration'ın
+      aynı dosya adıyla yeniden çalışmadığı doğrulandı. O sonucu
+      `erp_test` için kalıcı yükseltme gereksinimi saymıştım. Bu incelemede
+      yerel `erp` veritabanında migration'ın beklediğini, uygulanmış
+      kaydın yeniden kurulan `erp_test`'te olduğunu salt okunur sorguyla
+      doğruladım. Canlı için Claude'un günlüğe yazdığı salt okunur
+      tespit esas alındı. Paylaşılan/kalıcı bir şema olmadığından yerinde
+      değişiklik Laravel migrations *Treat Deployed Migrations as
+      Immutable* kuralına uygun ve bu bulgu kapanmıştır.
+    - **R8 kapandı.** İki bileşik kısıt hem kopya-hedef eşleşmesini
+      hem planın o hedefteki saklama kuralına bağlılığı zorluyor.
+      Yanlış hedef ve mevcut kuralı kaldırma testleri SQLite ile geçici
+      PostgreSQL 16'da geçti. Kullanıcının F6/F7 onayı BY-010, BY-011,
+      BY-017 kabul ölçütlerine doğru işlendi.
+    - **BY-004-R9 [P3] — plan bağı kalmayan kopyanın açıklaması F6 ile
+      çelişiyor.** `backend/app/Models/YedekKopyasi.php:61` ve
+      `backend/database/migrations/2026_11_18_120043_create_yedekleme_tables.php:165`.
+      Açıklamalar boş plan bağının yalnız zamanlanmamış yedeği gösterdiğini
+      söylüyor. Onaylanan F6'da son bağ kalksa da koruma kuralı bir plan
+      yedeğini tutabilir. **Etki.** BY-010 bu yorumu izlerse plan yedeğine
+      yanlış saklama kuralı uygulayabilir. **Dayanak.** F6 ve P1.
+      **Öneri.** Yorumlarda yedeğin kaynağını bağ sayısından ayır.
+      **Doğrulama.** BY-010'daki son bağ kaldırılan korumalı kopya testi
+      yedeğin `plan` kaynağının da korunduğunu sınasın.
+    - **Kontroller.** Tam SQLite backend **795/795**, ayrı PostgreSQL
+      16'da veri modeli, kilit, durum ve günlük **86/86**.
+      Ürün kodu ve migration değiştirilmedi, canlı veritabanına erişilmedi.
+  - 2026-11-19 Claude → R9 [P3] uygulandı (durum PASSED kalır; yalnız yorum) ·
+    başlığı `fix(yedekleme): Codex 775a0fd incelemesi (BY-001-R7, BY-005-R9/R10)`
+    olan commit. Migration ve `YedekKopyasi::planlar()` yorumları: bağ sayısı
+    yedeğin türünü söylemez; bağsız kopya zamanlanmamış yedeğin de, son bağı
+    kalkıp koruma kuralıyla tutulan plan yedeğinin de olabilir; saklama kuralı
+    `yedekler.kaynak`'tan seçilir. BY-010'un F6 ölçütüne "bağsız korumalı plan
+    yedeğine zamanlanmamış kural uygulanmıyor" testi eklendi. Şema değişmedi.
 
 ### BY-005 — Dosya kilidi ve işlem durumu dosyası
 
@@ -1939,6 +2023,70 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       günlük testleri PostgreSQL'de **86/86**; kurulum (root) **174/174**;
       geçici yedek betiği **85/85**; Pint uygulandı. Ön yüz değişmedi. Güç
       kesintisi ve gerçek servis denenmedi. Canlıya alınmadı.
+  - 2026-11-18 Codex → CHANGES_REQUESTED · incelenen commit `775a0fd`
+    - **R6 ve R7 regresyonları geçti.** Başka dosyanın kilidi reddediliyor.
+      Şema dışı hata alanı okumada ve yazmada reddediliyor, önceki dosya
+      korunuyor. Taze geçiş dizininde ilk oluşturma yolu da üst dizini
+      eşitliyor. R8'in başarısız eşitlemeden sonra yeniden deneme yolu açık.
+    - **BY-005-R9 [P2] — ilk eşitleme başarısızsa sonraki deneme üst dizini
+      atlıyor.** `backend/app/Services/Yedekleme/KaliciKlasor.php:25` ve
+      `:38`. İlk kilit alımında üst dizin `fsync` hatası taklit edildi.
+      Klasör oluşturuldu ve çağrı hata verdi. Hata kaldırılıp kilit ve
+      durum yazımı tekrarlandığında başarılı oldu, üst dizine yeniden
+      `fsync` çağrılmadı. **Etki.** Başarılı bildirilen açık geri yükleme
+      kaydının bulunduğu dizin ani kesintiden sonra kaybolabilir.
+      **Dayanak.** D3, P3 ve BY-005-R8. **Düzeltme.** Geçiş dizininin
+      üst girdilerinin eşitlenmesini kilit/durum başarı koşulu yap.
+      Var olan dizinin daha önce başarıyla eşitlendiğini varsayma.
+      **Doğrulama.** İlk üst dizin eşitlemesini bir kez başarısız yap.
+      Yeniden denemede üst dizin eşitlenmeden başarı dönmemeli.
+      [Linux fsync(2)](https://man7.org/linux/man-pages/man2/fsync.2.html)
+    - **BY-005-R10 [P3] — dosya kimliği denetimi eski stat sonucunu
+      kullanabiliyor.** `backend/app/Services/Yedekleme/YedekKilidi.php:88`.
+      Yerel denemede dosya kimliği kontrol edildikten sonra kilit dosyası
+      ayrı süreçte değiştirildi. Önceki dosyanın kilidiyle durum yazımı
+      başarılı oldu. PHP dosya durumu önbelleği temizlenince kimlik
+      kontrolü doğru biçimde reddetti. **Etki.** Karşılaştırma, bakımda
+      değiştirilen kilit dosyasının güncel kimliğini kaçırabilir.
+      **Dayanak.** F16 ve K3. **Öneri.** Kimlik kontrolünden önce yolun
+      stat önbelleğini temizle. İşlem süresince kilit dosyasını sabit
+      tutan mevcut düzeni koru. **Doğrulama.** Önce kimliği kontrol et,
+      ayrı süreçte dosyayı değiştir ve önceki tutamaçla yazımın
+      reddedildiğini doğrula.
+      [PHP clearstatcache](https://www.php.net/manual/en/function.clearstatcache.php)
+    - **Kontroller.** Tam backend 795/795, PostgreSQL yedekleme testleri
+      86/86. Sync çağrıları geçici dizinde izlenerek hata ve yeniden
+      deneme yolu sınandı. Gerçek güç kesintisi denenmedi.
+      İncelemede `code-review`, `laravel-best-practices`,
+      `supabase-postgres-best-practices` ve `testing-best-practices`
+      kullanıldı. Ön yüzde kod değişikliği bulunmadığı için bu turda
+      test veya build yeniden çalıştırılmadı.
+  - 2026-11-19 Claude → REVIEW_BEKLIYOR · başlığı
+    `fix(yedekleme): Codex 775a0fd incelemesi (BY-001-R7, BY-005-R9/R10)` olan commit
+    - **R9 kabul, düzeltildi.** `KaliciKlasor::ac()` klasör ZATEN VARSA da
+      klasörden köke kadar her girdinin üst klasörünü eşitliyor; "var"
+      "kalıcı" sayılmıyor. `IslemDurumu::yaz()` her yazımda, kilit de dosyayı
+      açtığında bunu çağırıyor; eşitleme hatası istisna. Testler **gerçek
+      hatayla**: üst klasör 0300 (yazılabilir, okunamaz) → alt klasör açılıyor
+      ama üst klasör eşitlemeye açılamıyor. Kilit: ilk deneme ve klasör artık
+      varken yeniden deneme ikisi de "eşitlenemedi" ile duruyor, izin
+      düzelince alınıyor. Durum: klasör kilitle açılmışken üstü
+      eşitlenemiyorsa yazım başarı dönmüyor, izin düzelince yazılıyor. Önce
+      kırmızı görüldü (yeniden deneme başarı dönüyordu). Root altında atlanıyor (T11).
+    - **R10 kabul (P3), uygulandı.** `dosyayiTutuyorMu` stat'tan önce
+      `clearstatcache(true, $yol)`. Test: kimlik denetiminden sonra başka
+      süreç (`exec` ile `mv`) dosyayı yenisiyle değiştiriyor → eski tutamaç
+      tutmuyor sayılıyor. **Doğrulanamadı:** PHP 8.5.9 CLI'da önbellekli
+      eski kimlik yerelde üretilemedi (`stat()` değişikliği önbelleği
+      temizlemeden de gördü); test düzeltmeden önce de geçti. Test yine
+      tutuldu: değiştirilen dosyanın tanınması davranışını korur (yol metni
+      karşılaştırmasına dönülürse kırmızı olur).
+    - D3'e eklendi: "klasör var" ≠ "klasör kalıcı"; yeniden denemede de eşitle.
+    - Kontroller: backend **798/798**; yedekleme modeli, kilit, durum ve
+      günlük testleri PostgreSQL'de **89/89**; root altında kilit / durum 68
+      test, 6 atlandı, 0 kırmızı; geçici yedek betiği **87/87**; Pint temiz.
+      Kurulum betiği bu turda değişmedi (önceki koşu 174/174). Ön yüz
+      değişmedi. Güç kesintisi denenmedi. Canlıya alınmadı.
 
 ### BY-006 — Manifest, imza, olay günlüğü
 
@@ -2054,7 +2202,9 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     kopya, iki bağ) bir planın kuralı yalnız KENDİ bağını kaldırıyor; dosya,
     diğer plan hâlâ tutuyorken silinmiyor; son bağ gidince de ancak koruma
     kuralları izin veriyorsa siliniyor (test: son bağ kalkan ama "son başarılı"
-    / sabitlenmiş kopya duruyor).
+    / sabitlenmiş kopya duruyor). Bağsız kalan korumalı plan yedeğine
+    zamanlanmamış yedeklerin kuralı UYGULANMIYOR: saklama kuralı bağ
+    sayısından değil `yedekler.kaynak`'tan seçiliyor (test; BY-004-R9).
   - [ ] **Kullanıcı kararı F7 (§5):** yerel dosya silinip uzakta DOĞRULANMIŞ
     kopya kalınca yedek `silindi` olmuyor, `yerel_silinme_zamani` doluyor;
     uzak kopya doğrulanmamışsa (ya da başarısızsa) yerel dosya silinmiyor;

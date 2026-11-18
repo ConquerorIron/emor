@@ -84,6 +84,9 @@ final class YedekKilidi
             return false;
         }
 
+        // PHP'nin stat önbelleği, yol başka süreçte değiştirildiyse eski
+        // kimliği döndürebilir (BY-005-R10)
+        clearstatcache(true, $yol);
         $tutulan = fstat($this->tutamac);
         $istenen = @stat($yol);
 
@@ -133,9 +136,10 @@ final class YedekKilidi
 
     /**
      * Var olan dosya salt okunur açılır; yoksa klasörüyle birlikte açılır
-     * (geçiş dönemi: uygulama kullanıcısı). Yeni klasör ve dosya girdileri
-     * diske zorlanır: ilk kilit alımı durum klasörünü açar, işlem durumu ilk
-     * yazımda onu var bulup üstünü eşitlemez (BY-005-R8). Açılamazsa istisna.
+     * (geçiş dönemi: uygulama kullanıcısı). Dosya açılırken klasörün üst
+     * zinciri ve yeni dosya girdisi diske zorlanır (KaliciKlasor; BY-005-R8,
+     * R9). İşlem durumu da her yazımda aynı zinciri eşitler; kalıcılığı ona
+     * dayanmaz. Açılamazsa istisna.
      *
      * @return resource
      */

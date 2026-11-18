@@ -27,6 +27,8 @@ cat > "$SAHTE/pg_dump" <<'EOF'
 # Argümanları ve parola dosyasının durumunu kaydeder; --file yoluna sahte yedek yazar
 printf '%s\n' "$*" > "$SAHTE_KAYIT/pg_dump.args"
 printf '%s' "${PGPASSWORD-YOK}" > "$SAHTE_KAYIT/pg_dump.pgpassword"
+# libpq'nun okuduğu bütün ortam değişkenleri PG ile başlar: hangileri ulaştı
+env | grep -o '^PG[A-Z_]*' | sort | tr '\n' ' ' > "$SAHTE_KAYIT/pg_dump.pg_ortami"
 if [[ -n "${PGPASSFILE:-}" && -f "$PGPASSFILE" ]]; then
   stat -c %a "$PGPASSFILE" > "$SAHTE_KAYIT/pgpass.izin"
   cat "$PGPASSFILE" > "$SAHTE_KAYIT/pgpass.icerik"
@@ -104,6 +106,12 @@ if grep -rq 'pa:ro' "$KLASOR"; then kaldi "parola yedek klasöründe kaldı"; el
 hazirla
 calistir env PGPASSWORD=devralinan-yanlis-parola; esit "devralınan PGPASSWORD ile çıkış kodu" "$?" "0"
 esit "devralınan PGPASSWORD pg_dump'a ulaşmadı" "$(cat "$KAYIT/pg_dump.pgpassword")" "YOK"
+# Bağlantı profili ve diğer libpq ayarları da (PGSERVICE eski parolayı taşıyabilir — BY-001-R7):
+# pg_dump yalnız betiğin verdiği iki değişkeni görür
+hazirla
+calistir env PGSERVICE=eski-profil PGSERVICEFILE=/tmp/yok PGHOST=yanlis.sunucu PGOPTIONS='-c x=y' PGSSLMODE=require
+esit "devralınan bağlantı profiliyle çıkış kodu" "$?" "0"
+esit "pg_dump'a yalnız betiğin libpq ayarları ulaştı" "$(cat "$KAYIT/pg_dump.pg_ortami")" "PGCONNECT_TIMEOUT PGPASSFILE "
 
 echo "3. pg_dump başarısız"
 hazirla

@@ -109,7 +109,10 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   parola dosyasının, Laravel'de süreç ortamı `.env`'in önüne geçer. "Bu
   dosyayla bağlanılabiliyor mu" diye soran denetim temiz ortamda çalışsın
   (`env -i PATH=… PGPASSFILE=…`), dosyayı kullanan betik devralınanı
-  temizlesin (`unset PGPASSWORD`). Testte aynı adlı yanlış ya da DOĞRU bir
+  temizlesin. Tek değişkeni değil kütüphanenin okuduğu **bütün aileyi**
+  temizle: libpq `PGPASSWORD` kadar `PGSERVICE` (profilde eski parola),
+  `PGHOST`, `PGOPTIONS`… okur — hepsi `PG` ile başlar (`compgen -e | grep
+  '^PG'`). Testte aynı adlı yanlış ya da DOĞRU bir
   ortam değişkeniyle de sına: doğrusu, geçersiz dosyayı geçerli gösterebilir.
   *(Fable F8: `.env` okuyucu süreç ortamından okuyordu. BY-001-R6: devralınan
   PGPASSWORD yedeği bozuyor, kurulumda geçersiz dosyayla bağlantıyı başarılı
@@ -185,7 +188,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   taşıdıktan sonra **klasörü de `fsync`** (taşıma klasör girdisidir), yeni
   açılan klasörün üst klasörünü de; eşitleme hatası başarı sayılmaz. Geçici
   dosyayı `tempnam` ile açma — klasör yazılamazsa sistem geçici klasörüne düşer.
-  *(BY-005-R3: taşıma sonrası klasör eşitlenmiyordu.)*
+  "Klasör var" ≠ "klasör kalıcı": önceki deneme klasörü açıp eşitlemede
+  kalmış olabilir; yeniden denemede de üst zinciri eşitle, "yoksa aç ve
+  eşitle" diye yalnız ilk açılışa bağlama. Hata yolunu gerçek hatayla sına
+  (ör. üst klasör 0300: alt klasör açılır, üst klasör eşitlemeye açılamaz).
+  *(BY-005-R3: taşıma sonrası klasör eşitlenmiyordu. BY-005-R9: ilk eşitleme
+  başarısız olunca yeniden deneme üst klasörü atlayıp başarı dönüyordu.)*
 - **D6 — "Yok" ile "erişemiyorum"u ayır.** `file_exists`, `is_file` ve
   benzerleri üst klasöre girilemediğinde de false döner. Yokluk bir karar
   dayanağıysa (ör. "açık işlem yok → yayına devam") yalnız doğrulanmış

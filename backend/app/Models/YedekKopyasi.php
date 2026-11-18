@@ -58,7 +58,9 @@ final class YedekKopyasi extends Model
     }
 
     /**
-     * Kopyayı tutan planlar; boşsa zamanlanmamış bir yedeğin kopyası. Bağ
+     * Kopyayı tutan planlar. Boş olması yedeğin türünü söylemez: zamanlanmamış
+     * yedek de, son bağı kalkıp koruma kuralıyla tutulan plan yedeği de bağsızdır
+     * (kullanıcı kararı F6); saklama kuralı `yedek->kaynak`'tan seçilir. Bağ
      * planın bu hedefteki saklama kuralına bağlıdır: eklerken pivotta
      * `yedek_hedefi_id` kopyanın hedefi olarak verilir; plan o hedefi
      * kullanmıyorsa veritabanı reddeder (BY-004-R8).

@@ -37,9 +37,14 @@ set -euo pipefail
 # Yedek bütün veriyi içerir: dosyalar yalnız sahibi tarafından okunabilir
 umask 077
 
-# Parola yalnız bu betiğin yazdığı parola dosyasından gelir: kabuktan devralınan
-# PGPASSWORD libpq'da dosyanın önüne geçer ve doğru ayarı gölgeler (BY-001-R6)
-unset PGPASSWORD
+# Bağlantı yalnız .env'den ve bu betiğin yazdığı parola dosyasından kurulur:
+# libpq'nun okuduğu bütün ortam değişkenleri PG ile başlar ve devralınanı
+# (PGPASSWORD, PGSERVICE profilinin eski parolası, PGHOST, PGOPTIONS…) doğru
+# ayarı gölgeleyebilir. Hepsi temizlenir; gerekenleri betik açıkça verir
+# (BY-001-R6, R7; Dikkat_Edilecekler G12).
+while IFS= read -r DEGISKEN; do
+  unset "$DEGISKEN"
+done < <(compgen -e | grep '^PG' || true)
 
 PROJE_KOKU="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_DOSYASI="${EMOR_ENV_DOSYASI:-$PROJE_KOKU/backend/.env}"

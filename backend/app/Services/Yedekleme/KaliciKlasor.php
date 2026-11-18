@@ -15,28 +15,22 @@ use RuntimeException;
 final class KaliciKlasor
 {
     /**
-     * Klasörü (gerekirse üstleriyle) 0750 açar; yeni açılan her klasörün üst
-     * klasörünü diske zorlar. Klasör zaten varsa hiçbir şey yapmaz.
+     * Klasörü (gerekirse üstleriyle) 0750 açar ve klasörden köke kadar her
+     * girdinin üst klasörünü diske zorlar — klasör ZATEN VARSA da: önceki bir
+     * deneme klasörü açıp eşitlemede kalmış olabilir; "var" demek "kalıcı"
+     * demek değildir (BY-005-R9). Klasör fsync'i ucuzdur, kilit alımı ve
+     * durum yazımı seyrektir.
      *
      * @throws RuntimeException Açılamadı ya da eşitlenemedi
      */
     public static function ac(string $klasor): void
     {
-        if (is_dir($klasor)) {
-            return;
-        }
-
-        $yeniler = [];
-        for ($k = $klasor; ! is_dir($k) && dirname($k) !== $k; $k = dirname($k)) {
-            $yeniler[] = $k;
-        }
-
-        if (! @mkdir($klasor, 0750, true) && ! is_dir($klasor)) {
+        if (! is_dir($klasor) && ! @mkdir($klasor, 0750, true) && ! is_dir($klasor)) {
             throw new RuntimeException("Yedekleme klasörü açılamadı: {$klasor}");
         }
 
-        foreach (array_reverse($yeniler) as $yeni) {
-            self::esitle(dirname($yeni));
+        for ($k = $klasor; dirname($k) !== $k; $k = dirname($k)) {
+            self::esitle(dirname($k));
         }
     }
 

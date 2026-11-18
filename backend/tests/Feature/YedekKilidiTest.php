@@ -230,6 +230,56 @@ final class YedekKilidiTest extends TestCase
         $this->assertSame('640', substr(sprintf('%o', fileperms($this->yol)), -3));
     }
 
+    /**
+     * Üst klasör diske eşitlenemeyen ilk deneme klasörü açıp hata verir;
+     * yeniden deneme klasörü VAR bulsa da üst klasörü yine eşitlemeli, yoksa
+     * kesintide klasör girdisi kaybolabilirken başarı döner (BY-005-R9, D3).
+     * Hata gerçek: üst klasör yazılabilir ama okunamaz (0300) — alt klasör
+     * açılır, üst klasör eşitleme için açılamaz.
+     */
+    public function test_ust_klasor_esitlenemezse_yeniden_denemede_de_kilit_alinmaz(): void
+    {
+        $this->rootDegilGerekli();
+        File::ensureDirectoryExists($this->klasor, 0700);
+        $yol = $this->klasor.'/durum/kilit';
+        chmod($this->klasor, 0300);
+
+        try {
+            foreach (['ilk deneme', 'yeniden deneme'] as $deneme) {
+                try {
+                    (new YedekKilidi($yol))->al();
+                    $this->fail("Üst klasör eşitlenemezken kilit alındı ({$deneme}).");
+                } catch (RuntimeException $hata) {
+                    $this->assertStringContainsString('eşitlenemedi', $hata->getMessage(), $deneme);
+                }
+            }
+        } finally {
+            chmod($this->klasor, 0700);
+        }
+
+        $this->assertTrue((new YedekKilidi($yol))->al());
+    }
+
+    /**
+     * Kimlik denetimi PHP'nin stat önbelleğine güvenmemeli: başka süreç kilit
+     * dosyasını yenisiyle değiştirince eski tutamaç o dosyayı tutmuyor
+     * sayılmalı (BY-005-R10).
+     */
+    public function test_kilit_dosyasi_baska_surecte_degistirilince_eski_tutamac_tutmuyor_sayilir(): void
+    {
+        $kilit = new YedekKilidi($this->yol);
+        $kilit->al();
+        $this->assertTrue($kilit->dosyayiTutuyorMu($this->yol));
+
+        // exec: arada PHP'nin başka bir stat çağrısı (Process sınıfınınki gibi)
+        // tek girdilik önbelleği temizleyip sınamayı boşa çıkarmasın
+        $yeni = escapeshellarg($this->yol.'.yeni');
+        exec("touch {$yeni} && mv {$yeni} ".escapeshellarg($this->yol), result_code: $kod);
+
+        $this->assertSame(0, $kod);
+        $this->assertFalse($kilit->dosyayiTutuyorMu($this->yol));
+    }
+
     public function test_kilit_dosyasi_acilamazsa_mesgul_sanilmaz_hata_verir(): void
     {
         $this->rootDegilGerekli();
