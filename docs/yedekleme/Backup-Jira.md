@@ -50,12 +50,30 @@ inceler.** Bir görev, Codex `PASSED` verene kadar bitmiş sayılmaz.
 6. **Düzeltme (Claude).** Her bulguyu **kodda doğrular**, körü körüne uygulamaz:
    - haklıysa düzeltir ve hangi commit'te düzelttiğini yazar,
    - haklı değilse gerekçesi ve kanıtıyla (dosya, satır, test çıktısı) reddeder.
+   - bulgu başka yerde de tekrar edebilecek türdense dersi aynı commit'te
+     [Dikkat_Edilecekler.md](../../Dikkat_Edilecekler.md)'ye ekler ve aynı
+     kalıbı kullanan diğer yerleri tarar (o dosyadaki G1 kuralı). Kapsam
+     dışında kalan yerleri düzeltmez; ilgili göreve not düşer ya da kullanıcıya bildirir.
    Durum `DUZELTME` → yeniden `REVIEW_BEKLIYOR`.
 7. **Anlaşmazlık.** Aynı bulgu iki turda çözülmezse kullanıcıya sorulur; kararı
    bu dosyaya yazılır.
-8. **Canlıya alma.** Yalnız `PASSED` sonrası ve görevin "Canlı" alanı izin
-   veriyorsa (proje akışı: `./publish.sh` → sunucuda `./deploy.sh`). Alınınca
-   durum `CANLIDA` olur.
+8. **Canlıya alma — yalnız kullanıcı "canlıya al" dediğinde** (kullanıcı kararı
+   2026-11-18). Bu modülün hiçbir görevi kendiliğinden canlıya alınmaz: `PASSED`
+   olmak ve görevin "Canlı" alanının "Evet" olması yetmez, kullanıcının açık
+   talimatı gerekir. Kullanıcı görevleri biriktirip toplu almayı düşünüyor
+   (BY-018'den ya da BY-032'den sonra). Projenin genel "biten işi sormadan
+   canlıya al" kuralı bu modüle **uygulanmaz**.
+   - Görev `PASSED` olunca orada kalır; `CANLIDA` yalnız kullanıcı talimatıyla
+     canlıya alındıktan sonra yazılır.
+   - Bu kapsama canlı sunucudaki her değişiklik girer: `./deploy.sh`,
+     zamanlayıcı satırı, sunucuda betik çalıştırma, `YEDEKLEME_AKTIF`'i açma.
+   - `./publish.sh` (commit + GitHub'a gönderme) canlıya alma değildir;
+     incelemeye teslim için kullanılır.
+   - Görevdeki "Canlı" alanı izin değil, **uygunluk** bilgisidir: "Evet" =
+     talimat gelince alınabilir; "Hayır" = talimat gelse de önce yazılı koşul
+     sağlanmalı.
+   - Başka bir iş için yapılan yayın bu modülün kodunu da sunucuya taşır; bu
+     yüzden "kapalıyken etkisiz" kuralı (§2) her görevde zorunludur.
 
 ### 1.4 İnceleme günlüğü biçimi
 
@@ -151,7 +169,8 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 
 **Kilometre taşları**
 
-- BY-001 bitince: yayın yapılmayan günlerde de yedek var (geçici).
+- BY-001 canlıya alınınca: yayın yapılmayan günlerde de yedek var (geçici).
+  Canlıya alınana kadar bu açık sürer (§1.3 madde 8).
 - BY-013 bitince: asıl sistem yerel diske planlı yedek alıyor; BY-001 kaldırılır.
 - BY-018 bitince: her şey ekrandan yönetiliyor.
 - BY-021 bitince: FTP ve Google Drive'a planlı kopya gidiyor (kullanıcının tarifi).
@@ -174,7 +193,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 - **Tasarım:** README §2, §11 (YDK-00)
 - **Ön koşul:** Kullanıcı onayı (canlı sunucuda zamanlayıcı değişikliği); `.env`
   ve yedeğin kopyalanacağı yer kullanıcıdan.
-- **Dosyalar:** `scripts/gecici-gunluk-yedek.sh`,
+- **Dosyalar:** `scripts/gecici-gunluk-yedek.sh`, `scripts/gecici-env-oku.php`,
   `scripts/tests/gecici-gunluk-yedek.test.sh`, `docs/yedekleme/gecici-onlem.md`
 - **Kapsam:**
   - Repoya `scripts/gecici-gunluk-yedek.sh`: veritabanı bilgilerini
@@ -211,6 +230,84 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     - Doğrulanamayan: `shellcheck` lokalde kurulu değil, çalıştırılmadı. Canlı
       sunucuda (araçlar 18.6, `admin` kullanıcısı, zamanlayıcı ortamı) denenmedi.
     - Not: repo kökünde yeni `scripts/` klasörü açıldı (görev tanımındaki yol).
+  - 2026-11-18 Codex → CHANGES_REQUESTED · incelenen commit `2084d41`
+    - **BY-001-R1 [P2] — geçerli `.env` değerleri değiştirilerek okunuyor.**
+      `scripts/gecici-gunluk-yedek.sh:64-66`: `tr -d` bütün tek/çift tırnakları
+      siliyor; satır sonu yorumunu ise değere ekliyor. Projenin mevcut Dotenv
+      ayrıştırıcısının kabul ettiği `DB_PASSWORD='fake"password'` ve
+      `DB_PASSWORD="fake-password" # credential comment` örnekleriyle bağımsız
+      test yapıldı: beklenen parolayı isteyen sahte `pg_dump` iki durumda da
+      reddetti, betik 1 ile çıktı. Etki: uygulamanın kullanabildiği geçerli bir
+      yapılandırmayla günlük yedek alınamıyor. `deploy.sh` ile aynı eski
+      yaklaşımın kullanılması bu doğruluk hatasını ortadan kaldırmıyor;
+      `deploy.sh` bu görevin kapsamı dışında bırakıldı.
+      **En küçük düzeltme:** `.env` değerlerini projenin zaten kurulu Dotenv
+      ayrıştırıcısıyla doğru çöz; parola içindeki karakterleri koru,
+      yorum/tırnak/kaçış kurallarını uygula. Dosyayı `source`/`eval` etme;
+      parola argümana ya da ortam değişkenine aktarılmadan `PGPASSFILE`
+      yaklaşımını koru. **Doğrulama:** iki örnek için kalıcı regresyon testi
+      ekle; `pg_dump`'a ulaşan parola doğru, çıkış 0 ve geçici dosyalar
+      temizlenmiş olmalı. Mevcut 32 denetim de geçmeli.
+    - **BY-001-R2 [P3] — asılı dış komut sonraki günlük yedekleri engelleyebilir.**
+      `scripts/gecici-gunluk-yedek.sh:120-130`: bağlantı ve toplam çalışma
+      süresi sınırı yok. Asılı bırakılan sahte `pg_dump` denemesinde ilk
+      çalışma kilidi tutarken ikinci çalışma 75 ile çıktı; ilk süreç yerel
+      denemenin sonunda sonlandırıldı. **Öneri:** makul bir bağlantı ve toplam
+      komut süresi sınırı koy; süre aşımını günlüğe hata olarak yaz ve alt
+      süreçlerin sonlandığından emin ol. **Doğrulama:** kısa süre sınırıyla
+      bekletilen `pg_dump`/`pg_restore` hata vermeli, geçici dosyalar
+      temizlenmeli ve sonraki çalışma kilidi alabilmeli. Bu öneri `PASSED`'ı
+      engellemez. Teknik dayanak:
+      [libpq connect_timeout](https://www.postgresql.org/docs/18/libpq-connect.html#LIBPQ-CONNECT-CONNECT-TIMEOUT).
+    - Kontroller: mevcut betik testi **32/32 geçti**; iki betikte `bash -n`
+      temiz; `git diff --check 2084d41^ 2084d41` temiz. Dört ek geçici testten
+      `.env` okuma testlerinin ikisi R1'i doğrulayarak başarısız oldu;
+      `SIGTERM` sırasında geçici dosya temizliği ve `--list` başarılıyken tam
+      veri okumasının hata vermesi senaryoları geçti. Ek testlerde yalnız
+      yapay kimlik bilgileri ve geçici klasörler kullanıldı; dosya bırakılmadı.
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · commit başlığı
+    `fix(yedekleme): BY-001 .env ayristirici ile okunur, dis komutlara sure siniri`
+    - **R1 kabul, düzeltildi.** Bulgu kodda doğrulandı: `tr -d` bütün
+      tırnakları siliyor, satır sonu yorumu değere katılıyordu. `.env` artık
+      uygulamanın ayrıştırıcısıyla okunuyor: yeni `scripts/gecici-env-oku.php`
+      (`Dotenv\Dotenv::parse` + Laravel `env()` dönüşümünün metin değerleri
+      etkileyen kısmı: `empty` / `null` → boş, saran artık tırnaklar atılır).
+      Değerler kabuğa NUL ile ayrılmış gelir; dosya `source` / `eval` edilmez,
+      `PGPASSFILE` yaklaşımı korundu. Ayrıştırıcının hata metni hatalı satırı
+      içerebildiği için günlüğe yalnız istisna türü yazılır. Satır sonu içeren
+      değer (parola dosyasına yazılamaz) açık hatayla reddedilir.
+      Regresyon: test bölümü 10–11 — Codex'in iki örneği, kaçışlı çift tırnak,
+      `null`, ayrıştırılamayan satır (sızmadığı da denetlenir), çok satırlı parola.
+    - **R2 kabul, düzeltildi** (P3 olmasına rağmen: asılı yedek sonraki günleri
+      sessizce atlatır). Her dış komut `timeout --kill-after=10` ile çalışıyor
+      (`EMOR_GUNLUK_SURE_SINIRI`, varsayılan 1800 sn); bağlantı için
+      `PGCONNECT_TIMEOUT` (`EMOR_GUNLUK_BAGLANTI_SURESI`, varsayılan 15 sn).
+      Süre aşımı günlüğe ayrı mesajla yazılır. Regresyon: test bölümü 12 —
+      30 sn bekleyen sahte `pg_dump` 1 sn sınırla sonlanıyor, geçici dosya
+      kalmıyor, sonraki çalışma kilidi alıp başarıyla bitiyor.
+    - Kapsam dışı bırakılan: `deploy.sh` aynı `.env` okumasını ve `PGPASSWORD`
+      kullanımını taşıyor; BY-013'ün kapsamına yazıldı.
+    - Kontroller: betik testi **57/57**; `bash -n` ve `php -l` temiz; `pint`
+      temiz; `git diff --check` temiz. Lokal PostgreSQL 16'da gerçek araçlarla
+      yeniden denendi (gerçek `.env` yeni okuyucuyla okundu, iki yedek alındı,
+      yanlış portta çıkış 1, artık dosya yok).
+    - Doğrulanamayan: `shellcheck` yok. Canlı sunucu denenmedi (kullanıcı
+      kararı: talimat gelene kadar canlıya alınmayacak).
+    - Not: test yazarken kendi varsayımım yanlış çıktı — kapanmayan tırnağı
+      ayrıştırıcı reddetmiyor, değişkeni tanımsız bırakıyor (uygulama da öyle
+      görür). Test, ayrıştırıcının gerçekten reddettiği satırla yazıldı.
+    - Dersler `Dikkat_Edilecekler.md`'ye işlendi: G2, G3, D1, D2, T7.
+    - Kullanılan skill'ler: `code-review`, `supabase-postgres-best-practices`.
+      Değerlendirme: doğruluk, kimlik bilgilerinin korunması ve hata yolları.
+    - Doğrulanamayan: `shellcheck` kurulu değil; gerçek PostgreSQL ile yedek
+      alma bu tur tekrarlanmadı; canlı araç sürümü, kullanıcı/zamanlayıcı
+      ortamı ve ertesi gün yedek oluşması sınanmadı. Backend/frontend kodu
+      değişmediği için bu tur tam uygulama testleri yeniden çalıştırılmadı.
+    - Sonuç: açık P2 nedeniyle görev `DUZELTME`. `scripts/` yolu görevde
+      açıkça tanımlı; eklenen tam veri okuması ve kilit bu geçici önlemle
+      uyumlu. Uygulama/betik/test kodu değiştirilmedi; yalnız bu inceleme ve
+      BY-001 durumları yazıldı. Canlı işlemler ve elle sunucu dışı kopya,
+      §1.3 madde 8 uyarınca ayrıca kullanıcı talimatını bekler.
 
 ### BY-002 — Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları
 
@@ -456,6 +553,10 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - `yedek:eski-yedekleri-al`: mevcut `erp_predeploy_*` dosyaları için bir kereye
     mahsus manifest üretir ve "eski, sonradan içeri alındı" olarak işaretler.
   - BY-001'in geçici betiği ve zamanlayıcı satırı kaldırılır.
+  - `deploy.sh`'ın kendi `.env` okuması (`env_val`) kaldırılır: tırnakları
+    silip satır sonu yorumunu değere katıyor ve parolayı `PGPASSWORD` ile ortam
+    değişkenine koyuyor (BY-001-R1'de bulunan hatanın aynısı; `Dikkat_Edilecekler.md`
+    G2, G3, D2). Yedek `yedek:al` üzerinden alınınca bu okuma gereksizleşir.
 - **Kabul ölçütleri:**
   - [ ] Yedekleme çalışırken başlatılan yayın bekliyor ya da anlaşılır mesajla duruyor.
   - [ ] Yayın öncesi yedek listede "yayın öncesi" kaynağıyla, imzalı görünüyor.

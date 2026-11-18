@@ -1,4 +1,5 @@
 @AGENTS.md
+@Dikkat_Edilecekler.md
 
 # ERP Web
 

@@ -22,6 +22,13 @@
 #   EMOR_GUNLUK_SAKLA_GUN   bu günden eskiler silinir (varsayılan 30)
 #   EMOR_GUNLUK_EN_AZ       her durumda tutulan en yeni yedek sayısı (varsayılan 7)
 #   EMOR_ENV_DOSYASI        .env yolu               (varsayılan <proje>/backend/.env)
+#   EMOR_GUNLUK_SURE_SINIRI her dış komut için saniye (varsayılan 1800); aşılırsa
+#                           komut sonlandırılır — asılı kalan bir yedek kilidi
+#                           tutup sonraki günlerin yedeğini engellemesin
+#   EMOR_GUNLUK_BAGLANTI_SURESI veritabanına bağlanma süre sınırı, saniye (varsayılan 15)
+#
+# .env, uygulamanın kendi ayrıştırıcısıyla okunur (scripts/gecici-env-oku.php):
+# tırnak, kaçış ve satır sonu yorumu kuralları uygulamanın gördüğüyle aynıdır.
 #
 # Çıkış kodu: 0 başarılı; 1 hata (yedek alınamadı); 75 başka bir kopya çalışıyor.
 #
@@ -35,6 +42,10 @@ ENV_DOSYASI="${EMOR_ENV_DOSYASI:-$PROJE_KOKU/backend/.env}"
 YEDEK_KLASORU="${EMOR_BACKUP_DIR:-/var/backups/emor}"
 SAKLA_GUN="${EMOR_GUNLUK_SAKLA_GUN:-30}"
 EN_AZ="${EMOR_GUNLUK_EN_AZ:-7}"
+SURE_SINIRI="${EMOR_GUNLUK_SURE_SINIRI:-1800}"
+BAGLANTI_SURESI="${EMOR_GUNLUK_BAGLANTI_SURESI:-15}"
+ENV_OKUYUCU="$PROJE_KOKU/scripts/gecici-env-oku.php"
+AUTOLOAD="$PROJE_KOKU/backend/vendor/autoload.php"
 
 GUNLUK="$YEDEK_KLASORU/gecici-gunluk-yedek.log"
 GECICI=""
@@ -61,13 +72,24 @@ temizle() {
 }
 trap temizle EXIT
 
-env_degeri() {
-  # deploy.sh ile aynı okuma kuralı: ilk eşleşen satır, tırnaklar atılır
-  grep -E "^$1=" "$ENV_DOSYASI" | head -n1 | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true
-}
-
 pozitif_tam_sayi_mi() {
   [[ "$1" =~ ^[0-9]+$ ]] && (( $1 >= 1 ))
+}
+
+# Dış komutu süre sınırıyla çalıştırır. Süre dolarsa komut (ve alt süreçleri)
+# sonlandırılır; 10 sn içinde kapanmazsa zorla öldürülür. Çıkış kodu komutunkidir;
+# süre aşımında 124 (zorla öldürmede 137).
+sureli() {
+  timeout --kill-after=10 "$SURE_SINIRI" "$@"
+}
+
+# Süre aşımını ayrı mesajla, diğer hataları verilen mesajla bildirir
+komut_hatasi() {
+  local kod="$1" ad="$2" mesaj="$3"
+  if (( kod == 124 || kod == 137 )); then
+    hata "$ad süre sınırını aştı (${SURE_SINIRI} sn) ve sonlandırıldı."
+  fi
+  hata "$mesaj"
 }
 
 # --------- 1. Ön denetimler ---------
@@ -75,18 +97,35 @@ pozitif_tam_sayi_mi() {
 [[ -d "$YEDEK_KLASORU" && -w "$YEDEK_KLASORU" ]] || hata "Yedek klasörü yok ya da yazılamıyor: $YEDEK_KLASORU"
 pozitif_tam_sayi_mi "$SAKLA_GUN" || hata "EMOR_GUNLUK_SAKLA_GUN pozitif tam sayı olmalı: $SAKLA_GUN"
 pozitif_tam_sayi_mi "$EN_AZ" || hata "EMOR_GUNLUK_EN_AZ pozitif tam sayı olmalı: $EN_AZ"
-command -v pg_dump >/dev/null 2>&1 || hata "pg_dump bulunamadı."
-command -v pg_restore >/dev/null 2>&1 || hata "pg_restore bulunamadı."
+pozitif_tam_sayi_mi "$SURE_SINIRI" || hata "EMOR_GUNLUK_SURE_SINIRI pozitif tam sayı olmalı: $SURE_SINIRI"
+pozitif_tam_sayi_mi "$BAGLANTI_SURESI" || hata "EMOR_GUNLUK_BAGLANTI_SURESI pozitif tam sayı olmalı: $BAGLANTI_SURESI"
+for KOMUT in pg_dump pg_restore php timeout flock; do
+  command -v "$KOMUT" >/dev/null 2>&1 || hata "$KOMUT bulunamadı."
+done
+[[ -f "$ENV_OKUYUCU" ]] || hata "$ENV_OKUYUCU bulunamadı."
 
-VT_ADI="$(env_degeri DB_DATABASE)"
-VT_KULLANICI="$(env_degeri DB_USERNAME)"
-VT_PAROLA="$(env_degeri DB_PASSWORD)"
-VT_SUNUCU="$(env_degeri DB_HOST)"; VT_SUNUCU="${VT_SUNUCU:-127.0.0.1}"
-VT_PORT="$(env_degeri DB_PORT)"; VT_PORT="${VT_PORT:-5432}"
+# .env'i uygulamanın ayrıştırıcısıyla oku. Değerler NUL ile ayrılmış gelir;
+# dosya source / eval edilmez, parola komut satırına ve ortam değişkenine girmez.
+ENV_DEGERLERI=()
+mapfile -d '' -t ENV_DEGERLERI < <(
+  php "$ENV_OKUYUCU" "$AUTOLOAD" "$ENV_DOSYASI" DB_DATABASE DB_USERNAME DB_PASSWORD DB_HOST DB_PORT 2>> "$GUNLUK"
+)
+# Okuyucu hata verirse hiçbir değer yazmaz (nedeni günlüktedir)
+(( ${#ENV_DEGERLERI[@]} == 5 )) || hata ".env okunamadı: $ENV_DOSYASI (ayrıntı günlükte)."
+
+VT_ADI="${ENV_DEGERLERI[0]}"
+VT_KULLANICI="${ENV_DEGERLERI[1]}"
+VT_PAROLA="${ENV_DEGERLERI[2]}"
+VT_SUNUCU="${ENV_DEGERLERI[3]:-127.0.0.1}"
+VT_PORT="${ENV_DEGERLERI[4]:-5432}"
 
 [[ -n "$VT_ADI" && -n "$VT_KULLANICI" ]] || hata "$ENV_DOSYASI içinde DB_DATABASE / DB_USERNAME boş."
 # Dosya adına girecek: yalnız güvenli karakterler
 [[ "$VT_ADI" =~ ^[A-Za-z0-9_]+$ ]] || hata "Veritabanı adı dosya adı için uygun değil: $VT_ADI"
+# Parola dosyası satır tabanlıdır: satır sonu içeren değer yazılamaz
+for DEGER in "$VT_KULLANICI" "$VT_PAROLA" "$VT_SUNUCU" "$VT_PORT"; do
+  [[ "$DEGER" != *$'\n'* && "$DEGER" != *$'\r'* ]] || hata "Veritabanı ayarlarından biri satır sonu içeriyor; parola dosyasına yazılamaz."
+done
 
 # --------- 2. Tek kopya ---------
 # Önceki çalışma hâlâ sürüyorsa ikincisi başlamaz (zamanlayıcı üst üste binmesin)
@@ -117,17 +156,21 @@ printf '%s:%s:%s:%s:%s\n' \
   "$(pgpass_kacir "$VT_SUNUCU")" "$(pgpass_kacir "$VT_PORT")" "$(pgpass_kacir "$VT_ADI")" \
   "$(pgpass_kacir "$VT_KULLANICI")" "$(pgpass_kacir "$VT_PAROLA")" > "$PAROLA_DOSYASI"
 
-if ! PGPASSFILE="$PAROLA_DOSYASI" pg_dump \
+KOD=0
+PGPASSFILE="$PAROLA_DOSYASI" PGCONNECT_TIMEOUT="$BAGLANTI_SURESI" sureli pg_dump \
     --host="$VT_SUNUCU" --port="$VT_PORT" --username="$VT_KULLANICI" \
-    --dbname="$VT_ADI" --no-password --format=custom --file="$GECICI"; then
-  hata "pg_dump başarısız; yedek alınamadı."
-fi
+    --dbname="$VT_ADI" --no-password --format=custom --file="$GECICI" || KOD=$?
+(( KOD == 0 )) || komut_hatasi "$KOD" "pg_dump" "pg_dump başarısız; yedek alınamadı."
 
 # --------- 4. Doğrulama ---------
 [[ -s "$GECICI" ]] || hata "Yedek dosyası boş."
 # İçindekiler okunabiliyor mu ve bütün veri blokları açılıyor mu (veritabanı gerekmez)
-pg_restore --list "$GECICI" >/dev/null 2>&1 || hata "Yedek okunamıyor (pg_restore --list)."
-pg_restore --file=/dev/null "$GECICI" >/dev/null 2>&1 || hata "Yedeğin verisi okunamıyor (pg_restore)."
+KOD=0
+sureli pg_restore --list "$GECICI" >/dev/null 2>&1 || KOD=$?
+(( KOD == 0 )) || komut_hatasi "$KOD" "pg_restore" "Yedek okunamıyor (pg_restore --list)."
+KOD=0
+sureli pg_restore --file=/dev/null "$GECICI" >/dev/null 2>&1 || KOD=$?
+(( KOD == 0 )) || komut_hatasi "$KOD" "pg_restore" "Yedeğin verisi okunamıyor (pg_restore)."
 
 mv "$GECICI" "$HEDEF"
 GECICI=""

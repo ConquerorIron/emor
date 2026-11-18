@@ -48,21 +48,25 @@ exit 0
 EOF
 chmod +x "$SAHTE/pg_dump" "$SAHTE/pg_restore"
 
-# Her test için temiz klasör + .env
+# Her test için temiz klasör + .env. Parametre: .env'e AYNEN yazılacak parola
+# satırı (tırnak ve yorum kurallarını sınamak için); verilmezse sıradan bir parola.
 hazirla() {
   KLASOR="$CALISMA/yedek-$RANDOM$RANDOM"
   KAYIT="$CALISMA/kayit-$RANDOM$RANDOM"
   ENV="$CALISMA/env-$RANDOM$RANDOM"
   mkdir -p "$KLASOR" "$KAYIT"
-  cat > "$ENV" <<EOF
-DB_CONNECTION=pgsql
-DB_HOST=127.0.0.1
-DB_PORT=5432
-DB_DATABASE=erp
-DB_USERNAME=erp
-DB_PASSWORD="${1:-gizli-parola}"
-EOF
+  {
+    echo 'DB_CONNECTION=pgsql'
+    echo 'DB_HOST=127.0.0.1'
+    echo 'DB_PORT=5432'
+    echo 'DB_DATABASE=erp'
+    echo 'DB_USERNAME=erp'
+    printf '%s\n' "${1:-DB_PASSWORD=\"gizli-parola\"}"
+  } > "$ENV"
 }
+
+# pg_dump'a ulaşan parola dosyasının içeriği (sahte komutun kaydettiği)
+pgpass_icerigi() { cat "$KAYIT/pgpass.icerik" 2>/dev/null || echo "(yok)"; }
 
 calistir() {
   PATH="$SAHTE:$PATH" SAHTE_KAYIT="$KAYIT" EMOR_BACKUP_DIR="$KLASOR" EMOR_ENV_DOSYASI="$ENV" \
@@ -82,12 +86,12 @@ esit "günlükte iki TAMAM satırı" "$(grep -c 'TAMAM:' "$KLASOR/gecici-gunluk-
 esit "yedek dosyası yalnız sahibine açık" "$(stat -c %a "$(find "$KLASOR" -name 'erp_gunluk_*.dump' | head -n1)")" "600"
 
 echo "2. Parola komut satırında ve ortam değişkeninde yok"
-hazirla 'pa:ro\la'
+hazirla "DB_PASSWORD='pa:ro\\la'"
 calistir env
 if grep -q 'pa:ro' "$KAYIT/pg_dump.args"; then kaldi "parola argümanlarda görünüyor"; else gecti "parola argümanlarda yok"; fi
 esit "PGPASSWORD tanımlı değil" "$(cat "$KAYIT/pg_dump.pgpassword")" "YOK"
 esit "parola dosyası izni" "$(cat "$KAYIT/pgpass.izin")" "600"
-esit "parola dosyasında ':' ve '\\' kaçırıldı" "$(cat "$KAYIT/pgpass.icerik")" '127.0.0.1:5432:erp:erp:pa\:ro\\la'
+esit "parola dosyasında ':' ve '\\' kaçırıldı" "$(pgpass_icerigi)" '127.0.0.1:5432:erp:erp:pa\:ro\\la'
 if grep -rq 'pa:ro' "$KLASOR"; then kaldi "parola yedek klasöründe kaldı"; else gecti "parola yedek klasöründe kalmadı"; fi
 
 echo "3. pg_dump başarısız"
@@ -157,6 +161,46 @@ EMOR_BACKUP_DIR="$CALISMA/olmayan-klasor" EMOR_ENV_DOSYASI="$ENV" PATH="$SAHTE:$
 esit "yedek klasörü yoksa çıkış kodu 1" "$?" "1"
 calistir env EMOR_GUNLUK_EN_AZ=0; esit "en az sayı 0 kabul edilmez" "$?" "1"
 esit "geçersiz ayarda yedek alınmadı" "$(yedek_sayisi)" "0"
+
+echo "10. .env uygulamanın ayrıştırıcısıyla okunur (BY-001-R1)"
+hazirla "DB_PASSWORD='fake\"password'"
+calistir env; esit "tek tırnak içinde çift tırnak: çıkış kodu" "$?" "0"
+esit "parola içindeki tırnak korundu" "$(pgpass_icerigi)" '127.0.0.1:5432:erp:erp:fake"password'
+esit "geçici dosya kalmadı" "$(artik_sayisi)" "0"
+hazirla 'DB_PASSWORD="fake-password" # credential comment'
+calistir env; esit "satır sonu yorumu: çıkış kodu" "$?" "0"
+esit "yorum parolaya eklenmedi" "$(pgpass_icerigi)" '127.0.0.1:5432:erp:erp:fake-password'
+esit "geçici dosya kalmadı" "$(artik_sayisi)" "0"
+hazirla 'DB_PASSWORD="a\"b\\c d"'
+calistir env; esit "çift tırnakta kaçışlar ve boşluk: çıkış kodu" "$?" "0"
+esit "kaçışlar çözüldü, pgpass için yeniden kaçırıldı" "$(pgpass_icerigi)" '127.0.0.1:5432:erp:erp:a"b\\c d'
+hazirla 'DB_PASSWORD=null'
+calistir env; esit "null → boş parola (Laravel env kuralı): çıkış kodu" "$?" "0"
+esit "parola boş yazıldı" "$(pgpass_icerigi)" '127.0.0.1:5432:erp:erp:'
+
+echo "11. Okunamayan / parola dosyasına yazılamayan .env"
+# Ayrıştırıcının reddettiği satır: kapanan tırnaktan sonra karakter
+hazirla 'DB_PASSWORD="sizmamali"x'
+calistir env; esit "bozuk .env: çıkış kodu" "$?" "1"
+esit "bozuk .env'de yedek alınmadı" "$(yedek_sayisi)" "0"
+esit "günlükte okunamadı satırı" "$(grep -c '.env okunamadı' "$KLASOR/gecici-gunluk-yedek.log")" "1"
+if grep -rq 'sizmamali' "$KLASOR" "$KAYIT/cikti.txt"; then kaldi "hatalı satır günlüğe / çıktıya sızdı"; else gecti "hatalı satır günlüğe ve çıktıya yazılmadı"; fi
+hazirla 'DB_PASSWORD="iki\nsatir"'
+calistir env; esit "satır sonu içeren parola: çıkış kodu" "$?" "1"
+esit "satır sonu içeren parolada yedek alınmadı" "$(yedek_sayisi)" "0"
+esit "parola dosyası kalmadı" "$(artik_sayisi)" "0"
+
+echo "12. Asılı kalan dış komut süre sınırıyla sonlandırılır (BY-001-R2)"
+hazirla
+BASLANGIC=$SECONDS
+calistir env SAHTE_PG_DUMP_BEKLE=30 EMOR_GUNLUK_SURE_SINIRI=1; esit "çıkış kodu" "$?" "1"
+if (( SECONDS - BASLANGIC < 20 )); then gecti "30 sn beklemeden sonlandı"; else kaldi "süre sınırı işlemedi"; fi
+esit "günlükte süre aşımı satırı" "$(grep -c 'süre sınırını aştı' "$KLASOR/gecici-gunluk-yedek.log")" "1"
+esit "yedek oluşmadı" "$(yedek_sayisi)" "0"
+esit "yarım dosya / parola dosyası kalmadı" "$(artik_sayisi)" "0"
+calistir env; esit "sonraki çalışma kilidi alıp başarıyla bitti" "$?" "0"
+esit "sonraki çalışmada yedek oluştu" "$(yedek_sayisi)" "1"
+calistir env EMOR_GUNLUK_SURE_SINIRI=0; esit "süre sınırı 0 kabul edilmez" "$?" "1"
 
 echo
 echo "Geçen: $GECEN, kalan: $KALAN"

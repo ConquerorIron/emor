@@ -11,8 +11,11 @@ Bu önlem **geçicidir**. BY-013 canlıya alınınca "Kaldırma" bölümü uygul
 
 Betik: [`scripts/gecici-gunluk-yedek.sh`](../../scripts/gecici-gunluk-yedek.sh)
 
-- Veritabanı bilgilerini `backend/.env`'den okur; parolayı komut satırına ve
-  ortam değişkenine koymaz.
+- Veritabanı bilgilerini `backend/.env`'den, uygulamanın kendi ayrıştırıcısıyla
+  okur (`scripts/gecici-env-oku.php`; `php` ve `backend/vendor` gerekir).
+  Parolayı komut satırına ve ortam değişkenine koymaz.
+- Her dış komutun süre sınırı vardır (varsayılan 30 dakika, bağlantı için
+  15 saniye). Asılı kalan bir yedek sonlandırılır; sonraki günün yedeğini engellemez.
 - `/var/backups/emor/erp_gunluk_<tarih>_<saat>.dump` üretir (yalnız sahibi okur).
 - Önce geçici ada yazar, yedeği doğrular (`pg_restore` ile bütün veriyi okur),
   sonra asıl adına taşır.
@@ -85,6 +88,7 @@ sha256sum <yedek-klasoru>/<dosya>.dump
 ## 3. Kaldırma (BY-013 canlıya alınınca)
 
 1. `crontab -e` ile zamanlayıcı satırı silinir.
-2. `scripts/gecici-gunluk-yedek.sh`, testi ve bu doküman repodan kaldırılır.
+2. `scripts/gecici-gunluk-yedek.sh`, `scripts/gecici-env-oku.php`, testi ve bu
+   doküman repodan kaldırılır.
 3. Sunucudaki `erp_gunluk_*` dosyaları silinmez; asıl sistem onları "eski
    yedek" olarak içeri alır ve kendi saklama kuralıyla temizler.

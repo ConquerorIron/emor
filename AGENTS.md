@@ -1,3 +1,15 @@
+## Geçmiş inceleme dersleri (önce bunu oku)
+
+Proje kökündeki [Dikkat_Edilecekler.md](Dikkat_Edilecekler.md), önceki kod
+incelemelerinde çıkan ve tekrar edebilecek hataları kural olarak tutar.
+
+- Kod yazmadan önce ilgili bölümünü oku; teslimden önce yazdığını o listeye
+  karşı denetle.
+- İnceleme yaparken o listeyi de denetim listesi olarak kullan; listedeki bir
+  kuralın ihlalini bulursan kural numarasıyla (ör. G1, T5) belirt.
+- Bir inceleme bulgusu başka yerde de tekrar edebilecek türdense, düzeltmeyle
+  aynı commit'te o dosyaya ekle. Tek seferlik bulguları ekleme.
+
 ## Projeye özel skill kullanım kuralları
 
 Kod geliştirme, hata düzeltme, refaktör ve inceleme işlerinde aşağıdaki
