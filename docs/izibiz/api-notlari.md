@@ -113,6 +113,15 @@ metin** (`"5.155.262,20"` — binlik `.`, ondalık `,`; float'a çevrilmez),
   istisna kodu için ve ERP havuzunda olmayan faturanın XML'i için kullanılır;
   okundu bayraklarını değiştirmediği test hesabında ölçüldü (2026-09-24,
   `IzibizIstemcisi::ublIndir`).
+- **Kod kilidi — izin listesi (2026-11-18, kullanıcı kararı):**
+  `IzibizIstemcisi::IZINLI_UCLAR` yalnız şu dört uca istek çıkmasına izin
+  verir: `POST /v1/auth/token`, `GET /v1/einvoices/{inbox|outbox}`,
+  `GET /v1/einvoices/{inbox|outbox}/{id}/preview/pdf`,
+  `POST /v1/einvoices/{inbox|outbox}/download/ubl`. Listede olmayan her uç —
+  İzibiz'in ileride ekleyeceği bilinmeyen uçlar dahil — istek gönderilmeden
+  reddedilir (önceki yasak listesinin yerine; `IzibizIstemcisiTest`
+  `izinsizUclar`). Yeni bir uç gerekirse önce okuma olduğu ölçülür, sonra
+  listeye eklenir.
 
 ## e-Fatura uçları keşfi — export öncesi (2026-09-23, Claude)
 

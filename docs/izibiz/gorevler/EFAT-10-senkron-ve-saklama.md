@@ -67,7 +67,7 @@ ekranlar (EFAT-11) ve raporlar/Excel bu özetlerden hızlıca çalışır; alarm
   parametreleri) girmez.
 - Komut `efatura:senkron` (`--gun` | `--baslangic`/`--bitis`, `--yon`,
   `--tarih-turu`, `--tetikleyen`); İstanbul takvim günü. Zamanlayıcı
-  (`routes/console.php`): 15 dakikada bir `--gun=2 --tarih-turu=DELIVERY`,
+  (`routes/console.php`): 15 dakikada bir `--gun=10 --tarih-turu=DELIVERY`,
   her gün 03:15 (İstanbul) `--gun=45`; ikisi de `withoutOverlapping`.
 - **Gerçek veriyle bulunan hatalar:** `issueTime` saat dilimli gelebiliyor
   (`12:47:05+00:00`) ve unvan/GİB açıklaması 255 karakteri aşabiliyor —

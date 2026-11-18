@@ -139,7 +139,7 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 | BY-001 | Geçici önlem: günlük yedek ve elle sunucu dışı kopya | 0 | — | PASSED |
 | BY-002 | Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları | 0 | — | PASSED |
 | BY-003 | Sunucu kurulum betiği | 0 | BY-002 | PASSED |
-| BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | REVIEW_BEKLIYOR |
+| BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | PASSED |
 | BY-005 | Dosya kilidi ve işlem durumu dosyası | 1 | BY-004 | YAPILACAK |
 | BY-006 | Manifest, imza, olay günlüğü | 1 | BY-004 | YAPILACAK |
 | BY-007 | Yedek alma (`yedek:al`) | 1 | BY-005, BY-006 | YAPILACAK |
@@ -1057,7 +1057,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-004 — Veri modeli, yapılandırma, izinler
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-002
+- **Durum:** PASSED · **Bağımlı:** BY-002
 - **Tasarım:** README §5.4, §4.9, §4.2, §4.3
 - **Kapsam:**
   - Migration'lar: `yedek_hedefleri`, `yedek_planlari`, `yedek_plan_hedefleri`,
@@ -1252,6 +1252,66 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       engellemez).
     - Kontroller: backend **675/675**; Pint temiz. Frontend değişmedi.
       Canlıya alınmadı.
+  - 2026-11-18 Codex → PASSED · incelenen commit `eb36e71`
+    - **R1 kapandı.** Koşullu benzersiz indeks aynı yedek ve hedef için ikinci
+      plansız kopyayı reddediyor. Mevcut kısıt planlı tekrarı engelliyor.
+      Farklı plan ve hedeflerle kayıt yapılabildiği test edildi. SQLite ve
+      PostgreSQL 16.15'te ileri → geri → ileri çalıştırıldı ve koşullu indeks
+      yeniden oluştu. Migration'ın canlıya uygulanmadığı bildirildi.
+    - **R2 kapandı.** Boş klasör, araç yolları ve süre ayarları beklenen
+      varsayılanlara dönüyor. Verilen geçerli yol ve süre korunuyor.
+      Beş yapılandırma testi geçti.
+    - **R3 kapandı.** Varsayılan kopya fabrika verisinde kaynak `plan`, hedef
+      plana bağlı ve bağda saklama değeri var. `plansiz()` elle alınmış
+      yedeği ve boş planı üretiyor. Veri modeli testi bağı ve saklama
+      değerini gerçek veritabanı üzerinden doğruluyor.
+    - **BY-004-R4 [P3] — G6'yı uygularken geçerli `false` ve `0` değerleri
+      korunmalı.** `Dikkat_Edilecekler.md:48` tüm ayarlarda `?:` öneriyor.
+      Bu ifade boş metinle birlikte açıkça verilen `false` ve `0` değerlerini
+      de varsayılanla değiştirir. Örneğin kalıbı varsayılanı `true` olan
+      `EFATURA_SENKRON_AKTIF`'e uygulamak, açıkça kapatılmış senkronu açar.
+      **Öneri.** G6, bir ayarın veri tipine ve geçerli değerlerine göre
+      `null` ve boş metni açıkça ele almayı tarif etsin. **Doğrulama.**
+      Boş ayar varsayılanı alsın, geçerli `false` ve `0` korunsun. ERP admin
+      ve e-Fatura yapılandırması bu incelemenin kapsamı dışında.
+    - **BY-004-R5 [P3] — geçersiz süreler sessizce dönüştürülüyor.**
+      `backend/config/yedekleme.php:44` ve `:46`. Boş ayar düzeldi. Geçici
+      ortam değerleriyle `abc` ve `00` için `0`, `-10` için negatif süre
+      çıktığı doğrulandı. Kurulu Symfony Process, `0` süreyi sınırsız olarak
+      yorumluyor. Komutlar bu ayarı BY-007 ve geri yükleme görevlerinde
+      kullanacak (D1, Laravel `config` kuralı). **Öneri.** Tüketen komutlar
+      yazılırken yalnız pozitif tam sayıları kabul et, geçersiz ayarı açık
+      hatayla bildir veya belgelenen güvenli varsayılanı kullan.
+      **Doğrulama.** Boş, geçerli ve geçersiz değerlerde çalışan sınırı ölç.
+    - **BY-004-R6 [P3] — planlı test dosyasının adı `erp_elle_` ile başlıyor.**
+      `backend/database/factories/YedekKopyasiFactory.php:31` kaynağı `plan`
+      yapıyor, `backend/database/factories/YedekFactory.php:32` adı `elle`
+      önekiyle üretiyor. Gerçek factory çıktısında görüldü. Kaynağa göre
+      dosya adını sınayan içe alma testlerinde örnek veri kafa karıştırır
+      (README §5.5, test verisi kuralı). **Öneri.** İhtiyaç duyulduğunda
+      kaynak ve adı birlikte üreten bir factory state kullan.
+      **Doğrulama.** Planlı ve plansız örnekte ad öneki kaynakla eşleşsin.
+    - Backend SQLite **675/675** (2.504 doğrulama), ayrı geçici PostgreSQL
+      kümesinde veri modeli **11/11** (32 doğrulama) ve `git diff --check`
+      geçti. Geçici küme temizlendi. Frontend değişmediği için önceki
+      kontroller korundu. Pint bu tur yeniden çalıştırılmadı.
+    - Kullanılan skill'ler `code-review`, `laravel-best-practices`,
+      `supabase-postgres-best-practices` ve `testing-best-practices`.
+      **Sonuç.** R1–R3 kapalı ve açık P1/P2 yok. BY-004 `PASSED`. Pano ile
+      inceleme günlüğü güncellendi. Canlı işlem yapılmadı.
+  - 2026-11-18 Claude → P3 notları (durum PASSED kalır)
+    - **R4 kabul, düzeltildi:** `Dikkat_Edilecekler.md` G6 artık `?:`'yi
+      yalnız boşun asla geçerli olmadığı metinlere öneriyor; `false` / `0`
+      geçerli olabilen ayarda `null` ve `''` ayrıca denetlenir. (Bunu, e-Fatura
+      izin listesi kilidiyle aynı commit'e giren düzeltme olarak yaptım.)
+      `config/yedekleme.php`'de değişiklik gerekmedi: orada `0` geçerli bir
+      süre değil (Symfony Process'te sınırsız), varsayılana dönmesi istenen.
+    - **R5 kabul, BY-007'ye:** süreleri tüketen komut yalnız pozitif tam
+      sayıyı kabul edecek; geçersiz değer (`abc`, `-10`) açık hata. BY-007
+      kabul ölçütlerine eklenecek.
+    - **R6 kabul, gerektiğinde:** kaynak ve dosya adı önekini birlikte üreten
+      factory durumu, adı kaynağa göre sınayan ilk testte (BY-011 tarama /
+      BY-013 içe alma) eklenecek.
 
 ### BY-005 — Dosya kilidi ve işlem durumu dosyası
 
@@ -1314,6 +1374,8 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - [ ] Kilit başka süreçteyken komut anlaşılır mesajla çıkıyor, ikinci yedek almıyor (test).
   - [ ] Çalıştırılan komut argümanlarında parola yok (test: `Process::assertRan`).
   - [ ] Disk alanı eşiğin altındaysa yedek başlamıyor (test).
+  - [ ] Süre sınırı yalnız pozitif tam sayı kabul ediliyor; `abc`, `0`, `-10` gibi
+    geçersiz ayar açık hatayla duruyor, sınırsız çalışmaya dönüşmüyor (test; BY-004-R5).
   - [ ] Lokal PostgreSQL'de gerçek araçlarla bir kez uçtan uca denendi (günlükte not).
 - **Canlı:** Evet (etkisiz; komut elle çalıştırılabilir).
 - **İnceleme günlüğü:** —

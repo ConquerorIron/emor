@@ -24,7 +24,7 @@ final class IzibizIstemcisiTest extends TestCase
 
     private const TOKEN_URL = 'https://apitest.izibiz.com.tr/v1/auth/token';
 
-    private const VERI_URL = 'https://apitest.izibiz.com.tr/v1/deneme*';
+    private const VERI_URL = 'https://apitest.izibiz.com.tr/v1/einvoices/inbox*';
 
     private function istemci(): IzibizIstemcisi
     {
@@ -267,11 +267,11 @@ final class IzibizIstemcisiTest extends TestCase
         ]);
         $tanim = EntegratorBaglanti::factory()->create();
 
-        $sonuc = $this->istemci()->getJson($tanim, '/v1/deneme', ['sayfa' => 0]);
+        $sonuc = $this->istemci()->getJson($tanim, '/v1/einvoices/inbox', ['sayfa' => 0]);
 
         $this->assertSame(['data' => ['sayi' => 3], 'error' => null], $sonuc);
         Http::assertSentCount(4);
-        Http::assertSent(fn (Request $istek): bool => str_starts_with($istek->url(), 'https://apitest.izibiz.com.tr/v1/deneme')
+        Http::assertSent(fn (Request $istek): bool => str_starts_with($istek->url(), 'https://apitest.izibiz.com.tr/v1/einvoices/inbox')
             && $istek->hasHeader('Authorization', 'Bearer erisim-token-2'));
     }
 
@@ -285,7 +285,7 @@ final class IzibizIstemcisiTest extends TestCase
         ]);
         $tanim = EntegratorBaglanti::factory()->create();
 
-        $this->hataBekle(EntegratorHatasi::KIMLIK_HATALI, fn () => $this->istemci()->getJson($tanim, '/v1/deneme'));
+        $this->hataBekle(EntegratorHatasi::KIMLIK_HATALI, fn () => $this->istemci()->getJson($tanim, '/v1/einvoices/inbox'));
 
         Http::assertSentCount(4);
     }
@@ -300,7 +300,7 @@ final class IzibizIstemcisiTest extends TestCase
         ]);
         $tanim = EntegratorBaglanti::factory()->create();
 
-        $hata = $this->hataBekle(EntegratorHatasi::HATA, fn () => $this->istemci()->getJson($tanim, '/v1/deneme'));
+        $hata = $this->hataBekle(EntegratorHatasi::HATA, fn () => $this->istemci()->getJson($tanim, '/v1/einvoices/inbox'));
 
         $this->assertSame('30001', $hata->saglayiciKodu);
     }
@@ -315,8 +315,43 @@ final class IzibizIstemcisiTest extends TestCase
         ]);
 
         $this->hataBekle(EntegratorHatasi::YANIT_GECERSIZ, fn () => $this->istemci()->getJson(
-            EntegratorBaglanti::factory()->create(), '/v1/deneme',
+            EntegratorBaglanti::factory()->create(), '/v1/einvoices/inbox',
         ));
+    }
+
+    /**
+     * İzin listesi dışındaki her uç: bilinen yazma uçları, İzibiz'in ileride
+     * ekleyebileceği bilinmeyen uçlar ve izinli kalıba benzeyen sahte yollar.
+     *
+     * @return array<string, array{string, string}>
+     */
+    public static function izinsizUclar(): array
+    {
+        return [
+            'okundu işaretleme' => ['getJson', '/v1/einvoices/inbox/123/read-flag'],
+            'kabul / red yanıtı' => ['getJson', '/v1/einvoices/inbox/123/response'],
+            'listede olmayan yeni uç' => ['getJson', '/v1/einvoices/inbox/123/approve'],
+            'kullanılmayan fatura ayrıntısı' => ['getJson', '/v1/einvoices/inbox/123'],
+            'başka kutu' => ['getJson', '/v1/einvoices/archive'],
+            'başka belge türü' => ['getJson', '/v1/earchive/invoices'],
+            'PDF yolunda sayı olmayan kimlik' => ['getPdf', '/v1/einvoices/inbox/abc/preview/pdf'],
+            'PDF yolunda üst klasöre çıkış' => ['getPdf', '/v1/einvoices/inbox/1/../2/preview/pdf'],
+            'PDF yolunun devamı' => ['getPdf', '/v1/einvoices/inbox/1/preview/pdf/extra'],
+        ];
+    }
+
+    #[DataProvider('izinsizUclar')]
+    public function test_izin_listesinde_olmayan_uca_hic_istek_gonderilmez(string $metot, string $yol): void
+    {
+        Http::fake();
+        $tanim = EntegratorBaglanti::factory()->create();
+
+        try {
+            $this->istemci()->{$metot}($tanim, $yol);
+            $this->fail("İzinsiz uca istek çıktı: {$yol}");
+        } catch (InvalidArgumentException) {
+            Http::assertNothingSent();
+        }
     }
 
     public function test_tokenli_veri_istegi_izibiz_disinda_bir_adrese_gonderilemez(): void
@@ -324,6 +359,6 @@ final class IzibizIstemcisiTest extends TestCase
         Http::preventStrayRequests();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->istemci()->getJson(EntegratorBaglanti::factory()->create(), 'https://ornek.test/v1/deneme');
+        $this->istemci()->getJson(EntegratorBaglanti::factory()->create(), 'https://ornek.test/v1/einvoices/inbox');
     }
 }

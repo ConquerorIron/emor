@@ -20,7 +20,7 @@ use InvalidArgumentException;
  * Aktif entegratör hesabının e-Faturalarını PostgreSQL'e senkronlar (EFAT-10).
  *
  * Kullanım:
- * - Zamanlanmış artımlı:  efatura:senkron --gun=2 --tarih-turu=DELIVERY
+ * - Zamanlanmış artımlı:  efatura:senkron --gun=10 --tarih-turu=DELIVERY
  * - Günlük durum tazeleme: efatura:senkron --gun=45
  * - İlk tarama:            efatura:senkron --baslangic=2026-01-01 --tetikleyen=ilk_tarama
  *

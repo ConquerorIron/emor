@@ -10,11 +10,12 @@ Artisan::command('inspire', function () {
 
 // e-Fatura senkronu (EFAT-10). Komut EFATURA_SENKRON_AKTIF=false iken ve aktif
 // entegratör ortamı yokken hiçbir şey yapmadan çıkar.
-// Artımlı: son 2 günde İzibiz'e ULAŞAN faturalar (geç düzenlenmiş eski
-// tarihli faturalar da yakalanır)
+// Artımlı: son 10 günde İzibiz'e ULAŞAN faturalar (geç düzenlenmiş eski
+// tarihli faturalar da yakalanır). 10 gün (kullanıcı kararı 2026-11-18, önce
+// 2): sunucu / senkron birkaç gün dursa da arada ulaşan faturalar kaçmaz.
 // Aralık Entegratör Bağlantıları ekranından (en az 15 dk, İzibiz kuralı): komut
 // dakikada bir çağrılır, aralık dolmadıysa hiçbir şey yapmadan çıkar
-Schedule::command('efatura:senkron --gun=2 --tarih-turu=DELIVERY --aralik-denetimi')
+Schedule::command('efatura:senkron --gun=10 --tarih-turu=DELIVERY --aralik-denetimi')
     ->everyMinute()
     ->withoutOverlapping(60);
 

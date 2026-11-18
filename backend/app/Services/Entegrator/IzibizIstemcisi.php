@@ -44,6 +44,8 @@ final class IzibizIstemcisi
      */
     public function tokenAl(EntegratorBaglanti $tanim): IzibizToken
     {
+        $this->yolIzinliMi('POST', self::TOKEN_YOLU);
+
         try {
             $yanit = $this->istemci($tanim)
                 ->post(self::TOKEN_YOLU, [
@@ -206,7 +208,7 @@ final class IzibizIstemcisi
             }
         };
 
-        $this->yolIzinliMi($yol);
+        $this->yolIzinliMi('POST', $yol);
         $yanit = $gonder($this->token($tanim));
 
         if (in_array($yanit->status(), [401, 403], true)) {
@@ -232,20 +234,37 @@ final class IzibizIstemcisi
     }
 
     /**
-     * Güvenlik kilidi: yalnız İzibiz'in göreli API yolları ve ASLA okundu
-     * işaretleme, yanıtlama (kabul/red), gönderme ya da iptal uçları.
-     * Okundu işareti mevcut ERP entegrasyonunun işidir (kullanıcı kuralı);
-     * bu uygulama yalnız okur ve listeler.
+     * Güvenlik kilidi — İZİN LİSTESİ: bu uygulama İzibiz'de yalnız okur.
+     * Yalnız aşağıdaki yöntem + yol kalıplarına istek çıkabilir; listede
+     * olmayan HER uç (okundu işaretleme, kabul/red, gönderme, iptal ve
+     * İzibiz'in ileride ekleyeceği bilinmeyen uçlar) kod düzeyinde reddedilir.
+     * Okundu işareti mevcut ERP entegrasyonunun işidir (kullanıcı kuralı).
+     * Yeni bir uç gerekirse önce okuma olduğu doğrulanır, sonra buraya eklenir.
      */
-    private function yolIzinliMi(string $yol): void
+    private const IZINLI_UCLAR = [
+        'POST' => [
+            // Giriş
+            '#^/v1/auth/token$#D',
+            // Toplu UBL indirme — okundu bayrağına dokunmadığı ölçüldü (api-notlari.md)
+            '#^/v1/einvoices/(inbox|outbox)/download/ubl$#D',
+        ],
+        'GET' => [
+            // Sayfalı fatura listesi
+            '#^/v1/einvoices/(inbox|outbox)$#D',
+            // PDF önizleme — okundu bayrağına dokunmadığı ölçüldü
+            '#^/v1/einvoices/(inbox|outbox)/[0-9]+/preview/pdf$#D',
+        ],
+    ];
+
+    private function yolIzinliMi(string $yontem, string $yol): void
     {
-        if (preg_match('#^/v1/(?!/)[A-Za-z0-9._~/-]+$#D', $yol) !== 1) {
-            throw new InvalidArgumentException('İzibiz API yolu geçersiz.');
+        foreach (self::IZINLI_UCLAR[$yontem] ?? [] as $kalip) {
+            if (preg_match($kalip, $yol) === 1) {
+                return;
+            }
         }
 
-        if (preg_match('#read-flag|/response|/send|/cancel|/load|/import|/draft#i', $yol) === 1) {
-            throw new InvalidArgumentException('Bu İzibiz ucu bu uygulamada kullanılamaz (yalnız okuma).');
-        }
+        throw new InvalidArgumentException("Bu İzibiz ucu bu uygulamada kullanılamaz (yalnız okuma): {$yontem} {$yol}");
     }
 
     /**
@@ -256,7 +275,7 @@ final class IzibizIstemcisi
      */
     private function yenilemeliGet(EntegratorBaglanti $tanim, string $yol, array $sorgu, string $kabul): Response
     {
-        $this->yolIzinliMi($yol);
+        $this->yolIzinliMi('GET', $yol);
 
         $yanit = $this->tokenliGet($tanim, $yol, $sorgu, $this->token($tanim), $kabul);
 

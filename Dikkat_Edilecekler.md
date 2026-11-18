@@ -45,14 +45,26 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   *(BY-003-R2…R4: üç ayrı denetim aynı nedenle "her şey yerinde" dedi.)*
 - **G6 — `env('X', varsayılan)` boş değerde varsayılanı kullanmaz.** `.env`'de
   `X=` yazılıysa Laravel boş metin döndürür; yol boş, `(int)` ile süre 0 olur.
-  Varsayılanı olan her değişkeni `env('X') ?: varsayılan` ile oku ve
-  "tanımsız / boş / verilmiş" üç durumu sına.
-  *(BY-004-R2: `.env.example`'daki satırı açan kurulumda yedek klasörü boştu.)*
+  Boş metni ve `null`'ı varsayılana çevir, ama **geçerli değeri koru**:
+  `?:` yalnız boşun asla geçerli olmadığı metinlerde (yol, ad) uygundur;
+  `false` / `0` geçerli olabilen ayarda (aç/kapa, sayı) `?:` açıkça verilmiş
+  `false` / `0`'ı da varsayılana çevirir — orada `null` ve `''`'yi ayrıca
+  denetle. "Tanımsız / boş / verilmiş (false, 0 dahil)" durumlarını sına.
+  *(BY-004-R2: `.env.example`'daki satırı açan kurulumda yedek klasörü boştu.
+  BY-004-R4: kalıp `EFATURA_SENKRON_AKTIF`'e körce uygulansa kapatılmış
+  senkronu açardı.)*
 - **G7 — Benzersizlik kuralında NULL olabilen kolon tekrarı engellemez.**
   PostgreSQL ve SQLite NULL'ları birbirinden farklı sayar: `unique(a, b, c)`
   `c` boşken aynı `(a, b)`'yi tekrar kabul eder. Boş durum için koşullu
   benzersiz indeks ekle (`… WHERE c IS NULL`) ve iki veritabanında sına.
   *(BY-004-R1: plansız yedek kopyası aynı hedefe iki kez yazılabiliyordu.)*
+- **G8 — Dış sistemde "yalnız okuma" kuralı izin listesiyle uygulanır.**
+  Yasak listesi (`read-flag`, `/send`…) bugün bilinen yazma uçlarını tutar;
+  karşı taraf yeni bir uç eklediğinde o uç açık kalır. İstek çıkaran TEK yerde
+  yöntem + yol için izin listesi tut, gerisini istek göndermeden reddet; testte
+  bilinmeyen bir uç için "hiç istek gitmedi"yi sına.
+  *(İzibiz istemcisi 2026-11-18: yasak listesinin dışındaki yeni ve sahte
+  uçlara istek çıkabiliyordu; Protel / Süper Entegratör de aynı kuralla yazılacak.)*
 
 ## 2. Ön yüz
 
