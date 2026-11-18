@@ -410,10 +410,14 @@ Ayarlar ekranları ──► API (yalnız istek kaydeder, işlemi başlatmaz)
   karşı koruma sağlamaz. Üstüne geri yükleme servis hesabı olmadan açılmaz.
 - **Nesnelerin sahibi uygulama rolü kalır.** Geri yüklemeyi başka bir rol
   yaptığında tablolar o rolün olur ve yer değiştirmeden sonra uygulama kendi
-  tablolarını okuyamaz. Geri yükleme ve geri yüklenen veritabanındaki
-  migration'lar uygulama rolü adına çalışır (`pg_restore --role`) ya da sahiplik
-  ve yetkiler açıkça uygulama rolüne devredilir. Hangisinin bu sunucuda
-  çalıştığı YDK-01'de denenir.
+  tablolarını okuyamaz. **Doğrulanan yöntem** ([kesif.md](kesif.md) §4):
+  servis hesabı veritabanını `CREATE DATABASE … OWNER <uygulama rolü>` ile açar
+  ve `pg_restore --no-owner --role=<uygulama rolü>` ile geri yükler. Böylece
+  tablolar ve `public` şeması uygulama rolünündür; migration geri yüklenen
+  veritabanına tablo açabilir. Bunun koşulu: **servis hesabı uygulama rolünün
+  üyesidir.** Anlamı: servis hesabı uygulamanın veriye erişebildiği her şeye
+  erişir; ayrı hesabın değeri, uygulamanın kendisinin veritabanı açma, ad
+  değiştirme ve bağlantı koparma yetkisi taşımamasıdır.
 - **Dış komutlar kabuk metniyle değil, argüman dizisiyle çalıştırılır**
   (Laravel `Process`). Parola komut satırında ya da ortam değişkeninde durmaz;
   yalnız çalıştırıcının okuyabildiği bir parola dosyasından okunur
@@ -556,15 +560,17 @@ da yapılabilir.
    Buraya kadar canlı veritabanına dokunulmadı. 4. ya da 5. adımda hata olursa
    yeni veritabanı silinir, servisler başlatılır, bakım modundan çıkılır; veri
    aynen durur.
-6. `erp`'yi **önce yeni bağlantılara kapat**, sonra mevcut bağlantıları kopar.
-   Sıra önemlidir: önce koparılırsa araya giren tek bir bağlantı ad
-   değiştirmeyi başarısız kılar.
+6. `erp`'yi **önce yeni bağlantılara kapat** (`ALLOW_CONNECTIONS false`), sonra
+   mevcut bağlantıları kopar (`pg_terminate_backend`). Sıra önemlidir: önce
+   koparılırsa araya giren tek bir bağlantı ad değiştirmeyi başarısız kılar.
+   Kapatma, yöneticinin yeni bağlantılarını da engeller; açık bağlantılar
+   kendiliğinden kopmaz ([kesif.md](kesif.md) §6).
 7. Yer değiştir: `erp` → `erp_onceki_<zaman>`, `erp_geri_<zaman>` → `erp`. İki
-   ad değişikliği tek işlem içinde yapılır: ya ikisi de olur ya hiçbiri.
-   (PostgreSQL'in buna izin verdiği YDK-01'de doğrulanır; vermiyorsa "yarıda
-   kalırsa adları geri çevir, çevrilemezse bakım modunu koru ve yöneticiyi
-   uyar" dalı yazılır.) Yeni `erp` bağlantıya açılır; `erp_onceki_*` kapalı
-   kalır, kimse yanlışlıkla bağlanamaz.
+   ad değişikliği **tek işlem** içinde yapılır; ikincisi hata verirse birincisi
+   de geri alınır, adlar değişmez (lokal PostgreSQL 16'da doğrulandı —
+   [kesif.md](kesif.md) §5). Bağlı olunan veritabanının adı değiştirilemediği
+   için işlem `postgres` veritabanına bağlanılarak yapılır. Yeni `erp`
+   bağlantıya açılır; `erp_onceki_*` kapalı kalır, kimse yanlışlıkla bağlanamaz.
 8. Yedek dizinini klasörden yeniden kur (§7.3); ayarları uzlaştır (§5.3);
    önbellekleri temizle.
 9. Durum **"onay bekleniyor"** olur. Bakım modu sürer; zamanlayıcı ve kuyruk
@@ -598,8 +604,9 @@ durumları sunucu yeniden başlasa da korunmalıdır:
 elle durdurma) durum dosyası son tamamlanan adımı gösterir. Devam komutu buna
 göre karar verir: 7. adımdan önce kaldıysa yeni veritabanını silip servisleri
 açar (geri sarar); 7. adım tamamlandıysa 8. adımdan devam eder. İki ad
-değişikliği tek işlemde yapılabiliyorsa 7. adımın ortasında kalma ihtimali
-yoktur; yapılamıyorsa bu durum için ayrı bir kurtarma dalı yazılır.
+değişikliği tek işlemde yapıldığı için 7. adımın ortasında kalma ihtimali
+yoktur. Durum dosyasının yazılmasından önce ölünürse adlar okunarak hangi
+tarafta kalındığı anlaşılır (`erp_geri_*` duruyor mu, `erp_onceki_*` var mı).
 
 **Açıldıktan sonra geri dönüş ayrı bir işlemdir.** Uygulama yeniden yazmaya
 açıldıktan sonra `erp_onceki_*`'e dönmek, arada girilen kayıtları kaybettirir.
@@ -697,7 +704,10 @@ karşılaştırarak gösterir (§6.4).
 
 Sunucuda `pg_dump` / `pg_restore` 18.6 kurulu; veritabanı sunucusunun sürümü
 doğrulanmalı (proje notlarında 17 yazıyor). Yeni sürüm araçla alınan yedek,
-eski sürüm sunucuya her zaman geri yüklenemez. İlk iş olarak: mevcut yayın
+eski sürüm sunucuya her zaman geri yüklenemez. Somut örnek: PostgreSQL 17
+araçları yedeğe `transaction_timeout` ayarını yazar; 16 sunucusu bu ayarı
+tanımaz ve `--exit-on-error` ile geri yükleme başarısız olur. Araç sürümü ile
+sunucu sürümü eşleşmeli ya da canlıda denenmeli ([kesif.md](kesif.md), "Açık"). İlk iş olarak: mevcut yayın
 öncesi yedeklerden biri gerçekten geri yüklenip denenmeli (§10).
 
 ### 7.8 Saat dilimi
@@ -758,10 +768,11 @@ Bugünkü durum (2026-11-16):
 1. Geri yükleme için **ayrı bir servis hesabı** (işletim sistemi kullanıcısı +
    veritabanı rolü). Web sürecinin kullanıcısına geniş yetki verilmez. Yetki
    matrisi bilgi işlemle **yazılı** belirlenir:
-   - veritabanı oluşturma ve yalnız kendi oluşturduğu veritabanlarının sahipliği,
-   - ad değiştirme (yalnız oluşturma yetkisi yetmez: sahiplik ve başka bir
-     veritabanından yönetim bağlantısı gerekir),
-   - `erp` veritabanındaki bağlantıları koparma,
+   - veritabanı oluşturma (`CREATEDB`),
+   - **uygulama rolüne üyelik** — veritabanını uygulama rolü adına açmak, geri
+     yüklemeyi onun adına yapmak, `erp`'nin adını değiştirmek ve uygulamanın
+     bağlantılarını koparmak bununla mümkün olur ([kesif.md](kesif.md) §4–§6),
+   - `postgres` veritabanına bağlanma (ad değiştirme oradan yapılır),
    - kuyruk ve zamanlayıcı servislerini durdurup başlatma.
 2. Uygulamanın yazabildiği, web dışı bir yedek klasörü.
 3. Yedekleme için ayrı servis tanımı (kuyruk işçisi ve geri yükleme çalıştırıcısı).

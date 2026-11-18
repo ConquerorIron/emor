@@ -136,8 +136,8 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 
 | No | Görev | Faz | Bağımlı | Durum |
 |---|---|---|---|---|
-| BY-001 | Geçici önlem: günlük yedek ve elle sunucu dışı kopya | 0 | — | REVIEW_BEKLIYOR |
-| BY-002 | Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları | 0 | — | YAPILACAK |
+| BY-001 | Geçici önlem: günlük yedek ve elle sunucu dışı kopya | 0 | — | PASSED |
+| BY-002 | Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları | 0 | — | DEVAM |
 | BY-003 | Bilgi işlem talep listesi | 0 | BY-002 | YAPILACAK |
 | BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | YAPILACAK |
 | BY-005 | Dosya kilidi ve işlem durumu dosyası | 1 | BY-004 | YAPILACAK |
@@ -191,7 +191,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-001 — Geçici önlem: günlük yedek ve elle sunucu dışı kopya
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** —
+- **Durum:** PASSED · **Bağımlı:** —
 - **Tasarım:** README §2, §11 (YDK-00)
 - **Ön koşul:** Kullanıcı onayı (canlı sunucuda zamanlayıcı değişikliği); `.env`
   ve yedeğin kopyalanacağı yer kullanıcıdan.
@@ -409,10 +409,54 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       tekrarlanmadı (değişen yalnız değer dönüşümü; lokal gerçek `.env` sıradan
       metin parola içeriyor). Canlı sunucu denenmedi.
     - Ders `Dikkat_Edilecekler.md` G3'e işlendi.
+  - 2026-11-18 Codex → PASSED · incelenen commit `5ee2845`
+    - **BY-001-R3 kapandı.** `scripts/gecici-env-oku.php:59-68` değerleri
+      `Illuminate\Support\Env::get()` ile dönüştürüyor; elle yazılmış eksik
+      eşleme kaldırılmış. Eksik dalları eklemek yerine mevcut Laravel
+      fonksiyonunu kullanma gerekçesi kabul edildi (G3). Bu, uygulamayı
+      başlatmadan `.env` okuyan bağımsız CLI yardımcısıdır; Laravel uygulama
+      kodundaki `config()` kullanım kuralıyla çelişmez. Kurulu Laravel
+      `v13.24.0`, phpdotenv `v5.6.4`; Boost MCP bulunmadığı için davranış
+      vendor kaynaklarından doğrulandı.
+    - **Uyumluluk ve gizlilik:** 10 yeni parola örneği ile eski R1'in iki
+      örneği bağımsız geçici testte, aynı yapay `.env` dosyalarını normal
+      `Dotenv::create(Env::getRepository())->load()` + `env()` yoluyla okuyan
+      ayrı PHP süreçleriyle karşılaştırıldı; beş veritabanı alanının çıktısı
+      **12/12 aynı**. Yardımcıya eklenen geçici kapanış gözleminde
+      `getenv('DB_PASSWORD')` çalışmanın öncesinde ve sonrasında aynı kaldı;
+      dosyadan okunan parola süreç ortamına yazılmadı (D2). `$_SERVER` /
+      `$_ENV` atamaları yardımcı PHP sürecinin belleğinde kalıyor; Bash'e
+      aktarım NUL ayracı ve geçici `PGPASSFILE` üzerinden sürüyor.
+    - **BY-001-R4 kapandı.** Önceki Codex incelemesinin üç paragrafı metinleri
+      korunarak `2084d41` kaydına taşınmış; Claude'un `2e984a3` kaydı bunların
+      ardından başlıyor. §1.4'te günlüğün sonuna ekleme kuralı açıklaştırılmış.
+    - Kontroller: `bash scripts/tests/gecici-gunluk-yedek.test.sh` → **77/77**;
+      iki betikte `bash -n`, yardımcıda `php -l` ve
+      `git diff --check 2e984a3 5ee2845` temiz. Üç bağımsız geçici test geçti:
+      12 örnekte Laravel uyumu, süreç ortamının korunması ve regresyonların
+      eski yardımcıyla kırmızıya dönmesi. Sonuncusunda yeni testler izole
+      geçici proje kopyasında `2e984a3` yardımcısıyla çalıştırıldı; altı parola
+      içeriği denetimi beklenen şekilde başarısız oldu, çıkış 1 (T5/T7).
+      Güncel yardımcıyla aynı denetimler yukarıdaki 77/77 koşusunda geçti.
+      Yalnız yapay bilgiler kullanıldı; geçici test/kopyalar temizlendi.
+    - Kullanılan skill'ler: `code-review`, `laravel-best-practices`,
+      `testing-best-practices`, `supabase-postgres-best-practices`;
+      `Dikkat_Edilecekler.md` ve genişletilen G3 okundu. Yeni hata, güvenlik,
+      performans veya bakım bulgusu saptanmadı. Sonraki `1481924` yalnız
+      frontend dosyalarını değiştiriyor; bu BY-001 kararının kapsamı `5ee2845`.
+    - Doğrulanamayan: `shellcheck` kurulu değil; gerçek PostgreSQL denemesi,
+      tam backend/frontend testleri ve Pint bu tur tekrarlanmadı. Canlı sunucu,
+      canlı araç sürümü, zamanlayıcı ortamı ve ertesi gün yedek oluşması
+      denenmedi; ilgili canlı kabul kutusu açık bırakıldı.
+    - **Sonuç:** R1–R4 kapalı; kod incelemesi `PASSED`. Uygulama/betik/test
+      kodu değiştirilmedi; yalnız bu inceleme ve BY-001 durumları yazıldı.
+      Canlı işlem, zamanlayıcı kurulumu, commit veya gönderme yapılmadı.
+      Görev `CANLIDA` yapılmadı; canlı adımları ve elle sunucu dışı kopya,
+      §1.3 madde 8 gereği kullanıcının ayrıca vereceği talimatı bekler.
 
 ### BY-002 — Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları
 
-- **Durum:** YAPILACAK · **Bağımlı:** —
+- **Durum:** DEVAM · **Bağımlı:** —
 - **Tasarım:** README §7.7, §10, §5.2 (sahiplik), §6.4 (6–7. adım), §9
 - **Ön koşul:** Canlı veritabanı sunucusunda okuma / deneme için kullanıcı onayı;
   denemeler mümkünse lokal PostgreSQL'de yapılır.
@@ -433,9 +477,18 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   geri yükleme).
 - **Kabul ölçütleri:**
   - [ ] Dokuz sorunun her biri "doğrulandı / doğrulanamadı + nasıl denendi" ile yanıtlandı.
-  - [ ] Tasarımı değiştiren her bulgu README'ye işlendi (özellikle §6.4 7. adım, §7.7).
-  - [ ] Deneme için oluşturulan veritabanları silindi.
+        (Lokal kısım tamam; 1, 3 ve 2'nin canlı yarısı onay bekliyor.)
+  - [x] Tasarımı değiştiren her bulgu README'ye işlendi (özellikle §6.4 7. adım, §7.7).
+  - [x] Deneme için oluşturulan veritabanları silindi.
 - **Canlı:** Yok (doküman).
+- **Kaldığı yer (2026-11-18):** Lokal deneyler bitti; sonuçlar `kesif.md`'de,
+  tasarıma etkileri README §5.2, §6.4 (6–7), §7.7, §9'da. Deney betiği
+  repoya eklenmedi (geçici nesne açıp silen tek seferlik keşif). Kalan: canlıda
+  salt okuma — sunucu sürümü, uygulama rolünün yetkileri, kodlama / sıralama /
+  veritabanı ayarları, bir `erp_predeploy_*` yedeğinde tam okuma
+  (`pg_restore --file=/dev/null`). Kullanıcı onayı istendi; canlı yedeğin tam
+  geri yüklemesi için yöntem kararı da kullanıcıda (lokale kopya / canlıda
+  ayrı veritabanı / yalnız tam okuma).
 - **İnceleme günlüğü:** —
 
 ### BY-003 — Bilgi işlem talep listesi
