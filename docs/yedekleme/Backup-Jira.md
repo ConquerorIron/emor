@@ -140,7 +140,7 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 | BY-002 | Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları | 0 | — | PASSED |
 | BY-003 | Sunucu kurulum betiği | 0 | BY-002 | PASSED |
 | BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | PASSED |
-| BY-005 | Dosya kilidi ve işlem durumu dosyası | 1 | BY-004 | YAPILACAK |
+| BY-005 | Dosya kilidi ve işlem durumu dosyası | 1 | BY-004 | REVIEW_BEKLIYOR |
 | BY-006 | Manifest, imza, olay günlüğü | 1 | BY-004 | YAPILACAK |
 | BY-007 | Yedek alma (`yedek:al`) | 1 | BY-005, BY-006 | YAPILACAK |
 | BY-008 | Hedef soyutlaması, Yerel disk hedefi, kopyalama | 1 | BY-007 | YAPILACAK |
@@ -1315,7 +1315,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-005 — Dosya kilidi ve işlem durumu dosyası
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-004
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-004
 - **Tasarım:** README §5.2 (kilit), §6.4 (yeniden başlatmaya dayanıklılık), §7.2
 - **Kapsam:**
   - `YedekKilidi`: işletim sistemi düzeyinde dosya kilidi; veritabanına ve
@@ -1324,13 +1324,91 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     dosyaya yazılır:** işlem kimliği, tür, adım, başlangıç, son güncelleme,
     hata, erişim anahtarı özeti. Atomik yazma (geçici dosya + taşıma).
   - "Açık geri yükleme var mı" sorgusu (BY-029 kullanacak).
+- **Dosyaların yeri:** kilit `<durum klasörü>/kilit`, işlem durumu
+  `<durum klasörü>/islem.json`. Sunucu düzeninde durum klasörü
+  `/var/lib/emor-yedek/durum` (BY-003; kilit önceden açılmış, yayın kullanıcısı
+  yalnız okuyabilir — kilit bu yüzden salt okunur açılır). Geçiş döneminde
+  (uygulama kullanıcısı) yapılandırmadan gelir; yapılandırma anahtarı ilk
+  kullanan görevle (BY-007) eklenir. Sınıflar yolu yapıcıdan alır.
+- **İşlem durumu dosyası şeması (sürüm 1)** — `IslemKaydi`. Tek JSON nesnesi,
+  o anki ya da son işlem; geçmiş veritabanında ve olay günlüğünde.
+
+  | Alan | Tür | Anlamı |
+  |---|---|---|
+  | `surum` | tam sayı, `1` | Şema sürümü; bilinmeyen sürüm bozuk sayılır |
+  | `kimlik` | UUID | İşlem kimliği (`geri_yuklemeler.kimlik` ile eşleşir) |
+  | `tur` | `yedek` \| `sinama_geri_yuklemesi` \| `geri_yukleme_kopya` \| `geri_yukleme_ustune` | `IslemTuru` |
+  | `adim` | boş olmayan metin | İşlemi yürüten kodun adım adı (ör. `bakim_modu`, `pg_restore`, `onay_bekliyor`); değerleri işlemi yazan görev belirler (BY-007, BY-026, BY-028) |
+  | `acik` | true / false | İşlem uygulamayı kapalı tutuyor (bakım modu, kuyruk durmuş). Üstüne geri yükleme 2. adımda `true` yapar, servisler açılınca (başarı ya da geri sarma) `false` |
+  | `baslangic`, `son_guncelleme` | `YYYY-AA-GGTSS:DD:SS.mikrosaniye+00:00` (UTC) | — |
+  | `hata` | `null` \| `{kod, mesaj}` | Son hata |
+  | `erisim_anahtari_ozeti` | `null` \| 64 karakter küçük harf hex | İlerleme / onay anahtarının SHA-256 özeti (README §7.2); anahtarın kendisi dosyada yok |
+
+  **Okuma kuralı:** dosya yoksa "hiç işlem olmamış". Okunamayan, JSON olmayan
+  ya da herhangi bir alanı şemaya uymayan dosya `IslemDurumuBozuk` fırlatır;
+  "işlem yok" sayılmaz. **"Açık geri yükleme var mı"** = `tur` üstüne geri
+  yükleme **ve** `acik` true; dosya bozuksa istisna — yayın, planlı yedek,
+  kuyruk ve zamanlayıcı bunu da "başlama" diye yorumlar (BY-013, BY-029).
+  **Yazma:** aynı klasörde nokta önekli geçici dosyaya yazılır, `fsync`, izin
+  0640, tek adımda `rename`; hata yolunda geçici dosya silinir, önceki durum
+  yerinde kalır.
 - **Kabul ölçütleri:**
-  - [ ] İki süreç aynı anda kilidi alamıyor (test); süreç ölünce kilit düşüyor.
-  - [ ] Veritabanı bağlantısı yokken kilit ve durum dosyası çalışıyor (test: bağlantı kapalı).
-  - [ ] Durum dosyası yarım yazılmış hâlde okunmuyor (atomik yazma testi).
-  - [ ] Bozuk durum dosyası anlaşılır hata veriyor; sessizce "işlem yok" sayılmıyor.
+  - [x] İki süreç aynı anda kilidi alamıyor (test); süreç ölünce kilit düşüyor.
+  - [x] Veritabanı bağlantısı yokken kilit ve durum dosyası çalışıyor (test: bağlantı kapalı).
+  - [x] Durum dosyası yarım yazılmış hâlde okunmuyor (atomik yazma testi).
+  - [x] Bozuk durum dosyası anlaşılır hata veriyor; sessizce "işlem yok" sayılmıyor.
 - **Canlı:** Evet (etkisiz).
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · başlığı
+    `feat(yedekleme): BY-005 dosya kilidi ve islem durumu dosyasi` olan commit
+    - Skill'ler: `laravel-best-practices` (architecture, error-handling,
+      style), `testing-best-practices` (isolation, assertions, naming,
+      review). Laravel 13 `Process` arayüzü (`start`, `signal`, `waitUntil`,
+      `running`, `wait`) vendor'dan doğrulandı; Boost MCP yok.
+    - Yeni (`App\Services\Yedekleme`): `YedekKilidi` (`al`, `bekleyerekAl`
+      süre sınırlı — D1, `birak`; var olan dosya salt okunur açılır, yoksa
+      klasörüyle 0640 açılır; "meşgul" false, "açılamıyor" istisna),
+      `IslemDurumu` (`oku`, `yaz`, `acikGeriYuklemeVarMi`), `IslemKaydi`
+      (şema + denetim), `IslemTuru`, `IslemDurumuBozuk`. Artisan istisnayı
+      `app/Exceptions`'a açtı; projede o klasör yok, mevcut kalıp gereği
+      servis klasörüne taşındı.
+    - Atomik yazmada `tempnam` bilerek kullanılmadı: klasör yazılamazsa
+      sistemin geçici klasörüne düşer, taşıma artık tek adım olmaz.
+    - Testler (`YedekKilidiTest` 8, `IslemDurumuTest` 23): ikinci tutamaç
+      alamaz; **ayrı PHP süreci** tutarken alınamaz, süreç `SIGKILL` ile
+      öldürülünce alınır; kilit tutulurken **`flock -n` komutu da alamaz**
+      (deploy.sh uyumu); `bekleyerekAl` bırakılınca alır (~1 sn bekleyerek),
+      süre dolunca vazgeçer (0,5–3 sn); yazma izni olmayan (0440) dosyada da
+      kilit alınır (BY-003'teki yayın kullanıcısı); dosya yoksa klasörüyle
+      0640 açılır; açılamıyorsa istisna (meşgul sanılmaz). Durum: yazılan
+      kayıt aynen okunur, dosya 0640 ve geride geçici dosya yok; dosya yoksa
+      null; açık geri yükleme yalnız açık üstüne geri yüklemede (5 durum);
+      şemaya uyan dosya okunur; 12 ayrı bozuk içerik (boş, yarım JSON, liste,
+      sürüm, eksik alan, tür, `acik` metin, kimlik, tarih, boş adım, hata,
+      özet) istisna ve mesajda dosya yolu; **ayrı süreç 1,5 sn boyunca 200 KB'lık
+      durumlar yazarken eşzamanlı okuyucu hiç yarım ya da karışık içerik
+      görmüyor**; klasör yazılamazsa önceki durum korunuyor, geçici dosya
+      kalmıyor (T8); veritabanı ve önbellek bağlantısı yokken kilit ve durum
+      çalışıyor.
+    - **Bozma denemesi (T5'in ruhu):** yazma atomik olmayan
+      `file_put_contents`'e çevrilince 3 test kırmızı (eşzamanlı okuyucu
+      `IslemDurumuBozuk` gördü); bozuk dosya sessizce "yok" sayılınca 12 test
+      kırmızı; kilit flock'suz "alındı" deyince 6 test kırmızı; geri
+      yüklenince 31/31. Kilit testleri 3 kez art arda çalıştırıldı (zamanlama
+      kararlılığı), hepsi geçti.
+    - Öz-inceleme düzeltmeleri: tarih hata mesajında ham değer vardı (D2) →
+      kaldırıldı; "belki lazım olur" mikrosaniyesiz tarih ayrıştırması (K1)
+      kaldırıldı ve bozuk-içerik testlerinin geçerli tabanı yazılan biçime
+      çekildi (her durum yalnız kendi nedeniyle reddedilsin; taban ayrıca
+      `test_semaya_uyan_dosya_okunur` ile sınanıyor). İlk denemede bir test
+      süreç durumunun geç güncellenmesine bağlıydı (yarış) → ölçüt "~1 sn
+      beklendi"ye çevrildi.
+    - **BY-013 için not:** geçiş döneminde kilit dosyası uygulama
+      kullanıcısının klasöründe açılır; `deploy.sh`'ın (yayın kullanıcısı)
+      onu okuyabilmesi BY-013'te ele alınmalı (sunucu düzeninde BY-003 ACL'i
+      bunu çözüyor).
+    - Kontroller: backend **715/715**; Pint temiz. Frontend değişmedi.
+      Canlıya alınmadı.
 
 ### BY-006 — Manifest, imza, olay günlüğü
 
