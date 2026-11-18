@@ -702,13 +702,18 @@ karşılaştırarak gösterir (§6.4).
 
 ### 7.7 PostgreSQL araç sürümü
 
-Sunucuda `pg_dump` / `pg_restore` 18.6 kurulu; veritabanı sunucusunun sürümü
-doğrulanmalı (proje notlarında 17 yazıyor). Yeni sürüm araçla alınan yedek,
-eski sürüm sunucuya her zaman geri yüklenemez. Somut örnek: PostgreSQL 17
-araçları yedeğe `transaction_timeout` ayarını yazar; 16 sunucusu bu ayarı
-tanımaz ve `--exit-on-error` ile geri yükleme başarısız olur. Araç sürümü ile
-sunucu sürümü eşleşmeli ya da canlıda denenmeli ([kesif.md](kesif.md), "Açık"). İlk iş olarak: mevcut yayın
-öncesi yedeklerden biri gerçekten geri yüklenip denenmeli (§10).
+Canlıda sunucu da araçlar da **18.6** — eşleşiyor ([kesif.md](kesif.md) §1;
+2026-11-18). Kural kalıcıdır: yeni sürüm araçla alınan yedek, eski sürüm
+sunucuya her zaman geri yüklenemez. Somut örnek: PostgreSQL 17+ araçları
+yedeğe `transaction_timeout` ayarını yazar; 16 sunucusu bu ayarı tanımaz ve
+`--exit-on-error` ile geri yükleme başarısız olur. Sunucu yükseltilir ya da
+araçlar ayrıca güncellenirse sürümler yeniden eşleştirilir; yedekleme,
+manifestteki araç / sunucu sürümünü geri yüklemeden önce denetler.
+
+Lokal geliştirme ortamı farklıdır (PostgreSQL 16, sıralama `C.UTF-8`; canlı
+`en_US.UTF-8`). Canlı yedeklerin geri yüklenebildiği henüz **kanıtlanmadı**,
+yalnız okunabildikleri kanıtlı; gerçek geri yükleme servis hesabı gelince
+canlıda yapılır (BY-026).
 
 ### 7.8 Saat dilimi
 
@@ -759,7 +764,7 @@ Bugünkü durum (2026-11-16):
 | Zamanlayıcı ve kuyruk | `www-data` olarak çalışıyor; kuyrukta iş zaman aşımı 300 sn, tek işçi | Yedekleme için ayrı işçi/servis tanımı gerek |
 | `admin` kullanıcısı | Parolasız `sudo` yok | Servis ve izin değişikliklerini bilgi işlem yapmalı |
 | Yükleme sınırı | 2 MB | Tarayıcıdan yedek yükleme yok |
-| Veritabanı kullanıcısının yetkileri | **Bilinmiyor** | Veritabanı oluşturma / ad değiştirme yetkisi yoksa §4.5 ve §6.4 çalışmaz |
+| Veritabanı kullanıcısının yetkileri | Yönetici değil, **veritabanı açamaz**, rol açamaz, üyeliği yok; `erp`'nin sahibi (2026-11-18, [kesif.md](kesif.md) §3) | Geri yükleme (§4.5, §6.4) uygulama kullanıcısıyla yapılamaz; servis hesabı şart |
 | Sunucu dışı hedef | Yok | NAS / sunucu / depolama + erişim bilgisi gerek |
 | Kurulu araçlar | `gpg`, `rsync`, `zstd` var; `rclone` yok | S3 hedefi seçilirse kurulum gerek |
 

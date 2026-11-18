@@ -188,7 +188,7 @@ yansıması, her girişte tazelenir) — tasarım düzenleme uçlarını bu bayr
 - **Repo**: git@github.com:ConquerorIron/emor.git (ornek'teki puantaj repo'suna ASLA dokunma)
 - **Sunucu**: erp.tersane-istanbul.com = 10.2.30.67 (iç ağ, Ubuntu 26.04, ssh: admin) — uygulama `/var/www/emor`
 - **Akış**: lokalde `./publish.sh --message "..."` (testler + push) → sunucuda `cd /var/www/emor && ./deploy.sh` (pull + build + migrate)
-- Sunucu bileşenleri: nginx (SSL: /etc/ssl/emor, Sectigo wildcard 2027-01'e kadar) + php8.5-fpm + pdo_sqlsrv (pecl) + PostgreSQL 17 (db: erp, şifre: /home/admin/.erp_db_pw) + emor-queue systemd servisi + /etc/cron.d/emor scheduler
+- Sunucu bileşenleri: nginx (SSL: /etc/ssl/emor, Sectigo wildcard 2027-01'e kadar) + php8.5-fpm + pdo_sqlsrv (pecl) + PostgreSQL 18.6 (2026-11-18 doğrulandı; sıralama en_US.UTF-8, saat dilimi UTC; db: erp, şifre: /home/admin/.erp_db_pw) + emor-queue systemd servisi + /etc/cron.d/emor scheduler
 - Sunucudaki git, GitHub'a `~admin/.ssh/id_ed25519` deploy key'i ile erişir (repo Settings → Deploy keys'e ekli olmalı)
 - MSSQL sürücü notu: Microsoft'un ubuntu/26.04 apt deposu boş — 24.04 (noble) deposu kullanılıyor (/etc/apt/sources.list.d/mssql-release.list)
 

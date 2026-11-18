@@ -14,15 +14,20 @@ denenmesi. Görev: [Backup-Jira.md](Backup-Jira.md) → BY-002.
 - Kaynak veri: lokal `erp` veritabanının yedeği. `erp` ve `erp_test`
   veritabanlarına yazılmadı. Deney sonunda geride rol ve veritabanı kalmadığı
   denetlendi.
-- **Canlı:** henüz denenmedi; kullanıcı onayı bekleniyor (aşağıda "Açık").
+- **Canlı (2026-11-18, kullanıcı onayıyla):** yalnız okuma. Sorgular uygulamanın
+  kendi veritabanı kullanıcısıyla, `.env`'deki bilgilerle çalıştı (parola komut
+  satırına girmedi); betik sunucuya geçici kopyalanıp sonra silindi. Kullanıcı
+  "canlıda ayrı veritabanına geri yükle" seçeneğini onayladı; ancak
+  uygulama kullanıcısının veritabanı açma yetkisi olmadığı için bu adım
+  **yapılamadı**, canlıda hiçbir nesne oluşturulmadı.
 
 ## Özet
 
 | # | Soru | Sonuç |
 |---|---|---|
-| 1 | Canlı sunucu sürümü; araç (18.6) ile uyum | **Açık** (canlı) — lokal 16.15 |
-| 2 | Mevcut bir yedek gerçekten geri yükleniyor mu | **Lokalde doğrulandı**; canlı yedekle **açık** |
-| 3 | Uygulama kullanıcısının yetkileri | Lokalde: yetkisiz. Canlı **açık** |
+| 1 | Canlı sunucu sürümü; araç (18.6) ile uyum | **Doğrulandı:** sunucu 18.6, araçlar 18.6 — eşleşiyor |
+| 2 | Mevcut bir yedek gerçekten geri yükleniyor mu | Lokalde **doğrulandı**; canlı yedek **tam okundu**, canlıda geri yükleme **doğrulanamadı** (yetki yok) |
+| 3 | Uygulama kullanıcısının yetkileri | **Doğrulandı:** yetkisiz (veritabanı açamaz); veritabanının sahibi |
 | 4 | Nesnelerin sahibi uygulama rolü olabiliyor mu | **Doğrulandı** — yöntemle birlikte |
 | 5 | İki ad değişikliği tek işlemde | **Doğrulandı** — atomik |
 | 6 | Bağlantıya kapatma + koparma | **Doğrulandı** |
@@ -32,22 +37,48 @@ denenmesi. Görev: [Backup-Jira.md](Backup-Jira.md) → BY-002.
 
 ## Ayrıntı
 
+### 1. Sürüm (canlı)
+
+- Sunucu: **PostgreSQL 18.6** (`server_version_num` 180006). Proje notlarında
+  yazan "17" eskiydi; CLAUDE.md düzeltildi.
+- Araçlar: `pg_dump` / `pg_restore` 18.6 — sunucuyla aynı.
+- En yeni yayın öncesi yedekte `transaction_timeout` ayarı var (18 araçları
+  yazar); sunucu da 18 olduğu için sorun değil.
+
+Sonuç: README §7.7'deki sürüm riski canlıda bugün yok. Kalıcı kural olarak
+kalmalı: sunucu yükseltilirse ya da araçlar ayrı güncellenirse sürümler
+yeniden eşleştirilir. Lokal geliştirme ortamı 16.15'tir; lokal deneylerin
+18'de aynı davrandığı varsayıldı (aşağıdaki "Sınırlar").
+
 ### 2. Geri yükleme ve sayım karşılaştırması
 
 Kaynak veritabanının yedeği yeni bir veritabanına geri yüklendi
 (`pg_restore --no-owner --role=<uygulama> --exit-on-error --single-transaction`).
 29 tablonun tamamında satır sayıları kaynakla aynı çıktı.
 
-Canlıdaki bir `erp_predeploy_*` yedeğiyle **denenmedi**. Bu, canlı verinin
-lokale kopyalanmasını ya da canlıda veritabanı açma yetkisini gerektiriyor;
-kullanıcıya soruldu.
+**Canlı:** en yeni yayın öncesi yedek (`erp_predeploy_2026-11-18_063445.dump`,
+1,6 MB, 38 tablonun verisi) **baştan sona okundu** (`pg_restore
+--file=/dev/null`, çıkış 0): dosya sağlam. Canlıda ayrı bir veritabanına
+gerçek geri yükleme **yapılamadı**: uygulama kullanıcısının veritabanı açma
+yetkisi yok (§3). Bu adım servis hesabı geldiğinde canlıda yapılır (BY-025 /
+BY-026); bilgi işlem talebi BY-003'e yazılacak.
 
 ### 3. Uygulama kullanıcısının yetkileri
 
-Lokal `erp` rolü: yönetici değil, veritabanı açamaz, rol açamaz, başka bir
-role üye değil. Canlıdaki rolün de böyle olduğu varsayılmamalı; canlıda
-okunacak. Lokal durum, README §9'daki "ayrı servis hesabı" ihtiyacını doğruluyor:
-uygulama rolüyle geri yükleme yapılamaz.
+| | Lokal | Canlı |
+|---|---|---|
+| Yönetici | hayır | hayır |
+| Veritabanı açma (`CREATEDB`) | hayır | **hayır** |
+| Rol açma | hayır | hayır |
+| Başka role üyelik | yok | yok |
+| `pg_signal_backend` üyeliği | — | hayır |
+| `erp` veritabanının sahibi | evet | **evet** |
+| `postgres` veritabanına bağlanma | — | evet |
+
+Canlı durum README §9'daki "ayrı servis hesabı" ihtiyacını doğruluyor:
+uygulama kullanıcısıyla veritabanı açılamaz, dolayısıyla geri yükleme yapılamaz.
+`erp`'nin sahibi uygulama kullanıcısı olduğu için, servis hesabı ona üye
+yapılınca ad değiştirme ve bağlantı koparma da mümkün olur (§4–§6).
 
 ### 4. Nesnelerin sahibi
 
@@ -100,7 +131,28 @@ yalnız `--create` ile yazar; tasarımda veritabanını biz açtığımız için
 `--create` kullanılmıyor.)
 
 Kodlama ve sıralama kuralı da yedekten gelmez; `CREATE DATABASE` sırasında
-verilir. Lokal: `UTF8`, `C.UTF-8`, sağlayıcı libc. Canlı değerler okunacak.
+verilir.
+
+| | Lokal | Canlı |
+|---|---|---|
+| Kodlama | UTF8 | UTF8 |
+| Sıralama / karakter türü | `C.UTF-8` | **`en_US.UTF-8`** |
+| Sağlayıcı | libc | libc |
+| Veritabanı düzeyi ayarlar | yok | **yok** |
+| Sunucu saat dilimi | Europe/Istanbul | **Etc/UTC** |
+| `public` şemasının sahibi | — | `pg_database_owner` (yani veritabanı sahibi) |
+| Eklentiler | plpgsql | plpgsql |
+| Tablolar | 28 (lokal) | 38, hepsi `erp`'nin |
+
+Dikkat çekenler:
+
+- Canlıda sıralama kuralı Türkçe değil, `en_US.UTF-8`. Geri yüklenen
+  veritabanı da `en_US.UTF-8` ile açılmalı; yoksa `ORDER BY` sonuçları sessizce
+  değişir. Lokal ortam (`C.UTF-8`) canlıdan farklı sıralar
+  (`Dikkat_Edilecekler.md` T6).
+- Canlıda veritabanı düzeyi ayar yok; sunucunun saat dilimi UTC. Manifest
+  mekanizması yine gerekli (ileride ayar eklenirse kaybolmasın), ama bugün
+  taşınacak bir ayar yok.
 
 **Sonuç:** README §5.3'teki "manifest bu özellikleri kaydeder, yeni veritabanı
 aynı değerlerle açılır" kararı zorunlu. Okunacak yerler: `pg_database`
@@ -126,23 +178,25 @@ sayım 5'ti; yani yedek ve sayım aynı andandı.
 
 ## Tasarıma etkisi
 
-README'ye işlenenler (bu görevin commit'inde):
+README'ye işlenenler (bu görevin commit'lerinde):
 
 1. §5.2: servis hesabının uygulama rolüne **üye** olması koşulu ve anlamı;
    doğru sahiplik yöntemi (`CREATE DATABASE … OWNER` + `--role`).
 2. §6.4 6. ve 7. adım: doğrulanan sıra; ad değiştirme atomik, `postgres`
    veritabanından yapılır; "yarıda kalırsa geri çevir" dalı kaldırıldı.
-3. §9: yetki listesine üyelik ve `postgres` veritabanına bağlanma hakkı.
+3. §7.7: canlı sürüm 18.6, araçlarla eşleşiyor; kalıcı kural olarak kaldı.
+4. §9: yetki listesine üyelik ve `postgres` veritabanına bağlanma hakkı;
+   canlı uygulama kullanıcısının yetkileri.
 
-## Açık (canlı, onay bekliyor)
+## Sınırlar ve açık kalanlar
 
-1. **Sürüm.** Canlı PostgreSQL sunucu sürümü. Araçlar 18.6. Sunucu daha eskiyse
-   risk somut: yeni sürüm `pg_dump`'ın ürettiği yedek, eski sunucunun tanımadığı
-   ayarlar içerebilir (bilinen örnek: PostgreSQL 17 araçları `transaction_timeout`
-   ayarını yazar; 16 sunucusu bunu tanımaz). `--exit-on-error` ile geri yükleme
-   bu durumda başarısız olur. Sürümler eşleşmeli ya da canlıda denenmeli.
-2. **Canlı uygulama rolünün yetkileri**, kodlama / sıralama kuralı ve veritabanı
-   düzeyi ayarlar.
-3. **Canlı yedekle geri yükleme.** En az: bir `erp_predeploy_*` dosyasında
-   `pg_restore --file=/dev/null` (veritabanı gerektirmez, salt okuma). Tam geri
-   yükleme için ya veri lokale kopyalanır ya da canlıda veritabanı açma yetkisi gerekir.
+1. **Canlıda gerçek geri yükleme yapılmadı.** Uygulama kullanıcısının
+   veritabanı açma yetkisi yok. Servis hesabı (bilgi işlem, BY-003) gelince
+   BY-026'da canlıda ilk iş olarak yapılır. O zamana kadar canlı yedeklerin
+   geri yüklenebildiği kanıtlanmış sayılmaz; yalnız okunabildikleri kanıtlı.
+2. **Sahiplik, ad değiştirme ve bağlantı koparma deneyleri PostgreSQL 16'da
+   yapıldı**, canlı 18.6. Bu davranışların 18'de değişmediği varsayıldı;
+   BY-026 / BY-028 canlıya yakın bir 18 ortamında yeniden doğrular.
+3. Lokal geliştirme ortamı canlıdan farklı: PostgreSQL 16 ve `C.UTF-8`
+   (canlı 18 ve `en_US.UTF-8`). Gerçek araçlarla yapılan uçtan uca testlerde
+   bu fark akılda tutulmalı.

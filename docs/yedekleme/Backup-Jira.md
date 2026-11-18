@@ -137,7 +137,7 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 | No | Görev | Faz | Bağımlı | Durum |
 |---|---|---|---|---|
 | BY-001 | Geçici önlem: günlük yedek ve elle sunucu dışı kopya | 0 | — | PASSED |
-| BY-002 | Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları | 0 | — | DEVAM |
+| BY-002 | Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları | 0 | — | REVIEW_BEKLIYOR |
 | BY-003 | Bilgi işlem talep listesi | 0 | BY-002 | YAPILACAK |
 | BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | YAPILACAK |
 | BY-005 | Dosya kilidi ve işlem durumu dosyası | 1 | BY-004 | YAPILACAK |
@@ -456,7 +456,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-002 — Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları
 
-- **Durum:** DEVAM · **Bağımlı:** —
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** —
 - **Tasarım:** README §7.7, §10, §5.2 (sahiplik), §6.4 (6–7. adım), §9
 - **Ön koşul:** Canlı veritabanı sunucusunda okuma / deneme için kullanıcı onayı;
   denemeler mümkünse lokal PostgreSQL'de yapılır.
@@ -476,20 +476,34 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 - **Kapsam dışı:** Canlı `erp` veritabanında değişiklik (yalnız okuma ve ayrı ada
   geri yükleme).
 - **Kabul ölçütleri:**
-  - [ ] Dokuz sorunun her biri "doğrulandı / doğrulanamadı + nasıl denendi" ile yanıtlandı.
-        (Lokal kısım tamam; 1, 3 ve 2'nin canlı yarısı onay bekliyor.)
+  - [x] Dokuz sorunun her biri "doğrulandı / doğrulanamadı + nasıl denendi" ile yanıtlandı.
   - [x] Tasarımı değiştiren her bulgu README'ye işlendi (özellikle §6.4 7. adım, §7.7).
   - [x] Deneme için oluşturulan veritabanları silindi.
 - **Canlı:** Yok (doküman).
-- **Kaldığı yer (2026-11-18):** Lokal deneyler bitti; sonuçlar `kesif.md`'de,
-  tasarıma etkileri README §5.2, §6.4 (6–7), §7.7, §9'da. Deney betiği
-  repoya eklenmedi (geçici nesne açıp silen tek seferlik keşif). Kalan: canlıda
-  salt okuma — sunucu sürümü, uygulama rolünün yetkileri, kodlama / sıralama /
-  veritabanı ayarları, bir `erp_predeploy_*` yedeğinde tam okuma
-  (`pg_restore --file=/dev/null`). Kullanıcı onayı istendi; canlı yedeğin tam
-  geri yüklemesi için yöntem kararı da kullanıcıda (lokale kopya / canlıda
-  ayrı veritabanı / yalnız tam okuma).
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · commit `a1c5b80` (lokal) + başlığı
+    `docs(yedekleme): BY-002 kesif — canli salt okuma sonuclari` olan commit
+    - Lokal (PostgreSQL 16.15): geçici roller (`by002_app` uygulama, `by002_svc`
+      servis hesabı) ve veritabanlarıyla 9 sorunun lokalde denenebilenleri
+      denendi; `erp` / `erp_test`'e yazılmadı, geride rol / veritabanı kalmadığı
+      denetlendi. Deney betiği repoya eklenmedi (tek seferlik keşif).
+    - Canlı (kullanıcı onayıyla, salt okuma): sürüm, uygulama kullanıcısının
+      yetkileri, veritabanı özellikleri, en yeni yayın öncesi yedeğin tam
+      okunması. Betik sunucuya geçici kopyalandı ve silindi; parola komut
+      satırına girmedi (`scripts/gecici-env-oku.php` + `PGPASSFILE`).
+    - Kullanıcı "canlıda ayrı veritabanına geri yükle"yi onayladı; uygulama
+      kullanıcısının `CREATEDB` yetkisi olmadığı için yapılamadı, canlıda nesne
+      oluşturulmadı. Soru 2'nin canlı yarısı "doğrulanamadı" — BY-003 (bilgi
+      işlem talebi) ve BY-026'ya bırakıldı.
+    - Önemli bulgular: canlı PostgreSQL **18.6** (CLAUDE.md'deki "17" eskiydi,
+      düzeltildi), araçlarla eşleşiyor; canlı sıralama `en_US.UTF-8`,
+      saat dilimi UTC, veritabanı düzeyi ayar yok; servis hesabının uygulama
+      rolüne **üye** olması gerektiği (sahiplik, ad değiştirme, bağlantı
+      koparma için) — README §5.2, §9.
+    - Sınır: sahiplik / ad değiştirme / bağlantı koparma davranışları 16'da
+      denendi, canlı 18; değişmediği varsayıldı (`kesif.md` "Sınırlar").
+    - Kod değişmedi; uygulama testleri bu görev için çalıştırılmadı
+      (`publish.sh` yine de tam koşuyu yaptı).
 
 ### BY-003 — Bilgi işlem talep listesi
 
