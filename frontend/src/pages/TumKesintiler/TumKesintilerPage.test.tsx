@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
   secenekler: vi.fn(),
   liste: vi.fn(),
   filtreSecenekleri: vi.fn(),
+  excel: vi.fn(),
 }))
 
 vi.mock('@/features/kesinti/icmalApi', async (importOriginal) => ({
@@ -26,7 +27,7 @@ vi.mock('@/features/kesinti/tumKesintilerApi', async (importOriginal) => ({
     listele: api.liste,
     filtreSecenekleri: api.filtreSecenekleri,
     pivot: vi.fn(),
-    excel: vi.fn(),
+    excel: api.excel,
   },
 }))
 
@@ -151,6 +152,42 @@ describe('TumKesintilerPage', () => {
         1,
       ),
     )
+  })
+
+  // Ortak IcmalSayfasi'nin davranışı: 12 kesinti ekranı ve bu rapor aynı düğmeyi kullanır
+  it('filtre değişip yeni liste beklenirken eski listeden Excel indirilemez', async () => {
+    api.excel.mockResolvedValue(undefined)
+    await screen.findByText('ATİLLA GIDA')
+    const excelDugmesi = screen.getByRole('button', { name: "Excel'e Aktar" })
+    const ilkYanit = await api.liste.mock.results[0].value
+
+    let yanitla: (yanit: unknown) => void = () => {}
+    api.liste.mockReturnValue(
+      new Promise((coz) => {
+        yanitla = coz
+      }),
+    )
+    fireEvent.keyDown(screen.getByLabelText('Taşeron'), { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('option', { name: 'TMC KABA' }))
+    await waitFor(() =>
+      expect(api.liste).toHaveBeenLastCalledWith(
+        expect.objectContaining({ firma_id: '3' }),
+        expect.anything(),
+        1,
+      ),
+    )
+
+    // Önceki liste hâlâ görünür ama Excel kapalı: yeni filtreyle inip görülenden farklı olmasın
+    expect(screen.getByText('ATİLLA GIDA')).toBeInTheDocument()
+    expect(excelDugmesi).toBeDisabled()
+    fireEvent.click(excelDugmesi)
+    expect(api.excel).not.toHaveBeenCalled()
+
+    yanitla(ilkYanit)
+    await waitFor(() => expect(excelDugmesi).toBeEnabled())
+    fireEvent.click(excelDugmesi)
+    await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
+    expect(api.excel.mock.calls[0][0]).toMatchObject({ firma_id: '3' })
   })
 
   it('taşeron filtresi koduyla, proje filtresi adıyla seçilir', async () => {

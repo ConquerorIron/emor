@@ -247,7 +247,14 @@ export function IcmalSayfasi<T extends IcmalSatiri>({ tanim }: { tanim: IcmalTan
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-2xl font-bold">{t(`kesinti.${tanim.anahtar}.baslik`)}</h2>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" yukleniyor={excel.isPending} onClick={() => excel.mutate()}>
+          {/* Filtre değişince yeni liste gelene dek ÖNCEKİ liste (soluk) görünür;
+              Excel yeni filtreyle ineceğinden o arada kapalı (Dikkat_Edilecekler F1) */}
+          <Button
+            variant="secondary"
+            yukleniyor={excel.isPending}
+            disabled={liste.isPlaceholderData}
+            onClick={() => excel.mutate()}
+          >
             {t('kesinti.icmal.excelAktar')}
           </Button>
           {rapor ? null : (
