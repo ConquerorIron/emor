@@ -394,8 +394,8 @@ Ayarlar ekranları ──► API (yalnız istek kaydeder, işlemi başlatmaz)
   işlem durumu kullanılır. **`deploy.sh` da aynı kilidi alır:** yayın ile
   yedek / geri yükleme aynı anda çalışmaz.
 - **Yedeği de geri yüklemeyi de web süreci değil, ayrı bir servis hesabı yapar.**
-  Web sürecinin veritabanı kullanıcısına veritabanı oluşturma, bağlantı koparma
-  gibi geniş yetkiler verilmez. Çalıştırıcı kendi işletim sistemi kullanıcısı ve
+  Web sürecinin veritabanı kullanıcısına veritabanı oluşturma (`CREATEDB`)
+  yetkisi verilmez. Çalıştırıcı kendi işletim sistemi kullanıcısı ve
   kendi veritabanı rolüyle çalışır; yalnız izinli işlemleri ve kendi oluşturduğu
   veritabanlarını (`erp_geri_*`, `erp_onceki_*`) yönetir. Web tarafı yalnız
   "istek" bırakır ve yedek klasörünü **yalnız okur** (yetki matrisi §5.5, §9).
@@ -416,8 +416,12 @@ Ayarlar ekranları ──► API (yalnız istek kaydeder, işlemi başlatmaz)
   tablolar ve `public` şeması uygulama rolünündür; migration geri yüklenen
   veritabanına tablo açabilir. Bunun koşulu: **servis hesabı uygulama rolünün
   üyesidir.** Anlamı: servis hesabı uygulamanın veriye erişebildiği her şeye
-  erişir; ayrı hesabın değeri, uygulamanın kendisinin veritabanı açma, ad
-  değiştirme ve bağlantı koparma yetkisi taşımamasıdır.
+  erişir. Ayrı hesabın veritabanı tarafındaki değeri, uygulamanın kendisinin
+  veritabanı açma yetkisi (`CREATEDB`) taşımamasıdır; `erp`'nin adını
+  değiştirmek de bu yetkiyi ister. Bağlantı koparma ayrım sağlamaz: bir rol,
+  kendi rolünün bağlantılarını zaten sonlandırabilir. Asıl ayrım sunucu
+  tarafındadır: yedek dosyaları, imza anahtarı ve parola dosyası web
+  sürecinden ayrı tutulur (§5.5).
 - **Dış komutlar kabuk metniyle değil, argüman dizisiyle çalıştırılır**
   (Laravel `Process`). Parola komut satırında ya da ortam değişkeninde durmaz;
   yalnız çalıştırıcının okuyabildiği bir parola dosyasından okunur
@@ -437,11 +441,16 @@ için beklenen sayı 0), verisi dışarıda bırakılan tablolar, şifreli mi, �
 alanların hangi `APP_KEY` ile yazıldığını gösteren **anahtar parmak izi**
 (anahtarın kendisi değil), not, alan kişi.
 
-Manifest ayrıca veritabanının **yedek dosyasında bulunmayan** özelliklerini
-kaydeder: kodlama, sıralama kuralı (Türkçe sıralama dahil), veritabanı
-düzeyindeki ayarlar (ör. saat dilimi), bağlanma yetkileri ve nesnelerin sahibi
-olan rol. Geri yüklemede yeni veritabanı aynı değerlerle oluşturulur; yoksa
-geri yüklenen veritabanı sessizce farklı davranır (sıralama, saat).
+Manifest ayrıca veritabanının, **tasarımın geri yükleme yolunda uygulanmayan**
+özelliklerini kaydeder: kodlama, sıralama kuralı, veritabanı düzeyindeki
+ayarlar (ör. saat dilimi), bağlanma yetkileri ve nesnelerin sahibi olan rol.
+Bunlar özel biçimli yedek arşivinde vardır, ama `pg_restore` onları yalnız
+`--create` ile uygular; `--create` ise veritabanını arşivdeki adla açtığı için
+farklı ada geri yüklemede kullanılamaz ([kesif.md](kesif.md) §7). Geri
+yüklemede yeni veritabanı manifestteki değerlerle oluşturulur; yoksa geri
+yüklenen veritabanı sessizce farklı davranır (sıralama, saat). Manifesti
+olmayan eski yedeklerde bu bilgiler arşivden okunabilir
+(`pg_restore --create --file=-` çıktısı).
 
 Manifest, veritabanı dışında saklanan bir anahtarla **imzalanır**; sistemin
 kendi ürettiği yedeği dışarıdan gelen dosyadan ayıran budur (§4.5).
@@ -931,7 +940,7 @@ maddeler sunucuda denenmedi; YDK-01'de doğrulanacak. İşlenenler:
 | Bulgu | İşlendiği yer |
 |---|---|
 | Geri yüklenen nesnelerin sahipliği (uygulama kendi tablolarını okuyamaz) | §5.2, §6.4 |
-| Kodlama, sıralama, veritabanı düzeyindeki ayarlar yedekte yok | §5.3, §6.3, §6.4 |
+| Kodlama, sıralama, veritabanı düzeyindeki ayarlar geri yüklemeye taşınmıyor (düzeltme, BY-002-R1: arşivde vardır, yalnız `--create` ile uygulanır) | §5.3, §6.3, §6.4 |
 | Geri yükleme öncesi yedeğin bakım modundan sonra alınması | §6.4 |
 | Bağlantı koparma ile ad değiştirme arasındaki yarış; tek işlemde ad değiştirme | §6.4 |
 | "Onay bekleniyor" durumunun yeniden başlatmaya dayanıklılığı; komut satırı yolu; yarıda kalan işlem | §6.4, §10 |

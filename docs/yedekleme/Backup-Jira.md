@@ -525,6 +525,101 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     - README ve bu dosyada "bilgi işlemden istenecekler" ifadeleri "kurulum
       betiğiyle (`admin` + `sudo`) yapılacaklar" olarak değiştirildi; BY-003
       yeniden tanımlandı.
+  - 2026-11-18 Codex → CHANGES_REQUESTED · incelenen commitler `a1c5b80`,
+    `a6f0101`, `80de774` (BY-002 tesliminin tamamı)
+    - **BY-002-R1 [P2] — custom arşivde bulunmak ile geri yüklemede uygulanmak karıştırılmış.**
+      `docs/yedekleme/kesif.md:150-154` ve özetin 7. satırı: veritabanı
+      ayarlarının yedeğe hiç girmediği, `pg_dump`'ın bunları yalnız `--create`
+      ile yazdığı sonucu yanlış. Aynı PostgreSQL 16.15 ortamında bağımsız
+      denemede kaynak geçici veritabanına `TimeZone=Europe/Istanbul` ve
+      `statement_timeout=42s` verildi; **`pg_dump --format=custom` (`--create`
+      olmadan)** alındı. Normal `pg_restore --list` bu girdiyi göstermedi,
+      fakat **aynı dosyada** `pg_restore --list --create` `DATABASE PROPERTIES`
+      girdisini gösterdi. Normal geri yükleme, önceden açılan geçici hedefte
+      tabloyu/veriyi oluşturdu, ayarları uygulamadı. Aynı arşiv `pg_restore
+      --create` ile, yalnız deneyin kaynak adı tekrar oluşturularak geri
+      yüklendiğinde iki ayar da geri geldi.
+      **Etki:** 7. sorunun "doğrulandı" diye sunulan sonucu ve README'nin
+      gerekçesi yanlış; seçilmiş TOC listesindeki yokluk arşivde yokluk
+      sayılmış. Farklı ada elle açılan veritabanına geri yüklemede ayarları
+      manifestten taşıma kararı geçerlidir.
+      **Dayanak:** T7 (deney varsayımını doğrula), G1 ve PostgreSQL'in
+      [pg_dump --create](https://www.postgresql.org/docs/18/app-pgdump.html)
+      açıklaması: bu çıktı seçeneği custom arşivde dikkate alınmaz; seçim
+      `pg_restore` sırasında yapılır.
+      **En küçük düzeltme:** keşfin §7'sini ve özetini "arşivde bulunabilir,
+      seçilen `--create` içermeyen geri yükleme akışında otomatik uygulanmaz"
+      şeklinde düzelt; README §5.3 ve §14'teki aynı genellemeyi tara (G1).
+      Manifest kararını koru. Farklı ada geri yükleme akışına `--create`
+      eklemek çözüm değildir: o seçenek arşivdeki veritabanı adını kullanır
+      ([pg_restore](https://www.postgresql.org/docs/18/app-pgrestore.html)).
+      **Doğrulama:** bu iki ayarı taşıyan aynı custom arşivde normal / `--create`
+      TOC ve SQL çıktısını karşılaştır; önceden açılan hedefte ayarların
+      uygulanmadığını, `--create` deneyinde geri geldiğini kaydet. Deney ve
+      tasarım gerekçesi aynı ayrımı anlatmalı; canlıda tekrar gerekmez.
+    - **BY-002-R2 [P3] — uygulama rolünün bağlantı sonlandırma yetkisi yanlış anlatılmış.**
+      `docs/yedekleme/README.md:419-420`, `docs/yedekleme/kesif.md:120-122`:
+      ayrı servis hesabının değerini açıklarken uygulamanın bağlantı koparma
+      yetkisi taşımadığı söyleniyor. PostgreSQL, bir rolün kendi rolüne ait
+      bağlantıları `pg_terminate_backend` ile sonlandırmasına izin verir;
+      bunun için `CREATEDB` veya `pg_signal_backend` gerekmez.
+      **Etki:** servis hesabının sağladığı güvenlik sınırı olduğundan geniş
+      gösteriliyor; uygulama hesabı kendi bağlantılarını zaten kesebilir.
+      **Dayanak:** `security-privileges` ve
+      [PostgreSQL Server Signaling Functions](https://www.postgresql.org/docs/18/functions-admin.html#FUNCTIONS-ADMIN-SIGNAL).
+      **En küçük düzeltme:** iki açıklamada sınırı doğru tanımla: uygulama
+      hesabında `CREATEDB` yoktur; servis hesabı veritabanı oluşturma/ad
+      değiştirme ve işletim sistemi servisleri/dosya yetkileri için ayrıdır.
+      Kendi bağlantılarını sonlandırabilme istisnasını açıkla; mevcut canlı
+      yetkileri değiştirmek gerekmez. **Doğrulama:** açıklamayı resmi yetki
+      kuralıyla karşılaştır, iki belgede aynı kapsam yazsın (P1 doküman
+      tutarlılığı). Bu P3 `PASSED`'ı engellemez.
+    - Kabul ölçütleri: dokuz soru ve canlı/lokal sınırları belgelenmiş;
+      `emor_yedek` üyeliği, uygulama rolü adına sahiplik ve PostgreSQL 16/18
+      sınırı resmi PostgreSQL 18 belgeleriyle karşılaştırıldı. Sunulan canlı
+      geri yükleme kaydı 2. soruyu karşılıyor; 36/38 sayım eşleşmesi ve iki
+      e-Fatura tablosundaki zaman farkı açıkça yazılmış. Canlı deney bu tur
+      bağımsız tekrarlanmadı; kayıtlar geliştiricinin sunduğu sonuçlardır.
+    - Kontroller: `git diff --check 1481924 80de774` temiz. R1 için gerçek
+      araçlarla bağımsız yerel test geçti (PostgreSQL/araçlar 16.15): aynı
+      arşivle iki farklı geri yükleme ve ayar karşılaştırması. Yalnız bu test
+      için üretilen rastgele adlı iki geçici veritabanına yazıldı; `erp` ve
+      `erp_test` verisine dokunulmadı. İki veritabanı sonunda silindi ve
+      katalogdan kalan sayısı **0** doğrulandı; geçici arşiv/test dosyaları
+      bırakılmadı. Uygulama kodu değişmediği için backend/frontend testleri,
+      build ve Pint çalıştırılmadı.
+    - Kullanılan skill'ler: `code-review`, `supabase-postgres-best-practices`;
+      `Dikkat_Edilecekler.md` okundu. Canlı sunucuya bağlanılmadı; mevcut
+      parola dosyaları okunmadı, canlı rol/dosya/servis değişikliği yapılmadı.
+    - **Sonuç:** R1 [P2] açık olduğu için `CHANGES_REQUESTED`, görev `DUZELTME`.
+      Düzeltilmesi gereken keşif yorumu ve ilgili dokümanlardır. Bu tur yalnız
+      inceleme günlüğü ve BY-002 durumları değiştirildi; commit/gönderme yok.
+      BY-003, §1.3 madde 1 uyarınca BY-002 `PASSED` olduktan sonra başlar.
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · commit başlığı
+    `docs(yedekleme): BY-002 R1 R2 — arsivdeki vt ayarlari ve baglanti koparma`
+    - **R1 kabul, düzeltildi.** Kendi deneyimle de doğrulandı (lokal 16.15,
+      geçici `by002_r1`, sonunda silindi): `TimeZone` ve `statement_timeout`
+      tanımlı veritabanının custom yedeğinde `--list` ve `--create`'siz SQL
+      çıktısı ayarları göstermiyor; `--create` ile SQL çıktısı iki
+      `ALTER DATABASE … SET` satırını gösteriyor; `--create`'siz geri yükleme
+      uygulamıyor, `--create`'li geri yükleme uyguluyor. `kesif.md` §7 ve özet
+      satırı yeniden yazıldı (tablo + "arşivde var, `--create` olmadan
+      uygulanmaz" + `--create`'in neden kullanılamadığı); manifest kararı
+      korundu, gerekçesi düzeltildi. **Kardeş hata (G1):** aynı yanlış
+      genelleme kodlama / sıralama için de yazılmıştı ("yedekten gelmez") —
+      onlar da arşivdeki veritabanı kaydının parçası; birlikte düzeltildi.
+      Aynı iddianın kopyaları tarandı ve düzeltildi: README §5.3, §14 tablo
+      satırı, BY-007 kapsam satırı. Yan fayda olarak not edildi: manifesti
+      olmayan eski yedeklerde bu bilgiler `pg_restore --create --file=-`
+      çıktısından okunabilir (BY-013).
+    - **R2 kabul, düzeltildi.** README §5.2 (iki yer) ve `kesif.md` §3–§4:
+      ayrı hesabın veritabanı tarafındaki değeri yalnız `CREATEDB` (ve ona
+      bağlı ad değiştirme) olarak yazıldı; bağlantı koparmanın ayrım
+      sağlamadığı, asıl ayrımın sunucu tarafında (yedek dosyaları, imza
+      anahtarı, parola dosyası) olduğu açıklandı. Canlı yetkiler değişmedi.
+    - Ders `Dikkat_Edilecekler.md`'ye işlendi: **T9** — "yok / yapamaz"
+      sonucunu tek bir gözlemden çıkarma; ikinci yoldan dene ya da resmî belgeye bak.
+    - Kontroller: değişen yalnız doküman; `git diff --check` temiz.
 
 ### BY-003 — Sunucu kurulum betiği
 
@@ -630,7 +725,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - Geçici ad → asıl ad; hata yolunda geçici dosya silinir.
   - 1. düzey doğrulama: boyut, SHA-256, `pg_restore --list`, `pg_restore --file=/dev/null`.
   - Parola `PGPASSFILE` ile; komut satırında ve ortam değişkeninde yok.
-  - Veritabanının yedekte bulunmayan özellikleri manifeste (kodlama, sıralama, ayarlar, sahip rol).
+  - Veritabanının geri yükleme yolunda uygulanmayan özellikleri manifeste (kodlama, sıralama, ayarlar, sahip rol; arşivde vardır ama yalnız `--create` ile uygulanır — kesif.md §7).
   - Geçiş dönemi: yedeği uygulama kullanıcısı alır; klasör yapılandırmadan (README §5.2).
 - **Kapsam dışı:** Hedeflere kopyalama, planlar, temizlik.
 - **Kabul ölçütleri:**

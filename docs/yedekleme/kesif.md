@@ -36,7 +36,7 @@ denenmesi. Görev: [Backup-Jira.md](Backup-Jira.md) → BY-002.
 | 4 | Nesnelerin sahibi uygulama rolü olabiliyor mu | **Doğrulandı** — yöntemle birlikte |
 | 5 | İki ad değişikliği tek işlemde | **Doğrulandı** — atomik |
 | 6 | Bağlantıya kapatma + koparma | **Doğrulandı** |
-| 7 | Veritabanı özellikleri yedeğe giriyor mu | **Doğrulandı: girmiyor** — manifest şart |
+| 7 | Veritabanı özellikleri yedeğe giriyor mu | **Doğrulandı: arşivde var, ama `--create` olmadan uygulanmıyor** — manifest kararı korunur (R1 ile düzeltildi) |
 | 8 | Aynı andan sayım (`--snapshot`) | **Doğrulandı** |
 | 9 | Bozuk yedek yakalanıyor mu | **Doğrulandı** — yalnız tam okuma yakalıyor |
 
@@ -94,7 +94,8 @@ Lokaldeki (PostgreSQL 16) sahiplik yöntemi canlıda (18.6) da aynı sonucu verd
 Canlı durum README §9'daki "ayrı servis hesabı" ihtiyacını doğruluyor:
 uygulama kullanıcısıyla veritabanı açılamaz, dolayısıyla geri yükleme yapılamaz.
 `erp`'nin sahibi uygulama kullanıcısı olduğu için, servis hesabı ona üye
-yapılınca ad değiştirme ve bağlantı koparma da mümkün olur (§4–§6).
+yapılınca `erp`'nin adını değiştirmesi (sahiplik + kendi `CREATEDB` yetkisi)
+ve uygulamanın bağlantılarını koparması mümkün olur (§4–§6).
 
 **Yedekleme kullanıcısı (kuruldu, 2026-11-18):** `emor_yedek` — yönetici değil,
 veritabanı açabilir (`CREATEDB`), rol açamaz; uygulama kullanıcısına üye
@@ -118,8 +119,13 @@ veritabanının sahibidir; veritabanı servis hesabının olsaydı migration
 **Sonuç — tasarıma eklenecek koşul:** servis hesabı, uygulama rolünün
 **üyesi** olmalı. `CREATE DATABASE … OWNER` ve `--role` bunu gerektirir. Bunun
 anlamı: servis hesabı, uygulama rolünün yapabildiği her şeyi yapabilir (canlı
-veriyi okuyup yazabilir). Ayrı hesabın değeri, uygulamanın kendisinin
-veritabanı açma / ad değiştirme / bağlantı koparma yetkisi taşımamasıdır.
+veriyi okuyup yazabilir). Ayrı hesabın veritabanı tarafındaki değeri,
+uygulamanın kendisinin **veritabanı açma yetkisi (`CREATEDB`) taşımamasıdır**;
+`erp`'nin adını değiştirmek de bu yetkiyi ister. Bağlantı koparma ayrım
+sağlamaz: PostgreSQL'de bir rol, kendi rolünün bağlantılarını zaten
+sonlandırabilir; uygulama rolü bugün de kendi bağlantılarını koparabilir
+(R2 ile düzeltildi). Asıl ayrım sunucu tarafındadır: yedek dosyaları, imza
+anahtarı ve parola dosyası web sürecinden ayrı tutulur (README §5.2, §5.5).
 
 ### 5. İki ad değişikliği tek işlemde
 
@@ -147,14 +153,32 @@ README §6.4 6. adımdaki sıra (önce kapat, sonra kopar) doğrulandı.
 
 ### 7. Veritabanı özellikleri
 
-Kaynakta tanımlı veritabanı düzeyi ayarlar (`TimeZone`, `statement_timeout`)
-yedekte **yok**: `pg_restore --list` çıktısında `DATABASE PROPERTIES` girdisi
-çıkmadı. Geri yüklenen veritabanında bu ayarlar boş kaldı. (`pg_dump` bunları
-yalnız `--create` ile yazar; tasarımda veritabanını biz açtığımız için
-`--create` kullanılmıyor.)
+*(Düzeltildi — BY-002-R1. İlk sürümde "ayarlar yedeğe girmiyor" yazıyordu;
+yanlıştı. `pg_restore --list` çıktısına bakılarak çıkarılmıştı.)*
 
-Kodlama ve sıralama kuralı da yedekten gelmez; `CREATE DATABASE` sırasında
-verilir.
+Kaynakta tanımlı veritabanı düzeyi ayarlar (`TimeZone`, `statement_timeout`)
+özel biçimli (custom) yedek arşivinde **var**, ama tasarımdaki geri yükleme
+yolunda **uygulanmıyor**. İkinci bir deneyle doğrulandı (lokal 16.15, geçici
+veritabanı):
+
+| Bakılan yol | Ayarlar görünüyor mu |
+|---|---|
+| `pg_restore --list` | **hayır** — veritabanı kaydı listede gösterilmiyor |
+| `pg_restore --list --create` | **evet** — `DATABASE PROPERTIES` girdisi görünüyor (Codex'in denemesi) |
+| Arşiv, `--create` olmadan SQL'e çevrilince | **hayır** |
+| Arşiv, `--create` ile SQL'e çevrilince | **evet** — `ALTER DATABASE … SET "TimeZone" …`, `… statement_timeout …` |
+| `--create` olmadan boş veritabanına geri yükleme | **uygulanmadı** |
+| `--create` ile geri yükleme | **uygulandı** |
+
+PostgreSQL belgesi de aynısını söyler: arşiv biçimlerinde veritabanının
+kendisine ait kayıtlar (ayarlar, yorum) her zaman yazılır; `pg_restore` bunları
+yalnız `--create` ile uygular.
+
+Kodlama ve sıralama kuralı için durum aynıdır: arşivdeki veritabanı kaydının
+(`CREATE DATABASE …`) parçasıdırlar ve yalnız `--create` ile kullanılırlar.
+
+Tasarım `--create` kullanamaz: `--create` veritabanını **arşivdeki adla**
+(`erp`) açar; oysa geri yükleme önce farklı bir ada (`erp_geri_*`) yapılır.
 
 | | Lokal | Canlı |
 |---|---|---|
@@ -178,9 +202,16 @@ Dikkat çekenler:
   taşınacak bir ayar yok.
 
 **Sonuç:** README §5.3'teki "manifest bu özellikleri kaydeder, yeni veritabanı
-aynı değerlerle açılır" kararı zorunlu. Okunacak yerler: `pg_database`
-(kodlama, `datcollate`, `datctype`, `datlocprovider`) ve `pg_db_role_setting`
-(veritabanı düzeyi ayarlar).
+aynı değerlerle açılır" kararı **korunur**. Gerekçe artık "arşivde yok" değil:
+tasarımın geri yükleme yolunda (farklı ada, `--create` olmadan) uygulanmıyorlar
+ve geri yüklemeden önce imzalı manifestten okunmaları daha güvenli. Okunacak
+yerler: `pg_database` (kodlama, `datcollate`, `datctype`, `datlocprovider`) ve
+`pg_db_role_setting` (veritabanı düzeyi ayarlar).
+
+Yan fayda: manifesti olmayan eski yedeklerde (`deploy.sh`'ın 159 yedeği,
+BY-013) bu bilgiler arşivden kurtarılabilir: `pg_restore --create --file=-`
+çıktısındaki `CREATE DATABASE` ve `ALTER DATABASE … SET` satırları okunur
+(veritabanına bağlanmadan).
 
 ### 8. Aynı andan sayım
 

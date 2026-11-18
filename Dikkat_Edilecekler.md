@@ -63,6 +63,13 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
 - **T7 — Testin varsayımını da doğrula.** "Kütüphane bu girdiyi reddeder"
   diye yazmadan önce gerçekten reddettiğini dene.
   *(BY-001: kapanmayan tırnak ayrıştırıcıda hata sanıldı, oysa kabul ediliyordu.)*
+- **T9 — "Yok" sonucunu tek bir gözlemden çıkarma.** Bir aracın çıktısında
+  görünmemesi, verinin orada olmadığı anlamına gelmez; listeleme komutları bazı
+  kayıtları göstermez. "X yok / X yapamaz" demeden önce ikinci bir yoldan dene
+  ya da resmî belgeye bak; özellikle yetki ve davranış iddialarında.
+  *(BY-002-R1: `pg_restore --list` göstermediği için veritabanı ayarları
+  "yedekte yok" sanıldı; arşivdeydi. BY-002-R2: uygulama rolünün kendi
+  bağlantılarını koparamadığı yazıldı; PostgreSQL buna izin verir.)*
 - **T8 — Başarı ölçütü "hata verdi" değildir.** Hata yolunda mevcut verinin
   korunduğunu ve geride artık (geçici dosya, yarım kayıt) kalmadığını da sına.
 
