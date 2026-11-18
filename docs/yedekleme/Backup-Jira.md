@@ -1587,6 +1587,10 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       **Bozma denemesi:** plan-hedef anahtarı kaldırılınca 3 test, kopya-hedef
       anahtarı yalnız kopyaya indirilince 1 test kırmızı. PostgreSQL'de
       başarısız `detach` testin işlemini bozuyordu → savepoint (T6).
+  - 2026-11-18 Kullanıcı → F6 ve F7 şema kararları **onaylandı** (metin §5
+    "Verilmiş kullanıcı kararları"). Uygulama ölçütleri BY-010, BY-011 ve
+    BY-017'ye işlendi. `775a0fd` için Codex incelemesi sürer; canlıya alma
+    talimatı ayrıca verilecek.
 
 ### BY-005 — Dosya kilidi ve işlem durumu dosyası
 
@@ -2046,14 +2050,18 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - [ ] Son 10 yedek de başarısızsa hiçbir başarılı yedek silinmiyor (test).
   - [ ] Önizleme ile gerçek çalıştırma aynı listeyi veriyor (test).
   - [ ] Hedef erişilemezken temizlik o hedefi atlayıp diğerlerini sürdürüyor (test).
-  - [ ] Aynı hedefi paylaşan iki planda (tek kopya, iki bağ — BY-004 / Fable F6):
-    bir planın kuralı yalnız KENDİ bağını kaldırıyor; dosya, diğer plan hâlâ
-    tutuyorken silinmiyor, son bağ gidince siliniyor (test).
-  - [ ] Yerel dosya silinip uzak kopya kalınca yedek `silindi` olmuyor,
-    `yerel_silinme_zamani` doluyor; durum yalnız hiçbir kopya kalmayınca
-    `silindi` (test; Fable F7). Manifest yerelde kalır mı — dizin yeniden
-    kurulurken (BY-011) uzak kopyası olan yedek kaybolmasın: bu görevde karar
-    verilip README'ye yazılır.
+  - [ ] **Kullanıcı kararı F6 (§5):** aynı hedefi paylaşan iki planda (tek
+    kopya, iki bağ) bir planın kuralı yalnız KENDİ bağını kaldırıyor; dosya,
+    diğer plan hâlâ tutuyorken silinmiyor; son bağ gidince de ancak koruma
+    kuralları izin veriyorsa siliniyor (test: son bağ kalkan ama "son başarılı"
+    / sabitlenmiş kopya duruyor).
+  - [ ] **Kullanıcı kararı F7 (§5):** yerel dosya silinip uzakta DOĞRULANMIŞ
+    kopya kalınca yedek `silindi` olmuyor, `yerel_silinme_zamani` doluyor;
+    uzak kopya doğrulanmamışsa (ya da başarısızsa) yerel dosya silinmiyor;
+    durum yalnız hiçbir kopya kalmayınca `silindi` (test). Dizin yeniden
+    kurulurken (BY-011) uzak kopyası olan yedeğin bulunabilmesi için gereken
+    kayıt (manifestin yerelde kalması ya da olay günlüğü) bu görevde
+    tasarlanıp README'ye yazılır.
 - **Canlı:** Evet (kapalı).
 - **İnceleme günlüğü:** —
 
@@ -2074,6 +2082,9 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     `yedekler` satırı silinse kopyalar ve plan bağları CASCADE ile gider,
     geri yükleme geçmişi RESTRICT ile silmeyi engeller, denetim kaydının bağı
     boşalır (test: geri yükleme geçmişi olan yedekte tarama hatasız; Fable F19).
+  - [ ] **Kullanıcı kararı F7 (§5):** yerel dosyası silinmiş, uzakta doğrulanmış
+    kopyası olan yedek, tablolar boşaltılıp tarama çalıştırılınca listede
+    yine bulunuyor; durumu `silindi` değil, uzak kopyası görünüyor (test).
 - **Canlı:** Evet (etkisiz).
 - **İnceleme günlüğü:** —
 
@@ -2191,9 +2202,10 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - [ ] Önizleme, kaydedildikten sonra zamanlayıcının hesapladığıyla aynı (test).
   - [ ] Çakışan planlar ve ayın 29–31'i formda uyarıyla gösteriliyor.
   - [ ] Plan pasife alınınca zamanlayıcı onu atlıyor; geçmişi duruyor.
-  - [ ] Kopyası olan bir hedef plandan çıkarılırken saklama kuralı kaybolmuyor:
-    veritabanı reddeder (BY-004-R8, bileşik anahtar); uç anlaşılır 409 döner
-    ve kullanıcıya önce kopyaların temizlenmesi gerektiğini söyler (test).
+  - [ ] **Kullanıcı kararı F6 (§5):** kopyası olan bir hedef plandan
+    çıkarılırken saklama kuralı kaybolmuyor: veritabanı reddeder (BY-004-R8,
+    bileşik anahtar); uç anlaşılır 409 döner ve ekran nedenini açıklıyor
+    (bu plana bağlı kopya sayısı, önce saklamayla temizlenmesi gerektiği) (test).
 - **Canlı:** Evet (kapalı).
 - **İnceleme günlüğü:** —
 
@@ -2495,3 +2507,21 @@ README §13'teki kararların hangi görevi beklettiği:
 | Hazır paket kullanımı (18) | BY-007'den önce; karar yoksa README §15 önerisi geçerli |
 
 Sunucu kurulumu yapılmadıysa Faz 1–3 beklemeden ilerler; Faz 4 `BEKLIYOR` olur.
+
+### Verilmiş kullanıcı kararları
+
+- **F6 — tek fiziksel kopya (kullanıcı kararı 2026-11-18, onaylandı).** Bir
+  yedeğin bir hedefte tek fiziksel kopyası olur. Aynı hedefi kullanan planlar
+  bu kopyaya bağlanır; her plan yalnız **kendi** bağını kaldırabilir. Dosya
+  ancak son bağ kalktığında **ve** mevcut koruma kuralları (README §4.3: son
+  başarılı yedek, sabitlenmiş, doğrulaması geçmiş en yeni, kullanımdaki, en az
+  sayı) izin verdiğinde silinir. Bağlı kopyalar varken hedef plandan
+  çıkarılmaya çalışılırsa ekran nedenini açıklar. Şema: BY-004 (`775a0fd`);
+  uygulama: BY-010 (saklama), BY-017 (plan ekranı).
+- **F7 — yerel dosya silinmesi ≠ yedeğin silinmesi (kullanıcı kararı
+  2026-11-18, onaylandı).** Uzakta **doğrulanmış** bir kopya duruyorsa yerel
+  dosyanın silinmesiyle yedek `silindi` durumuna geçmez (`yerel_silinme_zamani`
+  dolar). Dizin yeniden kurulduğunda da uzak kopya listede bulunabilir. Yedek
+  ancak hiçbir kopyası kalmadığında `silindi` sayılır. Şema: BY-004
+  (`yedekler.yerel_silinme_zamani`); uygulama: BY-010 (saklama), BY-011
+  (dizini yeniden kurma).
