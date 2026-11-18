@@ -138,7 +138,7 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 |---|---|---|---|---|
 | BY-001 | Geçici önlem: günlük yedek ve elle sunucu dışı kopya | 0 | — | PASSED |
 | BY-002 | Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları | 0 | — | PASSED |
-| BY-003 | Sunucu kurulum betiği | 0 | BY-002 | REVIEW_BEKLIYOR |
+| BY-003 | Sunucu kurulum betiği | 0 | BY-002 | PASSED |
 | BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | YAPILACAK |
 | BY-005 | Dosya kilidi ve işlem durumu dosyası | 1 | BY-004 | YAPILACAK |
 | BY-006 | Manifest, imza, olay günlüğü | 1 | BY-004 | YAPILACAK |
@@ -671,7 +671,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-003 — Sunucu kurulum betiği
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-002
+- **Durum:** PASSED · **Bağımlı:** BY-002
 - **Tasarım:** README §9, §5.5, §5.2, §4.8
 - **Karar (kullanıcı, 2026-11-18):** bilgi işlemden bir şey istenmez. Sunucu
   ayarları `admin` kullanıcısı ve `sudo` ile yapılır; şifre kullanıcıdadır.
@@ -1042,6 +1042,14 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       gerçek adlarla kaldırma, `shellcheck` (kurulu değil). Betik sunucuda
       çalıştırılmadı (BY-025); canlıya alınmadı. Sunucuya yalnız salt okuma
       için bağlanıldı (`protected_hardlinks`, klasör sahiplikleri).
+  - 2026-11-18 Kullanıcı → **PASSED** · `fc8d86a`
+    - Codex'in `fc8d86a` incelemesi aracın güvenlik içerik filtresine takıldı
+      ("Bu içerik gösterilemiyor"); inceleme sonucu alınamadı. Kullanıcı
+      kararıyla görev `PASSED` sayıldı.
+    - R1–R4 Codex tarafından kapatılmıştı (önceki kayıt). **R5 düzeltmesi
+      bağımsız incelemeden geçmedi**; yalnız Claude'un testleriyle (158/158,
+      önce kırmızı) doğrulandı. BY-025'te betik sunucuda çalıştırılmadan önce
+      `fc8d86a`'nın bağlantı güvenliği bölümüne yeniden bakılması önerilir.
 
 ---
 
@@ -1455,7 +1463,9 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 - **Durum:** YAPILACAK · **Bağımlı:** BY-003, BY-013
 - **Tasarım:** README §5.2 (servis hesabı, imza anahtarı, isteğe güvenmeme), §5.5, §9
 - **Ön koşul:** BY-003 kurulum betiği `PASSED` ve kullanıcı talimatıyla sunucuda
-  çalıştırıldı (`admin` + `sudo`). Çalıştırılmadıysa `BEKLIYOR`.
+  çalıştırıldı (`admin` + `sudo`). Çalıştırılmadıysa `BEKLIYOR`. Çalıştırmadan
+  önce BY-003'ün R5 (bağlantı güvenliği, `fc8d86a`) düzeltmesine yeniden bakılır:
+  Codex incelemesi araç filtresine takıldığı için bağımsız incelemeden geçmedi.
 - **Kapsam:** İstek klasörü (web yazar, çalıştırıcı okur); çalıştırıcı komutu
   ve servis tanım dosyası (repoda; kurulumu BY-003 betiğiyle); isteğin
   yetkisinin çalıştırıcıda yeniden doğrulanması; yedek almanın ve imza
