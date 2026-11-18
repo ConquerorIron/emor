@@ -9,6 +9,10 @@ süzülen kurallar. Amaç: aynı ya da benzeri hatayı ikinci kez yapmamak.
 - **Yeni ders:** bir inceleme bulgusu başka yerde de tekrar edebilecek türdense
   aynı commit'te buraya eklenir (kural + nereden çıktığı + nasıl denetlenir).
   Tek seferlik, yalnız o koda özgü bulgular eklenmez. Dosya kısa tutulur.
+- **Kapsam:** yalnız davranış hataları değil; **kod kalitesi ve skill kuralı
+  ihlalleri** de (projeye / skill'e aykırı yapı, gereksiz soyutlama, mevcut
+  bileşeni aramadan yenisini yazma, yanlış katmana konan iş…). İnceleyen skill
+  kuralına aykırı bir şey bulursa kural adıyla birlikte §7'ye işlenir.
 
 Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
 
@@ -167,3 +171,18 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   *(Pivot yeniden adlandırması: yayın, biçim hatasıyla durdu.)*
 - **A2 — PHP'de ok fonksiyonu dış değişkeni tanımlandığı andaki değeriyle
   yakalar.** Sonradan değişen değişkeni görmez; değişecekse parametre olarak ver.
+
+## 7. Kod kalitesi ve skill kuralları
+
+- **K1 — Bugün çağrılmayan kodu yazma.** "İleride lazım olur" diye eklenen
+  metot / helper / prop test edilmez, eskir ve okuyanı yanıltır
+  (laravel-best-practices: *avoid speculative abstractions*). Teslimden önce
+  her yeni public metodun bir çağıranı olduğunu `grep` ile doğrula.
+  *(BY-004 öz-incelemesi: hiçbir yerde kullanılmayan `HedefTuru::sunucuDisi()`
+  kaldırıldı.)*
+- **K2 — Aynı hatayı yakalayan ikinci testi yazma.** Yeni test, mevcut bir
+  testin yakalamadığı bir hatayı yakalamalı; değilse kaldır ya da mevcut
+  testi genişlet (testing-best-practices: *each test detects a distinct
+  defect*). Katalog / kablolama testi çoğu zaman yeter.
+  *(BY-004 öz-incelemesi: "ek izin görüntülemeyi getirir" zaten genel testte
+  vardı; yedekleme için yazılan kopyası kaldırıldı.)*
