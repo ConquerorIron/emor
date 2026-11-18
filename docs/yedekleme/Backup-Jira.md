@@ -137,8 +137,8 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 | No | Görev | Faz | Bağımlı | Durum |
 |---|---|---|---|---|
 | BY-001 | Geçici önlem: günlük yedek ve elle sunucu dışı kopya | 0 | — | PASSED |
-| BY-002 | Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları | 0 | — | REVIEW_BEKLIYOR |
-| BY-003 | Sunucu kurulum betiği | 0 | BY-002 | YAPILACAK |
+| BY-002 | Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları | 0 | — | PASSED |
+| BY-003 | Sunucu kurulum betiği | 0 | BY-002 | REVIEW_BEKLIYOR |
 | BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | YAPILACAK |
 | BY-005 | Dosya kilidi ve işlem durumu dosyası | 1 | BY-004 | YAPILACAK |
 | BY-006 | Manifest, imza, olay günlüğü | 1 | BY-004 | YAPILACAK |
@@ -456,7 +456,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-002 — Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** —
+- **Durum:** PASSED · **Bağımlı:** —
 - **Tasarım:** README §7.7, §10, §5.2 (sahiplik), §6.4 (6–7. adım), §9
 - **Ön koşul:** Canlı veritabanı sunucusunda okuma / deneme için kullanıcı onayı;
   denemeler mümkünse lokal PostgreSQL'de yapılır.
@@ -620,10 +620,58 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     - Ders `Dikkat_Edilecekler.md`'ye işlendi: **T9** — "yok / yapamaz"
       sonucunu tek bir gözlemden çıkarma; ikinci yoldan dene ya da resmî belgeye bak.
     - Kontroller: değişen yalnız doküman; `git diff --check` temiz.
+  - 2026-11-18 Codex → PASSED · incelenen commit `a643845`
+    - **BY-002-R1 kapandı.** `kesif.md` §7 ve özet, README §5.3/§14 ve
+      BY-007 kapsamı artık arşivde bulunma ile seçilen geri yükleme yolunda
+      uygulanma ayrımını anlatıyor. Kodlama ve sıralama da düzeltilmiş (G1).
+      Farklı ada önceden açılmış veritabanına geri yükleme, manifest kararı
+      ve `--create` kullanmama gerekçesi tutarlı. Eski yedeklerde veritabanı
+      bilgisini SQL çıktısından, veritabanına bağlanmadan okuma notu uygun.
+    - **BY-002-R2 kapandı.** README §5.2 ve `kesif.md` §3–§4, uygulama
+      rolünün kendi bağlantılarını sonlandırabildiğini doğru açıklıyor.
+      Veritabanı oluşturma/ad değiştirme için `CREATEDB`, uygulama rolüne
+      üyelik ve işletim sistemi düzeyindeki dosya/servis ayrımı korunmuş.
+      PostgreSQL 18'in resmi `pg_restore` ve yönetim işlevleri belgeleriyle
+      karşılaştırıldı. Yeni T9 kuralı iki bulgunun nedenini doğru kapsıyor.
+    - **BY-002-R3 [P3] — `--create` açıklamasını nesne sahipliğine genelleme.**
+      `docs/yedekleme/README.md:446-448` ve BY-007'nin bu commit'teki 728.
+      satırı: listedeki "nesnelerin sahibi olan rol" de yalnız `--create`
+      ile uygulanıyormuş gibi okunuyor. Nesne sahipliği varsayılan geri
+      yüklemede `--create` olmadan da uygulanır; bunu `--no-owner` bastırır.
+      **Etki:** seçeneğin kapsamı yanlış anlatılmış; mevcut tasarımın
+      `--no-owner --role=<uygulama>` akışı doğru ve değiştirilmesi gerekmiyor.
+      **Dayanak:** T9 ve
+      [PostgreSQL pg_restore --no-owner](https://www.postgresql.org/docs/18/app-pgrestore.html).
+      **En küçük düzeltme:** `--create` gerektiren veritabanı özellikleriyle
+      nesne sahipliğini iki cümlede ayır; sahipliğin tasarımda `--no-owner`
+      ve `--role` ile bilinçli yönetildiğini yaz. **Doğrulama:** aynı arşivin
+      `--create` içermeyen SQL çıktısında `ALTER TABLE … OWNER TO` görülmeli;
+      `--no-owner` eklenince kalkmalı. Bu dar kapsamlı doküman notu
+      `PASSED`'ı engellemez.
+    - Kontroller: `git diff --check 80de774 a643845` temiz; aynı yanlış
+      iddiaların kopyaları dört belgede tarandı. Bağımsız yerel test geçti
+      (PostgreSQL/araçlar 16.15): custom arşivin `--list` / `--list --create`
+      farkı, `--create` SQL'inde ayar/kodlama/sıralama bilgileri ve sahiplik
+      seçenekleri karşılaştırıldı. Gerçek `--create` içermeyen geri yüklemede
+      tablo verisi ve kaynak nesne sahibi geri geldi; veritabanı ayarları
+      uygulanmadı. Bu sonuç R1 düzeltmesini ve R3'ün kapsamını doğruluyor.
+      Yalnız rastgele adlı iki geçici veritabanı ve bir geçici `NOLOGIN` rol
+      kullanıldı; hepsi silindi, kalan veritabanı/rol sayıları katalogdan
+      **0/0** doğrulandı. Geçici arşiv/test dosyaları bırakılmadı;
+      `erp` / `erp_test` verisine dokunulmadı.
+    - Kullanılan skill'ler: `code-review`, `supabase-postgres-best-practices`;
+      `Dikkat_Edilecekler.md` ve T9 okundu. Değişiklikler yalnız doküman
+      olduğu için backend/frontend testleri, build ve Pint çalıştırılmadı.
+      Canlı deneme tekrarlanmadı; canlı PostgreSQL 18.6'da ad değiştirme ve
+      bağlantı koparma sınaması keşifte belirtildiği gibi BY-028'e bağlı.
+    - **Sonuç:** açık P1/P2 yok; R1/R2 kapalı, R3 yalnız P3 doküman notu.
+      BY-002 `PASSED`; BY-003'ün bu bağımlılığı karşılandı. Bu tur yalnız
+      inceleme günlüğü ve BY-002 durumları değiştirildi. Canlı sunucuya
+      bağlanılmadı; parola dosyaları okunmadı; commit/gönderme yapılmadı.
 
 ### BY-003 — Sunucu kurulum betiği
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-002
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-002
 - **Tasarım:** README §9, §5.5, §5.2, §4.8
 - **Karar (kullanıcı, 2026-11-18):** bilgi işlemden bir şey istenmez. Sunucu
   ayarları `admin` kullanıcısı ve `sudo` ile yapılır; şifre kullanıcıdadır.
@@ -634,7 +682,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     bozmayan), her adımı açıklayan betik: servis hesabının Linux kullanıcısı,
     yedek ve istek klasörleri ile dosya yetkileri, `emor_yedek` parola
     dosyasının servis hesabına taşınması, imza anahtarının yeri, çalıştırıcı
-    servis tanımı, kuyruk / zamanlayıcıyı durdurup başlatmak için dar `sudo`
+    servis tanımı, kuyruk işçisini durdurup başlatmak için dar `sudo`
     kuralı, inceleme için salt okunur veritabanı rolü.
   - Ayrı **doğrulama** kipi (`--denetle`): hiçbir şey değiştirmeden kurulumun
     durumunu raporlar.
@@ -642,13 +690,64 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     Çalıştırılması BY-025'te, onu kullanacak kodla birlikte ve kullanıcı
     talimatıyla olur (§1.3 madde 8).
 - **Kabul ölçütleri:**
-  - [ ] README §9'daki her yapılacak madde betikte bir adım; karşılığı olmayan madde yok.
-  - [ ] Betik iki kez çalıştırılınca ikincisi hata vermiyor ve bir şeyi değiştirmiyor.
-  - [ ] Şifre, parola ya da anahtar betiğe ve repoya yazılmıyor.
-  - [ ] Lokal bir ortamda (WSL ya da geçici kullanıcılarla) denendi; `--denetle` sonucu raporlandı.
-  - [ ] Geri alma adımları (kurulumu kaldırma) dokümante.
+  - [x] README §9'daki her yapılacak madde betikte bir adım; karşılığı olmayan madde yok.
+    (Eşleme: [sunucu-kurulumu.md](sunucu-kurulumu.md) §1. Madde 4, 5 ve 8 betikle
+    yapılamaz — hedefler ekrandan, izleyici ve sanal makine yedeği açık karar;
+    gerekçeleri orada.)
+  - [x] Betik iki kez çalıştırılınca ikincisi hata vermiyor ve bir şeyi değiştirmiyor.
+  - [x] Şifre, parola ya da anahtar betiğe ve repoya yazılmıyor.
+  - [x] Lokal bir ortamda (WSL ya da geçici kullanıcılarla) denendi; `--denetle` sonucu raporlandı.
+  - [x] Geri alma adımları (kurulumu kaldırma) dokümante.
 - **Canlı:** Hayır — çalıştırılması BY-025'te.
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · başlığı
+    `feat(yedekleme): BY-003 sunucu kurulum betigi` olan commit
+    - Yeni: `scripts/sunucu-yedekleme-kurulumu.sh` (kur + `--denetle`),
+      `scripts/tests/sunucu-yedekleme-kurulumu.test.sh`,
+      [sunucu-kurulumu.md](sunucu-kurulumu.md) (§9 eşlemesi, çalıştırma, geri alma).
+    - Kontroller: `bash -n` temiz; test betiği WSL'de root olarak, deneme
+      adlarıyla (kullanıcı `emor-yedek-deneme`, roller `*_deneme`, kök `/tmp`)
+      **67/67 geçti**: ilk denetim eksik raporlar ve bir şey değiştirmez; kurulum
+      (22 değişiklik); ikinci kurulum 0 değişiklik; denetim temiz; §5.5 izinleri
+      üç kullanıcının gözünden davranışla (web / yayın / servis: okur, yazar,
+      giremez, kilit alır); bozulan izin, ACL, üyelik seçeneği, servis tanımı,
+      sudoers denetimde yakalanıp kurulumla düzeliyor; eski yerdeki parola
+      dosyası taşınıyor (parola yenilenmeden); parola dosyası yoksa yenileniyor,
+      geçici dosya kalmıyor, parola çıktıda yok; rol yok + parola dosyası var
+      belirsizliğinde hiçbir şey açılmadan duruyor. Sonda geride kullanıcı,
+      grup, rol, klasör kalmadığı denetlendi. `--denetle` çıktısı test sonunda basılır.
+    - Kendi incelememde: GNU `chmod 0750` klasörde setgid bitini korur; kök
+      klasörde setgid varsa betik her çalıştırmada "düzeltti" deyip
+      düzeltemiyordu. Önce test eklendi, kırmızı görüldü (T5), `chmod 0<izin>`
+      (beş hane) ile düzeltildi.
+    - İlk çalıştırmada WSL'de `acl` paketi yoktu; betik ön denetimde durdu.
+      Lokal denemeye `acl` kuruldu (sunucuda var).
+    - Tasarım kararları (README güncellendi):
+      - Kök `/var/lib/emor-yedek`; eski `/var/backups/emor` bırakılır, içindekiler
+        BY-013'te taranır (README §5.5).
+      - Yayın kullanıcısı (`admin`) servis grubuna **alınmaz**: §5.5'e göre yedek
+        klasörüne erişmez. İstek ve durum klasörlerine erişimi ACL ile; durum
+        klasöründe varsayılan ACL (servisin sonradan açtığı dosyaları da okur).
+        Kilit dosyası önceden açılır (yazma izni olmayan `deploy.sh` yaratamazdı).
+      - İmza anahtarı **üretilmez**, yalnız yeri hazırlanır: BY-025'e göre
+        anahtar uygulamadan taşınır; yeni anahtar eski imzaları geçersiz kılar.
+      - Zamanlayıcı için `sudo` yok: Laravel bakım modunda zamanlanmış işleri
+        çalıştırmıyor (`Scheduling\Event`, vendor kodunda doğrulandı); bakım modu
+        dosya sürücüsünde. README §6.4 ve §9 madde 1 buna göre düzeltildi (P1:
+        "zamanlayıcı servisini durdur" ile çelişiyordu); bu görevin kapsam
+        satırındaki "kuyruk / zamanlayıcı" da "kuyruk işçisi" yapıldı.
+      - Parola komut satırına girmez (psql'e standart girdiden); parola
+        dosyası rol güncellendikten sonra geçici addan taşınarak yazılır.
+      - Servis tanımı kurulur, etkinleştirilmez; komut adı (`yedek:calistir`)
+        BY-025'te kesinleşir, değişirse betik tanımı günceller.
+    - BY-002 PASSED notu (P3) de bu commit'te: README §5.3'te veritabanı
+      özellikleri ile nesne sahipliği ayrı cümlelerde.
+    - Doğrulanamayan: gerçek systemd (`daemon-reload`, `is-enabled`) ve gerçek
+      `/etc/sudoers.d` yolu — lokalde geçici dizine yazıldı; sudoers içeriği
+      `visudo -cf` ile doğrulandı. Geri alma adımları gerçek adlarla
+      denenmedi (test temizliği aynı işlemleri deneme adlarıyla yapıyor).
+      `shellcheck` WSL'de kurulu değil, çalıştırılmadı. Betik sunucuda
+      çalıştırılmadı (BY-025).
 
 ---
 

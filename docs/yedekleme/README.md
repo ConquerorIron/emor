@@ -443,14 +443,19 @@ alanların hangi `APP_KEY` ile yazıldığını gösteren **anahtar parmak izi**
 
 Manifest ayrıca veritabanının, **tasarımın geri yükleme yolunda uygulanmayan**
 özelliklerini kaydeder: kodlama, sıralama kuralı, veritabanı düzeyindeki
-ayarlar (ör. saat dilimi), bağlanma yetkileri ve nesnelerin sahibi olan rol.
-Bunlar özel biçimli yedek arşivinde vardır, ama `pg_restore` onları yalnız
-`--create` ile uygular; `--create` ise veritabanını arşivdeki adla açtığı için
-farklı ada geri yüklemede kullanılamaz ([kesif.md](kesif.md) §7). Geri
-yüklemede yeni veritabanı manifestteki değerlerle oluşturulur; yoksa geri
-yüklenen veritabanı sessizce farklı davranır (sıralama, saat). Manifesti
-olmayan eski yedeklerde bu bilgiler arşivden okunabilir
-(`pg_restore --create --file=-` çıktısı).
+ayarlar (ör. saat dilimi) ve bağlanma yetkileri. Bunlar özel biçimli yedek
+arşivinde vardır, ama `pg_restore` onları yalnız `--create` ile uygular;
+`--create` ise veritabanını arşivdeki adla açtığı için farklı ada geri
+yüklemede kullanılamaz ([kesif.md](kesif.md) §7). Geri yüklemede yeni
+veritabanı manifestteki değerlerle oluşturulur; yoksa geri yüklenen veritabanı
+sessizce farklı davranır (sıralama, saat). Manifesti olmayan eski yedeklerde
+bu bilgiler arşivden okunabilir (`pg_restore --create --file=-` çıktısı).
+
+Nesnelerin sahibi olan rol de manifeste yazılır, ama nedeni farklıdır: tablo
+sahiplikleri `--create` olmadan da arşivden uygulanır; tasarım bunu bilerek
+`--no-owner` ile kapatır ve sahipliği `--role=<uygulama rolü>` ile verir (§5.2).
+Manifestteki sahip bilgisi, geri yüklemenin doğru role yapılıp yapılmadığını
+denetlemek içindir.
 
 Manifest, veritabanı dışında saklanan bir anahtarla **imzalanır**; sistemin
 kendi ürettiği yedeği dışarıdan gelen dosyadan ayıran budur (§4.5).
@@ -490,10 +495,11 @@ Yedek durumları: `kuyrukta → calisiyor → tamam | basarisiz`; ayrıca `silin
 
 ### 5.5 Dosya düzeni
 
-- Yedek klasörü uygulamanın yazabildiği, web'den **erişilemeyen** bir yerde.
+- Yedek klasörü servis hesabının yazdığı, uygulamanın yalnız okuduğu, web'den
+  **erişilemeyen** bir yerde: `/var/lib/emor-yedek` (kurulumu BY-003 betiği).
 - Ad kalıbı: `erp_<kaynak>_<YYYY-AA-GG_SSddss>.dump` + aynı adla `.json`.
-- Bugünkü `/var/backups/emor` klasörüne uygulama yazamıyor (§9); ya izinler
-  düzeltilir ya da yeni klasöre geçilir ve eski 159 yedek taranıp içeri alınır.
+- Bugünkü `/var/backups/emor` klasörüne uygulama yazamıyor (§9). Karar (BY-003):
+  yeni klasöre geçilir; eski yedekler taranıp içeri alınır (BY-013).
 
 **Dosya yetkileri (hedef düzen; kurulum betiğinde yazılı durur — BY-003):**
 
@@ -552,7 +558,9 @@ da yapılabilir.
    yedek / geri yükleme / yayın çalışmıyor). Çalıştırıcı, isteği yapanın
    yetkisini ve onayını kendisi doğrular.
 2. Bakım moduna al; zamanlayıcıyı ve kuyruk işçisini durdur; işlem durumunu
-   "geri yükleme sürüyor" olarak yaz.
+   "geri yükleme sürüyor" olarak yaz. (Kuyruk işçisi servis olarak durdurulur.
+   Zamanlayıcının servisi durdurulmaz: Laravel bakım modunda zamanlanmış işleri
+   çalıştırmaz; bakım modu dosyadadır, veritabanına dayanmaz — §9.)
 3. **Geri yükleme öncesi yedek** al ve doğrula. Bu yedek bakım modundan
    **sonra** alınır: önce alınsaydı, arada girilen kayıt yedekte olmaz ve
    `erp_onceki_*` silinince tamamen kaybolurdu. Başarısızsa servisler açılır, dur.
@@ -768,7 +776,7 @@ Bugünkü durum (2026-11-16):
 
 | Konu | Durum | Etkisi |
 |---|---|---|
-| Yedek klasörü `/var/backups/emor` | Sahibi `admin`, uygulama kullanıcısı (`www-data`) yazamıyor | Uygulamanın yazabileceği klasör gerek |
+| Yedek klasörü `/var/backups/emor` | Sahibi `admin`, uygulama kullanıcısı (`www-data`) yazamıyor | Servis hesabının yazdığı ayrı bir klasör gerek (§5.5) |
 | Zamanlayıcı ve kuyruk | `www-data` olarak çalışıyor; kuyrukta iş zaman aşımı 300 sn, tek işçi | Yedekleme için ayrı işçi/servis tanımı gerek |
 | `admin` kullanıcısı | `sudo` şifreyle; şifre kullanıcıda | Bilgi işlemden bir şey istenmez (kullanıcı kararı 2026-11-18): servis ve izin değişiklikleri kurulum betiğiyle (BY-003) `admin` + `sudo` ile yapılır |
 | Yükleme sınırı | 2 MB | Tarayıcıdan yedek yükleme yok |
@@ -788,8 +796,11 @@ Yapılacaklar (kurulum betiğiyle, `admin` + `sudo`; bilgi işlemden istenmez):
      yüklemeyi onun adına yapmak, `erp`'nin adını değiştirmek ve uygulamanın
      bağlantılarını koparmak bununla mümkün olur ([kesif.md](kesif.md) §4–§6),
    - `postgres` veritabanına bağlanma (ad değiştirme oradan yapılır),
-   - kuyruk ve zamanlayıcı servislerini durdurup başlatma.
-2. Uygulamanın yazabildiği, web dışı bir yedek klasörü.
+   - kuyruk servisini durdurup başlatma (yalnız bu komutlara izin veren dar
+     `sudo` kuralı). Zamanlayıcı (cron) için yetki gerekmez: bakım modundayken
+     zamanlanmış işler çalışmaz (§6.4).
+2. Servis hesabının yazdığı, uygulamanın yalnız okuduğu, web dışı bir yedek
+   klasörü (`/var/lib/emor-yedek`; §5.2, §5.5).
 3. Yedekleme için ayrı servis tanımı (kuyruk işçisi ve geri yükleme çalıştırıcısı).
 4. Sunucu dışı kopya için hedef ve erişim; mümkünse silinmeye karşı korumalı.
 5. Sessizlik alarmı için uygulama dışı bir izleyici (§4.8).
@@ -797,6 +808,9 @@ Yapılacaklar (kurulum betiğiyle, `admin` + `sudo`; bilgi işlemden istenmez):
 7. Dosya yetkilerinin §5.5'teki tabloya göre kurulması.
 8. Sanal makine düzeyinde yedek (snapshot) alınıyor mu, ne sıklıkla — bu sistem
    onun yerine geçmez, onu tamamlar.
+
+Her maddenin kurulum betiğindeki karşılığı (ya da neden betikte olmadığı),
+betiğin çalıştırılması ve geri alınması: [sunucu-kurulumu.md](sunucu-kurulumu.md).
 
 ### Kurtarma paketi (sunucu tamamen kaybedilirse)
 
