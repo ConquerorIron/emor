@@ -7,8 +7,10 @@ namespace Tests\Feature;
 use App\Models\YedekHedefi;
 use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
+use App\Services\Yedekleme\YedekKaynagi;
 use App\Support\KayitSilme;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
@@ -45,7 +47,7 @@ final class YedeklemeVeriModeliTest extends TestCase
 
     public function test_kopyasi_olan_hedef_silinemez_ve_409_doner(): void
     {
-        $kopya = YedekKopyasi::factory()->create(['yedek_plani_id' => null]);
+        $kopya = YedekKopyasi::factory()->plansiz()->create();
 
         $this->silinemez($kopya->hedef);
     }
@@ -88,6 +90,62 @@ final class YedeklemeVeriModeliTest extends TestCase
         $this->assertModelMissing($kopya);
         $this->assertModelExists($kopya->hedef);
         $this->assertModelExists($kopya->plan);
+    }
+
+    public function test_ayni_yedegin_ayni_hedefteki_plansiz_ikinci_kopyasi_reddedilir(): void
+    {
+        $kopya = YedekKopyasi::factory()->plansiz()->create();
+
+        $this->expectException(UniqueConstraintViolationException::class);
+
+        YedekKopyasi::factory()->create([
+            'yedek_id' => $kopya->yedek_id,
+            'yedek_hedefi_id' => $kopya->yedek_hedefi_id,
+            'yedek_plani_id' => null,
+        ]);
+    }
+
+    public function test_ayni_planin_ayni_hedefteki_ikinci_kopyasi_reddedilir(): void
+    {
+        $kopya = YedekKopyasi::factory()->create();
+
+        $this->expectException(UniqueConstraintViolationException::class);
+
+        YedekKopyasi::factory()->create([
+            'yedek_id' => $kopya->yedek_id,
+            'yedek_hedefi_id' => $kopya->yedek_hedefi_id,
+            'yedek_plani_id' => $kopya->yedek_plani_id,
+        ]);
+    }
+
+    public function test_bir_yedek_farkli_planlarla_ayni_hedefe_ve_farkli_hedeflere_kopyalanabilir(): void
+    {
+        $kopya = YedekKopyasi::factory()->create();
+
+        $baskaPlan = YedekKopyasi::factory()->create([
+            'yedek_id' => $kopya->yedek_id,
+            'yedek_hedefi_id' => $kopya->yedek_hedefi_id,
+        ]);
+        $plansiz = YedekKopyasi::factory()->plansiz()->create([
+            'yedek_id' => $kopya->yedek_id,
+            'yedek_hedefi_id' => $kopya->yedek_hedefi_id,
+        ]);
+        $baskaHedef = YedekKopyasi::factory()->plansiz()->create(['yedek_id' => $kopya->yedek_id]);
+
+        $this->assertSame(4, YedekKopyasi::query()->where('yedek_id', $kopya->yedek_id)->count());
+        $this->assertNotSame($kopya->yedek_plani_id, $baskaPlan->yedek_plani_id);
+        $this->assertNull($plansiz->yedek_plani_id);
+        $this->assertNotSame($kopya->yedek_hedefi_id, $baskaHedef->yedek_hedefi_id);
+    }
+
+    public function test_planli_kopya_factorysi_plan_kaynakli_yedek_ve_saklama_kurali_olan_plan_hedef_bagi_kurar(): void
+    {
+        $kopya = YedekKopyasi::factory()->create();
+
+        $this->assertSame(YedekKaynagi::Plan, $kopya->yedek?->kaynak);
+        $bag = $kopya->plan?->hedefler()->whereKey($kopya->yedek_hedefi_id)->first();
+        $this->assertNotNull($bag);
+        $this->assertSame(14, $bag->pivot->sakla_son_adet);
     }
 
     /** Silme 409 + KAYIT_KULLANILIYOR ile reddedilmeli ve kayıt yerinde kalmalı. */

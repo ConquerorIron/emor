@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -22,6 +23,9 @@ use Illuminate\Support\Facades\Schema;
  * - Yedek kaydı silinmez, durumu `silindi` olur (geçmiş kaybolmaz); kopyalar
  *   yedekle gider, geri yükleme geçmişi yedeği tutar (RESTRICT).
  * - Kullanıcı silinirse kayıtlar kalır, kişi alanı boşalır.
+ *
+ * Bir yedeğin bir hedefteki kopyası plan başına tektir; plansız kopya için
+ * koşullu benzersiz indeks ayrıca vardır (NULL benzersizlikte eşit sayılmaz).
  */
 return new class extends Migration
 {
@@ -138,12 +142,20 @@ return new class extends Migration
             $table->timestampTz('silinme_zamani')->nullable();
             $table->timestampsTz();
 
+            // Bir yedeğin bir hedefteki kopyası plan başına bir kez. Benzersizlik
+            // NULL'ları eşit saymaz (PostgreSQL ve SQLite): plansız kopyalar için
+            // aşağıdaki koşullu indeks ayrıca gerekir (BY-004-R1).
             $table->unique(['yedek_id', 'yedek_hedefi_id', 'yedek_plani_id']);
             // Saklama: bir planın bir hedefteki kopyaları; plan silinirken RESTRICT denetimi
             $table->index(['yedek_plani_id', 'yedek_hedefi_id', 'durum']);
             // Hedef silinirken RESTRICT denetimi
             $table->index('yedek_hedefi_id');
         });
+
+        DB::statement(
+            'CREATE UNIQUE INDEX yedek_kopyalari_plansiz_tek
+             ON yedek_kopyalari (yedek_id, yedek_hedefi_id) WHERE yedek_plani_id IS NULL'
+        );
 
         Schema::create('geri_yuklemeler', function (Blueprint $table) {
             $table->id();

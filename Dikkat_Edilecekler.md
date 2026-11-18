@@ -43,6 +43,16 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   aynı ama herkesin yazabildiği sistem dosyası erişimi açar. Denetleyen her
   kodu "buraya fazladan ne eklenirse yakalanmaz?" sorusuyla dene.
   *(BY-003-R2…R4: üç ayrı denetim aynı nedenle "her şey yerinde" dedi.)*
+- **G6 — `env('X', varsayılan)` boş değerde varsayılanı kullanmaz.** `.env`'de
+  `X=` yazılıysa Laravel boş metin döndürür; yol boş, `(int)` ile süre 0 olur.
+  Varsayılanı olan her değişkeni `env('X') ?: varsayılan` ile oku ve
+  "tanımsız / boş / verilmiş" üç durumu sına.
+  *(BY-004-R2: `.env.example`'daki satırı açan kurulumda yedek klasörü boştu.)*
+- **G7 — Benzersizlik kuralında NULL olabilen kolon tekrarı engellemez.**
+  PostgreSQL ve SQLite NULL'ları birbirinden farklı sayar: `unique(a, b, c)`
+  `c` boşken aynı `(a, b)`'yi tekrar kabul eder. Boş durum için koşullu
+  benzersiz indeks ekle (`… WHERE c IS NULL`) ve iki veritabanında sına.
+  *(BY-004-R1: plansız yedek kopyası aynı hedefe iki kez yazılabiliyordu.)*
 
 ## 2. Ön yüz
 

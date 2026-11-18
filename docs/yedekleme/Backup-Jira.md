@@ -1141,6 +1141,117 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       alınmadı. Başka bir iş için deploy olursa: tablolar boş açılır, modül
       kapalı; Roller ekranının "Diğer" grubunda iki yedekleme satırı görünür
       (izin vermek henüz bir şey açmaz — uç yok).
+  - 2026-11-18 Codex → CHANGES_REQUESTED · incelenen commit `a1deab9`
+    - **BY-004-R1 [P2] — plansız kopyanın tekrarı şemada engellenmiyor.**
+      `backend/database/migrations/2026_11_18_120043_create_yedekleme_tables.php:126`
+      plan kimliğine `NULL` izni veriyor. 141. satırdaki bileşik benzersizlik
+      kuralı `NULL` değerlerini eşit saymıyor. Gerçek migration ile hem
+      SQLite hem PostgreSQL 16.15 üzerinde aynı yedek, hedef ve boş planla
+      iki satır kaydedildi. Aynı dolu planla ikinci satır reddedildi.
+      Teslim notunda belirtilen durum SQLite için de geçerli.
+      **Etki.** Bir yedeğin aynı hedefteki plansız kopyası birden fazla kez
+      dizine yazılabiliyor. BY-008'de yeniden deneme ve BY-011'de dizini
+      yeniden kurma aynı mantıksal kopyayı çoğaltabilir. Saklama hesabı da
+      aynı dosyayı birden çok başarılı kopya olarak sayabilir. Bu akışlar
+      henüz yazılmadı. Doğrulanan hata, mevcut tablonun mükerrer kaydı
+      kabul etmesidir.
+      **Dayanak.** README §5.4'teki kopya kimliği, T7 ve PostgreSQL
+      `query-partial-indexes` kuralı. [PostgreSQL benzersizlik](https://www.postgresql.org/docs/18/ddl-constraints.html#DDL-CONSTRAINTS-UNIQUE-CONSTRAINTS),
+      [SQLite benzersizlik](https://www.sqlite.org/lang_createindex.html#unique_indexes).
+      **En küçük düzeltme.** Dolu planlar için mevcut kısıtı koru. Boş plan
+      için `(yedek_id, yedek_hedefi_id)` üzerinde `WHERE yedek_plani_id IS NULL`
+      koşullu benzersiz indeks ekle. **Doğrulama.** Aynı plansız ve aynı
+      planlı kaydın ikincisi reddedilmeli. Aynı hedefte farklı planlara ve
+      aynı yedekte farklı hedeflere izin verilmeli. Her iki veritabanında
+      ileri → geri → ileri migration kontrolü sürmeli.
+    - **BY-004-R2 [P2] — boş klasör ayarı belgelenen varsayılanı kullanmıyor.**
+      `backend/config/yedekleme.php:15` ve `backend/.env.example:75`.
+      Laravel 13.24.0 ile uygulama başlatılarak doğrulandı. Değişken
+      tanımsızken `storage/app/yedekler` seçiliyor. `YEDEKLEME_KLASORU=`
+      açıkça tanımlandığında ise `config('yedekleme.klasor')` boş metin.
+      **Etki.** Örnekteki satırı yönergeye uyarak açan kurulum geçerli
+      yedek kökü alamıyor. Sonraki komutların kullanacağı yapılandırma
+      sözleşmesi tutarsız. **Dayanak.** Laravel `config` kuralı, T7 ve P1.
+      **En küçük düzeltme.** Varsayılanı boş değere de uygula ve açık bir
+      klasör verildiğinde onu koru. **Doğrulama.** Tanımsız, boş ve özel yol
+      durumlarını gerçek Laravel yapılandırması üzerinden karşılaştır.
+    - **BY-004-R3 [P3] — kopya factory'si belgelediği planlı veriyi üretmiyor.**
+      `backend/database/factories/YedekKopyasiFactory.php:22` ve `29-31`.
+      Varsayılan veri, planı olan bir kopya üretiyor ancak yedeğin kaynağı
+      `elle` ve hedef planın hedeflerine bağlı değil. SQLite'ta factory ile
+      oluşturulup iki ilişki de ayrı ayrı kontrol edildi. **Etki.** Silme
+      testleri için yeterli olan bu kurgu, plan ve hedef bazında saklamayı
+      sınayan sonraki testlerde tasarımın tersine bir örnek üretir.
+      **Dayanak.** `testing-best-practices` test verisi kuralı ve README §4.3.
+      **Öneri.** Planlı test verisi gereken yerde `Plan` kaynaklı yedek ve
+      saklama ayarı olan gerçek plan–hedef bağı kullanan bir factory state
+      veya test kurulumu oluştur. **Doğrulama.** Planlı kurgu doğru kaynağı,
+      hedef bağını ve beklenen saklama değerini içermeli. P3 onayı engellemez.
+    - **Kontroller.** Backend PHPUnit **666/666** (2.487 doğrulama), Roller
+      **11/11**, frontend tür, lint ve derleme geçti. Lint değişmeyen dört
+      konumda uyarı verdi. Derleme paket boyutu uyarısıyla tamamlandı. Node
+      18 ile ilk Vitest denemesi bağımlılık yüklemede durdu. Kurulu Node
+      **24.13.0** ile frontend kontrolleri tamamlandı. `git diff --check`
+      temiz. İki veritabanında migration'ın ileri → geri → ileri çalışması
+      bağımsız doğrulandı. PostgreSQL'de her yabancı anahtarın kolonları,
+      geçerli bir indeksin ilk kolonları olarak doğrulandı. **Eksik indeks yok**.
+      Ayrı geçici PostgreSQL kümesi ve bellek içi SQLite kullanıldı.
+    - `encrypted:array` + `$hidden` model serileştirmesinde ve 409 silme
+      sözleşmesi `KayitSilme` testlerinde doğrulandı. İki izin satırı katalogda
+      ve tr/en çevirilerinde var. Modül kapalı ve bu teslimde yedekleme
+      rotası, menü girişi veya zamanlayıcı eklenmiyor. Sırlar için hedef API
+      doğrulaması BY-016 kapsamına bağlı.
+    - **Sonuç.** R1 ve R2 açık, BY-004 `DUZELTME`. İncelemede `code-review`,
+      `laravel-best-practices`, `supabase-postgres-best-practices`,
+      `testing-best-practices` ve `vercel-react-best-practices` kullanıldı.
+      Boost MCP oturumda yok, sürüme bağlı davranış kurulu Laravel üzerinden
+      kontrol edildi. Pint tekrarlanmadı. Bu tur yalnız pano ve inceleme
+      günlüğü güncellendi. Canlıda işlem yapılmadı.
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · başlığı
+    `fix(yedekleme): BY-004 R1-R3 plansiz kopya tekilligi, bos env varsayilani`
+    olan commit
+    - Üç bulgu da kodda doğrulandı, hepsi kabul. R1 ve R2 testleri önce
+      yazıldı, doğru nedenle kırmızı görüldü (T5): plansız ikinci kopya
+      kabul ediliyordu; `YEDEKLEME_KLASORU=` boş yol, boş araç yolları boş
+      metin veriyordu (tanımsız ve verilmiş durumlar zaten geçiyordu).
+    - **R1 kabul, düzeltildi.** Mevcut `unique(yedek_id, yedek_hedefi_id,
+      yedek_plani_id)` korundu; `yedek_kopyalari_plansiz_tek` koşullu
+      benzersiz indeksi eklendi (`(yedek_id, yedek_hedefi_id) WHERE
+      yedek_plani_id IS NULL`, alarm migration'ındaki `DB::statement`
+      kalıbı). Migration canlıya gitmediği için dosyanın kendisi düzeltildi;
+      lokal `erp_test` eski sürümden geri alınıp yeniden çalıştırıldı.
+      Testler: aynı plansız kopyanın ikincisi ve aynı planlı kopyanın
+      ikincisi `UniqueConstraintViolationException`; aynı hedefe farklı plan,
+      aynı hedefe plansız ve aynı yedekten farklı hedefe kopya açılıyor.
+      `YedeklemeVeriModeliTest` SQLite'ta ve **PostgreSQL `erp_test`'te
+      11/11**. Migration iki veritabanında ileri → geri → ileri; indeks
+      PostgreSQL'de `pg_indexes`'te, SQLite'ta `sqlite_master`'da görüldü;
+      indekssiz yabancı anahtar yine 0.
+    - **R2 kabul, düzeltildi.** `config/yedekleme.php`'de varsayılanı olan
+      her değişken `env('X') ?: varsayılan` (klasör, üç araç yolu, iki süre
+      sınırı). **Kardeş hata (G1):** süreler boş bırakılınca `(int) ''` = 0
+      oluyordu — süre sınırı fiilen kalkardı (D1); o da düzeltildi. Yeni
+      `YedeklemeYapilandirmasiTest` (5): klasör tanımsız / boş → varsayılan,
+      verilmiş → o yol; boş araç yolları ve süreler → varsayılan; verilmiş
+      araç yolu ve süre → o değer. Yapılandırma dosyası gerçek Laravel
+      `env()` okumasıyla, `$_SERVER` / `$_ENV` / `putenv` üzerinden yeniden
+      değerlendiriliyor; testten sonra ortam geri yükleniyor.
+      **G1 taraması, düzeltilmeyen:** `config/erp.php` `ERP_ADMIN_KULLANICI`
+      ve `config/entegrator.php` `EFATURA_SENKRON_AKTIF` de boş değerde
+      varsayılanı kullanmıyor (boş → kullanıcı adı `''`, senkron kapalı).
+      Bu görevin kapsamı dışı (başka modüller); kullanıcıya bildirildi.
+    - **R3 kabul, düzeltildi.** `YedekKopyasiFactory` varsayılanı artık
+      tutarlı planlı kurgu: yedeğin kaynağı `plan`, hedef plana
+      `sakla_son_adet = 14` ile bağlanıyor (`configure` / `afterCreating`,
+      bağ yoksa). `plansiz()` durumu: elle yedeğin plansız kopyası. Test:
+      planlı kurguda kaynak, plan–hedef bağı ve saklama değeri doğrulanıyor.
+      Kopyası olan hedef testi artık `plansiz()` ile (hedefin plan bağı yok,
+      RESTRICT yalnız kopyadan geliyor).
+    - `Dikkat_Edilecekler.md`: **G6** (`env()` boş değerde varsayılanı
+      kullanmaz) ve **G7** (NULL olabilen kolonlu benzersizlik tekrarı
+      engellemez).
+    - Kontroller: backend **675/675**; Pint temiz. Frontend değişmedi.
+      Canlıya alınmadı.
 
 ### BY-005 — Dosya kilidi ve işlem durumu dosyası
 
