@@ -63,8 +63,20 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   karşı taraf yeni bir uç eklediğinde o uç açık kalır. İstek çıkaran TEK yerde
   yöntem + yol için izin listesi tut, gerisini istek göndermeden reddet; testte
   bilinmeyen bir uç için "hiç istek gitmedi"yi sına.
+  **Okuma gibi görünen ama durum alanı taşıyan uç da yazmadır:** isteğinde
+  `setStatus`, `setErpStatus`, okundu gibi alan zorunluysa o uç izin listesine
+  girmez; "mevcut değeri geri göndermek" de yazma isteğidir. Böyle bir uç
+  gerekiyorsa önce karşı taraftan alanların yok sayıldığını yazılı olarak al.
   *(İzibiz istemcisi 2026-11-18: yasak listesinin dışındaki yeni ve sahte
-  uçlara istek çıkabiliyordu; Protel / Süper Entegratör de aynı kuralla yazılacak.)*
+  uçlara istek çıkabiliyordu. Protel / Süper Entegratör: PDF metodu
+  `setErpStatus` zorunlu tutuyor; "mevcut değeri geri gönder" önerisi
+  kullanıcı tarafından reddedildi — en küçük hata otelin işleyişini bozar.)*
+- **G9 — Ayarın geçersiz değeri sessizce dönüştürülmesin.** `(int) 'abc'` = 0,
+  `(int) '-10'` = −10; süre sınırında 0 "sınırsız" demektir (Symfony Process).
+  Ayarı tüketen kod yalnız geçerli aralığı kabul etsin (ör. pozitif tam sayı),
+  geçersizde açık hatayla dursun; boş değer G6'ya göre varsayılana döner.
+  "Boş / geçerli / geçersiz" üç durumu sına.
+  *(BY-004-R5: geçersiz süre ayarı sınırsız çalışmaya dönüşebiliyordu.)*
 
 ## 2. Ön yüz
 
@@ -100,6 +112,13 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   bağlantılarını koparamadığı yazıldı; PostgreSQL buna izin verir.)*
 - **T8 — Başarı ölçütü "hata verdi" değildir.** Hata yolunda mevcut verinin
   korunduğunu ve geride artık (geçici dosya, yarım kayıt) kalmadığını da sına.
+- **T10 — Factory varsayılanı tasarımdaki gerçek kurguyu üretsin.** İlişkili
+  kayıtlar birbirine tutarlı bağlansın (kopyanın planı varsa hedef o plana
+  bağlı, yedeğin kaynağı `plan`; dosya adı öneki kaynakla aynı). Tutarsız
+  örnek bugünkü testi geçirir, sonraki görevde tasarımın tersini "doğru" diye
+  sınatır. Farklı kurgu gerekiyorsa adlı durum (`plansiz()`) kullan.
+  *(BY-004-R3: planlı kopyanın yedeği `elle`, hedefi plana bağlı değildi.
+  BY-004-R6: `plan` kaynaklı yedeğin dosya adı `erp_elle_` ile başlıyordu.)*
 
 ## 4. Betikler ve dış komutlar
 
