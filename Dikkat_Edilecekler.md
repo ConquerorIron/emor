@@ -104,6 +104,16 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   birebir karşılaştır; saat dilimi şartını ayrıca denetle.
   *(BY-005-R4: 30 Şubat, `+03:00`, kısa mikrosaniye, sonunda satır sonu olan
   UUID / özet kabul ediliyordu.)*
+- **G12 — Devralınan ortam, sınanan ya da kullanılan ayarı gölgelemesin.**
+  Kütüphaneler ortam değişkenine dosyadan önce bakar: libpq'da `PGPASSWORD`
+  parola dosyasının, Laravel'de süreç ortamı `.env`'in önüne geçer. "Bu
+  dosyayla bağlanılabiliyor mu" diye soran denetim temiz ortamda çalışsın
+  (`env -i PATH=… PGPASSFILE=…`), dosyayı kullanan betik devralınanı
+  temizlesin (`unset PGPASSWORD`). Testte aynı adlı yanlış ya da DOĞRU bir
+  ortam değişkeniyle de sına: doğrusu, geçersiz dosyayı geçerli gösterebilir.
+  *(Fable F8: `.env` okuyucu süreç ortamından okuyordu. BY-001-R6: devralınan
+  PGPASSWORD yedeği bozuyor, kurulumda geçersiz dosyayla bağlantıyı başarılı
+  gösterip eski parola kopyasını sildiriyordu.)*
 
 ## 2. Ön yüz
 
@@ -181,10 +191,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   dayanağıysa (ör. "açık işlem yok → yayına devam") yalnız doğrulanmış
   yoklukta "yok" de; erişim hatası istisnadır. Testte erişimi kesilmiş klasörü sına.
   Aynı ayrım "meşgul" için de geçerli: bir çağrı başarısız olunca nedenini
-  sor (`flock`'ta `$would_block`); desteklenmeyen dosya sistemi ya da izin
-  hatası "başka işlem çalışıyor" diye raporlanırsa iş sonsuza dek sessizce atlanır.
+  sor (`flock`'ta `$would_block`; kabukta `flock -n -E 75` ile çakışmaya ayrı
+  çıkış kodu); desteklenmeyen dosya sistemi ya da izin hatası "başka işlem
+  çalışıyor" diye raporlanırsa iş sonsuza dek sessizce atlanır.
   *(BY-005-R1: erişilemeyen durum dosyası "açık geri yükleme yok" sayılıyordu.
-  Fable incelemesi F4: `YedekKilidi` her `flock` hatasını "meşgul" sayıyordu.)*
+  Fable incelemesi F4: `YedekKilidi` her `flock` hatasını "meşgul" sayıyordu;
+  BY-001-R5: aynı hata kardeş kabuk betiğinde kalmıştı — G1.)*
 - **D7 — Ayrı hesap, daha az güvenilen hesabın yazabildiği kodu çalıştırmasın.**
   Bir işi "ele geçirilse bile X'e ulaşamasın" diye ayrı hesaba veriyorsan, o
   hesabın çalıştırdığı / yüklediği her dosyayı say: PHP önbellekleri
@@ -194,14 +206,19 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   önce (`LARAVEL_STORAGE_PATH`) iki hesabın PAYLAŞMASI gereken dosyaları say:
   bakım modu dosyası (`storage/framework/down`) ayrılırsa servis siteyi bakım
   moduna alamaz. Yalnız çalıştırılan kodu ayır, paylaşılan veriyi değil.
-  Paylaşılan klasöre farklı `umask` ile yazan ikinci hesap da sorundur: açtığı
-  günlük dosyasını diğeri yazamaz — dosyayı açan kod izni açıkça versin
-  (günlük kanalında `'permission' => 0664`). Sunucudaki gerçek izinlere
-  bakarak doğrula; testte uygulamayı servisin ortamıyla açıp
-  `get_included_files()`'ı denetle.
+  Ayrı hesap daha az güvenilen hesabın yazabildiği klasöre de YAZMASIN:
+  oradaki dosya bağlantıyla değiştirilip yazım ayrı hesabın kendi
+  dosyalarına yönlendirilebilir (D5). Günlükler ayrı hesabın klasörüne gider
+  (`LOG_KLASORU`); dosya iznini gevşetmek (`0664`) bunu çözmez, yalnız
+  izni değiştirir. Çerçevenin ve paketlerin birleşerek eklediği kanalları da
+  say (Laravel 13 `monthly`, Boost `browser`, acil durum kanalı). Paylaşılması
+  zorunlu dosyayı (bakım modu) yazan kod bağlantı izlemesin. Sunucudaki gerçek
+  izinlere bakarak doğrula; testte uygulamayı servisin ortamıyla açıp
+  `get_included_files()`'ı ve çalışma zamanındaki günlük yollarını denetle.
   *(Fable incelemesi F1, F2: servis hesabı web grubuna alınmış, tanımı
   `UMask=0027` ile uygulamanın `storage/` ve `bootstrap/cache`'ini kullanacaktı.
-  Önerilen `LARAVEL_STORAGE_PATH` bakım modunu bozacağı için uygulanmadı.)*
+  Önerilen `LARAVEL_STORAGE_PATH` bakım modunu bozacağı için uygulanmadı.
+  BY-003-R6: F2'nin `0664` çözümü servisi ortak günlük klasöründe bırakıyordu.)*
 - **D4 — Eskiyi, yenisi gerçekten çalıştığı doğrulanmadan silme.** Taşıma /
   değiştirme işinde yeni kopyanın var olması doğru olduğunu göstermez (T9);
   eski kopya son çalışan kopya olabilir. Silme, yeninin gerçek kullanımla
@@ -279,3 +296,20 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   konuşuyor olabilir; yeni yerde yanlış bilgi verir.
   *(Fable incelemesi F12: `KAYIT_KULLANILIYOR` mesajı "kesinti satırlarında
   kullanıldığı için" diyor; yedek hedefi silinirken de bu çıkacaktı.)*
+- **K6 — Uygulanmış migration'ın yükseltme yolunu boş kurulumdan ayrı sına.**
+  Önceden uygulanmış migration yeni dosya içeriğiyle yeniden çalışmaz.
+  Eski şema ve örnek kayıtlarla normal `migrate` çalıştır, şema ve verinin
+  korunduğunu doğrula (laravel-best-practices: *Treat Deployed Migrations
+  as Immutable*, *Stage Changes That Affect Existing Rows*).
+  *(BY-004, `6c96ea8`: boş kurulum geçti, yükseltmede yeni tablo ve alan gelmedi.)*
+  Kapsam: kural, migration'ın **paylaşılan ya da canlı** bir veritabanında
+  uygulanmış olmasına bağlıdır (skill: "For a local migration that has not
+  been shared or deployed, editing … may be simpler"). Yerinde değiştirme
+  kararı kanıtla verilir ve yazılır: canlıda `migrations` tablosu / sunucu
+  commit'i, yerel ve test veritabanlarının durumu.
+  *(BY-004-R7 yanıtı: migration canlıya gitmemişti, yerinde değiştirildi.)*
+- **K7 — Entegrasyon testi paylaşılan yönetici ayarına dayanmasın.**
+  Sunucu davranışı için test oturumuna veya geçici örneğe özgü ayar kullan.
+  Kurulum ve temizlik aynı ayarı değiştirebiliyorsa kesinti ve tekrar
+  çalıştırmada da mevcut ortamı koru (testing-best-practices: *isolation*).
+  *(BY-003, `6c96ea8`: test yerel PostgreSQL yönetici rolü ayarını sıfırlıyordu.)*

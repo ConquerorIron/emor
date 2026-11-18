@@ -62,8 +62,18 @@ anahtarına ve parola dosyasına ulaşırdı. Servis tanımı bu yüzden Laravel
 `APP_SERVICES_CACHE`, `APP_PACKAGES_CACHE`, `APP_ROUTES_CACHE`,
 `APP_EVENTS_CACHE`, `VIEW_COMPILED_PATH`). `storage/` yolu bilerek değişmez:
 bakım modu dosyası uygulamanın `storage/framework/` klasöründe olmalıdır; oradan
-PHP dosyası yüklenmez. Uygulamanın günlük kanalları dosyayı `0664` açar: günün
-dosyasını servis (`UMask=0027`) açsa da web yazabilir (Fable incelemesi F1, F2).
+PHP dosyası yüklenmez (Fable incelemesi F1).
+
+**Servis web'in yazabildiği günlük klasörüne yazmaz.** `LOG_KLASORU`
+bütün dosya kanallarını (acil durum, `denetim`, çerçeveden gelen `monthly`
+dahil) servisin `gunluk/` klasörüne yönlendirir. `storage/logs`'taki bir dosyayı
+web süreci bağlantıyla değiştirip servisin yazımını servisin kendi dosyalarına
+yönlendirebilirdi (BY-003-R6). Bakım modu dosyası ortak kalır; onu yazan kod
+bağlantı izlememelidir (BY-028).
+
+**Bağlantı denetimi temiz ortamda.** Servisin parola dosyasıyla bağlanıp
+bağlanamadığı `env -i` ile sınanır: kabuktan devralınan `PGPASSWORD` dosyanın
+önüne geçer ve geçersiz dosyayı geçerli gösterebilirdi (BY-001-R6).
 
 **Parola role SCRAM doğrulayıcısı olarak yazılır.** `alter role … password
 '<düz parola>'` metni sunucu günlüğüne düşebilir; betik parolanın SCRAM-SHA-256

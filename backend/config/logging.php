@@ -5,6 +5,13 @@ use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
 use Monolog\Processor\PsrLogMessageProcessor;
 
+// Bütün dosya kanallarının klasörü. Yedekleme servisi (emor-yedek) kendi
+// klasörünü verir (LOG_KLASORU, servis tanımı — BY-003): web'in yazabildiği
+// storage/logs'a yazsaydı, web süreci oradaki dosyayı bağlantıyla değiştirip
+// servisin yazımını servisin kendi dosyalarına yönlendirebilirdi (D5, D7;
+// BY-003-R6). Boşsa uygulamanın storage/logs'u (G6).
+$gunlukKlasoru = rtrim((string) (env('LOG_KLASORU') ?: storage_path('logs')), '/');
+
 return [
 
     /*
@@ -58,37 +65,47 @@ return [
             'ignore_exceptions' => false,
         ],
 
-        // Dosya kanallarında 'permission' => 0664: storage/logs'a web (www-data)
-        // ve yedekleme servisi (UMask 0027) yazar. Günün dosyasını hangisi
-        // açarsa açsın diğeri de yazabilmeli; izin umask'tan bağımsız verilir
-        // (GunlukDosyasiIzniTest).
-
         'single' => [
             'driver' => 'single',
-            'path' => storage_path('logs/laravel.log'),
+            'path' => $gunlukKlasoru.'/laravel.log',
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
-            'permission' => 0664,
         ],
 
         'daily' => [
             'driver' => 'daily',
-            'path' => storage_path('logs/laravel.log'),
+            'path' => $gunlukKlasoru.'/laravel.log',
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => true,
-            'permission' => 0664,
+        ],
+
+        // Çerçevenin varsayılan config'inden birleşerek gelir (Laravel 13); burada
+        // tanımlanmazsa yolu storage/logs'ta kalırdı (BY-003-R6)
+        'monthly' => [
+            'driver' => 'monthly',
+            'path' => $gunlukKlasoru.'/laravel.log',
+            'level' => env('LOG_LEVEL', 'debug'),
+            'max_files' => 3,
+            'replace_placeholders' => true,
+        ],
+
+        // laravel/boost (yalnız geliştirme) tanımlı değilse bu kanalı storage/logs'a
+        // açar; burada tanımlı olunca kendi tanımını eklemez
+        'browser' => [
+            'driver' => 'single',
+            'path' => $gunlukKlasoru.'/browser.log',
+            'level' => env('LOG_LEVEL', 'debug'),
         ],
 
         // Denetim kaydı: ERP'ye yapılan yazımlar gibi izi kalması gereken işlemler.
         // Genel LOG_LEVEL'dan (üretimde warning) bağımsız, bir yıl saklanır.
         'denetim' => [
             'driver' => 'daily',
-            'path' => storage_path('logs/denetim.log'),
+            'path' => $gunlukKlasoru.'/denetim.log',
             'level' => 'info',
             'days' => 365,
             'replace_placeholders' => true,
-            'permission' => 0664,
         ],
 
         'slack' => [
@@ -142,7 +159,7 @@ return [
         ],
 
         'emergency' => [
-            'path' => storage_path('logs/laravel.log'),
+            'path' => $gunlukKlasoru.'/laravel.log',
         ],
 
     ],

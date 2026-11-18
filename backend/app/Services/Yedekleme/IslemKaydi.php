@@ -126,8 +126,9 @@ final readonly class IslemKaydi
         }
 
         $hata = $veri['hata'];
-        if ($hata !== null && (! is_array($hata) || ! is_string($hata['kod'] ?? null) || ! is_string($hata['mesaj'] ?? null))) {
-            throw $bozuk('hata alanı {kod, mesaj} değil');
+        // Yalnız {kod, mesaj}: fazladan alan şemada yok (BY-005-R7)
+        if ($hata !== null && (! is_array($hata) || count($hata) !== 2 || ! is_string($hata['kod'] ?? null) || ! is_string($hata['mesaj'] ?? null))) {
+            throw $bozuk('hata alanı yalnız {kod, mesaj} olmalı');
         }
 
         $ozet = $veri['erisim_anahtari_ozeti'];

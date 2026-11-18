@@ -105,18 +105,23 @@ final class YedekKilidiTest extends TestCase
         $this->assertTrue($ikinci->al());
     }
 
-    public function test_tutuyor_mu_yalniz_kilit_alinmisken_dogru(): void
+    public function test_dosyayi_tutuyor_mu_yalniz_o_dosyanin_kilidi_alinmisken_dogru(): void
     {
         $kilit = new YedekKilidi($this->yol);
-        $baska = new YedekKilidi($this->yol);
+        $ayniDosyaIkinci = new YedekKilidi($this->yol);
+        $baskaDosya = new YedekKilidi($this->klasor.'/baska-kilit');
 
-        $this->assertFalse($kilit->tutuyorMu());
+        $this->assertFalse($kilit->dosyayiTutuyorMu($this->yol));
         $kilit->al();
-        $this->assertTrue($kilit->tutuyorMu());
-        $baska->al();
-        $this->assertFalse($baska->tutuyorMu());
+        $this->assertTrue($kilit->dosyayiTutuyorMu($this->yol));
+        // Aynı dosya, farklı yazılmış yol
+        $this->assertTrue($kilit->dosyayiTutuyorMu($this->klasor.'/./kilit'));
+        $ayniDosyaIkinci->al();
+        $this->assertFalse($ayniDosyaIkinci->dosyayiTutuyorMu($this->yol));
+        $baskaDosya->al();
+        $this->assertFalse($baskaDosya->dosyayiTutuyorMu($this->yol));
         $kilit->birak();
-        $this->assertFalse($kilit->tutuyorMu());
+        $this->assertFalse($kilit->dosyayiTutuyorMu($this->yol));
     }
 
     public function test_baska_surec_tutarken_alinamaz_surec_olunce_kilit_duser(): void

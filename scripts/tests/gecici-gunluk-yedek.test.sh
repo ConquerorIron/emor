@@ -46,7 +46,14 @@ cat > "$SAHTE/pg_restore" <<'EOF'
 [[ "${SAHTE_PG_RESTORE_HATA:-0}" == "1" ]] && exit 1
 exit 0
 EOF
-chmod +x "$SAHTE/pg_dump" "$SAHTE/pg_restore"
+# Gerçek flock'a geçer; SAHTE_FLOCK_HATA=1 ise çakışma dışı bir hata taklidi (64)
+GERCEK_FLOCK="$(command -v flock)"
+cat > "$SAHTE/flock" <<EOF
+#!/usr/bin/env bash
+[[ "\${SAHTE_FLOCK_HATA:-0}" == "1" ]] && exit 64
+exec "$GERCEK_FLOCK" "\$@"
+EOF
+chmod +x "$SAHTE/pg_dump" "$SAHTE/pg_restore" "$SAHTE/flock"
 
 # Her test için temiz klasör + .env. Parametre: .env'e AYNEN yazılacak parola
 # satırı (tırnak ve yorum kurallarını sınamak için); verilmezse sıradan bir parola.
@@ -93,6 +100,10 @@ esit "PGPASSWORD tanımlı değil" "$(cat "$KAYIT/pg_dump.pgpassword")" "YOK"
 esit "parola dosyası izni" "$(cat "$KAYIT/pgpass.izin")" "600"
 esit "parola dosyasında ':' ve '\\' kaçırıldı" "$(pgpass_icerigi)" '127.0.0.1:5432:erp:erp:pa\:ro\\la'
 if grep -rq 'pa:ro' "$KLASOR"; then kaldi "parola yedek klasöründe kaldı"; else gecti "parola yedek klasöründe kalmadı"; fi
+# Kabuktan devralınan PGPASSWORD parola dosyasının önüne geçer (libpq); temizlenmeli (BY-001-R6)
+hazirla
+calistir env PGPASSWORD=devralinan-yanlis-parola; esit "devralınan PGPASSWORD ile çıkış kodu" "$?" "0"
+esit "devralınan PGPASSWORD pg_dump'a ulaşmadı" "$(cat "$KAYIT/pg_dump.pgpassword")" "YOK"
 
 echo "3. pg_dump başarısız"
 hazirla
@@ -150,6 +161,12 @@ PATH="$SAHTE:$PATH" SAHTE_KAYIT="$KAYIT" EMOR_BACKUP_DIR="$KLASOR" EMOR_ENV_DOSY
 esit "ikinci kopya 75 ile çıktı" "$?" "75"
 wait "$ILK"; esit "ilk kopya başarıyla bitti" "$?" "0"
 esit "tek yedek oluştu" "$(yedek_sayisi)" "1"
+# Kilit aracının çakışma dışı hatası "başka yedek çalışıyor" sayılmaz (BY-001-R5, D6)
+hazirla
+calistir env SAHTE_FLOCK_HATA=1; esit "kilit aracı hatasında çıkış kodu 1 (75 değil)" "$?" "1"
+esit "günlükte HATA satırı" "$(grep -c 'HATA: .*kilit' "$KLASOR/gecici-gunluk-yedek.log")" "1"
+esit "günlükte 'başka bir yedek çalışıyor' yok" "$(grep -c 'başka bir yedek çalışıyor' "$KLASOR/gecici-gunluk-yedek.log")" "0"
+esit "kilit hatasında yedek alınmadı" "$(yedek_sayisi)" "0"
 
 echo "9. Eksik / hatalı yapılandırma"
 hazirla

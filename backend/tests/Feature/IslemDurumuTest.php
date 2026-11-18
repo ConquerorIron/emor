@@ -37,8 +37,8 @@ final class IslemDurumuTest extends TestCase
 
     private string $yol;
 
-    /** Kilit dosyası durum klasörünün DIŞINDA: klasör içeriği testlerde birebir denetleniyor */
-    private string $kilitYolu;
+    /** Durum dosyasına AİT OLMAYAN bir kilit dosyası (tek yazar kuralı sınanır) */
+    private string $baskaKilitYolu;
 
     private ?InvokedProcess $surec = null;
 
@@ -48,7 +48,7 @@ final class IslemDurumuTest extends TestCase
 
         $this->klasor = sys_get_temp_dir().'/yedek-durum-'.bin2hex(random_bytes(4));
         $this->yol = $this->klasor.'/islem.json';
-        $this->kilitYolu = $this->klasor.'.kilit';
+        $this->baskaKilitYolu = $this->klasor.'.baska-kilit';
     }
 
     protected function tearDown(): void
@@ -62,14 +62,15 @@ final class IslemDurumuTest extends TestCase
             chmod($this->klasor, 0700);
             File::deleteDirectory($this->klasor);
         }
-        File::delete($this->kilitYolu);
+        File::delete($this->baskaKilitYolu);
 
         parent::tearDown();
     }
 
+    /** Durum dosyasının kendi kilidi (`<durum klasörü>/kilit`), alınmış hâlde */
     private function kilit(): YedekKilidi
     {
-        $kilit = new YedekKilidi($this->kilitYolu);
+        $kilit = (new IslemDurumu($this->yol))->kilit();
         $this->assertTrue($kilit->al());
 
         return $kilit;
@@ -123,7 +124,7 @@ final class IslemDurumuTest extends TestCase
 
         $this->assertEquals($yazilan, $okunan);
         $this->assertSame('640', substr(sprintf('%o', fileperms($this->yol)), -3));
-        $this->assertSame(['islem.json'], array_values(array_diff(scandir($this->klasor), ['.', '..'])));
+        $this->assertSame(['islem.json', 'kilit'], array_values(array_diff(scandir($this->klasor), ['.', '..'])));
     }
 
     /**
@@ -141,6 +142,28 @@ final class IslemDurumuTest extends TestCase
         try {
             $durum->yaz($this->kayit(adim: 'sonra'), $kilit);
             $this->fail('Kilidi tutmayan süreç durumu yazdı.');
+        } catch (LogicException) {
+        }
+
+        $this->assertSame($onceki, file_get_contents($this->yol));
+    }
+
+    /**
+     * Kilit, durum dosyasının KENDİ kilidi olmalı (BY-005-R6): başka bir
+     * dosyanın kilidini tutan yazar, ortak kilidi tutan yazarla aynı anda
+     * yazabilirdi.
+     */
+    public function test_baska_dosyanin_kilidiyle_yazilamaz_onceki_durum_korunur(): void
+    {
+        $durum = new IslemDurumu($this->yol);
+        $durum->yaz($this->kayit(adim: 'once'), $this->kilit());
+        $onceki = file_get_contents($this->yol);
+        $baskaKilit = new YedekKilidi($this->baskaKilitYolu);
+        $this->assertTrue($baskaKilit->al());
+
+        try {
+            $durum->yaz($this->kayit(adim: 'sonra'), $baskaKilit);
+            $this->fail('Başka dosyanın kilidiyle durum yazıldı.');
         } catch (LogicException) {
         }
 
@@ -235,6 +258,7 @@ final class IslemDurumuTest extends TestCase
             'geçersiz tarih' => [$degistir(['baslangic' => 'dün'])],
             'boş adım' => [$degistir(['adim' => ''])],
             'hata biçimi yanlış' => [$degistir(['hata' => 'patladı'])],
+            'hata alanında fazladan anahtar' => [$degistir(['hata' => ['kod' => 'X', 'mesaj' => 'y', 'ayrinti' => 'z']])],
             'özet biçimi yanlış' => [$degistir(['erisim_anahtari_ozeti' => 'kisa'])],
             'olmayan gün (30 Şubat)' => [$degistir(['baslangic' => '2026-02-30T10:00:00.000000+00:00'])],
             'UTC dışı saat farkı' => [$degistir(['baslangic' => '2026-11-18T13:00:00.000000+03:00'])],
@@ -315,6 +339,9 @@ final class IslemDurumuTest extends TestCase
             'özet SHA-256 değil' => [$kayit(['erisimAnahtariOzeti' => 'kisa'])],
             'özet var bitiş yok' => [$kayit(['erisimAnahtariOzeti' => hash('sha256', 'x')])],
             'veritabanı adı geçersiz' => [$kayit(['hedefVeritabani' => 'erp; drop database erp'])],
+            // Okuyucu fazladan alanı taşımazdı ama yazıcı ham diziyi yazıyordu;
+            // derin iç içe alan dosyayı okunamaz bırakıyordu (BY-005-R7)
+            'hata alanında fazladan derin anahtar' => [$kayit(['hata' => ['kod' => 'X', 'mesaj' => 'y', 'ic' => array_reduce(range(1, 20), fn (array $ic): array => [$ic], [])]])],
         ];
     }
 
@@ -333,7 +360,7 @@ final class IslemDurumuTest extends TestCase
         }
 
         $this->assertSame($onceki, file_get_contents($this->yol));
-        $this->assertSame(['islem.json'], array_values(array_diff(scandir($this->klasor), ['.', '..'])));
+        $this->assertSame(['islem.json', 'kilit'], array_values(array_diff(scandir($this->klasor), ['.', '..'])));
     }
 
     #[DataProvider('bozukIcerikler')]
@@ -360,9 +387,9 @@ final class IslemDurumuTest extends TestCase
         $kilit->birak();
         $yazici = <<<'PHP'
             require $argv[1];
-            $kilit = new App\Services\Yedekleme\YedekKilidi($argv[3]);
-            $kilit->al() || exit(3);
             $durum = new App\Services\Yedekleme\IslemDurumu($argv[2]);
+            $kilit = $durum->kilit();
+            $kilit->al() || exit(3);
             $bitis = microtime(true) + 1.5;
             for ($i = 0; microtime(true) < $bitis; $i++) {
                 $durum->yaz(new App\Services\Yedekleme\IslemKaydi(
@@ -378,7 +405,7 @@ final class IslemDurumuTest extends TestCase
             }
             echo $i;
             PHP;
-        $this->surec = Process::timeout(30)->start([PHP_BINARY, '-r', $yazici, base_path('vendor/autoload.php'), $this->yol, $this->kilitYolu]);
+        $this->surec = Process::timeout(30)->start([PHP_BINARY, '-r', $yazici, base_path('vendor/autoload.php'), $this->yol]);
 
         $okuma = 0;
         $karisik = 0;
@@ -413,7 +440,7 @@ final class IslemDurumuTest extends TestCase
         }
 
         $this->assertSame('once', $durum->oku()?->adim);
-        $this->assertSame(['islem.json'], array_values(array_diff(scandir($this->klasor), ['.', '..'])));
+        $this->assertSame(['islem.json', 'kilit'], array_values(array_diff(scandir($this->klasor), ['.', '..'])));
     }
 
     public function test_veritabani_ve_onbellek_yokken_kilit_ve_durum_calisir(): void

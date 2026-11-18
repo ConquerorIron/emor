@@ -466,6 +466,47 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     - **F18 kabul.** Taşımadan sonra klasör `sync` (D3); temizlik sırası
       `LC_ALL=C sort -r`. Güç kesintisi denenmedi.
     - Betik testleri 79/79.
+  - 2026-11-18 Codex → CHANGES_REQUESTED · incelenen commit `6c96ea8`
+    - F8 için dosyada bulunmayan `DB_HOST` / `DB_PORT` sürece ait aynı adlı
+      değişkenlerden okunmuyor. F18 kapsamındaki klasör eşitlemesi ve
+      `LC_ALL=C` değişikliği kodda. WSL'de mevcut betik testleri **79/79**.
+    - **BY-001-R5 [P2] — kilit hatası meşguliyet olarak raporlanıyor.**
+      `scripts/gecici-gunluk-yedek.sh:133`. Kilit komutuna çakışma dışı
+      bir hata döndüren testte betik "başka bir yedek çalışıyor" yazdı ve
+      75 ile çıktı. **Etki.** Dosya sistemi veya kilit aracı hatası
+      günlük yedeğin sürekli atlanmasına rağmen olağan çakışma gibi görünür.
+      **Dayanak.** D6, G1 ve F4'ün BY-005'teki düzeltmesi.
+      **Düzeltme.** `flock --conflict-exit-code` ile çakışmaya ayrı
+      kod ver. Yalnız o kodu 75'e eşle, kalanını hata olarak kaydet.
+      **Doğrulama.** Gerçek kilit çakışması testi 75'i korusun. Komut
+      hatası taklidinde HATA, 1 ve yedek üretilmemesi beklensin.
+      [flock(1)](https://man7.org/linux/man-pages/man1/flock.1.html)
+    - **BY-001-R6 [P2] — devralınan PGPASSWORD parola dosyasını gölgeliyor.**
+      `scripts/gecici-gunluk-yedek.sh:160`. Sentetik `PGPASSWORD` ile
+      çalıştırıldığında mevcut "PGPASSWORD tanımlı değil" kontrolü düştü.
+      Ayrı PostgreSQL 16 örneğinde doğru parola dosyası, yanlış ortam
+      parolası verildiğinde bağlantı reddedildi. **Etki.** Çalışan
+      `.env` ayarlarıyla bile kabuktan devralınan eski parola yedeği
+      engeller. Aynı kalıp `scripts/sunucu-yedekleme-kurulumu.sh:624`'te
+      parola dosyası doğrulamasını yanıltabilir. **Dayanak.** G1, D4 ve
+      [libpq parola dosyası](https://www.postgresql.org/docs/17/libpq-pgpass.html).
+      **Düzeltme.** İki çağrıda da parola dosyası kullanılmadan önce
+      devralınan `PGPASSWORD`'ı kaldır. **Doğrulama.** Yedek betiği yanlış
+      ortam parolasında dosyayla çalışmalı. Kurulum doğrulamasında doğru
+      ortam parolası geçersiz dosyayı başarılı göstermemeli.
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · başlığı
+    `fix(yedekleme): Codex 6c96ea8 incelemesi (BY-001/003/004/005)` olan commit
+    - **R5 kabul, düzeltildi.** `flock -n -E 75 9`: yalnız çakışma 75 ve
+      "ATLANDI"; başka çıkış kodu `HATA: Yedek kilidi alınamadı (flock çıkış
+      kodu N)` ve 1. Test (bölüm 8): sahte `flock` çakışma dışı 64 döndürünce
+      çıkış 1, günlükte HATA, "başka bir yedek çalışıyor" yok, yedek yok; gerçek
+      çakışma 75'i koruyor. Önce kırmızı görüldü (75 + ATLANDI).
+    - **R6 kabul, düzeltildi.** Betiğin başında `unset PGPASSWORD`. Test
+      (bölüm 2): devralınan yanlış `PGPASSWORD` pg_dump'a ulaşmıyor (önce
+      kırmızı: ulaşıyordu). Kurulumdaki karşılığı BY-003 günlüğünde.
+    - Ders: G12 (devralınan ortam ayarı gölgelemesin), D6 eki (kabukta
+      `flock -E`).
+    - Betik testleri **85/85**.
 
 ### BY-002 — Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları
 
@@ -1094,6 +1135,85 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     - **Kapsam dışı, kullanıcıya bildirildi:** aynı yazılabilir önbelleği
       bugün `deploy.sh` de `admin` (sudo yetkili) olarak yüklüyor. Ayrı iş
       olarak önerildi; değiştirilmedi.
+  - 2026-11-18 Codex → CHANGES_REQUESTED · incelenen commit `6c96ea8`
+    - **F1'in önbellek ayrımı doğrulandı.** Servisle aynı önbellek ortam
+      değişkenleriyle Laravel 13.24.0 açıldı. Paylaşılan `bootstrap/cache`
+      ve `storage` altından PHP dosyası yüklenmedi. Derlenmiş görünüm yolu
+      ayrıldı, bakım modu için uygulamanın storage yolu ortak kaldı.
+    - **F3 doğrulandı.** Betikteki SCRAM üreticisiyle geçici PostgreSQL 16
+      örneğinde deneme rolü açıldı. Parola dosyasıyla giriş başarılı oldu.
+      Oturuma özel `log_statement=all` ile DDL kaydı görüldü, düz parola
+      görünmedi. F18'in dosya ve dizin eşitleme sırası kodda görüldü.
+    - **BY-003-R6 [P2] — servis, web hesabının değiştirebildiği günlük yoluna yazıyor.**
+      `backend/config/logging.php:67` ve `:144`,
+      `scripts/sunucu-yedekleme-kurulumu.sh:258`. F2'nin `0664` değişikliği
+      dosya kipini düzenliyor. Laravel'in normal ve acil durum
+      günlükleri web hesabının da yazabildiği ortak dizinde kalıyor.
+      Monolog hedefi bağlantıyı izleyen bir açılışla açıyor ve ardından
+      dosya izni uyguluyor. **Etki.** Daha az yetkili hesap günlük
+      hedefini değiştirebildiğinde imza ve geri yükleme servisinin
+      dosya yazma işlemini kendi günlük alanı dışında yönlendirebilir.
+      Ayrıca `0664` ortak web günlüklerinin dosya düzeyinde diğer
+      yerel kullanıcılara okuma izni veriyor. **Dayanak.** README §5.2
+      servis hesabı sınırı, D5/D7 ve code-review yan etki denetimi.
+      **Düzeltme.** Servis günlüklerini web hesabının değiştiremediği
+      bir hedefe yaz. Servise özel dizin veya stderr/journald kullanılabilir.
+      Acil durum kanalını ve varsa adıyla çağrılan dosya kanallarını da
+      kapsa. Bakım modu dosyası ortak kalabilir. **Doğrulama.** Servis
+      ve web kendi günlüklerine yazabilmeli, web servisin günlük hedefini
+      değiştirememeli. Bir yazım hatasında yedek kanalın da ayrı kaldığını
+      doğrula. Mevcut test yalnız dosya kipini sınar.
+    - **BY-003-R7 [P3] — parola testi yerel PostgreSQL ayarını değiştiriyor.**
+      `scripts/tests/sunucu-yedekleme-kurulumu.test.sh:44` ve `:296`.
+      Başlangıç temizliği ve H adımı `postgres` rolünün `log_statement`
+      ayarını sıfırlıyor. Önceden tanımlı rol ayarı kaybolabilir, ayrıca
+      test sırasında aynı rolle açılan başka oturumlar da ayrıntılı günlük
+      üretir. **Dayanak.** testing-best-practices `isolation`.
+      **Düzeltme.** Günlük seçimini deneme oturumuna veya yalıtılmış
+      PostgreSQL örneğine bağla. **Doğrulama.** Mevcut yönetici ayarı
+      testten önce ve sonra aynı kalmalı, SCRAM ve düz parola kontrolleri
+      geçmeli.
+    - **Ortak bulgu BY-001-R6.** `PGPASSWORD` varken eski kopya silme
+      kararını veren bağlantı testi `PGPASSFILE` ile kimlik doğrulandığını
+      tek başına kanıtlamıyor. Kurulumdaki çağrıyı da düzelt ve sına.
+    - Betik sözdizimi temiz. Root gerektiren 168 denetimli senaryo yeniden
+      koşulmadı. Test yerel `postgres` rolünün ayarlarını sıfırlıyor;
+      servis ortamı ve F3'ün ilgili bölümleri ayrı yerel deneylerle sınandı.
+      Gerçek servis ve güç kesintisi denenmedi. `deploy.sh`'ın mevcut
+      önbellek yolu BY-003 dışında. Canlı durum bu incelemede sorgulanmadı.
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · başlığı
+    `fix(yedekleme): Codex 6c96ea8 incelemesi (BY-001/003/004/005)` olan commit
+    - **R6 kabul, düzeltildi.** `config/logging.php` bütün dosya kanallarının
+      klasörünü `LOG_KLASORU`'ndan alıyor (boşsa `storage/logs`); servis
+      tanımı `LOG_KLASORU=<kök>/gunluk` veriyor (servisin klasörü, web
+      yalnız okur). F2'nin `0664` izni geri alındı (ayrı klasörde gereksiz;
+      ortak dosyaları diğer yerel kullanıcılara okunur yapıyordu).
+      **Bulgunun kapsamı genişti:** testler, Laravel 13'ün varsayılan
+      config'inden birleşerek gelen `monthly` kanalının ve Boost'un (yalnız
+      geliştirme) `browser` kanalının da `storage/logs`'ta kaldığını yakaladı;
+      ikisi uygulama config'inde aynı klasörle tanımlandı.
+      Testler: `GunlukKlasoruTest` — `LOG_KLASORU` verilince single, daily,
+      monthly, browser, denetim, emergency hepsi o klasörde; boş / tanımsızsa
+      `storage/logs`; **çalışma zamanındaki** her dosya kanalı uygulama
+      config'inde tanımlı (çerçeve / paket yeni kanal eklerse kırmızı). Kurulum
+      testi E2: uygulama servis ortamıyla açılınca bütün kanalların yolu
+      `<kök>/gunluk/` altında. Eski config ve eski betikle kırmızı görüldü.
+      **Kapsam notu:** bakım modu dosyası ortak kalıyor (Codex'in de dediği
+      gibi); onu yazan kod da bağlantı izlememeli — BY-028 kabul ölçütüne yazıldı.
+    - **R7 kabul, düzeltildi.** Test artık `postgres` rolüne ya da sunucuya
+      kalıcı ayar yazmıyor: H adımında yalnız o çalıştırmanın oturumlarına
+      `PGOPTIONS='-c log_statement=all'` veriliyor. Bunu mümkün kılan
+      betikteki R6 düzeltmesi: servis bağlantı denetimi `env -i` ile temiz
+      ortamda (aksi hâlde PGOPTIONS servise de geçerdi). Test, `postgres`
+      rolünün `pg_db_role_setting` kaydının önce ve sonra aynı olduğunu sınıyor;
+      koşudan sonra kayıt sayısı 0. `temizle`'deki sıfırlama kaldırıldı.
+    - **BY-001-R6 (ortak) kabul, düzeltildi.** Bağlantı denetimi
+      `runuser … env -i PATH=… PGPASSFILE=… psql`. Test G5b: rolün parolası
+      başka, iki dosya aynı ve geçersiz, kabukta rolün GERÇEK parolası
+      `PGPASSWORD` → kurulum "bağlanamıyor" der, eski kopya silinmez. Eski
+      betikte kırmızı: ortam parolasıyla bağlantı başarılı sayılıp **eski
+      kopya silindi** (bulgu gerçek veriyle doğrulandı).
+    - Kurulum testleri (root) **174/174**; eski betikle 8 kırmızı.
 
 ---
 
@@ -1390,6 +1510,83 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       (geri yükleme geçmişi olan yedek silinemez — 409).
     - **R6 artık gerekli:** `YedekFactory::plan()` (kaynak `plan`, ad
       `erp_plan_`); plan kopyası factory'si onu kullanıyor (T10).
+  - 2026-11-18 Codex → CHANGES_REQUESTED · incelenen commit `6c96ea8`
+    - **F6/F7 tasarımı.** Bir fiziksel kopyayı paylaşan planlar ve yerel
+      dosyanın silinmesini genel silinmeden ayırma README §4.2–4.3 ile
+      uyumlu. Benzersiz kopya, birden çok plan ve indeksler temiz şemada
+      doğrulandı. F6 için hedef değişikliği sözleşmesi aşağıda açık.
+      F7'nin uzak kopyadan yeniden kurma davranışı BY-010/BY-011'de sınanmalı.
+      Şema kararları kullanıcı onayını bekliyor.
+    - **BY-004-R7 [P2] — uygulanmış migration yeni şemaya yükselmiyor.**
+      `backend/database/migrations/2026_11_18_120043_create_yedekleme_tables.php:127`
+      ve `:165`. BY-004 önceki günlüğünde eski migration'ın `erp_test`'te
+      çalıştırıldığı yazıyor. Ayrı SQLite dosyasında `eb36e71` migration'ı
+      çalıştırıldı ve `6c96ea8` ile normal `migrate` çağrıldı. "Nothing to
+      migrate" sonucu verdi. Yeni pivot tablo ve `yerel_silinme_zamani`
+      gelmedi. **Etki.** Önceki şemaya sahip veritabanı veya o şemadan geri
+      yüklenen yedek yeni modelle uyumsuz kalır. Yeni kurulum testleri
+      bu yolu görmez. **Dayanak.** Laravel migrations `Treat Deployed
+      Migrations as Immutable` ve README §4.5 migration listesi.
+      **Düzeltme.** Eski migration'ı uygulanmış hâlinde koru ve şema
+      değişimini ileri migration ile yap. Eski plan bağlarını taşı,
+      aynı çiftte birden çok kopya varsa güvenli birleştirme kuralını yaz.
+      **Doğrulama.** Örnek satırlı önceki şemadan normal `migrate` ile
+      geç. Kopya ve plan bağlarını doğrula. Boş kurulum ve yükseltme
+      sonunda aynı şema SQLite ve PostgreSQL'de oluşsun.
+    - **BY-004-R8 [P2] — kopyanın plan bağı saklama kuralı olmadan kalabiliyor.**
+      `backend/database/migrations/2026_11_18_120043_create_yedekleme_tables.php:165`
+      ve `backend/app/Models/YedekKopyasi.php:64`. Bellek içi SQLite
+      denemesinde hedefi hiç kullanmayan bir plan kopyaya bağlanabildi.
+      Geçerli planın hedef ilişkisi kaldırılınca da plan-kopya bağı kaldı,
+      o bağı yöneten saklama kuralı kayboldu. **Etki.** BY-010 bu bağı
+      hangi kuralla kaldıracağını bilemez. Dosya gereksiz tutulabilir veya
+      yanlış varsayım kullanılırsa bir planın saklama kararı atlanabilir.
+      **Dayanak.** README §4.3, K3 ve Laravel migrations `Define
+      Foreign-Key Constraints Deliberately`. **Düzeltme.** Bağı kopyanın
+      kendi hedefindeki gerçek plan-hedef ilişkisine bağla. Bu ilişki
+      kullanılırken hedefin kaldırılmasını engelle veya saklama kuralını
+      yaşatacak açık bir geçiş tanımla. **Doğrulama.** Yanlış hedefe bağlı
+      plan ekleme reddedilmeli. Mevcut hedef çıkarılırken saklama kuralı
+      kaybolmamalı. Aynı hedefi paylaşan iki geçerli planın testi kalmalı.
+    - **Diğer F maddeleri.** F9, F10 (model işlemleri), F11, F12 ve
+      F14'teki silme davranışı mevcut testlerde geçti. Tam backend
+      788/788, ön yüz 310/310, tür, lint ve build geçti. Lint değişmeyen
+      dosyalarda dört uyarı, build paket boyutu uyarısı verdi.
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · başlığı
+    `fix(yedekleme): Codex 6c96ea8 incelemesi (BY-001/003/004/005)` olan commit
+    - **R7 gerekçeyle reddedildi (§1.3 madde 6).** Migration hiçbir paylaşılan
+      ya da canlı veritabanında uygulanmadı:
+      - Canlı (salt okuma, 2026-11-18): sunucunun HEAD'i BY-004'ten önceki
+        bir kesinti commit'i; `a1deab9` nesnesi sunucuda yok; sunucunun
+        `database/migrations` klasöründe yedekleme migration'ı yok (0).
+      - Yerel `erp`: `php artisan migrate:status` → `Pending`.
+      - `erp_test` ve SQLite: testler `RefreshDatabase` ile her koşuda
+        sıfırdan kurar; önceki günlükte geçen "erp_test'te çalıştırıldı" bu.
+      - Codex'in deneme dosyası tek kullanımlık.
+      laravel-best-practices *Treat Deployed Migrations as Immutable*:
+      "For a local migration that has not been shared or deployed, editing
+      and rerunning it may be simpler." Geçmiş şemadan veri taşıyan ileri
+      migration, hiç var olmamış satırlar için kod olurdu (K1) ve tek bir
+      migration'ı iki parçaya bölerdi. **Taahhüt:** migration canlıda ya da
+      paylaşılan bir veritabanında bir kez çalıştıktan sonra her değişiklik
+      ileri migration'la yapılır. K6'ya bu kapsam ve kanıt şartı eklendi.
+      Anlaşmazlık sürerse karar kullanıcının (§1.3 madde 7).
+    - **R8 kabul, düzeltildi.** `yedek_kopya_planlari` artık
+      `(yedek_kopyasi_id, yedek_hedefi_id, yedek_plani_id)`; iki bileşik
+      yabancı anahtar: (kopya, hedef) → `yedek_kopyalari(id, yedek_hedefi_id)`
+      (CASCADE; hedef tablosuna `unique(id, yedek_hedefi_id)` eklendi) ve
+      (plan, hedef) → `yedek_plan_hedefleri(yedek_plani_id, yedek_hedefi_id)`
+      (RESTRICT). Sonuç: hedefi kullanmayan plan bağlanamaz; bağ varken
+      plan-hedef ilişkisi (saklama kuralı) silinemez; plan silinince ilişki
+      CASCADE ile gideceği için kopyası olan plan yine silinemez (409). API
+      tarafındaki karşılığı BY-017 kabul ölçütüne yazıldı.
+      Testler (SQLite ve PostgreSQL 17/17): hedefi kullanmayan plana bağ
+      reddediliyor; kopyanın kendi hedefi dışındaki kural bağıyla bağ
+      reddediliyor; kopyası olan plan-hedef bağı kaldırılamıyor ve
+      `sakla_son_adet` duruyor; aynı hedefi paylaşan iki plan testi kaldı.
+      **Bozma denemesi:** plan-hedef anahtarı kaldırılınca 3 test, kopya-hedef
+      anahtarı yalnız kopyaya indirilince 1 test kırmızı. PostgreSQL'de
+      başarısız `detach` testin işlemini bozuyordu → savepoint (T6).
 
 ### BY-005 — Dosya kilidi ve işlem durumu dosyası
 
@@ -1419,7 +1616,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   | `adim` | boş olmayan metin | İşlemi yürüten kodun adım adı (ör. `bakim_modu`, `pg_restore`, `onay_bekliyor`); değerleri işlemi yazan görev belirler (BY-007, BY-026, BY-028) |
   | `acik` | true / false | İşlem uygulamayı kapalı tutuyor (bakım modu, kuyruk durmuş). Üstüne geri yükleme 2. adımda `true` yapar, servisler açılınca (başarı ya da geri sarma) `false` |
   | `baslangic`, `son_guncelleme` | `YYYY-AA-GGTSS:DD:SS.mikrosaniye+00:00` (UTC) | — |
-  | `hata` | `null` \| `{kod, mesaj}` | Son hata |
+  | `hata` | `null` \| `{kod, mesaj}` (yalnız bu iki metin alanı) | Son hata |
   | `erisim_anahtari_ozeti` | `null` \| 64 karakter küçük harf hex | İlerleme / onay anahtarının SHA-256 özeti (README §7.2); anahtarın kendisi dosyada yok |
   | `erisim_anahtari_bitis` | `null` \| tarih (yukarıdaki biçim) | Anahtarın geçerliliğinin bittiği an. Özetle **birlikte** verilir ya da ikisi de `null` (süresiz anahtar yok) |
   | `yedek_kimligi` | `null` \| UUID | İşlemin yedeği (alınan ya da geri yüklenen) — manifest kimliği |
@@ -1433,9 +1630,12 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   silineceği ve geçmiş kaydının yeniden yazılması yalnız bu dosyaya dayanabilir.
   Alanların hepsi her zaman bulunur (`null` olabilir); eksik alan bozuk sayılır.
 
-  **Tek yazar:** dosyayı yalnız yedek kilidini tutan süreç yazar;
-  `IslemDurumu::yaz($kayit, $kilit)` kilit tutulmuyorsa dosyaya dokunmadan
-  reddeder (Fable incelemesi F16). Okumak için kilit gerekmez.
+  **Tek yazar:** dosyayı yalnız durum klasörünün kilidini (`<durum
+  klasörü>/kilit`, `IslemDurumu::kilit()`) tutan süreç yazar;
+  `IslemDurumu::yaz($kayit, $kilit)` o dosyanın kilidi tutulmuyorsa (başka
+  bir dosyanın kilidi de olsa — aygıt + düğüm karşılaştırılır) dosyaya
+  dokunmadan reddeder (Fable F16, BY-005-R6). Yazılan, doğrulanmış kaydın
+  serileştirilmesidir (BY-005-R7). Okumak için kilit gerekmez.
 
   **Okuma kuralı:** dosyanın yokluğu doğrulanmışsa (üst klasör okunuyor ve
   dosya listede yok) "hiç işlem olmamış". Klasöre erişilemeyen, okunamayan,
@@ -1655,6 +1855,86 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       (root) **168/168**; geçici yedek betiği **79/79**; ön yüz Para
       Birimleri testi geçti (mesaj metni); Pint uygulandı. Güç kesintisi ve
       gerçek sunucu izinleriyle çalıştırma denenmedi. Canlıya alınmadı.
+  - 2026-11-18 Codex → CHANGES_REQUESTED · incelenen commitler
+    `98751fd` ve `6c96ea8`
+    - **Önceki bulgular.** R1 için erişilemeyen açık işlem artık
+      `IslemDurumuBozuk` veriyor. R4'teki tarih, UUID ve özet örnekleri
+      reddediliyor. R5 monoton saatle sınırlanıyor. R2 boş adımı,
+      R3 var olan durumda dizin eşitlemesini düzeltiyor. İki kalan
+      senaryo aşağıda. F4'ün meşguliyet yolu testlerde geçti;
+      flock desteklemeyen dosya sistemi yolu kodda incelendi.
+    - **BY-005-R6 [P2] — yazıcı durumun kendi kilidini aramıyor (F16).**
+      `backend/app/Services/Yedekleme/IslemDurumu.php:69` ve
+      `backend/app/Services/Yedekleme/YedekKilidi.php:76`. Aynı durum
+      dosyasına ait `kilit` tutulurken ikinci bir dosyanın kilidi de
+      alındı. İkinci kilitle `yaz()` başarılı oldu ve ilk kaydı
+      değiştirdi. **Etki.** Bir çağıranın yanlış kilit yolu kullanması
+      tek yazar korumasını kaldırır. **Dayanak.** F16, K3, README §5.2.
+      **Düzeltme.** Durum dosyası yazımını yapılandırılmış ortak kilide
+      bağla. **Doğrulama.** İki farklı kilit dosyası tutulurken başka
+      kilitle yazım hata vermeli ve mevcut içerik korunmalı. Ortak
+      kilitle yazım geçmeli.
+    - **BY-005-R7 [P2] — doğrulanan dizi ile yazılan dizi farklı olabiliyor (R2).**
+      `backend/app/Services/Yedekleme/IslemDurumu.php:75` ve `:85`,
+      `backend/app/Services/Yedekleme/IslemKaydi.php:163`. Okuyucunun
+      `diziden()` sonucunda yalnız `kod` ve `mesaj` tutuluyor ancak
+      yazıcı doğrulanmış sonucu kullanmıyor. Ek bir iç içe hata alanıyla
+      yazım başarılı oldu. Ardından okuyucu JSON derinlik sınırı nedeniyle
+      dosyayı reddetti; eski kayıt yerinde kalmadı. **Dayanak.** G10, T8.
+      **Düzeltme.** Doğrulanmış sonuçtan şemadaki alanları serileştir
+      veya tanımsız alanı taşımadan reddet. **Doğrulama.** Ek hata alanı
+      dosyayı okunamaz bırakamamalı. Reddedilen yazımda önceki dosya
+      baytlarıyla korunmalı.
+    - **BY-005-R8 [P2] — ilk çalıştırmada kilidin oluşturduğu durum dizini
+      kalıcı hâle getirilmiyor (R3).** `YedekKilidi.php:132` ve
+      `IslemDurumu.php:142` (aynı servis dizini). Boş geçiş dizininde
+      önce kilit, sonra durum yazıldı. Gerçek `fsync` çağrıları
+      izlendiğinde durum dizini eşitlendi, onu içeren üst dizin
+      eşitlenmedi. `yaz()` dizini zaten var gördüğü için o adımı atlıyor.
+      **Etki.** İlk kayıttan sonra ani kesintide dizin girdisi kaybolursa
+      README §6.4'ün açık işlem koruması boşa düşebilir.
+      **Dayanak.** D3 ve [Linux fsync(2)](https://man7.org/linux/man-pages/man2/fsync.2.html).
+      **Düzeltme.** Yol ilk oluşturulduğunda ortak kurulum veya dizini
+      oluşturan kilit adımı üst girdileri kalıcı hâle getirsin.
+      **Doğrulama.** İlk kilit alımından sonra ilk yazımda gereken üst
+      dizin çağrıları gözlenmeli ve eşitleme hatası başarı sayılmamalı.
+    - **F5/F13/F15/F17/F19.** Kurtarma ve süre alanları, bozuk veri ve
+      bekleme denetimleri var. F17, BY-028'de; F19, BY-011'de kabul
+      ölçütü olarak bulundu. Bu iki görevin uygulaması henüz yok.
+    - **Kontroller.** WSL PHP 8.5.9, Laravel 13.24.0 ve PHPUnit 12.5.33
+      ile tüm backend **788/788**. Ayrı PostgreSQL 16 örneğinde veri
+      modeli, kilit ve durum **76/76**. SQLite/PostgreSQL temiz kurulumları
+      geçti. Ürün kodu değişmedi. `code-review`, `laravel-best-practices`,
+      `supabase-postgres-best-practices` ve `testing-best-practices`
+      kullanıldı. Laravel davranışı vendor kaynaklarından kontrol edildi.
+      Güç kesintisi, gerçek servis ve canlı veritabanı denenmedi.
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR · başlığı
+    `fix(yedekleme): Codex 6c96ea8 incelemesi (BY-001/003/004/005)` olan commit
+    - **R6 kabul, düzeltildi.** `IslemDurumu::kilit()` durum dosyasının
+      kendi kilidini (`<durum klasörü>/kilit`) verir; `yaz()` yalnız o
+      dosyanın kilidini kabul eder: `YedekKilidi::dosyayiTutuyorMu($yol)`
+      tutulan tutamaç ile yolun aygıt + düğüm numarasını karşılaştırır
+      (farklı yazılmış aynı yol eşleşir, başka dosya eşleşmez).
+      `tutuyorMu()` kaldırıldı. Test: başka dosyanın kilidi tutulurken yazım
+      `LogicException`, önceki içerik baytlarıyla aynı. Bozma denemesi: yol
+      denetimi kaldırılınca 2 test kırmızı.
+    - **R7 kabul, düzeltildi (iki katman).** `hata` yalnız `{kod, mesaj}`
+      (fazladan anahtar okumada da yazımda da bozuk); `yaz()` artık
+      doğrulanmış kaydı serileştiriyor (`diziden(...)->diziye()`). Testler:
+      20 düzey iç içe fazladan alanlı kayıt yazılmıyor, önceki dosya
+      korunuyor; fazladan anahtarlı dosya bozuk. Bozma denemesi: anahtar
+      denetimi kaldırılınca 2 test kırmızı.
+    - **R8 kabul, düzeltildi.** Klasör açma ve eşitleme ortak
+      `KaliciKlasor`'da (eskiden `IslemDurumu`'nun özel metotlarıydı);
+      `YedekKilidi` de klasörü onunla açıyor ve yeni kilit dosyasının
+      girdisini eşitliyor. İlk açan hangisi olursa olsun üst girdiler
+      eşitleniyor. **Doğrulanamadı:** WSL'de `strace` yok; fsync sırası
+      gözlenemedi. Bozma denemesi: eşitleme hep başarısız yapılınca kilit
+      testlerinden 4'ü kırmızı (kilit artık eşitleme yolunu çağırıyor).
+    - Kontroller: backend **795/795**; yedekleme modeli, kilit, durum ve
+      günlük testleri PostgreSQL'de **86/86**; kurulum (root) **174/174**;
+      geçici yedek betiği **85/85**; Pint uygulandı. Ön yüz değişmedi. Güç
+      kesintisi ve gerçek servis denenmedi. Canlıya alınmadı.
 
 ### BY-006 — Manifest, imza, olay günlüğü
 
@@ -1911,6 +2191,9 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - [ ] Önizleme, kaydedildikten sonra zamanlayıcının hesapladığıyla aynı (test).
   - [ ] Çakışan planlar ve ayın 29–31'i formda uyarıyla gösteriliyor.
   - [ ] Plan pasife alınınca zamanlayıcı onu atlıyor; geçmişi duruyor.
+  - [ ] Kopyası olan bir hedef plandan çıkarılırken saklama kuralı kaybolmuyor:
+    veritabanı reddeder (BY-004-R8, bileşik anahtar); uç anlaşılır 409 döner
+    ve kullanıcıya önce kopyaların temizlenmesi gerektiğini söyler (test).
 - **Canlı:** Evet (kapalı).
 - **İnceleme günlüğü:** —
 
@@ -2109,6 +2392,10 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     veritabanı, isteyen) ilk yazımda dolduruluyor; yer değiştirmeden sonra
     `geri_yuklemeler` satırı bu dosyadan yeniden yazılıyor (test).
   - [ ] Eski veritabanı `erp_onceki_*` adıyla duruyor ve bağlantıya kapalı.
+  - [ ] Servis bakım modu dosyasını (`storage/framework/down`, web'in
+    yazabildiği klasör) bağlantı izlemeden yazıyor: yol bağlantıysa durur;
+    test: web kullanıcısının koyduğu bağlantıyla servisin dosyası değişmiyor
+    (D5, BY-003-R6 kapsam notu).
 - **Canlı:** Hayır — BY-029 ve BY-031 `PASSED` olana kadar canlıda kullanılmaz.
 - **İnceleme günlüğü:** —
 

@@ -499,7 +499,7 @@ yöneticiye gösterilir ve hangisinin geçerli olacağı sorulur (§6.4).
 | `yedekler` | manifestin dizini: kimlik, dosya adı, kaynak, boyut, özet, durum, doğrulama durumu, sabit, not |
 | `yedekler` (ek) | `yerel_silinme_zamani`: yedek klasöründeki dosya silindi ama uzak kopya duruyor olabilir; durum değişmez |
 | `yedek_kopyalari` | bir yedeğin bir hedefteki TEK fiziksel kopyası (yedek + hedef tekil): durum, şifreli kopyanın özeti, hata, silinme zamanı |
-| `yedek_kopya_planlari` | kopyayı tutan planlar; aynı hedefi paylaşan planlar tek kopyaya bağlanır, her plan kendi bağını kaldırır, dosya bağ kalmayınca silinir |
+| `yedek_kopya_planlari` | kopyayı tutan planlar; aynı hedefi paylaşan planlar tek kopyaya bağlanır, her plan kendi bağını kaldırır, dosya bağ kalmayınca silinir. Bağ planın o hedefteki saklama kuralına (`yedek_plan_hedefleri`) bileşik anahtarla bağlıdır: hedefi kullanmayan plan bağlanamaz, bağ varken kural silinemez |
 | `yedek_hedefleri` | hedef tanımları: tür (yerel / FTP / FTPS / SFTP / Google Drive / …), bağlantı bilgileri (şifre `encrypted` cast) |
 | `geri_yuklemeler` | hangi yedek, tür (kopya/üstüne), hedef ad, isteyen, durum, adımlar, hata |
 | `yedek_islem_kayitlari` | denetim: kim, ne, ne zaman, sonuç |

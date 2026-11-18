@@ -41,7 +41,6 @@ bekle() { local ad="$1"; shift; if "$@" >/dev/null; then ok "$ad"; else bad "$ad
 calistir() { local ad="$1" beklenen_kod="$2"; shift 2; local cikti kod; cikti="$(bash "$B" "$@" 2>&1)"; kod=$?; echo "$cikti" > "$D/son.txt"; if [[ $kod == "$beklenen_kod" ]]; then ok "$ad (çıkış $kod)"; else bad "$ad (çıkış $kod, beklenen $beklenen_kod)"; echo "$cikti" | sed 's/^/      /'; fi; }
 psqlp() { runuser -u postgres -- psql -X -A -t -q -c "$1"; }
 temizle() {
-  psqlp "alter role postgres reset log_statement" >/dev/null 2>&1   # H bölümü yarıda kaldıysa
   psqlp "drop role if exists $EMOR_VT_YEDEK_ROLU" >/dev/null 2>&1
   psqlp "drop role if exists $EMOR_VT_INCELEME_ROLU" >/dev/null 2>&1
   gpasswd -d www-data emor-yedek-deneme >/dev/null 2>&1
@@ -119,12 +118,16 @@ YUKLENEN="$(cd "$PROJE/backend" && env "${SERVIS_ORTAMI[@]}" php -r '
   require "vendor/autoload.php";
   $app = require "bootstrap/app.php";
   $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+  foreach (config("logging.channels") as $kanal) { if (isset($kanal["path"])) { echo "gunluk:", $kanal["path"], "\n"; } }
   echo "gorunum:", config("view.compiled"), "\n", implode("\n", get_included_files()), "\n";' 2>&1)"
 bekle "uygulama servisin ortamıyla açılıyor"      grep -qx "$PROJE/backend/vendor/autoload.php" <<<"$YUKLENEN"
 bekle "bootstrap/cache'ten PHP yüklenmedi"         bash -c "! grep -q '^$PROJE/backend/bootstrap/cache/' <<<\"\$1\"" _ "$YUKLENEN"
 bekle "storage'dan PHP yüklenmedi"                 bash -c "! grep -q '^$PROJE/backend/storage/' <<<\"\$1\"" _ "$YUKLENEN"
 bekle "derlenmiş görünümler servisin klasöründe"   grep -qx "gorunum:$K/onbellek/views" <<<"$YUKLENEN"
 bekle "paket önbelleği servisin klasöründe üretildi" test -f "$K/onbellek/packages.php"
+# BY-003-R6: acil durum ve adıyla çağrılan kanallar dahil hiçbir günlük web'in yazabildiği yerde değil
+bekle "günlük kanalları listelendi"                grep -q "^gunluk:" <<<"$YUKLENEN"
+bekle "bütün günlük kanalları servisin gunluk/ klasöründe" bash -c "! grep '^gunluk:' <<<\"\$1\" | grep -vq '^gunluk:$K/gunluk/'" _ "$YUKLENEN"
 
 echo "== F. Bozulan durumlar: denetim yakalar, kurulum düzeltir"
 chmod 755 $K/yedekler; chmod 644 $K/gizli/pgpass; chmod 2750 $K; chown emor-yedek-deneme $K
@@ -282,6 +285,13 @@ psqlp "alter role emor_yedek_deneme password 'baska-bir-parola'" >/dev/null
 calistir "aynı içerik ama bağlanamıyor: kurulum elle bakılacak der" 1
 bekle "bağlanamayınca eski korundu" test -e "$E"
 bekle "korunduğu söylendi" grep -q "eski parola kopyası korunuyor" "$D/son.txt"
+# G5b: aynısı, ama kabukta rolün GERÇEK parolası PGPASSWORD olarak duruyor →
+# bağlantı denetimi dosyayı sınamalı, ortam parolasıyla geçmemeli (BY-001-R6)
+export PGPASSWORD='baska-bir-parola'
+calistir "geçersiz dosya + doğru PGPASSWORD: kurulum elle bakılacak der" 1
+unset PGPASSWORD
+bekle "ortam parolası geçersiz dosyayı geçerli göstermedi" grep -q "olarak bağlanamıyor" "$D/son.txt"
+bekle "ortam parolasıyla da eski korundu" test -e "$E"
 # G6: yalnız eski yerde, geçersiz → kopyalanır ama eski silinmez
 rm $P
 calistir "geçersiz eski dosya: kurulum elle bakılacak der" 1
@@ -292,12 +302,16 @@ rm -f "$E"
 echo "== H. Parola dosyası hiçbir yerde yoksa parola yenilenir (G6'daki geçersiz dosya da gider)"
 ESKI_SATIR="$(cat $K/gizli/pgpass)"; rm $K/gizli/pgpass
 # Yönetici oturumlarının bütün komutları günlüğe yazılır: düz parola sunucu
-# günlüğüne düşmemeli (D2, Fable incelemesi F3)
+# günlüğüne düşmemeli (D2, Fable incelemesi F3). Ayar yalnız bu çalıştırmanın
+# oturumlarına verilir (PGOPTIONS; betiğin servis bağlantı denetimi temiz
+# ortamda çalışır) — sunucunun ya da postgres rolünün ayarı değişmez (BY-003-R7, K7).
 PG_GUNLUGU="$(ls -t /var/log/postgresql/postgresql-*.log 2>/dev/null | head -n1)"
 GUNLUK_BOYU="$(stat -c %s "$PG_GUNLUGU" 2>/dev/null || echo 0)"
-psqlp "alter role postgres set log_statement = 'all'" >/dev/null
+ROL_AYARI_ONCE="$(psqlp "select coalesce(string_agg(array_to_string(setconfig, ','), ';'), '') from pg_db_role_setting s join pg_roles r on r.oid = s.setrole where r.rolname = 'postgres'")"
+export PGOPTIONS='-c log_statement=all'
 calistir "kurulum yeni parola" 0
-psqlp "alter role postgres reset log_statement" >/dev/null
+unset PGOPTIONS
+bekle "postgres rolünün ayarı testten önceki gibi" bash -c "[[ \"\$1\" == \"\$(runuser -u postgres -- psql -X -A -t -q -c \"select coalesce(string_agg(array_to_string(setconfig, ','), ';'), '') from pg_db_role_setting s join pg_roles r on r.oid = s.setrole where r.rolname = 'postgres'\")\" ]]" _ "$ROL_AYARI_ONCE"
 tail -c +"$((GUNLUK_BOYU + 1))" "$PG_GUNLUGU" > "$D/pg_gunlugu.txt" 2>/dev/null
 bekle "deneme günlüğe yazdı (rol parolası komutu görünüyor)" grep -q "alter role emor_yedek_deneme password" "$D/pg_gunlugu.txt"
 bekle "role SCRAM doğrulayıcısı gönderildi" grep -qF "password 'SCRAM-SHA-256\$4096:" "$D/pg_gunlugu.txt"

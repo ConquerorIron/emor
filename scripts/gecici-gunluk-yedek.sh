@@ -37,6 +37,10 @@ set -euo pipefail
 # Yedek bütün veriyi içerir: dosyalar yalnız sahibi tarafından okunabilir
 umask 077
 
+# Parola yalnız bu betiğin yazdığı parola dosyasından gelir: kabuktan devralınan
+# PGPASSWORD libpq'da dosyanın önüne geçer ve doğru ayarı gölgeler (BY-001-R6)
+unset PGPASSWORD
+
 PROJE_KOKU="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_DOSYASI="${EMOR_ENV_DOSYASI:-$PROJE_KOKU/backend/.env}"
 YEDEK_KLASORU="${EMOR_BACKUP_DIR:-/var/backups/emor}"
@@ -129,11 +133,16 @@ done
 
 # --------- 2. Tek kopya ---------
 # Önceki çalışma hâlâ sürüyorsa ikincisi başlamaz (zamanlayıcı üst üste binmesin)
+# Yalnız gerçek çakışma (75) "atlandı" sayılır; flock'un başka hatası (dosya
+# sistemi, araç) yedeğin sessizce hiç alınmamasına yol açmasın (D6, BY-001-R5)
 exec 9>"$YEDEK_KLASORU/.gecici-gunluk-yedek.kilit"
-if ! flock -n 9; then
+KOD=0
+flock -n -E 75 9 || KOD=$?
+if (( KOD == 75 )); then
   gunluge_yaz "ATLANDI: başka bir yedek çalışıyor."
   exit 75
 fi
+(( KOD == 0 )) || hata "Yedek kilidi alınamadı (flock çıkış kodu $KOD); başka yedek çalışmıyor, dosya sistemini / kilit aracını inceleyin."
 
 # --------- 3. Yedek ---------
 ZAMAN="$(date +%F_%H%M%S)"

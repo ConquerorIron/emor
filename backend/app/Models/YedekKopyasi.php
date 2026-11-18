@@ -58,7 +58,10 @@ final class YedekKopyasi extends Model
     }
 
     /**
-     * Kopyayı tutan planlar; boşsa zamanlanmamış bir yedeğin kopyası.
+     * Kopyayı tutan planlar; boşsa zamanlanmamış bir yedeğin kopyası. Bağ
+     * planın bu hedefteki saklama kuralına bağlıdır: eklerken pivotta
+     * `yedek_hedefi_id` kopyanın hedefi olarak verilir; plan o hedefi
+     * kullanmıyorsa veritabanı reddeder (BY-004-R8).
      *
      * @return BelongsToMany<YedekPlani, $this>
      */

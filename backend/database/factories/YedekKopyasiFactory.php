@@ -54,7 +54,7 @@ class YedekKopyasiFactory extends Factory
 
             $plan = YedekPlani::factory()->create();
             $plan->hedefler()->attach($kopya->yedek_hedefi_id, ['sakla_son_adet' => 14]);
-            $kopya->planlar()->attach($plan);
+            $kopya->planlar()->attach($plan, ['yedek_hedefi_id' => $kopya->yedek_hedefi_id]);
         });
     }
 }

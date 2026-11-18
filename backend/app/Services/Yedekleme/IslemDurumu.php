@@ -20,13 +20,28 @@ use RuntimeException;
  * taşıma kaybolabilir — fsync(2)). Okuyan hiçbir an yarım dosya görmez; yazma
  * yarıda kalırsa önceki durum yerinde kalır (Dikkat_Edilecekler D3).
  *
- * Tek yazar: dosyayı yalnız yedek kilidini tutan süreç yazar (çalıştırıcı;
- * acil durum komutu da önce kilidi alır). Oku-değiştir-yaz yapan iki süreç
- * birbirinin kaydını ezerdi (Fable incelemesi F16). Okumak için kilit gerekmez.
+ * Tek yazar: dosyayı yalnız DURUM KLASÖRÜNÜN kilidini (`<klasör>/kilit` —
+ * Backup-Jira BY-005 "Dosyaların yeri") tutan süreç yazar (çalıştırıcı; acil
+ * durum komutu da önce kilidi alır). Oku-değiştir-yaz yapan iki süreç
+ * birbirinin kaydını ezerdi (Fable F16); başka bir dosyanın kilidi de yetmez
+ * (BY-005-R6). Okumak için kilit gerekmez.
  */
 final class IslemDurumu
 {
+    private const KILIT_DOSYASI = 'kilit';
+
     public function __construct(private readonly string $yol) {}
+
+    /** Bu durum dosyasının yazarlarının alacağı kilit (alınmamış hâlde). */
+    public function kilit(): YedekKilidi
+    {
+        return new YedekKilidi($this->kilitYolu());
+    }
+
+    private function kilitYolu(): string
+    {
+        return dirname($this->yol).'/'.self::KILIT_DOSYASI;
+    }
 
     /**
      * Dosya yoksa null (hiç işlem olmamış) — ama yalnız yokluğu DOĞRULANMIŞSA:
@@ -60,31 +75,30 @@ final class IslemDurumu
     }
 
     /**
-     * @param  YedekKilidi  $kilit  Yazanın tuttuğu yedek kilidi (tek yazar kuralı)
+     * @param  YedekKilidi  $kilit  Yazanın tuttuğu, bu durum dosyasının kilidi (kilit())
      *
-     * @throws LogicException Kilit tutulmuyor; dosyaya dokunulmadı
+     * @throws LogicException Bu dosyanın kilidi tutulmuyor; dosyaya dokunulmadı
      * @throws InvalidArgumentException Kayıt şemaya uymuyor; dosyaya dokunulmadı
      * @throws RuntimeException Yazılamadı ya da diske eşitlenemedi
      */
     public function yaz(IslemKaydi $kayit, YedekKilidi $kilit): void
     {
-        if (! $kilit->tutuyorMu()) {
-            throw new LogicException('İşlem durumu yalnız yedek kilidini tutan süreç tarafından yazılır; önceki durum korundu.');
+        if (! $kilit->dosyayiTutuyorMu($this->kilitYolu())) {
+            throw new LogicException('İşlem durumu yalnız durum klasörünün kilidini ('.$this->kilitYolu().') tutan süreç tarafından yazılır; önceki durum korundu.');
         }
 
-        $dizi = $kayit->diziye();
-
-        // Okumadaki doğrulamanın aynısı: okunamayacak bir kayıt son geçerli
-        // durumun üzerine yazılmaz (BY-005-R2)
+        // Okumadaki doğrulamanın aynısı ve YAZILAN, doğrulanmış kaydın
+        // kendisidir: okuyucunun taşımadığı bir alan dosyaya giremez
+        // (BY-005-R2, R7; Dikkat_Edilecekler G10)
         try {
-            IslemKaydi::diziden($dizi, $this->yol);
+            $dizi = IslemKaydi::diziden($kayit->diziye(), $this->yol)->diziye();
         } catch (IslemDurumuBozuk $hata) {
             throw new InvalidArgumentException('Geçersiz işlem kaydı yazılmadı; önceki durum korundu. '.$hata->getMessage(), previous: $hata);
         }
 
         $icerik = json_encode($dizi, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)."\n";
         $klasor = dirname($this->yol);
-        $this->klasoruAc($klasor);
+        KaliciKlasor::ac($klasor);
 
         // tempnam değil: klasör yazılamazsa sistemin geçici klasörüne düşer ve
         // taşıma artık tek adım olmaz. Nokta önekli ad, okuyanların göreceği ad değildir.
@@ -115,7 +129,7 @@ final class IslemDurumu
             }
         }
 
-        $this->klasoruEsitle($klasor);
+        KaliciKlasor::esitle($klasor);
     }
 
     /**
@@ -133,45 +147,6 @@ final class IslemDurumu
         }
 
         return $ust !== $yol && ! file_exists($ust) && $this->yoklukDogrulandi($ust);
-    }
-
-    /**
-     * Klasörü (gerekirse üstleriyle) açar; yeni açılan her klasörün üst
-     * klasörünü diske zorlar — yoksa kesintide klasör girdisi kaybolabilir.
-     */
-    private function klasoruAc(string $klasor): void
-    {
-        if (is_dir($klasor)) {
-            return;
-        }
-
-        $yeniler = [];
-        for ($k = $klasor; ! is_dir($k) && dirname($k) !== $k; $k = dirname($k)) {
-            $yeniler[] = $k;
-        }
-
-        if (! @mkdir($klasor, 0750, true) && ! is_dir($klasor)) {
-            throw new RuntimeException("İşlem durumu klasörü açılamadı: {$klasor}");
-        }
-
-        foreach (array_reverse($yeniler) as $yeni) {
-            $this->klasoruEsitle(dirname($yeni));
-        }
-    }
-
-    /** Klasör girdilerini diske zorlar; olmazsa başarı sayılmaz. */
-    private function klasoruEsitle(string $klasor): void
-    {
-        $tutamac = @fopen($klasor, 'r');
-        $esitlendi = $tutamac !== false && fsync($tutamac);
-
-        if ($tutamac !== false) {
-            fclose($tutamac);
-        }
-
-        if (! $esitlendi) {
-            throw new RuntimeException("İşlem durumu klasörü diske eşitlenemedi: {$klasor} (yazılan durum kesintide kaybolabilir).");
-        }
     }
 
     /**

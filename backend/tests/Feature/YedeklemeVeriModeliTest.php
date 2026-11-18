@@ -17,6 +17,7 @@ use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\YedekKaynagi;
 use App\Support\KayitSilme;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -140,7 +141,7 @@ final class YedeklemeVeriModeliTest extends TestCase
         $ikinciPlan = YedekPlani::factory()->create();
         $ikinciPlan->hedefler()->attach($kopya->yedek_hedefi_id, ['sakla_son_adet' => 24]);
 
-        $kopya->planlar()->attach($ikinciPlan);
+        $kopya->planlar()->attach($ikinciPlan, ['yedek_hedefi_id' => $kopya->yedek_hedefi_id]);
         $baskaHedef = YedekKopyasi::factory()->create(['yedek_id' => $kopya->yedek_id]);
 
         $this->assertSame(2, $kopya->planlar()->count());
@@ -155,7 +156,55 @@ final class YedeklemeVeriModeliTest extends TestCase
 
         $this->expectException(UniqueConstraintViolationException::class);
 
-        $kopya->planlar()->attach($plan);
+        $kopya->planlar()->attach($plan, ['yedek_hedefi_id' => $kopya->yedek_hedefi_id]);
+    }
+
+    /**
+     * Bağ, planın KOPYANIN HEDEFİNDEKİ saklama kuralına bağlıdır (BY-004-R8):
+     * o hedefi kullanmayan plan kopyayı tutamaz; yoksa saklama bu bağı hangi
+     * kuralla kaldıracağını bilemezdi.
+     */
+    public function test_kopyanin_hedefini_kullanmayan_plana_baglanamaz(): void
+    {
+        $kopya = YedekKopyasi::factory()->plansiz()->create();
+        $baskaHedefliPlan = YedekPlani::factory()->create();
+        $baskaHedefliPlan->hedefler()->attach(YedekHedefi::factory()->create(), ['sakla_son_adet' => 5]);
+
+        $this->expectException(QueryException::class);
+
+        $kopya->planlar()->attach($baskaHedefliPlan, ['yedek_hedefi_id' => $kopya->yedek_hedefi_id]);
+    }
+
+    public function test_kopya_kendi_hedefi_disindaki_kural_bagiyla_plana_baglanamaz(): void
+    {
+        $kopya = YedekKopyasi::factory()->plansiz()->create();
+        $baskaHedef = YedekHedefi::factory()->create();
+        $plan = YedekPlani::factory()->create();
+        $plan->hedefler()->attach($baskaHedef, ['sakla_son_adet' => 5]);
+
+        $this->expectException(QueryException::class);
+
+        $kopya->planlar()->attach($plan, ['yedek_hedefi_id' => $baskaHedef->id]);
+    }
+
+    public function test_kopyasi_olan_plan_hedef_bagi_kaldirilamaz_saklama_kurali_korunur(): void
+    {
+        $kopya = YedekKopyasi::factory()->create();
+        $plan = $kopya->planlar()->sole();
+
+        try {
+            // Savepoint: PostgreSQL'de başarısız komut testin işlemini bozmasın
+            DB::transaction(fn () => $plan->hedefler()->detach($kopya->yedek_hedefi_id));
+            $this->fail('Kopyası olan plan-hedef bağı (saklama kuralı) kaldırıldı.');
+        } catch (QueryException) {
+        }
+
+        $this->assertDatabaseHas('yedek_plan_hedefleri', [
+            'yedek_plani_id' => $plan->id,
+            'yedek_hedefi_id' => $kopya->yedek_hedefi_id,
+            'sakla_son_adet' => 14,
+        ]);
+        $this->assertTrue($kopya->planlar()->whereKey($plan->id)->exists());
     }
 
     public function test_planli_kopya_factorysi_plan_yedegini_saklama_kurali_olan_plan_hedef_bagina_baglar(): void

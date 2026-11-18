@@ -72,10 +72,23 @@ final class YedekKilidi
         return true;
     }
 
-    /** Bu nesne kilidi şu an tutuyor mu (işlem durumunu yalnız tutan yazar). */
-    public function tutuyorMu(): bool
+    /**
+     * Bu nesne şu an $yol'daki dosyanın kilidini mi tutuyor. Yol metni değil
+     * dosyanın kendisi karşılaştırılır (aygıt + düğüm): farklı yazılmış aynı
+     * yol eşleşir, başka dosyanın kilidi eşleşmez (işlem durumunu yalnız
+     * durum klasörünün kilidini tutan yazar — BY-005-R6).
+     */
+    public function dosyayiTutuyorMu(string $yol): bool
     {
-        return $this->tutamac !== null;
+        if ($this->tutamac === null) {
+            return false;
+        }
+
+        $tutulan = fstat($this->tutamac);
+        $istenen = @stat($yol);
+
+        return $tutulan !== false && $istenen !== false
+            && $tutulan['dev'] === $istenen['dev'] && $tutulan['ino'] === $istenen['ino'];
     }
 
     /**
@@ -120,7 +133,9 @@ final class YedekKilidi
 
     /**
      * Var olan dosya salt okunur açılır; yoksa klasörüyle birlikte açılır
-     * (geçiş dönemi: uygulama kullanıcısı). Açılamazsa istisna.
+     * (geçiş dönemi: uygulama kullanıcısı). Yeni klasör ve dosya girdileri
+     * diske zorlanır: ilk kilit alımı durum klasörünü açar, işlem durumu ilk
+     * yazımda onu var bulup üstünü eşitlemez (BY-005-R8). Açılamazsa istisna.
      *
      * @return resource
      */
@@ -130,13 +145,12 @@ final class YedekKilidi
             $tutamac = @fopen($this->yol, 'r');
         } else {
             $klasor = dirname($this->yol);
-            if (! is_dir($klasor)) {
-                @mkdir($klasor, 0750, true);
-            }
+            KaliciKlasor::ac($klasor);
 
             $tutamac = @fopen($this->yol, 'c');
             if ($tutamac !== false) {
                 @chmod($this->yol, 0640);
+                KaliciKlasor::esitle($klasor);
             }
         }
 

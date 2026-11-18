@@ -157,20 +157,37 @@ return new class extends Migration
             $table->unique(['yedek_id', 'yedek_hedefi_id']);
             // Saklama (bir hedefteki kopyalar) ve hedef silinirken RESTRICT denetimi
             $table->index(['yedek_hedefi_id', 'durum']);
+            // Bileşik yabancı anahtar hedefi (yedek_kopya_planlari): kopya ile
+            // hedefi birlikte gösterilir; tek başına `id` zaten tekil
+            $table->unique(['id', 'yedek_hedefi_id']);
         });
 
         // Kopyayı tutan planlar; saklama her planın bu hedefteki kuralıyla
         // (README §4.3). Bağı olmayan kopya zamanlanmamış bir yedeğindir
         // (kuralı yedek_ayarlari'nda).
+        //
+        // Bağ, planın KOPYANIN HEDEFİNDEKİ saklama kuralına (yedek_plan_hedefleri
+        // satırı) bağlıdır (BY-004-R8). İki bileşik yabancı anahtar bunu
+        // veritabanında zorlar: (kopya, hedef) → kopyanın kendi hedefi;
+        // (plan, hedef) → planın o hedefle gerçek ilişkisi. Böylece o hedefi
+        // kullanmayan plan kopyayı tutamaz; bağ varken plan-hedef ilişkisi
+        // (saklama kuralı) silinemez (RESTRICT) — plan silinince de ilişki
+        // CASCADE ile silineceği için kopyası olan plan silinemez.
         Schema::create('yedek_kopya_planlari', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('yedek_kopyasi_id')->constrained('yedek_kopyalari')->cascadeOnDelete();
-            $table->foreignId('yedek_plani_id')->constrained('yedek_planlari')->restrictOnDelete();
+            $table->unsignedBigInteger('yedek_kopyasi_id');
+            $table->unsignedBigInteger('yedek_hedefi_id');
+            $table->unsignedBigInteger('yedek_plani_id');
+
+            $table->foreign(['yedek_kopyasi_id', 'yedek_hedefi_id'])
+                ->references(['id', 'yedek_hedefi_id'])->on('yedek_kopyalari')->cascadeOnDelete();
+            $table->foreign(['yedek_plani_id', 'yedek_hedefi_id'])
+                ->references(['yedek_plani_id', 'yedek_hedefi_id'])->on('yedek_plan_hedefleri')->restrictOnDelete();
 
             // Bir plan bir kopyaya bir kez; kopya tarafındaki aramaları da karşılar
             $table->unique(['yedek_kopyasi_id', 'yedek_plani_id']);
-            // Saklama: bir planın kopyaları; plan silinirken RESTRICT denetimi
-            $table->index('yedek_plani_id');
+            // Saklama (bir planın bir hedefteki kopyaları) ve plan-hedef silinirken RESTRICT denetimi
+            $table->index(['yedek_plani_id', 'yedek_hedefi_id']);
         });
 
         Schema::create('geri_yuklemeler', function (Blueprint $table) {

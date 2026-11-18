@@ -621,7 +621,10 @@ fi
 # Servis hesabı, parola dosyasıyla gerçekten bağlanabiliyor mu
 BAGLANTI_TAMAM=0
 if [[ -f "$PGPASS_DOSYASI" && ! -L "$PGPASS_DOSYASI" ]] && (( KULLANICI_VAR )); then
-  if runuser -u "$YEDEK_KULLANICI" -- env PGPASSFILE="$PGPASS_DOSYASI" PGCONNECT_TIMEOUT=10 \
+  # Temiz ortam (env -i): kabuktan devralınan PGPASSWORD dosyanın önüne geçer;
+  # bağlantı dosya geçersizken de kurulup eski kopyanın silinmesine yol açardı
+  # (BY-001-R6). Servis de systemd'nin temiz ortamında çalışır.
+  if runuser -u "$YEDEK_KULLANICI" -- env -i PATH="$PATH" PGPASSFILE="$PGPASS_DOSYASI" PGCONNECT_TIMEOUT=10 \
        psql -h "$VT_SUNUCU" -p "$VT_PORT" -U "$VT_YEDEK_ROLU" -d postgres -X -A -t -q -w -c 'select 1' >/dev/null 2>&1; then
     tamam "$YEDEK_KULLANICI, parola dosyasıyla $VT_YEDEK_ROLU olarak postgres veritabanına bağlanabiliyor"
     BAGLANTI_TAMAM=1
@@ -645,9 +648,11 @@ fi
 # ---------------------------------------------------------------------------
 # 6. Servis tanımı (README §9 madde 3)
 #    Yedekleme çalıştırıcısı bu hesapla, arka planda sürekli çalışır.
-#    UMask 0027: ürettiği dosyaları grup okur, başkalarına kapalı. (Uygulamanın
-#    storage/logs'unda açtığı günlük dosyaları yine 0664 olur: kanalların
-#    'permission' ayarı — config/logging.php.)
+#    UMask 0027: ürettiği dosyaları grup okur, başkalarına kapalı.
+#    Laravel günlükleri (bütün dosya kanalları, acil durum dahil) LOG_KLASORU
+#    ile servisin gunluk/ klasöründe: web'in yazabildiği storage/logs'taki bir
+#    dosyayı web süreci bağlantıyla değiştirip servisin yazımını servisin
+#    kendi dosyalarına (parola, manifest) yönlendirebilirdi (D5, BY-003-R6).
 #    Laravel önbellekleri (APP_*_CACHE, VIEW_COMPILED_PATH) servisin kendi
 #    onbellek/ klasöründe: uygulamanın bootstrap/cache'ini ve derlenmiş
 #    görünümlerini web kullanıcısı YAZABİLİR (grubu www-data, g+w). Servis
@@ -656,7 +661,8 @@ fi
 #    incelemesi F1). storage/ yolu (LARAVEL_STORAGE_PATH) bilerek DEĞİŞMEZ:
 #    servis geri yüklemede uygulamayı bakım moduna alır; bakım modu dosyası
 #    uygulamanın storage/framework'ünde olmalıdır (bölüm 2). Oradan PHP
-#    dosyası yüklenmez.
+#    dosyası yüklenmez. O dosya web'in yazabildiği yerde olduğu için onu
+#    yazan kod bağlantı izlememelidir (BY-028 kabul ölçütü).
 #    Çalıştırdığı komut BY-025'te yazılır: tanım şimdi KURULUR ama
 #    etkinleştirilmez, başlatılmaz (komut adı değişirse betik tanımı günceller).
 # ---------------------------------------------------------------------------
@@ -678,6 +684,7 @@ Environment=APP_PACKAGES_CACHE=$YEDEK_KOKU/onbellek/packages.php
 Environment=APP_ROUTES_CACHE=$YEDEK_KOKU/onbellek/routes.php
 Environment=APP_EVENTS_CACHE=$YEDEK_KOKU/onbellek/events.php
 Environment=VIEW_COMPILED_PATH=$YEDEK_KOKU/onbellek/views
+Environment=LOG_KLASORU=$YEDEK_KOKU/gunluk
 ExecStart=/usr/bin/php $UYGULAMA_KOKU/backend/artisan yedek:calistir
 Restart=always
 RestartSec=5
