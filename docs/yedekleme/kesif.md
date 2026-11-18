@@ -14,19 +14,24 @@ denenmesi. Görev: [Backup-Jira.md](Backup-Jira.md) → BY-002.
 - Kaynak veri: lokal `erp` veritabanının yedeği. `erp` ve `erp_test`
   veritabanlarına yazılmadı. Deney sonunda geride rol ve veritabanı kalmadığı
   denetlendi.
-- **Canlı (2026-11-18, kullanıcı onayıyla):** yalnız okuma. Sorgular uygulamanın
-  kendi veritabanı kullanıcısıyla, `.env`'deki bilgilerle çalıştı (parola komut
-  satırına girmedi); betik sunucuya geçici kopyalanıp sonra silindi. Kullanıcı
-  "canlıda ayrı veritabanına geri yükle" seçeneğini onayladı; ancak
-  uygulama kullanıcısının veritabanı açma yetkisi olmadığı için bu adım
-  **yapılamadı**, canlıda hiçbir nesne oluşturulmadı.
+- **Canlı, 1. oturum (2026-11-18, kullanıcı onayıyla):** yalnız okuma.
+  Sorgular uygulamanın kendi PostgreSQL kullanıcısıyla, `.env`'deki bilgilerle
+  çalıştı (parola komut satırına girmedi); betik sunucuya geçici kopyalanıp
+  sonra silindi. Geri yükleme, uygulama kullanıcısının veritabanı açma yetkisi
+  olmadığı için bu oturumda yapılamadı.
+- **Canlı, 2. oturum (2026-11-18, kullanıcı `admin` şifresini verip onayladı):**
+  `sudo` ile PostgreSQL'de kalıcı **yedekleme kullanıcısı** `emor_yedek` açıldı
+  (veritabanı açabilir, uygulama kullanıcısına üye; README §9). Bu kullanıcıyla
+  en yeni yayın öncesi yedek **geçici** `erp_kesif` veritabanına geri yüklendi,
+  doğrulandı ve `erp_kesif` silindi. Canlı uygulama veritabanına yazılmadı.
+  `sudo` şifresi sunucuya SSH girdisiyle verildi, hiçbir dosyaya yazılmadı.
 
 ## Özet
 
 | # | Soru | Sonuç |
 |---|---|---|
 | 1 | Canlı sunucu sürümü; araç (18.6) ile uyum | **Doğrulandı:** sunucu 18.6, araçlar 18.6 — eşleşiyor |
-| 2 | Mevcut bir yedek gerçekten geri yükleniyor mu | Lokalde **doğrulandı**; canlı yedek **tam okundu**, canlıda geri yükleme **doğrulanamadı** (yetki yok) |
+| 2 | Mevcut bir yedek gerçekten geri yükleniyor mu | **Doğrulandı** — lokalde ve canlıda (canlı yedek, canlı sunucuda geçici veritabanına) |
 | 3 | Uygulama kullanıcısının yetkileri | **Doğrulandı:** yetkisiz (veritabanı açamaz); veritabanının sahibi |
 | 4 | Nesnelerin sahibi uygulama rolü olabiliyor mu | **Doğrulandı** — yöntemle birlikte |
 | 5 | İki ad değişikliği tek işlemde | **Doğrulandı** — atomik |
@@ -57,11 +62,22 @@ Kaynak veritabanının yedeği yeni bir veritabanına geri yüklendi
 29 tablonun tamamında satır sayıları kaynakla aynı çıktı.
 
 **Canlı:** en yeni yayın öncesi yedek (`erp_predeploy_2026-11-18_063445.dump`,
-1,6 MB, 38 tablonun verisi) **baştan sona okundu** (`pg_restore
---file=/dev/null`, çıkış 0): dosya sağlam. Canlıda ayrı bir veritabanına
-gerçek geri yükleme **yapılamadı**: uygulama kullanıcısının veritabanı açma
-yetkisi yok (§3). Bu adım servis hesabı geldiğinde canlıda yapılır (BY-025 /
-BY-026); bilgi işlem talebi BY-003'e yazılacak.
+1,6 MB, 38 tablonun verisi) önce **baştan sona okundu** (`pg_restore
+--file=/dev/null`, çıkış 0). Sonra yedekleme kullanıcısı `emor_yedek` ile
+canlı sunucuda **gerçekten geri yüklendi**:
+
+| Adım | Sonuç |
+|---|---|
+| `CREATE DATABASE erp_kesif OWNER erp TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE/LC_CTYPE 'en_US.UTF-8'` | başarılı |
+| `pg_restore --no-owner --role=erp --exit-on-error --single-transaction` | başarılı, **1 saniye** |
+| Tablo sahipleri / veritabanı sahibi | hepsi `erp` (38 tablo) / `erp` |
+| Uygulama kullanıcısı okuyabiliyor mu | evet (`migrations`: 43 kayıt) |
+| Uygulama kullanıcısı tablo açıp silebiliyor mu (migration) | evet |
+| Satır sayıları, canlıyla | 38 tablonun 36'sı aynı |
+| Farklı olan 2 tablo | `efatura_faturalari` (10.049 → 10.052), `efatura_senkron_calismalari` (11.584 → 11.594): yedek 06:34'te alındı, e-Fatura senkronu dakikada bir çalışıyor — beklenen fark |
+| `erp_kesif` | silindi; sunucuda geride dosya kalmadı |
+
+Lokaldeki (PostgreSQL 16) sahiplik yöntemi canlıda (18.6) da aynı sonucu verdi.
 
 ### 3. Uygulama kullanıcısının yetkileri
 
@@ -79,6 +95,13 @@ Canlı durum README §9'daki "ayrı servis hesabı" ihtiyacını doğruluyor:
 uygulama kullanıcısıyla veritabanı açılamaz, dolayısıyla geri yükleme yapılamaz.
 `erp`'nin sahibi uygulama kullanıcısı olduğu için, servis hesabı ona üye
 yapılınca ad değiştirme ve bağlantı koparma da mümkün olur (§4–§6).
+
+**Yedekleme kullanıcısı (kuruldu, 2026-11-18):** `emor_yedek` — yönetici değil,
+veritabanı açabilir (`CREATEDB`), rol açamaz; uygulama kullanıcısına üye
+(`inherit=true set=true admin=false`). Parolası rastgele üretildi ve yalnız
+`/home/admin/.emor_yedek_pgpass` dosyasında (izin 600) duruyor; repoda ve
+dokümanlarda yok. Bu, servis hesabının **veritabanı tarafıdır**; Linux
+kullanıcısı ve parola dosyasının ona taşınması BY-025'te yapılır.
 
 ### 4. Nesnelerin sahibi
 
@@ -186,17 +209,16 @@ README'ye işlenenler (bu görevin commit'lerinde):
    veritabanından yapılır; "yarıda kalırsa geri çevir" dalı kaldırıldı.
 3. §7.7: canlı sürüm 18.6, araçlarla eşleşiyor; kalıcı kural olarak kaldı.
 4. §9: yetki listesine üyelik ve `postgres` veritabanına bağlanma hakkı;
-   canlı uygulama kullanıcısının yetkileri.
+   canlı uygulama kullanıcısının yetkileri; kurulan `emor_yedek`; "bilgi
+   işlemden istenecekler" yerine "kurulum betiğiyle yapılacaklar" (kullanıcı kararı).
 
 ## Sınırlar ve açık kalanlar
 
-1. **Canlıda gerçek geri yükleme yapılmadı.** Uygulama kullanıcısının
-   veritabanı açma yetkisi yok. Servis hesabı (bilgi işlem, BY-003) gelince
-   BY-026'da canlıda ilk iş olarak yapılır. O zamana kadar canlı yedeklerin
-   geri yüklenebildiği kanıtlanmış sayılmaz; yalnız okunabildikleri kanıtlı.
-2. **Sahiplik, ad değiştirme ve bağlantı koparma deneyleri PostgreSQL 16'da
-   yapıldı**, canlı 18.6. Bu davranışların 18'de değişmediği varsayıldı;
-   BY-026 / BY-028 canlıya yakın bir 18 ortamında yeniden doğrular.
-3. Lokal geliştirme ortamı canlıdan farklı: PostgreSQL 16 ve `C.UTF-8`
+1. **Ad değiştirme ve bağlantı koparma deneyleri yalnız PostgreSQL 16'da
+   yapıldı**, canlı 18.6. Canlı `erp`'ye dokunmamak için canlıda denenmedi.
+   Bu davranışların 18'de değişmediği varsayıldı; BY-028 geçici
+   veritabanlarıyla canlıda yeniden doğrular. (Sahiplik yöntemi canlıda da
+   denendi, aynı sonucu verdi.)
+2. Lokal geliştirme ortamı canlıdan farklı: PostgreSQL 16 ve `C.UTF-8`
    (canlı 18 ve `en_US.UTF-8`). Gerçek araçlarla yapılan uçtan uca testlerde
    bu fark akılda tutulmalı.

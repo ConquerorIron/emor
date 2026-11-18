@@ -21,7 +21,7 @@ yedeklemek ve gerektiğinde güvenle geri yüklemek:
 |---|---|
 | Uygulamanın PostgreSQL veritabanı (`erp`) | ERP'nin MSSQL veritabanları (Hab_hom, FD_hom) — ERP tarafının sorumluluğu |
 | Sunucudaki uygulama dosyaları (`storage/app`) | Uygulama kodu — zaten GitHub'da |
-| Geri yükleme için gereken sırlar (`.env`, özellikle `APP_KEY`) | Sunucunun işletim sistemi / sanal makine yedeği — bilgi işlem |
+| Geri yükleme için gereken sırlar (`.env`, özellikle `APP_KEY`) | Sunucunun işletim sistemi / sanal makine yedeği (bu sistemin kapsamında değil) |
 
 Neden önemli: Kesinti Yönetimi'nin bütün verisi (icmaller, yüklemeler,
 tanımlar) yalnız bu veritabanında durur; ERP'de karşılığı yoktur. Kullanıcılar,
@@ -221,7 +221,7 @@ yönetici komutuyla içeri alınır (YDK-09). Tarayıcıdan yedek yükleme yok
   | Hedef | Not |
   |---|---|
   | Yerel disk | Sunucunun kendi diski. Hızlı geri yükleme içindir; disk ya da sunucu kaybına karşı korumaz |
-  | Ağ paylaşımı (NAS) | Şirket içinde kalır; bilgi işlemin paylaşım açması gerekir |
+  | Ağ paylaşımı (NAS) | Şirket içinde kalır; ağda bir paylaşım (NAS) bulunması ve sunucuya bağlanması gerekir |
   | SFTP / SSH ile başka sunucu | Şirket içinde kalır; bağlantı şifreli |
   | FTP (düz) | Seçenek olarak sunulur (kullanıcı kararı 2026-11-18). Kullanıcı adı ve parola ağda açık gider; yedek dosyası şifreli olsa da hesap ele geçirilebilir. Hedef tanımında bu uyarı gösterilir; yalnız şirket içi ağda kullanılması önerilir |
   | FTPS (şifreli FTP) | Aynı FTP sunucusu şifreli bağlantıyı destekliyorsa tercih edilir; kullanıcı adı ve parola korunur |
@@ -307,7 +307,7 @@ yönetici komutuyla içeri alınır (YDK-09). Tarayıcıdan yedek yükleme yok
   kalırsa işe yaramaz: zamanlayıcı durursa denetim çalışmaz, kuyruk durursa mail
   gitmez, sunucu kapalıysa ikisi de olmaz. Yöntem: her başarılı yedekten sonra
   dışarıdaki bir izleyiciye "yaşıyorum" sinyali gider; sinyal gecikirse uyarıyı
-  **o** üretir. İzleyici adayları: bilgi işlemin izleme sistemi ya da başka bir
+  **o** üretir. İzleyici adayları: şirketin izleme sistemi (varsa) ya da başka bir
   sunucumuzda çalışan küçük bir denetim (§13).
 - **Üç ayrı yaşam sinyali** izlenir: yerel yedek, sunucu dışı kopya, sınama geri
   yüklemesi. Yalnız yerel yedeğin sinyali, kopyanın haftalardır gitmediğini ya
@@ -404,7 +404,7 @@ Ayarlar ekranları ──► API (yalnız istek kaydeder, işlemi başlatmaz)
   imzalayabilir ve yerel yedekleri silebilirdi; imza hiçbir şey kanıtlamazdı.
 - **Çalıştırıcı isteğe güvenmez.** İstek dosyasını web süreci yazar; çalıştırıcı
   isteği yapanın yetkisini ve (geri yüklemede) onayını kendisi yeniden doğrular.
-- **Geçiş dönemi:** servis hesabını bilgi işlem açana kadar ilk aşamalarda
+- **Geçiş dönemi:** servis hesabının Linux tarafı kurulana kadar (BY-025) ilk aşamalarda
   yedeği uygulama kullanıcısı alır. Bu dönemde imza yalnız "bizim ürettiğimiz
   dosya" ile "dışarıdan gelen dosya"yı ayırır; ele geçirilmiş bir web sürecine
   karşı koruma sağlamaz. Üstüne geri yükleme servis hesabı olmadan açılmaz.
@@ -486,7 +486,7 @@ Yedek durumları: `kuyrukta → calisiyor → tamam | basarisiz`; ayrıca `silin
 - Bugünkü `/var/backups/emor` klasörüne uygulama yazamıyor (§9); ya izinler
   düzeltilir ya da yeni klasöre geçilir ve eski 159 yedek taranıp içeri alınır.
 
-**Dosya yetkileri (hedef düzen; bilgi işlemle yazılı hâle getirilir):**
+**Dosya yetkileri (hedef düzen; kurulum betiğinde yazılı durur — BY-003):**
 
 | Dosya / klasör | Servis hesabı | Uygulama (`www-data`) | Yayın kullanıcısı (`admin`) |
 |---|---|---|---|
@@ -711,9 +711,8 @@ araçlar ayrıca güncellenirse sürümler yeniden eşleştirilir; yedekleme,
 manifestteki araç / sunucu sürümünü geri yüklemeden önce denetler.
 
 Lokal geliştirme ortamı farklıdır (PostgreSQL 16, sıralama `C.UTF-8`; canlı
-`en_US.UTF-8`). Canlı yedeklerin geri yüklenebildiği henüz **kanıtlanmadı**,
-yalnız okunabildikleri kanıtlı; gerçek geri yükleme servis hesabı gelince
-canlıda yapılır (BY-026).
+`en_US.UTF-8`). Canlı yedeğin canlı sunucuda geçici bir veritabanına
+gerçekten geri yüklenebildiği **kanıtlandı** (2026-11-18, [kesif.md](kesif.md) §2).
 
 ### 7.8 Saat dilimi
 
@@ -754,7 +753,7 @@ ayrıca tasarlanır.
 - Geri yüklenen kopyalar (`erp_geri_*`) canlı veriyle aynı hassasiyettedir;
   süresiz bırakılmaz.
 
-## 9. Altyapı kısıtları ve bilgi işlemden istenecekler
+## 9. Altyapı kısıtları ve sunucuda yönetici yetkisiyle yapılacaklar
 
 Bugünkü durum (2026-11-16):
 
@@ -762,17 +761,19 @@ Bugünkü durum (2026-11-16):
 |---|---|---|
 | Yedek klasörü `/var/backups/emor` | Sahibi `admin`, uygulama kullanıcısı (`www-data`) yazamıyor | Uygulamanın yazabileceği klasör gerek |
 | Zamanlayıcı ve kuyruk | `www-data` olarak çalışıyor; kuyrukta iş zaman aşımı 300 sn, tek işçi | Yedekleme için ayrı işçi/servis tanımı gerek |
-| `admin` kullanıcısı | Parolasız `sudo` yok | Servis ve izin değişikliklerini bilgi işlem yapmalı |
+| `admin` kullanıcısı | `sudo` şifreyle; şifre kullanıcıda | Bilgi işlemden bir şey istenmez (kullanıcı kararı 2026-11-18): servis ve izin değişiklikleri kurulum betiğiyle (BY-003) `admin` + `sudo` ile yapılır |
 | Yükleme sınırı | 2 MB | Tarayıcıdan yedek yükleme yok |
-| Veritabanı kullanıcısının yetkileri | Yönetici değil, **veritabanı açamaz**, rol açamaz, üyeliği yok; `erp`'nin sahibi (2026-11-18, [kesif.md](kesif.md) §3) | Geri yükleme (§4.5, §6.4) uygulama kullanıcısıyla yapılamaz; servis hesabı şart |
+| Veritabanı kullanıcısının yetkileri | Uygulamanın kullanıcısı: yönetici değil, **veritabanı açamaz**, rol açamaz, üyeliği yok; `erp`'nin sahibi (2026-11-18, [kesif.md](kesif.md) §3) | Geri yükleme (§4.5, §6.4) uygulama kullanıcısıyla yapılamaz; servis hesabı şart |
+| Yedekleme veritabanı kullanıcısı | **Kuruldu (2026-11-18):** `emor_yedek` — veritabanı açabilir, uygulama kullanıcısına üye; parolası `/home/admin/.emor_yedek_pgpass` (600). Canlı yedek bununla geçici veritabanına geri yüklendi ([kesif.md](kesif.md) §2) | Parola dosyası şimdilik `admin`'de; BY-025'te servis hesabının Linux kullanıcısına taşınır |
 | Sunucu dışı hedef | Yok | NAS / sunucu / depolama + erişim bilgisi gerek |
 | Kurulu araçlar | `gpg`, `rsync`, `zstd` var; `rclone` yok | S3 hedefi seçilirse kurulum gerek |
 
-İstenecekler:
+Yapılacaklar (kurulum betiğiyle, `admin` + `sudo`; bilgi işlemden istenmez):
 
 1. Geri yükleme için **ayrı bir servis hesabı** (işletim sistemi kullanıcısı +
-   veritabanı rolü). Web sürecinin kullanıcısına geniş yetki verilmez. Yetki
-   matrisi bilgi işlemle **yazılı** belirlenir:
+   veritabanı rolü). Veritabanı tarafı (`emor_yedek`) kuruldu; işletim sistemi
+   kullanıcısı BY-025'te. Web sürecinin kullanıcısına geniş yetki verilmez. Yetki
+   matrisi kurulum betiğinde **yazılı** durur (BY-003):
    - veritabanı oluşturma (`CREATEDB`),
    - **uygulama rolüne üyelik** — veritabanını uygulama rolü adına açmak, geri
      yüklemeyi onun adına yapmak, `erp`'nin adını değiştirmek ve uygulamanın
@@ -843,7 +844,7 @@ Her aşama tek başına işe yarar; sıra riske göre.
 | Kod | Aşama | İçerik |
 |---|---|---|
 | YDK-00 | Geçici önlem (koddan önce) | En yeni yedeği ve `.env`'i elle başka bir makineye kopyala; yayın kullanıcısının zamanlayıcısına günlük `pg_dump` satırı ekle. **En ağır iki risk dakikalar içinde kapanır;** asıl sistem gelince kaldırılır |
-| YDK-01 | Kanıt | Mevcut bir yedeği geri yükleyip doğrula; veritabanı sürümünü ve kullanıcı yetkilerini öğren; sahiplik (`--role`), tek işlemde ad değiştirme ve veritabanı düzeyindeki ayarların taşınmasını dene; servis hesabı ve yetki matrisini bilgi işlemle görüş |
+| YDK-01 | Kanıt | Mevcut bir yedeği geri yükleyip doğrula; veritabanı sürümünü ve kullanıcı yetkilerini öğren; sahiplik (`--role`), tek işlemde ad değiştirme ve veritabanı düzeyindeki ayarların taşınmasını dene; servis hesabının veritabanı tarafını kur ve canlı yedeği geçici veritabanına gerçekten geri yükle |
 | YDK-02 | Çekirdek | Yedek alma komutu (anlık görüntüyle), imzalı manifest, olay günlüğü, özet, dosya kilidi (`deploy.sh` dahil), klasör tarama; geçici tabloların verisini dışarıda bırakma |
 | YDK-03 | Günlük yedek | Tek sabit plan (günlük) + basit saklama; uygulama dışı "sessizlik" izleyicisi. **Yayın yapılmayan günlerdeki açığı kapatır** |
 | YDK-04 | Sunucu dışı kopya ve kurtarma paketi | Hedef tanımı, şifreleme, yeniden deneme, yaz–oku–doğrula sınaması; `.env` / `APP_KEY` ve kurulum bilgilerinin saklanması. **Disk ve sunucu kaybı açığını kapatır** |
@@ -865,7 +866,7 @@ YDK-03 ile en sık karşılaşılacak risk (yayın yapılmayan günlerde yedeksi
 kalmak), YDK-04 ile en ağır risk (disk ya da sunucu kaybında yedeklerin de
 gitmesi) kapanır. Sunucu dışı kopya bu yüzden ekranlardan önce gelir; aynı
 diskte duran düzenli yedek, sunucu kaybına karşı koruma sağlamaz. YDK-04 ve
-YDK-07 bilgi işlemin sağlayacağı hedef ve servis hesabına bağlıdır; gecikirlerse
+YDK-07 sunucu dışı hedefe ve servis hesabının kurulmasına bağlıdır; gecikirlerse
 aradaki aşamalar beklemeden ilerler.
 
 ## 12. İlk sürümde olmayacaklar
@@ -877,7 +878,7 @@ aradaki aşamalar beklemeden ilerler.
 - ERP (MSSQL) yedekleri.
 - Başka bir sunucuya otomatik devretme.
 
-## 13. Açık kararlar (kullanıcıdan / bilgi işlemden)
+## 13. Açık kararlar (kullanıcıdan)
 
 1. Kabul edilebilir veri kaybı ve ayağa kalkma süresi (§3).
 2. Varsayılan planlar ve saklama süreleri (§4.2, §4.3) — öneriler uygun mu?
@@ -889,13 +890,13 @@ aradaki aşamalar beklemeden ilerler.
 7. Bildirimler kime gidecek?
 8. Üstüne geri yüklemeyi kimler yapabilir — yalnız sistem yöneticisi yeterli mi,
    ikinci bir kişinin onayı istenir mi?
-9. Bilgi işlem §9'daki yetki ve servis değişikliklerini yapabilir mi; sanal
+9. ~~Bilgi işlem §9’daki değişiklikleri yapabilir mi?~~ **Karar (2026-11-18):** bilgi işlemden bir şey istenmez; §9 kurulum betiğiyle `admin` + `sudo` ile yapılır. Açık kalan: sanal
    makine yedeği var mı?
 10. Geri yüklenen kopyalar ve `erp_onceki_*` kaç gün bekletilsin?
-11. Sessizlik alarmını kim izleyecek: bilgi işlemin izleme sistemi mi, başka bir
+11. Sessizlik alarmını kim izleyecek: şirketin izleme sistemi mi (varsa), başka bir
     sunucumuzdaki küçük bir denetim mi? (§4.8)
-12. Geri yükleme servis hesabı ve yetki matrisi bilgi işlemle nasıl
-    yazılı hâle getirilecek? (§9)
+12. ~~Servis hesabı ve yetki matrisi nasıl yazılı hâle getirilecek?~~ **Karar:** kurulum
+    betiğinde, Codex incelemesinden geçerek (BY-003; §9).
 13. Kurtarma paketi nerede, kimin sorumluluğunda saklanacak? (§9)
 14. ~~Saklama için tek havuz mu, plan başına kural mı?~~ **Karar (2026-11-18):**
     plan + hedef başına kural; her plan kendi sıklığı ve hedefiyle (§4.2, §4.3).
@@ -970,7 +971,7 @@ ikisi de yok. 1,6 MB'lık bir veritabanı ve "1 saat kayıp kabul" hedefi için
 ağır kalır. Veritabanı büyür ya da dakikalık geri dönüş istenirse yeniden
 değerlendirilir.
 
-**Yalnız sanal makine yedeği (snapshot).** Bilgi işlem alıyorsa değerli bir
+**Yalnız sanal makine yedeği (snapshot).** Sunucu düzeyinde alınıyorsa değerli bir
 ikinci katmandır, ama tek başına yetmez: tek bir tabloyu ya da dünkü durumu geri
 getirmek için bütün sunucuyu geri almak gerekir ve ne zaman alındığı, çalışıp
 çalışmadığı bizim elimizde değildir.

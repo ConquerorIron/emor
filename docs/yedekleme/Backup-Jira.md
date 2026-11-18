@@ -23,7 +23,7 @@ inceler.** Bir görev, Codex `PASSED` verene kadar bitmiş sayılmaz.
 
 `YAPILACAK` → `DEVAM` → `REVIEW_BEKLIYOR` → (`DUZELTME` ⇄ `REVIEW_BEKLIYOR`) → `PASSED` → `CANLIDA`
 
-- `BEKLIYOR`: dış bir ön koşul bekleniyor (kullanıcı kararı, bilgi işlem). Nedeni yazılır.
+- `BEKLIYOR`: dış bir ön koşul bekleniyor (kullanıcı kararı, sunucu kurulumu). Nedeni yazılır.
 - `IPTAL`: yapılmayacak; nedeni yazılır.
 
 ### 1.3 Akış
@@ -138,7 +138,7 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 |---|---|---|---|---|
 | BY-001 | Geçici önlem: günlük yedek ve elle sunucu dışı kopya | 0 | — | PASSED |
 | BY-002 | Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları | 0 | — | REVIEW_BEKLIYOR |
-| BY-003 | Bilgi işlem talep listesi | 0 | BY-002 | YAPILACAK |
+| BY-003 | Sunucu kurulum betiği | 0 | BY-002 | YAPILACAK |
 | BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | YAPILACAK |
 | BY-005 | Dosya kilidi ve işlem durumu dosyası | 1 | BY-004 | YAPILACAK |
 | BY-006 | Manifest, imza, olay günlüğü | 1 | BY-004 | YAPILACAK |
@@ -504,20 +504,55 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       denendi, canlı 18; değişmediği varsayıldı (`kesif.md` "Sınırlar").
     - Kod değişmedi; uygulama testleri bu görev için çalıştırılmadı
       (`publish.sh` yine de tam koşuyu yaptı).
+  - 2026-11-18 Claude → REVIEW_BEKLIYOR (ek, Codex incelemesinden önce) ·
+    commit başlığı `docs(yedekleme): BY-002 canli geri yukleme dogrulandi, emor_yedek`
+    - Kullanıcı "bilgi işlemden bir şey istemeyelim" dedi ve sunucunun `admin`
+      şifresini verdi. Onayıyla, `sudo` ile PostgreSQL'de kalıcı yedekleme
+      kullanıcısı **`emor_yedek`** açıldı: `LOGIN CREATEDB`, uygulama
+      kullanıcısına üye (`GRANT erp TO emor_yedek`). Parolası rastgele; yalnız
+      `/home/admin/.emor_yedek_pgpass` (600) dosyasında. `sudo` şifresi sunucuya
+      SSH girdisiyle verildi; repoya, hafızaya, dokümana yazılmadı; yerel geçici
+      dosya silindi.
+    - Bu kullanıcıyla en yeni yayın öncesi yedek **canlı sunucuda geçici
+      `erp_kesif`** veritabanına geri yüklendi (1 sn, çıkış 0): tablolar ve
+      veritabanı `erp`'nin; uygulama kullanıcısı okuyor ve migration için tablo
+      açabiliyor; 38 tablonun 36'sında sayım canlıyla aynı, farklı 2'si yedekten
+      sonra büyüyen e-Fatura tabloları. `erp_kesif` silindi, geride dosya yok.
+      Soru 2 artık canlıda da **doğrulandı**.
+    - Canlıda kalıcı değişiklik: yalnız `emor_yedek` rolü ve parola dosyası
+      (tasarımdaki servis hesabının veritabanı tarafı). Canlı uygulama
+      veritabanına yazılmadı.
+    - README ve bu dosyada "bilgi işlemden istenecekler" ifadeleri "kurulum
+      betiğiyle (`admin` + `sudo`) yapılacaklar" olarak değiştirildi; BY-003
+      yeniden tanımlandı.
 
-### BY-003 — Bilgi işlem talep listesi
+### BY-003 — Sunucu kurulum betiği
 
 - **Durum:** YAPILACAK · **Bağımlı:** BY-002
-- **Tasarım:** README §9, §5.5, §4.8
-- **Kapsam:** `docs/yedekleme/bilgi-islem-talepleri.md`: bilgi işleme
-  iletilecek, teknik olmayan dille de okunabilen talep metni — servis hesabı ve
-  yetki matrisi, yedek klasörü ve dosya yetkileri, çalıştırıcı servis tanımı,
-  dış izleyici, inceleme rolü, sanal makine yedeği sorusu. Her talep için "neden
-  gerekli" ve "verilmezse ne olur".
+- **Tasarım:** README §9, §5.5, §5.2, §4.8
+- **Karar (kullanıcı, 2026-11-18):** bilgi işlemden bir şey istenmez. Sunucu
+  ayarları `admin` kullanıcısı ve `sudo` ile yapılır; şifre kullanıcıdadır.
+  (Eski adı "Bilgi işlem talep listesi".)
+- **Kapsam:**
+  - `scripts/sunucu-yedekleme-kurulumu.sh`: README §9 ve §5.5'teki sunucu
+    ayarlarını yapan, **tekrar çalıştırılabilir** (ikinci çalıştırmada bir şey
+    bozmayan), her adımı açıklayan betik: servis hesabının Linux kullanıcısı,
+    yedek ve istek klasörleri ile dosya yetkileri, `emor_yedek` parola
+    dosyasının servis hesabına taşınması, imza anahtarının yeri, çalıştırıcı
+    servis tanımı, kuyruk / zamanlayıcıyı durdurup başlatmak için dar `sudo`
+    kuralı, inceleme için salt okunur veritabanı rolü.
+  - Ayrı **doğrulama** kipi (`--denetle`): hiçbir şey değiştirmeden kurulumun
+    durumunu raporlar.
+  - Betik bu görevde **sunucuda çalıştırılmaz**; yazılır ve incelenir.
+    Çalıştırılması BY-025'te, onu kullanacak kodla birlikte ve kullanıcı
+    talimatıyla olur (§1.3 madde 8).
 - **Kabul ölçütleri:**
-  - [ ] README §9'daki her madde bir talep olarak yer alıyor; BY-002 bulgularıyla tutarlı.
-  - [ ] Hangi görevin hangi talebe bağlı olduğu tabloda yazılı.
-- **Canlı:** Yok (doküman).
+  - [ ] README §9'daki her yapılacak madde betikte bir adım; karşılığı olmayan madde yok.
+  - [ ] Betik iki kez çalıştırılınca ikincisi hata vermiyor ve bir şeyi değiştirmiyor.
+  - [ ] Şifre, parola ya da anahtar betiğe ve repoya yazılmıyor.
+  - [ ] Lokal bir ortamda (WSL ya da geçici kullanıcılarla) denendi; `--denetle` sonucu raporlandı.
+  - [ ] Geri alma adımları (kurulumu kaldırma) dokümante.
+- **Canlı:** Hayır — çalıştırılması BY-025'te.
 - **İnceleme günlüğü:** —
 
 ---
@@ -896,8 +931,8 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 - **Durum:** YAPILACAK · **Bağımlı:** BY-020
 - **Tasarım:** README §4.6
-- **Ön koşul:** Kullanıcı bu hedefleri istiyorsa; NAS için bilgi işlemin
-  paylaşımı sunucuya bağlaması; S3 için bağımlılık onayı.
+- **Ön koşul:** Kullanıcı bu hedefleri istiyorsa; NAS için ağdaki paylaşımın
+  sunucuya bağlanması (`admin` + `sudo`); S3 için bağımlılık onayı.
 - **Kapsam:** NAS (sunucuya bağlanmış klasör; "bağlı mı" denetimi) ve S3 uyumlu
   bağlayıcı (silinmeye karşı koruma destekleniyorsa bilgi olarak gösterilir).
 - **Kabul ölçütleri:**
@@ -930,10 +965,10 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 - **Durum:** YAPILACAK · **Bağımlı:** BY-003, BY-013
 - **Tasarım:** README §5.2 (servis hesabı, imza anahtarı, isteğe güvenmeme), §5.5, §9
-- **Ön koşul:** Bilgi işlem servis hesabını, yetkileri ve servis tanımını
-  sağladı (BY-003). Sağlanmadıysa `BEKLIYOR`.
+- **Ön koşul:** BY-003 kurulum betiği `PASSED` ve kullanıcı talimatıyla sunucuda
+  çalıştırıldı (`admin` + `sudo`). Çalıştırılmadıysa `BEKLIYOR`.
 - **Kapsam:** İstek klasörü (web yazar, çalıştırıcı okur); çalıştırıcı komutu
-  ve servis tanım dosyası (repoda, kurulumu bilgi işlem yapar); isteğin
+  ve servis tanım dosyası (repoda; kurulumu BY-003 betiğiyle); isteğin
   yetkisinin çalıştırıcıda yeniden doğrulanması; yedek almanın ve imza
   anahtarının servis hesabına taşınması; web sürecinin yedek klasörünü yalnız okuması.
 - **Kabul ölçütleri:**
@@ -941,7 +976,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - [ ] Yetkisiz kullanıcı adına yazılmış istek dosyası çalıştırıcıda reddediliyor (test).
   - [ ] Bozuk / kötü niyetli istek dosyası (yol kaçışı, beklenmeyen alan) reddediliyor (test).
   - [ ] Geçiş: eski (uygulama kullanıcısıyla alınmış) yedekler listede kalıyor.
-- **Canlı:** Evet (bilgi işlemle birlikte).
+- **Canlı:** Evet (BY-003 betiğinin çalıştırılmasıyla birlikte; kullanıcı talimatıyla).
 - **İnceleme günlüğü:** —
 
 ### BY-026 — Geri yükleme çekirdeği: farklı ada + sınama geri yüklemesi
@@ -1082,10 +1117,10 @@ README §13'teki kararların hangi görevi beklettiği:
 | Bağımlılık onayları (FTP, Google Drive, SFTP, S3 paketleri) | BY-020 – BY-023 |
 | Yurt dışı bulut ve KVKK teyidi (3, 16) | BY-021 |
 | `.env` / `APP_KEY` ve kurtarma paketinin yeri (5, 13) | BY-024 |
-| Servis hesabı, yetki matrisi, servis tanımı — bilgi işlem (9, 12) | BY-025 ve sonrası |
+| Sunucu kurulum betiğinin çalıştırılması — `admin` + `sudo`, kullanıcı talimatı (9, 12 kapandı) | BY-025 ve sonrası |
 | Kopyaların bekleme süresi (10); inceleyecek kişiler (17) | BY-027 |
 | Üstüne geri yüklemeyi kimler yapar, ikinci onay (8) | BY-030 |
 | Veri kaybı / ayağa kalkma hedefleri (1), varsayılan planlar (2) | BY-017 (varsayılanlar) |
 | Hazır paket kullanımı (18) | BY-007'den önce; karar yoksa README §15 önerisi geçerli |
 
-Bilgi işlem gecikirse Faz 1–3 beklemeden ilerler; Faz 4 `BEKLIYOR` olur.
+Sunucu kurulumu yapılmadıysa Faz 1–3 beklemeden ilerler; Faz 4 `BEKLIYOR` olur.
