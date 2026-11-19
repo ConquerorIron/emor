@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import '@/i18n/i18n'
@@ -16,6 +16,9 @@ const api = vi.hoisted(() => ({
   guncelle: vi.fn(),
   sina: vi.fn(),
   aktifYap: vi.fn(),
+  protelGuncelle: vi.fn(),
+  protelSina: vi.fn(),
+  protelAktifYap: vi.fn(),
 }))
 
 vi.mock('@/features/ayarlar/entegratorApi', () => ({
@@ -23,6 +26,9 @@ vi.mock('@/features/ayarlar/entegratorApi', () => ({
   entegratorBaglantiGuncelle: api.guncelle,
   entegratorBaglantiSina: api.sina,
   entegratorAktifOrtamDegistir: api.aktifYap,
+  protelBaglantiGuncelle: api.protelGuncelle,
+  protelBaglantiSina: api.protelSina,
+  protelAktifOrtamDegistir: api.protelAktifYap,
 }))
 
 const TEST_TANIMI = {
@@ -54,6 +60,7 @@ function veri(degisen: Partial<EntegratorBaglantilar> = {}): EntegratorBaglantil
       test: 'https://apitest.izibiz.com.tr',
       canli: 'https://api.izibiz.com.tr',
     },
+    protel: { test: null, canli: null, aktif_ortam: null, modul_aktif: false },
     ...degisen,
   }
 }
@@ -289,5 +296,74 @@ describe('EntegratorBaglantilariPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Entegratör kullanıcı adı veya şifresi hatalı.',
     )
+  })
+
+  describe('Protel bölümü (PRT-03, PRT-05)', () => {
+    const protelFormu = () => screen.getByRole('form', { name: 'Protel Test tanımı' })
+
+    it('tanımı yalnız kullanıcı, şifre ve VKN ile kaydeder', async () => {
+      api.protelGuncelle.mockResolvedValue({ ...TEST_TANIMI, saglayici: 'protel' })
+      ciz()
+      await screen.findByDisplayValue('deneme-kullanici')
+      const form = protelFormu()
+
+      fireEvent.change(within(form).getByLabelText('Kullanıcı (e-posta)'), {
+        target: { value: 'ws@otel.test' },
+      })
+      fireEvent.change(document.getElementById('protel-test-sifre') as HTMLInputElement, {
+        target: { value: 'gizli' },
+      })
+      fireEvent.change(document.getElementById('protel-test-vkn') as HTMLInputElement, {
+        target: { value: '4550357065' },
+      })
+      fireEvent.click(within(form).getByRole('button', { name: 'Kaydet' }))
+
+      await waitFor(() => expect(api.protelGuncelle).toHaveBeenCalledTimes(1))
+      expect(api.protelGuncelle).toHaveBeenCalledWith('test', {
+        kullanici_adi: 'ws@otel.test',
+        sifre: 'gizli',
+        vkn: '4550357065',
+      })
+      expect(api.guncelle).not.toHaveBeenCalled()
+    })
+
+    it('e-posta olmayan kullanıcıyla istek göndermez', async () => {
+      ciz()
+      await screen.findByDisplayValue('deneme-kullanici')
+      const form = protelFormu()
+
+      fireEvent.change(within(form).getByLabelText('Kullanıcı (e-posta)'), {
+        target: { value: 'ws' },
+      })
+      fireEvent.click(within(form).getByRole('button', { name: 'Kaydet' }))
+
+      expect(await within(form).findByText('Geçerli bir e-posta adresi girin.')).toBeInTheDocument()
+      expect(api.protelGuncelle).not.toHaveBeenCalled()
+    })
+
+    it('sınama formdaki değerlerle yapılır ve firmayı gösterir; modül kapalıysa not görünür', async () => {
+      api.protelSina.mockResolvedValue({
+        firma_unvani: 'Deneme Otel A.Ş.',
+        gecerlilik_bitis: '2026-11-20T13:47:16Z',
+      })
+      ciz()
+      await screen.findByDisplayValue('deneme-kullanici')
+      const form = protelFormu()
+
+      expect(screen.getByText(/Protel bağlantısı sunucuda kapalı/)).toBeInTheDocument()
+      fireEvent.change(within(form).getByLabelText('Kullanıcı (e-posta)'), {
+        target: { value: 'ws@otel.test' },
+      })
+      fireEvent.change(document.getElementById('protel-test-vkn') as HTMLInputElement, {
+        target: { value: '4550357065' },
+      })
+      fireEvent.click(within(form).getByRole('button', { name: 'Bağlantıyı Sına' }))
+
+      expect(await within(form).findByText('Giriş başarılı: Deneme Otel A.Ş.')).toBeInTheDocument()
+      expect(api.protelSina).toHaveBeenCalledWith('test', {
+        kullanici_adi: 'ws@otel.test',
+        vkn: '4550357065',
+      })
+    })
   })
 })

@@ -26,6 +26,8 @@ import {
 } from '@/features/ayarlar/entegratorApi'
 import { useIzin } from '@/hooks/useIzin'
 
+import { ProtelBolumu } from './ProtelBolumu'
+
 const URN_ONEKI = 'urn:mail:'
 
 // Yalnız https://alan-adı[:port] — izinli alan adı listesi backend'de denetlenir
@@ -576,6 +578,8 @@ export function EntegratorBaglantilariPage() {
               varsayilanAdres={baglantilar.data.varsayilan_api_url.canli}
             />
           </div>
+
+          <ProtelBolumu veri={baglantilar.data.protel} />
         </fieldset>
       ) : null}
     </>

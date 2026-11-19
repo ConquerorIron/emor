@@ -78,7 +78,7 @@ describe('RollerPage', () => {
     expect(await screen.findByText('Muhasebe')).toBeInTheDocument()
     expect(
       await screen.findByText(
-        'e-Faturalar (Gelen/Giden): Görüntüle (e-Fatura PDF/XML görüntüleme)',
+        'İzibiz e-Faturaları (Gelen/Giden): Görüntüle (e-Fatura PDF/XML görüntüleme)',
       ),
     ).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
@@ -186,7 +186,7 @@ describe('RollerPage', () => {
 
     fireEvent.change(arama, { target: { value: 'pdf' } })
     expect(
-      within(dialog).getByRole('switch', { name: 'e-Faturalar (Gelen/Giden) — Görüntüle' }),
+      within(dialog).getByRole('switch', { name: 'İzibiz e-Faturaları (Gelen/Giden) — Görüntüle' }),
     ).toBeInTheDocument()
     expect(within(dialog).queryByRole('button', { name: 'Ayarlar' })).not.toBeInTheDocument()
 
@@ -218,7 +218,7 @@ describe('RollerPage', () => {
     expect(pdf).toBeChecked()
 
     fireEvent.click(
-      within(dialog).getByRole('switch', { name: 'e-Faturalar (Gelen/Giden) — Görüntüle' }),
+      within(dialog).getByRole('switch', { name: 'İzibiz e-Faturaları (Gelen/Giden) — Görüntüle' }),
     )
     expect(pdf).not.toBeChecked()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))

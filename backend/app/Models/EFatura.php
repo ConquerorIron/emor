@@ -12,7 +12,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * İzibiz'den okunan e-Fatura özeti (EFAT-10). Kayıtlar yalnız senkron servisi
+ * Entegratörden (İzibiz ya da Protel — tanımın sağlayıcısı) okunan e-Fatura
+ * özeti (EFAT-10, PRT-06). Kayıtlar yalnız senkron servisi
  * tarafından upsert edilir; ekrandan yalnız gizleme alanları değişir (senkron
  * bunlara dokunmaz).
  *
@@ -28,6 +29,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property EmorDurumu|null $emor_durumu ERP'deki aşama (null: henüz kontrol edilmedi)
  * @property CarbonImmutable|null $gizlenme_zamani null: listede görünür
  * @property int|null $gizleyen_id
+ * @property string|null $erp_durumu Protel `erpStatus` (İzibiz'de null)
+ * @property bool|null $yazdirildi Protel `isPrinted` (İzibiz'de null)
  */
 final class EFatura extends Model
 {
@@ -73,6 +76,7 @@ final class EFatura extends Model
             'okundu' => 'boolean',
             'siparis_tarihi' => 'immutable_date',
             'harici_aktarim' => 'boolean',
+            'yazdirildi' => 'boolean',
             'izibiz_ubl_okundu' => 'immutable_datetime',
             'izibiz_ubl_son_deneme' => 'immutable_datetime',
             'izibiz_ubl_hata' => 'integer',

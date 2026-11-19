@@ -55,6 +55,10 @@ export interface EFatura {
   teslim_ref: string | null
   harici_aktarim: boolean | null
   mail_durumu: string | null
+  /** Protel `erpStatus` (New, Booked, Cancelled…) — İzibiz'de null; yalnız gösterilir */
+  erp_durumu: string | null
+  /** Protel `isPrinted` — İzibiz'de null; PDF yalnız true iken açılır */
+  yazdirildi: boolean | null
   /** Listede gizlendi mi (bize ait değil — ör. yanlış posta kutusu); silinmez */
   gizli: boolean
   gizlenme_zamani: string | null

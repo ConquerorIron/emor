@@ -17,6 +17,7 @@ use App\Services\Entegrator\FaturaBelgeServisi;
 use App\Services\Entegrator\FaturaYonu;
 use App\Services\EntegratorBaglantiServisi;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -25,9 +26,11 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 /**
  * e-Fatura listeleri, Excel çıktısı, PDF görüntüleme ve UBL XML indirme (EFAT-11).
  *
- * Kapsam her zaman AKTİF entegratör tanımıdır: başka ortamın faturası
+ * Kapsam her zaman rotanın sağlayıcısının (İzibiz; Protel rotalarında Protel —
+ * PRT-12) AKTİF tanımıdır: başka sağlayıcının ya da ortamın faturası
  * listelenmez ve PDF'i açılmaz (404 — varlığı da açık edilmez).
- * Yetkiler rota middleware'inde (`can:efatura.*`).
+ * Yetkiler rota middleware'inde (`can:efatura.*`, `can:protel_faturalari.*`).
+ * XML ve gizleme yalnız İzibiz rotalarındadır.
  */
 final class EFaturaController extends Controller
 {
@@ -38,7 +41,7 @@ final class EFaturaController extends Controller
 
     public function index(EFaturaListeRequest $request, string $yon): JsonResponse
     {
-        $tanim = $this->aktifTanim();
+        $tanim = $this->aktifTanim($request);
         $faturaYonu = FaturaYonu::from($yon);
         $filtre = $request->filtre();
 
@@ -58,7 +61,7 @@ final class EFaturaController extends Controller
 
     public function excel(EFaturaListeRequest $request, string $yon, EFaturaExcelAktarici $aktarici): BinaryFileResponse|JsonResponse
     {
-        $tanim = $this->aktifTanim();
+        $tanim = $this->aktifTanim($request);
         $faturaYonu = FaturaYonu::from($yon);
         $filtre = $request->filtre();
 
@@ -101,7 +104,8 @@ final class EFaturaController extends Controller
             'adet' => $adet,
         ]);
 
-        $ad = sprintf('efatura-%s-%s-%s.xlsx', $faturaYonu->value, $filtre['baslangic'], $filtre['bitis']);
+        $onEk = $tanim->saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL ? 'protel' : 'efatura';
+        $ad = sprintf('%s-%s-%s-%s.xlsx', $onEk, $faturaYonu->value, $filtre['baslangic'], $filtre['bitis']);
 
         return response()
             ->download($yol, $ad, [
@@ -116,9 +120,9 @@ final class EFaturaController extends Controller
      * (saklanmaz). Bearer token ve İzibiz adresi tarayıcıya gitmez; yalnız
      * PDF gövdesi ve kaynağı (X-Belge-Kaynagi: erp|entegrator) döner.
      */
-    public function pdf(int $fatura, FaturaBelgeServisi $belgeler): Response
+    public function pdf(Request $request, int $fatura, FaturaBelgeServisi $belgeler): Response
     {
-        $tanim = $this->aktifTanim();
+        $tanim = $this->aktifTanim($request);
         $kayit = $this->aktifHesabinFaturasi($tanim, $fatura);
         ['icerik' => $pdf, 'kaynak' => $kaynak] = $belgeler->pdf($tanim, $kayit);
 
@@ -135,9 +139,9 @@ final class EFaturaController extends Controller
      * UBL XML — PDF ile aynı kaynak sırası. Tarayıcıda çizilmesin diye her
      * zaman ek (attachment) olarak ve betik çalıştırmayan CSP ile döner.
      */
-    public function xml(int $fatura, FaturaBelgeServisi $belgeler): Response
+    public function xml(Request $request, int $fatura, FaturaBelgeServisi $belgeler): Response
     {
-        $tanim = $this->aktifTanim();
+        $tanim = $this->aktifTanim($request);
         $kayit = $this->aktifHesabinFaturasi($tanim, $fatura);
         ['icerik' => $xml, 'kaynak' => $kaynak] = $belgeler->xml($tanim, $kayit);
 
@@ -158,7 +162,7 @@ final class EFaturaController extends Controller
      */
     public function gizle(EFaturaGizlemeRequest $request, int $fatura): EFaturaResource
     {
-        $kayit = $this->aktifHesabinFaturasi($this->aktifTanim(), $fatura);
+        $kayit = $this->aktifHesabinFaturasi($this->aktifTanim($request), $fatura);
 
         // Yanlış posta kutusu yalnız gelen faturada olur; giden gizlenmez
         if ($kayit->yon !== FaturaYonu::Gelen->value) {
@@ -223,8 +227,9 @@ final class EFaturaController extends Controller
         };
     }
 
-    private function aktifTanim(): EntegratorBaglanti
+    private function aktifTanim(Request $request): EntegratorBaglanti
     {
-        return $this->baglantilar->aktif() ?? throw EntegratorHatasi::aktifYok();
+        return $this->baglantilar->aktif(EntegratorBaglantiServisi::rotaninSaglayicisi($request))
+            ?? throw EntegratorHatasi::aktifYok();
     }
 }

@@ -15,6 +15,8 @@ import { Pagination } from '@/components/Pagination'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 import { Switch } from '@/components/Switch'
 import { TarihInput } from '@/components/TarihInput'
+import { ILK_TARAMA_TARIHI, LISTE_AZAMI_GUN, tutarGoster } from '@/features/efatura/bicim'
+import { durumIsaretSinifi, durumSatirSinifi } from '@/features/efatura/durumRenkleri'
 import {
   type EFatura,
   type EFaturaFiltresi,
@@ -22,25 +24,27 @@ import {
   type EmorFiltresi,
   type ErpOkunduFiltresi,
   type FaturaYonu,
-  type ParaBirimiOzeti,
   excelIndir,
   type ExcelKolonu,
   faturalariGetir,
+  pdfGetir,
+  senkronBaslat,
   senkronDurumuGetir,
+  xmlIndir,
 } from '@/features/efatura/efaturaApi'
+import { EvetHayirRozeti, Metin, OzetKartlari } from '@/features/efatura/ListeParcalari'
+import { PdfGoruntuleyici } from '@/features/efatura/PdfGoruntuleyici'
+import { SenkronDurumuPaneli } from '@/features/efatura/SenkronDurumuPaneli'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useIzin } from '@/hooks/useIzin'
 import { useKaliciSiralama } from '@/hooks/useKaliciSiralama'
 import { useKolonGorunurlugu } from '@/hooks/useKolonGorunurlugu'
 import { bugunIso, gunFarki, tarihGoster, zamanGoster } from '@/utils/tarih'
 
+import { ErpSenkronDugmesi } from './ErpSenkronDugmesi'
 import { FaturaDetayi } from './FaturaDetayi'
 import { GizlemeDugmesi } from './GizlemeDugmesi'
-import { ILK_TARAMA_TARIHI, LISTE_AZAMI_GUN, tutarGoster } from './bicim'
-import { durumIsaretSinifi, durumSatirSinifi } from './durumRenkleri'
 import { istisnaKoduFarkli } from './istisna'
-import { PdfGoruntuleyici } from './PdfGoruntuleyici'
-import { SenkronDurumuPaneli } from './SenkronDurumuPaneli'
 
 const BOS_FILTRE: Omit<EFaturaFiltresi, 'bitis'> = {
   baslangic: ILK_TARAMA_TARIHI,
@@ -86,70 +90,6 @@ function aralikHatasi(baslangic: string, bitis: string): string | null {
   }
 
   return fark + 1 > LISTE_AZAMI_GUN ? 'efatura.dogrulama.cokGenis' : null
-}
-
-function OzetKartlari({ ozet, toplam }: { ozet: ParaBirimiOzeti[]; toplam: number }) {
-  const { t } = useTranslation()
-
-  return (
-    <div className="flex flex-wrap gap-3" aria-label={t('efatura.ozetBaslik')}>
-      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
-        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-          {t('efatura.toplamFatura')}
-        </p>
-        <p className="text-lg font-bold">{toplam.toLocaleString('tr-TR')}</p>
-      </div>
-      {ozet.map((grup) => (
-        <div
-          key={grup.para_birimi}
-          className="rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900"
-        >
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-            {t('efatura.ozetGrup', { para: grup.para_birimi, adet: grup.adet })}
-          </p>
-          <p className="text-lg font-bold tabular-nums">
-            {tutarGoster(grup.tutar)} {grup.para_birimi}
-          </p>
-          <p className="text-xs text-slate-500 tabular-nums dark:text-slate-400">
-            {t('efatura.ozetVergi', { tutar: tutarGoster(grup.vergi_tutari) })}
-          </p>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-/** Tablo hücresi metni: boşsa "—", uzunsa kısaltılır, tamamı üzerine gelince görünür. */
-function Metin({ deger, genis = false }: { deger: string | null; genis?: boolean }) {
-  if (deger === null || deger === '') {
-    return <span className="text-slate-400">—</span>
-  }
-
-  return (
-    <span className={`block truncate ${genis ? 'max-w-xs' : 'max-w-[12rem]'}`} title={deger}>
-      {deger}
-    </span>
-  )
-}
-
-function ErpRozeti({ deger }: { deger: boolean | null }) {
-  const { t } = useTranslation()
-
-  if (deger === null) {
-    return <span className="text-slate-400">—</span>
-  }
-
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-        deger
-          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-          : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-      }`}
-    >
-      {deger ? t('efatura.evet') : t('efatura.hayir')}
-    </span>
-  )
 }
 
 const EMOR_ROZETLERI: Record<Exclude<EmorDurumu, 'yok'>, string> = {
@@ -237,6 +177,7 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
   const pdfIzni = useIzin('efatura.pdf')
   const excelIzni = useIzin('efatura.disari_aktar')
   const gizlemeIzni = useIzin('efatura.gizle')
+  const senkronIzni = useIzin('efatura.senkron')
 
   const [filtre, setFiltre] = useState<EFaturaFiltresi>(() => ({
     ...BOS_FILTRE,
@@ -340,7 +281,7 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
       baslik: t('efatura.alan.erpOkundu'),
       siralamaAnahtari: 'erp_okundu',
       hizala: 'orta',
-      render: (f) => <ErpRozeti deger={f.erp_okundu} />,
+      render: (f) => <EvetHayirRozeti deger={f.erp_okundu} />,
     },
     // ERP'deki aşama (gelen: havuz TOHOM_E_FATURA → muhasebe TOHOM_FATURA; giden: gönderilen listesi)
     {
@@ -664,7 +605,18 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
       </div>
 
       <div className="mt-4">
-        {durum.data ? <SenkronDurumuPaneli yon={yon} durum={durum.data} /> : null}
+        {durum.data ? (
+          <SenkronDurumuPaneli
+            yon={yon}
+            durum={durum.data}
+            senkronIzni={senkronIzni}
+            senkronBaslat={senkronBaslat}
+            durumAnahtari={queryKeys.efatura.durum}
+            kapaliMesaji={t('efatura.senkronKapali')}
+          >
+            <ErpSenkronDugmesi yon={yon} />
+          </SenkronDurumuPaneli>
+        ) : null}
         {durum.isError ? (
           // Güncellik bilinmiyorsa liste güncel sanılmasın
           <ErrorState mesaj={t('efatura.durumAlinamadi')} tekrarDene={() => void durum.refetch()} />
@@ -880,7 +832,9 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
             }
           />
         ) : null}
-        {pencere?.tur === 'pdf' ? <PdfGoruntuleyici fatura={pencere.fatura} /> : null}
+        {pencere?.tur === 'pdf' ? (
+          <PdfGoruntuleyici fatura={pencere.fatura} pdfGetir={pdfGetir} xmlIndir={xmlIndir} />
+        ) : null}
       </Modal>
     </>
   )

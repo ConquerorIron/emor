@@ -32,6 +32,8 @@ return [
     'entegrator_vkn_gecersiz' => 'VKN 10, TCKN 11 haneli olmalı ve yalnız rakam içermelidir.',
     'entegrator_urn_gecersiz' => 'Etiket "urn:mail:" ile başlamalıdır.',
     'entegrator_aktif_yok' => 'Aktif entegratör ortamı seçilmemiş. Ayarlar → Entegratör Bağlantıları ekranından Test veya Canlı ortamı aktif edin.',
+    'protel_kapali' => 'Protel bağlantısı kapalı (sunucu ayarı PROTEL_AKTIF). Protel\'e istek gönderilmedi.',
+    'protel_pdf_yazdirilmamis' => 'Bu faturanın PDF\'i açılamıyor: fatura Protel\'de henüz yazdırılmamış görünüyor. Protel\'deki durumu değiştirmemek için PDF yalnız yazdırılmış faturalarda açılır.',
     'entegrator_erisilemedi' => 'Entegratöre ulaşılamadı. Ağ bağlantısını kontrol edip tekrar deneyin.',
     'entegrator_kimlik_hatali' => 'Entegratör kullanıcı adı veya şifresi hatalı.',
     'entegrator_yanit_gecersiz' => 'Entegratörden beklenmeyen bir yanıt geldi.',

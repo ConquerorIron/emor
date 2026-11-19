@@ -47,7 +47,7 @@ final class EFaturaListeRequest extends FormRequest
             'page' => ['nullable', 'integer', 'min:1'],
             'sayfa_boyutu' => ['nullable', 'integer', Rule::in([0, 25, 50, 100, 200])],
             // Excel: ekrandaki görünür kolonlar ve başlıkları, aynı sırada
-            'kolonlar' => [Rule::requiredIf(fn (): bool => $this->routeIs('efatura.faturalar.excel')), 'array', 'max:'.count(EFaturaExcelAktarici::KOLONLAR)],
+            'kolonlar' => [Rule::requiredIf(fn (): bool => $this->routeIs('efatura.faturalar.excel', 'protel.faturalar.excel')), 'array', 'max:'.count(EFaturaExcelAktarici::KOLONLAR)],
             'kolonlar.*' => ['string', 'distinct', Rule::in(array_keys(EFaturaExcelAktarici::KOLONLAR))],
             'basliklar' => ['required_with:kolonlar', 'array', 'size:'.count((array) $this->input('kolonlar', []))],
             'basliklar.*' => ['required', 'string', 'max:100'],

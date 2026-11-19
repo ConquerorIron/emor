@@ -58,6 +58,19 @@ export const router = createBrowserRouter([
         ],
       },
       {
+        // Protel Gelen Faturalar — otelin posta kutusu (PRT-12); ayrı izin
+        element: <IzinAlani izin="protel_faturalari.goruntule" />,
+        children: [
+          {
+            path: 'efatura/protel',
+            lazy: async () => ({
+              Component: (await import('@/pages/ProtelFaturalari/ProtelFaturalariPage'))
+                .ProtelFaturalariPage,
+            }),
+          },
+        ],
+      },
+      {
         element: <IzinAlani izin="kesinti_turleri.goruntule" />,
         children: [
           {

@@ -24,6 +24,15 @@ enum Izin: string
     case EfaturaSenkron = 'efatura.senkron';
     case EfaturaGizle = 'efatura.gizle';
 
+    /**
+     * Protel Gelen Faturalar — otelin posta kutusu (PRT-10). e-Fatura'dan ayrı
+     * izinler (kullanıcı kararı); "güncelle"si elle senkrondur.
+     */
+    case ProtelFaturalariGoruntule = 'protel_faturalari.goruntule';
+    case ProtelFaturalariSenkron = 'protel_faturalari.senkron';
+    case ProtelFaturalariPdf = 'protel_faturalari.pdf';
+    case ProtelFaturalariDisariAktar = 'protel_faturalari.disari_aktar';
+
     case KesintiTurleriGoruntule = 'kesinti_turleri.goruntule';
     case KesintiTurleriGuncelle = 'kesinti_turleri.guncelle';
 
@@ -151,6 +160,7 @@ enum Izin: string
         return [
             $ekran('satinalma_talebi', self::SatinalmaTalebiGoruntule, self::SatinalmaTalebiGuncelle),
             $ekran('efatura', self::EfaturaGoruntule, self::EfaturaSenkron, self::EfaturaPdf, self::EfaturaDisariAktar, self::EfaturaGizle),
+            $ekran('protel_faturalari', self::ProtelFaturalariGoruntule, self::ProtelFaturalariSenkron, self::ProtelFaturalariPdf, self::ProtelFaturalariDisariAktar),
             // Kesinti Yönetimi grubu: menüdeki gibi önce raporlar
             $ekran('kesinti_ozeti', self::KesintiOzetiGoruntule, null),
             $ekran('pivot', self::PivotGoruntule, null),

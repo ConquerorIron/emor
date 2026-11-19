@@ -40,3 +40,16 @@ Schedule::command('efatura:senkron --gun=45')
     ->dailyAt('03:15')
     ->timezone('Europe/Istanbul')
     ->withoutOverlapping(120);
+
+// Protel — otelin posta kutusu (PRT-08). PROTEL_AKTIF kapalıyken ya da aktif
+// Protel tanımı yokken komut istek göndermeden çıkar. İzibiz'le aynı düzen:
+// artımlı son 10 gün (Protel'e ulaşma tarihi), tek istek; gece durum tazeleme
+// (ERP durumu / yazdırıldı / kabul-red) son 45 gün, ay başına tek istek.
+Schedule::command('efatura:senkron --saglayici=protel --gun=10 --tarih-turu=DELIVERY --aralik-denetimi')
+    ->everyMinute()
+    ->withoutOverlapping(60);
+
+Schedule::command('efatura:senkron --saglayici=protel --gun=45')
+    ->dailyAt('03:30')
+    ->timezone('Europe/Istanbul')
+    ->withoutOverlapping(120);

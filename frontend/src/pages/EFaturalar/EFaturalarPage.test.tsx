@@ -78,6 +78,8 @@ const FATURA: EFatura = {
   teslim_ref: null,
   harici_aktarim: null,
   mail_durumu: null,
+  erp_durumu: null,
+  yazdirildi: null,
   emor_durumu: 'islendi',
   vergi_istisna_kodu: '318',
   izibiz_istisna_kodu: '351',

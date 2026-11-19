@@ -1,23 +1,19 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { type QueryKey, useMutation, useQueryClient } from '@tanstack/react-query'
+import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { apiErrorKey, dogrulamaMesaji } from '@/api/errors'
-import { queryKeys } from '@/api/queryKeys'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
 import { TarihInput } from '@/components/TarihInput'
-import {
-  type FaturaYonu,
-  type SenkronDurumu,
-  erpSenkronla,
-  senkronBaslat,
-} from '@/features/efatura/efaturaApi'
-import { useIzin } from '@/hooks/useIzin'
+import type { FaturaYonu, SenkronDurumu } from '@/features/efatura/efaturaApi'
 import { bugunIso, gunEkle, gunFarki, tarihGoster, zamanGoster } from '@/utils/tarih'
 
 import { ILK_TARAMA_TARIHI, MANUEL_AZAMI_GUN } from './bicim'
+
+/** Elle senkronun ekrana göre değişen kısmı (İzibiz / Protel uçları) */
+type SenkronBaslatici = (aralik: { baslangic: string; bitis: string }) => Promise<void>
 
 type Ton = 'bilgi' | 'uyari' | 'hata'
 
@@ -62,7 +58,15 @@ function aralikHatasi(baslangic: string, bitis: string): string | null {
   return null
 }
 
-function SenkronFormu({ kapat }: { kapat: () => void }) {
+function SenkronFormu({
+  kapat,
+  senkronBaslat,
+  durumAnahtari,
+}: {
+  kapat: () => void
+  senkronBaslat: SenkronBaslatici
+  durumAnahtari: QueryKey
+}) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const bugun = bugunIso()
@@ -79,7 +83,7 @@ function SenkronFormu({ kapat }: { kapat: () => void }) {
     mutationFn: () => senkronBaslat({ baslangic, bitis }),
     onSuccess: async () => {
       toast.success(t('efatura.senkron.kuyruga'))
-      await queryClient.invalidateQueries({ queryKey: queryKeys.efatura.durum })
+      await queryClient.invalidateQueries({ queryKey: durumAnahtari })
       kapat()
     },
     onError: (error: unknown) => {
@@ -137,44 +141,31 @@ function SenkronFormu({ kapat }: { kapat: () => void }) {
 }
 
 /**
- * "ERP Senkronla": bu yönün eMOR kolonunu hemen tazeler — ERP'deki faturalar
- * (gelen: TOHOM_FATURA, giden: gönderilen e-fatura listesi) ile entegratör
- * ETTN'leri eşleştirilir. Aynı iş 5 dakikada bir kendiliğinden de çalışır.
- */
-function ErpSenkronDugmesi({ yon }: { yon: FaturaYonu }) {
-  const { t } = useTranslation()
-  const queryClient = useQueryClient()
-
-  const eslestir = useMutation({
-    mutationFn: () => erpSenkronla(yon),
-    onSuccess: async (sonuc) => {
-      toast.success(t('efatura.erpSenkron.tamam', { ...sonuc }))
-      await queryClient.invalidateQueries({ queryKey: queryKeys.efatura.yonListeleri(yon) })
-    },
-    onError: (error: unknown) => {
-      toast.error(dogrulamaMesaji(error) ?? t(apiErrorKey(error)))
-    },
-  })
-
-  return (
-    <Button
-      variant="secondary"
-      onClick={() => eslestir.mutate()}
-      yukleniyor={eslestir.isPending}
-      title={t('efatura.erpSenkron.aciklama')}
-    >
-      {t('efatura.erpSenkron.ac')}
-    </Button>
-  )
-}
-
-/**
  * Verinin nereden (Test/Canlı) ve ne zamana kadar geldiğini gösterir; eski
  * veri "güncel" gibi sunulmaz. Senkron hataları iş verisinden ayrı gösterilir.
+ * Ekrana özgü düğmeler (İzibiz: "ERP Senkronla") `children` olarak verilir.
  */
-export function SenkronDurumuPaneli({ yon, durum }: { yon: FaturaYonu; durum: SenkronDurumu }) {
+export function SenkronDurumuPaneli({
+  yon,
+  durum,
+  senkronIzni,
+  senkronBaslat,
+  durumAnahtari,
+  kapaliMesaji,
+  children,
+}: {
+  yon: FaturaYonu
+  durum: SenkronDurumu
+  /** Elle senkron düğmeleri bu izinle görünür */
+  senkronIzni: boolean
+  senkronBaslat: SenkronBaslatici
+  /** Senkron kuyruğa alınınca tazelenecek durum sorgusu */
+  durumAnahtari: QueryKey
+  /** `senkron_aktif` false iken gösterilen uyarı */
+  kapaliMesaji: string
+  children?: ReactNode
+}) {
   const { t } = useTranslation()
-  const senkronIzni = useIzin('efatura.senkron')
   const [formAcik, setFormAcik] = useState(false)
 
   const yonDurumu = durum.yonler?.[yon] ?? null
@@ -208,12 +199,12 @@ export function SenkronDurumuPaneli({ yon, durum }: { yon: FaturaYonu; durum: Se
             >
               {t('efatura.senkron.ac')}
             </Button>
-            <ErpSenkronDugmesi yon={yon} />
+            {children}
           </div>
         ) : null}
       </div>
 
-      {!durum.senkron_aktif ? <Mesaj ton="uyari">{t('efatura.senkronKapali')}</Mesaj> : null}
+      {!durum.senkron_aktif ? <Mesaj ton="uyari">{kapaliMesaji}</Mesaj> : null}
 
       {yonDurumu !== null && !yonDurumu.guncel ? (
         <Mesaj ton="uyari">{t('efatura.guncelDegil')}</Mesaj>
@@ -244,7 +235,13 @@ export function SenkronDurumuPaneli({ yon, durum }: { yon: FaturaYonu; durum: Se
       ) : null}
 
       <Modal acik={formAcik} kapat={() => setFormAcik(false)} baslik={t('efatura.senkron.baslik')}>
-        {formAcik ? <SenkronFormu kapat={() => setFormAcik(false)} /> : null}
+        {formAcik ? (
+          <SenkronFormu
+            kapat={() => setFormAcik(false)}
+            senkronBaslat={senkronBaslat}
+            durumAnahtari={durumAnahtari}
+          />
+        ) : null}
       </Modal>
     </section>
   )

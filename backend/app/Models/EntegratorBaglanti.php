@@ -40,6 +40,12 @@ final class EntegratorBaglanti extends Model
 
     public const SAGLAYICI_IZIBIZ = 'izibiz';
 
+    /**
+     * Otelin posta kutusu (docs/protel). Yalnız okunur; adresi ekrandan
+     * değiştirilemez (`api_url` her zaman null, adres config'ten).
+     */
+    public const SAGLAYICI_PROTEL = 'protel';
+
     public const ORTAM_TEST = 'test';
 
     public const ORTAM_CANLI = 'canli';
@@ -84,10 +90,23 @@ final class EntegratorBaglanti extends Model
     /** @var list<string> */
     protected $hidden = ['sifre'];
 
-    /** Kullanılan adres: tanımlanmışsa o, değilse ortamın varsayılanı. */
+    /**
+     * Kullanılan adres: tanımlanmışsa o, değilse ortamın varsayılanı. Protel'de
+     * kayıtlı adres hiç kullanılmaz (yalnız config'teki sabit adres).
+     */
     public function apiUrl(): string
     {
+        if ($this->saglayici === self::SAGLAYICI_PROTEL) {
+            return $this->varsayilanApiUrl();
+        }
+
         return $this->api_url ?? $this->varsayilanApiUrl();
+    }
+
+    /** Protel'in giriş (token) sunucusu — fatura sunucusundan ayrıdır. */
+    public function authUrl(): string
+    {
+        return (string) config("entegrator.{$this->saglayici}.ortamlar.{$this->ortam}.auth_url");
     }
 
     public function varsayilanApiUrl(): string

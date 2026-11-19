@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import type { EFatura } from '@/features/efatura/efaturaApi'
 import { tarihGoster, zamanGoster } from '@/utils/tarih'
 
-import { tutarGoster } from './bicim'
+import { tutarGoster } from '@/features/efatura/bicim'
 import { istisnaKoduFarkli } from './istisna'
 
 function Satir({ etiket, children }: { etiket: string; children: ReactNode }) {

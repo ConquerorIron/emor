@@ -16,12 +16,8 @@ use InvalidArgumentException;
  * Sözleşme (docs/izibiz/api-notlari.md): `GET /v1/einvoices/{inbox|outbox}`,
  * `startDate`/`endDate` dahil, `page` 0'dan, `data.pageable.totalElements`.
  */
-final class IzibizFaturaKaynagi
+final class IzibizFaturaKaynagi implements FaturaKaynagi
 {
-    public const TARIH_BELGE = 'DOCUMENT';
-
-    public const TARIH_ULASMA = 'DELIVERY';
-
     public function __construct(
         private readonly IzibizIstemcisi $istemci,
     ) {}

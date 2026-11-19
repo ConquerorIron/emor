@@ -113,6 +113,8 @@ final class EntegratorBaglantiTest extends TestCase
                     'test' => 'https://apitest.izibiz.com.tr',
                     'canli' => 'https://api.izibiz.com.tr',
                 ],
+                // Protel varsayılan KAPALI (PROTEL_AKTIF tanımsız)
+                'protel' => ['test' => null, 'canli' => null, 'aktif_ortam' => null, 'modul_aktif' => false],
             ]]);
     }
 

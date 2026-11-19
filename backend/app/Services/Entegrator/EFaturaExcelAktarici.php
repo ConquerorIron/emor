@@ -62,6 +62,9 @@ final class EFaturaExcelAktarici
         'ettn' => ['metin', 38],
         'senaryo' => ['metin', 18],
         'vergi_tutari' => ['tutar', 14],
+        // Protel ekranı (PRT-12)
+        'erp_durumu' => ['metin', 14],
+        'yazdirildi' => ['metin', 10],
     ];
 
     /**
@@ -166,6 +169,11 @@ final class EFaturaExcelAktarici
                 null => null,
             }],
             'emor' => ['metin', $f->emor_durumu === null ? null : __('efatura.emor.'.$f->emor_durumu->value)],
+            'yazdirildi' => ['metin', match ($f->yazdirildi) {
+                true => __('efatura.evet'),
+                false => __('efatura.hayir'),
+                null => null,
+            }],
             'belge_tarihi' => ['tarih', $f->belge_tarihi],
             'karsi_vkn' => ['metin', $f->getAttribute($karsi.'_vkn')],
             'karsi_unvan' => ['metin', $f->getAttribute($karsi.'_unvan')],

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\EFatura;
 
+use App\Models\EntegratorBaglanti;
+use App\Services\EntegratorBaglantiServisi;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
@@ -16,7 +18,7 @@ final class EFaturaSenkronRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('efatura.senkron') ?? false;
+        return $this->user()?->can($this->protel() ? 'protel_faturalari.senkron' : 'efatura.senkron') ?? false;
     }
 
     /**
@@ -43,7 +45,7 @@ final class EFaturaSenkronRequest extends FormRequest
 
                 $baslangic = CarbonImmutable::parse((string) $this->input('baslangic'));
                 $bitis = CarbonImmutable::parse((string) $this->input('bitis'));
-                $ilk = (string) config('entegrator.izibiz.ilk_tarama_tarihi');
+                $ilk = (string) config($this->protel() ? 'entegrator.protel.ilk_tarama_tarihi' : 'entegrator.izibiz.ilk_tarama_tarihi');
                 $bugun = CarbonImmutable::now((string) config('entegrator.izibiz.saat_dilimi'))->toDateString();
                 $azami = (int) config('efatura.manuel_azami_gun');
 
@@ -62,5 +64,11 @@ final class EFaturaSenkronRequest extends FormRequest
                 }
             },
         ];
+    }
+
+    /** Protel rotası mı (PRT-12): izin ve ilk tarama tarihi sağlayıcıya göre */
+    private function protel(): bool
+    {
+        return EntegratorBaglantiServisi::rotaninSaglayicisi($this) === EntegratorBaglanti::SAGLAYICI_PROTEL;
     }
 }

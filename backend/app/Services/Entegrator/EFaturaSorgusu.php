@@ -24,7 +24,7 @@ final class EFaturaSorgusu
         'belge_tarihi', 'belge_no', 'tutar', 'karsi_unvan', 'olusturma_zamani',
         'emor', 'erp_okundu', 'karsi_vkn', 'karsi_ad_soyad', 'fatura_tipi', 'para_birimi',
         'irsaliye_no', 'siparis_no', 'durum', 'zarf_durumu', 'yanit_aciklamasi',
-        'senaryo', 'vergi_tutari',
+        'senaryo', 'vergi_tutari', 'erp_durumu', 'yazdirildi',
     ];
 
     /**
@@ -125,7 +125,8 @@ final class EFaturaSorgusu
         // Allow-list: ham ifadelere yalnız buradaki sabit kolon adları girer
         $sutun = match ($kolon) {
             'belge_no', 'tutar', 'olusturma_zamani', 'erp_okundu', 'fatura_tipi', 'para_birimi',
-            'irsaliye_no', 'siparis_no', 'yanit_aciklamasi', 'senaryo', 'vergi_tutari' => $kolon,
+            'irsaliye_no', 'siparis_no', 'yanit_aciklamasi', 'senaryo', 'vergi_tutari',
+            'erp_durumu', 'yazdirildi' => $kolon,
             'karsi_unvan' => $karsiUnvan,
             'karsi_vkn' => $karsiVkn,
             'karsi_ad_soyad' => $yon === FaturaYonu::Gelen ? 'gonderici_ad_soyad' : 'alici_ad_soyad',

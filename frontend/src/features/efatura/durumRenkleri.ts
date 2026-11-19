@@ -19,6 +19,13 @@ const DURUM_RENKLERI: Record<string, DurumRengi> = {
   SEND_TO_GIB: 'sari',
   SEND_TO_RECEIVER: 'sari',
   RESPONSE_TIME_EXPIRED: 'gri',
+  // Protel (Süper Entegratör) gelen fatura durumları — PRT-12
+  RejectAnswered: 'kirmizi',
+  RejectAnswerCompleted: 'kirmizi',
+  AcceptAnswered: 'yesil',
+  AcceptAnswerCompleted: 'yesil',
+  AutomaticallyAccepted: 'yesil',
+  PendingAnswer: 'sari',
 }
 
 const SATIR_SINIFLARI: Record<DurumRengi, string> = {

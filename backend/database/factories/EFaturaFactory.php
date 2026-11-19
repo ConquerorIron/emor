@@ -55,4 +55,21 @@ class EFaturaFactory extends Factory
     {
         return $this->state(fn (array $attributes) => ['yon' => 'giden']);
     }
+
+    /**
+     * Protel faturası (PRT-06): aktif Protel tanımına bağlı, gelen; Protel
+     * durum değerleri ve Protel'in yazdırıldı / ERP durumu alanları dolu.
+     */
+    public function protel(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'entegrator_baglanti_id' => EntegratorBaglanti::factory()->protel()->aktif(),
+            'yon' => 'gelen',
+            'senaryo' => 'TEMELFATURA',
+            'durum' => 'Received',
+            'durum_aciklamasi' => 'Alındı',
+            'erp_durumu' => 'New',
+            'yazdirildi' => true,
+        ]);
+    }
 }

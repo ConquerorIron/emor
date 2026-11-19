@@ -23,6 +23,15 @@ final class EntegratorHatasi extends RuntimeException
 
     public const AKTIF_YOK = 'ENTEGRATOR_AKTIF_YOK';
 
+    /** Protel modülü kapalı (PROTEL_AKTIF): Protel'e hiçbir istek gitmez */
+    public const PROTEL_KAPALI = 'PROTEL_KAPALI';
+
+    /**
+     * Protel'de henüz "yazdırıldı" görünmeyen faturanın PDF'i istenmez (PRT-09):
+     * PDF almanın `isPrinted`'ı değiştirip değiştirmediği bilinmiyor.
+     */
+    public const PROTEL_PDF_YAZDIRILMAMIS = 'PROTEL_PDF_YAZDIRILMAMIS';
+
     private function __construct(
         public readonly string $kod,
         string $mesaj,
@@ -58,13 +67,23 @@ final class EntegratorHatasi extends RuntimeException
         return new self(self::AKTIF_YOK, __('hata.entegrator_aktif_yok'), 422);
     }
 
+    public static function protelKapali(): self
+    {
+        return new self(self::PROTEL_KAPALI, __('hata.protel_kapali'), 409);
+    }
+
+    public static function protelPdfYazdirilmamis(): self
+    {
+        return new self(self::PROTEL_PDF_YAZDIRILMAMIS, __('hata.protel_pdf_yazdirilmamis'), 409);
+    }
+
     /**
      * Kullanıcı kaynaklı durumlar (hatalı şifre, seçilmemiş ortam) raporlanmaz;
      * true dönmek varsayılan raporlamayı bastırır. Diğerleri loga düşer.
      */
     public function report(): bool
     {
-        return in_array($this->kod, [self::KIMLIK_HATALI, self::AKTIF_YOK], true);
+        return in_array($this->kod, [self::KIMLIK_HATALI, self::AKTIF_YOK, self::PROTEL_KAPALI, self::PROTEL_PDF_YAZDIRILMAMIS], true);
     }
 
     /**

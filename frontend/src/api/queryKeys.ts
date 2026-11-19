@@ -27,6 +27,12 @@ export const queryKeys = {
       ['efatura', 'liste', yon, parametreler] as const,
     pdf: (faturaId: number) => ['efatura', 'pdf', faturaId] as const,
   },
+  // Protel Gelen Faturalar (PRT-12) — otelin posta kutusu
+  protel: {
+    durum: ['protel', 'durum'],
+    listeler: ['protel', 'liste'],
+    liste: (parametreler: Record<string, unknown>) => ['protel', 'liste', parametreler] as const,
+  },
   kesinti: {
     turler: ['kesinti', 'turler'],
     projeler: ['kesinti', 'projeler'],

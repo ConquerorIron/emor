@@ -46,4 +46,16 @@ class EntegratorBaglantiFactory extends Factory
             'aktif' => true,
         ]);
     }
+
+    /** Protel tanımı (PRT-03): kullanıcı e-posta, adres ve İzibiz alanları yok */
+    public function protel(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'saglayici' => EntegratorBaglanti::SAGLAYICI_PROTEL,
+            'kullanici_adi' => 'deneme@ornek.test',
+            'posta_kutusu' => null,
+            'gonderici_birim' => null,
+            'api_url' => null,
+        ]);
+    }
 }

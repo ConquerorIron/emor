@@ -44,8 +44,9 @@
     "kullanicilar": "Users",
     "roller": "Roles",
     "efatura": "e-Invoice",
-    "gelenFaturalar": "Incoming Invoices",
-    "gidenFaturalar": "Outgoing Invoices",
+    "gelenFaturalar": "İzibiz Incoming Invoices",
+    "gidenFaturalar": "İzibiz Outgoing Invoices",
+    "protelGelenFaturalar": "Protel Incoming Invoices",
     "kesinti": "Deduction Management",
     "tumKesintiler": "All Deductions",
     "kesintiOzeti": "Deduction Summary",
@@ -374,6 +375,23 @@
       "sayfaBoyutu": "Invoices per request",
       "senkronAyarlariNotu": "İzibiz rules: automatic fetching at most every 15 minutes, at most 100 invoices per request. The active environment’s setting is used."
     },
+    "protel": {
+      "baslik": "Protel — the hotel's mailbox",
+      "aciklama": "The hotel's incoming e-invoices are read only. Addresses are fixed on the server; the active environment is chosen independently of İzibiz.",
+      "modulKapali": "The Protel connection is disabled on the server (PROTEL_AKTIF). Definitions can be saved, but testing and sync send no requests to Protel.",
+      "kullanici": "User (e-mail)",
+      "formBaslik": "Protel {{ortam}} definition",
+      "kaydedildi": "Protel {{ortam}} definition saved.",
+      "sinamaBasarili": "Login succeeded: {{firma}}",
+      "aktifOrtam": "Protel active environment",
+      "ortamSec": "Protel invoices are read from this environment",
+      "aktifYapildi": "Protel active environment: {{ortam}}",
+      "canliOnayBaslik": "Switch Protel to the live environment?",
+      "canliOnayMesaj": "Protel invoices will be read from the live account. Nothing is changed in Protel.",
+      "dogrulama": {
+        "ePosta": "Enter a valid e-mail address."
+      }
+    },
     "roller": {
       "baslik": "Roles",
       "aciklamaMetni": "Roles group permissions; roles are assigned to users on the Users screen. System administrators already have every permission.",
@@ -504,6 +522,8 @@
     "ENTEGRATOR_YANIT_GECERSIZ": "The integrator returned an unexpected response.",
     "ENTEGRATOR_HATA": "The integrator rejected the request.",
     "ENTEGRATOR_AKTIF_YOK": "No active integrator environment is selected.",
+    "PROTEL_KAPALI": "The Protel connection is disabled on the server (PROTEL_AKTIF); no request was sent to Protel.",
+    "PROTEL_PDF_YAZDIRILMAMIS": "This invoice does not appear as printed in Protel yet. To avoid changing its status in Protel, PDFs open only for printed invoices.",
     "guncellendiBaslik": "Application updated",
     "guncellendiOtomatik": "A new version has been installed; it takes effect after a refresh.",
     "guncellendiElle": "Refresh the page to switch to the new version.",
@@ -534,7 +554,8 @@
     "grupDuzeyi": "{{grup}} — all: {{duzey}}",
     "ekran": {
       "satinalma_talebi": "Purchase Request",
-      "efatura": "e-Invoices (Incoming/Outgoing)",
+      "efatura": "İzibiz e-Invoices (Incoming/Outgoing)",
+      "protel_faturalari": "Protel Incoming Invoices",
       "tum_kesintiler": "All Deductions",
       "kesinti_ozeti": "Deduction Summary",
       "pivot": "Pivot",
@@ -572,6 +593,10 @@
       "efatura_disari_aktar": "Export e-Invoice list to Excel",
       "efatura_senkron": "Start e-Invoice sync manually",
       "efatura_gizle": "Hide / restore e-invoices in the list",
+      "protel_faturalari_goruntule": "View Protel incoming invoices",
+      "protel_faturalari_senkron": "Start Protel sync manually",
+      "protel_faturalari_pdf": "View Protel invoice PDFs",
+      "protel_faturalari_disari_aktar": "Export the Protel list to Excel",
       "yedekler_sil": "Delete / pin backups",
       "yedekler_indir": "Download backup files (all data)",
       "geri_yukleme_kopya": "Restore a backup under a new name (copy)"
@@ -579,8 +604,8 @@
   },
   "efatura": {
     "baslik": {
-      "gelen": "Incoming e-Invoices",
-      "giden": "Outgoing e-Invoices"
+      "gelen": "İzibiz Incoming Invoices",
+      "giden": "İzibiz Outgoing Invoices"
     },
     "ortam": {
       "test": "Test account",
@@ -733,6 +758,25 @@
       "rozet": "Hidden",
       "rozetAciklama": "Hidden from the list — {{kisi}}",
       "alan": "Hidden"
+    }
+  },
+  "protel": {
+    "baslik": "Protel Incoming Invoices",
+    "aciklama": "The hotel's e-invoice mailbox (Protel). Read only; nothing is changed in Protel.",
+    "modulKapali": "The Protel connection is disabled on the server (PROTEL_AKTIF): sync does not run and PDFs do not open.",
+    "pdfYazdirilmamis": "PDFs open only for invoices already shown as printed in Protel (to avoid changing their status in Protel).",
+    "kolon": {
+      "erpAldi": "Hotel ERP Received",
+      "erpDurumu": "Hotel ERP Status",
+      "yazdirildi": "Printed"
+    },
+    "erpDurumu": {
+      "New": "New",
+      "Processing": "Processing",
+      "Completed": "Completed",
+      "Cancelled": "Cancelled",
+      "Error": "Error",
+      "Booked": "Booked"
     }
   },
   "kesinti": {

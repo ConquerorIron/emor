@@ -44,8 +44,9 @@
     "kullanicilar": "Kullanıcılar",
     "roller": "Roller",
     "efatura": "e-Fatura",
-    "gelenFaturalar": "Gelen Faturalar",
-    "gidenFaturalar": "Giden Faturalar",
+    "gelenFaturalar": "İzibiz Gelen Faturalar",
+    "gidenFaturalar": "İzibiz Giden Faturalar",
+    "protelGelenFaturalar": "Protel Gelen Faturalar",
     "kesinti": "Kesinti Yönetimi",
     "tumKesintiler": "Tüm Kesintiler",
     "kesintiOzeti": "Kesinti Özeti",
@@ -374,6 +375,23 @@
       "sayfaBoyutu": "Tek istekteki fatura sayısı",
       "senkronAyarlariNotu": "İzibiz kuralları: otomatik çekim en az 15 dakikada bir yapılır, tek istekte en çok 100 fatura istenir. Aktif ortamın ayarı kullanılır."
     },
+    "protel": {
+      "baslik": "Protel — otelin posta kutusu",
+      "aciklama": "Otelin gelen e-Faturaları yalnız okunur. Adresler sunucuda sabittir; aktif ortam İzibiz'den bağımsız seçilir.",
+      "modulKapali": "Protel bağlantısı sunucuda kapalı (PROTEL_AKTIF). Tanım kaydedilebilir ama sınama ve senkron Protel'e istek göndermez.",
+      "kullanici": "Kullanıcı (e-posta)",
+      "formBaslik": "Protel {{ortam}} tanımı",
+      "kaydedildi": "Protel {{ortam}} tanımı kaydedildi.",
+      "sinamaBasarili": "Giriş başarılı: {{firma}}",
+      "aktifOrtam": "Protel aktif ortamı",
+      "ortamSec": "Protel faturaları bu ortamdan okunur",
+      "aktifYapildi": "Protel aktif ortamı: {{ortam}}",
+      "canliOnayBaslik": "Protel canlı ortamına geçilsin mi?",
+      "canliOnayMesaj": "Protel faturaları canlı hesaptan okunacak. Protel'de hiçbir şey değiştirilmez.",
+      "dogrulama": {
+        "ePosta": "Geçerli bir e-posta adresi girin."
+      }
+    },
     "roller": {
       "baslik": "Roller",
       "aciklamaMetni": "Roller izinleri gruplar; kullanıcılara Kullanıcılar ekranından rol atanır. Sistem yöneticileri tüm izinlere zaten sahiptir.",
@@ -504,6 +522,8 @@
     "ENTEGRATOR_YANIT_GECERSIZ": "Entegratörden beklenmeyen bir yanıt geldi.",
     "ENTEGRATOR_HATA": "Entegratör isteği reddetti.",
     "ENTEGRATOR_AKTIF_YOK": "Aktif entegratör ortamı seçilmemiş.",
+    "PROTEL_KAPALI": "Protel bağlantısı sunucuda kapalı (PROTEL_AKTIF); Protel'e istek gönderilmedi.",
+    "PROTEL_PDF_YAZDIRILMAMIS": "Bu fatura Protel'de henüz yazdırılmamış görünüyor. Protel'deki durumu değiştirmemek için PDF yalnız yazdırılmış faturalarda açılır.",
     "guncellendiBaslik": "Uygulama güncellendi",
     "guncellendiOtomatik": "Yeni sürüm yüklendi; sayfa yenilenince geçerli olur.",
     "guncellendiElle": "Sayfayı yenileyerek yeni sürüme geçebilirsiniz.",
@@ -534,7 +554,8 @@
     "grupDuzeyi": "{{grup}} — tümü: {{duzey}}",
     "ekran": {
       "satinalma_talebi": "Satınalma Talebi",
-      "efatura": "e-Faturalar (Gelen/Giden)",
+      "efatura": "İzibiz e-Faturaları (Gelen/Giden)",
+      "protel_faturalari": "Protel Gelen Faturalar",
       "tum_kesintiler": "Tüm Kesintiler",
       "kesinti_ozeti": "Kesinti Özeti",
       "pivot": "Pivot",
@@ -572,6 +593,10 @@
       "efatura_disari_aktar": "e-Fatura listesini Excel'e aktarma",
       "efatura_senkron": "e-Fatura senkronunu elle başlatma",
       "efatura_gizle": "e-Faturayı listede gizleme / geri alma",
+      "protel_faturalari_goruntule": "Protel gelen faturalarını görüntüleme",
+      "protel_faturalari_senkron": "Protel senkronunu elle başlatma",
+      "protel_faturalari_pdf": "Protel fatura PDF'i görüntüleme",
+      "protel_faturalari_disari_aktar": "Protel listesini Excel'e aktarma",
       "yedekler_sil": "Yedek silme / sabitleme",
       "yedekler_indir": "Yedek dosyasını indirme (bütün veri)",
       "geri_yukleme_kopya": "Yedeği farklı adla geri yükleme (kopya)"
@@ -579,8 +604,8 @@
   },
   "efatura": {
     "baslik": {
-      "gelen": "Gelen e-Faturalar",
-      "giden": "Giden e-Faturalar"
+      "gelen": "İzibiz Gelen Faturalar",
+      "giden": "İzibiz Giden Faturalar"
     },
     "ortam": {
       "test": "Test hesabı",
@@ -733,6 +758,25 @@
       "rozet": "Gizli",
       "rozetAciklama": "Listede gizlendi — {{kisi}}",
       "alan": "Gizlendi"
+    }
+  },
+  "protel": {
+    "baslik": "Protel Gelen Faturalar",
+    "aciklama": "Otelin e-Fatura posta kutusu (Protel). Yalnız görüntülenir; Protel'de hiçbir şey değiştirilmez.",
+    "modulKapali": "Protel bağlantısı sunucuda kapalı (PROTEL_AKTIF): senkron çalışmaz, PDF açılmaz.",
+    "pdfYazdirilmamis": "PDF yalnız Protel'de yazdırılmış görünen faturada açılır (Protel'deki durumu değiştirmemek için).",
+    "kolon": {
+      "erpAldi": "Otel ERP Aldı",
+      "erpDurumu": "Otel ERP Durumu",
+      "yazdirildi": "Yazdırıldı"
+    },
+    "erpDurumu": {
+      "New": "Yeni",
+      "Processing": "İşleniyor",
+      "Completed": "Tamamlandı",
+      "Cancelled": "İptal",
+      "Error": "Hata",
+      "Booked": "Muhasebeleşti"
     }
   },
   "kesinti": {

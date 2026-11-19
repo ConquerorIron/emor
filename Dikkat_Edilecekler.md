@@ -81,6 +81,13 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   uçlara istek çıkabiliyordu. Protel / Süper Entegratör: PDF metodu
   `setErpStatus` zorunlu tutuyor; "mevcut değeri geri gönder" önerisi
   kullanıcı tarafından reddedildi — en küçük hata otelin işleyişini bozar.)*
+  **Kilit, isteğe hazırlık için yapılan yan istekten de önce çalışır:** yasak
+  çağrı için token almak bile karşı tarafa istek demektir. Denetimi istek
+  çıkaran yardımcının içine koyup token'ı ondan önce alırsan yasak çağrıda giriş
+  isteği gider. Testte "hiç istek gitmedi" (`assertNothingSent`) sına; "asıl uca
+  gitmedi" yetmez.
+  *(PRT-04, 2026-11-19: `post()` önce `token()` çağırıyordu; 32 kilit testi
+  bu yüzden kırmızıydı.)*
 - **G9 — Ayarın geçersiz değeri sessizce dönüştürülmesin.** `(int) 'abc'` = 0,
   `(int) '-10'` = −10; süre sınırında 0 "sınırsız" demektir (Symfony Process).
   Ayarı tüketen kod yalnız geçerli aralığı kabul etsin (ör. pozitif tam sayı),
@@ -139,7 +146,11 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   kırmızı görülmemiş test, hatayı yakaladığını kanıtlamaz.
 - **T6 — Sıraya bağlı doğrulamada veritabanı farkını hesaba kat.** Testler
   SQLite, canlı PostgreSQL; Türkçe harflerde sıra farklıdır. Sıra davranışın
-  parçası değilse sırasız karşılaştır.
+  parçası değilse sırasız karşılaştır. SQLite `varchar(n)` uzunluğunu da
+  denetlemez: uzun metin yazan kod ve test yardımcıları (ör. izin listesinden
+  üretilen rol adı) PostgreSQL'de düşer — şema/veri değişikliklerinde
+  `DB_CONNECTION=pgsql DB_DATABASE=erp_test` ile de çalıştır.
+  *(PRT-10: 64 karakteri aşan test rol adı yalnız PostgreSQL'de kırıldı.)*
 - **T7 — Testin varsayımını da doğrula.** "Kütüphane bu girdiyi reddeder"
   diye yazmadan önce gerçekten reddettiğini dene.
   *(BY-001: kapanmayan tırnak ayrıştırıcıda hata sanıldı, oysa kabul ediliyordu.)*
@@ -149,7 +160,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   ya da resmî belgeye bak; özellikle yetki ve davranış iddialarında.
   *(BY-002-R1: `pg_restore --list` göstermediği için veritabanı ayarları
   "yedekte yok" sanıldı; arşivdeydi. BY-002-R2: uygulama rolünün kendi
-  bağlantılarını koparamadığı yazıldı; PostgreSQL buna izin verir.)*
+  bağlantılarını koparamadığı yazıldı; PostgreSQL buna izin verir.
+  Protel 2026-11-18: Swagger'da `nullable` yazmadığı için PDF metodunun durum
+  alanları "boş bırakılamaz" sanıldı; Swashbuckle `$ref` enum alanlarına
+  `nullable` koyamaz — aynı denemede süzgeç alanı boş gönderilmiş ve
+  çalışmıştı. Şema bir ipucudur; davranışı denemeyle ya da karşı tarafın
+  yazılı cevabıyla doğrula.)*
 - **T8 — Başarı ölçütü "hata verdi" değildir.** Hata yolunda mevcut verinin
   korunduğunu ve geride artık (geçici dosya, yarım kayıt) kalmadığını da sına.
 - **T10 — Factory varsayılanı tasarımdaki gerçek kurguyu üretsin.** İlişkili
@@ -182,6 +198,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   sunucunun günlüğüne düşebilir (`log_statement`, hata günlüğü); aynı oturumda
   günlüğü kapat ya da özetlenmiş (SCRAM) değeri gönder.
   *(Fable incelemesi F3: kurulum betiği yeni parolayı düz metin SQL ile yazıyordu.)*
+  **Karşı tarafın hata gövdesi de sır taşıyabilir:** bazı API'ler hata
+  yanıtında isteğin başlıklarını (Bearer token dahil) geri yansıtır. Dış servis
+  hata gövdesini günlüğe, hata mesajına ya da istemciye taşıma; yalnız HTTP
+  durumu ve doğrulanmış kısa bir kod (`/^[A-Za-z]{1,40}$/`) al. Testte yansıtılan
+  token'ın istisna metninde ve bağlamında olmadığını sına.
+  *(PRT-02: Protel'in 500 gövdesindeki `Headers` alanında token vardı.)*
 - **D3 — Önce geçici ada yaz, doğrula, sonra taşı.** Yarım çıktı hiçbir zaman
   bitmiş gibi görünmemeli; hata ve sinyal yolunda geçici dosya silinmeli.
   Elektrik kesintisine dayanması gereken dosyada: geçici dosyayı `fsync`,
@@ -279,6 +301,11 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   *(Pivot yeniden adlandırması: yayın, biçim hatasıyla durdu.)*
 - **A2 — PHP'de ok fonksiyonu dış değişkeni tanımlandığı andaki değeriyle
   yakalar.** Sonradan değişen değişkeni görmez; değişecekse parametre olarak ver.
+- **A3 — Laravel HTTP `retry()` koşul fonksiyonu istisna yerine `null` alabilir.**
+  `throw: false` ile hata olmayan başarısız yanıtta (3xx) Laravel koşula
+  `$response->toException()` geçirir; bu `null`'dır. `fn (Throwable $e)` tür
+  hatasıyla çöker: parametreyi `?Throwable` yaz ve 3xx yanıtla sına.
+  *(PRT-04 yönlendirme testi; aynı kalıp `IzibizIstemcisi`'nde de düzeltildi — G1.)*
 
 ## 7. Kod kalitesi ve skill kuralları
 

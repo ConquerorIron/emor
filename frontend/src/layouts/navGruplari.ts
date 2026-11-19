@@ -29,6 +29,7 @@ export const NAV_GRUPLARI: NavGrubu[] = [
     ogeler: [
       { to: '/efatura/gelen', ad: 'gelenFaturalar', izin: 'efatura.goruntule' },
       { to: '/efatura/giden', ad: 'gidenFaturalar', izin: 'efatura.goruntule' },
+      { to: '/efatura/protel', ad: 'protelGelenFaturalar', izin: 'protel_faturalari.goruntule' },
     ],
   },
   {

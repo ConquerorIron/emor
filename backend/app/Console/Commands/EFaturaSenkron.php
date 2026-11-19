@@ -23,6 +23,8 @@ use InvalidArgumentException;
  * - Zamanlanmış artımlı:  efatura:senkron --gun=10 --tarih-turu=DELIVERY
  * - Günlük durum tazeleme: efatura:senkron --gun=45
  * - İlk tarama:            efatura:senkron --baslangic=2026-01-01 --tetikleyen=ilk_tarama
+ * - Protel (PRT-08):       aynı seçenekler + --saglayici=protel (yalnız gelen;
+ *                          PROTEL_AKTIF kapalıyken hiçbir şey yapmaz)
  *
  * Tarihler İstanbul takvim günüdür; aralık aylara bölünür.
  */
@@ -33,19 +35,32 @@ use InvalidArgumentException;
     {--yon=hepsi : gelen | giden | hepsi}
     {--tarih-turu=DOCUMENT : DOCUMENT (belge tarihi) | DELIVERY (İzibiz\'e ulaşma)}
     {--tetikleyen=zamanlanmis : zamanlanmis | manuel | ilk_tarama}
+    {--saglayici=izibiz : izibiz | protel}
     {--aralik-denetimi : Zamanlayıcı için: tanımdaki senkron aralığı dolmadıysa çalışmaz}')]
 #[Description('Aktif entegratör hesabının e-Faturalarını senkronlar')]
 final class EFaturaSenkron extends Command
 {
     public function handle(EFaturaSenkronServisi $servis, EntegratorBaglantiServisi $baglantilar): int
     {
-        if (! config('entegrator.izibiz.senkron_aktif')) {
-            $this->warn('e-Fatura senkronu kapalı (EFATURA_SENKRON_AKTIF=false).');
+        try {
+            $saglayici = $this->secenek('saglayici', [EntegratorBaglanti::SAGLAYICI_IZIBIZ, EntegratorBaglanti::SAGLAYICI_PROTEL]);
+        } catch (InvalidArgumentException $hata) {
+            $this->error($hata->getMessage());
+
+            return self::INVALID;
+        }
+
+        $protel = $saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL;
+
+        if (! config($protel ? 'entegrator.protel.aktif' : 'entegrator.izibiz.senkron_aktif')) {
+            $this->warn($protel
+                ? 'Protel modülü kapalı (PROTEL_AKTIF=false).'
+                : 'e-Fatura senkronu kapalı (EFATURA_SENKRON_AKTIF=false).');
 
             return self::SUCCESS;
         }
 
-        $tanim = $baglantilar->aktif();
+        $tanim = $baglantilar->aktif($saglayici);
 
         if ($tanim === null) {
             $this->warn('Aktif entegratör ortamı yok; senkron atlandı.');
@@ -60,7 +75,7 @@ final class EFaturaSenkron extends Command
 
         try {
             [$baslangic, $bitis] = $this->aralik();
-            $yonler = $this->yonler();
+            $yonler = $this->yonler($protel);
             $tarihTuru = $this->secenek('tarih-turu', [IzibizFaturaKaynagi::TARIH_BELGE, IzibizFaturaKaynagi::TARIH_ULASMA]);
             $tetikleyen = $this->secenek('tetikleyen', [
                 EFaturaSenkronCalismasi::TETIKLEYEN_ZAMANLANMIS,
@@ -167,11 +182,17 @@ final class EFaturaSenkron extends Command
     }
 
     /**
+     * Protel'de yalnız gelen faturalar okunur (giden kapsam dışı).
+     *
      * @return list<FaturaYonu>
      */
-    private function yonler(): array
+    private function yonler(bool $protel): array
     {
-        $yon = $this->secenek('yon', ['hepsi', 'gelen', 'giden']);
+        $yon = $this->secenek('yon', $protel ? ['hepsi', 'gelen'] : ['hepsi', 'gelen', 'giden']);
+
+        if ($protel) {
+            return [FaturaYonu::Gelen];
+        }
 
         return $yon === 'hepsi' ? FaturaYonu::cases() : [FaturaYonu::from($yon)];
     }

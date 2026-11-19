@@ -6,14 +6,23 @@ import { toast } from 'sonner'
 import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
 import { ErrorState } from '@/components/ErrorState'
-import { type EFatura, pdfGetir, xmlIndir } from '@/features/efatura/efaturaApi'
+import type { EFatura, FaturaPdfi } from '@/features/efatura/efaturaApi'
 
 /**
- * Fatura aslı (PDF) — önce ERP havuzundan, yoksa entegratörden sunucu
- * üzerinden anlık okunur ve önbelleğe alınmaz. Blob adresi kapanınca
- * serbest bırakılır. UBL XML aynı kaynak sırasıyla indirilir.
+ * Fatura aslı (PDF) — sunucu üzerinden anlık okunur ve önbelleğe alınmaz.
+ * Blob adresi kapanınca serbest bırakılır. Okuma uçları ekrana göre verilir
+ * (İzibiz: önce ERP havuzu, XML de var; Protel: yalnız PDF).
  */
-export function PdfGoruntuleyici({ fatura }: { fatura: EFatura }) {
+export function PdfGoruntuleyici({
+  fatura,
+  pdfGetir,
+  xmlIndir,
+}: {
+  fatura: EFatura
+  pdfGetir: (faturaId: number) => Promise<FaturaPdfi>
+  /** Verilmezse XML düğmesi gösterilmez */
+  xmlIndir?: (fatura: Pick<EFatura, 'id' | 'belge_no'>) => Promise<void>
+}) {
   const { t } = useTranslation()
 
   const pdf = useQuery({
@@ -25,7 +34,7 @@ export function PdfGoruntuleyici({ fatura }: { fatura: EFatura }) {
   })
 
   const xml = useMutation({
-    mutationFn: () => xmlIndir(fatura),
+    mutationFn: () => (xmlIndir ? xmlIndir(fatura) : Promise.resolve()),
     onError: (error) => toast.error(t(apiErrorKey(error))),
   })
 
@@ -70,14 +79,16 @@ export function PdfGoruntuleyici({ fatura }: { fatura: EFatura }) {
             {t(`efatura.belgeKaynagi.${kaynak}`)}
           </span>
         ) : null}
-        <button
-          type="button"
-          className={baglantiSinifi}
-          disabled={xml.isPending}
-          onClick={() => xml.mutate()}
-        >
-          {t('efatura.xmlIndir')}
-        </button>
+        {xmlIndir ? (
+          <button
+            type="button"
+            className={baglantiSinifi}
+            disabled={xml.isPending}
+            onClick={() => xml.mutate()}
+          >
+            {t('efatura.xmlIndir')}
+          </button>
+        ) : null}
         <a href={adres} download={`${fatura.belge_no}.pdf`} className={baglantiSinifi}>
           {t('efatura.pdfIndir')}
         </a>

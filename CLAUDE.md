@@ -59,6 +59,13 @@ Dosyayı okumadan skill'in uygulandığını iddia etme.
   standart sırası, liste, form). Kesinti türü bir icmal ekranına bağlanır
   (`kesinti_turleri.icmal`); ekrana yalnız ona bağlı türler girilir/aktarılır.
   Aktarımda Kaydet yalnız hatasız "Kontrol Et"ten sonra açılır.
+- **Protel (otelin e-Fatura posta kutusu)**: `docs/protel/` (pano PRT-01…15).
+  Protel'de HİÇBİR alan değiştirilmez (kullanıcı kuralı); web servis kullanıcısı
+  tam yetkili olduğu için tek koruma `App\Services\Entegrator\ProtelIstemcisi`'ndeki
+  iki katmanlı kilittir (izinli yol + izinli gövde alanı/değeri; `set*` asla).
+  Protel'e istek yalnız bu sınıftan çıkar. Modül anahtarı `PROTEL_AKTIF`
+  (varsayılan kapalı). Faturalar `efatura_faturalari`'na Protel tanımıyla yazılır;
+  eFatura ekran uçları `saglayici=protel` rota varsayılanıyla yeniden kullanılır.
 - **Test/Canlı ortamlar**: MSSQL bağlantı tanımları (test + canli) PostgreSQL'de
   `sql_baglantilari` tablosunda, şifreler encrypted cast ile. GLOBAL tek aktif
   ortam vardır (kısmi unique indeks garantiler). Store proc çalıştıracak HER modül

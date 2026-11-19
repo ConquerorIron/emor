@@ -37,6 +37,7 @@ use App\Http\Controllers\Api\V1\OsgbYuklemeController;
 use App\Http\Controllers\Api\V1\ParaBirimiController;
 use App\Http\Controllers\Api\V1\PivotController;
 use App\Http\Controllers\Api\V1\ProjeController;
+use App\Http\Controllers\Api\V1\ProtelBaglantiController;
 use App\Http\Controllers\Api\V1\RolController;
 use App\Http\Controllers\Api\V1\SatinalmaTalebiController;
 use App\Http\Controllers\Api\V1\SecenekController;
@@ -169,6 +170,33 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/efatura/erp-senkron', [EFaturaSenkronController::class, 'erpEslestir'])
                 ->middleware(['can:efatura.senkron', 'throttle:efatura-erp'])
                 ->name('efatura.erp-senkron');
+        });
+
+        // Protel Gelen Faturalar — otelin posta kutusu (PRT-12). Aynı denetleyiciler,
+        // `saglayici=protel` varsayılanıyla: kapsam aktif PROTEL tanımı. Yalnız gelen;
+        // XML, gizleme ve "ERP Senkronla" yok. Ayrı izinler (PRT-10).
+        Route::middleware('can:protel_faturalari.goruntule')->group(function (): void {
+            Route::get('/protel/durum', [EFaturaSenkronController::class, 'durum'])
+                ->defaults('saglayici', 'protel')
+                ->name('protel.durum');
+            Route::get('/protel/{yon}/faturalar', [EFaturaController::class, 'index'])
+                ->whereIn('yon', ['gelen'])
+                ->defaults('saglayici', 'protel')
+                ->name('protel.faturalar');
+            Route::get('/protel/{yon}/faturalar/excel', [EFaturaController::class, 'excel'])
+                ->whereIn('yon', ['gelen'])
+                ->defaults('saglayici', 'protel')
+                ->middleware(['can:protel_faturalari.disari_aktar', 'throttle:efatura-excel'])
+                ->name('protel.faturalar.excel');
+            Route::get('/protel/faturalar/{fatura}/pdf', [EFaturaController::class, 'pdf'])
+                ->whereNumber('fatura')
+                ->defaults('saglayici', 'protel')
+                ->middleware(['can:protel_faturalari.pdf', 'throttle:efatura-pdf'])
+                ->name('protel.faturalar.pdf');
+            Route::post('/protel/senkron', [EFaturaSenkronController::class, 'baslat'])
+                ->defaults('saglayici', 'protel')
+                ->middleware('can:protel_faturalari.senkron')
+                ->name('protel.senkron');
         });
 
         // Kesinti Yönetimi → Kesinti Türleri. Modülün verisi ERP'de değil,
@@ -802,6 +830,16 @@ Route::prefix('v1')->group(function (): void {
                 ->whereIn('ortam', ['test', 'canli'])
                 ->middleware('throttle:entegrator-sina')
                 ->name('ayarlar.entegrator-baglantilari.sina');
+            // Protel (otelin posta kutusu — PRT-03/05); liste yukarıdaki index'ten
+            Route::post('/ayarlar/entegrator-baglantilari/protel/aktif', [ProtelBaglantiController::class, 'aktifYap'])
+                ->name('ayarlar.entegrator-baglantilari.protel.aktif');
+            Route::put('/ayarlar/entegrator-baglantilari/protel/{ortam}', [ProtelBaglantiController::class, 'guncelle'])
+                ->whereIn('ortam', ['test', 'canli'])
+                ->name('ayarlar.entegrator-baglantilari.protel.guncelle');
+            Route::post('/ayarlar/entegrator-baglantilari/protel/{ortam}/sina', [ProtelBaglantiController::class, 'sina'])
+                ->whereIn('ortam', ['test', 'canli'])
+                ->middleware('throttle:entegrator-sina')
+                ->name('ayarlar.entegrator-baglantilari.protel.sina');
         });
 
         // Ayarlar → Roller (EFAT-18). Rol listesi Kullanıcılar ekranında da

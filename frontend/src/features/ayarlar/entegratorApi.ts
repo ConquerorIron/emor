@@ -6,7 +6,7 @@ export type EntegratorOrtam = 'test' | 'canli'
 
 export interface EntegratorBaglanti {
   id: number
-  saglayici: 'izibiz'
+  saglayici: 'izibiz' | 'protel'
   ortam: EntegratorOrtam
   /** Kullanılan adres (tanımlanmışsa o, değilse ortamın varsayılanı) */
   api_url: string
@@ -35,6 +35,29 @@ export interface EntegratorBaglantilar {
   ortam_uyumsuz: boolean
   /** Adres alanı boş bırakılırsa kullanılacak adresler */
   varsayilan_api_url: Record<EntegratorOrtam, string>
+  /** Otelin posta kutusu (PRT-03) — aktif ortamı İzibiz'den bağımsız */
+  protel: ProtelBaglantilari
+}
+
+export interface ProtelBaglantilari {
+  test: EntegratorBaglanti | null
+  canli: EntegratorBaglanti | null
+  aktif_ortam: EntegratorOrtam | null
+  /** Sunucu ayarı PROTEL_AKTIF: kapalıyken sınama ve senkron Protel'e istek göndermez */
+  modul_aktif: boolean
+}
+
+/** Protel tanımı: adres yok (sunucudaki sabit adresler), kullanıcı e-posta */
+export interface ProtelBaglantiGovdesi {
+  kullanici_adi: string
+  /** Boş bırakılırsa gönderilmez — kullanıcı aynıysa kayıtlı şifre korunur */
+  sifre?: string
+  vkn: string
+}
+
+export interface ProtelSinamaSonucu {
+  firma_unvani: string
+  gecerlilik_bitis: string
 }
 
 export interface EntegratorBaglantiGovdesi {
@@ -98,6 +121,42 @@ export async function entegratorAktifOrtamDegistir(
 ): Promise<EntegratorBaglanti> {
   const yanit = await api.post<{ data: EntegratorBaglanti }>(
     '/api/v1/ayarlar/entegrator-baglantilari/aktif',
+    { ortam },
+  )
+
+  return yanit.data.data
+}
+
+export async function protelBaglantiGuncelle(
+  ortam: EntegratorOrtam,
+  govde: ProtelBaglantiGovdesi,
+): Promise<EntegratorBaglanti> {
+  const yanit = await api.put<{ data: EntegratorBaglanti }>(
+    `/api/v1/ayarlar/entegrator-baglantilari/protel/${ortam}`,
+    govde,
+  )
+
+  return yanit.data.data
+}
+
+/** Yalnız giriş denenir (AccessToken); Protel'de hiçbir şey değişmez. */
+export async function protelBaglantiSina(
+  ortam: EntegratorOrtam,
+  govde: ProtelBaglantiGovdesi,
+): Promise<ProtelSinamaSonucu> {
+  const yanit = await api.post<{ data: ProtelSinamaSonucu }>(
+    `/api/v1/ayarlar/entegrator-baglantilari/protel/${ortam}/sina`,
+    govde,
+  )
+
+  return yanit.data.data
+}
+
+export async function protelAktifOrtamDegistir(
+  ortam: EntegratorOrtam,
+): Promise<EntegratorBaglanti> {
+  const yanit = await api.post<{ data: EntegratorBaglanti }>(
+    '/api/v1/ayarlar/entegrator-baglantilari/protel/aktif',
     { ortam },
   )
 

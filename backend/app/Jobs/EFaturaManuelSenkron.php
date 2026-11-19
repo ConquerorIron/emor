@@ -68,7 +68,10 @@ final class EFaturaManuelSenkron implements ShouldQueue
                 return;
             }
 
-            foreach (FaturaYonu::cases() as $yon) {
+            // Protel'de yalnız gelen faturalar (giden kapsam dışı — PRT-08)
+            $yonler = $tanim->saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL ? [FaturaYonu::Gelen] : FaturaYonu::cases();
+
+            foreach ($yonler as $yon) {
                 $calismalar = $servis->senkronEt(
                     $tanim,
                     $yon,

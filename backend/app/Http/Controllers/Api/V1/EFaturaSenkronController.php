@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\EFatura\EFaturaSenkronRequest;
 use App\Jobs\EFaturaManuelSenkron;
 use App\Models\EFaturaSenkronCalismasi;
+use App\Models\EntegratorBaglanti;
 use App\Services\Entegrator\EFaturaDurumServisi;
 use App\Services\Entegrator\EmorIslenmeServisi;
 use App\Services\Entegrator\EntegratorHatasi;
@@ -24,7 +25,9 @@ use Illuminate\Validation\ValidationException;
 use Throwable;
 
 /**
- * e-Fatura verisinin güncelliği ve elle senkron (EFAT-11).
+ * e-Fatura verisinin güncelliği ve elle senkron (EFAT-11). Durum ve elle
+ * senkron rotanın sağlayıcısına göredir (Protel rotaları — PRT-12); "ERP
+ * Senkronla" yalnız İzibiz'dedir.
  */
 final class EFaturaSenkronController extends Controller
 {
@@ -64,21 +67,24 @@ final class EFaturaSenkronController extends Controller
      * Aktif ortam, yön başına veri zamanı/güncellik, süren ve son çalışma.
      * Hata mesajları dönmez (iç ayrıntı); yalnız makine okunur kod.
      */
-    public function durum(): JsonResponse
+    public function durum(Request $request): JsonResponse
     {
-        $tanim = $this->baglantilar->aktif();
+        $saglayici = EntegratorBaglantiServisi::rotaninSaglayicisi($request);
+        $tanim = $this->baglantilar->aktif($saglayici);
+        $senkronAktif = $this->senkronAktif($saglayici);
 
         if ($tanim === null) {
             return response()->json(['data' => [
                 'ortam' => null,
-                'senkron_aktif' => (bool) config('entegrator.izibiz.senkron_aktif'),
+                'senkron_aktif' => $senkronAktif,
                 'manuel_istek' => null,
                 'yonler' => null,
             ]]);
         }
 
         $yonler = [];
-        foreach (FaturaYonu::cases() as $yon) {
+        // Protel'de yalnız gelen faturalar var
+        foreach ($saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL ? [FaturaYonu::Gelen] : FaturaYonu::cases() as $yon) {
             $d = $this->durum->yonDurumu($tanim, $yon);
             $yonler[$yon->value] = [
                 'veri_zamani' => $d['veri_zamani']?->toIso8601String(),
@@ -93,7 +99,7 @@ final class EFaturaSenkronController extends Controller
 
         return response()->json(['data' => [
             'ortam' => $tanim->ortam,
-            'senkron_aktif' => (bool) config('entegrator.izibiz.senkron_aktif'),
+            'senkron_aktif' => $senkronAktif,
             'manuel_istek' => $istek === null ? null : [
                 'zaman' => $istek['zaman'],
                 'baslangic' => $istek['baslangic'],
@@ -105,11 +111,15 @@ final class EFaturaSenkronController extends Controller
 
     public function baslat(EFaturaSenkronRequest $request): JsonResponse
     {
-        if (! config('entegrator.izibiz.senkron_aktif')) {
-            return response()->json(['kod' => 'EFATURA_SENKRON_KAPALI', 'mesaj' => __('hata.efatura_senkron_kapali')], 409);
+        $saglayici = EntegratorBaglantiServisi::rotaninSaglayicisi($request);
+
+        if (! $this->senkronAktif($saglayici)) {
+            return $saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL
+                ? response()->json(['kod' => EntegratorHatasi::PROTEL_KAPALI, 'mesaj' => __('hata.protel_kapali')], 409)
+                : response()->json(['kod' => 'EFATURA_SENKRON_KAPALI', 'mesaj' => __('hata.efatura_senkron_kapali')], 409);
         }
 
-        $tanim = $this->baglantilar->aktif() ?? throw EntegratorHatasi::aktifYok();
+        $tanim = $this->baglantilar->aktif($saglayici) ?? throw EntegratorHatasi::aktifYok();
         $kullaniciId = $request->user()?->id;
         $baslangic = (string) $request->validated('baslangic');
         $bitis = (string) $request->validated('bitis');
@@ -140,12 +150,21 @@ final class EFaturaSenkronController extends Controller
 
         Log::info('Elle e-Fatura senkronu kuyruğa alındı', [
             'kullanici_id' => $kullaniciId,
+            'saglayici' => $saglayici,
             'ortam' => $tanim->ortam,
             'baslangic' => $baslangic,
             'bitis' => $bitis,
         ]);
 
         return response()->json(['data' => ['kuyrukta' => true]], 202);
+    }
+
+    /** İzibiz: zamanlanmış senkron anahtarı; Protel: modül anahtarı (PROTEL_AKTIF). */
+    private function senkronAktif(string $saglayici): bool
+    {
+        return (bool) config($saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL
+            ? 'entegrator.protel.aktif'
+            : 'entegrator.izibiz.senkron_aktif');
     }
 
     /**

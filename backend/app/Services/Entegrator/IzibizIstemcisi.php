@@ -325,7 +325,7 @@ final class IzibizIstemcisi
             ->retry(
                 self::YENIDEN_DENEME_MS,
                 0,
-                fn (Throwable $hata): bool => $hata instanceof ConnectionException
+                fn (?Throwable $hata): bool => $hata instanceof ConnectionException
                     || ($hata instanceof RequestException
                         && ($hata->response->serverError() || $hata->response->status() === 429)),
                 throw: false,

@@ -60,8 +60,32 @@ final class EntegratorBaglantiController extends Controller
                     EntegratorBaglanti::ORTAM_TEST => (string) config('entegrator.izibiz.ortamlar.test.api_url'),
                     EntegratorBaglanti::ORTAM_CANLI => (string) config('entegrator.izibiz.ortamlar.canli.api_url'),
                 ],
+                'protel' => $this->protel(),
             ],
         ]);
+    }
+
+    /**
+     * Protel tanımları (PRT-03): İzibiz'den bağımsız aktif ortam. `modul_aktif`
+     * false iken (PROTEL_AKTIF) sınama ve senkron Protel'e istek göndermez.
+     *
+     * @return array<string, mixed>
+     */
+    private function protel(): array
+    {
+        $saglayici = EntegratorBaglanti::SAGLAYICI_PROTEL;
+        $tanimlar = $this->servis->listele($saglayici);
+
+        return [
+            'test' => isset($tanimlar[EntegratorBaglanti::ORTAM_TEST])
+                ? new EntegratorBaglantiResource($tanimlar[EntegratorBaglanti::ORTAM_TEST])
+                : null,
+            'canli' => isset($tanimlar[EntegratorBaglanti::ORTAM_CANLI])
+                ? new EntegratorBaglantiResource($tanimlar[EntegratorBaglanti::ORTAM_CANLI])
+                : null,
+            'aktif_ortam' => $this->servis->aktif($saglayici)?->ortam,
+            'modul_aktif' => (bool) config('entegrator.protel.aktif'),
+        ];
     }
 
     public function guncelle(EntegratorBaglantiGuncelleRequest $request, string $ortam): JsonResponse

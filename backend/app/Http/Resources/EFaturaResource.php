@@ -66,6 +66,9 @@ final class EFaturaResource extends JsonResource
             'teslim_ref' => $this->getAttribute('teslim_ref'),
             'harici_aktarim' => $this->getAttribute('harici_aktarim'),
             'mail_durumu' => $this->getAttribute('mail_durumu'),
+            // Protel'e özgü (İzibiz'de null) — yalnız gösterilir
+            'erp_durumu' => $this->getAttribute('erp_durumu'),
+            'yazdirildi' => $this->getAttribute('yazdirildi'),
             'son_gorulme' => $this->getAttribute('son_gorulme')?->toIso8601String(),
             'gizli' => $this->gizlenme_zamani !== null,
             'gizlenme_zamani' => $this->gizlenme_zamani?->toIso8601String(),

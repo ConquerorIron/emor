@@ -1,0 +1,139 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature;
+
+use App\Models\EntegratorBaglanti;
+use App\Models\User;
+use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
+
+/**
+ * Ayarlar → Entegratör Bağlantıları → Protel (PRT-03, PRT-05).
+ */
+final class ProtelBaglantiTest extends TestCase
+{
+    use LazilyRefreshDatabase;
+
+    private const GIRIS_URL = 'https://authrestapitest.protel.com.tr/v1/Auth/AccessToken';
+
+    private function yonetici(): User
+    {
+        $kullanici = User::factory()->yonetici()->create();
+        $this->actingAs($kullanici);
+
+        return $kullanici;
+    }
+
+    public function test_tanim_kaydedilir_adres_ve_izibiz_alanlari_saklanmaz_sifre_donmez(): void
+    {
+        $this->yonetici();
+        $izibiz = EntegratorBaglanti::factory()->aktif()->create();
+
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test', [
+            'kullanici_adi' => 'ws@ornek.test',
+            'sifre' => 'gizli-sifre',
+            'vkn' => '1234567890',
+            // Protel formunda yok; gönderilse de saklanmaz
+            'api_url' => 'https://baska.protel.com.tr',
+            'posta_kutusu' => 'urn:mail:pk@ornek.test',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.saglayici', 'protel')
+            ->assertJsonPath('data.api_url', 'https://einvoicerestapitest.protel.com.tr')
+            ->assertJsonPath('data.api_url_ozel', false)
+            ->assertJsonPath('data.sifre_dolu', true)
+            ->assertJsonMissingPath('data.sifre');
+
+        $tanim = EntegratorBaglanti::query()->where('saglayici', 'protel')->sole();
+        $this->assertNull($tanim->api_url);
+        $this->assertNull($tanim->posta_kutusu);
+        $this->assertSame('gizli-sifre', $tanim->sifre);
+        $this->assertTrue($izibiz->refresh()->aktif);
+    }
+
+    public function test_kullanici_adi_e_posta_olmali(): void
+    {
+        $this->yonetici();
+
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test', [
+            'kullanici_adi' => 'ws', 'sifre' => 's', 'vkn' => '1234567890',
+        ])->assertUnprocessable()->assertJsonValidationErrorFor('kullanici_adi', 'hatalar');
+    }
+
+    public function test_standart_kullanici_protel_tanimini_degistiremez(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test', [
+            'kullanici_adi' => 'ws@ornek.test', 'sifre' => 's', 'vkn' => '1234567890',
+        ])->assertForbidden();
+
+        $this->assertSame(0, EntegratorBaglanti::query()->count());
+    }
+
+    public function test_aktif_yapma_izibizin_aktif_ortamina_dokunmaz(): void
+    {
+        $this->yonetici();
+        $izibiz = EntegratorBaglanti::factory()->aktif()->create();
+        $protel = EntegratorBaglanti::factory()->protel()->create();
+
+        $this->postJson('/api/v1/ayarlar/entegrator-baglantilari/protel/aktif', ['ortam' => 'test'])
+            ->assertOk()
+            ->assertJsonPath('data.saglayici', 'protel');
+
+        $this->assertTrue($protel->refresh()->aktif);
+        $this->assertTrue($izibiz->refresh()->aktif);
+        $this->getJson('/api/v1/ayarlar/entegrator-baglantilari')
+            ->assertJsonPath('data.aktif_ortam', 'test')
+            ->assertJsonPath('data.protel.aktif_ortam', 'test');
+    }
+
+    public function test_sinama_modul_kapaliyken_protele_istek_gondermez(): void
+    {
+        config(['entegrator.protel.aktif' => false]);
+        Http::preventStrayRequests();
+        Http::fake();
+        $this->yonetici();
+
+        $this->postJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test/sina', [
+            'kullanici_adi' => 'ws@ornek.test', 'sifre' => 's', 'vkn' => '1234567890',
+        ])->assertStatus(409)->assertJsonPath('kod', 'PROTEL_KAPALI');
+
+        Http::assertNothingSent();
+    }
+
+    public function test_sinama_bos_sifrede_kayitli_sifreyi_kullanir_ve_firmayi_doner(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        Http::preventStrayRequests();
+        Http::fake([self::GIRIS_URL => ProtelIstemcisiTest::girisYaniti()]);
+        $this->yonetici();
+        EntegratorBaglanti::factory()->protel()->create();
+
+        $this->postJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test/sina', [])
+            ->assertOk()
+            ->assertJsonPath('data.firma_unvani', 'Deneme Otel A.Ş.');
+
+        Http::assertSent(fn (Request $istek): bool => $istek['password'] === 'deneme-sifre'
+            && $istek['eMail'] === 'deneme@ornek.test');
+    }
+
+    public function test_sinama_kullanici_degisince_kayitli_sifreyi_gondermez(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        Http::preventStrayRequests();
+        Http::fake();
+        $this->yonetici();
+        EntegratorBaglanti::factory()->protel()->create();
+
+        $this->postJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test/sina', ['kullanici_adi' => 'baska@ornek.test'])
+            ->assertUnprocessable()
+            ->assertJsonPath('hatalar.sifre.0', 'Kullanıcı adı değiştiğinde entegratör şifresi yeniden girilmelidir.');
+
+        Http::assertNothingSent();
+    }
+}

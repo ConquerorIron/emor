@@ -12,6 +12,7 @@ use DOMDocument;
 use DOMXPath;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Throwable;
 use ZipArchive;
 
@@ -21,6 +22,12 @@ use ZipArchive;
  * yerde saklanmaz. ERP'ye ulaşılamazsa ekran bozulmaz, entegratöre düşülür.
  *
  * Kaynak: 'erp' | 'entegrator' — yanıt başlığıyla ekrana taşınır.
+ *
+ * Protel faturası (PRT-09): otelindir, ERP havuzunda aranmaz; PDF yalnız
+ * `GetInvoicePdf` ile ve yalnız Protel'de zaten "yazdırıldı" görünen faturada
+ * alınır — PDF almanın `isPrinted`'ı değiştirip değiştirmediği bilinmiyor
+ * (Protel'e soruldu); altın kural gereği değişme ihtimali olan çağrı yapılmaz.
+ * Protel'de XML yoktur (`GetInvoice` yasak).
  */
 final class FaturaBelgeServisi
 {
@@ -29,6 +36,7 @@ final class FaturaBelgeServisi
     public function __construct(
         private readonly ErpBelgeArsivi $erp,
         private readonly IzibizIstemcisi $izibiz,
+        private readonly ProtelIstemcisi $protel,
     ) {}
 
     /**
@@ -36,6 +44,10 @@ final class FaturaBelgeServisi
      */
     public function pdf(EntegratorBaglanti $tanim, EFatura $fatura): array
     {
+        if ($tanim->saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL) {
+            return ['icerik' => $this->protelPdf($tanim, $fatura), 'kaynak' => 'entegrator'];
+        }
+
         $erpdeki = $this->erpden($fatura, fn (string $ettn): ?string => $this->erp->pdf($ettn));
 
         if ($erpdeki !== null && str_starts_with($erpdeki, '%PDF-')) {
@@ -58,6 +70,10 @@ final class FaturaBelgeServisi
      */
     public function xml(EntegratorBaglanti $tanim, EFatura $fatura): array
     {
+        if ($tanim->saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL) {
+            throw new NotFoundHttpException;
+        }
+
         $erpdeki = $this->erpden($fatura, fn (string $ettn): ?string => $this->erp->xml($ettn));
 
         if ($erpdeki !== null && $this->faturaninXmli($erpdeki, $fatura->ettn)) {
@@ -67,6 +83,34 @@ final class FaturaBelgeServisi
         $zip = $this->izibiz->ublIndir($tanim, FaturaYonu::from($fatura->yon), [(int) $fatura->kaynak_id]);
 
         return ['icerik' => $this->bildirimli($this->zipIcindekiXml($zip, $fatura->ettn)), 'kaynak' => 'entegrator'];
+    }
+
+    /**
+     * Yanıt: `outputDatas[0]` base64 PDF (2026-11-19 ölçümü). Gövde yalnız
+     * izinli dört alanı taşır; `set*` alanları gönderilmez (ProtelIstemcisi kilidi).
+     */
+    private function protelPdf(EntegratorBaglanti $tanim, EFatura $fatura): string
+    {
+        if ($fatura->yazdirildi !== true) {
+            throw EntegratorHatasi::protelPdfYazdirilmamis();
+        }
+
+        $govde = $this->protel->post($tanim, ProtelIstemcisi::YOL_FATURA_PDF, [
+            'uuidType' => 'DocumentUUID',
+            'uuid' => $fatura->ettn,
+            'documentDirection' => 'Incoming',
+            'outputType' => 'Pdf',
+        ]);
+
+        $veriler = $govde['outputDatas'] ?? null;
+        $kodlu = is_array($veriler) && array_is_list($veriler) ? ($veriler[0] ?? null) : null;
+        $pdf = is_string($kodlu) ? base64_decode($kodlu, true) : false;
+
+        if (! is_string($pdf) || ! str_starts_with($pdf, '%PDF-')) {
+            throw EntegratorHatasi::yanitGecersiz();
+        }
+
+        return $pdf;
     }
 
     /**

@@ -6,13 +6,16 @@ namespace App\Services;
 
 use App\Models\EntegratorBaglanti;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * e-Belge entegratörü bağlantı tanımları (şimdilik yalnız İzibiz).
- * Aktif ortam SQL'in aktif ortamından bağımsızdır (EFAT-15, S5).
+ * e-Belge entegratörü bağlantı tanımları: İzibiz (inşaat) ve Protel (otel).
+ * Sağlayıcı verilmezse İzibiz — mevcut çağıranlar (eFatura ekranları, alarm,
+ * eMOR) yalnız İzibiz'i görür. Aktiflik sağlayıcı başınadır ve SQL'in aktif
+ * ortamından bağımsızdır (EFAT-15, S5).
  */
 final class EntegratorBaglantiServisi
 {
@@ -21,28 +24,39 @@ final class EntegratorBaglantiServisi
     /**
      * @return array<string, EntegratorBaglanti> ortam => tanım
      */
-    public function listele(): array
+    public function listele(string $saglayici = self::SAGLAYICI): array
     {
         return EntegratorBaglanti::query()
-            ->where('saglayici', self::SAGLAYICI)
+            ->where('saglayici', $saglayici)
             ->orderBy('ortam')
             ->get()
             ->keyBy('ortam')
             ->all();
     }
 
-    public function aktif(): ?EntegratorBaglanti
+    public function aktif(string $saglayici = self::SAGLAYICI): ?EntegratorBaglanti
     {
         return EntegratorBaglanti::query()
-            ->where('saglayici', self::SAGLAYICI)
+            ->where('saglayici', $saglayici)
             ->where('aktif', true)
             ->first();
     }
 
-    public function tanim(string $ortam): ?EntegratorBaglanti
+    /**
+     * eFatura ekran uçlarının sağlayıcısı: Protel rotaları `saglayici`
+     * varsayılanını taşır (routes/api.php); diğer her durumda İzibiz.
+     */
+    public static function rotaninSaglayicisi(Request $request): string
+    {
+        return $request->route('saglayici') === EntegratorBaglanti::SAGLAYICI_PROTEL
+            ? EntegratorBaglanti::SAGLAYICI_PROTEL
+            : self::SAGLAYICI;
+    }
+
+    public function tanim(string $ortam, string $saglayici = self::SAGLAYICI): ?EntegratorBaglanti
     {
         return EntegratorBaglanti::query()
-            ->where('saglayici', self::SAGLAYICI)
+            ->where('saglayici', $saglayici)
             ->where('ortam', $ortam)
             ->first();
     }
@@ -54,10 +68,10 @@ final class EntegratorBaglantiServisi
      *
      * @param  array{kullanici_adi: string, sifre?: string|null, vkn: string, posta_kutusu?: string|null, gonderici_birim?: string|null, api_url?: string|null}  $veri
      */
-    public function guncelle(string $ortam, array $veri): EntegratorBaglanti
+    public function guncelle(string $ortam, array $veri, string $saglayici = self::SAGLAYICI): EntegratorBaglanti
     {
         try {
-            return DB::transaction(fn (): EntegratorBaglanti => $this->kaydet($ortam, $veri));
+            return DB::transaction(fn (): EntegratorBaglanti => $this->kaydet($ortam, $veri, $saglayici));
         } catch (UniqueConstraintViolationException) {
             // Aynı ortamın ilk kaydı eşzamanlı yapıldı; biri kazandı
             throw ValidationException::withMessages([
@@ -69,13 +83,13 @@ final class EntegratorBaglantiServisi
     /**
      * Global aktif ortamı değiştirir. SQL'in aktif ortamına dokunmaz.
      */
-    public function aktifYap(string $ortam): EntegratorBaglanti
+    public function aktifYap(string $ortam, string $saglayici = self::SAGLAYICI): EntegratorBaglanti
     {
-        return DB::transaction(function () use ($ortam): EntegratorBaglanti {
+        return DB::transaction(function () use ($ortam, $saglayici): EntegratorBaglanti {
             // Tüm ortamları aynı sırada kilitle: eşzamanlı ters geçişte
             // süreçler birbirinin hedef satırında kilitlenip deadlock üretmesin.
             $tanimlar = EntegratorBaglanti::query()
-                ->where('saglayici', self::SAGLAYICI)
+                ->where('saglayici', $saglayici)
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get();
@@ -88,7 +102,7 @@ final class EntegratorBaglantiServisi
             }
 
             EntegratorBaglanti::query()
-                ->where('saglayici', self::SAGLAYICI)
+                ->where('saglayici', $saglayici)
                 ->where('id', '!=', $hedef->id)
                 ->update(['aktif' => false]);
 
@@ -113,13 +127,13 @@ final class EntegratorBaglantiServisi
     /**
      * @param  array{kullanici_adi: string, sifre?: string|null, vkn: string, posta_kutusu?: string|null, gonderici_birim?: string|null, api_url?: string|null}  $veri
      */
-    private function kaydet(string $ortam, array $veri): EntegratorBaglanti
+    private function kaydet(string $ortam, array $veri, string $saglayici): EntegratorBaglanti
     {
         $baglanti = EntegratorBaglanti::query()
-            ->where('saglayici', self::SAGLAYICI)
+            ->where('saglayici', $saglayici)
             ->where('ortam', $ortam)
             ->lockForUpdate()
-            ->first() ?? new EntegratorBaglanti(['saglayici' => self::SAGLAYICI, 'ortam' => $ortam]);
+            ->first() ?? new EntegratorBaglanti(['saglayici' => $saglayici, 'ortam' => $ortam]);
 
         $sifre = $veri['sifre'] ?? null;
         $sifreBos = $sifre === null || $sifre === '';
@@ -138,10 +152,12 @@ final class EntegratorBaglantiServisi
             ]);
         }
 
-        // Adres gönderilmediyse değişmez; boş = ortamın varsayılanı
-        $yeniAdres = array_key_exists('api_url', $veri)
+        // Adres gönderilmediyse değişmez; boş = ortamın varsayılanı. Protel'de
+        // adres hiç saklanmaz (yalnız config'teki sabit adres kullanılır)
+        $protel = $saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL;
+        $yeniAdres = $protel ? null : (array_key_exists('api_url', $veri)
             ? self::saklanacakAdres($veri['api_url'])
-            : $baglanti->api_url;
+            : $baglanti->api_url);
         $adresDegisti = $baglanti->exists
             && ($yeniAdres ?? $baglanti->varsayilanApiUrl()) !== $baglanti->apiUrl();
 
@@ -158,8 +174,8 @@ final class EntegratorBaglantiServisi
             'api_url' => $yeniAdres,
             'kullanici_adi' => $veri['kullanici_adi'],
             'vkn' => $veri['vkn'],
-            'posta_kutusu' => $veri['posta_kutusu'] ?? null,
-            'gonderici_birim' => $veri['gonderici_birim'] ?? null,
+            'posta_kutusu' => $protel ? null : ($veri['posta_kutusu'] ?? null),
+            'gonderici_birim' => $protel ? null : ($veri['gonderici_birim'] ?? null),
         ]);
 
         // Senkron ayarları gönderilmediyse değişmez (tek seferlik içe aktarma göndermez)

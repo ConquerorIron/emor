@@ -50,4 +50,46 @@ return [
         // Faz 1 ilk tarama başlangıcı (kullanıcı kararı S11)
         'ilk_tarama_tarihi' => '2026-01-01',
     ],
+
+    // Otelin e-Fatura posta kutusu: Protel markalı Süper Entegratör REST API'si
+    // (docs/protel). YALNIZ OKUMA — izinli metotlar ve gövde alanları
+    // ProtelIstemcisi'nde kilitlidir. Adresler ekrandan DEĞİŞTİRİLEMEZ:
+    // kayıtlı şifre yalnız buradaki sabit adreslere gider.
+    'protel' => [
+        'ortamlar' => [
+            'test' => [
+                'auth_url' => 'https://authrestapitest.protel.com.tr',
+                'api_url' => 'https://einvoicerestapitest.protel.com.tr',
+            ],
+            'canli' => [
+                'auth_url' => 'https://authrestapi.protel.com.tr',
+                'api_url' => 'https://einvoicerestapi.protel.com.tr',
+            ],
+        ],
+
+        // İstek yalnız bu alan adlarına (https) çıkar — config yanlış
+        // düzenlense de şifre ve token başka sunucuya gitmesin
+        'izinli_alan_adlari' => ['protel.com.tr'],
+
+        // Modül anahtarı (PRT-03). KAPALIYKEN Protel'e hiçbir istek gitmez
+        // (sınama, senkron, PDF dahil — tek giriş noktası ProtelIstemcisi).
+        // Varsayılan KAPALI: tanınmayan / boş değer kapalı sayılır (AcKapa)
+        'aktif' => AcKapa::cevir(env('PROTEL_AKTIF'), false),
+
+        // Tarih alanları saat dilimi eki taşımaz; İstanbul saatidir
+        // (createAt, istek atıldığı anla karşılaştırılarak 2026-11-19'da doğrulandı)
+        'saat_dilimi' => 'Europe/Istanbul',
+
+        // Token 24 saat geçerli (JWT `exp`); bitişten bu kadar önce yenilenir
+        'token_guvenlik_payi_saniye' => 300,
+
+        'baglanti_zaman_asimi' => 5,
+        // 180 günlük liste ~2,5 sn, PDF ~1,5 sn (2026-11-19 ölçümü)
+        'istek_zaman_asimi' => 60,
+
+        // API'nin tek istekteki tarih aralığı sınırı (aşılırsa 400)
+        'azami_gun' => 180,
+
+        'ilk_tarama_tarihi' => '2026-01-01',
+    ],
 ];

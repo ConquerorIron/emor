@@ -9,8 +9,8 @@ namespace App\Services\Entegrator;
  *
  * Tutarlar ondalık METİN olarak tutulur (`"5155262.20"`): float'a çevrilmez.
  * VKN/TCKN metindir (baştaki sıfır kaybolmaz). Bilinmeyen değer null'dır;
- * sıfır ya da "kabul edildi" sayılmaz. `kaynakId` İzibiz'in iç kimliğidir
- * (PDF/HTML görüntüleme bununla yapılır); ETTN ayrı tutulur.
+ * sıfır ya da "kabul edildi" sayılmaz. `kaynakId` sağlayıcının iç kimliğidir
+ * (İzibiz'de PDF bununla açılır; Protel'de PDF ETTN ile); ETTN ayrı tutulur.
  */
 final readonly class EntegratorFatura
 {
@@ -66,5 +66,9 @@ final readonly class EntegratorFatura
         public ?bool $hariciAktarim = null,
         /** İzibiz `mailStatus` — ekran karşılığı netleşmedi */
         public ?string $mailDurumu = null,
+        /** Protel `erpStatus` (otelin ERP'sinin işleme durumu) — YALNIZ okunur */
+        public ?string $erpDurumu = null,
+        /** Protel `isPrinted` — YALNIZ okunur */
+        public ?bool $yazdirildi = null,
     ) {}
 }

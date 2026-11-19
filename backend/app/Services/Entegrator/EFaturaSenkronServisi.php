@@ -16,7 +16,8 @@ use RuntimeException;
 use Throwable;
 
 /**
- * İzibiz e-Fatura özetlerini PostgreSQL'e senkronlar (EFAT-10, faz 1).
+ * Entegratör e-Fatura özetlerini PostgreSQL'e senkronlar (EFAT-10, faz 1;
+ * PRT-08). Kaynak tanımın sağlayıcısına göre seçilir: İzibiz ya da Protel.
  *
  * - Aralık takvim aylarına bölünür; her ay ayrı çalışma kaydıdır.
  * - İzibiz okunurken veritabanı transaction'ı açık tutulmaz; kayıtlar
@@ -25,14 +26,16 @@ use Throwable;
  *   ile manuel çakışmaz).
  * - Eksik okunan aralığın okunan kayıtları yine yazılır (gerçek faturalar),
  *   ama çalışma `eksik` işaretlenir; yokluk çıkarımı yapılmaz.
- * - İzibiz bayrakları (ERP okundu) yalnız okunur, hiç değiştirilmez.
+ * - Entegratör bayrakları (ERP okundu, Protel ERP durumu / yazdırıldı) yalnız
+ *   okunur, hiç değiştirilmez.
  */
 final class EFaturaSenkronServisi
 {
     private const YAZMA_PARTISI = 500;
 
     public function __construct(
-        private readonly IzibizFaturaKaynagi $kaynak,
+        private readonly IzibizFaturaKaynagi $izibiz,
+        private readonly ProtelFaturaKaynagi $protel,
     ) {}
 
     /**
@@ -46,7 +49,7 @@ final class EFaturaSenkronServisi
         CarbonImmutable $baslangic,
         CarbonImmutable $bitis,
         string $tetikleyen,
-        string $tarihTuru = IzibizFaturaKaynagi::TARIH_BELGE,
+        string $tarihTuru = FaturaKaynagi::TARIH_BELGE,
         ?int $kullaniciId = null,
         int $kilitBekleme = 0,
         int $kilitSuresi = 3600,
@@ -98,7 +101,7 @@ final class EFaturaSenkronServisi
         ]);
 
         try {
-            $sonuc = $this->kaynak->oku($tanim, $yon, $baslangic, $bitis, $tarihTuru);
+            $sonuc = $this->kaynak($tanim)->oku($tanim, $yon, $baslangic, $bitis, $tarihTuru);
         } catch (EntegratorHatasi $hata) {
             $calisma->update([
                 'durum' => EFaturaSenkronCalismasi::DURUM_BASARISIZ,
@@ -237,6 +240,8 @@ final class EFaturaSenkronServisi
             'teslim_ref' => $f->teslimRef,
             'harici_aktarim' => $f->hariciAktarim,
             'mail_durumu' => $f->mailDurumu,
+            'erp_durumu' => $f->erpDurumu,
+            'yazdirildi' => $f->yazdirildi,
             'ilk_gorulme' => $simdi,
             'son_gorulme' => $simdi,
             'created_at' => $simdi,
@@ -244,8 +249,13 @@ final class EFaturaSenkronServisi
         ];
     }
 
+    private function kaynak(EntegratorBaglanti $tanim): FaturaKaynagi
+    {
+        return $tanim->saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL ? $this->protel : $this->izibiz;
+    }
+
     /**
-     * İzibiz zamanı ekisiz İstanbul saatidir; UTC'ye çevrilir. Bozuksa null
+     * Entegratör zamanı (İzibiz ve Protel) ekisiz İstanbul saatidir; UTC'ye çevrilir. Bozuksa null
      * (özet alanı; faturanın kendisini geçersiz kılmaz).
      */
     private function yerelZaman(?string $deger): ?CarbonImmutable
