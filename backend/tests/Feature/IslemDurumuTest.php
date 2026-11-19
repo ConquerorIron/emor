@@ -378,6 +378,39 @@ final class IslemDurumuTest extends TestCase
     }
 
     /**
+     * Yokluk yalnız kalıcı kökün içinde doğrulanır: kök kuruluysa henüz
+     * açılmamış durum klasörü "işlem yok"tur; kök yoksa ya da okunamıyorsa
+     * durum bilinmez ve BY-029 bunu çalışmaya izin sanmamalı (BY-005-R12).
+     */
+    public function test_yokluk_kalici_kokte_durur_kurulmamis_ya_da_okunamayan_kok_hata_verir(): void
+    {
+        $durum = new IslemDurumu($this->klasor.'/durum/islem.json', $this->klasor);
+
+        // Kurulmamış kök: üstündeki sistem geçici klasörü okunabilir olsa da "yok" denmez
+        try {
+            $durum->acikGeriYuklemeVarMi();
+            $this->fail('Kurulmamış kalıcı kök "açık geri yükleme yok" sayıldı.');
+        } catch (IslemDurumuBozuk $hata) {
+            $this->assertStringContainsString('kalıcı kökü', $hata->getMessage());
+        }
+
+        // Kurulu, boş kök: durum klasörü henüz açılmamış → işlem yok
+        mkdir($this->klasor, 0750);
+        $this->assertNull($durum->oku());
+
+        $this->rootDegilGerekli();
+        chmod($this->klasor, 0000);
+        try {
+            $durum->acikGeriYuklemeVarMi();
+            $this->fail('Okunamayan kalıcı kök "açık geri yükleme yok" sayıldı.');
+        } catch (IslemDurumuBozuk $hata) {
+            $this->assertStringContainsString('erişilemiyor', $hata->getMessage());
+        } finally {
+            chmod($this->klasor, 0750);
+        }
+    }
+
+    /**
      * @return array<string, array{IslemKaydi}>
      */
     public static function gecersizKayitlar(): array

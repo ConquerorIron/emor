@@ -105,10 +105,9 @@ AcceptAnswered 4.
 - Önce/sonra ölçümü (bütün gelen faturalar, `status`, `erpStatus`,
   `isErpRecieved`, `isRead`, `isPrinted`): 500 hatalı çağrı ve başarılı çağrı
   sonrasında **değişen fatura: 0**.
-- **Açık soru — `isPrinted`:** denenen fatura zaten `isPrinted = 1` idi. Son 180
-  günde 441 fatura `isPrinted = 0`; PDF almanın bu bayrağı 1 yapıp yapmadığı
-  bilinmiyor. Altın kural gereği `isPrinted = 0` faturada deneme yapılmadı;
-  uygulama PDF'i yalnız `yazdirildi = true` faturada açar (Protel'e soruldu).
+- **`isPrinted`:** portaldaki yazdırma bilgisidir (son 180 günde 441 fatura `0`).
+  PDF görüntüleme/indirme yazdırma değildir (kullanıcı kararı 2026-11-19);
+  uygulama bu alanı yalnız gösterir, PDF bütün faturalarda açılır.
 
 ## Uçtan uca kabul ölçümü (PRT-14, lokal uygulama ↔ canlı Protel)
 
@@ -120,7 +119,6 @@ AcceptAnswered 4.
 | Artımlı (`--gun=10 --tarih-turu=DELIVERY`) | 1 | `tam`, 111 güncellenen |
 | Gece (`--gun=45`) | 2 | `tam`, 388 güncellenen |
 | PDF (3 yazdırılmış fatura) | 3 | 3 × `%PDF-1.4` |
-| PDF (yazdırılmamış fatura) | **0** | `PROTEL_PDF_YAZDIRILMAMIS` |
 | Sonraki durum görüntüsü | 1 giriş + 2 liste | 2640 fatura, **değişen alan: 0**, yeni/kaybolan: 0 |
 
 Lokal veritabanına girilen şifre kabul bitince boşaltıldı, token önbelleği

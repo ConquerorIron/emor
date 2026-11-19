@@ -17,7 +17,7 @@ return new class extends Migration
         Schema::table('efatura_faturalari', function (Blueprint $table) {
             // Protel `erpStatus`: New, Processing, Completed, Cancelled, Error, Booked
             $table->string('erp_durumu', 32)->nullable();
-            // Protel `isPrinted`; PDF yalnız true iken açılır (PRT-09)
+            // Protel `isPrinted` (portalda yazdırıldı mı) — yalnız bilgi
             $table->boolean('yazdirildi')->nullable();
         });
     }

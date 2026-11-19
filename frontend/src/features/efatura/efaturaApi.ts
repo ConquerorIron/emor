@@ -247,12 +247,15 @@ export async function excelIndir(
   siralama: Siralama | null,
   sayfa: number,
   kolonlar: ExcelKolonu[],
+  /** Ekrandaki listenin ortamı — sunucuda aktif ortam farklıysa indirme reddedilir */
+  ortam: 'test' | 'canli',
 ): Promise<void> {
   const yanit = await api
     .get<Blob>(`/api/v1/efatura/${yon}/faturalar/excel`, {
       params: {
         ...parametreler(filtre, siralama),
         page: sayfa,
+        ortam,
         kolonlar: kolonlar.map((kolon) => kolon.anahtar),
         basliklar: kolonlar.map((kolon) => kolon.baslik),
       },

@@ -212,8 +212,9 @@ final class EFaturaSorgusu
 
         /** @var list<string> $tipler */
         $tipler = $taban->clone()->whereNotNull('fatura_tipi')->distinct()->orderBy('fatura_tipi')->pluck('fatura_tipi')->all();
-        // İki kaynağın kodları birleşik; her ikisindeki virgüllü değerler ayrılır
-        $istisnaKodlari = collect([
+        // İki kaynağın kodları birleşik; her ikisindeki virgüllü değerler ayrılır.
+        // Protel ekranı istisna kodu kullanmaz: sorgu hiç çalışmaz (PRT-R7)
+        $istisnaKodlari = $tanim->saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL ? [] : collect([
             ...$taban->clone()->whereNotNull('vergi_istisna_kodu')->distinct()->pluck('vergi_istisna_kodu'),
             ...$taban->clone()->whereNotNull('izibiz_istisna_kodu')->distinct()->pluck('izibiz_istisna_kodu'),
         ])->flatMap(fn (string $kodlar): array => explode(',', $kodlar))

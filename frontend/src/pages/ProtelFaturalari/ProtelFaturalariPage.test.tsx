@@ -144,22 +144,17 @@ describe('ProtelFaturalariPage', () => {
     expect(screen.queryByRole('button', { name: 'PDF' })).not.toBeInTheDocument()
   })
 
-  it('yazdırılmamış faturanın PDF düğmesi kapalıdır; yazdırılmışta Protel PDF ucu çağrılır', async () => {
+  it('PDF portalda yazdırılmamış faturada da açılır ve Protel PDF ucu doğru id ile çağrılır', async () => {
     api.faturalar.mockResolvedValue(
       liste([FATURA, { ...FATURA, id: 22, belge_no: 'OTL2026000000002', yazdirildi: false }]),
     )
     api.pdf.mockResolvedValue({ pdf: new Blob(['%PDF-1.4']), kaynak: 'entegrator' })
     ciz(['protel_faturalari.goruntule', 'protel_faturalari.pdf'])
 
-    const kapali = (await screen.findByText('OTL2026000000002')).closest('tr') as HTMLElement
-    const kapaliDugme = within(kapali).getByRole('button', { name: 'PDF' })
-    expect(kapaliDugme).toBeDisabled()
-    expect(kapaliDugme).toHaveAttribute('title', expect.stringContaining('yazdırılmış'))
+    const yazdirilmamis = (await screen.findByText('OTL2026000000002')).closest('tr') as HTMLElement
+    fireEvent.click(within(yazdirilmamis).getByRole('button', { name: 'PDF' }))
 
-    const acik = screen.getByText('OTL2026000000001').closest('tr') as HTMLElement
-    fireEvent.click(within(acik).getByRole('button', { name: 'PDF' }))
-
-    await waitFor(() => expect(api.pdf).toHaveBeenCalledWith(21))
+    await waitFor(() => expect(api.pdf).toHaveBeenCalledWith(22))
     expect(api.pdf).toHaveBeenCalledTimes(1)
     // Protel'de XML yok
     expect(screen.queryByRole('button', { name: /XML/ })).not.toBeInTheDocument()
@@ -174,12 +169,15 @@ describe('ProtelFaturalariPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
 
     await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
-    const [filtre, siralama, sayfa, kolonlar] = api.excel.mock.calls[0] as [
+    const [filtre, siralama, sayfa, kolonlar, ortam] = api.excel.mock.calls[0] as [
       { baslangic: string; erp_okundu: string },
       { anahtar: string; yon: string },
       number,
       { anahtar: string; baslik: string }[],
+      string,
     ]
+    // Ekrandaki listenin ortamı (kapsam) — sunucuda farklıysa 409 (PRT-R3)
+    expect(ortam).toBe('canli')
     expect(filtre).toMatchObject({ baslangic: '2026-01-01', erp_okundu: '' })
     expect(siralama).toEqual({ anahtar: 'olusturma_zamani', yon: 'desc' })
     expect(sayfa).toBe(1)
@@ -196,5 +194,22 @@ describe('ProtelFaturalariPage', () => {
 
     expect(await screen.findByText(/Protel bağlantısı sunucuda kapalı/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Senkron/i })).not.toBeInTheDocument()
+  })
+
+  it('2 Ocak 2027 açılışında geçerli aralıkla liste ister (PRT-R4)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2027-01-02T09:00:00'))
+    try {
+      api.faturalar.mockResolvedValue(liste([FATURA]))
+      ciz(['protel_faturalari.goruntule'])
+
+      await waitFor(() => expect(api.faturalar).toHaveBeenCalled())
+      expect(api.faturalar.mock.calls[0][0]).toMatchObject({
+        baslangic: '2026-01-02',
+        bitis: '2027-01-02',
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

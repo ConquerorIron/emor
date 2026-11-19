@@ -27,3 +27,17 @@ export const ILK_TARAMA_TARIHI = '2026-01-01'
 /** Liste aralığı ve elle senkron sınırları — backend config/efatura.php ile aynı */
 export const LISTE_AZAMI_GUN = 366
 export const MANUEL_AZAMI_GUN = 366
+
+/**
+ * Listelerin açılış başlangıcı: ilk tarama tarihi, ama aralık liste sınırını
+ * aşmasın — 2 Ocak 2027'den sonra sabit başlangıç listeyi durdururdu (PRT-R4).
+ * Tarihler `YYYY-MM-DD`; metin karşılaştırması takvim sırasıdır.
+ */
+export function varsayilanBaslangic(bugun: string): string {
+  const [yil, ay, gun] = bugun.split('-').map(Number)
+  const sinir = new Date(Date.UTC(yil, ay - 1, gun - (LISTE_AZAMI_GUN - 1)))
+    .toISOString()
+    .slice(0, 10)
+
+  return sinir > ILK_TARAMA_TARIHI ? sinir : ILK_TARAMA_TARIHI
+}

@@ -522,8 +522,8 @@
     "ENTEGRATOR_YANIT_GECERSIZ": "The integrator returned an unexpected response.",
     "ENTEGRATOR_HATA": "The integrator rejected the request.",
     "ENTEGRATOR_AKTIF_YOK": "No active integrator environment is selected.",
+    "ENTEGRATOR_ORTAM_DEGISTI": "The active integrator environment changed; the list on screen belongs to the previous environment. Export again after the list refreshes.",
     "PROTEL_KAPALI": "The Protel connection is disabled on the server (PROTEL_AKTIF); no request was sent to Protel.",
-    "PROTEL_PDF_YAZDIRILMAMIS": "This invoice does not appear as printed in Protel yet. To avoid changing its status in Protel, PDFs open only for printed invoices.",
     "guncellendiBaslik": "Application updated",
     "guncellendiOtomatik": "A new version has been installed; it takes effect after a refresh.",
     "guncellendiElle": "Refresh the page to switch to the new version.",
@@ -764,7 +764,6 @@
     "baslik": "Protel Incoming Invoices",
     "aciklama": "The hotel's e-invoice mailbox (Protel). Read only; nothing is changed in Protel.",
     "modulKapali": "The Protel connection is disabled on the server (PROTEL_AKTIF): sync does not run and PDFs do not open.",
-    "pdfYazdirilmamis": "PDFs open only for invoices already shown as printed in Protel (to avoid changing their status in Protel).",
     "kolon": {
       "erpAldi": "Hotel ERP Received",
       "erpDurumu": "Hotel ERP Status",

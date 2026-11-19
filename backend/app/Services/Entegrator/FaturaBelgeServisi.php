@@ -24,10 +24,8 @@ use ZipArchive;
  * Kaynak: 'erp' | 'entegrator' — yanıt başlığıyla ekrana taşınır.
  *
  * Protel faturası (PRT-09): otelindir, ERP havuzunda aranmaz; PDF yalnız
- * `GetInvoicePdf` ile ve yalnız Protel'de zaten "yazdırıldı" görünen faturada
- * alınır — PDF almanın `isPrinted`'ı değiştirip değiştirmediği bilinmiyor
- * (Protel'e soruldu); altın kural gereği değişme ihtimali olan çağrı yapılmaz.
- * Protel'de XML yoktur (`GetInvoice` yasak).
+ * `GetInvoicePdf` ile, `set*` alanları OLMADAN alınır (Protel'in yazılı
+ * teyidi: durum değişmez). Protel'de XML yoktur (`GetInvoice` yasak).
  */
 final class FaturaBelgeServisi
 {
@@ -91,10 +89,6 @@ final class FaturaBelgeServisi
      */
     private function protelPdf(EntegratorBaglanti $tanim, EFatura $fatura): string
     {
-        if ($fatura->yazdirildi !== true) {
-            throw EntegratorHatasi::protelPdfYazdirilmamis();
-        }
-
         $govde = $this->protel->post($tanim, ProtelIstemcisi::YOL_FATURA_PDF, [
             'uuidType' => 'DocumentUUID',
             'uuid' => $fatura->ettn,

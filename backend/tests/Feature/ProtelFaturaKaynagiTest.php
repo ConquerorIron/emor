@@ -259,4 +259,33 @@ final class ProtelFaturaKaynagiTest extends TestCase
 
         Http::assertNothingSent();
     }
+
+    /**
+     * Saklama sözleşmesi: satır sayısı PostgreSQL `integer`, tutar
+     * `numeric(20,4)` (16 tam basamak, yuvarlamadan sonra). Taşan değer hatalı
+     * kayıttır; sağlam faturaların toplu yazımını engellemez (PRT-R5).
+     */
+    public function test_tasan_sayisal_alan_hatali_kayittir_saglam_faturalar_yazilir(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        $this->travelTo(CarbonImmutable::parse('2026-05-31 12:00', 'Europe/Istanbul'));
+        $this->tanim();
+        $this->protelYaniti([
+            $this->kayit(['id' => 1, 'lineCount' => 2147483647, 'payableAmount' => 9999999999999999, 'taxTotal' => -9999999999999999]),
+            $this->kayit(['id' => 2, 'lineCount' => 2147483648]),
+            $this->kayit(['id' => 3, 'payableAmount' => 10000000000000000]),
+            // float 9999999999999999.5 → 1e16: yuvarlamadan sonra 17 basamak
+            $this->kayit(['id' => 4, 'payableAmount' => 9999999999999999.5]),
+        ]);
+
+        $this->artisan('efatura:senkron', ['--saglayici' => 'protel', '--baslangic' => '2026-05-01'])->assertFailed();
+
+        $fatura = EFatura::query()->sole();
+        $this->assertSame(1, $fatura->kaynak_id);
+        $this->assertSame(2147483647, $fatura->satir_sayisi);
+        $this->assertSame('9999999999999999.0000', $fatura->tutar);
+        $calisma = EFaturaSenkronCalismasi::query()->sole();
+        $this->assertSame(EFaturaSenkronCalismasi::DURUM_EKSIK, $calisma->durum);
+        $this->assertSame(3, $calisma->hatali_adet);
+    }
 }

@@ -21,7 +21,7 @@ use Tests\TestCase;
 
 /**
  * Protel Gelen Faturalar uçları (PRT-09, PRT-10, PRT-12): kapsam yalnız aktif
- * Protel tanımı, ayrı izinler, PDF yalnız "yazdırıldı" faturada, XML yok.
+ * Protel tanımı, ayrı izinler, PDF yalnız izinli alanlarla, XML yok.
  */
 final class ProtelEkranTest extends TestCase
 {
@@ -111,22 +111,7 @@ final class ProtelEkranTest extends TestCase
         $this->actingAs($kullanici)->getJson("/api/v1/efatura/faturalar/{$fatura->id}/xml")->assertStatus(422);
     }
 
-    public function test_yazdirilmamis_faturanin_pdfi_protele_istek_gitmeden_reddedilir(): void
-    {
-        config(['entegrator.protel.aktif' => true]);
-        Http::preventStrayRequests();
-        Http::fake();
-        $fatura = EFatura::factory()->protel()->create(['yazdirildi' => false]);
-
-        $this->actingAs($this->izinli('protel_faturalari.goruntule', 'protel_faturalari.pdf'))
-            ->getJson("/api/v1/protel/faturalar/{$fatura->id}/pdf")
-            ->assertStatus(409)
-            ->assertJsonPath('kod', 'PROTEL_PDF_YAZDIRILMAMIS');
-
-        Http::assertNothingSent();
-    }
-
-    public function test_yazdirilmis_faturanin_pdfi_yalniz_izinli_alanlarla_alinir_erp_arsivine_bakilmaz(): void
+    public function test_pdf_yalniz_izinli_alanlarla_alinir_erp_arsivine_bakilmaz(): void
     {
         config(['entegrator.protel.aktif' => true]);
         $this->mock(ErpBelgeArsivi::class)->shouldNotReceive('pdf');
@@ -136,7 +121,8 @@ final class ProtelEkranTest extends TestCase
             self::GIRIS_URL => ProtelIstemcisiTest::girisYaniti(),
             self::PDF_URL => Http::response(['isSuccess' => false, 'outputDatas' => [base64_encode($pdf)]]),
         ]);
-        $fatura = EFatura::factory()->protel()->create(['ettn' => 'c14ffe5c-f9e9-42d9-ad5e-c8c84d592e84']);
+        // Portalda yazdırılmamış fatura da açılır (kullanıcı kararı 2026-11-19)
+        $fatura = EFatura::factory()->protel()->create(['ettn' => 'c14ffe5c-f9e9-42d9-ad5e-c8c84d592e84', 'yazdirildi' => false]);
 
         $yanit = $this->actingAs($this->izinli('protel_faturalari.goruntule', 'protel_faturalari.pdf'))
             ->get("/api/v1/protel/faturalar/{$fatura->id}/pdf");
@@ -215,5 +201,33 @@ final class ProtelEkranTest extends TestCase
 
         $this->assertSame(['Fatura No', 'ERP Durumu', 'Yazdırıldı'], $sayfa->rangeToArray('A1:C1')[0]);
         $this->assertSame([$fatura->belge_no, 'Booked', 'Hayır'], $sayfa->rangeToArray('A2:C2')[0]);
+    }
+
+    /**
+     * Ekrandaki liste Test ortamınınken aktif ortam Canlı'ya geçtiyse Excel
+     * görülenden farklı faturaları indirmemeli (PRT-R3).
+     */
+    public function test_excel_ekrandaki_listenin_ortami_aktif_ortamla_uyusmazsa_409_doner(): void
+    {
+        EntegratorBaglanti::factory()->protel()->create(['ortam' => 'test']);
+        $canli = EntegratorBaglanti::factory()->protel()->canli()->aktif()->create();
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $canli->id]);
+        $kullanici = $this->izinli('protel_faturalari.goruntule', 'protel_faturalari.disari_aktar');
+        $adres = '/api/v1/protel/gelen/faturalar/excel?'.self::ARALIK.'&kolonlar[]=belge_no&basliklar[]=No&ortam=';
+
+        $this->actingAs($kullanici)->getJson($adres.'test')
+            ->assertStatus(409)
+            ->assertJsonPath('kod', 'ENTEGRATOR_ORTAM_DEGISTI');
+        $this->actingAs($kullanici)->get($adres.'canli')->assertOk()->assertDownload();
+    }
+
+    public function test_protel_listesi_istisna_kodu_seceneklerini_sorgulamaz(): void
+    {
+        EFatura::factory()->protel()->create(['izibiz_istisna_kodu' => '351', 'vergi_istisna_kodu' => '350']);
+
+        $this->actingAs($this->izinli('protel_faturalari.goruntule'))
+            ->getJson('/api/v1/protel/gelen/faturalar?'.self::ARALIK)
+            ->assertOk()
+            ->assertJsonPath('secenekler.istisna_kodlari', []);
     }
 }

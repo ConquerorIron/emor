@@ -54,13 +54,19 @@ final class IslemDurumu
     /**
      * Dosya yoksa null (hiç işlem olmamış) — ama yalnız yokluğu DOĞRULANMIŞSA:
      * klasöre erişilemiyorsa `file_exists` da false döner, bu "işlem yok"
-     * sayılmaz. Okunamayan ya da şemaya uymayan dosya istisnadır.
+     * sayılmaz. Kalıcı kök kurulumun açtığı klasördür: o yoksa ya da
+     * okunamıyorsa durum bilinmiyor demektir (BY-005-R12). Okunamayan ya da
+     * şemaya uymayan dosya istisnadır.
      *
      * @throws IslemDurumuBozuk
      */
     public function oku(): ?IslemKaydi
     {
         if (! file_exists($this->yol)) {
+            if (! is_dir($this->kaliciKok)) {
+                throw IslemDurumuBozuk::neden($this->yol, "kalıcı kökü ({$this->kaliciKok}) yok; kurulum açmalı, dosyanın olup olmadığı bilinmiyor");
+            }
+
             if ($this->yoklukDogrulandi($this->yol)) {
                 return null;
             }
@@ -142,8 +148,9 @@ final class IslemDurumu
 
     /**
      * Yol yok mu — yalnız üst klasörü okunabiliyor ve listede yoksa "evet".
-     * Üst klasör de yoksa aynı soru bir üst klasöre sorulur (geçiş düzeninde
-     * ilk çalıştırma: klasör henüz açılmamış).
+     * Üst klasör de yoksa aynı soru bir üst klasöre sorulur (ilk çalıştırma:
+     * durum klasörü henüz açılmamış) — ama kalıcı kökte DURUR: kökün üstü
+     * sorulmaz, okunamayan kök "yok" sayılmaz (BY-005-R12).
      */
     private function yoklukDogrulandi(string $yol): bool
     {
@@ -154,7 +161,11 @@ final class IslemDurumu
             return ! in_array(basename($yol), $liste, true);
         }
 
-        return $ust !== $yol && ! file_exists($ust) && $this->yoklukDogrulandi($ust);
+        if ($ust === $this->kaliciKok || $ust === $yol) {
+            return false;
+        }
+
+        return ! file_exists($ust) && $this->yoklukDogrulandi($ust);
     }
 
     /**

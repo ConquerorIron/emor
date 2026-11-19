@@ -14,7 +14,7 @@ import { Modal } from '@/components/Modal'
 import { Pagination } from '@/components/Pagination'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 import { TarihInput } from '@/components/TarihInput'
-import { ILK_TARAMA_TARIHI, LISTE_AZAMI_GUN, tutarGoster } from '@/features/efatura/bicim'
+import { LISTE_AZAMI_GUN, tutarGoster, varsayilanBaslangic } from '@/features/efatura/bicim'
 import { durumIsaretSinifi, durumSatirSinifi } from '@/features/efatura/durumRenkleri'
 import type { EFatura, ErpOkunduFiltresi, ExcelKolonu } from '@/features/efatura/efaturaApi'
 import { EvetHayirRozeti, Metin, OzetKartlari } from '@/features/efatura/ListeParcalari'
@@ -56,8 +56,7 @@ type AcikPdf = EFatura | null
 /**
  * Protel Gelen Faturalar (PRT-12) — otelin e-Fatura posta kutusu. Yalnız
  * okunur: Protel'de hiçbir alan değiştirilmez. eMOR karşılaştırması yok
- * (faturalar otelindir — kullanıcı kararı 2026-11-18). PDF yalnız Protel'de
- * "yazdırıldı" görünen faturada açılır.
+ * (faturalar otelindir — kullanıcı kararı 2026-11-18).
  */
 export function ProtelFaturalariPage() {
   const { t } = useTranslation()
@@ -67,7 +66,7 @@ export function ProtelFaturalariPage() {
   const senkronIzni = useIzin('protel_faturalari.senkron')
 
   const [filtre, setFiltre] = useState<ProtelFaturaFiltresi>(() => ({
-    baslangic: ILK_TARAMA_TARIHI,
+    baslangic: varsayilanBaslangic(bugunIso()),
     bitis: bugunIso(),
     ara: '',
     durum: '',
@@ -144,10 +143,10 @@ export function ProtelFaturalariPage() {
   const eskiVeri = liste.isPlaceholderData
   const eskiVeriSinifi = `transition-opacity ${eskiVeri ? 'opacity-50' : ''}`
 
-  const excelAl = async (kolonlar: ExcelKolonu[]) => {
+  const excelAl = async (kolonlar: ExcelKolonu[], ortam: 'test' | 'canli') => {
     setExcelSuruyor(true)
     try {
-      await protelExcelIndir(sorguFiltresi, siralama, sayfa, kolonlar)
+      await protelExcelIndir(sorguFiltresi, siralama, sayfa, kolonlar, ortam)
     } catch (error) {
       toast.error(t(apiErrorKey(error)))
     } finally {
@@ -302,12 +301,7 @@ export function ProtelFaturalariPage() {
             anahtar: 'islemler',
             baslik: '',
             render: (f: EFatura) => (
-              <Button
-                variant="secondary"
-                disabled={f.yazdirildi !== true}
-                title={f.yazdirildi !== true ? t('protel.pdfYazdirilmamis') : undefined}
-                onClick={() => setPdf(f)}
-              >
+              <Button variant="secondary" onClick={() => setPdf(f)}>
                 {t('efatura.pdf')}
               </Button>
             ),
@@ -353,12 +347,17 @@ export function ProtelFaturalariPage() {
         {excelIzni ? (
           <Button
             variant="yesil"
-            onClick={() => void excelAl(excelKolonlari)}
+            onClick={() => {
+              if (liste.data) {
+                void excelAl(excelKolonlari, liste.data.kapsam.ortam)
+              }
+            }}
             title={t('efatura.excelAciklama')}
             yukleniyor={excelSuruyor}
             disabled={
               tarihHatasi !== null ||
-              eskiVeri ||
+              // Yenilenirken (filtre ya da ortam değişti) görünen ≠ inecek olan (F1, PRT-R3)
+              liste.isFetching ||
               (liste.data?.meta.total ?? 0) === 0 ||
               excelKolonlari.length === 0
             }

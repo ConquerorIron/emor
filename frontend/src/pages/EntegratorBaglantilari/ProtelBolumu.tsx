@@ -70,6 +70,7 @@ function ProtelFormu({
     register,
     handleSubmit,
     getValues,
+    resetField,
     setError,
     formState: { errors, isSubmitting },
   } = useForm<ProtelGirdisi>({
@@ -81,6 +82,8 @@ function ProtelFormu({
   const kaydet = useMutation({
     mutationFn: (girdi: ProtelGirdisi) => protelBaglantiGuncelle(ortam, govde(girdi)),
     onSuccess: async () => {
+      // Form yalnız şifre değiştiyse yeniden kurulmaz: girilen şifre alanda kalmasın (PRT-R6)
+      resetField('sifre', { defaultValue: '' })
       await queryClient.invalidateQueries({ queryKey: queryKeys.ayarlar.entegratorBaglantilari })
       toast.success(t('ayarlar.protel.kaydedildi', { ortam: t(`ayarlar.sql.ortam.${ortam}`) }))
     },

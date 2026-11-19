@@ -15,7 +15,7 @@ import { Pagination } from '@/components/Pagination'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 import { Switch } from '@/components/Switch'
 import { TarihInput } from '@/components/TarihInput'
-import { ILK_TARAMA_TARIHI, LISTE_AZAMI_GUN, tutarGoster } from '@/features/efatura/bicim'
+import { LISTE_AZAMI_GUN, tutarGoster, varsayilanBaslangic } from '@/features/efatura/bicim'
 import { durumIsaretSinifi, durumSatirSinifi } from '@/features/efatura/durumRenkleri'
 import {
   type EFatura,
@@ -46,8 +46,7 @@ import { FaturaDetayi } from './FaturaDetayi'
 import { GizlemeDugmesi } from './GizlemeDugmesi'
 import { istisnaKoduFarkli } from './istisna'
 
-const BOS_FILTRE: Omit<EFaturaFiltresi, 'bitis'> = {
-  baslangic: ILK_TARAMA_TARIHI,
+const BOS_FILTRE: Omit<EFaturaFiltresi, 'baslangic' | 'bitis'> = {
   ara: '',
   durum: '',
   erp_okundu: '',
@@ -181,6 +180,7 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
 
   const [filtre, setFiltre] = useState<EFaturaFiltresi>(() => ({
     ...BOS_FILTRE,
+    baslangic: varsayilanBaslangic(bugunIso()),
     bitis: bugunIso(),
     erp_okundu: adrestekiErpFiltresi(),
   }))
@@ -260,10 +260,10 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
   const eskiVeri = liste.isPlaceholderData
   const eskiVeriSinifi = `transition-opacity ${eskiVeri ? 'opacity-50' : ''}`
 
-  const excelAl = async (gorunenKolonlar: ExcelKolonu[]) => {
+  const excelAl = async (gorunenKolonlar: ExcelKolonu[], ortam: 'test' | 'canli') => {
     setExcelSuruyor(true)
     try {
-      await excelIndir(yon, sorguFiltresi, siralama, sayfa, gorunenKolonlar)
+      await excelIndir(yon, sorguFiltresi, siralama, sayfa, gorunenKolonlar, ortam)
     } catch (error) {
       toast.error(t(apiErrorKey(error)))
     } finally {
@@ -543,12 +543,17 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
         {excelIzni ? (
           <Button
             variant="yesil"
-            onClick={() => void excelAl(excelKolonlari)}
+            onClick={() => {
+              if (liste.data) {
+                void excelAl(excelKolonlari, liste.data.kapsam.ortam)
+              }
+            }}
             title={t('efatura.excelAciklama')}
             yukleniyor={excelSuruyor}
             disabled={
               tarihHatasi !== null ||
-              eskiVeri ||
+              // Yenilenirken (filtre ya da ortam değişti) görünen ≠ inecek olan (F1, PRT-R3)
+              liste.isFetching ||
               (liste.data?.meta.total ?? 0) === 0 ||
               excelKolonlari.length === 0
             }

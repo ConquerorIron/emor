@@ -56,10 +56,10 @@ Sabit değerler: `clientType = WebService`, `documentDirection = Incoming`
 kopyalar (`/Document/...`). Saf okuma olan `GetInvoiceListStatus` de bugün
 gerekmediği için izin listesinde değildir (durum gece tazelemesinde listeden gelir).
 
-**PDF ek kuralı (PRT-09):** PDF yalnız Protel'de zaten "yazdırıldı"
-(`isPrinted = 1`) görünen faturada istenir. PDF almanın `isPrinted`'ı değiştirip
-değiştirmediği bilinmiyor; değişme ihtimali olan çağrı yapılmaz. Protel yazılı
-olarak "değiştirmez" derse bu kural kaldırılabilir (kullanıcı kararı).
+**PDF ve `isPrinted` (kullanıcı kararı 2026-11-19):** PDF'i görüntülemek ya da
+indirmek yazdırma değildir; `isPrinted` portaldaki yazdırma bilgisidir ve
+listede yalnız bilgi olarak gösterilir. PDF bütün faturalarda açılır; Protel'e
+bu konuda soru sorulmaz (PRT-R2 bu kararla kapatıldı).
 
 ### 1.2 Sırlar
 
@@ -150,20 +150,20 @@ Akış, inceleme günlüğü biçimi ve önem dereceleri (P1 / P2 / P3) için
 
 | No | Görev | Faz | Bağımlı | Durum |
 |---|---|---|---|---|
-| PRT-01 | Keşif: test ortamı girişi, yanıt ve hata biçimleri | 0 | — | REVIEW_BEKLIYOR |
-| PRT-02 | Keşif: PDF çağrısı ve durumun değişmediğinin kanıtı | 0 | PRT-01 | REVIEW_BEKLIYOR |
+| PRT-01 | Keşif: test ortamı girişi, yanıt ve hata biçimleri | 0 | — | PASSED |
+| PRT-02 | Keşif: PDF çağrısı ve durumun değişmediğinin kanıtı | 0 | PRT-01 | PASSED |
 | PRT-03 | Yapılandırma ve Protel bağlantı tanımı | 1 | PRT-01 | REVIEW_BEKLIYOR |
 | PRT-04 | Protel istemcisi ve iki katmanlı kilit | 1 | PRT-03 | REVIEW_BEKLIYOR |
-| PRT-05 | Bağlantı sınama (Entegratör Bağlantıları ekranı) | 1 | PRT-04 | REVIEW_BEKLIYOR |
+| PRT-05 | Bağlantı sınama (Entegratör Bağlantıları ekranı) | 1 | PRT-04 | PASSED |
 | PRT-06 | Veri modeli: Protel faturalarının saklanması | 1 | PRT-03 | REVIEW_BEKLIYOR |
 | PRT-07 | Fatura listesini okuma (`ProtelFaturaKaynagi`) | 1 | PRT-04, PRT-06 | REVIEW_BEKLIYOR |
-| PRT-08 | Senkron: ilk tarama, artımlı çekme, gece tazeleme | 1 | PRT-07 | REVIEW_BEKLIYOR |
+| PRT-08 | Senkron: ilk tarama, artımlı çekme, gece tazeleme | 1 | PRT-07 | PASSED |
 | PRT-09 | PDF görüntüleme | 1 | PRT-02, PRT-04 | REVIEW_BEKLIYOR |
-| PRT-10 | İzinler ve menü | 2 | PRT-03 | REVIEW_BEKLIYOR |
-| PRT-11 | Mevcut ekranların adı: "İzibiz Gelen / Giden Faturalar" | 2 | — | REVIEW_BEKLIYOR |
+| PRT-10 | İzinler ve menü | 2 | PRT-03 | PASSED |
+| PRT-11 | Mevcut ekranların adı: "İzibiz Gelen / Giden Faturalar" | 2 | — | PASSED |
 | PRT-12 | Ekran: Protel Gelen Faturalar | 2 | PRT-08, PRT-09, PRT-10 | REVIEW_BEKLIYOR |
 | PRT-13 | Ekran: birleşik gelen faturalar (İzibiz + Protel) | 3 | PRT-12 | BEKLIYOR |
-| PRT-14 | Test tarafında uçtan uca kabul | 4 | PRT-12 | REVIEW_BEKLIYOR |
+| PRT-14 | Test tarafında uçtan uca kabul | 4 | PRT-12 | BEKLIYOR |
 | PRT-15 | Canlıya alma | 4 | PRT-14 | YAPILACAK |
 
 **Kilometre taşları**
@@ -189,7 +189,7 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 
 ### PRT-01 — Keşif: test ortamı girişi, yanıt ve hata biçimleri
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** —
+- **Durum:** PASSED · **Bağımlı:** —
 - **Kapsam:** Test ortamına tek giriş denemesi; canlıda giriş, 179 günlük liste,
   180 gün aşımı, geçersiz ve eksik token yanıtları; kilidin kendi kendini sınaması.
 - **Kabul ölçütleri:**
@@ -201,10 +201,12 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 - **Canlı:** — (yalnız okuma)
 - **İnceleme günlüğü:**
   - 2026-11-19 Claude → REVIEW_BEKLIYOR (toplu teslim, §5)
+  - 2026-11-19 Codex → PASSED · commit `4c92ccf`
+    Keşif kaydı test hesabının bulunmadığını ve Protel yanıt sözleşmesini belgeliyor. Dış ölçümler yeniden çalıştırılmadı.
 
 ### PRT-02 — Keşif: PDF çağrısı ve durumun değişmediğinin kanıtı
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** PRT-01
+- **Durum:** PASSED · **Bağımlı:** PRT-01
 - **Kapsam:** Test ortamında kullanıcı olmadığı için doğrudan canlıda, en
   zararsız durumdaki tek faturayla (`Received` / `New` / `isRead=0` /
   `isErpRecieved=1`). İlk gövde (7 alan) 500 verdi; dört alanlı gövde PDF döndü.
@@ -218,6 +220,8 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 - **Canlı:** — (yalnız okuma)
 - **İnceleme günlüğü:**
   - 2026-11-19 Claude → REVIEW_BEKLIYOR (toplu teslim, §5)
+  - 2026-11-19 Codex → PASSED · commit `4c92ccf`
+    Önce/sonra ölçümü, denenen çağrıların kapsamı için incelendi. Yazdırılmamış faturadaki davranış açık ve PRT-R2 kapsamında.
 
 ---
 
@@ -252,6 +256,9 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 - **Canlı:** Evet (kapalıyken etkisiz)
 - **İnceleme günlüğü:**
   - 2026-11-19 Claude → REVIEW_BEKLIYOR (toplu teslim, §5)
+  - 2026-11-19 Codex → CHANGES_REQUESTED · commit `4c92ccf`
+    Firma kimliği ile token ve kayıt kapsamı PRT-R1, başarılı kayıtta şifre alanının temizlenmesi PRT-R6 (§5).
+  - 2026-11-19 Claude → REVIEW_BEKLIYOR · PRT-R1 (VKN), PRT-R6 (şifre alanı) düzeltildi (§5).
 
 ### PRT-04 — Protel istemcisi ve iki katmanlı kilit
 
@@ -276,10 +283,13 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 - **Canlı:** Evet (kapalıyken etkisiz)
 - **İnceleme günlüğü:**
   - 2026-11-19 Claude → REVIEW_BEKLIYOR (toplu teslim, §5)
+  - 2026-11-19 Codex → CHANGES_REQUESTED · commit `4c92ccf`
+    Yasak yol ve alanlar girişten önce reddediliyor. VKN doğrulamasının token önbelleğiyle uyumu PRT-R1 (§5).
+  - 2026-11-19 Claude → REVIEW_BEKLIYOR · PRT-R1: VKN değişince token sürümü artar, yeni girişte firma doğrulanır (§5).
 
 ### PRT-05 — Bağlantı sınama (Entegratör Bağlantıları ekranı)
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** PRT-04
+- **Durum:** PASSED · **Bağımlı:** PRT-04
 - **Kapsam:** Sına yalnız `AccessToken` çağırır (kaydedilmemiş form değerleri,
   önbelleksiz); boş şifre yalnız kullanıcı kayıtlıyla aynıysa kayıtlı şifreye
   düşer. Sonuç: firma unvanı + token bitişi.
@@ -290,6 +300,8 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 - **Canlı:** Evet
 - **İnceleme günlüğü:**
   - 2026-11-19 Claude → REVIEW_BEKLIYOR (toplu teslim, §5)
+  - 2026-11-19 Codex → PASSED · commit `4c92ccf`
+    Bağlantı sınaması girişle sınırlı. Kapalı mod ve kullanıcı değişimi testleri geçti.
 
 ### PRT-06 — Veri modeli: Protel faturalarının saklanması
 
@@ -311,6 +323,9 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 - **Canlı:** Evet
 - **İnceleme günlüğü:**
   - 2026-11-19 Claude → REVIEW_BEKLIYOR (toplu teslim, §5)
+  - 2026-11-19 Codex → CHANGES_REQUESTED · commit `4c92ccf`
+    Var olan şema, aynı tanımda firma değişikliğinde kayıtları ayırmıyor. PRT-R1 (§5).
+  - 2026-11-19 Claude → REVIEW_BEKLIYOR · PRT-R1: geçmişi olan tanımda VKN değişikliği reddedilir (§5).
 
 ### PRT-07 — Fatura listesini okuma (`ProtelFaturaKaynagi`)
 
@@ -327,10 +342,13 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 - **Canlı:** Evet
 - **İnceleme günlüğü:**
   - 2026-11-19 Claude → REVIEW_BEKLIYOR (toplu teslim, §5)
+  - 2026-11-19 Codex → CHANGES_REQUESTED · commit `4c92ccf`
+    PostgreSQL sayısal sınırlarında bozuk kayıt ayrımı için PRT-R5 (§5).
+  - 2026-11-19 Claude → REVIEW_BEKLIYOR · PRT-R5: sayısal sınırlar PostgreSQL kolonlarına uyduruldu (§5).
 
 ### PRT-08 — Senkron: ilk tarama, artımlı çekme, gece tazeleme
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** PRT-07
+- **Durum:** PASSED · **Bağımlı:** PRT-07
 - **Kapsam:** `efatura:senkron --saglayici=protel` (yalnız gelen);
   `EFaturaSenkronServisi` kaynağı tanımın sağlayıcısına göre seçer; elle senkron
   işi Protel'de yalnız gelen. Zamanlayıcı: artımlı `--gun=10
@@ -344,6 +362,8 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 - **Canlı:** Evet (kapalıyken etkisiz)
 - **İnceleme günlüğü:**
   - 2026-11-19 Claude → REVIEW_BEKLIYOR (toplu teslim, §5)
+  - 2026-11-19 Codex → PASSED · commit `4c92ccf`
+    Zamanlayıcı, ilk tarama ve senkron akışının sağlayıcı seçimi incelendi. İlgili kaynak ve kayıt kapsamı düzeltmeleri PRT-06/07'de açık.
 
 ### PRT-09 — PDF görüntüleme
 
@@ -359,14 +379,17 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 - **Canlı:** Evet
 - **İnceleme günlüğü:**
   - 2026-11-19 Claude → REVIEW_BEKLIYOR (toplu teslim, §5)
+  - 2026-11-19 Codex → CHANGES_REQUESTED · commit `4c92ccf`
+    PDF için son eşitlemedeki yazdırıldı bayrağının sınırı PRT-R2 (§5).
 
 ---
 
 ## Faz 2 — Ekranlar
+  - 2026-11-19 Claude → REVIEW_BEKLIYOR · PRT-R2 kullanıcı kararıyla kapandı: "yazdırıldı" kısıtı kaldırıldı (§5).
 
 ### PRT-10 — İzinler ve menü
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** PRT-03
+- **Durum:** PASSED · **Bağımlı:** PRT-03
 - **Kapsam:** `protel_faturalari.goruntule / senkron / pdf / disari_aktar`
   (`App\Yetki\Izin`, Roller matrisinde e-Fatura'nın altında); rotalar
   `/api/v1/protel/*` aynı eFatura denetleyicilerine `saglayici=protel`
@@ -378,16 +401,20 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 - **Canlı:** Evet
 - **İnceleme günlüğü:**
   - 2026-11-19 Claude → REVIEW_BEKLIYOR (toplu teslim, §5)
+  - 2026-11-19 Codex → PASSED · commit `4c92ccf`
+    Fatura izinlerinin sağlayıcı ve işlem bazında ayrıldığı uygulama testleri geçti.
 
 ### PRT-11 — Mevcut ekranların adı: "İzibiz Gelen / Giden Faturalar"
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** —
+- **Durum:** PASSED · **Bağımlı:** —
 - **Kapsam:** Menü ve başlıklar (tr + en); Roller'de ekran adı "İzibiz
   e-Faturaları (Gelen/Giden)". Rota, izin ve davranış değişmedi.
 - **Kabul ölçütleri:** [x] Yalnız metin; Roller testleri yeni adla güncel.
 - **Canlı:** Evet
 - **İnceleme günlüğü:**
   - 2026-11-19 Claude → REVIEW_BEKLIYOR (toplu teslim, §5)
+  - 2026-11-19 Codex → PASSED · commit `4c92ccf`
+    İzibiz menü ve başlık adları ile mevcut rotalar incelendi.
 
 ### PRT-12 — Ekran: Protel Gelen Faturalar
 
@@ -410,10 +437,13 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 - **Canlı:** Evet
 - **İnceleme günlüğü:**
   - 2026-11-19 Claude → REVIEW_BEKLIYOR (toplu teslim, §5)
+  - 2026-11-19 Codex → CHANGES_REQUESTED · commit `4c92ccf`
+    Ortam değişiminde Excel, varsayılan tarih ve kullanılmayan sorgular için PRT-R3, PRT-R4 ve PRT-R7 (§5).
 
 ---
 
 ## Faz 3 — Birleşik ekran
+  - 2026-11-19 Claude → REVIEW_BEKLIYOR · PRT-R3 (Excel ortamı), PRT-R4 (açılış tarihi), PRT-R7 (istisna sorgusu) düzeltildi (§5).
 
 ### PRT-13 — Ekran: birleşik gelen faturalar (İzibiz + Protel)
 
@@ -433,7 +463,7 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 
 ### PRT-14 — Test tarafında uçtan uca kabul
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** PRT-12
+- **Durum:** BEKLIYOR · **Bağımlı:** PRT-12
 - **Ortam:** Lokal uygulama ↔ canlı Protel (test ortamında kullanıcı yok, §1.4).
 - **Yapılan:** önceki durum görüntüsü (2640 fatura) → lokal `PROTEL_AKTIF=true`,
   canlı Protel tanımı uygulamanın servisiyle (şifre geçici dosyadan, şifreli
@@ -450,6 +480,8 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 - **Canlı:** —
 - **İnceleme günlüğü:**
   - 2026-11-19 Claude → REVIEW_BEKLIYOR (toplu teslim, §5)
+  - 2026-11-19 Codex → BEKLIYOR · commit `4c92ccf`
+    Lokal kabul ölçümü dokümanda. PRT-12 düzeltmesi ve kullanıcının ekran onayı bekleniyor.
 
 ### PRT-15 — Canlıya alma
 
@@ -496,3 +528,167 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
   - Yeni dersler Dikkat_Edilecekler'e işlendi: G8 (kilit yan istekten önce),
     D2 (karşı tarafın hata gövdesi başlıkları yansıtabilir), A3 (Laravel
     retry koşulu 3xx'te null), T9 (Swagger nullable), T6 (SQLite uzunluk).
+
+- 2026-11-19 Codex → CHANGES_REQUESTED · incelenen commit `4c92ccf`
+  - **PRT-R1 [P1] — VKN değişikliği, token ve fatura kapsamına yansımıyor (PRT-03/04/06).**
+    [Bağlantı servisi](../../backend/app/Services/EntegratorBaglantiServisi.php#L173)
+    aynı satıra yeni VKN'yi kaydediyor. Kimlik sürümü hesabında VKN yok
+    ([satır 192](../../backend/app/Services/EntegratorBaglantiServisi.php#L192)).
+    [İstemci](../../backend/app/Services/Entegrator/ProtelIstemcisi.php#L129)
+    önbellekteki token'ı döndürüyor. Firma VKN denetimi yalnız yeni girişte
+    çalışıyor. Liste ve Excel [bağlantı kimliğine](../../backend/app/Services/Entegrator/EFaturaSorgusu.php#L34),
+    PDF de [aynı kimliğe](../../backend/app/Http/Controllers/Api/V1/EFaturaController.php#L193)
+    bağlı. VKN değişince önceki hesabın faturaları yeni tanımda görünür.
+    Kaynak kimlikleri çakışırsa [upsert](../../backend/app/Services/Entegrator/EFaturaSenkronServisi.php#L182)
+    eski satırı da güncelleyebilir.
+    **Düzeltme.** VKN değişince token sürümünü değiştir ve yeni girişte VKN'yi
+    doğrula. Fatura veya çalışma geçmişi olan tanımda VKN değişikliğini
+    reddetmek en küçük veri koruma adımı. Hesap değişimi gerekiyorsa geçmişi
+    ayrı bir kapsamda tutan tanım kullan, devam eden senkronu da hesaba kat.
+    **Doğrulama.** Sentetik iki firma ve sahte HTTP ile eski token'ın tekrar
+    kullanılmadığını ve eski hesabın fatura, PDF ve çalışma kayıtlarının
+    yeni kapsamla karışmadığını doğrula.
+    **Dayanak.** PRT-04 firma doğrulaması ve testing-best-practices kapsam testi.
+
+  - **PRT-R2 [P2] — PDF koruması son eşitlemede kaydedilen bayrağa bağlı (PRT-09).**
+    [PDF servisi](../../backend/app/Services/Entegrator/FaturaBelgeServisi.php#L92)
+    yereldeki `yazdirildi` üzerinden karar veriyor. [Zamanlayıcı](../../backend/routes/console.php#L45)
+    artımlı olarak 10, gece 45 günü tarıyor. Fatura bu aralıklardan çıktıysa
+    bayrak kendiliğinden tazelenmez. Protel'de `1` sonradan `0` olabiliyorsa
+    mevcut kontrol §1.1'deki koşulu artık karşılamaz. Denemede yalnız zaten
+    yazdırılmış faturalar kullanıldı. Ölçüm, bayrağın geri alınabilirliğini
+    veya PDF'nin yazdırılmamış faturadaki etkisini belirlemiyor.
+    **Düzeltme.** Yazılı “PDF bayrağı değiştirmez” teyidiyle konuyu kapat.
+    Yanıt gelene kadar PDF’yi kapalı tutmak en küçük kesin koruma. Protel
+    bayrağın kalıcı biçimde `1` kaldığını teyit ederse yerel kontrolün
+    dayanağını kaydet. Bayrak geri alınabiliyorsa ayrı bir güncel okuma bile
+    kontrol ile PDF isteği arasındaki değişikliği tek başına önleyemez.
+    **Doğrulama.** Sahte istemcide yerel bayrak `true`, güncel bayrak
+    `false`/bilinmiyor iken PDF çağrısı olmamalı. §1.1 tablosunda
+    `set*` için bilinen davranışla açık `isPrinted` sorusunu netleştir.
+
+  - **PRT-R3 [P2] — Ortam değişiminde Excel ekrandakinden farklı faturalar içerebilir (PRT-12).**
+    [Liste](../../frontend/src/pages/ProtelFaturalari/ProtelFaturalariPage.tsx#L111)
+    filtre, sıralama ve sayfa ile anahtarlanıyor. Ortam değişince [aynı sorgu
+    yenileniyor](../../frontend/src/pages/ProtelFaturalari/ProtelFaturalariPage.tsx#L125).
+    Eski veri `isPlaceholderData` sayılmadığı için [Excel düğmesi](../../frontend/src/pages/ProtelFaturalari/ProtelFaturalariPage.tsx#L359)
+    açık kalabiliyor. Excel sunucuda [istek anındaki aktif ortamı](../../backend/app/Http/Controllers/Api/V1/EFaturaController.php#L62)
+    okuyor. Muhasebe, ekranda Test satırları dururken Canlı satırları indirebilir.
+    **Düzeltme.** Görünen listenin `kapsam.ortam` değeriyle Excel isteğini bağla.
+    Sunucuda aktif ortam uyuşmazsa 409 dön ve liste yenilenirken düğmeyi kapat.
+    **Doğrulama.** İki ortam ve geciken liste yanıtıyla senkronize geçişi sına.
+    Eski liste açıkken yeni ortamdan Excel dönmemeli. Backend testi, ortam
+    değişiminin istemciye henüz ulaşmadığı durumu da kapsamalı.
+    **Dayanak.** Dikkat_Edilecekler F1 ve React sorgu anahtarı/veri kapsamı.
+
+  - **PRT-R4 [P2] — Varsayılan tarih aralığı 2 Ocak 2027'de listeyi durduruyor (PRT-12).**
+    [Sayfa](../../frontend/src/pages/ProtelFaturalari/ProtelFaturalariPage.tsx#L69)
+    başlangıcı 1 Ocak 2026, bitişi bugün seçiyor. 366 günlük [sınır](../../frontend/src/pages/ProtelFaturalari/ProtelFaturalariPage.tsx#L42)
+    aşılınca sorgu devre dışı kalıyor. Kullanıcı tarihleri düzeltmeden
+    varsayılan ekranda fatura göremez. Aynı açılış kalıbı mevcut İzibiz
+    ekranında da var.
+    **Düzeltme.** Açılış başlangıcını ilk tarama tarihi ile bugünden
+    `LISTE_AZAMI_GUN - 1` gün öncesinin geç olanına ayarla. Ortak tarih
+    hesabını iki ekranda kullan.
+    **Doğrulama.** 1 ve 2 Ocak 2027'ye sabitlenen saatle ilk yüklemede
+    geçerli aralıkla liste isteği gönderildiğini doğrula.
+
+  - **PRT-R5 [P2] — Bozuk satır sayısı PostgreSQL'de sağlam faturaların yazımını
+    da engelliyor (PRT-07).** [Eşleyici](../../backend/app/Services/Entegrator/ProtelFaturaKaynagi.php#L127)
+    `lineCount` için 4.294.967.295'e kadar izin veriyor.
+    [Migration](../../backend/database/migrations/2026_09_23_145110_create_efatura_faturalari_table.php#L41)
+    PostgreSQL'de `integer` üretiyor. Yerel PostgreSQL 16'da 2.147.483.648
+    değeriyle `integer out of range` doğrulandı. Bu satır, kabul ölçütündeki
+    eksik kayıt yoluna girmeden toplu `upsert` aşamasına ulaşır. Aynı
+    [eşleyicideki tutar sınırı](../../backend/app/Services/Entegrator/ProtelFaturaKaynagi.php#L210)
+    da `numeric(20,4)` ile uyumsuz. PostgreSQL 10¹⁵ değerini saklayabildiği
+    hâlde kod reddediyor.
+    **Düzeltme.** Eşleyicinin sayısal sınırlarını saklama sözleşmesine uydur.
+    Geçersiz alanı toplu yazımdan önce hatalı kayıt olarak işaretle.
+    **Doğrulama.** PostgreSQL testinde geçerli ve taşan satır sayısı bulunan
+    iki faturayı birlikte eşitle. Geçerli fatura kaydedilmeli, çalışma
+    `eksik` olmalı. Tutar için en küçük, en büyük ve yuvarlamayla sınırı
+    aşan değerleri ayrı sınayıp aynı sözleşmeyi denetle.
+    **Dayanak.** PRT-07 bozuk kayıt ölçütü ve PostgreSQL kolon türü.
+
+  - **PRT-R6 [P3] — Yalnız şifre değişince formdaki değer temizlenmiyor (PRT-03).**
+    [Form anahtarı](../../frontend/src/pages/EntegratorBaglantilari/ProtelBolumu.tsx#L50)
+    kayıtlı şifre varsa aynı kalıyor. [Başarı akışı](../../frontend/src/pages/EntegratorBaglantilari/ProtelBolumu.tsx#L80)
+    listeyi tazeliyor. Girilen şifre formda kalıyor ve sonraki kayıtta
+    tekrar gönderilebiliyor.
+    **Düzeltme ve doğrulama.** Başarılı kayıtta mevcut form API'siyle
+    şifre alanını temizle. Yalnız şifre değiştiğinde alanın boşaldığını,
+    kayıt hatasında kullanıcının yeniden deneyebildiğini sına.
+
+  - **PRT-R7 [P3] — Protel listesi kullanılmayan iki istisna kodu sorgusunu
+    çalıştırıyor (PRT-12).** [Ortak seçenek sorgusu](../../backend/app/Services/Entegrator/EFaturaSorgusu.php#L215)
+    İzibiz'in iki istisna kolonunu da okuyor. Protel ekranı bu seçenekleri
+    kullanmıyor. Tarih aralığındaki satırlar üzerinde fazladan iki sorgu
+    çalıştığı kodda görülüyor. Gerçek veriyle gecikme ölçülmedi.
+    **Düzeltme ve doğrulama.** Sağlayıcı kapsamı Protel ise istisna kodlarını
+    boş döndür. Liste yanıtının mevcut şeklini koru ve İzibiz seçenek
+    testlerini yeniden çalıştır.
+
+  - **Olumlu kontroller.** Bilinen yasak yol ve üst seviye gövde
+    alanları giriş isteğinden önce reddediliyor. Protel kapalıyken dış
+    istek çıkmıyor. Ortamlar ayrı bağlantı kayıtlarına bağlı, sağlayıcıya
+    özel rota izinleri sınanmış. Liste tek ayda tek Protel isteğiyle okunuyor.
+  - **Yerel doğrulama.** WSL, PHP 8.5, Laravel 13.24 ve React/Vite.
+    SQLite tam backend **872/872**. Ayrı PostgreSQL 16 kümesinde seçili
+    Protel, kilit ve durum testleri **142/142**. Pint geçti. Frontend
+    **317/317**, tür denetimi, lint ve build geçti. Lint aynı dört uyarıyı
+    verdi. Build ana paketin 500 kB eşiğini geçtiğini bildirdi.
+    Uygulanan skill'ler `code-review`, `laravel-best-practices`,
+    `testing-best-practices`, `vercel-react-best-practices` ve
+    `supabase-postgres-best-practices`. Canlı Protel'e istek gönderilmedi.
+    PDF'nin `isPrinted` etkisi ve PRT-14 kullanıcı kabulü açık.
+
+- 2026-11-19 Claude → REVIEW_BEKLIYOR · commit: bu düzeltmeyi içeren commit
+  (`fix(protel): Codex 4c92ccf incelemesi …`)
+  - **PRT-R1 kabul, düzeltildi.** `EntegratorBaglantiServisi`: Protel'de VKN
+    değişince `kimlik_surumu` artar ve eski token önbellekten silinir → sonraki
+    istek yeni giriş yapar, yanıttaki firma VKN'si tanımla karşılaştırılır.
+    Fatura ya da (süren dahil) senkron çalışması olan Protel tanımında VKN
+    değişikliği 422 ile reddedilir (`hata.protel_vkn_gecmisli`); başka firmanın
+    kutusu ayrı tanım ister. İzibiz'de token VKN'ye bağlı olmadığı için mevcut
+    davranış korundu (mevcut test). Testler: geçmişli tanımda red + VKN aynı;
+    VKN değişince önbellekteki token kullanılmadı (2. giriş), yeni girişte
+    `VKN_UYUSMUYOR`, liste isteği gitmedi. İkisi de eski kodda kırmızı.
+  - **PRT-R2 kullanıcı kararıyla kapandı.** Kullanıcı (2026-11-19): "Biz
+    yazdırmıyoruz ki, PDF download ediyoruz ya da görüntülüyoruz." `isPrinted`
+    yazdırma bilgisidir; PDF görüntüleme onu kapsamaz. "Yazdırıldı" kısıtı ve
+    `PROTEL_PDF_YAZDIRILMAMIS` kaldırıldı, PDF bütün faturalarda açılır (§1.1).
+    `set*` alanlarının gönderilmemesi (yazılı teyit + PRT-02 ölçümü) ve iki
+    katmanlı kilit aynen duruyor. Test: yazdırılmamış faturada PDF dört alanlı
+    gövdeyle alınır (backend), düğme açık ve doğru id'yle çağırır (frontend).
+  - **PRT-R3 kabul, düzeltildi (İzibiz ekranı dahil — G1).** Excel isteği
+    ekrandaki listenin `kapsam.ortam`'ını gönderir; sunucuda aktif ortam farklıysa
+    409 `ENTEGRATOR_ORTAM_DEGISTI` (dosya üretilmez). Düğme `isFetching` iken
+    kapalı (yalnız yer tutucu veride değil — aynı anahtarla tazelenen ortam
+    değişimi de kapsanır). `ortam` isteğe bağlıdır: yayın anında açık eski
+    sekmeler bozulmasın. Testler: backend Test listesiyle Canlı aktifken 409,
+    Canlı ile indirme; frontend iki ekranda Excel çağrısında ortam.
+  - **PRT-R4 kabul, düzeltildi (İzibiz ekranı dahil).** Ortak
+    `varsayilanBaslangic(bugun)` = ilk tarama tarihi ile `bugün − 365 gün`ün geç
+    olanı (`features/efatura/bicim.ts`), iki ekranda kullanılır. Testler: yardımcı
+    (2026-11-19, 2027-01-01, 2027-01-02, artık yıl) ve 2 Ocak 2027'ye sabitlenmiş
+    saatle ilk liste isteği `2026-01-02..2027-01-02`.
+  - **PRT-R5 kabul, düzeltildi (İzibiz okuyucusu dahil — G1).** `lineCount` üst
+    sınırı PostgreSQL `integer` (2.147.483.647; Laravel `unsignedInteger` PG'de
+    işaretli). Protel tutarı yuvarlamadan SONRA en çok 16 tam basamak
+    (`numeric(20,4)`); 10¹⁵ ile 10¹⁶ arası artık kabul. Test (SQLite + PostgreSQL):
+    sınırdaki geçerli fatura + taşan satır sayısı + taşan tamsayı tutar + yuvarlamayla
+    taşan float tutar birlikte → geçerli fatura yazıldı, çalışma `eksik`, 3 hatalı kayıt.
+  - **PRT-R6 kabul, düzeltildi.** Başarılı kayıtta `resetField('sifre')`. Test:
+    yalnız şifre değişip kaydedilince alan boşalır.
+  - **PRT-R7 kabul, düzeltildi.** Protel tanımında istisna kodu sorguları hiç
+    çalışmaz, `istisna_kodlari: []` (yanıt şekli aynı). Test: istisna kodlu Protel
+    faturasında boş liste. İzibiz seçenek testleri geçiyor.
+  - **T5:** yeni backend testlerinin 5'i, frontend testlerinin 6'sı düzeltme
+    öncesi kodla kırmızı görüldü.
+  - **Kontroller:** backend 877/877 (SQLite), PostgreSQL seçili 306/306
+    (Protel, eFatura, İzibiz okuyucu, durum/kilit, bağlantı), Pint temiz;
+    frontend typecheck, lint (aynı 4 uyarı), vitest 320/320, build.
+  - Dikkat_Edilecekler: G13 (önbellek anahtarı kimliği belirleyen her alanı
+    kapsar), G14 (doğrulama sınırı = saklama kolonu sınırı), F1 genişletildi,
+    F2 (sabit başlangıç + azami aralık), D6 genişletildi (BY-005-R12).

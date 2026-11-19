@@ -138,7 +138,8 @@ final class ProtelFaturaKaynagi implements FaturaKaynagi
             'customerId' => $this->fazlaUzun($ham['customerId'] ?? null, 32),
             'status' => $this->fazlaUzun($ham['status'] ?? null, 64),
             'erpStatus' => $this->fazlaUzun($ham['erpStatus'] ?? null, 32),
-            'lineCount' => is_int($ham['lineCount'] ?? null) && ($ham['lineCount'] < 0 || $ham['lineCount'] > 4294967295),
+            // PostgreSQL `integer` (Laravel unsignedInteger PG'de işaretli integer'dır) — PRT-R5
+            'lineCount' => is_int($ham['lineCount'] ?? null) && ($ham['lineCount'] < 0 || $ham['lineCount'] > 2147483647),
         ]));
 
         if ($hatalar !== [] || $kaynakId === null || $ettn === null || $belgeTarihi === null || $tutar === null) {
@@ -205,21 +206,22 @@ final class ProtelFaturaKaynagi implements FaturaKaynagi
 
     /**
      * Protel tutarı JSON sayısıdır (`1786.0`, `401.98`). Ondalık METNE çevrilir
-     * (4 basamak, sondaki sıfırlar atılır); numeric(20,4) dışı değer null (veri hatası).
+     * (4 basamağa yuvarlanır, sondaki sıfırlar atılır). Saklama sözleşmesi
+     * `numeric(20,4)`: en çok 16 tam basamak — yuvarlamadan SONRA denetlenir;
+     * aşan değer null (veri hatası, toplu yazıma ulaşmaz — PRT-R5).
      */
     private function tutar(mixed $deger): ?string
     {
         if (is_int($deger)) {
-            return abs($deger) < 10 ** 15 ? (string) $deger : null;
-        }
-
-        if (! is_float($deger) || ! is_finite($deger) || abs($deger) >= 1e15) {
+            $metin = (string) $deger;
+        } elseif (is_float($deger) && is_finite($deger)) {
+            $metin = rtrim(rtrim(number_format($deger, 4, '.', ''), '0'), '.');
+            $metin = $metin === '-0' ? '0' : $metin;
+        } else {
             return null;
         }
 
-        $metin = rtrim(rtrim(number_format($deger, 4, '.', ''), '0'), '.');
-
-        return $metin === '-0' ? '0' : $metin;
+        return strlen(explode('.', ltrim($metin, '-'))[0]) <= 16 ? $metin : null;
     }
 
     /** Protel bayrakları 0/1 tam sayıdır */

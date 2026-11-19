@@ -327,6 +327,36 @@ describe('EntegratorBaglantilariPage', () => {
       expect(api.guncelle).not.toHaveBeenCalled()
     })
 
+    it('yalnız şifre değişip kaydedilince şifre alanı boşalır (PRT-R6)', async () => {
+      const protelTanimi = {
+        ...TEST_TANIMI,
+        saglayici: 'protel' as const,
+        kullanici_adi: 'ws@otel.test',
+        vkn: '4550357065',
+      }
+      api.getir.mockResolvedValue(
+        veri({
+          protel: { test: protelTanimi, canli: null, aktif_ortam: 'test', modul_aktif: true },
+        }),
+      )
+      api.protelGuncelle.mockResolvedValue(protelTanimi)
+      ciz()
+      await screen.findByDisplayValue('ws@otel.test')
+      const form = protelFormu()
+      const sifre = document.getElementById('protel-test-sifre') as HTMLInputElement
+
+      fireEvent.change(sifre, { target: { value: 'yeni-sifre' } })
+      fireEvent.click(within(form).getByRole('button', { name: 'Kaydet' }))
+
+      await waitFor(() => expect(api.protelGuncelle).toHaveBeenCalledTimes(1))
+      expect(api.protelGuncelle).toHaveBeenCalledWith('test', {
+        kullanici_adi: 'ws@otel.test',
+        sifre: 'yeni-sifre',
+        vkn: '4550357065',
+      })
+      await waitFor(() => expect(sifre).toHaveValue(''))
+    })
+
     it('e-posta olmayan kullanıcıyla istek göndermez', async () => {
       ciz()
       await screen.findByDisplayValue('deneme-kullanici')

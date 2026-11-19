@@ -62,6 +62,15 @@ final class EFaturaController extends Controller
     public function excel(EFaturaListeRequest $request, string $yon, EFaturaExcelAktarici $aktarici): BinaryFileResponse|JsonResponse
     {
         $tanim = $this->aktifTanim($request);
+
+        // Ekrandaki liste başka ortamın verisiyse (ortam değişti, liste henüz
+        // tazelenmedi) görülenden farklı faturalar inmesin (PRT-R3, F1)
+        if ($request->filled('ortam') && $request->input('ortam') !== $tanim->ortam) {
+            return response()->json([
+                'kod' => 'ENTEGRATOR_ORTAM_DEGISTI',
+                'mesaj' => __('hata.entegrator_ortam_degisti'),
+            ], 409);
+        }
         $faturaYonu = FaturaYonu::from($yon);
         $filtre = $request->filtre();
 

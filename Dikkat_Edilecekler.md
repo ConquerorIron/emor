@@ -124,6 +124,24 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   *(Fable F8: `.env` okuyucu süreç ortamından okuyordu. BY-001-R6: devralınan
   PGPASSWORD yedeği bozuyor, kurulumda geçersiz dosyayla bağlantıyı başarılı
   gösterip eski parola kopyasını sildiriyordu.)*
+- **G13 — Önbellek anahtarı (ya da sürümü) sonucu belirleyen HER girdiyi
+  kapsasın.** Token, oturum, hesaplanmış sonuç önbelleğe alınıyorsa, değişince
+  sonucun anlamı değişen her alan (kullanıcı, adres, şifre — ve firmayı seçen
+  VKN) anahtarı ya da sürümü değiştirmeli; yalnız ilk alımda yapılan bir
+  doğrulama (firma eşleşmesi) önbellekten dönen değere uygulanmaz. Aynı alan
+  veri kapsamını da belirliyorsa (aynı bağlantı kimliğine yazılan faturalar),
+  geçmiş varken değişikliği reddet ya da kapsamı ayır.
+  *(PRT-R1: Protel VKN'si değişince eski firmanın token'ı ve faturaları yeni
+  tanımda kalıyordu.)*
+- **G14 — Doğrulama sınırı saklama kolonunun gerçek sınırıyla aynı olsun.**
+  Eşleyicideki üst sınır migration'daki türle birebir: Laravel
+  `unsignedInteger` PostgreSQL'de işaretli `integer`'dır (en çok
+  2.147.483.647); `decimal(20,4)` en çok 16 tam basamaktır ve sınır
+  yuvarlamadan SONRA denetlenir. Fazla gevşek sınır taşan satırı toplu
+  `upsert`'e kadar taşır ve sağlam satırları da düşürür; fazla sıkı sınır geçerli
+  veriyi reddeder. Sınırın iki yanını PostgreSQL'de sına.
+  *(PRT-R5: Protel ve İzibiz okuyucuları `lineCount`'u 4.294.967.295'e kadar
+  kabul ediyordu — G1.)*
 
 ## 2. Ön yüz
 
@@ -132,6 +150,16 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   sürerken indirme / Excel / ekstre gibi düğmeler kapalı olmalı; yoksa görülen
   ile inen farklı olur. Soluk göstermek tıklamayı engellemez.
   *(Firma Özeti ve Kesinti Özeti — iki ayrı bulgu.)*
+  Sorgu anahtarına girmeyen sunucu durumu (aktif ortam, aktif hesap) değişince
+  aynı anahtar yer tutucu olmadan tazelenir: `isPlaceholderData` false kalır.
+  Düğmeyi `isFetching`'e bağla ve isteğe ekranda görünen kapsamı (ör.
+  `kapsam.ortam`) ekle; sunucu uyuşmazlıkta reddetsin.
+  *(PRT-R3: ortam değişirken Excel yeni ortamın faturalarını indirebiliyordu.)*
+- **F2 — Sabit başlangıç tarihi + azami aralık, gelecekte kendiliğinden bozulur.**
+  Varsayılan filtre `sabit tarih … bugün` ise aralık sınırı bir gün aşılır ve
+  ekran açılışta boş kalır. Başlangıcı `max(sabit tarih, bugün − (sınır − 1))`
+  hesapla, ortak yardımcıdan al; testte saati sınır gününe sabitle.
+  *(PRT-R4: 2 Ocak 2027'de Protel ve İzibiz ekranları listeyi durduracaktı.)*
 
 ## 3. Testler
 
@@ -234,6 +262,10 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   *(BY-005-R1: erişilemeyen durum dosyası "açık geri yükleme yok" sayılıyordu.
   Fable incelemesi F4: `YedekKilidi` her `flock` hatasını "meşgul" sayıyordu;
   BY-001-R5: aynı hata kardeş kabuk betiğinde kalmıştı — G1.)*
+  Yokluk araması (üst klasöre çıkan özyineleme) kurulumun garanti ettiği kökte
+  durmalı: kök yoksa ya da okunamıyorsa sonuç "bilinmiyor"dur, kökün üstü
+  okunabiliyor diye "yok" denmez.
+  *(BY-005-R12: kurulmamış kalıcı kökte "açık geri yükleme yok" dönüyordu.)*
 - **D7 — Ayrı hesap, daha az güvenilen hesabın yazabildiği kodu çalıştırmasın.**
   Bir işi "ele geçirilse bile X'e ulaşamasın" diye ayrı hesaba veriyorsan, o
   hesabın çalıştırdığı / yüklediği her dosyayı say: PHP önbellekleri

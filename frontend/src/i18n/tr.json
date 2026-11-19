@@ -522,8 +522,8 @@
     "ENTEGRATOR_YANIT_GECERSIZ": "Entegratörden beklenmeyen bir yanıt geldi.",
     "ENTEGRATOR_HATA": "Entegratör isteği reddetti.",
     "ENTEGRATOR_AKTIF_YOK": "Aktif entegratör ortamı seçilmemiş.",
+    "ENTEGRATOR_ORTAM_DEGISTI": "Aktif entegratör ortamı değişti; ekrandaki liste eski ortama ait. Liste yenilendikten sonra Excel'i tekrar alın.",
     "PROTEL_KAPALI": "Protel bağlantısı sunucuda kapalı (PROTEL_AKTIF); Protel'e istek gönderilmedi.",
-    "PROTEL_PDF_YAZDIRILMAMIS": "Bu fatura Protel'de henüz yazdırılmamış görünüyor. Protel'deki durumu değiştirmemek için PDF yalnız yazdırılmış faturalarda açılır.",
     "guncellendiBaslik": "Uygulama güncellendi",
     "guncellendiOtomatik": "Yeni sürüm yüklendi; sayfa yenilenince geçerli olur.",
     "guncellendiElle": "Sayfayı yenileyerek yeni sürüme geçebilirsiniz.",
@@ -764,7 +764,6 @@
     "baslik": "Protel Gelen Faturalar",
     "aciklama": "Otelin e-Fatura posta kutusu (Protel). Yalnız görüntülenir; Protel'de hiçbir şey değiştirilmez.",
     "modulKapali": "Protel bağlantısı sunucuda kapalı (PROTEL_AKTIF): senkron çalışmaz, PDF açılmaz.",
-    "pdfYazdirilmamis": "PDF yalnız Protel'de yazdırılmış görünen faturada açılır (Protel'deki durumu değiştirmemek için).",
     "kolon": {
       "erpAldi": "Otel ERP Aldı",
       "erpDurumu": "Otel ERP Durumu",

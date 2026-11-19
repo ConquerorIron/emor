@@ -586,14 +586,17 @@ describe('EFaturalarPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
 
     await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
-    const [yon, filtre, siralama, sayfa, kolonlar] = api.excel.mock.calls[0] as [
+    const [yon, filtre, siralama, sayfa, kolonlar, ortam] = api.excel.mock.calls[0] as [
       string,
       Record<string, string>,
       unknown,
       number,
       { anahtar: string; baslik: string }[],
+      string,
     ]
     expect([yon, siralama, sayfa]).toEqual(['gelen', VARSAYILAN_SIRALAMA, 1])
+    // Ekrandaki listenin ortamı: sunucuda aktif ortam değiştiyse indirme reddedilir
+    expect(ortam).toBe('test')
     expect(filtre).toMatchObject({ baslangic: '2026-01-01', bitis: bugunIso() })
     expect(kolonlar.slice(0, 3)).toEqual([
       { anahtar: 'erp_okundu', baslik: 'ERP Okudu' },

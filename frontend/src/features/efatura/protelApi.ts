@@ -68,7 +68,7 @@ export async function protelSenkronBaslat(aralik: {
   await api.post('/api/v1/protel/senkron', aralik)
 }
 
-/** PDF yalnız Protel'de "yazdırıldı" görünen faturada açılır (sunucu da denetler). */
+/** PDF anlık okunur; istek yalnız izinli alanları taşır (sunucu kilidi). */
 export async function protelPdfGetir(faturaId: number): Promise<FaturaPdfi> {
   const yanit = await api
     .get<Blob>(`/api/v1/protel/faturalar/${faturaId}/pdf`, { responseType: 'blob' })
@@ -83,12 +83,15 @@ export async function protelExcelIndir(
   siralama: Siralama | null,
   sayfa: number,
   kolonlar: ExcelKolonu[],
+  /** Ekrandaki listenin ortamı — sunucuda aktif ortam farklıysa indirme reddedilir */
+  ortam: 'test' | 'canli',
 ): Promise<void> {
   const yanit = await api
     .get<Blob>('/api/v1/protel/gelen/faturalar/excel', {
       params: {
         ...parametreler(filtre, siralama),
         page: sayfa,
+        ortam,
         kolonlar: kolonlar.map((kolon) => kolon.anahtar),
         basliklar: kolonlar.map((kolon) => kolon.baslik),
       },

@@ -138,7 +138,7 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 |---|---|---|---|---|
 | BY-001 | Geçici önlem: günlük yedek ve elle sunucu dışı kopya | 0 | — | PASSED |
 | BY-002 | Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları | 0 | — | PASSED |
-| BY-003 | Sunucu kurulum betiği | 0 | BY-002 | REVIEW_BEKLIYOR |
+| BY-003 | Sunucu kurulum betiği | 0 | BY-002 | PASSED |
 | BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | PASSED |
 | BY-005 | Dosya kilidi ve işlem durumu dosyası | 1 | BY-004 | REVIEW_BEKLIYOR |
 | BY-006 | Manifest, imza, olay günlüğü | 1 | BY-004 | YAPILACAK |
@@ -769,7 +769,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-003 — Sunucu kurulum betiği
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-002
+- **Durum:** PASSED · **Bağımlı:** BY-002
 - **Tasarım:** README §9, §5.5, §5.2, §4.8
 - **Karar (kullanıcı, 2026-11-18):** bilgi işlemden bir şey istenmez. Sunucu
   ayarları `admin` kullanıcısı ve `sudo` ile yapılır; şifre kullanıcıdadır.
@@ -1285,6 +1285,13 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
         izleyerek iş yapmaz).
     - Test: sahte `sync` çağrıları kaydediyor. Eski betikle 4 kırmızı;
       kurulum testleri (root) **179/179**. Ayrıntı BY-005 kaydında.
+  - 2026-11-19 Codex → PASSED · incelenen commit `997dba3`
+    - BY-005-R11'in kurulum karşılığı doğrulandı. Kurulum kökü,
+      durum klasörünü ve kilit girdisini eşitliyor. Yeniden kurulum
+      bu adımları tekrarlıyor. Denetim kipinde yazma yapılmıyor.
+    - WSL'de yerel PostgreSQL ve test hesaplarıyla **179/179**.
+      Bitişte test kullanıcısı, grubu, rolleri ve dizini temizlendi.
+      Canlı sunucu, gerçek systemd ve güç kesintisi denenmedi.
 
 ---
 
@@ -2196,6 +2203,49 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       - Pint temiz.
       - Geçici yedek betiği değişmedi.
       - Güç kesintisi denenmedi. Canlıya alınmadı.
+  - 2026-11-19 Codex → CHANGES_REQUESTED · incelenen commit `997dba3`
+    - **R11 kapandı.** İzinleri sınırlı üst dizin varken yazım çalışıyor.
+      Kalıcı kökün altındaki eşitleme hatası yeniden denemede de hata.
+      İlgili testler WSL'de SQLite ve PostgreSQL ile geçti.
+    - **BY-005-R12 [P2] — Kurulması gereken kök yoksa okuma açık geri
+      yükleme yok diyor.**
+      [IslemDurumu.php:61](../../backend/app/Services/Yedekleme/IslemDurumu.php#L61)
+      ve [satır 148](../../backend/app/Services/Yedekleme/IslemDurumu.php#L148).
+      Alt klasör yokluğunu denetleyen özyineleme, kalıcı kökün de üstüne
+      çıkabiliyor. Oysa [KaliciKlasor.php:49](../../backend/app/Services/Yedekleme/KaliciKlasor.php#L49)
+      yazma tarafında kökün kurulu olmasını şart koşuyor. Geçici dizinde
+      kurulu kök ve eksik kök iki ayrı durumda denendi. İki durumda da
+      `oku()` null döndü. Eksik kökte `acikGeriYuklemeVarMi()` false
+      döndü. Durum klasörü taşıma, disk veya kurulum hatasıyla erişimden
+      çıkarsa BY-029 bu sonucu çalışmaya izin olarak yorumlayabilir.
+      **Düzeltme.** Yokluk denetimini kalıcı kökte sınırla. Eksik veya
+      erişilemeyen kalıcı kökte `IslemDurumuBozuk` ver. Kök okunabiliyorsa
+      henüz oluşturulmamış durum dosyası için null davranışını koru.
+      **Doğrulama.** Kurulu boş kök, kurulmamış kök ve erişim izni
+      kaldırılmış kökü ayrı sınayan testte ilk durum null, diğer ikisi
+      istisna vermeli. R11'in yalnız geçilebilir üst dizin testi de geçmeli.
+      **Dayanak.** BY-005'in dosya yokluğu ile durumun bilinmemesini
+      ayırma kuralı ve BY-029 başlangıç koruması.
+    - **Kontroller.** WSL'de backend 872/872. Ayrı PostgreSQL 16
+      kümesinde Protel, kilit ve durum testleri 142/142. Pint geçti.
+      Güç kesintisi ve canlı servis denenmedi.
+  - 2026-11-19 Claude → REVIEW_BEKLIYOR · commit: bu düzeltmeyi içeren commit
+    (`fix(protel): Codex 4c92ccf incelemesi …` — Protel düzeltmeleriyle aynı commit)
+    - **R12 kabul, düzeltildi.** `IslemDurumu::oku()`: dosya yokken önce kalıcı
+      kök denetlenir — kök yoksa `IslemDurumuBozuk` ("kalıcı kökü … yok; kurulum
+      açmalı"). `yoklukDogrulandi()` özyinelemesi kalıcı kökte durur: kök
+      okunamıyorsa "yok" değil "erişilemiyor" (istisna). Kurulu ve okunabilir
+      kökte henüz açılmamış durum klasörü için `null` korunur (ilk çalıştırma).
+    - Test `test_yokluk_kalici_kokte_durur_kurulmamis_ya_da_okunamayan_kok_hata_verir`:
+      kurulmamış kök → istisna (kökün üstündeki sistem geçici klasörü okunabilir
+      olsa da); kurulu boş kök → null; izni kaldırılmış kök (0000, root değilken)
+      → istisna. Düzeltme öncesi kodla kırmızı ("Kurulmamış kalıcı kök 'açık geri
+      yükleme yok' sayıldı").
+    - R11'in yalnız geçilebilir üst klasör testleri ve kilit testleri geçiyor
+      (`IslemDurumuTest` + `YedekKilidiTest` 72/72; PostgreSQL'de de).
+    - G1: `scandir` ile yokluk arayan başka kod yok.
+    - D6'ya eklendi: yokluk araması kurulumun garanti ettiği kökün üstüne çıkmaz.
+    - Kontroller: backend 877/877, Pint temiz. Canlıya alınmadı.
 
 ### BY-006 — Manifest, imza, olay günlüğü
 

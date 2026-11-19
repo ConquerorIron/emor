@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\EFatura;
 use App\Models\EntegratorBaglanti;
 use App\Models\User;
+use App\Services\Entegrator\EntegratorHatasi;
+use App\Services\Entegrator\ProtelIstemcisi;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -19,6 +22,8 @@ final class ProtelBaglantiTest extends TestCase
     use LazilyRefreshDatabase;
 
     private const GIRIS_URL = 'https://authrestapitest.protel.com.tr/v1/Auth/AccessToken';
+
+    private const LISTE_URL = 'https://einvoicerestapitest.protel.com.tr/v1/Document/GetInvoiceList';
 
     private function yonetici(): User
     {
@@ -135,5 +140,56 @@ final class ProtelBaglantiTest extends TestCase
             ->assertJsonPath('hatalar.sifre.0', 'Kullanıcı adı değiştiğinde entegratör şifresi yeniden girilmelidir.');
 
         Http::assertNothingSent();
+    }
+
+    public function test_gecmisi_olan_tanimin_vknsi_degistirilemez(): void
+    {
+        $this->yonetici();
+        $fatura = EFatura::factory()->protel()->create();
+        $tanim = $fatura->entegratorBaglanti;
+
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test', [
+            'kullanici_adi' => $tanim->kullanici_adi, 'vkn' => '9999999999',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('hatalar.vkn.0', 'Bu Protel tanımının faturaları ve senkron geçmişi var; VKN değiştirilemez. Başka bir firmanın kutusu için ayrı tanım gerekir.');
+
+        $this->assertSame('1234567890', $tanim->refresh()->vkn);
+    }
+
+    /**
+     * Önbellekteki token eski firmanındır: VKN değişince kullanılmaz, yeni
+     * girişte firma VKN'si yeniden doğrulanır (PRT-R1).
+     */
+    public function test_vkn_degisince_eski_token_kullanilmaz_yeni_giriste_firma_dogrulanir(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        Http::preventStrayRequests();
+        Http::fake([
+            self::GIRIS_URL => Http::sequence()
+                ->push(ProtelIstemcisiTest::girisYaniti('1234567890')->wait()->getBody()->getContents())
+                ->push(ProtelIstemcisiTest::girisYaniti('1234567890')->wait()->getBody()->getContents()),
+            self::LISTE_URL => Http::response(['invoiceList' => []]),
+        ]);
+        $this->yonetici();
+        $tanim = EntegratorBaglanti::factory()->protel()->aktif()->create();
+        $istemci = app(ProtelIstemcisi::class);
+        $govde = ['startDate' => '2026-11-01T00:00:00', 'endDate' => '2026-11-19T23:59:59', 'filterDateType' => 'DocumentDate', 'documentDirection' => 'Incoming', 'erpRecievedStatus' => 'All', 'erpStatus' => 'All'];
+        $istemci->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, $govde);
+
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test', [
+            'kullanici_adi' => $tanim->kullanici_adi, 'vkn' => '9999999999',
+        ])->assertOk();
+
+        try {
+            $istemci->post($tanim->refresh(), ProtelIstemcisi::YOL_FATURA_LISTESI, $govde);
+            $this->fail('Eski firmanın token\'ı yeni VKN ile kullanıldı.');
+        } catch (EntegratorHatasi $hata) {
+            $this->assertSame('VKN_UYUSMUYOR', $hata->saglayiciKodu);
+        }
+
+        // İkinci giriş yapıldı (önbellek kullanılmadı); liste yalnız ilk seferde istendi
+        $this->assertCount(2, Http::recorded(fn (Request $istek): bool => $istek->url() === self::GIRIS_URL));
+        $this->assertCount(1, Http::recorded(fn (Request $istek): bool => $istek->url() === self::LISTE_URL));
     }
 }

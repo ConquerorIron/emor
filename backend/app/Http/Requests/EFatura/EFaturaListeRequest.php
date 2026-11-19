@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\EFatura;
 
+use App\Models\EntegratorBaglanti;
 use App\Services\Entegrator\EFaturaExcelAktarici;
 use App\Services\Entegrator\EFaturaSorgusu;
 use App\Services\Entegrator\EmorDurumu;
@@ -45,6 +46,8 @@ final class EFaturaListeRequest extends FormRequest
             'sirala' => ['nullable', Rule::in(EFaturaSorgusu::SIRALAMALAR)],
             'yon' => ['nullable', Rule::in(['asc', 'desc'])],
             'page' => ['nullable', 'integer', 'min:1'],
+            // Excel: ekrandaki listenin ortamı; sunucudaki aktif ortam farklıysa 409 (PRT-R3)
+            'ortam' => ['nullable', Rule::in(EntegratorBaglanti::ORTAMLAR)],
             'sayfa_boyutu' => ['nullable', 'integer', Rule::in([0, 25, 50, 100, 200])],
             // Excel: ekrandaki görünür kolonlar ve başlıkları, aynı sırada
             'kolonlar' => [Rule::requiredIf(fn (): bool => $this->routeIs('efatura.faturalar.excel', 'protel.faturalar.excel')), 'array', 'max:'.count(EFaturaExcelAktarici::KOLONLAR)],

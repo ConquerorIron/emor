@@ -180,7 +180,8 @@ final class IzibizFaturaKaynagi implements FaturaKaynagi
             'supplierSSN' => $this->fazlaUzun($gonderici['identifier'] ?? $ham['supplierSSN'] ?? null, 32),
             'customerSSN' => $this->fazlaUzun($alici['identifier'] ?? $ham['customerSSN'] ?? null, 32),
             'documentStatus' => $this->fazlaUzun($durum['value'] ?? $ham['invoiceStatus'] ?? $ham['statusCodeDesc'] ?? null, 64),
-            'lineCount' => is_int($ham['lineCount'] ?? null) && ($ham['lineCount'] < 0 || $ham['lineCount'] > 4294967295),
+            // PostgreSQL `integer` (Laravel unsignedInteger PG'de işaretli integer'dır) — PRT-R5
+            'lineCount' => is_int($ham['lineCount'] ?? null) && ($ham['lineCount'] < 0 || $ham['lineCount'] > 2147483647),
             'gibStatusCode' => is_int($zarf['gibStatusCode'] ?? null) && ($zarf['gibStatusCode'] < -2147483648 || $zarf['gibStatusCode'] > 2147483647),
         ]));
 

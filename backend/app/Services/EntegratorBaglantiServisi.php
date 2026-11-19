@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\EFatura;
+use App\Models\EFaturaSenkronCalismasi;
 use App\Models\EntegratorBaglanti;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -168,6 +170,17 @@ final class EntegratorBaglantiServisi
             ]);
         }
 
+        // Protel'de VKN firmanın posta kutusudur; token ve fatura geçmişi o
+        // firmaya aittir. Geçmişi olan tanımda VKN değişirse eski firmanın
+        // faturaları yeni firmanınmış gibi görünür (PRT-R1) — reddedilir.
+        $vknDegisti = $baglanti->exists && $baglanti->vkn !== $veri['vkn'];
+
+        if ($protel && $vknDegisti && $this->gecmisiVar($baglanti)) {
+            throw ValidationException::withMessages([
+                'vkn' => __('hata.protel_vkn_gecmisli'),
+            ]);
+        }
+
         $eskiTokenAnahtari = $baglanti->exists ? $baglanti->tokenOnbellekAnahtari() : null;
 
         $baglanti->fill([
@@ -189,8 +202,11 @@ final class EntegratorBaglantiServisi
             $baglanti->sifre = $sifre;
         }
 
-        // Adres değişince eski adresten alınmış token kullanılmasın
-        $kimlikDegisti = $baglanti->exists && ($kullaniciDegisti || $adresDegisti || ! $sifreBos);
+        // Adres değişince eski token kullanılmasın. Protel'de token firmaya
+        // (VKN) bağlıdır: VKN değişince de yeni giriş yapılır ve firma yeniden
+        // doğrulanır (PRT-R1). İzibiz token'ı VKN'ye bağlı değildir.
+        $kimlikDegisti = $baglanti->exists
+            && ($kullaniciDegisti || $adresDegisti || ($protel && $vknDegisti) || ! $sifreBos);
 
         if ($kimlikDegisti) {
             $baglanti->kimlik_surumu++;
@@ -204,5 +220,12 @@ final class EntegratorBaglantiServisi
         }
 
         return $baglanti;
+    }
+
+    /** Tanıma yazılmış fatura ya da (süren dahil) senkron çalışması var mı. */
+    private function gecmisiVar(EntegratorBaglanti $baglanti): bool
+    {
+        return EFatura::query()->where('entegrator_baglanti_id', $baglanti->id)->exists()
+            || EFaturaSenkronCalismasi::query()->where('entegrator_baglanti_id', $baglanti->id)->exists();
     }
 }
