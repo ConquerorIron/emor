@@ -33,6 +33,13 @@ final class IslemDurumuTest extends TestCase
 
     private const YEDEK_KIMLIGI = '0d4c1a2b-7e6f-4a3b-8c9d-0e1f2a3b4c5d';
 
+    /**
+     * Kurulumun kalıcı kıldığı kök (KaliciKlasor). Sistem geçici klasörü:
+     * test klasörü onun altında açılır, izni kaldırılan test klasörü de
+     * eşitleme zincirinde kalır (BY-005-R9).
+     */
+    private string $kaliciKok;
+
     private string $klasor;
 
     private string $yol;
@@ -46,7 +53,8 @@ final class IslemDurumuTest extends TestCase
     {
         parent::setUp();
 
-        $this->klasor = sys_get_temp_dir().'/yedek-durum-'.bin2hex(random_bytes(4));
+        $this->kaliciKok = sys_get_temp_dir();
+        $this->klasor = $this->kaliciKok.'/yedek-durum-'.bin2hex(random_bytes(4));
         $this->yol = $this->klasor.'/islem.json';
         $this->baskaKilitYolu = $this->klasor.'.baska-kilit';
     }
@@ -70,7 +78,7 @@ final class IslemDurumuTest extends TestCase
     /** Durum dosyasının kendi kilidi (`<durum klasörü>/kilit`), alınmış hâlde */
     private function kilit(): YedekKilidi
     {
-        $kilit = (new IslemDurumu($this->yol))->kilit();
+        $kilit = (new IslemDurumu($this->yol, $this->kaliciKok))->kilit();
         $this->assertTrue($kilit->al());
 
         return $kilit;
@@ -102,7 +110,7 @@ final class IslemDurumuTest extends TestCase
 
     public function test_yazilan_kayit_kurtarma_baglamiyla_aynen_okunur_dosya_baskalarina_kapali(): void
     {
-        $durum = new IslemDurumu($this->yol);
+        $durum = new IslemDurumu($this->yol, $this->kaliciKok);
         $yazilan = new IslemKaydi(
             kimlik: self::KIMLIK,
             tur: IslemTuru::GeriYuklemeUstune,
@@ -133,7 +141,7 @@ final class IslemDurumuTest extends TestCase
      */
     public function test_kilidi_tutmayan_yazamaz_onceki_durum_baytlariyla_korunur(): void
     {
-        $durum = new IslemDurumu($this->yol);
+        $durum = new IslemDurumu($this->yol, $this->kaliciKok);
         $kilit = $this->kilit();
         $durum->yaz($this->kayit(adim: 'once'), $kilit);
         $onceki = file_get_contents($this->yol);
@@ -155,10 +163,10 @@ final class IslemDurumuTest extends TestCase
      */
     public function test_baska_dosyanin_kilidiyle_yazilamaz_onceki_durum_korunur(): void
     {
-        $durum = new IslemDurumu($this->yol);
+        $durum = new IslemDurumu($this->yol, $this->kaliciKok);
         $durum->yaz($this->kayit(adim: 'once'), $this->kilit());
         $onceki = file_get_contents($this->yol);
-        $baskaKilit = new YedekKilidi($this->baskaKilitYolu);
+        $baskaKilit = new YedekKilidi($this->baskaKilitYolu, $this->kaliciKok);
         $this->assertTrue($baskaKilit->al());
 
         try {
@@ -178,7 +186,7 @@ final class IslemDurumuTest extends TestCase
     public function test_durum_klasorunun_ustu_esitlenemezse_yazim_basari_donmez(): void
     {
         $this->rootDegilGerekli();
-        $durum = new IslemDurumu($this->klasor.'/durum/islem.json');
+        $durum = new IslemDurumu($this->klasor.'/durum/islem.json', $this->kaliciKok);
         $kilit = $durum->kilit();
         $this->assertTrue($kilit->al());
         chmod($this->klasor, 0300);
@@ -196,9 +204,36 @@ final class IslemDurumuTest extends TestCase
         $this->assertSame('pg_dump', $durum->oku()?->adim);
     }
 
+    /**
+     * Eşitleme kalıcı kökte durur (BY-005-R11): kökün üstünü kurulum kalıcı
+     * kılar ve orası yalnız geçilebilir olabilir (BY-003 okumaya kapalı üst
+     * klasörü kabul eder). Kendi durum klasörüne yazabilen çalıştırıcı,
+     * önceden kurulmuş durum dosyasını güncelleyebilmeli.
+     */
+    public function test_kalici_kokun_ustunde_yalniz_gecis_izni_varken_durum_yazilir(): void
+    {
+        $this->rootDegilGerekli();
+        $kok = $this->klasor.'/kok';
+        File::ensureDirectoryExists($kok.'/durum', 0750);
+        $durum = new IslemDurumu($kok.'/durum/islem.json', $kok);
+        $kilit = $durum->kilit();
+        $this->assertTrue($kilit->al());
+        $durum->yaz($this->kayit(adim: 'once'), $kilit);
+        chmod($this->klasor, 0100);
+
+        try {
+            $durum->yaz($this->kayit(adim: 'sonra'), $kilit);
+            $okunan = $durum->oku()?->adim;
+        } finally {
+            chmod($this->klasor, 0700);
+        }
+
+        $this->assertSame('sonra', $okunan);
+    }
+
     public function test_dosya_yokken_islem_yok_doner(): void
     {
-        $durum = new IslemDurumu($this->yol);
+        $durum = new IslemDurumu($this->yol, $this->kaliciKok);
 
         $this->assertNull($durum->oku());
         $this->assertFalse($durum->acikGeriYuklemeVarMi());
@@ -221,7 +256,7 @@ final class IslemDurumuTest extends TestCase
     #[DataProvider('acikGeriYuklemeDurumlari')]
     public function test_acik_geri_yukleme_yalniz_acik_ustune_geri_yuklemede_var_sayilir(IslemTuru $tur, bool $acik, bool $beklenen): void
     {
-        $durum = new IslemDurumu($this->yol);
+        $durum = new IslemDurumu($this->yol, $this->kaliciKok);
         $durum->yaz($this->kayit($tur, $acik), $this->kilit());
 
         $this->assertSame($beklenen, $durum->acikGeriYuklemeVarMi());
@@ -250,7 +285,7 @@ final class IslemDurumuTest extends TestCase
         File::ensureDirectoryExists($this->klasor);
         file_put_contents($this->yol, (string) json_encode(self::gecerliIcerik()));
 
-        $kayit = (new IslemDurumu($this->yol))->oku();
+        $kayit = (new IslemDurumu($this->yol, $this->kaliciKok))->oku();
 
         $this->assertSame(IslemTuru::GeriYuklemeUstune, $kayit?->tur);
         $this->assertSame('2026-11-18T10:05:30+00:00', $kayit->sonGuncelleme->toIso8601String());
@@ -307,7 +342,7 @@ final class IslemDurumuTest extends TestCase
     public function test_klasore_erisilemiyorsa_islem_yok_sanilmaz_hata_verir(): void
     {
         $this->rootDegilGerekli();
-        $durum = new IslemDurumu($this->yol);
+        $durum = new IslemDurumu($this->yol, $this->kaliciKok);
         $durum->yaz($this->kayit(IslemTuru::GeriYuklemeUstune, true), $this->kilit());
         chmod($this->klasor, 0000);
 
@@ -324,7 +359,7 @@ final class IslemDurumuTest extends TestCase
     public function test_dosya_okunamiyorsa_hata_verir(): void
     {
         $this->rootDegilGerekli();
-        $durum = new IslemDurumu($this->yol);
+        $durum = new IslemDurumu($this->yol, $this->kaliciKok);
         $durum->yaz($this->kayit(IslemTuru::GeriYuklemeUstune, true), $this->kilit());
         chmod($this->yol, 0000);
 
@@ -336,7 +371,7 @@ final class IslemDurumuTest extends TestCase
     public function test_klasor_hic_acilmamisken_ilk_calismada_islem_yok_doner(): void
     {
         // Geçiş düzeni: durum klasörü ilk yazımda açılır
-        $durum = new IslemDurumu($this->klasor.'/alt/islem.json');
+        $durum = new IslemDurumu($this->klasor.'/alt/islem.json', $this->kaliciKok);
 
         $this->assertNull($durum->oku());
         $this->assertFalse($durum->acikGeriYuklemeVarMi());
@@ -374,7 +409,7 @@ final class IslemDurumuTest extends TestCase
     #[DataProvider('gecersizKayitlar')]
     public function test_gecersiz_kayit_yazilmaz_onceki_durum_baytlariyla_korunur(IslemKaydi $gecersiz): void
     {
-        $durum = new IslemDurumu($this->yol);
+        $durum = new IslemDurumu($this->yol, $this->kaliciKok);
         $kilit = $this->kilit();
         $durum->yaz($this->kayit(adim: 'once'), $kilit);
         $onceki = file_get_contents($this->yol);
@@ -394,7 +429,7 @@ final class IslemDurumuTest extends TestCase
     {
         File::ensureDirectoryExists($this->klasor);
         file_put_contents($this->yol, $icerik);
-        $durum = new IslemDurumu($this->yol);
+        $durum = new IslemDurumu($this->yol, $this->kaliciKok);
 
         try {
             $durum->acikGeriYuklemeVarMi();
@@ -406,14 +441,14 @@ final class IslemDurumuTest extends TestCase
 
     public function test_eszamanli_okuyucu_yarim_ya_da_karisik_dosya_gormez(): void
     {
-        $durum = new IslemDurumu($this->yol);
+        $durum = new IslemDurumu($this->yol, $this->kaliciKok);
         $kilit = $this->kilit();
         $durum->yaz($this->kayit(), $kilit);
         // Yazıcı ayrı süreç: kilidi o alır (tek yazar)
         $kilit->birak();
         $yazici = <<<'PHP'
             require $argv[1];
-            $durum = new App\Services\Yedekleme\IslemDurumu($argv[2]);
+            $durum = new App\Services\Yedekleme\IslemDurumu($argv[2], $argv[3]);
             $kilit = $durum->kilit();
             $kilit->al() || exit(3);
             $bitis = microtime(true) + 1.5;
@@ -431,7 +466,7 @@ final class IslemDurumuTest extends TestCase
             }
             echo $i;
             PHP;
-        $this->surec = Process::timeout(30)->start([PHP_BINARY, '-r', $yazici, base_path('vendor/autoload.php'), $this->yol]);
+        $this->surec = Process::timeout(30)->start([PHP_BINARY, '-r', $yazici, base_path('vendor/autoload.php'), $this->yol, $this->kaliciKok]);
 
         $okuma = 0;
         $karisik = 0;
@@ -453,7 +488,7 @@ final class IslemDurumuTest extends TestCase
     public function test_yazilamazsa_onceki_durum_korunur_gecici_dosya_kalmaz(): void
     {
         $this->rootDegilGerekli();
-        $durum = new IslemDurumu($this->yol);
+        $durum = new IslemDurumu($this->yol, $this->kaliciKok);
         $kilit = $this->kilit();
         $durum->yaz($this->kayit(adim: 'once'), $kilit);
         chmod($this->klasor, 0500);
@@ -472,8 +507,8 @@ final class IslemDurumuTest extends TestCase
     public function test_veritabani_ve_onbellek_yokken_kilit_ve_durum_calisir(): void
     {
         config(['database.default' => 'olmayan_baglanti', 'cache.default' => 'olmayan_depo']);
-        $kilit = new YedekKilidi($this->klasor.'/kilit');
-        $durum = new IslemDurumu($this->yol);
+        $kilit = new YedekKilidi($this->klasor.'/kilit', $this->kaliciKok);
+        $durum = new IslemDurumu($this->yol, $this->kaliciKok);
 
         $this->assertTrue($kilit->al());
         $durum->yaz($this->kayit(IslemTuru::GeriYuklemeUstune, true), $kilit);

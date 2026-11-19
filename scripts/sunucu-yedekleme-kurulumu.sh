@@ -326,6 +326,15 @@ izin_duzelt() { # $1 yol, $2 sahip, $3 izin
   # "0750" ile setgid bitini KORUR, "00750" ile temizler.
   sahibi_olarak "$2" chmod "0$3" "$1"
 }
+# Kalıcı kök (BY-005-R11): uygulama klasör eşitlemesini durum/ klasöründe
+# durdurur, kökün üstü yalnız geçilebilir olabilir. Bu yüzden kökün ve alt
+# klasörlerin girdilerini kurulum diske zorlar — klasör önceden açılmış olsa
+# da: önceki çalıştırma eşitlemeden önce kesilmiş olabilir (D3). Klasörler
+# root'un kökündedir; servis onları bağlantıyla değiştiremez (D5). Denetim
+# kipinde yapılmaz.
+kalici_kil() { # $1 klasör
+  if [[ "$KIP" != denetle && -d "$1" && ! -L "$1" ]]; then sync -- "$(dirname "$1")" "$1"; fi
+}
 klasor() { # $1 yol, $2 izin, $3 sahip (varsayılan servis)
   local sahip="${3:-$YEDEK_KULLANICI}"
   tur_denetle "$1" d || return 0
@@ -336,6 +345,7 @@ klasor() { # $1 yol, $2 izin, $3 sahip (varsayılan servis)
     duzelt "$1 açıldı ($sahip:$YEDEK_KULLANICI $2)" \
       install -d -o "$sahip" -g "$YEDEK_KULLANICI" -m "$2" "$1"
   fi
+  kalici_kil "$1"
 }
 HARF=(--- --x -w- -wx r-- r-x rw- rwx)
 # Bir yolun izin verilen TAM ACL'si. Sonuç iki değişkende:
@@ -406,10 +416,11 @@ if [[ -d "$YEDEK_KOKU/durum" ]]; then
       izin_denetle "$KILIT_DOSYASI" 0640
       acl_denetle "$KILIT_DOSYASI" 0640 "r--"
     else
-      # Servis hesabı açar: root, servisin yazabildiği klasörde dosya açmaz
+      # Servis hesabı açar: root, servisin yazabildiği klasörde dosya açmaz.
+      # Dosya ve girdisi diske zorlanır: uygulama var olan kilidi eşitlemez (BY-005-R11)
       acl_tanimi 0640 "r--" ""
       duzelt "$KILIT_DOSYASI açıldı (0640; yayın kullanıcısı okur)" \
-        runuser -u "$YEDEK_KULLANICI" -- bash -c 'install -m 640 /dev/null "$1" && setfacl --set "$2" "$1"' \
+        runuser -u "$YEDEK_KULLANICI" -- bash -c 'install -m 640 /dev/null "$1" && setfacl --set "$2" "$1" && sync -- "$1" "$(dirname "$1")"' \
           _ "$KILIT_DOSYASI" "$ACL_TANIMI"
     fi
   fi

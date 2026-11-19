@@ -30,12 +30,20 @@ final class IslemDurumu
 {
     private const KILIT_DOSYASI = 'kilit';
 
-    public function __construct(private readonly string $yol) {}
+    /**
+     * @param  string  $kaliciKok  Kurulumun açıp diske eşitlediği klasör; durum klasörü onun kendisi ya da altında (KaliciKlasor)
+     *
+     * @throws InvalidArgumentException Durum klasörü kalıcı kökün altında değil
+     */
+    public function __construct(private readonly string $yol, private readonly string $kaliciKok)
+    {
+        KaliciKlasor::kokAltindaOlmali(dirname($yol), $kaliciKok);
+    }
 
     /** Bu durum dosyasının yazarlarının alacağı kilit (alınmamış hâlde). */
     public function kilit(): YedekKilidi
     {
-        return new YedekKilidi($this->kilitYolu());
+        return new YedekKilidi($this->kilitYolu(), $this->kaliciKok);
     }
 
     private function kilitYolu(): string
@@ -98,7 +106,7 @@ final class IslemDurumu
 
         $icerik = json_encode($dizi, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)."\n";
         $klasor = dirname($this->yol);
-        KaliciKlasor::ac($klasor);
+        KaliciKlasor::ac($klasor, $this->kaliciKok);
 
         // tempnam değil: klasör yazılamazsa sistemin geçici klasörüne düşer ve
         // taşıma artık tek adım olmaz. Nokta önekli ad, okuyanların göreceği ad değildir.

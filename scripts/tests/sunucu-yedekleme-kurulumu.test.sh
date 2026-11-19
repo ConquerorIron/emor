@@ -51,21 +51,39 @@ temizle() {
 cd /
 temizle
 mkdir -p "$D/systemd"; chmod 755 "$D"
+# Eşitleme (BY-005-R11) dışarıdan görünmez: sahte sync argümanları günlüğe
+# yazar, sonra gerçeğini çalıştırır. Servis hesabı da yazabilsin diye 0666.
+GERCEK_SYNC="$(command -v sync)"
+mkdir -m 755 "$D/sahte"
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> %s/sync.gunluk\nexec %s "$@"\n' "$D" "$GERCEK_SYNC" > "$D/sahte/sync"
+chmod 755 "$D/sahte/sync"
+SAHTE_PATH="$D/sahte:$PATH"
+esitlendi() { grep -qxF -- "-- $1" "$D/sync.gunluk"; } # $1 "yol1 yol2"
+sync_sifirla() { install -m 666 /dev/null "$D/sync.gunluk"; }
 
 echo "== A. İlk durum: --denetle eksik raporlar, hiçbir şey değiştirmez"
-calistir "ilk denetim eksik" 1 --denetle
+sync_sifirla
+PATH="$SAHTE_PATH" calistir "ilk denetim eksik" 1 --denetle
+bekle "denetim eşitleme yapmadı" test ! -s "$D/sync.gunluk"
 bekle "denetim kullanıcı açmadı" bash -c '! id emor-yedek-deneme >/dev/null 2>&1'
 bekle "denetim klasör açmadı" test ! -e "$K"
 bekle "denetim rol açmadı" bash -c "[[ -z \$(runuser -u postgres -- psql -X -A -t -c \"select 1 from pg_roles where rolname='$EMOR_VT_YEDEK_ROLU'\") ]]"
 grep -c "\[EKSİK\]" "$D/son.txt" | sed 's/^/    eksik madde sayısı: /'
 
 echo "== B. Kurulum"
-calistir "kurulum" 0
+sync_sifirla
+PATH="$SAHTE_PATH" calistir "kurulum" 0
 grep -E "KURULUM:" "$D/son.txt" | sed 's/^/    /'
+# Uygulama eşitlemeyi kalıcı kökte (durum/) durdurur; üstünü kurulum zorlar (BY-005-R11)
+bekle "kök ve üstü eşitlendi" esitlendi "$(dirname "$K") $K"
+bekle "durum klasörü ve kök eşitlendi" esitlendi "$K $K/durum"
+bekle "kilit dosyası ve klasörü eşitlendi" esitlendi "$K/durum/kilit $K/durum"
 echo "== C. İkinci kurulum: değişiklik yok"
-calistir "ikinci kurulum" 0
+sync_sifirla
+PATH="$SAHTE_PATH" calistir "ikinci kurulum" 0
 bekle "ikinci kurulumda 0 değişiklik" grep -q "KURULUM: 0 değişiklik" "$D/son.txt"
 bekle "ikinci kurulumda YAPILDI yok" bash -c "! grep -q YAPILDI '$D/son.txt'"
+bekle "var olan klasörler de yeniden eşitlendi (D3)" esitlendi "$K $K/durum"
 echo "== D. Denetim temiz"
 calistir "denetim temiz" 0 --denetle
 cp "$D/son.txt" "$D/denetim_temiz.txt"

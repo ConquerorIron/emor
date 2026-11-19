@@ -29,6 +29,12 @@ final class YedekKilidiTest extends TestCase
     /** pcntl eklentisine bağlı olmamak için sabitin değeri (Symfony Process de böyle yapar) */
     private const SIGKILL = 9;
 
+    /**
+     * Kurulumun kalıcı kıldığı kök (KaliciKlasor). Sistem geçici klasörü:
+     * izni kaldırılan test klasörü eşitleme zincirinde kalır (BY-005-R9).
+     */
+    private string $kaliciKok;
+
     private string $klasor;
 
     private string $yol;
@@ -40,7 +46,8 @@ final class YedekKilidiTest extends TestCase
     {
         parent::setUp();
 
-        $this->klasor = sys_get_temp_dir().'/yedek-kilit-'.bin2hex(random_bytes(4));
+        $this->kaliciKok = sys_get_temp_dir();
+        $this->klasor = $this->kaliciKok.'/yedek-kilit-'.bin2hex(random_bytes(4));
         $this->yol = $this->klasor.'/kilit';
     }
 
@@ -94,8 +101,8 @@ final class YedekKilidiTest extends TestCase
 
     public function test_kilit_tutulurken_ikinci_tutamac_alamaz_birakilinca_alir(): void
     {
-        $birinci = new YedekKilidi($this->yol);
-        $ikinci = new YedekKilidi($this->yol);
+        $birinci = new YedekKilidi($this->yol, $this->kaliciKok);
+        $ikinci = new YedekKilidi($this->yol, $this->kaliciKok);
 
         $this->assertTrue($birinci->al());
         $this->assertFalse($ikinci->al());
@@ -107,9 +114,9 @@ final class YedekKilidiTest extends TestCase
 
     public function test_dosyayi_tutuyor_mu_yalniz_o_dosyanin_kilidi_alinmisken_dogru(): void
     {
-        $kilit = new YedekKilidi($this->yol);
-        $ayniDosyaIkinci = new YedekKilidi($this->yol);
-        $baskaDosya = new YedekKilidi($this->klasor.'/baska-kilit');
+        $kilit = new YedekKilidi($this->yol, $this->kaliciKok);
+        $ayniDosyaIkinci = new YedekKilidi($this->yol, $this->kaliciKok);
+        $baskaDosya = new YedekKilidi($this->klasor.'/baska-kilit', $this->kaliciKok);
 
         $this->assertFalse($kilit->dosyayiTutuyorMu($this->yol));
         $kilit->al();
@@ -128,7 +135,7 @@ final class YedekKilidiTest extends TestCase
     {
         $this->kilitDosyasiAc();
         $surec = $this->kilidiTutanSurec(60);
-        $kilit = new YedekKilidi($this->yol);
+        $kilit = new YedekKilidi($this->yol, $this->kaliciKok);
 
         $this->assertFalse($kilit->al());
 
@@ -141,7 +148,7 @@ final class YedekKilidiTest extends TestCase
     public function test_kilit_tutulurken_flock_komutu_da_alamaz(): void
     {
         $this->flockKomutuGerekli();
-        $kilit = new YedekKilidi($this->yol);
+        $kilit = new YedekKilidi($this->yol, $this->kaliciKok);
         $this->assertTrue($kilit->al());
 
         $this->assertSame(1, Process::run(['flock', '-n', $this->yol, 'true'])->exitCode());
@@ -155,7 +162,7 @@ final class YedekKilidiTest extends TestCase
     {
         $this->kilitDosyasiAc();
         $surec = $this->kilidiTutanSurec(1);
-        $kilit = new YedekKilidi($this->yol);
+        $kilit = new YedekKilidi($this->yol, $this->kaliciKok);
 
         $baslangic = microtime(true);
         $alindi = $kilit->bekleyerekAl(10);
@@ -172,7 +179,7 @@ final class YedekKilidiTest extends TestCase
     {
         $this->kilitDosyasiAc();
         $this->kilidiTutanSurec(60);
-        $kilit = new YedekKilidi($this->yol);
+        $kilit = new YedekKilidi($this->yol, $this->kaliciKok);
 
         $baslangic = microtime(true);
         $alindi = $kilit->bekleyerekAl(0.5);
@@ -202,7 +209,7 @@ final class YedekKilidiTest extends TestCase
     #[DataProvider('gecersizSureler')]
     public function test_bekleyerek_al_gecersiz_sureyi_beklemeden_reddeder(float $saniye): void
     {
-        $kilit = new YedekKilidi($this->yol);
+        $kilit = new YedekKilidi($this->yol, $this->kaliciKok);
 
         $this->expectException(InvalidArgumentException::class);
 
@@ -215,7 +222,7 @@ final class YedekKilidiTest extends TestCase
         $this->flockKomutuGerekli();
         $this->kilitDosyasiAc();
         chmod($this->yol, 0440);
-        $kilit = new YedekKilidi($this->yol);
+        $kilit = new YedekKilidi($this->yol, $this->kaliciKok);
 
         $this->assertTrue($kilit->al());
         $this->assertSame(1, Process::run(['flock', '-n', $this->yol, 'true'])->exitCode());
@@ -223,7 +230,7 @@ final class YedekKilidiTest extends TestCase
 
     public function test_kilit_dosyasi_yoksa_klasoruyle_birlikte_acilir(): void
     {
-        $kilit = new YedekKilidi($this->yol);
+        $kilit = new YedekKilidi($this->yol, $this->kaliciKok);
 
         $this->assertTrue($kilit->al());
         $this->assertFileExists($this->yol);
@@ -247,7 +254,7 @@ final class YedekKilidiTest extends TestCase
         try {
             foreach (['ilk deneme', 'yeniden deneme'] as $deneme) {
                 try {
-                    (new YedekKilidi($yol))->al();
+                    (new YedekKilidi($yol, $this->kaliciKok))->al();
                     $this->fail("Üst klasör eşitlenemezken kilit alındı ({$deneme}).");
                 } catch (RuntimeException $hata) {
                     $this->assertStringContainsString('eşitlenemedi', $hata->getMessage(), $deneme);
@@ -257,7 +264,57 @@ final class YedekKilidiTest extends TestCase
             chmod($this->klasor, 0700);
         }
 
-        $this->assertTrue((new YedekKilidi($yol))->al());
+        $this->assertTrue((new YedekKilidi($yol, $this->kaliciKok))->al());
+    }
+
+    /**
+     * Eşitleme kalıcı kökte durur (BY-005-R11): kökün üstü yalnız geçilebilir
+     * olsa da (BY-003) kökün altındaki kilit klasörü ve dosyası açılır.
+     */
+    public function test_kalici_kokun_ustunde_yalniz_gecis_izni_varken_kilit_acilir(): void
+    {
+        $this->rootDegilGerekli();
+        $kok = $this->klasor.'/kok';
+        File::ensureDirectoryExists($kok, 0750);
+        chmod($this->klasor, 0100);
+
+        try {
+            $alindi = (new YedekKilidi($kok.'/durum/kilit', $kok))->al();
+        } finally {
+            chmod($this->klasor, 0700);
+        }
+
+        $this->assertTrue($alindi);
+        $this->assertFileExists($kok.'/durum/kilit');
+    }
+
+    /**
+     * Kalıcı kökün dışındaki ya da kökü kurulmamış bir yolda klasör açılmaz:
+     * kökün üstünde açılan girdiyi kimse eşitlemezdi (BY-005-R11).
+     */
+    public function test_kalici_kokun_disinda_ya_da_kok_yokken_kilit_klasoru_acilmaz(): void
+    {
+        $kok = $this->klasor.'/kok';
+        File::ensureDirectoryExists($kok, 0750);
+        $durumlar = [
+            'kökün dışında' => [$this->klasor.'/baska/kilit', $kok, InvalidArgumentException::class],
+            'adı kökle başlıyor, altında değil' => [$kok.'2/kilit', $kok, InvalidArgumentException::class],
+            'kökün üstüne çıkıyor' => [$kok.'/../baska/kilit', $kok, InvalidArgumentException::class],
+            'kök kurulmamış' => [$this->klasor.'/yok/durum/kilit', $this->klasor.'/yok', RuntimeException::class],
+        ];
+
+        foreach ($durumlar as $durum => [$yol, $kalici, $beklenen]) {
+            $hata = null;
+            try {
+                (new YedekKilidi($yol, $kalici))->al();
+            } catch (InvalidArgumentException|RuntimeException $yakalanan) {
+                $hata = $yakalanan;
+            }
+            $this->assertInstanceOf($beklenen, $hata, "Kilit açıldı ya da başka hata verdi ({$durum}).");
+        }
+
+        $this->assertSame(['kok'], array_values(array_diff(scandir($this->klasor), ['.', '..'])));
+        $this->assertSame([], array_values(array_diff(scandir($kok), ['.', '..'])));
     }
 
     /**
@@ -267,7 +324,7 @@ final class YedekKilidiTest extends TestCase
      */
     public function test_kilit_dosyasi_baska_surecte_degistirilince_eski_tutamac_tutmuyor_sayilir(): void
     {
-        $kilit = new YedekKilidi($this->yol);
+        $kilit = new YedekKilidi($this->yol, $this->kaliciKok);
         $kilit->al();
         $this->assertTrue($kilit->dosyayiTutuyorMu($this->yol));
 
@@ -285,7 +342,7 @@ final class YedekKilidiTest extends TestCase
         $this->rootDegilGerekli();
         File::ensureDirectoryExists($this->klasor, 0750);
         chmod($this->klasor, 0500);
-        $kilit = new YedekKilidi($this->yol);
+        $kilit = new YedekKilidi($this->yol, $this->kaliciKok);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage($this->yol);

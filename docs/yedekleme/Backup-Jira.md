@@ -136,9 +136,9 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 
 | No | Görev | Faz | Bağımlı | Durum |
 |---|---|---|---|---|
-| BY-001 | Geçici önlem: günlük yedek ve elle sunucu dışı kopya | 0 | — | REVIEW_BEKLIYOR |
+| BY-001 | Geçici önlem: günlük yedek ve elle sunucu dışı kopya | 0 | — | PASSED |
 | BY-002 | Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları | 0 | — | PASSED |
-| BY-003 | Sunucu kurulum betiği | 0 | BY-002 | PASSED |
+| BY-003 | Sunucu kurulum betiği | 0 | BY-002 | REVIEW_BEKLIYOR |
 | BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | PASSED |
 | BY-005 | Dosya kilidi ve işlem durumu dosyası | 1 | BY-004 | REVIEW_BEKLIYOR |
 | BY-006 | Manifest, imza, olay günlüğü | 1 | BY-004 | YAPILACAK |
@@ -191,7 +191,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-001 — Geçici önlem: günlük yedek ve elle sunucu dışı kopya
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** —
+- **Durum:** PASSED · **Bağımlı:** —
 - **Tasarım:** README §2, §11 (YDK-00)
 - **Ön koşul:** Kullanıcı onayı (canlı sunucuda zamanlayıcı değişikliği); `.env`
   ve yedeğin kopyalanacağı yer kullanıcıdan.
@@ -542,6 +542,15 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       denenmedi; sahte pg_dump ortamı kaydediyor.
     - G12'ye eklendi: tek değişkeni değil bütün aileyi temizle.
     - Betik testleri **87/87**.
+  - 2026-11-19 Codex → PASSED · incelenen commit `03f1cba`
+    - **R7 kapandı.** Betik devralınan libpq ortam değişkenlerini
+      temizliyor, `pg_dump` için parola dosyasını ve bağlantı süresini
+      açıkça belirliyor. Önceki turdaki senaryo bu tur gerçek geçici
+      PostgreSQL 16 örneğinde tekrarlandı. Yanlış parolalı
+      `PGSERVICE` profili, `PGPASSWORD` ve `PGOPTIONS` devralınmasına
+      rağmen doğru `.env` ile yedek alındı ve `pg_restore` denetimi geçti.
+    - Betik denetimleri **87/87**, `bash -n` ve `git diff --check`
+      temiz. Canlıda çalışma veya zamanlayıcı kurulumu yapılmadı.
 
 ### BY-002 — Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları
 
@@ -760,7 +769,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-003 — Sunucu kurulum betiği
 
-- **Durum:** PASSED · **Bağımlı:** BY-002
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-002
 - **Tasarım:** README §9, §5.5, §5.2, §4.8
 - **Karar (kullanıcı, 2026-11-18):** bilgi işlemden bir şey istenmez. Sunucu
   ayarları `admin` kullanıcısı ve `sudo` ile yapılır; şifre kullanıcıdadır.
@@ -1263,6 +1272,19 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       Test sonunda kullanıcı, grup ve roller kaldırıldı, `www-data`
       önceki üyeliğine döndü. Geçici systemd ve sudoers yolları kullanıldı.
       Gerçek systemd servisi veya canlı kurulum denenmedi.
+  - 2026-11-19 Claude → REVIEW_BEKLIYOR · BY-005-R11'in kurulum karşılığı
+    (commit `fix(yedekleme): Codex 03f1cba incelemesi (BY-005-R11)`)
+    - Uygulama klasör eşitlemesini kalıcı kökte (`durum/`) durduruyor; kökün
+      üstü yalnız geçilebilir olabilir. Bu sözleşmenin gerçek olması için
+      betik değişti; yalnız bu değişiklik incelenecek:
+      - Her kurulumda kök ve alt klasörler, üst klasörleriyle birlikte
+        diske zorlanıyor (`kalici_kil`). Klasör önceden açılmış olsa da
+        (D3); denetim kipinde değil.
+      - Kilit dosyası açılınca dosya ve `durum/` servis hesabıyla
+        eşitleniyor (D5: root, servisin yazabildiği klasörde bağlantı
+        izleyerek iş yapmaz).
+    - Test: sahte `sync` çağrıları kaydediyor. Eski betikle 4 kırmızı;
+      kurulum testleri (root) **179/179**. Ayrıntı BY-005 kaydında.
 
 ---
 
@@ -1675,6 +1697,11 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     kalkıp koruma kuralıyla tutulan plan yedeğinin de olabilir; saklama kuralı
     `yedekler.kaynak`'tan seçilir. BY-010'un F6 ölçütüne "bağsız korumalı plan
     yedeğine zamanlanmamış kural uygulanmıyor" testi eklendi. Şema değişmedi.
+  - 2026-11-19 Codex · `03f1cba` ile **R9 [P3] kapandı**.
+    Model ve migration yorumları kaynak ile bağ sayısını ayırıyor.
+    Migration farkı yalnız yorum. BY-010'un kabul ölçütü, son bağı
+    kalkmış korumalı plan yedeğine zamanlanmamış saklama kuralının
+    uygulanmadığının sınanmasını istiyor. Görev `PASSED`.
 
 ### BY-005 — Dosya kilidi ve işlem durumu dosyası
 
@@ -1693,6 +1720,13 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   yalnız okuyabilir — kilit bu yüzden salt okunur açılır). Geçiş döneminde
   (uygulama kullanıcısı) yapılandırmadan gelir; yapılandırma anahtarı ilk
   kullanan görevle (BY-007) eklenir. Sınıflar yolu yapıcıdan alır.
+- **Kalıcı kök (BY-005-R11):** sınıflar yolun yanında kurulumun açıp diske
+  eşitlediği kökü de yapıcıdan alır; durum klasörü kökün kendisi ya da
+  altında olmalıdır. Klasör eşitlemesi kökte durur. Kökün üstü yalnız
+  geçilebilir (okumaya kapalı) olabilir; BY-003 bunu kabul eder. Sunucuda
+  kök `/var/lib/emor-yedek/durum`'dur: kurulum onu ve kilit dosyasını
+  eşitler. Geçiş döneminde kök yapılandırmadan gelir (BY-007), ve kurulmuş
+  olmalıdır (ör. `storage/app`); kök yoksa klasör açılmaz.
 - **İşlem durumu dosyası şeması (sürüm 1)** — `IslemKaydi`. Tek JSON nesnesi,
   o anki ya da son işlem; geçmiş veritabanında ve olay günlüğünde.
 
@@ -2087,6 +2121,81 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       test, 6 atlandı, 0 kırmızı; geçici yedek betiği **87/87**; Pint temiz.
       Kurulum betiği bu turda değişmedi (önceki koşu 174/174). Ön yüz
       değişmedi. Güç kesintisi denenmedi. Canlıya alınmadı.
+  - 2026-11-19 Codex → CHANGES_REQUESTED · incelenen commit `03f1cba`
+    - **R9'un yeniden deneme senaryosu ve R10 kapandı.** İlk eşitleme
+      hatasından sonra izin düzelmeden başarı dönmediği testlerle
+      doğrulandı. Önceki incelemedeki önbellek senaryosu ayrı PHP süreci
+      ile tekrarlandı. Aynı durumda eski kilitle yazım `775a0fd` ile
+      kabul edildi, `03f1cba` ile reddedildi.
+    - **BY-005-R11 [P2] — her yazımda köke kadar eşitleme mevcut dizinde
+      yeni bir izin gereksinimi getiriyor.**
+      `backend/app/Services/Yedekleme/KaliciKlasor.php:32` ve `:44`;
+      `backend/app/Services/Yedekleme/IslemDurumu.php:101`.
+      Önceden oluşturulmuş durum dizininde yalnız geçiş izni bulunan
+      bir üst dizinle denendi. İşlem durumu okunabildi ve mevcut kilit
+      alındı. `775a0fd` ile yazım başarılı, `03f1cba` ile üst dizin
+      eşitlenemediği için başarısız. BY-003 üst dizin kontrolü
+      (`scripts/sunucu-yedekleme-kurulumu.sh:138`) okumaya kapalı
+      fakat geçilebilir üst dizinlere izin veriyor.
+      **Etki.** Kurulum denetiminden geçen bir yolda çalıştırıcı,
+      kendi durum dizinine yazma hakkı varken geçerli kayıt
+      yazamıyor. **Dayanak.** BY-003 izin sözleşmesi, BY-005 dosya
+      yolu ve D3. **Düzeltme.** Eşitleme zincirini kurulumla kalıcılığı
+      sağlanan bir üst dizinde sınırla. Sınırın altında oluşturulan
+      girdilerin eşitlenmesini yeniden denemede de zorunlu kıl.
+      **Doğrulama.** Sınırın üstünde yalnız geçiş izni varken
+      önceden kurulmuş durum dosyası güncellenmeli. Sınırın altında
+      gerekli eşitleme başarısızsa ilk deneme ve yeniden deneme
+      yine hata vermeli.
+    - **Kontroller.** WSL, PHP 8.5.9 ve Laravel 13.24.0 ile tam backend
+      **798/798**. Geçici PostgreSQL 16'da veri modeli, günlük, kilit ve
+      durum **89/89**. İncelemede `code-review`,
+      `laravel-best-practices` ve `testing-best-practices` kullanıldı.
+      Güç kesintisi ve canlı servis denenmedi. Bu turda kurulum ve ön yüz
+      testleri yeniden çalıştırılmadı.
+  - 2026-11-19 Claude → REVIEW_BEKLIYOR · commit
+    `fix(yedekleme): Codex 03f1cba incelemesi (BY-005-R11)`
+    - **R11 kabul, düzeltildi.** Bulgu doğru: fsync için klasörün okunarak
+      açılması gerekir. Yalnız geçilebilir (`--x`) bir üst klasörde
+      `03f1cba` yazımı reddediyordu. **Kalıcı kök** eklendi: kurulumun açıp
+      diske eşitlediği klasör. `KaliciKlasor::ac($klasor, $kaliciKok)`
+      eşitleme zincirini kökte durdurur. Kökün altında açılan her girdi,
+      klasör önceden var olsa da her seferinde eşitlenir (R9 korunur).
+      `YedekKilidi` ve `IslemDurumu` kökü yapıcıdan alır (zorunlu).
+      Kökün dışındaki ya da `.` / `..` içeren yol yapıcıda reddedilir.
+      Kök yoksa klasör açılmaz, çünkü kökü burada açmak onun girdisini
+      eşitlenmemiş bırakırdı.
+    - **Sözleşmenin karşılığı (BY-003):** kurulum betiği artık kökü,
+      alt klasörleri ve kilit dosyasını diske zorluyor. Klasör önceden
+      açılmış olsa da bunu her kurulumda yapıyor (D3). Denetim kipinde
+      yapmıyor. Kilit dosyasını, onu açan servis hesabı eşitliyor (D5).
+    - **Testler (T5):**
+      - Durum yazımı ve kilit açılışı: kökün üstünde yalnız geçiş izni
+        varken çalışıyor. İkisi de `03f1cba` ile kırmızıydı.
+      - Kök dışı yol, adı kökle başlayan yol, `..` içeren yol ve kurulmamış
+        kök reddediliyor ve hiçbir klasör açılmıyor (eski kodla kırmızı).
+      - R9'un iki testi kökün altındaki 0300 klasörle hata vermeyi
+        sürdürüyor. Kökün altındaki eşitleme kaldırılınca ikisi de
+        kırmızı oluyor (mutasyon denemesi).
+      - Kurulum testi sahte bir `sync` ile çağrıları kaydediyor (sonra
+        gerçeğini çalıştırıyor):
+        - denetim kipinde eşitleme yok;
+        - ilk kurulumda kökün üstü + kök, kök + `durum/` ve kilit + `durum/` eşitleniyor;
+        - ikinci kurulumda var olan klasörler yeniden eşitleniyor.
+        - Eski betikle dört madde kırmızı.
+    - **Dosyaların yeri** güncellendi: sunucuda kalıcı kök
+      `/var/lib/emor-yedek/durum`. Geçiş döneminde kök yapılandırmadan
+      gelir (BY-007).
+    - D3'e eklendi: eşitleme zinciri izin sözleşmesinin dışına
+      çıkmamalı.
+    - **Kontroller:**
+      - backend **801/801**;
+      - PostgreSQL'de yedekleme modeli, kilit, durum ve günlük testleri **92/92**;
+      - root altında kilit ve durum testleri 63 geçti, 8 atlandı (izin testleri), 0 kırmızı;
+      - kurulum testleri (root) **179/179**;
+      - Pint temiz.
+      - Geçici yedek betiği değişmedi.
+      - Güç kesintisi denenmedi. Canlıya alınmadı.
 
 ### BY-006 — Manifest, imza, olay günlüğü
 

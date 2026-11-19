@@ -36,7 +36,15 @@ final class YedekKilidi
     /** @var resource|null */
     private $tutamac = null;
 
-    public function __construct(private readonly string $yol) {}
+    /**
+     * @param  string  $kaliciKok  Kurulumun açıp diske eşitlediği klasör; kilidin klasörü onun kendisi ya da altında (KaliciKlasor)
+     *
+     * @throws InvalidArgumentException Kilidin klasörü kalıcı kökün altında değil
+     */
+    public function __construct(private readonly string $yol, private readonly string $kaliciKok)
+    {
+        KaliciKlasor::kokAltindaOlmali(dirname($yol), $kaliciKok);
+    }
 
     public function __destruct()
     {
@@ -136,10 +144,10 @@ final class YedekKilidi
 
     /**
      * Var olan dosya salt okunur açılır; yoksa klasörüyle birlikte açılır
-     * (geçiş dönemi: uygulama kullanıcısı). Dosya açılırken klasörün üst
-     * zinciri ve yeni dosya girdisi diske zorlanır (KaliciKlasor; BY-005-R8,
-     * R9). İşlem durumu da her yazımda aynı zinciri eşitler; kalıcılığı ona
-     * dayanmaz. Açılamazsa istisna.
+     * (geçiş dönemi: uygulama kullanıcısı). Dosya açılırken klasörün kalıcı
+     * köke kadar üst zinciri ve yeni dosya girdisi diske zorlanır
+     * (KaliciKlasor; BY-005-R8, R9, R11). İşlem durumu da her yazımda aynı
+     * zinciri eşitler; kalıcılığı ona dayanmaz. Açılamazsa istisna.
      *
      * @return resource
      */
@@ -149,7 +157,7 @@ final class YedekKilidi
             $tutamac = @fopen($this->yol, 'r');
         } else {
             $klasor = dirname($this->yol);
-            KaliciKlasor::ac($klasor);
+            KaliciKlasor::ac($klasor, $this->kaliciKok);
 
             $tutamac = @fopen($this->yol, 'c');
             if ($tutamac !== false) {

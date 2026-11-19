@@ -192,8 +192,15 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   kalmış olabilir; yeniden denemede de üst zinciri eşitle, "yoksa aç ve
   eşitle" diye yalnız ilk açılışa bağlama. Hata yolunu gerçek hatayla sına
   (ör. üst klasör 0300: alt klasör açılır, üst klasör eşitlemeye açılamaz).
+  Zincir ama köke kadar gitmez: klasörü `fsync` için açmak **okuma izni**
+  ister, kurulumun izin sözleşmesi üst klasörde yalnız geçişe (`--x`) izin
+  verebilir. Zinciri kurulumun kalıcı kıldığı bir kökte durdur, kökü
+  kurulum eşitlesin. Genel kural: bir düzeltme, izin sözleşmesinde olmayan
+  yeni bir izin istememeli. Düzeltmeyi o sözleşmenin en dar izinleriyle sına.
   *(BY-005-R3: taşıma sonrası klasör eşitlenmiyordu. BY-005-R9: ilk eşitleme
-  başarısız olunca yeniden deneme üst klasörü atlayıp başarı dönüyordu.)*
+  başarısız olunca yeniden deneme üst klasörü atlayıp başarı dönüyordu.
+  BY-005-R11: R9 düzeltmesi köke kadar eşitleyince yalnız geçilebilir üst
+  klasörde yazım reddedildi.)*
 - **D6 — "Yok" ile "erişemiyorum"u ayır.** `file_exists`, `is_file` ve
   benzerleri üst klasöre girilemediğinde de false döner. Yokluk bir karar
   dayanağıysa (ör. "açık işlem yok → yayına devam") yalnız doğrulanmış
