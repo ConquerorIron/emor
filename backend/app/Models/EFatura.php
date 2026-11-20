@@ -31,8 +31,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int|null $gizleyen_id
  * @property string|null $erp_durumu Protel `erpStatus` (İzibiz'de null)
  * @property bool|null $yazdirildi Protel `isPrinted` (İzibiz'de null)
- * @property bool|null $protel_okundu Tüm Faturalar: Protel okudu mu (kaynak uç bekleniyor; null = bilinmiyor)
- * @property bool|null $protel_islendi Tüm Faturalar: Protel'e işlendi mi (kaynak uç bekleniyor)
+ * @property bool|null $otel_erp_okundu Protel `isErpRecieved` — otelin ERP'si aldı mı (İzibiz'de null; eMOR okuması `erp_okundu`)
  * @property bool|null $sap_islendi Tüm Faturalar: SAP'ye işlendi mi (kaynak uç bekleniyor)
  */
 final class EFatura extends Model
@@ -80,8 +79,7 @@ final class EFatura extends Model
             'siparis_tarihi' => 'immutable_date',
             'harici_aktarim' => 'boolean',
             'yazdirildi' => 'boolean',
-            'protel_okundu' => 'boolean',
-            'protel_islendi' => 'boolean',
+            'otel_erp_okundu' => 'boolean',
             'sap_islendi' => 'boolean',
             'izibiz_ubl_okundu' => 'immutable_datetime',
             'izibiz_ubl_son_deneme' => 'immutable_datetime',

@@ -77,9 +77,9 @@ export interface EFatura {
   gizlenme_zamani: string | null
   /** Gizleyen kullanıcının adı */
   gizleyen: string | null
-  /** Tüm Faturalar: hangi sisteme girildi — kaynak uçlar (Protel / SAP) gelene kadar null */
-  protel_okundu: boolean | null
-  protel_islendi: boolean | null
+  /** Protel `isErpRecieved` — otelin ERP'si aldı mı (İzibiz'de null; eMOR okuması `erp_okundu`) */
+  otel_erp_okundu: boolean | null
+  /** Tüm Faturalar: SAP'ye işlendi mi — kaynak uç (SAP) gelene kadar null */
   sap_islendi: boolean | null
   /** Yalnız Tüm Faturalar: satırın posta kutusu (XML yalnız İzibiz'de) */
   saglayici?: 'izibiz' | 'protel'
@@ -121,8 +121,8 @@ export type ErpOkunduFiltresi = '' | 'evet' | 'hayir' | 'bilinmiyor'
  */
 export type EmorDurumu = 'islendi' | 'elle_islendi' | 'havuzda' | 'yok'
 
-/** islenmemis: işlendi (elle dahil) olmayanların hepsi (hızlı filtre) */
-export type EmorFiltresi = '' | EmorDurumu | 'bilinmiyor' | 'islenmemis'
+/** islenmemis / islenmis: işlendi (elle dahil) olmayanların / olanların hepsi (hızlı filtre) */
+export type EmorFiltresi = '' | EmorDurumu | 'bilinmiyor' | 'islenmemis' | 'islenmis'
 
 export interface EFaturaFiltresi {
   baslangic: string

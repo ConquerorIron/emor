@@ -728,10 +728,8 @@
       "vergiIstisnaKodu": "Tax Exemption Code",
       "istisnaKoduEntegrator": "Exemption Code (Integrator)",
       "istisnaKoduErp": "Exemption Code (ERP)",
-      "protelOkudu": "Read by Protel",
-      "protel": "Protel",
       "sap": "SAP",
-      "sistemBekleniyor": "This will be filled once the system's (Protel / SAP) service is available.",
+      "sistemBekleniyor": "This will be filled once the SAP service is available.",
       "entegrator": "Integrator",
       "siraNo": "No."
     },
@@ -757,12 +755,14 @@
         "havuzda": "In pool (not accounted)",
         "yok": "Not in ERP",
         "bilinmiyor": "Not checked",
-        "islenmemis": "All not processed"
+        "islenmemis": "All not processed",
+        "islenmis": "All processed"
       }
     },
     "hizliFiltre": {
       "baslik": "Quick filters",
       "erpIslenmeyenler": "Not processed in ERP",
+      "erpIslenenler": "Processed in ERP",
       "istisnalilar": "With tax exemption",
       "havuzdaOlmayanlar": "Not in ERP pool"
     },

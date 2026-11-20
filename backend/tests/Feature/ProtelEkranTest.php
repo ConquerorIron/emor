@@ -187,20 +187,40 @@ final class ProtelEkranTest extends TestCase
 
     public function test_excel_protel_durum_kolonlarini_yazar(): void
     {
-        $fatura = EFatura::factory()->protel()->create(['erp_durumu' => 'Booked', 'yazdirildi' => false]);
+        $fatura = EFatura::factory()->protel()->create(['erp_durumu' => 'Booked', 'yazdirildi' => false, 'otel_erp_okundu' => true]);
 
         $yanit = $this->actingAs($this->izinli('protel_faturalari.goruntule', 'protel_faturalari.disari_aktar'))
             ->get('/api/v1/protel/gelen/faturalar/excel?'.self::ARALIK
-                .'&kolonlar[]=belge_no&kolonlar[]=erp_durumu&kolonlar[]=yazdirildi'
-                .'&basliklar[]=Fatura%20No&basliklar[]=ERP%20Durumu&basliklar[]=Yazd%C4%B1r%C4%B1ld%C4%B1');
+                .'&kolonlar[]=belge_no&kolonlar[]=erp_durumu&kolonlar[]=yazdirildi&kolonlar[]=otel_erp_okundu'
+                .'&basliklar[]=Fatura%20No&basliklar[]=ERP%20Durumu&basliklar[]=Yazd%C4%B1r%C4%B1ld%C4%B1&basliklar[]=Otel%20ERP%20Ald%C4%B1');
 
         $yanit->assertOk()->assertDownload('protel-gelen-2026-01-01-2026-01-31.xlsx');
         $yol = $yanit->baseResponse->getFile()->getPathname();
         $sayfa = IOFactory::load($yol)->getSheet(0);
         unlink($yol);
 
-        $this->assertSame(['Fatura No', 'ERP Durumu', 'Yazdırıldı'], $sayfa->rangeToArray('A1:C1')[0]);
-        $this->assertSame([$fatura->belge_no, 'Booked', 'Hayır'], $sayfa->rangeToArray('A2:C2')[0]);
+        $this->assertSame(['Fatura No', 'ERP Durumu', 'Yazdırıldı', 'Otel ERP Aldı'], $sayfa->rangeToArray('A1:D1')[0]);
+        $this->assertSame([$fatura->belge_no, 'Booked', 'Hayır', 'Evet'], $sayfa->rangeToArray('A2:D2')[0]);
+    }
+
+    /** "Otel ERP Aldı" kendi kolonundadır (eMOR okuması `erp_okundu` Protel'de boş). */
+    public function test_otel_erp_aldi_filtresi_ve_siralamasi_otel_bayragiyla_calisir(): void
+    {
+        $tanim = $this->protelTanimi();
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $tanim->id, 'belge_no' => 'OTL1', 'otel_erp_okundu' => true]);
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $tanim->id, 'belge_no' => 'OTL2', 'otel_erp_okundu' => false]);
+        $kullanici = $this->izinli('protel_faturalari.goruntule');
+
+        $this->actingAs($kullanici)->getJson('/api/v1/protel/gelen/faturalar?'.self::ARALIK.'&otel_erp_okundu=hayir')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.belge_no', 'OTL2')
+            ->assertJsonPath('data.0.otel_erp_okundu', false)
+            ->assertJsonPath('data.0.erp_okundu', null);
+        $this->assertSame(['OTL2', 'OTL1'], array_column(
+            $this->actingAs($kullanici)->getJson('/api/v1/protel/gelen/faturalar?'.self::ARALIK.'&sirala=otel_erp_okundu&yon=asc')->assertOk()->json('data'),
+            'belge_no',
+        ));
     }
 
     /**

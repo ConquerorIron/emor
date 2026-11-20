@@ -242,6 +242,7 @@ final class EFaturaSenkronServisi
             'mail_durumu' => $f->mailDurumu,
             'erp_durumu' => $f->erpDurumu,
             'yazdirildi' => $f->yazdirildi,
+            'otel_erp_okundu' => $f->otelErpOkundu,
             'ilk_gorulme' => $simdi,
             'son_gorulme' => $simdi,
             'created_at' => $simdi,

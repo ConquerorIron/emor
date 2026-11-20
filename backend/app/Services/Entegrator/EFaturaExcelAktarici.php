@@ -67,9 +67,8 @@ final class EFaturaExcelAktarici
         // Protel ekranı (PRT-12)
         'erp_durumu' => ['metin', 14],
         'yazdirildi' => ['metin', 10],
+        'otel_erp_okundu' => ['metin', 12],
         // Tüm Faturalar: hangi sisteme girildi — kaynak uçlar gelene kadar boş (null)
-        'protel_okudu' => ['metin', 12],
-        'protel' => ['metin', 12],
         'sap' => ['metin', 10],
     ];
 
@@ -187,8 +186,7 @@ final class EFaturaExcelAktarici
                 null => null,
             }],
             'emor' => ['metin', $f->emor_durumu === null ? null : __('efatura.emor.'.$f->emor_durumu->value)],
-            'protel_okudu' => ['metin', $this->evetHayir($f->protel_okundu)],
-            'protel' => ['metin', $this->evetHayir($f->protel_islendi)],
+            'otel_erp_okundu' => ['metin', $this->evetHayir($f->otel_erp_okundu)],
             'sap' => ['metin', $this->evetHayir($f->sap_islendi)],
             'yazdirildi' => ['metin', match ($f->yazdirildi) {
                 true => __('efatura.evet'),

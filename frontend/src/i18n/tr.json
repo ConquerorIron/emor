@@ -728,10 +728,8 @@
       "vergiIstisnaKodu": "Vergi İstisna Kodu",
       "istisnaKoduEntegrator": "İstisna Kodu (Entegratör)",
       "istisnaKoduErp": "İstisna Kodu (ERP)",
-      "protelOkudu": "Protel Okudu",
-      "protel": "Protel",
       "sap": "SAP",
-      "sistemBekleniyor": "Bu bilgi, ilgili sistemin (Protel / SAP) servisi açıldığında gelecek.",
+      "sistemBekleniyor": "Bu bilgi, SAP servisi açıldığında gelecek.",
       "entegrator": "Entegratör",
       "siraNo": "Sıra No"
     },
@@ -757,12 +755,14 @@
         "havuzda": "Havuzda (muhasebeleşmemiş)",
         "yok": "ERP'de yok",
         "bilinmiyor": "Kontrol edilmedi",
-        "islenmemis": "İşlenmeyenlerin hepsi"
+        "islenmemis": "İşlenmeyenlerin hepsi",
+        "islenmis": "İşlenenlerin hepsi"
       }
     },
     "hizliFiltre": {
       "baslik": "Hızlı filtreler",
       "erpIslenmeyenler": "ERP İşlenmeyenler",
+      "erpIslenenler": "ERP İşlenenler",
       "istisnalilar": "Vergi İstisnası Olanlar",
       "havuzdaOlmayanlar": "Havuzda Olmayanlar"
     },

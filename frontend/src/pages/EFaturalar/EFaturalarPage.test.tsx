@@ -85,8 +85,7 @@ const FATURA: EFatura = {
   gizli: false,
   gizlenme_zamani: null,
   gizleyen: null,
-  protel_okundu: null,
-  protel_islendi: null,
+  otel_erp_okundu: null,
   sap_islendi: null,
 }
 
@@ -546,6 +545,29 @@ describe('EFaturalarPage', () => {
       ),
     )
     expect(havuzdaOlmayanlar).toHaveAttribute('aria-pressed', 'true')
+    expect(islenmeyenler).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('ERP İşlenenler eMOR "işlenenler" ister; ERP İşlenmeyenler ile birlikte basılı kalmaz', async () => {
+    ciz(['efatura.goruntule'])
+    await screen.findByText('Deniz Boya Ltd.')
+    const grup = screen.getByRole('group', { name: 'Hızlı filtreler' })
+    const islenenler = within(grup).getByRole('button', { name: 'ERP İşlenenler' })
+    const islenmeyenler = within(grup).getByRole('button', { name: 'ERP İşlenmeyenler' })
+
+    fireEvent.click(islenmeyenler)
+    fireEvent.click(islenenler)
+
+    await waitFor(() =>
+      expect(api.faturalar).toHaveBeenLastCalledWith(
+        'gelen',
+        expect.objectContaining({ emor: 'islenmis' }),
+        VARSAYILAN_SIRALAMA,
+        1,
+        'izibiz',
+      ),
+    )
+    expect(islenenler).toHaveAttribute('aria-pressed', 'true')
     expect(islenmeyenler).toHaveAttribute('aria-pressed', 'false')
   })
 
@@ -1031,28 +1053,26 @@ describe('EFaturalarPage', () => {
       const basliklar = screen
         .getAllByRole('columnheader')
         .map((th) => th.textContent?.replace(/[↕▲▼]/g, ''))
-      expect(basliklar.slice(2, 9)).toEqual([
+      expect(basliklar.slice(2, 7)).toEqual([
         'Entegratör',
         'eMOR Okudu',
         'eMOR',
-        'Protel Okudu',
-        'Protel',
         'SAP',
         'Fatura No',
       ])
-      // Kaynak uç gelene kadar sistem kolonları boş ve açıklamalı
+      // Kaynak uç gelene kadar SAP kolonu boş ve açıklamalı
       const satir = screen.getByText('OTL2026000000002').closest('tr') as HTMLElement
       expect(satir.querySelectorAll('td')[2]).toHaveTextContent('Protel')
       const izibizSatiri = screen.getByText('ABC2026000000001').closest('tr') as HTMLElement
       expect(izibizSatiri.querySelectorAll('td')[2]).toHaveTextContent('İzibiz')
-      expect(within(satir).getAllByTitle(/servisi açıldığında gelecek/)).toHaveLength(3)
+      expect(within(satir).getAllByTitle(/servisi açıldığında gelecek/)).toHaveLength(1)
       expect(screen.queryByText('ERP Okudu')).not.toBeInTheDocument()
       // Senkron sağlayıcı ekranlarında: durum istenmez
       expect(api.durum).not.toHaveBeenCalled()
       expect(screen.queryByRole('button', { name: 'Entegratör Senkronla' })).not.toBeInTheDocument()
     })
 
-    it('Entegratör ve sistem kolonlarına göre sıralanır; dolu sistem durumu Evet/Hayır görünür', async () => {
+    it('Entegratör ve SAP kolonlarına göre sıralanır; dolu SAP durumu Evet/Hayır görünür', async () => {
       api.faturalar.mockResolvedValue({
         ...BIRLESIK,
         data: [{ ...FATURA, saglayici: 'izibiz', sap_islendi: true }, PROTEL_FATURASI],
@@ -1061,13 +1081,13 @@ describe('EFaturalarPage', () => {
       await screen.findByText('Otel Tedarik A.Ş.')
 
       const izibizSatiri = screen.getByText('ABC2026000000001').closest('tr') as HTMLElement
-      expect(within(izibizSatiri).getAllByTitle(/servisi açıldığında gelecek/)).toHaveLength(2)
-      expect(within(izibizSatiri).getByText('Evet')).toBeInTheDocument()
+      expect(
+        within(izibizSatiri).queryByTitle(/servisi açıldığında gelecek/),
+      ).not.toBeInTheDocument()
+      expect(within(izibizSatiri).getAllByText('Evet').length).toBeGreaterThan(0)
 
       for (const [baslik, anahtar] of [
         [/^Entegratör/, 'entegrator'],
-        [/^Protel Okudu/, 'protel_okudu'],
-        [/^Protel(?! Okudu)/, 'protel'],
         [/^SAP/, 'sap'],
       ] as const) {
         fireEvent.click(
@@ -1105,8 +1125,8 @@ describe('EFaturalarPage', () => {
       expect(api.excel.mock.calls[0][5]).toBe('izibiz:canli,protel:canli')
       expect(api.excel.mock.calls[0][6]).toBe('tum')
       expect(
-        (api.excel.mock.calls[0][4] as { anahtar: string }[]).map((k) => k.anahtar).slice(0, 5),
-      ).toEqual(['entegrator', 'erp_okundu', 'emor', 'protel_okudu', 'protel'])
+        (api.excel.mock.calls[0][4] as { anahtar: string }[]).map((k) => k.anahtar).slice(0, 4),
+      ).toEqual(['entegrator', 'erp_okundu', 'emor', 'sap'])
 
       const satir = screen.getByText('OTL2026000000002').closest('tr') as HTMLElement
       fireEvent.click(within(satir).getByRole('button', { name: 'PDF' }))

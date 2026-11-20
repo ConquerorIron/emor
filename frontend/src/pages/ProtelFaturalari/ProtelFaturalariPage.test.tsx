@@ -48,7 +48,7 @@ const FATURA: EFatura = {
   durum_aciklamasi: 'Alındı',
   gib_durum_kodu: 1200,
   gib_durum_aciklamasi: 'ZARF_BASARIYLA_ISLENDI',
-  erp_okundu: true,
+  erp_okundu: null,
   emor_durumu: null,
   vergi_istisna_kodu: null,
   izibiz_istisna_kodu: null,
@@ -74,8 +74,7 @@ const FATURA: EFatura = {
   gizli: false,
   gizlenme_zamani: null,
   gizleyen: null,
-  protel_okundu: null,
-  protel_islendi: null,
+  otel_erp_okundu: true,
   sap_islendi: null,
 }
 
@@ -181,7 +180,7 @@ describe('ProtelFaturalariPage', () => {
 
     await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
     const [filtre, siralama, sayfa, kolonlar, ortam] = api.excel.mock.calls[0] as [
-      { baslangic: string; erp_okundu: string },
+      { baslangic: string; otel_erp_okundu: string },
       { anahtar: string; yon: string },
       number,
       { anahtar: string; baslik: string }[],
@@ -189,7 +188,11 @@ describe('ProtelFaturalariPage', () => {
     ]
     // Ekrandaki listenin ortamı (kapsam) — sunucuda farklıysa 409 (PRT-R3)
     expect(ortam).toBe('canli')
-    expect(filtre).toMatchObject({ baslangic: '2026-01-01', bitis: '2026-11-19', erp_okundu: '' })
+    expect(filtre).toMatchObject({
+      baslangic: '2026-01-01',
+      bitis: '2026-11-19',
+      otel_erp_okundu: '',
+    })
     expect(siralama).toEqual({ anahtar: 'olusturma_zamani', yon: 'desc' })
     expect(sayfa).toBe(1)
     expect(kolonlar.map((k) => k.anahtar)).toEqual(

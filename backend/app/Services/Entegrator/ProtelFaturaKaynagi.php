@@ -171,7 +171,8 @@ final class ProtelFaturaKaynagi implements FaturaKaynagi
             durumAciklamasi: $this->metin($ham['statusDescription'] ?? null),
             gibDurumKodu: $gibDurumu !== null && preg_match('/^\d{1,9}$/D', $gibDurumu) === 1 ? (int) $gibDurumu : null,
             gibDurumAciklamasi: $this->metin($ham['gibStatusMessage'] ?? null),
-            erpOkundu: $this->bayrak($ham['isErpRecieved'] ?? null),
+            // Otelin ERP'si; eMOR Protel'e bağlı değil (erp_okundu eMOR'un okumasıdır)
+            erpOkundu: null,
             okundu: $this->bayrak($ham['isRead'] ?? null),
             yanitAciklamasi: $this->metin($ham['appRespMessage'] ?? null),
             gondericiEtiketi: $this->metin($ham['supplierAlias'] ?? null),
@@ -182,6 +183,7 @@ final class ProtelFaturaKaynagi implements FaturaKaynagi
             gcbTarihi: $this->tarih($ham['gtB_FIILI_IHRACAT_TARIHI'] ?? null),
             erpDurumu: $this->metin($ham['erpStatus'] ?? null),
             yazdirildi: $this->bayrak($ham['isPrinted'] ?? null),
+            otelErpOkundu: $this->bayrak($ham['isErpRecieved'] ?? null),
         );
     }
 

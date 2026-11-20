@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Builder;
  * Faturalar'da sağlayıcı başına aktif tanım) + yöndür (test ve canlı hesabın
  * faturaları karışmaz). Sıralama kolonları allow-list'tir.
  *
- * @phpstan-type Filtre array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null}
+ * @phpstan-type Filtre array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, otel_erp_okundu?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null}
  */
 final class EFaturaSorgusu
 {
@@ -25,9 +25,9 @@ final class EFaturaSorgusu
         'belge_tarihi', 'belge_no', 'tutar', 'karsi_unvan', 'olusturma_zamani',
         'emor', 'erp_okundu', 'karsi_vkn', 'karsi_ad_soyad', 'fatura_tipi', 'para_birimi',
         'irsaliye_no', 'siparis_no', 'durum', 'zarf_durumu', 'yanit_aciklamasi',
-        'senaryo', 'vergi_tutari', 'erp_durumu', 'yazdirildi',
+        'senaryo', 'vergi_tutari', 'erp_durumu', 'yazdirildi', 'otel_erp_okundu',
         // Tüm Faturalar
-        'entegrator', 'protel_okudu', 'protel', 'sap',
+        'entegrator', 'sap',
     ];
 
     /** Satırın sağlayıcısı (Tüm Faturalar'ın Entegratör kolonu) — sabit ifade, girdi içermez */
@@ -77,18 +77,23 @@ final class EFaturaSorgusu
             $sorgu->where('para_birimi', $filtre['para_birimi']);
         }
 
-        match ($filtre['erp_okundu'] ?? null) {
-            'evet' => $sorgu->where('erp_okundu', true),
-            'hayir' => $sorgu->where('erp_okundu', false),
-            'bilinmiyor' => $sorgu->whereNull('erp_okundu'),
-            default => null,
-        };
+        // eMOR'un okuması (İzibiz) ve otelin ERP'sinin alması (Protel) ayrı kolonlar
+        foreach (['erp_okundu', 'otel_erp_okundu'] as $bayrak) {
+            match ($filtre[$bayrak] ?? null) {
+                'evet' => $sorgu->where($bayrak, true),
+                'hayir' => $sorgu->where($bayrak, false),
+                'bilinmiyor' => $sorgu->whereNull($bayrak),
+                default => null,
+            };
+        }
 
         // eMOR: islendi | elle_islendi | havuzda | yok (EmorDurumu), bilinmiyor = henüz
-        // kontrol edilmedi, islenmemis = işlendi (elle dahil) olmayanların hepsi (hızlı filtre)
+        // kontrol edilmedi, islenmemis = işlendi (elle dahil) olmayanların hepsi,
+        // islenmis = işlendi (elle dahil) — ikisi de hızlı filtre
         match ($filtre['emor'] ?? null) {
             null => null,
             'bilinmiyor' => $sorgu->whereNull('emor_durumu'),
+            'islenmis' => $sorgu->whereIn('emor_durumu', [EmorDurumu::Islendi->value, EmorDurumu::ElleIslendi->value]),
             'islenmemis' => $sorgu->where(fn (Builder $q) => $q->whereNull('emor_durumu')
                 ->orWhereNotIn('emor_durumu', [EmorDurumu::Islendi->value, EmorDurumu::ElleIslendi->value])),
             default => $sorgu->where('emor_durumu', $filtre['emor']),
@@ -133,7 +138,7 @@ final class EFaturaSorgusu
         $sutun = match ($kolon) {
             'belge_no', 'tutar', 'olusturma_zamani', 'erp_okundu', 'fatura_tipi', 'para_birimi',
             'irsaliye_no', 'siparis_no', 'yanit_aciklamasi', 'senaryo', 'vergi_tutari',
-            'erp_durumu', 'yazdirildi' => $kolon,
+            'erp_durumu', 'yazdirildi', 'otel_erp_okundu' => $kolon,
             'karsi_unvan' => $karsiUnvan,
             'karsi_vkn' => $karsiVkn,
             'karsi_ad_soyad' => $yon === FaturaYonu::Gelen ? 'gonderici_ad_soyad' : 'alici_ad_soyad',
@@ -142,8 +147,6 @@ final class EFaturaSorgusu
             'zarf_durumu' => 'gib_durum_kodu',
             'emor' => 'emor_durumu',
             'entegrator' => self::SAGLAYICI_IFADESI,
-            'protel_okudu' => 'protel_okundu',
-            'protel' => 'protel_islendi',
             'sap' => 'sap_islendi',
             default => 'belge_tarihi',
         };

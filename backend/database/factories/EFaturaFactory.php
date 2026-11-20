@@ -70,6 +70,9 @@ class EFaturaFactory extends Factory
             'durum_aciklamasi' => 'Alındı',
             'erp_durumu' => 'New',
             'yazdirildi' => true,
+            // Protel bayrağı otelin ERP'sinindir; eMOR okuması (erp_okundu) Protel'de yok
+            'erp_okundu' => null,
+            'otel_erp_okundu' => true,
         ]);
     }
 }

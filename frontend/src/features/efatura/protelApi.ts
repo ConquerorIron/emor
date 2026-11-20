@@ -19,7 +19,8 @@ export interface ProtelFaturaFiltresi {
   bitis: string
   ara: string
   durum: string
-  erp_okundu: ErpOkunduFiltresi
+  /** Otelin ERP'si aldı mı (Protel `isErpRecieved`) */
+  otel_erp_okundu: ErpOkunduFiltresi
   para_birimi: string
   tip: string
 }
@@ -29,7 +30,7 @@ function parametreler(
   siralama: Siralama | null,
 ): Record<string, string> {
   const sonuc: Record<string, string> = { baslangic: filtre.baslangic, bitis: filtre.bitis }
-  for (const anahtar of ['ara', 'durum', 'erp_okundu', 'para_birimi', 'tip'] as const) {
+  for (const anahtar of ['ara', 'durum', 'otel_erp_okundu', 'para_birimi', 'tip'] as const) {
     const deger = filtre[anahtar].trim()
     if (deger !== '') {
       sonuc[anahtar] = deger

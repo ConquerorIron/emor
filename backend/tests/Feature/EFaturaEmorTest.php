@@ -228,18 +228,57 @@ final class EFaturaEmorTest extends TestCase
         $this->assertSame(EmorDurumu::Yok, $baskaFirma->fresh()->emor_durumu);
     }
 
-    public function test_islenmeyenler_filtresi_elle_islenenleri_de_islenmis_sayar(): void
+    public function test_islenmeyenler_ve_islenenler_filtreleri_elle_islenenleri_islenmis_sayar(): void
     {
         $tanim = $this->tanim();
         $yok = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'yok']);
-        EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'elle_islendi']);
-        EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'islendi']);
+        $havuzda = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'havuzda']);
+        $elle = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'elle_islendi']);
+        $islendi = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'islendi']);
+        $kullanici = User::factory()->yonetici()->create();
+        $idler = fn (string $filtre): array => array_column(
+            $this->actingAs($kullanici)->getJson('/api/v1/efatura/gelen/faturalar?baslangic=2026-01-01&bitis=2026-01-31&emor='.$filtre)->assertOk()->json('data'),
+            'id',
+        );
 
-        $this->actingAs(User::factory()->yonetici()->create())
-            ->getJson('/api/v1/efatura/gelen/faturalar?baslangic=2026-01-01&bitis=2026-01-31&emor=islenmemis')
-            ->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.id', $yok->id);
+        $this->assertEqualsCanonicalizing([$yok->id, $havuzda->id], $idler('islenmemis'));
+        $this->assertEqualsCanonicalizing([$elle->id, $islendi->id], $idler('islenmis'));
+    }
+
+    /**
+     * Tedarikçi faturayı otelin posta kutusuna (Protel) göndermiş, muhasebe eMOR'a
+     * elle girmiş (kullanıcı kuralı 2026-11-20): fatura no + VKN ile işlendi
+     * görünür. Havuz İzibiz'indir: Protel faturası havuzda sayılmaz, havuz
+     * bilgisi yazılmaz. İzibiz tanımı olmasa da çalışır; pasif tanıma dokunulmaz.
+     */
+    public function test_protel_faturasi_fatura_no_ve_vkn_ile_ya_da_ettn_ile_islendi_olur_havuza_bakilmaz(): void
+    {
+        $protel = EntegratorBaglanti::factory()->protel()->canli()->aktif()->create();
+        $pasif = EntegratorBaglanti::factory()->protel()->create();
+        $fatura = fn (EntegratorBaglanti $tanim, string $no, string $ettn): EFatura => EFatura::factory()->protel()->create([
+            'entegrator_baglanti_id' => $tanim->id, 'belge_no' => $no, 'gonderici_vkn' => '1111111111', 'ettn' => $ettn,
+        ]);
+        $elle = $fatura($protel, 'OTL2026000000001', 'eeb4f1a9-9bc7-4576-beb6-0000000000b1');
+        $ettnIle = $fatura($protel, 'OTL2026000000002', self::ISLENMIS);
+        $havuzdaki = $fatura($protel, 'OTL2026000000003', 'eeb4f1a9-9bc7-4576-beb6-0000000000b3');
+        $pasifteki = $fatura($pasif, 'OTL2026000000001', 'eeb4f1a9-9bc7-4576-beb6-0000000000b4');
+        $this->erp([self::ISLENMIS], havuz: [
+            'eeb4f1a9-9bc7-4576-beb6-0000000000b3' => $this->havuzKaydi(istisnaKodu: '351', gb: 'urn:mail:defaultgb@x.com'),
+        ], belgeler: [
+            ['belge_no' => 'otl2026000000001', 'vkn' => '1111111111'],
+        ]);
+
+        $this->artisan('efatura:emor')
+            ->expectsOutput('eMOR gelen: işlendi 1, elle işlendi 1, havuzda 0, yok 1, değişen 3')
+            ->expectsOutput('eMOR giden: işlendi 0, elle işlendi 0, havuzda 0, yok 0, değişen 0')
+            ->assertSuccessful();
+
+        $this->assertSame(EmorDurumu::ElleIslendi, $elle->fresh()->emor_durumu);
+        $this->assertSame(EmorDurumu::Islendi, $ettnIle->fresh()->emor_durumu);
+        $this->assertSame(EmorDurumu::Yok, $havuzdaki->fresh()->emor_durumu);
+        $this->assertNull($havuzdaki->fresh()->vergi_istisna_kodu);
+        $this->assertNull($havuzdaki->fresh()->getAttribute('erp_gonderici_etiketi'));
+        $this->assertNull($pasifteki->fresh()->emor_durumu);
     }
 
     public function test_gelen_faturanin_vergi_istisna_kodu_erpden_ettn_ile_yazilir_ve_kalkinca_silinir(): void

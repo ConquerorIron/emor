@@ -497,9 +497,10 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
   `ENTEGRATOR_AKTIF_YOK`). Ekran İzibiz Gelen Faturalar'ın aynısı
   (`EFaturalarPage kapsam="tum"`; kopya yok); farklar:
   - "ERP Okudu" → **"eMOR Okudu"** (kolon ve filtre);
-  - eMOR'un sağında **Protel Okudu**, **Protel**, **SAP** kolonları — faturanın
-    hangi sisteme girildiği. Protel ve SAP ekiplerinden uç beklendiği için
-    şimdilik boş ("—", açıklamalı); Excel'de de boş kolon;
+  - eMOR'un sağında **SAP** kolonu: fatura SAP'ye girildi mi. SAP ekibinden uç
+    beklendiği için şimdilik boş ("—", açıklamalı); Excel'de de boş kolon.
+    (Protel Okudu / Protel kolonları 2026-11-20'de kullanıcı isteğiyle kaldırıldı.)
+    Protel faturasının eMOR durumu fatura no + VKN ile bulunur (elle giriş);
   - senkron paneli ve gizleme yok (sağlayıcı ekranlarında); XML yalnız İzibiz
     satırında (Protel'de yalnız PDF).
   Kendi izinleri: `tum_faturalar.goruntule / pdf / disari_aktar` (sağlayıcı
@@ -517,7 +518,8 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
   - [x] Excel ekrandaki kolon / başlıkla; sistem kolonları boş; kapsam uyuşmazlığı 409.
   - [x] Ekran: kolon sırası (eMOR Okudu, eMOR, Protel Okudu, Protel, SAP), senkron yok,
         Protel satırında XML düğmesi yok, Excel birleşik uçtan ekrandaki kapsamla.
-  - [ ] Protel Okudu / Protel / SAP verisi: ilgili ekiplerin uçları gelince.
+  - [x] Protel faturası eMOR Okudu göstermez; eMOR'a elle girildiyse no + VKN ile İşlendi (elle).
+  - [ ] SAP verisi: SAP ekibinin ucu gelince.
 - **Canlı:** Evet
 - **İnceleme günlüğü:**
   - 2026-11-20 Claude → REVIEW_BEKLIYOR · commit `feat(efatura): Tum Faturalar …`
@@ -533,6 +535,22 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
     sistem kolonları için `efatura_faturalari`'na boş olabilen `protel_okundu`,
     `protel_islendi`, `sap_islendi` (kaynak uçlar bunlara yazacak; senkron yazmaz).
     Boşlar sıralamada en sonda; dolu değer ekranda ve Excel'de Evet/Hayır.
+  - 2026-11-20 Claude · kullanıcı bildirimi ve istekleri:
+    - **Hata:** Protel faturası "eMOR Okudu: Evet" görünüyordu. Protel
+      `isErpRecieved` (otelin ERP'si; Protel ekranında "Otel ERP Aldı")
+      `erp_okundu`'ya yazılıyordu, oysa o kolon eMOR'un okumasıdır (İzibiz
+      `erpReadFlag`). Bayrak yeni `otel_erp_okundu` kolonuna taşındı
+      (migration canlıdaki satırları da taşır). Protel ekranının filtre ve
+      sıralama anahtarı `otel_erp_okundu` oldu.
+    - **Protel faturası eMOR'da:** tedarikçi faturayı Protel'e göndermiş,
+      muhasebe eMOR'a elle girmiş. `efatura:emor` artık aktif Protel tanımının
+      gelen faturalarını da eşleştiriyor: ETTN → İşlendi, fatura no + gönderen
+      VKN → İşlendi (elle). Havuz İzibiz'in olduğu için Protel faturası
+      "Havuzda" olmaz ve havuz bilgisi Protel satırına yazılmaz.
+    - **Kaldırılan kolonlar:** Protel Okudu ve Protel kolonları kaldırıldı;
+      DB kolonları da düşürüldü (hiç dolmamıştı). SAP kalıyor.
+    - **Hızlı filtre:** "ERP İşlenenler" eklendi (`emor=islenmis` = İşlendi +
+      İşlendi (elle)); "ERP İşlenmeyenler"in karşılığı.
 
 ---
 

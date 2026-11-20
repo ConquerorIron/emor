@@ -76,7 +76,7 @@ export function ProtelFaturalariPage() {
     bitis: bugunIso(),
     ara: '',
     durum: '',
-    erp_okundu: '',
+    otel_erp_okundu: '',
     para_birimi: '',
     tip: '',
   }))
@@ -246,11 +246,11 @@ export function ProtelFaturalariPage() {
     },
     // Otelin ERP'si (yalnız gösterilir; bu uygulama değiştirmez)
     {
-      anahtar: 'erp_okundu',
+      anahtar: 'otel_erp_okundu',
       baslik: t('protel.kolon.erpAldi'),
-      siralamaAnahtari: 'erp_okundu',
+      siralamaAnahtari: 'otel_erp_okundu',
       hizala: 'orta',
-      render: (f) => <EvetHayirRozeti deger={f.erp_okundu} />,
+      render: (f) => <EvetHayirRozeti deger={f.otel_erp_okundu} />,
     },
     {
       anahtar: 'erp_durumu',
@@ -463,9 +463,9 @@ export function ProtelFaturalariPage() {
             id="protel-erp"
             label={t('protel.kolon.erpAldi')}
             options={erpSecenekleri}
-            value={secili(erpSecenekleri, filtre.erp_okundu)}
+            value={secili(erpSecenekleri, filtre.otel_erp_okundu)}
             onChange={(secim) =>
-              filtreDegistir('erp_okundu', (secim?.value ?? '') as ErpOkunduFiltresi)
+              filtreDegistir('otel_erp_okundu', (secim?.value ?? '') as ErpOkunduFiltresi)
             }
             placeholder={t('efatura.hepsi')}
             isClearable

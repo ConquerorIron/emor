@@ -41,7 +41,7 @@ final readonly class EntegratorFatura
         public ?string $durumAciklamasi,
         public ?int $gibDurumKodu,
         public ?string $gibDurumAciklamasi,
-        /** İzibiz `erpReadFlag` — ERP'nin faturayı alıp almadığı. YALNIZ okunur. */
+        /** İzibiz `erpReadFlag` — eMOR'un (bizim ERP) faturayı alıp almadığı. YALNIZ okunur. Protel'de null. */
         public ?bool $erpOkundu,
         public ?bool $okundu,
         public ?string $yanitAciklamasi,
@@ -70,5 +70,7 @@ final readonly class EntegratorFatura
         public ?string $erpDurumu = null,
         /** Protel `isPrinted` — YALNIZ okunur */
         public ?bool $yazdirildi = null,
+        /** Protel `isErpRecieved` — otelin ERP'sinin faturayı alıp almadığı (eMOR değil). YALNIZ okunur */
+        public ?bool $otelErpOkundu = null,
     ) {}
 }

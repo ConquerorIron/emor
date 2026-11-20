@@ -433,3 +433,11 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   alan adı, şifreyi yeniden isteme) uygula, ayarı kaldırma.
   *(Protel 2026-11-20: adresler config'te sabit, senkron aralığı formda yoktu;
   kullanıcı İzibiz'deki gibi ekrandan istedi.)*
+- **K9 — Yeni kaynağın alanını, adı benziyor diye kardeşin kolonuna yazma.**
+  Ortak tabloya ikinci bir sağlayıcı eklerken her alan için "bu kolon ekranda
+  ne anlama geliyor" diye sor. Anlam farklıysa (bizim ERP'miz mi, karşı tarafın
+  ERP'si mi) ayrı kolon aç. Yoksa birleşik ekranda, filtrede, alarmda yanlış
+  bilgi olarak çıkar. Birleşik bir ekran eklerken de kardeş kolonların her
+  sağlayıcıdaki anlamını yeniden denetle.
+  *(Protel 2026-11-20: `isErpRecieved` (otelin ERP'si) `erp_okundu`'ya
+  yazılmıştı; Tüm Faturalar Protel faturasını "eMOR Okudu: Evet" gösterdi.)*

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Entegrator;
 
 use App\Models\EFatura;
+use App\Models\EntegratorBaglanti;
 use App\Services\EntegratorBaglantiServisi;
 use App\Services\ErpFaturaKaynagi;
 
@@ -18,6 +19,11 @@ use App\Services\ErpFaturaKaynagi;
  *   (TOHOM_HARCAMA_BELGESI) E_FATURA_ETTN'i → işlendi; değilse ETTN'siz elle
  *   girilmiş kayıtta fatura no + gönderen VKN birlikte → elle işlendi; değilse
  *   TOHOM_E_FATURA havuzunda (UUID) → havuzda; hiçbiri değilse yok.
+ * - Gelen, Protel posta kutusu (kullanıcı kuralı 2026-11-20): tedarikçi faturayı
+ *   otelin entegratörüne (Protel) göndermiş, muhasebe eMOR'a elle girmiştir.
+ *   Aynı ETTN ve fatura no + gönderen VKN kuralları uygulanır; havuz
+ *   (TOHOM_E_FATURA) İzibiz'indir — Protel faturası "havuzda" olmaz ve
+ *   havuz bilgileri (istisna kodu, etiketler) Protel satırına yazılmaz.
  * - Giden: ERP_GONDERILEN_E_FATURA_LISTESI; önce ETTN, ERP satırında ETTN
  *   yoksa (gider yansıtma) belge no + alıcı VKN'si. İki tarafta da ETTN varsa
  *   belge no ile eşleştirilmez (kullanıcı kuralı: yalnız fatura no ile olmaz).
@@ -65,12 +71,14 @@ final class EmorIslenmeServisi
      */
     public function tazele(FaturaYonu $yon): array
     {
+        $gelen = $yon === FaturaYonu::Gelen;
         $tanim = $this->baglantilar->aktif();
-        if ($tanim === null) {
+        // Protel posta kutusu yalnız gelen fatura alır
+        $protel = $gelen ? $this->baglantilar->aktif(EntegratorBaglanti::SAGLAYICI_PROTEL) : null;
+        if ($tanim === null && $protel === null) {
             return ['islendi' => 0, 'elle_islendi' => 0, 'havuzda' => 0, 'yok' => 0, 'degisen' => 0];
         }
 
-        $gelen = $yon === FaturaYonu::Gelen;
         // Gelen: [muhasebeleşmiş ETTN'ler, elle işlenmiş no+VKN'ler, havuz ETTN => ERP bilgileri]
         $islenmis = $gelen ? $this->kume($this->erp->islenmisGelenEttnler()) : null;
         $elleIslenmis = $gelen ? $this->noVknKumesi($this->erp->islenmisGelenBelgeler()) : null;
@@ -85,12 +93,13 @@ final class EmorIslenmeServisi
         $sayac = ['islendi' => 0, 'elle_islendi' => 0, 'havuzda' => 0, 'yok' => 0];
 
         EFatura::query()
-            ->where('entegrator_baglanti_id', $tanim->id)
+            ->whereIn('entegrator_baglanti_id', array_filter([$tanim?->id, $protel?->id]))
             ->where('yon', $yon->value)
-            ->select(['id', 'ettn', 'belge_no', 'gonderici_vkn', 'alici_vkn', 'emor_durumu', ...array_keys(self::HAVUZ_KOLONLARI)])
+            ->select(['id', 'entegrator_baglanti_id', 'ettn', 'belge_no', 'gonderici_vkn', 'alici_vkn', 'emor_durumu', ...array_keys(self::HAVUZ_KOLONLARI)])
             ->lazyById(self::PARCA)
-            ->each(function (EFatura $fatura) use ($islenmis, $elleIslenmis, $havuz, $gidenIslendiMi, &$degisenler, &$sayac): void {
+            ->each(function (EFatura $fatura) use ($islenmis, $elleIslenmis, $havuz, $gidenIslendiMi, $protel, &$degisenler, &$sayac): void {
                 $ettn = $this->ettn($fatura->ettn);
+                $protelde = $fatura->entegrator_baglanti_id === $protel?->id;
 
                 if ($gidenIslendiMi !== null) {
                     $durum = $gidenIslendiMi($fatura) ? EmorDurumu::Islendi : EmorDurumu::Yok;
@@ -98,12 +107,12 @@ final class EmorIslenmeServisi
                     $durum = match (true) {
                         isset($islenmis[$ettn]) => EmorDurumu::Islendi,
                         isset($elleIslenmis[$this->noVkn($fatura->belge_no, (string) $fatura->getAttribute('gonderici_vkn'))]) => EmorDurumu::ElleIslendi,
-                        array_key_exists($ettn, $havuz ?? []) => EmorDurumu::Havuzda,
+                        ! $protelde && array_key_exists($ettn, $havuz ?? []) => EmorDurumu::Havuzda,
                         default => EmorDurumu::Yok,
                     };
 
                     // Havuzda olmayan faturanın ERP bilgisi boşalır
-                    foreach (self::HAVUZ_KOLONLARI as $kolon => $alan) {
+                    foreach ($protelde ? [] : self::HAVUZ_KOLONLARI as $kolon => $alan) {
                         $deger = $havuz[$ettn][$alan] ?? null;
                         if ($fatura->getAttribute($kolon) !== $deger) {
                             $degisenler[$kolon][$deger ?? ''][] = $fatura->id;

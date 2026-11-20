@@ -75,6 +75,7 @@ const EMOR_FILTRELERI: readonly EmorFiltresi[] = [
   'islendi',
   'elle_islendi',
   'islenmemis',
+  'islenmis',
   'havuzda',
   'yok',
   'bilinmiyor',
@@ -177,8 +178,8 @@ function HizliFiltre({
 }
 
 /**
- * Sistem kolonu (Protel Okudu / Protel / SAP): değer gelince Evet/Hayır; kaynak uç
- * (Protel / SAP servisi) gelene kadar boş ve açıklamalı.
+ * Sistem kolonu (SAP): değer gelince Evet/Hayır; kaynak uç (SAP servisi) gelene
+ * kadar boş ve açıklamalı.
  */
 function SistemDurumu({ deger }: { deger: boolean | null }) {
   const { t } = useTranslation()
@@ -355,24 +356,10 @@ export function EFaturalarPage({
       hizala: 'orta',
       render: (f) => <EmorRozeti deger={f.emor_durumu} />,
     },
-    // Birleşik liste: faturanın hangi sisteme girildiği. Protel ve SAP ekiplerinden
-    // uç bekleniyor; o zamana kadar kolonlar boş (kullanıcı isteği 2026-11-20)
+    // Birleşik liste: faturanın SAP'ye girilip girilmediği. SAP ekibinden uç
+    // bekleniyor; o zamana kadar kolon boş (kullanıcı isteği 2026-11-20)
     ...(tum
       ? [
-          {
-            anahtar: 'protel_okudu',
-            baslik: t('efatura.kolon.protelOkudu'),
-            siralamaAnahtari: 'protel_okudu',
-            hizala: 'orta' as const,
-            render: (f: EFatura) => <SistemDurumu deger={f.protel_okundu} />,
-          },
-          {
-            anahtar: 'protel',
-            baslik: t('efatura.kolon.protel'),
-            siralamaAnahtari: 'protel',
-            hizala: 'orta' as const,
-            render: (f: EFatura) => <SistemDurumu deger={f.protel_islendi} />,
-          },
           {
             anahtar: 'sap',
             baslik: t('efatura.kolon.sap'),
@@ -684,6 +671,13 @@ export function EFaturalarPage({
           onClick={() => filtreDegistir('emor', filtre.emor === 'islenmemis' ? '' : 'islenmemis')}
         >
           {t('efatura.hizliFiltre.erpIslenmeyenler')}
+        </HizliFiltre>
+        {/* eMOR alanını paylaşır: "ERP İşlenmeyenler" ile birlikte basılı olamaz */}
+        <HizliFiltre
+          aktif={filtre.emor === 'islenmis'}
+          onClick={() => filtreDegistir('emor', filtre.emor === 'islenmis' ? '' : 'islenmis')}
+        >
+          {t('efatura.hizliFiltre.erpIslenenler')}
         </HizliFiltre>
         {gelen ? (
           // Entegratörde olup ERP havuzunda (TOHOM_E_FATURA) olmayanlar = eMOR "ERP'de yok";

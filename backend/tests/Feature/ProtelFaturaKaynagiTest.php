@@ -137,7 +137,9 @@ final class ProtelFaturaKaynagiTest extends TestCase
         $this->assertSame('AcceptAnswerCompleted', $f->durum);
         $this->assertSame('Kabul Edildi', $f->durumAciklamasi);
         $this->assertSame(1200, $f->gibDurumKodu);
-        $this->assertTrue($f->erpOkundu);
+        // isErpRecieved otelin ERP'sidir, eMOR'un okuması değil
+        $this->assertNull($f->erpOkundu);
+        $this->assertTrue($f->otelErpOkundu);
         $this->assertFalse($f->okundu);
         $this->assertSame('Booked', $f->erpDurumu);
         $this->assertTrue($f->yazdirildi);
@@ -337,7 +339,7 @@ final class ProtelFaturaKaynagiTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_senkron_protel_faturalarini_protel_tanimina_yazar_ikinci_calisma_mukerrer_uretmez(): void
+    public function test_senkron_protel_faturalarini_protel_tanimina_yazar_otel_erp_bayragini_emor_okumasi_saymaz_mukerrer_uretmez(): void
     {
         config(['entegrator.protel.aktif' => true]);
         $this->travelTo(CarbonImmutable::parse('2026-05-31 12:00', 'Europe/Istanbul'));
@@ -358,6 +360,8 @@ final class ProtelFaturaKaynagiTest extends TestCase
         $this->assertSame('gelen', $fatura->yon);
         $this->assertSame('Cancelled', $fatura->erp_durumu);
         $this->assertFalse($fatura->yazdirildi);
+        $this->assertTrue($fatura->otel_erp_okundu);
+        $this->assertNull($fatura->erp_okundu);
         // Yalnız gelen yön çalışır
         $this->assertSame(['gelen'], EFaturaSenkronCalismasi::query()->distinct()->pluck('yon')->all());
     }
