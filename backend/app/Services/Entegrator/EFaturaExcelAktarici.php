@@ -35,6 +35,8 @@ final class EFaturaExcelAktarici
      * @var array<string, array{0: string, 1: int}>
      */
     public const KOLONLAR = [
+        // Tüm Faturalar: satırın posta kutusu (İzibiz / Protel)
+        'entegrator' => ['metin', 10],
         'erp_okundu' => ['metin', 10],
         'emor' => ['metin', 14],
         'belge_no' => ['metin', 20],
@@ -90,7 +92,9 @@ final class EFaturaExcelAktarici
 
         $sayfa = $kitap->getActiveSheet();
         $sayfa->setTitle(__('efatura.excel.faturalar'));
-        $this->faturalariYaz($sayfa, $sorgu, $yon, $kolonlar);
+        // cursor() eager load yapmaz: sağlayıcı kapsamdaki tanımlardan eşlenir
+        $saglayicilar = array_column(array_map(fn (EntegratorBaglanti $t): array => [$t->id, $t->saglayici], $tanimlar), 1, 0);
+        $this->faturalariYaz($sayfa, $sorgu, $yon, $kolonlar, $saglayicilar);
 
         $this->ozetYaz($kitap->createSheet(), $baslik, $tanimlar, $ozet, $aralik);
 
@@ -121,8 +125,9 @@ final class EFaturaExcelAktarici
      *
      * @param  Builder<EFatura>  $sorgu
      * @param  list<array{anahtar: string, baslik: string}>  $kolonlar
+     * @param  array<int, string>  $saglayicilar  tanım kimliği => sağlayıcı
      */
-    private function faturalariYaz(Worksheet $sayfa, Builder $sorgu, FaturaYonu $yon, array $kolonlar): void
+    private function faturalariYaz(Worksheet $sayfa, Builder $sorgu, FaturaYonu $yon, array $kolonlar, array $saglayicilar): void
     {
         foreach ($kolonlar as $i => $kolon) {
             $sayfa->setCellValueExplicit([$i + 1, 1], $kolon['baslik'], DataType::TYPE_STRING);
@@ -136,7 +141,7 @@ final class EFaturaExcelAktarici
         foreach ($sorgu->cursor() as $f) {
             /** @var EFatura $f */
             foreach ($kolonlar as $i => $kolon) {
-                [$tur, $deger] = $this->hucre($kolon['anahtar'], $f, $yon);
+                [$tur, $deger] = $this->hucre($kolon['anahtar'], $f, $yon, $saglayicilar);
                 $this->yaz($sayfa, $i + 1, $satir, $tur, $deger);
             }
             $satir++;
@@ -164,14 +169,18 @@ final class EFaturaExcelAktarici
      * Ekrandaki kolonun hücre değeri: [tür, değer]. Karşı taraf gelen faturada
      * gönderici, giden faturada alıcıdır (ekrandaki gibi).
      *
+     * @param  array<int, string>  $saglayicilar  tanım kimliği => sağlayıcı
      * @return array{0: string, 1: mixed}
      */
-    private function hucre(string $anahtar, EFatura $f, FaturaYonu $yon): array
+    private function hucre(string $anahtar, EFatura $f, FaturaYonu $yon, array $saglayicilar): array
     {
         $karsi = $yon === FaturaYonu::Gelen ? 'gonderici' : 'alici';
         $kod = $f->getAttribute('gib_durum_kodu');
 
+        $saglayici = $saglayicilar[$f->entegrator_baglanti_id] ?? null;
+
         return match ($anahtar) {
+            'entegrator' => ['metin', $saglayici === null ? null : __('efatura.saglayici.'.$saglayici)],
             'erp_okundu' => ['metin', match ($f->erp_okundu) {
                 true => __('efatura.evet'),
                 false => __('efatura.hayir'),

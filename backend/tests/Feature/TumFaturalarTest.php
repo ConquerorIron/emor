@@ -136,12 +136,12 @@ final class TumFaturalarTest extends TestCase
         $this->actingAs($kullanici)->getJson("/api/v1/tum-faturalar/faturalar/{$pasif->id}/pdf")->assertNotFound();
     }
 
-    public function test_excel_iki_saglayicinin_satirlarini_ekrandaki_kolonlarla_yazar_bos_sistem_kolonlari_bos_kalir(): void
+    public function test_excel_iki_saglayicinin_satirlarini_entegrator_adiyla_ve_ekrandaki_kolonlarla_yazar_sistem_kolonlari_bos_kalir(): void
     {
         [$izibiz, $protel] = $this->tanimlar();
         EFatura::factory()->create(['entegrator_baglanti_id' => $izibiz->id, 'belge_no' => 'INS1', 'erp_okundu' => true]);
         EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTL1', 'erp_okundu' => null]);
-        $kolonlar = ['belge_no' => 'Fatura No', 'erp_okundu' => 'eMOR Okudu', 'protel_okudu' => 'Protel Okudu', 'protel' => 'Protel', 'sap' => 'SAP'];
+        $kolonlar = ['entegrator' => 'Entegratör', 'belge_no' => 'Fatura No', 'erp_okundu' => 'eMOR Okudu', 'protel_okudu' => 'Protel Okudu', 'protel' => 'Protel', 'sap' => 'SAP'];
         $sorgu = http_build_query(['kolonlar' => array_keys($kolonlar), 'basliklar' => array_values($kolonlar), 'sirala' => 'belge_no', 'yon' => 'asc']);
 
         $yanit = $this->actingAs($this->izinli('tum_faturalar.goruntule', 'tum_faturalar.disari_aktar'))
@@ -153,9 +153,9 @@ final class TumFaturalarTest extends TestCase
         unlink($yol);
 
         $sayfa = $kitap->getSheet(0);
-        $this->assertSame(array_values($kolonlar), $sayfa->rangeToArray('A1:E1')[0]);
-        $this->assertSame(['INS1', 'Evet', null, null, null], $sayfa->rangeToArray('A2:E2')[0]);
-        $this->assertSame(['OTL1', null, null, null, null], $sayfa->rangeToArray('A3:E3')[0]);
+        $this->assertSame(array_values($kolonlar), $sayfa->rangeToArray('A1:F1')[0]);
+        $this->assertSame(['İzibiz', 'INS1', 'Evet', null, null, null], $sayfa->rangeToArray('A2:F2')[0]);
+        $this->assertSame(['Protel', 'OTL1', null, null, null, null], $sayfa->rangeToArray('A3:F3')[0]);
         $this->assertSame(['Liste', 'Tüm Faturalar (İzibiz + Protel)'], $kitap->getSheet(1)->rangeToArray('A1:B1')[0]);
         $this->assertSame(['Ortam', 'Canlı'], $kitap->getSheet(1)->rangeToArray('A2:B2')[0]);
     }

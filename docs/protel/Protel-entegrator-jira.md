@@ -524,6 +524,10 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
     Testler: backend `TumFaturalarTest` (6 test), frontend 2 test; eski kodda
     uç ve ekran yoktu. Backend 895 + 1 atlanan, PostgreSQL seçimi 170/170,
     frontend 324/324, build.
+  - 2026-11-20 Claude · kullanıcı isteği: en solda (işlem düğmelerinden sonra)
+    **Entegratör** kolonu — satırın posta kutusu (İzibiz / Protel); Excel'de de
+    (`entegrator`, sağlayıcı kapsamdaki tanımlardan eşlenir: `cursor()` eager
+    load yapmaz). Testler güncellendi (ekran hücreleri, Excel içeriği).
 
 ---
 

@@ -731,7 +731,8 @@
       "protelOkudu": "Read by Protel",
       "protel": "Protel",
       "sap": "SAP",
-      "sistemBekleniyor": "This will be filled once the system's (Protel / SAP) service is available."
+      "sistemBekleniyor": "This will be filled once the system's (Protel / SAP) service is available.",
+      "entegrator": "Integrator"
     },
     "erpSenkron": {
       "ac": "Sync with ERP",
@@ -777,7 +778,11 @@
       "rozetAciklama": "Hidden from the list — {{kisi}}",
       "alan": "Hidden"
     },
-    "tumAciklama": "Invoices received in İzibiz and Protel in one list. Sync and hiding are done on the provider screens."
+    "tumAciklama": "Invoices received in İzibiz and Protel in one list. Sync and hiding are done on the provider screens.",
+    "saglayici": {
+      "izibiz": "İzibiz",
+      "protel": "Protel"
+    }
   },
   "protel": {
     "baslik": "Protel Incoming Invoices",

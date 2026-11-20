@@ -311,6 +311,21 @@ export function EFaturalarPage({
 
   // Kullanıcı isteği (2026-09-24) sırasıyla; hepsi göster/gizle seçilebilir
   const secilebilirKolonlar: DataTableKolonu<EFatura>[] = [
+    // Birleşik listede en solda satırın posta kutusu (kullanıcı isteği 2026-11-20)
+    ...(tum
+      ? [
+          {
+            anahtar: 'entegrator',
+            baslik: t('efatura.kolon.entegrator'),
+            render: (f: EFatura) =>
+              f.saglayici ? (
+                <span className="font-semibold whitespace-nowrap">
+                  {t(`efatura.saglayici.${f.saglayici}`)}
+                </span>
+              ) : null,
+          },
+        ]
+      : []),
     {
       anahtar: 'erp_okundu',
       // Birleşik listede "eMOR Okudu" (kullanıcı isteği 2026-11-20)

@@ -12,6 +12,12 @@ return [
         'canli' => 'Canlı',
     ],
 
+    // Tüm Faturalar'daki Entegratör kolonu
+    'saglayici' => [
+        'izibiz' => 'İzibiz',
+        'protel' => 'Protel',
+    ],
+
     'alan' => [
         'belge_no' => 'Fatura No',
         'belge_tarihi' => 'Fatura Tarihi',

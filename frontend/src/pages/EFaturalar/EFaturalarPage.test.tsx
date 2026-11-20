@@ -992,7 +992,7 @@ describe('EFaturalarPage', () => {
     }
     const IZINLER = ['tum_faturalar.goruntule', 'tum_faturalar.pdf', 'tum_faturalar.disari_aktar']
 
-    it('birleşik listeyi ister; eMOR Okudu ve eMOR yanında Protel Okudu, Protel, SAP kolonları boş; senkron paneli yok', async () => {
+    it('birleşik listeyi ister; en solda Entegratör, eMOR Okudu ve eMOR yanında Protel Okudu, Protel, SAP kolonları boş; senkron paneli yok', async () => {
       api.faturalar.mockResolvedValue(BIRLESIK)
       ciz(IZINLER, 'tum')
       await screen.findByText('Otel Tedarik A.Ş.')
@@ -1008,7 +1008,8 @@ describe('EFaturalarPage', () => {
       const basliklar = screen
         .getAllByRole('columnheader')
         .map((th) => th.textContent?.replace(/[↕▲▼]/g, ''))
-      expect(basliklar.slice(1, 7)).toEqual([
+      expect(basliklar.slice(1, 8)).toEqual([
+        'Entegratör',
         'eMOR Okudu',
         'eMOR',
         'Protel Okudu',
@@ -1018,6 +1019,9 @@ describe('EFaturalarPage', () => {
       ])
       // Kaynak uç gelene kadar sistem kolonları boş ve açıklamalı
       const satir = screen.getByText('OTL2026000000002').closest('tr') as HTMLElement
+      expect(satir.querySelectorAll('td')[1]).toHaveTextContent('Protel')
+      const izibizSatiri = screen.getByText('ABC2026000000001').closest('tr') as HTMLElement
+      expect(izibizSatiri.querySelectorAll('td')[1]).toHaveTextContent('İzibiz')
       expect(within(satir).getAllByTitle(/servisi açıldığında gelecek/)).toHaveLength(3)
       expect(screen.queryByText('ERP Okudu')).not.toBeInTheDocument()
       // Senkron sağlayıcı ekranlarında: durum istenmez
@@ -1046,7 +1050,7 @@ describe('EFaturalarPage', () => {
       expect(api.excel.mock.calls[0][6]).toBe('tum')
       expect(
         (api.excel.mock.calls[0][4] as { anahtar: string }[]).map((k) => k.anahtar).slice(0, 5),
-      ).toEqual(['erp_okundu', 'emor', 'protel_okudu', 'protel', 'sap'])
+      ).toEqual(['entegrator', 'erp_okundu', 'emor', 'protel_okudu', 'protel'])
 
       const satir = screen.getByText('OTL2026000000002').closest('tr') as HTMLElement
       fireEvent.click(within(satir).getByRole('button', { name: 'PDF' }))

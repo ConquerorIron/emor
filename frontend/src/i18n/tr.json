@@ -731,7 +731,8 @@
       "protelOkudu": "Protel Okudu",
       "protel": "Protel",
       "sap": "SAP",
-      "sistemBekleniyor": "Bu bilgi, ilgili sistemin (Protel / SAP) servisi açıldığında gelecek."
+      "sistemBekleniyor": "Bu bilgi, ilgili sistemin (Protel / SAP) servisi açıldığında gelecek.",
+      "entegrator": "Entegratör"
     },
     "erpSenkron": {
       "ac": "ERP Senkronla",
@@ -777,7 +778,11 @@
       "rozetAciklama": "Listede gizlendi — {{kisi}}",
       "alan": "Gizlendi"
     },
-    "tumAciklama": "İzibiz ve Protel'e gelen faturalar tek listede. Senkron ve gizleme sağlayıcı ekranlarından yapılır."
+    "tumAciklama": "İzibiz ve Protel'e gelen faturalar tek listede. Senkron ve gizleme sağlayıcı ekranlarından yapılır.",
+    "saglayici": {
+      "izibiz": "İzibiz",
+      "protel": "Protel"
+    }
   },
   "protel": {
     "baslik": "Protel Gelen Faturalar",
