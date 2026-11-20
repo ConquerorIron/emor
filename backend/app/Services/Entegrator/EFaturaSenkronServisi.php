@@ -35,7 +35,7 @@ final class EFaturaSenkronServisi
     private const YAZMA_PARTISI = 500;
 
     /** Girdi değişmeden düzelmeyen hatalar: aralığın kalan ayları okunmaz */
-    private const KALICI_HATALAR = [EntegratorHatasi::KIMLIK_HATALI, EntegratorHatasi::PROTEL_KAPALI];
+    private const KALICI_HATALAR = [EntegratorHatasi::KIMLIK_HATALI, EntegratorHatasi::GIRIS_BEKLETILIYOR, EntegratorHatasi::PROTEL_KAPALI];
 
     public function __construct(
         private readonly IzibizFaturaKaynagi $izibiz,

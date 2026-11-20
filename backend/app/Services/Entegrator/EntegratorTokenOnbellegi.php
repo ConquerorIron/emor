@@ -106,7 +106,7 @@ final class EntegratorTokenOnbellegi
     private function reddedildiyseDur(string $anahtar): void
     {
         if (Cache::has($anahtar.':red')) {
-            throw EntegratorHatasi::kimlikHatali('GIRIS_BEKLETILIYOR');
+            throw EntegratorHatasi::girisBekletiliyor(intdiv(self::RED_SURESI, 3600));
         }
     }
 

@@ -17,6 +17,9 @@ final class EntegratorHatasi extends RuntimeException
 
     public const KIMLIK_HATALI = 'ENTEGRATOR_KIMLIK_HATALI';
 
+    /** Önceki giriş reddedildi; otomatik giriş bekletiliyor (EntegratorTokenOnbellegi) — istek gönderilmedi */
+    public const GIRIS_BEKLETILIYOR = 'ENTEGRATOR_GIRIS_BEKLETILIYOR';
+
     public const YANIT_GECERSIZ = 'ENTEGRATOR_YANIT_GECERSIZ';
 
     public const HATA = 'ENTEGRATOR_HATA';
@@ -46,6 +49,16 @@ final class EntegratorHatasi extends RuntimeException
         return new self(self::KIMLIK_HATALI, __('hata.entegrator_kimlik_hatali'), 422, $saglayiciKodu);
     }
 
+    /**
+     * Kimlik hatasından ayrı mesaj: kullanıcı beklemenin süresini ve nasıl
+     * kaldırılacağını görsün; Protel yanlışlıkla reddettiyse şifre doğruyken
+     * "şifre hatalı" sanılmasın (Fable incelemesi).
+     */
+    public static function girisBekletiliyor(int $saat): self
+    {
+        return new self(self::GIRIS_BEKLETILIYOR, __('hata.entegrator_giris_bekletiliyor', ['saat' => $saat]), 422);
+    }
+
     public static function yanitGecersiz(): self
     {
         return new self(self::YANIT_GECERSIZ, __('hata.entegrator_yanit_gecersiz'), 502);
@@ -72,7 +85,7 @@ final class EntegratorHatasi extends RuntimeException
      */
     public function report(): bool
     {
-        return in_array($this->kod, [self::KIMLIK_HATALI, self::AKTIF_YOK, self::PROTEL_KAPALI], true);
+        return in_array($this->kod, [self::KIMLIK_HATALI, self::GIRIS_BEKLETILIYOR, self::AKTIF_YOK, self::PROTEL_KAPALI], true);
     }
 
     /**

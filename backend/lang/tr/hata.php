@@ -37,6 +37,7 @@ return [
     'protel_kapali' => 'Protel bağlantısı kapalı (sunucu ayarı PROTEL_AKTIF). Protel\'e istek gönderilmedi.',
     'entegrator_erisilemedi' => 'Entegratöre ulaşılamadı. Ağ bağlantısını kontrol edip tekrar deneyin.',
     'entegrator_kimlik_hatali' => 'Entegratör kullanıcı adı veya şifresi hatalı.',
+    'entegrator_giris_bekletiliyor' => 'Entegratör girişi reddedildiği için otomatik giriş :saat saat bekletiliyor (hesap kilitlenmesin diye). Şifreyi Ayarlar → Entegratör Bağlantıları\'nda güncelleyin ya da "Bağlantıyı Sına" ile yeniden deneyin.',
     'entegrator_yanit_gecersiz' => 'Entegratörden beklenmeyen bir yanıt geldi.',
     'entegrator_hata' => 'Entegratör isteği reddetti (kod: :kod).',
 

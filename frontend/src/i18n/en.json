@@ -527,6 +527,7 @@
     "HESAP_PASIF": "Your account has been deactivated.",
     "ENTEGRATOR_ERISILEMEDI": "Could not reach the integrator. Check the network and try again.",
     "ENTEGRATOR_KIMLIK_HATALI": "Integrator username or password is incorrect.",
+    "ENTEGRATOR_GIRIS_BEKLETILIYOR": "The integrator rejected the login, so automatic logins are paused for 6 hours (to avoid locking the account). Update the password in Settings → Integrator Connections or retry with \"Test Connection\".",
     "ENTEGRATOR_YANIT_GECERSIZ": "The integrator returned an unexpected response.",
     "ENTEGRATOR_HATA": "The integrator rejected the request.",
     "ENTEGRATOR_AKTIF_YOK": "No active integrator environment is selected.",

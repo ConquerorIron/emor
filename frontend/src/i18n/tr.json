@@ -527,6 +527,7 @@
     "HESAP_PASIF": "Hesabınız pasife alındı.",
     "ENTEGRATOR_ERISILEMEDI": "Entegratöre ulaşılamadı. Ağ bağlantısını kontrol edip tekrar deneyin.",
     "ENTEGRATOR_KIMLIK_HATALI": "Entegratör kullanıcı adı veya şifresi hatalı.",
+    "ENTEGRATOR_GIRIS_BEKLETILIYOR": "Entegratör girişi reddedildiği için otomatik giriş 6 saat bekletiliyor (hesap kilitlenmesin diye). Şifreyi Ayarlar → Entegratör Bağlantıları'nda güncelleyin ya da \"Bağlantıyı Sına\" ile yeniden deneyin.",
     "ENTEGRATOR_YANIT_GECERSIZ": "Entegratörden beklenmeyen bir yanıt geldi.",
     "ENTEGRATOR_HATA": "Entegratör isteği reddetti.",
     "ENTEGRATOR_AKTIF_YOK": "Aktif entegratör ortamı seçilmemiş.",

@@ -465,8 +465,10 @@ final class ProtelIstemcisiTest extends TestCase
 
         $hata = $this->hataBekle(fn () => $istemci->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI));
 
-        $this->assertSame(EntegratorHatasi::KIMLIK_HATALI, $hata->kod);
-        $this->assertSame('GIRIS_BEKLETILIYOR', $hata->saglayiciKodu);
+        // Ayrı kod ve mesaj: şifre doğruyken "hatalı" sanılmasın, nasıl kalkacağı yazsın
+        $this->assertSame(EntegratorHatasi::GIRIS_BEKLETILIYOR, $hata->kod);
+        $this->assertStringContainsString('6 saat bekletiliyor', $hata->getMessage());
+        $this->assertStringContainsString('Bağlantıyı Sına', $hata->getMessage());
         Http::assertSentCount(1);
     }
 
