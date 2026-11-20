@@ -43,6 +43,8 @@
     "ekranTasarimi": "Ekran Tasarım Ayarları",
     "kullanicilar": "Kullanıcılar",
     "roller": "Roller",
+    "efatura": "e-Fatura",
+    "tumFaturalar": "Tüm Faturalar",
     "izibiz": "İzibiz",
     "protel": "Protel",
     "gelenFaturalar": "Gelen Faturalar",
@@ -560,6 +562,7 @@
     "grupDuzeyi": "{{grup}} — tümü: {{duzey}}",
     "ekran": {
       "satinalma_talebi": "Satınalma Talebi",
+      "tum_faturalar": "Tüm Faturalar",
       "efatura": "İzibiz e-Faturaları (Gelen/Giden)",
       "protel_faturalari": "Protel Gelen Faturalar",
       "tum_kesintiler": "Tüm Kesintiler",
@@ -594,6 +597,9 @@
       "yedek_planlari": "Yedek Planları ve Hedefleri"
     },
     "izin": {
+      "tum_faturalar_goruntule": "Tüm faturaları (İzibiz + Protel) görüntüleme",
+      "tum_faturalar_pdf": "Tüm Faturalar'da PDF/XML görüntüleme",
+      "tum_faturalar_disari_aktar": "Tüm Faturalar listesini Excel'e aktarma",
       "efatura_goruntule": "e-Fatura listelerini görüntüleme",
       "efatura_pdf": "e-Fatura PDF/XML görüntüleme",
       "efatura_disari_aktar": "e-Fatura listesini Excel'e aktarma",
@@ -611,7 +617,8 @@
   "efatura": {
     "baslik": {
       "gelen": "İzibiz Gelen Faturalar",
-      "giden": "İzibiz Giden Faturalar"
+      "giden": "İzibiz Giden Faturalar",
+      "tum": "Tüm Faturalar"
     },
     "ortam": {
       "test": "Test hesabı",
@@ -664,6 +671,7 @@
       "gibDurum": "GİB Durumu",
       "yanit": "Yanıt Açıklaması",
       "erpOkundu": "ERP Okudu",
+      "emorOkundu": "eMOR Okudu",
       "portalOkundu": "Portalda Okundu",
       "kaynakId": "İzibiz Kimliği",
       "sonGorulme": "Son Senkronda Görülme",
@@ -719,7 +727,11 @@
       "emor": "eMOR",
       "vergiIstisnaKodu": "Vergi İstisna Kodu",
       "istisnaKoduEntegrator": "İstisna Kodu (Entegratör)",
-      "istisnaKoduErp": "İstisna Kodu (ERP)"
+      "istisnaKoduErp": "İstisna Kodu (ERP)",
+      "protelOkudu": "Protel Okudu",
+      "protel": "Protel",
+      "sap": "SAP",
+      "sistemBekleniyor": "Bu bilgi, ilgili sistemin (Protel / SAP) servisi açıldığında gelecek."
     },
     "erpSenkron": {
       "ac": "ERP Senkronla",
@@ -764,7 +776,8 @@
       "rozet": "Gizli",
       "rozetAciklama": "Listede gizlendi — {{kisi}}",
       "alan": "Gizlendi"
-    }
+    },
+    "tumAciklama": "İzibiz ve Protel'e gelen faturalar tek listede. Senkron ve gizleme sağlayıcı ekranlarından yapılır."
   },
   "protel": {
     "baslik": "Protel Gelen Faturalar",

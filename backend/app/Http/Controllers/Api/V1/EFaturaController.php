@@ -94,9 +94,6 @@ final class EFaturaController extends Controller
             ], 422);
         }
 
-        // Yalnız bu istek için (bkz. config/efatura.php ölçümü)
-        $this->bellekSiniriniYukselt((string) config('efatura.excel_bellek_siniri'));
-
         $yol = $aktarici->olustur(
             $this->sorgu->sirala($sorgu->clone(), $faturaYonu, $request->input('sirala'), $request->input('yon')),
             $faturaYonu,
@@ -210,30 +207,6 @@ final class EFaturaController extends Controller
     private function dosyaAdi(EFatura $fatura, string $uzanti): string
     {
         return preg_replace('/[^A-Za-z0-9._-]/', '_', $fatura->belge_no).'.'.$uzanti;
-    }
-
-    /** Sınır yalnız yükseltilir: sunucu daha yüksek/sınırsız verdiyse düşürülmez. */
-    private function bellekSiniriniYukselt(string $hedef): void
-    {
-        $mevcut = (string) ini_get('memory_limit');
-
-        if ($mevcut !== '-1' && $this->bayt($mevcut) < $this->bayt($hedef)) {
-            ini_set('memory_limit', $hedef);
-        }
-    }
-
-    /** php.ini kısaltmalı boyutu (512M, 1G) bayta çevirir. */
-    private function bayt(string $deger): int
-    {
-        $deger = trim($deger);
-        $sayi = (int) $deger;
-
-        return match (strtoupper(substr($deger, -1))) {
-            'G' => $sayi * 1024 ** 3,
-            'M' => $sayi * 1024 ** 2,
-            'K' => $sayi * 1024,
-            default => $sayi,
-        };
     }
 
     private function aktifTanim(Request $request): EntegratorBaglanti

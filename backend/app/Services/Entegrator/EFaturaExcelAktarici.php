@@ -65,25 +65,34 @@ final class EFaturaExcelAktarici
         // Protel ekranı (PRT-12)
         'erp_durumu' => ['metin', 14],
         'yazdirildi' => ['metin', 10],
+        // Tüm Faturalar: hangi sisteme girildi — kaynak uçlar henüz yok, boş yazılır
+        'protel_okudu' => ['metin', 12],
+        'protel' => ['metin', 12],
+        'sap' => ['metin', 10],
     ];
 
     /**
      * @param  Builder<EFatura>  $sorgu  filtrelenmiş ve sıralanmış sorgu
+     * @param  EntegratorBaglanti|list<EntegratorBaglanti>  $tanimlar  listenin kapsamı (özet sayfasındaki ortam)
      * @param  list<array{para_birimi: string, adet: int, tutar: string, vergi_tutari: string}>  $ozet
      * @param  array{baslangic: string, bitis: string}  $aralik
      * @param  list<array{anahtar: string, baslik: string}>  $kolonlar  ekrandaki görünür kolonlar, sırasıyla
      * @return string oluşturulan geçici dosyanın yolu (çağıran siler)
      */
-    public function olustur(Builder $sorgu, FaturaYonu $yon, EntegratorBaglanti $tanim, array $ozet, array $aralik, array $kolonlar): string
+    public function olustur(Builder $sorgu, FaturaYonu $yon, EntegratorBaglanti|array $tanimlar, array $ozet, array $aralik, array $kolonlar, ?string $baslik = null): string
     {
+        // Yalnız bu istek için (bkz. config/efatura.php ölçümü)
+        $this->bellekSiniriniYukselt((string) config('efatura.excel_bellek_siniri'));
+        $tanimlar = $tanimlar instanceof EntegratorBaglanti ? [$tanimlar] : $tanimlar;
+        $baslik ??= __('efatura.excel.baslik_'.$yon->value);
         $kitap = new Spreadsheet;
-        $kitap->getProperties()->setCreator('eMOR ERP')->setTitle(__('efatura.excel.baslik_'.$yon->value));
+        $kitap->getProperties()->setCreator('eMOR ERP')->setTitle($baslik);
 
         $sayfa = $kitap->getActiveSheet();
         $sayfa->setTitle(__('efatura.excel.faturalar'));
         $this->faturalariYaz($sayfa, $sorgu, $yon, $kolonlar);
 
-        $this->ozetYaz($kitap->createSheet(), $yon, $tanim, $ozet, $aralik);
+        $this->ozetYaz($kitap->createSheet(), $baslik, $tanimlar, $ozet, $aralik);
 
         $yol = tempnam(sys_get_temp_dir(), 'efatura-');
 
@@ -169,6 +178,7 @@ final class EFaturaExcelAktarici
                 null => null,
             }],
             'emor' => ['metin', $f->emor_durumu === null ? null : __('efatura.emor.'.$f->emor_durumu->value)],
+            'protel_okudu', 'protel', 'sap' => ['metin', null],
             'yazdirildi' => ['metin', match ($f->yazdirildi) {
                 true => __('efatura.evet'),
                 false => __('efatura.hayir'),
@@ -212,6 +222,30 @@ final class EFaturaExcelAktarici
         };
     }
 
+    /** Sınır yalnız yükseltilir: sunucu daha yüksek/sınırsız verdiyse düşürülmez. */
+    private function bellekSiniriniYukselt(string $hedef): void
+    {
+        $mevcut = (string) ini_get('memory_limit');
+
+        if ($mevcut !== '-1' && $this->bayt($mevcut) < $this->bayt($hedef)) {
+            ini_set('memory_limit', $hedef);
+        }
+    }
+
+    /** php.ini kısaltmalı boyutu (512M, 1G) bayta çevirir. */
+    private function bayt(string $deger): int
+    {
+        $deger = trim($deger);
+        $sayi = (int) $deger;
+
+        return match (strtoupper(substr($deger, -1))) {
+            'G' => $sayi * 1024 ** 3,
+            'M' => $sayi * 1024 ** 2,
+            'K' => $sayi * 1024,
+            default => $sayi,
+        };
+    }
+
     /** Serbest metin alanı tarih değilse yazılmaz (hücre boş kalır). */
     private function tarihMi(mixed $deger): ?string
     {
@@ -223,16 +257,19 @@ final class EFaturaExcelAktarici
     }
 
     /**
+     * @param  list<EntegratorBaglanti>  $tanimlar
      * @param  list<array{para_birimi: string, adet: int, tutar: string, vergi_tutari: string}>  $ozet
      * @param  array{baslangic: string, bitis: string}  $aralik
      */
-    private function ozetYaz(Worksheet $sayfa, FaturaYonu $yon, EntegratorBaglanti $tanim, array $ozet, array $aralik): void
+    private function ozetYaz(Worksheet $sayfa, string $baslik, array $tanimlar, array $ozet, array $aralik): void
     {
         $sayfa->setTitle(__('efatura.excel.ozet'));
+        // Birleşik listede tanımların ortamı farklı olabilir: hepsi yazılır
+        $ortamlar = collect($tanimlar)->map(fn (EntegratorBaglanti $t): string => __('efatura.ortam.'.$t->ortam))->unique()->implode(', ');
 
         $bilgiler = [
-            [__('efatura.excel.liste'), __('efatura.excel.baslik_'.$yon->value)],
-            [__('efatura.excel.ortam'), __('efatura.ortam.'.$tanim->ortam)],
+            [__('efatura.excel.liste'), $baslik],
+            [__('efatura.excel.ortam'), $ortamlar],
             [__('efatura.excel.tarih_araligi'), CarbonImmutable::parse($aralik['baslangic'])->format('d.m.Y').' – '.CarbonImmutable::parse($aralik['bitis'])->format('d.m.Y')],
             [__('efatura.excel.olusturuldu'), CarbonImmutable::now((string) config('entegrator.izibiz.saat_dilimi'))->format('d.m.Y H:i')],
         ];

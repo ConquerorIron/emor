@@ -40,6 +40,18 @@ export const router = createBrowserRouter([
         ],
       },
       {
+        // Tüm Faturalar — İzibiz + Protel gelen faturaların birleşik listesi; ayrı izin
+        element: <IzinAlani izin="tum_faturalar.goruntule" />,
+        children: [
+          {
+            path: 'efatura/tum',
+            lazy: async () => ({
+              Component: (await import('@/pages/EFaturalar/EFaturalarPage')).TumFaturalarPage,
+            }),
+          },
+        ],
+      },
+      {
         // e-Fatura (EFAT-11): görüntüleme izni olanlar
         element: <IzinAlani izin="efatura.goruntule" />,
         children: [

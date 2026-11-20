@@ -84,7 +84,7 @@ export async function protelExcelIndir(
   sayfa: number,
   kolonlar: ExcelKolonu[],
   /** Ekrandaki listenin ortamı — sunucuda aktif ortam farklıysa indirme reddedilir */
-  ortam: 'test' | 'canli',
+  ortam: string,
 ): Promise<void> {
   const yanit = await api
     .get<Blob>('/api/v1/protel/gelen/faturalar/excel', {

@@ -25,6 +25,11 @@ export const NAV_GRUPLARI: NavGrubu[] = [
     ],
   },
   {
+    // İki posta kutusunun (İzibiz + Protel) birleşik listesi, sağlayıcı gruplarının üstünde
+    baslikAnahtari: 'nav.efatura',
+    ogeler: [{ to: '/efatura/tum', ad: 'tumFaturalar', izin: 'tum_faturalar.goruntule' }],
+  },
+  {
     // e-Fatura posta kutuları sağlayıcıya göre ayrı grup (kullanıcı kararı 2026-11-20)
     baslikAnahtari: 'nav.izibiz',
     ogeler: [

@@ -23,6 +23,7 @@ import {
   type EmorDurumu,
   type EmorFiltresi,
   type ErpOkunduFiltresi,
+  type FaturaKapsami,
   type FaturaYonu,
   excelIndir,
   type ExcelKolonu,
@@ -168,15 +169,45 @@ function HizliFiltre({
   )
 }
 
+/** Henüz kaynağı olmayan sistem kolonu (Protel / SAP servisi bekleniyor): boş, açıklamalı */
+function SistemBekleniyor() {
+  const { t } = useTranslation()
+
+  return (
+    <span className="text-slate-400" title={t('efatura.kolon.sistemBekleniyor')}>
+      —
+    </span>
+  )
+}
+
 type AcikPencere = { tur: 'detay' | 'pdf'; fatura: EFatura } | null
 
-export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
+/**
+ * İzibiz gelen / giden faturalar; `kapsam="tum"` ise İzibiz + Protel gelen
+ * faturaların birleşik listesi (Tüm Faturalar — kullanıcı isteği 2026-11-20).
+ * Birleşik listede ekran aynıdır; farkları: kendi izinleri, "ERP Okudu" →
+ * "eMOR Okudu", hangi sisteme girildiğini gösteren Protel Okudu / Protel / SAP
+ * kolonları (kaynak uçlar gelene kadar boş), senkron ve gizleme yok (sağlayıcı
+ * ekranlarında).
+ */
+export function EFaturalarPage({
+  yon,
+  kapsam = 'izibiz',
+}: {
+  yon: FaturaYonu
+  kapsam?: FaturaKapsami
+}) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const pdfIzni = useIzin('efatura.pdf')
-  const excelIzni = useIzin('efatura.disari_aktar')
-  const gizlemeIzni = useIzin('efatura.gizle')
+  const tum = kapsam === 'tum'
+  const izinOneki = tum ? 'tum_faturalar' : 'efatura'
+  const pdfIzni = useIzin(`${izinOneki}.pdf`)
+  const excelIzni = useIzin(`${izinOneki}.disari_aktar`)
+  const gizlemeIzin = useIzin('efatura.gizle')
+  const gizlemeIzni = !tum && gizlemeIzin
   const senkronIzni = useIzin('efatura.senkron')
+  // Kalıcı sıralama / kolon seçimi ekran başına
+  const ekranAnahtari = tum ? 'tum-faturalar' : `efatura-${yon}`
 
   const [filtre, setFiltre] = useState<EFaturaFiltresi>(() => ({
     ...BOS_FILTRE,
@@ -189,10 +220,10 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
   const [excelSuruyor, setExcelSuruyor] = useState(false)
   // Gelen faturalar açılışta en son alınan üstte (kullanıcı isteği 2026-09-24)
   const { siralama, siralamaDegistir } = useKaliciSiralama(
-    `efatura-${yon}`,
+    ekranAnahtari,
     yon === 'gelen' ? { anahtar: 'olusturma_zamani', yon: 'desc' } : null,
   )
-  const kolonGorunurlugu = useKolonGorunurlugu(`efatura-${yon}`)
+  const kolonGorunurlugu = useKolonGorunurlugu(ekranAnahtari)
 
   // Arama yazarken her tuşta istek atılmaz; diğer filtreler anında uygulanır
   const ara = useDebounce(filtre.ara)
@@ -204,9 +235,11 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
     setSayfa(1)
   }
 
+  // Senkron durumu sağlayıcı ekranlarında; birleşik listede istenmez
   const durum = useQuery({
     queryKey: queryKeys.efatura.durum,
     queryFn: senkronDurumuGetir,
+    enabled: !tum,
     // Senkron sürerken ya da sıradayken sık, aksi hâlde dakikada bir tazelenir
     refetchInterval: (sorgu) => {
       const veri = sorgu.state.data
@@ -219,8 +252,10 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
   })
 
   const liste = useQuery({
-    queryKey: queryKeys.efatura.liste(yon, { ...sorguFiltresi, siralama, sayfa }),
-    queryFn: () => faturalariGetir(yon, sorguFiltresi, siralama, sayfa),
+    queryKey: tum
+      ? queryKeys.tumFaturalar.liste({ ...sorguFiltresi, siralama, sayfa })
+      : queryKeys.efatura.liste(yon, { ...sorguFiltresi, siralama, sayfa }),
+    queryFn: () => faturalariGetir(yon, sorguFiltresi, siralama, sayfa, kapsam),
     enabled: tarihHatasi === null,
     placeholderData: keepPreviousData,
   })
@@ -260,10 +295,10 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
   const eskiVeri = liste.isPlaceholderData
   const eskiVeriSinifi = `transition-opacity ${eskiVeri ? 'opacity-50' : ''}`
 
-  const excelAl = async (gorunenKolonlar: ExcelKolonu[], ortam: 'test' | 'canli') => {
+  const excelAl = async (gorunenKolonlar: ExcelKolonu[], ortam: string) => {
     setExcelSuruyor(true)
     try {
-      await excelIndir(yon, sorguFiltresi, siralama, sayfa, gorunenKolonlar, ortam)
+      await excelIndir(yon, sorguFiltresi, siralama, sayfa, gorunenKolonlar, ortam, kapsam)
     } catch (error) {
       toast.error(t(apiErrorKey(error)))
     } finally {
@@ -278,7 +313,8 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
   const secilebilirKolonlar: DataTableKolonu<EFatura>[] = [
     {
       anahtar: 'erp_okundu',
-      baslik: t('efatura.alan.erpOkundu'),
+      // Birleşik listede "eMOR Okudu" (kullanıcı isteği 2026-11-20)
+      baslik: t(tum ? 'efatura.alan.emorOkundu' : 'efatura.alan.erpOkundu'),
       siralamaAnahtari: 'erp_okundu',
       hizala: 'orta',
       render: (f) => <EvetHayirRozeti deger={f.erp_okundu} />,
@@ -291,6 +327,30 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
       hizala: 'orta',
       render: (f) => <EmorRozeti deger={f.emor_durumu} />,
     },
+    // Birleşik liste: faturanın hangi sisteme girildiği. Protel ve SAP ekiplerinden
+    // uç bekleniyor; o zamana kadar kolonlar boş (kullanıcı isteği 2026-11-20)
+    ...(tum
+      ? [
+          {
+            anahtar: 'protel_okudu',
+            baslik: t('efatura.kolon.protelOkudu'),
+            hizala: 'orta' as const,
+            render: () => <SistemBekleniyor />,
+          },
+          {
+            anahtar: 'protel',
+            baslik: t('efatura.kolon.protel'),
+            hizala: 'orta' as const,
+            render: () => <SistemBekleniyor />,
+          },
+          {
+            anahtar: 'sap',
+            baslik: t('efatura.kolon.sap'),
+            hizala: 'orta' as const,
+            render: () => <SistemBekleniyor />,
+          },
+        ]
+      : []),
     {
       anahtar: 'belge_no',
       baslik: t('efatura.kolon.faturaNo'),
@@ -539,7 +599,16 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-bold">{t(`efatura.baslik.${yon}`)}</h2>
+        <div>
+          <h2 className="text-2xl font-bold">
+            {t(tum ? 'efatura.baslik.tum' : `efatura.baslik.${yon}`)}
+          </h2>
+          {tum ? (
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              {t('efatura.tumAciklama')}
+            </p>
+          ) : null}
+        </div>
         {excelIzni ? (
           <Button
             variant="yesil"
@@ -614,7 +683,7 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
       </div>
 
       <div className="mt-4">
-        {durum.data ? (
+        {!tum && durum.data ? (
           <SenkronDurumuPaneli
             yon={yon}
             durum={durum.data}
@@ -709,7 +778,7 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
         <div className="w-full sm:w-36">
           <SelectField
             id="efatura-erp"
-            label={t('efatura.alan.erpOkundu')}
+            label={t(tum ? 'efatura.alan.emorOkundu' : 'efatura.alan.erpOkundu')}
             options={erpSecenekleri}
             value={secili(erpSecenekleri, filtre.erp_okundu)}
             onChange={(secim) =>
@@ -842,7 +911,16 @@ export function EFaturalarPage({ yon }: { yon: FaturaYonu }) {
           />
         ) : null}
         {pencere?.tur === 'pdf' ? (
-          <PdfGoruntuleyici fatura={pencere.fatura} pdfGetir={pdfGetir} xmlIndir={xmlIndir} />
+          <PdfGoruntuleyici
+            fatura={pencere.fatura}
+            pdfGetir={(faturaId) => pdfGetir(faturaId, kapsam)}
+            // Protel'de XML yok (yalnız PDF)
+            xmlIndir={
+              pencere.fatura.saglayici === 'protel'
+                ? undefined
+                : (fatura) => xmlIndir(fatura, kapsam)
+            }
+          />
         ) : null}
       </Modal>
     </>
@@ -855,4 +933,8 @@ export function GelenFaturalarPage() {
 
 export function GidenFaturalarPage() {
   return <EFaturalarPage yon="giden" />
+}
+
+export function TumFaturalarPage() {
+  return <EFaturalarPage yon="gelen" kapsam="tum" />
 }

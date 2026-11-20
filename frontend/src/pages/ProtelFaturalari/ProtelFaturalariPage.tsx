@@ -143,7 +143,7 @@ export function ProtelFaturalariPage() {
   const eskiVeri = liste.isPlaceholderData
   const eskiVeriSinifi = `transition-opacity ${eskiVeri ? 'opacity-50' : ''}`
 
-  const excelAl = async (kolonlar: ExcelKolonu[], ortam: 'test' | 'canli') => {
+  const excelAl = async (kolonlar: ExcelKolonu[], ortam: string) => {
     setExcelSuruyor(true)
     try {
       await protelExcelIndir(sorguFiltresi, siralama, sayfa, kolonlar, ortam)

@@ -162,7 +162,7 @@ Akış, inceleme günlüğü biçimi ve önem dereceleri (P1 / P2 / P3) için
 | PRT-10 | İzinler ve menü | 2 | PRT-03 | PASSED |
 | PRT-11 | Mevcut ekranların adı: "İzibiz Gelen / Giden Faturalar" | 2 | — | PASSED |
 | PRT-12 | Ekran: Protel Gelen Faturalar | 2 | PRT-08, PRT-09, PRT-10 | PASSED |
-| PRT-13 | Ekran: birleşik gelen faturalar (İzibiz + Protel) | 3 | PRT-12 | BEKLIYOR |
+| PRT-13 | Ekran: birleşik gelen faturalar (İzibiz + Protel) | 3 | PRT-12 | REVIEW_BEKLIYOR |
 | PRT-14 | Test tarafında uçtan uca kabul | 4 | PRT-12 | BEKLIYOR |
 | PRT-15 | Canlıya alma | 4 | PRT-14 | YAPILACAK |
 
@@ -488,15 +488,42 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 
 ### PRT-13 — Ekran: birleşik gelen faturalar (İzibiz + Protel)
 
-- **Durum:** BEKLIYOR — muhasebe kararı: "ERP'de olup iki kutuda da olmayan
-  faturalar" gösterilecek mi; Protel satırında ERP durumu ne anlama gelir
-  (2026-11-18 kararı: Protel faturaları eMOR'da yok).
+- **Durum:** REVIEW_BEKLIYOR
 - **Bağımlı:** PRT-12
-- **Kapsam (taslak):** İki kaynağın gelen faturaları tek listede; kaynak
-  kolonları (İzibiz / Protel); İzibiz satırlarında mevcut eMOR durumu.
-  Karar gelince kapsam ve ölçütler yazılır. PRT-15 bu göreve bağlı değildir.
-- **Canlı:** —
+- **Kapsam (kullanıcı kararı 2026-11-20):** Menüde "e-Fatura → Tüm Faturalar"
+  (`/efatura/tum`), İzibiz ve Protel gruplarının üstünde. İzibiz ve Protel'e
+  GELEN faturalar (aynı VKN'nin iki posta kutusu) tek listede; kapsam sağlayıcı
+  başına AKTİF tanım (biri tanımsızsa yalnız diğeri, hiçbiri yoksa
+  `ENTEGRATOR_AKTIF_YOK`). Ekran İzibiz Gelen Faturalar'ın aynısı
+  (`EFaturalarPage kapsam="tum"`; kopya yok); farklar:
+  - "ERP Okudu" → **"eMOR Okudu"** (kolon ve filtre);
+  - eMOR'un sağında **Protel Okudu**, **Protel**, **SAP** kolonları — faturanın
+    hangi sisteme girildiği. Protel ve SAP ekiplerinden uç beklendiği için
+    şimdilik boş ("—", açıklamalı); Excel'de de boş kolon;
+  - senkron paneli ve gizleme yok (sağlayıcı ekranlarında); XML yalnız İzibiz
+    satırında (Protel'de yalnız PDF).
+  Kendi izinleri: `tum_faturalar.goruntule / pdf / disari_aktar` (sağlayıcı
+  izinleri açmaz). Uçlar `/api/v1/tum-faturalar/faturalar` (+ `/excel`,
+  `/{id}/pdf`, `/{id}/xml`) — liste, filtre, özet ve Excel sağlayıcı
+  ekranlarıyla aynı `EFaturaSorgusu`'ndan (tanım listesi alacak şekilde
+  genişletildi). PDF faturanın kendi sağlayıcısından. Excel kapsamı
+  `izibiz:canli,protel:canli` ile gelir; sunucuda değiştiyse 409 (PRT-R3).
+  Excel'in bellek sınırı yükseltmesi denetleyiciden `EFaturaExcelAktarici`'ye
+  taşındı (iki ekran da kullanır).
+- **Kabul ölçütleri:**
+  - [x] İki aktif tanımın gelen faturaları; pasif tanım ve giden gelmez; özet toplamı.
+  - [x] Sağlayıcı izinleri listeyi açmaz; PDF / XML / Excel ek izin ister (403).
+  - [x] PDF faturanın sağlayıcısından; Protel faturasında XML 404; pasif tanımın faturası 404.
+  - [x] Excel ekrandaki kolon / başlıkla; sistem kolonları boş; kapsam uyuşmazlığı 409.
+  - [x] Ekran: kolon sırası (eMOR Okudu, eMOR, Protel Okudu, Protel, SAP), senkron yok,
+        Protel satırında XML düğmesi yok, Excel birleşik uçtan ekrandaki kapsamla.
+  - [ ] Protel Okudu / Protel / SAP verisi: ilgili ekiplerin uçları gelince.
+- **Canlı:** Evet
 - **İnceleme günlüğü:**
+  - 2026-11-20 Claude → REVIEW_BEKLIYOR · commit `feat(efatura): Tum Faturalar …`
+    Testler: backend `TumFaturalarTest` (6 test), frontend 2 test; eski kodda
+    uç ve ekran yoktu. Backend 895 + 1 atlanan, PostgreSQL seçimi 170/170,
+    frontend 324/324, build.
 
 ---
 

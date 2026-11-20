@@ -43,6 +43,8 @@
     "ekranTasarimi": "Screen Designer",
     "kullanicilar": "Users",
     "roller": "Roles",
+    "efatura": "e-Invoice",
+    "tumFaturalar": "All Invoices",
     "izibiz": "İzibiz",
     "protel": "Protel",
     "gelenFaturalar": "Incoming Invoices",
@@ -560,6 +562,7 @@
     "grupDuzeyi": "{{grup}} — all: {{duzey}}",
     "ekran": {
       "satinalma_talebi": "Purchase Request",
+      "tum_faturalar": "All Invoices",
       "efatura": "İzibiz e-Invoices (Incoming/Outgoing)",
       "protel_faturalari": "Protel Incoming Invoices",
       "tum_kesintiler": "All Deductions",
@@ -594,6 +597,9 @@
       "yedek_planlari": "Backup Plans and Targets"
     },
     "izin": {
+      "tum_faturalar_goruntule": "View all invoices (İzibiz + Protel)",
+      "tum_faturalar_pdf": "View PDF/XML in All Invoices",
+      "tum_faturalar_disari_aktar": "Export All Invoices to Excel",
       "efatura_goruntule": "View e-Invoice lists",
       "efatura_pdf": "View e-Invoice PDF/XML",
       "efatura_disari_aktar": "Export e-Invoice list to Excel",
@@ -611,7 +617,8 @@
   "efatura": {
     "baslik": {
       "gelen": "İzibiz Incoming Invoices",
-      "giden": "İzibiz Outgoing Invoices"
+      "giden": "İzibiz Outgoing Invoices",
+      "tum": "All Invoices"
     },
     "ortam": {
       "test": "Test account",
@@ -664,6 +671,7 @@
       "gibDurum": "GİB Status",
       "yanit": "Response Note",
       "erpOkundu": "ERP Read",
+      "emorOkundu": "Read by eMOR",
       "portalOkundu": "Read on Portal",
       "kaynakId": "İzibiz Id",
       "sonGorulme": "Last Seen in Sync",
@@ -719,7 +727,11 @@
       "emor": "eMOR",
       "vergiIstisnaKodu": "Tax Exemption Code",
       "istisnaKoduEntegrator": "Exemption Code (Integrator)",
-      "istisnaKoduErp": "Exemption Code (ERP)"
+      "istisnaKoduErp": "Exemption Code (ERP)",
+      "protelOkudu": "Read by Protel",
+      "protel": "Protel",
+      "sap": "SAP",
+      "sistemBekleniyor": "This will be filled once the system's (Protel / SAP) service is available."
     },
     "erpSenkron": {
       "ac": "Sync with ERP",
@@ -764,7 +776,8 @@
       "rozet": "Hidden",
       "rozetAciklama": "Hidden from the list — {{kisi}}",
       "alan": "Hidden"
-    }
+    },
+    "tumAciklama": "Invoices received in İzibiz and Protel in one list. Sync and hiding are done on the provider screens."
   },
   "protel": {
     "baslik": "Protel Incoming Invoices",

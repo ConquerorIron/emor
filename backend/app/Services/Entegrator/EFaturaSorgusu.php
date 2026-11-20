@@ -12,7 +12,8 @@ use Illuminate\Database\Eloquent\Builder;
  * e-Fatura ekranlarının (EFAT-11) ortak filtre/sıralama sorgusu. Liste, özet
  * ve Excel çıktısı AYNI sorgudan beslenir: sayılar ile satırlar ayrışmaz.
  *
- * Kapsam her zaman tek entegratör tanımı + yöndür (test ve canlı hesabın
+ * Kapsam her zaman entegratör tanımı (sağlayıcı ekranlarında tek tanım; Tüm
+ * Faturalar'da sağlayıcı başına aktif tanım) + yöndür (test ve canlı hesabın
  * faturaları karışmaz). Sıralama kolonları allow-list'tir.
  *
  * @phpstan-type Filtre array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null}
@@ -28,13 +29,14 @@ final class EFaturaSorgusu
     ];
 
     /**
+     * @param  EntegratorBaglanti|list<EntegratorBaglanti>  $tanimlar
      * @param  Filtre  $filtre
      * @return Builder<EFatura>
      */
-    public function filtrele(EntegratorBaglanti $tanim, FaturaYonu $yon, array $filtre): Builder
+    public function filtrele(EntegratorBaglanti|array $tanimlar, FaturaYonu $yon, array $filtre): Builder
     {
         $sorgu = EFatura::query()
-            ->where('entegrator_baglanti_id', $tanim->id)
+            ->whereIn('entegrator_baglanti_id', $this->tanimIdleri($tanimlar))
             ->where('yon', $yon->value)
             ->whereBetween('belge_tarihi', [$filtre['baslangic'], $filtre['bitis']])
             // Gizlenen (bize ait olmayan) faturalar istenmedikçe gelmez; özet ve Excel de
@@ -185,12 +187,14 @@ final class EFaturaSorgusu
      * Durum, İzibiz'in kodu ve Türkçe açıklamasıyla döner (her kodun tek
      * açıklaması var; boşsa null).
      *
+     * @param  EntegratorBaglanti|list<EntegratorBaglanti>  $tanimlar
      * @return array{durumlar: list<array{deger: string, aciklama: string|null}>, para_birimleri: list<string>, tipler: list<string>, istisna_kodlari: list<string>}
      */
-    public function secenekler(EntegratorBaglanti $tanim, FaturaYonu $yon, string $baslangic, string $bitis): array
+    public function secenekler(EntegratorBaglanti|array $tanimlar, FaturaYonu $yon, string $baslangic, string $bitis): array
     {
+        $tanimlar = $tanimlar instanceof EntegratorBaglanti ? [$tanimlar] : $tanimlar;
         $taban = EFatura::query()
-            ->where('entegrator_baglanti_id', $tanim->id)
+            ->whereIn('entegrator_baglanti_id', $this->tanimIdleri($tanimlar))
             ->where('yon', $yon->value)
             ->whereBetween('belge_tarihi', [$baslangic, $bitis]);
 
@@ -214,7 +218,8 @@ final class EFaturaSorgusu
         $tipler = $taban->clone()->whereNotNull('fatura_tipi')->distinct()->orderBy('fatura_tipi')->pluck('fatura_tipi')->all();
         // İki kaynağın kodları birleşik; her ikisindeki virgüllü değerler ayrılır.
         // Protel ekranı istisna kodu kullanmaz: sorgu hiç çalışmaz (PRT-R7)
-        $istisnaKodlari = $tanim->saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL ? [] : collect([
+        $yalnizProtel = collect($tanimlar)->every(fn (EntegratorBaglanti $t): bool => $t->saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL);
+        $istisnaKodlari = $yalnizProtel ? [] : collect([
             ...$taban->clone()->whereNotNull('vergi_istisna_kodu')->distinct()->pluck('vergi_istisna_kodu'),
             ...$taban->clone()->whereNotNull('izibiz_istisna_kodu')->distinct()->pluck('izibiz_istisna_kodu'),
         ])->flatMap(fn (string $kodlar): array => explode(',', $kodlar))
@@ -240,6 +245,17 @@ final class EFaturaSorgusu
         return $yon === FaturaYonu::Gelen
             ? ['gonderici_vkn', 'gonderici_unvan']
             : ['alici_vkn', 'alici_unvan'];
+    }
+
+    /**
+     * @param  EntegratorBaglanti|list<EntegratorBaglanti>  $tanimlar
+     * @return list<int>
+     */
+    private function tanimIdleri(EntegratorBaglanti|array $tanimlar): array
+    {
+        $tanimlar = $tanimlar instanceof EntegratorBaglanti ? [$tanimlar] : $tanimlar;
+
+        return array_map(fn (EntegratorBaglanti $t): int => $t->id, $tanimlar);
     }
 
     /**

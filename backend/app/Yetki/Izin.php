@@ -18,6 +18,15 @@ enum Izin: string
     case SatinalmaTalebiGoruntule = 'satinalma_talebi.goruntule';
     case SatinalmaTalebiGuncelle = 'satinalma_talebi.guncelle';
 
+    /**
+     * Tüm Faturalar — İzibiz ve Protel'e gelen faturaların birleşik listesi
+     * (kullanıcı isteği 2026-11-20). Kendi izinleri: sağlayıcı ekranlarının
+     * izni bunu açmaz. Senkron ve gizleme sağlayıcı ekranlarındadır.
+     */
+    case TumFaturalarGoruntule = 'tum_faturalar.goruntule';
+    case TumFaturalarPdf = 'tum_faturalar.pdf';
+    case TumFaturalarDisariAktar = 'tum_faturalar.disari_aktar';
+
     case EfaturaGoruntule = 'efatura.goruntule';
     case EfaturaPdf = 'efatura.pdf';
     case EfaturaDisariAktar = 'efatura.disari_aktar';
@@ -159,6 +168,7 @@ enum Izin: string
 
         return [
             $ekran('satinalma_talebi', self::SatinalmaTalebiGoruntule, self::SatinalmaTalebiGuncelle),
+            $ekran('tum_faturalar', self::TumFaturalarGoruntule, null, self::TumFaturalarPdf, self::TumFaturalarDisariAktar),
             $ekran('efatura', self::EfaturaGoruntule, self::EfaturaSenkron, self::EfaturaPdf, self::EfaturaDisariAktar, self::EfaturaGizle),
             $ekran('protel_faturalari', self::ProtelFaturalariGoruntule, self::ProtelFaturalariSenkron, self::ProtelFaturalariPdf, self::ProtelFaturalariDisariAktar),
             // Kesinti Yönetimi grubu: menüdeki gibi önce raporlar

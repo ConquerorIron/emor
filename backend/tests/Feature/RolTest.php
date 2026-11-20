@@ -57,33 +57,40 @@ final class RolTest extends TestCase
 
         $this->getJson('/api/v1/ayarlar/izinler')
             ->assertOk()
-            ->assertJsonCount(33, 'data')
+            ->assertJsonCount(34, 'data')
             ->assertJsonPath('data.0', [
                 'ekran' => 'satinalma_talebi',
                 'goruntule' => 'satinalma_talebi.goruntule',
                 'guncelle' => 'satinalma_talebi.guncelle',
                 'ekler' => [],
             ])
+            // Tüm Faturalar menüde İzibiz ve Protel gruplarının üstünde; senkronu yok
             ->assertJsonPath('data.1', [
+                'ekran' => 'tum_faturalar',
+                'goruntule' => 'tum_faturalar.goruntule',
+                'guncelle' => null,
+                'ekler' => ['tum_faturalar.pdf', 'tum_faturalar.disari_aktar'],
+            ])
+            ->assertJsonPath('data.2', [
                 'ekran' => 'efatura',
                 'goruntule' => 'efatura.goruntule',
                 'guncelle' => 'efatura.senkron',
                 'ekler' => ['efatura.pdf', 'efatura.disari_aktar', 'efatura.gizle'],
             ])
             // Protel Gelen Faturalar menüde e-Fatura'nın hemen altında (PRT-10)
-            ->assertJsonPath('data.2', [
+            ->assertJsonPath('data.3', [
                 'ekran' => 'protel_faturalari',
                 'goruntule' => 'protel_faturalari.goruntule',
                 'guncelle' => 'protel_faturalari.senkron',
                 'ekler' => ['protel_faturalari.pdf', 'protel_faturalari.disari_aktar'],
             ])
-            ->assertJsonPath('data.31', [
+            ->assertJsonPath('data.32', [
                 'ekran' => 'yedekler',
                 'goruntule' => 'yedekler.goruntule',
                 'guncelle' => 'yedekler.al',
                 'ekler' => ['yedekler.sil', 'yedekler.indir', 'geri_yukleme.kopya'],
             ])
-            ->assertJsonPath('data.32', [
+            ->assertJsonPath('data.33', [
                 'ekran' => 'yedek_planlari',
                 'goruntule' => 'yedek_planlari.goruntule',
                 'guncelle' => 'yedek_planlari.guncelle',

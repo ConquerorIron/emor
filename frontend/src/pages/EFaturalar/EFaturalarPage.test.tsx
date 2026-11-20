@@ -122,7 +122,7 @@ function durum(degisen: Partial<SenkronDurumu> = {}): SenkronDurumu {
   }
 }
 
-function ciz(izinler: string[]) {
+function ciz(izinler: string[], kapsam: 'izibiz' | 'tum' = 'izibiz') {
   const user: Kullanici = {
     id: 1,
     ad: 'Deneme',
@@ -142,7 +142,7 @@ function ciz(izinler: string[]) {
           <AuthContext.Provider
             value={{ user, yukleniyor: false, login: async () => {}, logout: async () => {} }}
           >
-            <EFaturalarPage yon="gelen" />
+            <EFaturalarPage yon="gelen" kapsam={kapsam} />
           </AuthContext.Provider>
         </ThemeProvider>
       </QueryClientProvider>
@@ -180,6 +180,7 @@ describe('EFaturalarPage', () => {
       expect.objectContaining({ baslangic: '2026-01-01', bitis: '2026-11-19' }),
       VARSAYILAN_SIRALAMA,
       1,
+      'izibiz',
     )
     const ozet = screen.getByLabelText('Özet')
     expect(within(ozet).getByText('TRY · 1 fatura')).toBeInTheDocument()
@@ -212,6 +213,7 @@ describe('EFaturalarPage', () => {
         expect.anything(),
         VARSAYILAN_SIRALAMA,
         2,
+        'izibiz',
       ),
     )
 
@@ -225,6 +227,7 @@ describe('EFaturalarPage', () => {
         expect.objectContaining({ ara: 'deniz' }),
         VARSAYILAN_SIRALAMA,
         1,
+        'izibiz',
       ),
     )
   })
@@ -281,6 +284,7 @@ describe('EFaturalarPage', () => {
         expect.objectContaining({ ara: 'baska' }),
         VARSAYILAN_SIRALAMA,
         1,
+        'izibiz',
       ),
     )
     await waitFor(() => expect(excel).toBeEnabled())
@@ -383,6 +387,7 @@ describe('EFaturalarPage', () => {
         expect.objectContaining({ durum: 'RECEIVED' }),
         VARSAYILAN_SIRALAMA,
         1,
+        'izibiz',
       ),
     )
   })
@@ -449,6 +454,7 @@ describe('EFaturalarPage', () => {
         expect.objectContaining({ emor: 'havuzda' }),
         VARSAYILAN_SIRALAMA,
         1,
+        'izibiz',
       ),
     )
 
@@ -459,6 +465,7 @@ describe('EFaturalarPage', () => {
         expect.anything(),
         { anahtar: 'emor', yon: 'asc' },
         1,
+        'izibiz',
       ),
     )
   })
@@ -478,6 +485,7 @@ describe('EFaturalarPage', () => {
         expect.objectContaining({ emor: 'islenmemis', istisnali: 'evet' }),
         VARSAYILAN_SIRALAMA,
         1,
+        'izibiz',
       ),
     )
     expect(islenmeyenler).toHaveAttribute('aria-pressed', 'true')
@@ -489,6 +497,7 @@ describe('EFaturalarPage', () => {
         expect.objectContaining({ emor: '', istisnali: 'evet' }),
         VARSAYILAN_SIRALAMA,
         1,
+        'izibiz',
       ),
     )
     expect(islenmeyenler).toHaveAttribute('aria-pressed', 'false')
@@ -510,6 +519,7 @@ describe('EFaturalarPage', () => {
         expect.objectContaining({ emor: 'yok' }),
         VARSAYILAN_SIRALAMA,
         1,
+        'izibiz',
       ),
     )
     expect(havuzdaOlmayanlar).toHaveAttribute('aria-pressed', 'true')
@@ -533,6 +543,7 @@ describe('EFaturalarPage', () => {
         expect.objectContaining({ tip: 'ISTISNA', istisna_kodu: '351' }),
         VARSAYILAN_SIRALAMA,
         1,
+        'izibiz',
       ),
     )
   })
@@ -547,6 +558,7 @@ describe('EFaturalarPage', () => {
       expect.objectContaining({ erp_okundu: 'hayir' }),
       VARSAYILAN_SIRALAMA,
       1,
+      'izibiz',
     )
   })
 
@@ -690,7 +702,7 @@ describe('EFaturalarPage', () => {
     const adres = cerceve.getAttribute('src')
     // StrictMode'un kur-temizle-kur döngüsünden sonra gösterilen adres geçerli kalmalı
     expect(birak).not.toHaveBeenCalledWith(adres)
-    expect(api.pdf).toHaveBeenCalledWith(11)
+    expect(api.pdf).toHaveBeenCalledWith(11, 'izibiz')
     // Kaynak kullanıcıya gösterilir (ERP havuzu mu, entegratör mü)
     expect(within(dialog).getByText('Kaynak: ERP arşivi')).toBeInTheDocument()
 
@@ -817,6 +829,7 @@ describe('EFaturalarPage', () => {
         expect.anything(),
         expect.anything(),
         2,
+        'izibiz',
       ),
     )
   })
@@ -865,6 +878,7 @@ describe('EFaturalarPage', () => {
         expect.objectContaining({ gizlenenler: 'dahil' }),
         expect.anything(),
         1,
+        'izibiz',
       ),
     )
     expect(await screen.findByText('Gizli')).toBeInTheDocument()
@@ -958,5 +972,88 @@ describe('EFaturalarPage', () => {
       await screen.findByText('Elle senkron sırada ya da çalışıyor (01.09.2026 – 23.09.2026).'),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Entegratör Senkronla' })).toBeDisabled()
+  })
+
+  describe('Tüm Faturalar (İzibiz + Protel)', () => {
+    const PROTEL_FATURASI: EFatura = {
+      ...FATURA,
+      id: 12,
+      belge_no: 'OTL2026000000002',
+      gonderici_unvan: 'Otel Tedarik A.Ş.',
+      emor_durumu: null,
+      erp_okundu: null,
+      saglayici: 'protel',
+    }
+    const BIRLESIK: EFaturaListesi = {
+      ...LISTE,
+      data: [{ ...FATURA, saglayici: 'izibiz' }, PROTEL_FATURASI],
+      meta: { current_page: 1, last_page: 1, total: 2 },
+      kapsam: { ortam: 'izibiz:canli,protel:canli' },
+    }
+    const IZINLER = ['tum_faturalar.goruntule', 'tum_faturalar.pdf', 'tum_faturalar.disari_aktar']
+
+    it('birleşik listeyi ister; eMOR Okudu ve eMOR yanında Protel Okudu, Protel, SAP kolonları boş; senkron paneli yok', async () => {
+      api.faturalar.mockResolvedValue(BIRLESIK)
+      ciz(IZINLER, 'tum')
+      await screen.findByText('Otel Tedarik A.Ş.')
+
+      expect(screen.getByRole('heading', { name: 'Tüm Faturalar' })).toBeInTheDocument()
+      expect(api.faturalar).toHaveBeenCalledWith(
+        'gelen',
+        expect.anything(),
+        VARSAYILAN_SIRALAMA,
+        1,
+        'tum',
+      )
+      const basliklar = screen
+        .getAllByRole('columnheader')
+        .map((th) => th.textContent?.replace(/[↕▲▼]/g, ''))
+      expect(basliklar.slice(1, 7)).toEqual([
+        'eMOR Okudu',
+        'eMOR',
+        'Protel Okudu',
+        'Protel',
+        'SAP',
+        'Fatura No',
+      ])
+      // Kaynak uç gelene kadar sistem kolonları boş ve açıklamalı
+      const satir = screen.getByText('OTL2026000000002').closest('tr') as HTMLElement
+      expect(within(satir).getAllByTitle(/servisi açıldığında gelecek/)).toHaveLength(3)
+      expect(screen.queryByText('ERP Okudu')).not.toBeInTheDocument()
+      // Senkron sağlayıcı ekranlarında: durum istenmez
+      expect(api.durum).not.toHaveBeenCalled()
+      expect(screen.queryByRole('button', { name: 'Entegratör Senkronla' })).not.toBeInTheDocument()
+    })
+
+    it('Excel ekrandaki kapsamla birleşik uçtan; Protel faturasının PDF’i açılır, XML düğmesi yoktur', async () => {
+      vi.stubGlobal('URL', {
+        ...URL,
+        createObjectURL: vi.fn(() => 'blob:tum-1'),
+        revokeObjectURL: vi.fn(),
+      })
+      api.faturalar.mockResolvedValue(BIRLESIK)
+      api.excel.mockResolvedValue(undefined)
+      api.pdf.mockResolvedValue({
+        pdf: new Blob(['%PDF-1.4'], { type: 'application/pdf' }),
+        kaynak: 'entegrator',
+      })
+      ciz(IZINLER, 'tum')
+      await screen.findByText('Otel Tedarik A.Ş.')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
+      await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
+      expect(api.excel.mock.calls[0][5]).toBe('izibiz:canli,protel:canli')
+      expect(api.excel.mock.calls[0][6]).toBe('tum')
+      expect(
+        (api.excel.mock.calls[0][4] as { anahtar: string }[]).map((k) => k.anahtar).slice(0, 5),
+      ).toEqual(['erp_okundu', 'emor', 'protel_okudu', 'protel', 'sap'])
+
+      const satir = screen.getByText('OTL2026000000002').closest('tr') as HTMLElement
+      fireEvent.click(within(satir).getByRole('button', { name: 'PDF' }))
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTitle('Fatura OTL2026000000002 — PDF')
+      expect(api.pdf).toHaveBeenCalledWith(12, 'tum')
+      expect(within(dialog).queryByRole('button', { name: 'XML İndir' })).not.toBeInTheDocument()
+    })
   })
 })

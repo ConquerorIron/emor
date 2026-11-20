@@ -3,6 +3,19 @@ import { blobHatasiniCoz, dosyayiIndir } from '@/api/indirme'
 
 export type FaturaYonu = 'gelen' | 'giden'
 
+/** Listenin kaynağı: İzibiz ekranları ya da İzibiz + Protel birleşik liste (Tüm Faturalar, yalnız gelen) */
+export type FaturaKapsami = 'izibiz' | 'tum'
+
+function listeYolu(kapsam: FaturaKapsami, yon: FaturaYonu): string {
+  return kapsam === 'tum' ? '/api/v1/tum-faturalar/faturalar' : `/api/v1/efatura/${yon}/faturalar`
+}
+
+function faturaYolu(kapsam: FaturaKapsami, faturaId: number): string {
+  return kapsam === 'tum'
+    ? `/api/v1/tum-faturalar/faturalar/${faturaId}`
+    : `/api/v1/efatura/faturalar/${faturaId}`
+}
+
 export interface EFatura {
   id: number
   yon: FaturaYonu
@@ -64,6 +77,8 @@ export interface EFatura {
   gizlenme_zamani: string | null
   /** Gizleyen kullanıcının adı */
   gizleyen: string | null
+  /** Yalnız Tüm Faturalar: satırın posta kutusu (XML yalnız İzibiz'de) */
+  saglayici?: 'izibiz' | 'protel'
 }
 
 export interface ParaBirimiOzeti {
@@ -87,7 +102,8 @@ export interface EFaturaListesi {
     /** Aralıktaki gizlenen fatura sayısı ("Gizlenenleri de göster" yanında) */
     gizlenen_adet: number
   }
-  kapsam: { ortam: 'test' | 'canli' }
+  /** Ekrandaki listenin ortamı (Tüm Faturalar'da sağlayıcı başına: `izibiz:canli,protel:canli`) */
+  kapsam: { ortam: string }
 }
 
 export type ErpOkunduFiltresi = '' | 'evet' | 'hayir' | 'bilinmiyor'
@@ -188,8 +204,9 @@ export async function faturalariGetir(
   filtre: EFaturaFiltresi,
   siralama: Siralama | null,
   sayfa: number,
+  kapsam: FaturaKapsami = 'izibiz',
 ): Promise<EFaturaListesi> {
-  const yanit = await api.get<EFaturaListesi>(`/api/v1/efatura/${yon}/faturalar`, {
+  const yanit = await api.get<EFaturaListesi>(listeYolu(kapsam, yon), {
     params: { ...parametreler(filtre, siralama), page: sayfa },
   })
 
@@ -248,10 +265,11 @@ export async function excelIndir(
   sayfa: number,
   kolonlar: ExcelKolonu[],
   /** Ekrandaki listenin ortamı — sunucuda aktif ortam farklıysa indirme reddedilir */
-  ortam: 'test' | 'canli',
+  ortam: string,
+  kapsam: FaturaKapsami = 'izibiz',
 ): Promise<void> {
   const yanit = await api
-    .get<Blob>(`/api/v1/efatura/${yon}/faturalar/excel`, {
+    .get<Blob>(`${listeYolu(kapsam, yon)}/excel`, {
       params: {
         ...parametreler(filtre, siralama),
         page: sayfa,
@@ -263,7 +281,8 @@ export async function excelIndir(
     })
     .catch(blobHatasiniCoz)
 
-  dosyayiIndir(yanit.data, `efatura-${yon}-${filtre.baslangic}-${filtre.bitis}.xlsx`)
+  const onEk = kapsam === 'tum' ? 'tum-faturalar' : `efatura-${yon}`
+  dosyayiIndir(yanit.data, `${onEk}-${filtre.baslangic}-${filtre.bitis}.xlsx`)
 }
 
 /** Fatura aslının nereden okunduğu (sunucu X-Belge-Kaynagi başlığıyla bildirir). */
@@ -279,18 +298,24 @@ function belgeKaynagi(baslik: unknown): BelgeKaynagi | null {
  * Fatura aslı önce ERP havuzundan, yoksa entegratörden anlık okunur;
  * token tarayıcıya gelmez.
  */
-export async function pdfGetir(faturaId: number): Promise<FaturaPdfi> {
+export async function pdfGetir(
+  faturaId: number,
+  kapsam: FaturaKapsami = 'izibiz',
+): Promise<FaturaPdfi> {
   const yanit = await api
-    .get<Blob>(`/api/v1/efatura/faturalar/${faturaId}/pdf`, { responseType: 'blob' })
+    .get<Blob>(`${faturaYolu(kapsam, faturaId)}/pdf`, { responseType: 'blob' })
     .catch(blobHatasiniCoz)
 
   return { pdf: yanit.data, kaynak: belgeKaynagi(yanit.headers['x-belge-kaynagi']) }
 }
 
 /** UBL XML'i PDF ile aynı kaynak sırasıyla okunup dosya olarak indirilir. */
-export async function xmlIndir(fatura: Pick<EFatura, 'id' | 'belge_no'>): Promise<void> {
+export async function xmlIndir(
+  fatura: Pick<EFatura, 'id' | 'belge_no'>,
+  kapsam: FaturaKapsami = 'izibiz',
+): Promise<void> {
   const yanit = await api
-    .get<Blob>(`/api/v1/efatura/faturalar/${fatura.id}/xml`, { responseType: 'blob' })
+    .get<Blob>(`${faturaYolu(kapsam, fatura.id)}/xml`, { responseType: 'blob' })
     .catch(blobHatasiniCoz)
 
   dosyayiIndir(yanit.data, `${fatura.belge_no}.xml`)

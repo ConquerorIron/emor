@@ -45,6 +45,7 @@ use App\Http\Controllers\Api\V1\SqlBaglantiController;
 use App\Http\Controllers\Api\V1\TaseronHakedisleriController;
 use App\Http\Controllers\Api\V1\TetkikKesintisiController;
 use App\Http\Controllers\Api\V1\TetkikYuklemeController;
+use App\Http\Controllers\Api\V1\TumFaturalarController;
 use App\Http\Controllers\Api\V1\TumKesintilerController;
 use App\Http\Controllers\Api\V1\TutanakKesintisiController;
 use App\Http\Controllers\Api\V1\TutanakYuklemeController;
@@ -136,6 +137,24 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/ekranlar/{ekran}/surumler/{surum}/geri-al', [EkranTasarimController::class, 'geriAl'])
                 ->whereNumber('surum')
                 ->name('ekranlar.surumler.geri-al');
+        });
+
+        // Tüm Faturalar: İzibiz + Protel gelen faturaların birleşik listesi (kapsam
+        // sağlayıcı başına aktif tanım). Kendi izinleri; önce görüntüleme istenir
+        Route::middleware('can:tum_faturalar.goruntule')->group(function (): void {
+            Route::get('/tum-faturalar/faturalar', [TumFaturalarController::class, 'index'])
+                ->name('tum_faturalar.faturalar');
+            Route::get('/tum-faturalar/faturalar/excel', [TumFaturalarController::class, 'excel'])
+                ->middleware(['can:tum_faturalar.disari_aktar', 'throttle:efatura-excel'])
+                ->name('tum_faturalar.faturalar.excel');
+            Route::get('/tum-faturalar/faturalar/{fatura}/pdf', [TumFaturalarController::class, 'pdf'])
+                ->whereNumber('fatura')
+                ->middleware(['can:tum_faturalar.pdf', 'throttle:efatura-pdf'])
+                ->name('tum_faturalar.faturalar.pdf');
+            Route::get('/tum-faturalar/faturalar/{fatura}/xml', [TumFaturalarController::class, 'xml'])
+                ->whereNumber('fatura')
+                ->middleware(['can:tum_faturalar.pdf', 'throttle:efatura-pdf'])
+                ->name('tum_faturalar.faturalar.xml');
         });
 
         // e-Fatura ekranları (EFAT-11) — kapsam aktif entegratör hesabı; izinler EFAT-18.

@@ -74,6 +74,8 @@ final class EFaturaResource extends JsonResource
             'gizlenme_zamani' => $this->gizlenme_zamani?->toIso8601String(),
             // Yalnız yüklendiyse (liste/gizleme ucu eager load eder): satır başına sorgu yok
             'gizleyen' => $this->relationLoaded('gizleyen') ? $this->gizleyen?->ad : null,
+            // Yalnız Tüm Faturalar (iki sağlayıcı birlikte): satırın posta kutusu
+            'saglayici' => $this->whenLoaded('entegratorBaglanti', fn (): string => $this->entegratorBaglanti->saglayici),
         ];
     }
 }

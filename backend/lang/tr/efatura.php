@@ -42,6 +42,7 @@ return [
     'excel' => [
         'baslik_gelen' => 'Gelen e-Faturalar',
         'baslik_giden' => 'Giden e-Faturalar',
+        'baslik_tum' => 'Tüm Faturalar (İzibiz + Protel)',
         'faturalar' => 'Faturalar',
         'ozet' => 'Özet',
         'liste' => 'Liste',
