@@ -124,7 +124,16 @@ export function AppLayout() {
                   to={oge.to}
                   end={oge.end}
                   className={navLinkSinifi}
-                  title={dar ? t(`nav.${oge.ad}`) : undefined}
+                  // Daraltılmışken grup başlığı görünmez: aynı adlı öğeler (İzibiz / Protel
+                  // "Gelen Faturalar") ipucunda grubuyla ayrılır
+                  title={
+                    dar
+                      ? [grup.baslikAnahtari, `nav.${oge.ad}`]
+                          .filter((anahtar) => anahtar !== null)
+                          .map((anahtar) => t(anahtar))
+                          .join(' — ')
+                      : undefined
+                  }
                 >
                   <NavIkon ad={oge.ad} />
                   {dar ? null : <span className="truncate">{t(`nav.${oge.ad}`)}</span>}

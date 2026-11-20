@@ -117,7 +117,7 @@ describe('RollerPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Yeni Rol' }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.change(within(dialog).getByLabelText('Rol Adı'), { target: { value: 'Denetçi' } })
-    grubuAc(dialog, 'e-Fatura')
+    grubuAc(dialog, 'İzibiz')
     fireEvent.click(
       within(dialog).getByRole('switch', { name: "e-Fatura listesini Excel'e aktarma" }),
     )
@@ -213,7 +213,7 @@ describe('RollerPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }))
     const dialog = await screen.findByRole('dialog')
-    grubuAc(dialog, 'e-Fatura')
+    grubuAc(dialog, 'İzibiz')
     const pdf = within(dialog).getByRole('switch', { name: 'e-Fatura PDF/XML görüntüleme' })
     expect(pdf).toBeChecked()
 
@@ -263,7 +263,7 @@ describe('RollerPage', () => {
     const ad = within(dialog).getByLabelText('Rol Adı')
     expect(ad).toHaveValue('Muhasebe (Kopya)')
     expect(within(dialog).getByLabelText('Açıklama')).toHaveValue('Fatura ekibi')
-    grubuAc(dialog, 'e-Fatura')
+    grubuAc(dialog, 'İzibiz')
     expect(
       within(dialog).getByRole('switch', { name: 'e-Fatura PDF/XML görüntüleme' }),
     ).toBeChecked()

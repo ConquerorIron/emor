@@ -156,7 +156,7 @@ Akış, inceleme günlüğü biçimi ve önem dereceleri (P1 / P2 / P3) için
 | PRT-04 | Protel istemcisi ve iki katmanlı kilit | 1 | PRT-03 | PASSED |
 | PRT-05 | Bağlantı sınama (Entegratör Bağlantıları ekranı) | 1 | PRT-04 | PASSED |
 | PRT-06 | Veri modeli: Protel faturalarının saklanması | 1 | PRT-03 | PASSED |
-| PRT-07 | Fatura listesini okuma (`ProtelFaturaKaynagi`) | 1 | PRT-04, PRT-06 | REVIEW_BEKLIYOR |
+| PRT-07 | Fatura listesini okuma (`ProtelFaturaKaynagi`) | 1 | PRT-04, PRT-06 | PASSED |
 | PRT-08 | Senkron: ilk tarama, artımlı çekme, gece tazeleme | 1 | PRT-07 | PASSED |
 | PRT-09 | PDF görüntüleme | 1 | PRT-02, PRT-04 | PASSED |
 | PRT-10 | İzinler ve menü | 2 | PRT-03 | PASSED |
@@ -335,7 +335,7 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 
 ### PRT-07 — Fatura listesini okuma (`ProtelFaturaKaynagi`)
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** PRT-04, PRT-06
+- **Durum:** PASSED · **Bağımlı:** PRT-04, PRT-06
 - **Kapsam:** Ortak sözleşme `FaturaKaynagi` arayüzüne çıkarıldı (İzibiz ve
   Protel uygular). Tek istek; aralık ≤ 180 gün (senkron zaten aya böldüğü için
   kaynakta parçalama gerekmedi — tasarım değişikliği). `DOCUMENT → DocumentDate`,
@@ -360,6 +360,8 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
   - 2026-11-20 Codex → CHANGES_REQUESTED · commit `1c0e66e`
     R12 ve R14 kapandı. Olağan üslü tutarlar doğru işleniyor. Uzun katsayılı üslü sayılarda tutar değişebildiği için PRT-R15 açık (§5).
   - 2026-11-20 Claude → REVIEW_BEKLIYOR · PRT-R15: virgülün yeri üs ve katsayıdan birlikte, bcmath ile; PRT-R16 (§5).
+  - 2026-11-20 Codex → PASSED · commit `c6447c6`
+    PRT-R15 ve R16 kapandı. Uzun katsayıyla dengelenen üsler ve kolon sınırı doğrulandı (§5).
 
 ### PRT-08 — Senkron: ilk tarama, artımlı çekme, gece tazeleme
 
@@ -432,6 +434,14 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
   - 2026-11-19 Claude → REVIEW_BEKLIYOR (toplu teslim, §5)
   - 2026-11-19 Codex → PASSED · commit `4c92ccf`
     İzibiz menü ve başlık adları ile mevcut rotalar incelendi.
+  - 2026-11-20 Claude · kullanıcı isteği: menüde "e-Fatura" grubu ikiye
+    bölündü — **İzibiz** (Gelen / Giden Faturalar) ve **Protel** (Gelen
+    Faturalar); öğelerdeki sağlayıcı öneki kaldırıldı (grup başlığı
+    söylüyor). Sayfa başlıkları sağlayıcılı kaldı ("İzibiz Gelen
+    Faturalar", "Protel Gelen Faturalar"). Daraltılmış menüde ipucu grup
+    adıyla ("İzibiz — Gelen Faturalar"). Roller matrisindeki gruplar
+    menüden türediği için orada da İzibiz / Protel ayrı. Rota ve izin
+    değişmedi. Commit: `feat(menu): e-Fatura menusu …`.
 
 ### PRT-12 — Ekran: Protel Gelen Faturalar
 
@@ -1032,3 +1042,21 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
     PostgreSQL'de 304/304, Pint ve `git diff --check` temiz.
   - Dikkat_Edilecekler: G14'e "sınırı sonucu belirleyen girdilerden birine
     tek başına uygulama" eklendi.
+
+- 2026-11-20 Codex → PASSED · incelenen commit `c6447c6`
+  - **PRT-R15 kapandı.** [ProtelFaturaKaynagi.php:249](../../backend/app/Services/Entegrator/ProtelFaturaKaynagi.php#L249)
+    virgülün yerini katsayı ve gerçek üs üzerinden bcmath ile hesaplıyor.
+    Nokta ancak sınırlar içinde tam sayıya çevriliyor. Yaklaşık 10 KB
+    uzunluğundaki iki dengelenmiş gösterim de `1` olarak okundu. Daha uzun
+    sentetik örnekte kolon sınırını aşan değer alan hatası verdi.
+    Negatif yuvarlama eşiği, baştaki sıfırlı üs ve çok büyük pozitif
+    ve negatif üs örnekleri de beklenen sonuçları verdi. Kuruş hassasiyeti,
+    tırnaklı değer ayrımı ve PDF'nin olağan çözüm testleri geçti.
+  - **PRT-R16 kapandı.** Kaçışlı base64 test yardımcısının yinelenen
+    açıklaması kaldırıldı.
+  - **Kontroller.** SQLite tam backend **883 geçti, 1 atlandı**.
+    Ayrı PostgreSQL 16 kümesinde Protel, İzibiz, e-Fatura ve
+    entegratör seçimi **306/306**. Pint ve `git diff --check` temiz.
+    `code-review`, `laravel-best-practices`, `testing-best-practices`
+    ve `supabase-postgres-best-practices` kullanıldı. Doğrulama yerel
+    ve sahte HTTP yanıtlarıyla yapıldı. PRT-14 kullanıcı kabulü bekleniyor.

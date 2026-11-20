@@ -25,10 +25,17 @@ export const NAV_GRUPLARI: NavGrubu[] = [
     ],
   },
   {
-    baslikAnahtari: 'nav.efatura',
+    // e-Fatura posta kutuları sağlayıcıya göre ayrı grup (kullanıcı kararı 2026-11-20)
+    baslikAnahtari: 'nav.izibiz',
     ogeler: [
       { to: '/efatura/gelen', ad: 'gelenFaturalar', izin: 'efatura.goruntule' },
       { to: '/efatura/giden', ad: 'gidenFaturalar', izin: 'efatura.goruntule' },
+    ],
+  },
+  {
+    // Otelin posta kutusu; yalnız gelen faturalar
+    baslikAnahtari: 'nav.protel',
+    ogeler: [
       { to: '/efatura/protel', ad: 'protelGelenFaturalar', izin: 'protel_faturalari.goruntule' },
     ],
   },
