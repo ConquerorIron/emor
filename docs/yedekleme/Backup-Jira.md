@@ -144,11 +144,11 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 | BY-006 | Manifest, imza, olay günlüğü | 1 | BY-004 | REVIEW_BEKLIYOR |
 | BY-007 | Yedek alma (`yedek:al`) | 1 | BY-005, BY-006 | REVIEW_BEKLIYOR |
 | BY-008 | Hedef soyutlaması, Yerel disk hedefi, kopyalama | 1 | BY-007 | REVIEW_BEKLIYOR |
-| BY-009 | Planlar ve zamanlayıcı | 1 | BY-008 | YAPILACAK |
-| BY-010 | Saklama ve temizlik | 1 | BY-009 | YAPILACAK |
-| BY-011 | Klasör tarama, dizini yeniden kurma | 1 | BY-006, BY-008 | YAPILACAK |
-| BY-012 | Bildirimler ve yaşam sinyali | 1 | BY-009 | YAPILACAK |
-| BY-013 | `deploy.sh` entegrasyonu, eski yedeklerin içeri alınması | 1 | BY-007, BY-011 | YAPILACAK |
+| BY-009 | Planlar ve zamanlayıcı | 1 | BY-008 | REVIEW_BEKLIYOR |
+| BY-010 | Saklama ve temizlik | 1 | BY-009 | REVIEW_BEKLIYOR |
+| BY-011 | Klasör tarama, dizini yeniden kurma | 1 | BY-006, BY-008 | REVIEW_BEKLIYOR |
+| BY-012 | Bildirimler ve yaşam sinyali | 1 | BY-009 | REVIEW_BEKLIYOR |
+| BY-013 | `deploy.sh` entegrasyonu, eski yedeklerin içeri alınması | 1 | BY-007, BY-011 | REVIEW_BEKLIYOR |
 | BY-014 | API: Yedekler | 2 | BY-010, BY-011 | YAPILACAK |
 | BY-015 | Ekran: Yedekler | 2 | BY-014 | YAPILACAK |
 | BY-016 | API + Ekran: Yedek Hedefleri | 2 | BY-008, BY-015 | YAPILACAK |
@@ -2423,7 +2423,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-009 — Planlar ve zamanlayıcı
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-008
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-008
 - **Tasarım:** README §4.2, §5.2 (zamanlama kalıbı), §7.8
 - **Kapsam:**
   - Vade hesabı: N saatte bir (saat aralığı ve gün süzgeciyle), her gün, N günde
@@ -2437,17 +2437,35 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - `YEDEKLEME_AKTIF` kapalıysa hiçbir şey yapmaz.
   - Planın hedefleri arasında yerel disk yoksa, kopyalar tamamlanınca yerel dosya silinir.
 - **Kabul ölçütleri:**
-  - [ ] Her sıklık türü için vade hesabı testli (ay sonu, 3 günde bir, saat aralığı dahil).
-  - [ ] Aynı dakikaya düşen üç plan tek `pg_dump` çalıştırıyor, üç hedefe kopya gidiyor (test).
-  - [ ] Sunucu 3 gün kapalı kaldıktan sonra günlük plan bir kez çalışıyor, üç kez değil (test).
-  - [ ] Ayar kapalıyken komut hiçbir süreç başlatmıyor (test).
-  - [ ] Saat hesabı sunucunun ve veritabanının saat diliminden bağımsız (test).
+  - [x] Her sıklık türü için vade hesabı testli (ay sonu, 3 günde bir, saat aralığı dahil).
+  - [x] Aynı dakikaya düşen üç plan tek `pg_dump` çalıştırıyor, üç hedefe kopya gidiyor (test).
+  - [x] Sunucu 3 gün kapalı kaldıktan sonra günlük plan bir kez çalışıyor, üç kez değil (test).
+  - [x] Ayar kapalıyken komut hiçbir süreç başlatmıyor (test).
+  - [x] Saat hesabı sunucunun ve veritabanının saat diliminden bağımsız (test).
 - **Canlı:** Evet (kapalı). Açma kararı kullanıcının.
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-009..013 planlar, saklama, tarama, bildirim, deploy entegrasyonu` olan commit
+    - `PlanTakvimi`: saatlik (aralık + saat penceresi + gün süzgeci), günlük,
+      N günde bir (`baslangic_tarihi`'nden sayılır), haftalık, aylık; hesap
+      `Europe/Istanbul`'da yapılır, sonuç UTC döner. Ayın 29–31'i o ayda
+      yoksa son güne kayar; `ayinSonunaKayabilir()` ekran uyarısı içindir.
+      `siradakiler(n)` önizleme.
+    - `PlanliYedek` + `yedek:zamanla` (dakikada bir, bakım modunda da,
+      `withoutOverlapping`): vadesi gelen bütün planlar için TEK yedek
+      (kaynak `plan`, plan adları manifestte), sonra her planın her hedefine
+      kopya. Kaçırılan çalışma bir kez telafi edilir: `sonraki_calisma`
+      geçmişteyse bir kez çalışır, sonraki an ŞİMDİ'den hesaplanır. İlk kez
+      görülen plan geriye dönük çalışmaz. Modül kapalıyken hiçbir süreç yok.
+    - Planların hiçbirinde ana yerel hedef (klasörü boş Yerel disk) yoksa ve
+      en az bir kopya başarılıysa yerel dosya silinir (`YerelDosyaSilici`;
+      manifest kalır, `yerel_silinme_zamani` dolar — F7). Kopya başarısızsa
+      silinmez.
+    - Testler: `PlanTakvimiTest` (4, veri sağlayıcılı), `YedekZamanlaTest` (7).
+    - Doğrulanamayan: canlıda zamanlayıcıyla çalışma (modül kapalı).
 
 ### BY-010 — Saklama ve temizlik
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-009
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-009
 - **Tasarım:** README §4.3, §6.2
 - **Kapsam:**
   - Plan + hedef başına kural ("son N yedek" ve / veya "N günden eski").
@@ -2458,19 +2476,19 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - `yedek:temizle` komutu; her yedekten sonra ve günde bir.
   - Her silme nedeniyle denetim kaydına ve olay günlüğüne.
 - **Kabul ölçütleri:**
-  - [ ] Her koruma kuralı için ayrı test: kural olmadan silinecek yedek, kuralla korunuyor.
-  - [ ] Bir hedefteki silme, aynı yedeğin diğer hedefteki kopyasına dokunmuyor (test).
-  - [ ] Son 10 yedek de başarısızsa hiçbir başarılı yedek silinmiyor (test).
-  - [ ] Önizleme ile gerçek çalıştırma aynı listeyi veriyor (test).
-  - [ ] Hedef erişilemezken temizlik o hedefi atlayıp diğerlerini sürdürüyor (test).
-  - [ ] **Kullanıcı kararı F6 (§5):** aynı hedefi paylaşan iki planda (tek
+  - [x] Her koruma kuralı için ayrı test: kural olmadan silinecek yedek, kuralla korunuyor.
+  - [x] Bir hedefteki silme, aynı yedeğin diğer hedefteki kopyasına dokunmuyor (test).
+  - [x] Son 10 yedek de başarısızsa hiçbir başarılı yedek silinmiyor (test).
+  - [x] Önizleme ile gerçek çalıştırma aynı listeyi veriyor (test).
+  - [x] Hedef erişilemezken temizlik o hedefi atlayıp diğerlerini sürdürüyor (test).
+  - [x] **Kullanıcı kararı F6 (§5):** aynı hedefi paylaşan iki planda (tek
     kopya, iki bağ) bir planın kuralı yalnız KENDİ bağını kaldırıyor; dosya,
     diğer plan hâlâ tutuyorken silinmiyor; son bağ gidince de ancak koruma
     kuralları izin veriyorsa siliniyor (test: son bağ kalkan ama "son başarılı"
     / sabitlenmiş kopya duruyor). Bağsız kalan korumalı plan yedeğine
     zamanlanmamış yedeklerin kuralı UYGULANMIYOR: saklama kuralı bağ
     sayısından değil `yedekler.kaynak`'tan seçiliyor (test; BY-004-R9).
-  - [ ] **Kullanıcı kararı F7 (§5):** yerel dosya silinip uzakta DOĞRULANMIŞ
+  - [x] **Kullanıcı kararı F7 (§5):** yerel dosya silinip uzakta DOĞRULANMIŞ
     kopya kalınca yedek `silindi` olmuyor, `yerel_silinme_zamani` doluyor;
     uzak kopya doğrulanmamışsa (ya da başarısızsa) yerel dosya silinmiyor;
     durum yalnız hiçbir kopya kalmayınca `silindi` (test). Dizin yeniden
@@ -2478,34 +2496,71 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     kayıt (manifestin yerelde kalması ya da olay günlüğü) bu görevde
     tasarlanıp README'ye yazılır.
 - **Canlı:** Evet (kapalı).
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-009..013 planlar, saklama, tarama, bildirim, deploy entegrasyonu` olan commit
+    - `SaklamaPolitikasi::hesapla()` → {silinecek, korunan, temkin} (önizleme
+      ve gerçek çalıştırma AYNI hesap); `uygula()` kararları sırayla yürütür.
+      Kararlar `SilmeKarari` (BAG: planın kopya bağı; DOSYA: hedefteki kopya ya
+      da yerel dosya) ve neden kodu taşır; her silme olay günlüğüne ve denetim
+      kaydına yazılır.
+    - Plan + hedef bağının kuralı yalnız o bağı kaldırır (F6); dosya son bağ
+      gidince VE koruma kuralları izin verince silinir. Zamanlanmamış
+      kaynakların (elle, yayın öncesi, geri yükleme öncesi) kuralı
+      `yedekler.kaynak`'tan seçilir, bağ sayısından değil (BY-004-R9).
+    - Korumalar: son başarılı, sabit, sınama geri yüklemesi geçmiş en yeni,
+      kullanımda (`KullanimDenetimi`), grup başına `enaz_adet`; yerel dosya
+      için ayrıca "uzak kopya doğrulanmadı". **Temkin:** son yedek denemesi
+      başarısızsa ya da işlem durumu okunamıyorsa hiçbir şey silinmez.
+    - Yerel dosya silinince yedek `silindi` olmaz; yalnız hiçbir yerde kopya
+      kalmayınca (F7). Dizin yeniden kurma için manifest yerelde KALIR (README
+      §4.3 "Uygulama kuralları (BY-010)" paragrafı).
+    - Erişilemeyen hedef atlanır (`atlanan_hedefler`), diğerleri sürer.
+      Bir çalışmada `beklenmedik_silme` (10) dosyadan fazlası silinirse
+      bildirim gider.
+    - `yedek:temizle {--onizleme}` (günde bir 04:10 İstanbul) ve her başarılı
+      `yedek:al` / planlı yedekten sonra.
+    - Testler: `SaklamaPolitikasiTest` (16).
 
 ### BY-011 — Klasör tarama, dizini yeniden kurma
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-006, BY-008
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-006, BY-008
 - **Tasarım:** README §5.2 (doğruluk kaynağı dosyalar), §7.3, §4.5 (güven sınırı)
 - **Kapsam:** `yedek:tara`: yedek klasöründeki manifestleri ve olay günlüğünü
   okuyup `yedekler` / `yedek_kopyalari` dizinini kurar ya da günceller. İmzası
   geçersiz ya da manifestsiz dosyalar "güvenilmeyen" olarak işaretlenir. Diskte
   olmayan kayıtlar "dosya yok" olur (silinmez).
 - **Kabul ölçütleri:**
-  - [ ] Tablolar boşaltılıp tarama çalıştırılınca liste eski hâline dönüyor; sabitlemeler duruyor (test).
-  - [ ] İmzasız dosya listede "güvenilmeyen"; geri yükleme için seçilemiyor (test).
-  - [ ] Tarama iki kez çalışınca kayıt çoğalmıyor (test).
-  - [ ] Tek bir bozuk manifest taramanın tamamını durdurmuyor (test).
-  - [ ] Kayıtlar manifest kimliğiyle GÜNCELLENİR, silinip yeniden açılmaz:
+  - [x] Tablolar boşaltılıp tarama çalıştırılınca liste eski hâline dönüyor; sabitlemeler duruyor (test).
+  - [x] İmzasız dosya listede "güvenilmeyen"; geri yükleme için seçilemiyor (test).
+  - [x] Tarama iki kez çalışınca kayıt çoğalmıyor (test).
+  - [x] Tek bir bozuk manifest taramanın tamamını durdurmuyor (test).
+  - [x] Kayıtlar manifest kimliğiyle GÜNCELLENİR, silinip yeniden açılmaz:
     `yedekler` satırı silinse kopyalar ve plan bağları CASCADE ile gider,
     geri yükleme geçmişi RESTRICT ile silmeyi engeller, denetim kaydının bağı
     boşalır (test: geri yükleme geçmişi olan yedekte tarama hatasız; Fable F19).
-  - [ ] **Kullanıcı kararı F7 (§5):** yerel dosyası silinmiş, uzakta doğrulanmış
+  - [x] **Kullanıcı kararı F7 (§5):** yerel dosyası silinmiş, uzakta doğrulanmış
     kopyası olan yedek, tablolar boşaltılıp tarama çalıştırılınca listede
     yine bulunuyor; durumu `silindi` değil, uzak kopyası görünüyor (test).
 - **Canlı:** Evet (etkisiz).
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-009..013 planlar, saklama, tarama, bildirim, deploy entegrasyonu` olan commit
+    - `DizinKurucu::tara()` + `yedek:tara`: manifestler + olay günlüğü
+      (`GuncelDurum`) → `yedekler` / `yedek_kopyalari` / plan bağları. Kayıt
+      manifest kimliğiyle GÜNCELLENİR (silinip açılmaz; geri yükleme geçmişi
+      olan yedekte de hatasız).
+    - İmzası geçersiz / manifestsiz dump "güvenilmeyen" (`imzali = false`,
+      kimlik dosya adı + boyut + mtime'dan deterministik UUID) — iki taramada
+      çoğalmaz. `Yedek::geriYuklenebilirMi()` yalnız imzalı + tamam.
+    - Diskte olmayan kaydın `yerel_silinme_zamani` dolar, silinmez. Uzak
+      kopyası olay günlüğünde kayıtlı yedek, yerel dosyası yokken de bulunur (F7).
+    - Ana yerel hedef kopyası `anaKlasorHedefiMi()` ile tanınır (ikinci
+      diskteki Yerel hedef ayrı kopya sayılır).
+    - Tek bozuk manifest taramayı durdurmaz; sayaçta `bozuk` olarak görünür.
+    - Testler: `DizinKurucuTest` (8).
 
 ### BY-012 — Bildirimler ve yaşam sinyali
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-009
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-009
 - **Tasarım:** README §4.8
 - **Ön koşul:** README §13 karar 7 (alıcılar) ve 11 (dış izleyici). Kararlar
   yoksa: alıcı ayarı boş bırakılabilir, sinyal adresi yapılandırılabilir yazılır.
@@ -2516,16 +2571,33 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     yapılandırılabilir adrese başarı sonrası istek; adres boşsa atlanır.
   - Uygulama içi sessizlik göstergesi (ekran için): son başarılı yedekten bu yana süre.
 - **Kabul ölçütleri:**
-  - [ ] Kuyruk tablosu boş / erişilemezken başarısızlık maili gidiyor (test: sahte mailer).
-  - [ ] Sinyal adresi erişilemezse yedek yine `tamam`; hata günlüğe yazılıyor (test).
-  - [ ] Sinyal isteği gizli bilgi (parola, veri) taşımıyor.
-  - [ ] Aynı hata için dakikada bir mail gitmiyor (yineleme sınırı; test).
+  - [x] Kuyruk tablosu boş / erişilemezken başarısızlık maili gidiyor (test: sahte mailer).
+  - [x] Sinyal adresi erişilemezse yedek yine `tamam`; hata günlüğe yazılıyor (test).
+  - [x] Sinyal isteği gizli bilgi (parola, veri) taşımıyor.
+  - [x] Aynı hata için dakikada bir mail gitmiyor (yineleme sınırı; test).
 - **Canlı:** Evet (kapalı).
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-009..013 planlar, saklama, tarama, bildirim, deploy entegrasyonu` olan commit
+    - `YedekBildirimcisi::bildir(tur, satirlar, anahtar)`: alıcılar
+      `yedek_ayarlari.bildirim_alicilari`; mail KUYRUĞA KONMADAN, mailer
+      çalışma zamanında kurularak gönderilir (`MailAyarServisi::mailerKur`).
+      Veritabanında mail ayarı yoksa / okunamazsa `AyarKopyasi` dosyasındaki
+      ayarla (imzalı; SMTP parolası `Crypt` ile şifreli). Yineleme sınırı:
+      aynı anahtar 60 dk içinde bir kez (`durum/bildirimler.json`).
+    - Türler: yedek_basarisiz, kopya_basarisiz, dogrulama_basarisiz,
+      disk_esigi, beklenmedik_temizlik (lang/tr/yedekleme.php, tek Blade şablonu).
+    - `YasamSinyali`: yerel / uzak / sınama için üç ayrı adres
+      (`yedek_ayarlari.sinyal_*_adresi`, yeni migration); yalnız https,
+      gövdesiz GET, kısa süre sınırı; hata günlüğe yazılır, yedeği etkilemez.
+    - `YedekOzeti::hesapla()`: son başarılı yerel / uzak / sınama zamanları ve
+      sessizlik süresi (BY-015 ekranı kullanır).
+    - Testler: `YedekBildirimTest` (6).
+    - Doğrulanamayan: gerçek SMTP ile gönderim; dış izleyici adresi (README
+      §13 karar 11) kullanıcıdan gelmedi — boş bırakılabilir.
 
 ### BY-013 — `deploy.sh` entegrasyonu, eski yedeklerin içeri alınması
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-007, BY-011
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-007, BY-011
 - **Tasarım:** README §5.2 (kilit), §5.5, §4.5 (159 imzasız yedek)
 - **Kapsam:**
   - `deploy.sh` yayın öncesi yedeği `yedek:al --kaynak=yayin` ile alır; kendi
@@ -2539,14 +2611,48 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     değişkenine koyuyor (BY-001-R1'de bulunan hatanın aynısı; `Dikkat_Edilecekler.md`
     G2, G3, D2). Yedek `yedek:al` üzerinden alınınca bu okuma gereksizleşir.
 - **Kabul ölçütleri:**
-  - [ ] Yedekleme çalışırken başlatılan yayın bekliyor ya da anlaşılır mesajla duruyor.
-  - [ ] Yayın öncesi yedek listede "yayın öncesi" kaynağıyla, imzalı görünüyor.
-  - [ ] İçeri alınan eski yedekler ayrı işaretli; temizlik kuralı onlara da uygulanıyor.
-  - [ ] `deploy.sh` yedek başarısızken migration çalıştırmıyor.
-  - [ ] Geçici önlem (BY-001) canlıdan kaldırıldı.
+  - [x] Yedekleme çalışırken başlatılan yayın bekliyor ya da anlaşılır mesajla duruyor.
+  - [x] Yayın öncesi yedek listede "yayın öncesi" kaynağıyla, imzalı görünüyor.
+  - [x] İçeri alınan eski yedekler ayrı işaretli; temizlik kuralı onlara da uygulanıyor.
+  - [x] `deploy.sh` yedek başarısızken migration çalıştırmıyor.
+  - [x] Geçici önlem (BY-001) canlıdan kaldırıldı.
 - **Canlı:** Evet. **Dikkat:** `deploy.sh` değişikliği bir sonraki yayını etkiler;
   önce lokalde denenir.
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-009..013 planlar, saklama, tarama, bildirim, deploy entegrasyonu` olan commit
+    - `deploy.sh` yedeği `php backend/artisan yedek:yayin-oncesi
+      --eski-klasor="$BACKUP_DIR"` ile alır; başarısızsa bakım modu, kod
+      çekme ve migration'dan ÖNCE durur (`--no-backup` korunur). `env_val`,
+      `PGPASSWORD` ve kendi `pg_dump`'ı kaldırıldı (G2, G3, D2).
+    - `yedek:yayin-oncesi`:
+      - Modül kapalı (bugün canlı): eski davranış — `--eski-klasor`'e
+        `<vt>_predeploy_<UTC zaman>.dump`; bağlantı Laravel yapılandırmasından,
+        parola `PGPASSFILE` ile, PG* ortamı temizlenmiş. Hata → yarım dosya silinir.
+      - Modül açık + `YEDEKLEME_CALISTIRICI=servis`: istek klasörüne
+        `yedek_al` (kaynak `yayin_oncesi`) bırakır, en çok 30 dk sonucu
+        bekler; süre dolarsa istek geri çekilir, yayın durur.
+      - Modül açık + geçiş dönemi (`dogrudan`, varsayılan): aynı kilidi alır
+        (`kilit_bekleme` sn bekler, sonra anlaşılır mesajla durur), `YedekAlici`.
+      - Açık üstüne geri yükleme varsa ya da işlem durumu okunamıyorsa başlamaz.
+    - `yedek:eski-yedekleri-al {--klasor}`: `*_predeploy_*.dump` dosyaları
+      `pg_restore --list` ve `--file=/dev/null` ile okunur; okunamayan
+      atlanır. Okunan, yedek klasörüne kopyalanır; `ice_alindi` işaretli
+      imzalı manifest + `yedekler.ice_alindi` (yeni migration). Kimlik ad +
+      özetten: ikinci çalıştırma çoğaltmaz. Zaman dosya adından (sunucu UTC,
+      ad = mtime; 2026-11-21 salt okunur doğrulandı), taşan tarih reddedilir
+      (G11). Saklama: yayın öncesi kuralı. Dizin yeniden kurulunca işaret
+      manifestten gelir. Anlık görüntü bilgisi olmadığından üstüne geri
+      yüklenemezler (BY-028'de zorlanır).
+    - BY-001: canlıda zamanlayıcı satırı ve `erp_gunluk_*` dosyası YOK (salt
+      okunur `crontab -l` + `/etc/cron.d` + klasör denetimi, 2026-11-21);
+      `scripts/gecici-gunluk-yedek.sh`, testi ve `gecici-onlem.md` kaldırıldı.
+      `scripts/gecici-env-oku.php` KALDI: `sunucu-yedekleme-kurulumu.sh` kullanıyor.
+    - Testler: `scripts/tests/deploy.test.sh` (14; eski deploy.sh'ta 5'i
+      kırmızı), `YedekYayinOncesiTest` (8), `YedekEskiYedekleriAlTest` (4).
+    - "Listede görünüyor" ölçütü kayıt düzeyinde sınandı; ekran BY-015.
+    - Doğrulanamayan: canlıda yayın (kullanıcı onayı bekliyor). Canlıdaki
+      174 `erp_predeploy_*` dosyasının içe alınması modül açılınca elle
+      çalıştırılır (sunucu-kurulumu.md'ye yazıldı).
 
 ---
 

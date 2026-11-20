@@ -135,6 +135,23 @@ sunucu yöneticisi yetkisi ister ve bu dokümanın kapsamı dışındadır.
   - O anda kopyalanan, doğrulanan ya da geri yüklenen yedek (işlem bitene kadar).
 - Temizlik her yedekten sonra ve günde bir kez çalışır; neyi neden sildiği
   kaydedilir.
+- **Uygulama kuralları (BY-010):**
+  - Plan kuralında "son N ve / veya N gün": kopya, verilen ölçütlerden
+    **herhangi birini** sağlıyorsa tutulur; ikisini de aşan bağ kalkar.
+    Yayın öncesi yedeklerde de "son 20 ya da 30 gün" aynı okunur.
+  - Gruplar: her hedef ayrı; ayrıca "yedek klasörü" (hiçbir hedefin
+    kopyası olmayan yerel dosyalar). En az sayı her grupta ayrı uygulanır.
+  - Temkin: en son yedek denemesi başarısızsa ya da işlem durumu dosyası
+    okunamıyorsa hiçbir şey silinmez.
+  - Yerel dosya silinirken yalnız `.dump` gider; **imzalı manifest
+    (`.json`) yerinde kalır** ve kopyaların kimliği / durumu olay günlüğünde
+    durur (`kopya` olayları). Dizin yeniden kurulurken (BY-011) uzak kopyası
+    olan yedek bu ikisinden bulunur (kullanıcı kararı F7).
+  - Uzak kopyası başarısız ya da beklemede olan yedeğin yerel dosyası
+    silinmez: yeniden denemenin kaynağıdır.
+  - Hedef "silme yetkisi yok" derse (değiştirilemez saklama) kopya bizden
+    çıkmış sayılır (`silindi`, kod `HEDEF_SILME_YETKISI_YOK`); eski kopyayı
+    hedefin kendi kuralı temizler. Bu hata sayılmaz, bilgi olarak yazılır.
 - Elle silme ayrı izinle ve onayla; sabitlenmiş yedek önce sabitten çıkarılır.
 - Disk doluluk eşiği: boş alan belirlenen sınırın altına düşerse uyarı;
   yedek almak eski yedekleri **kural dışı** silmez (sessiz veri kaybı olmasın).

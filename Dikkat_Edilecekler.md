@@ -175,6 +175,13 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   `https://kotu.com\.izinli.com.tr` örneğini sına.
   *(Fable incelemesi PRT-F4, PRT-F5: Protel kilidi `uuid` için dizi kabul
   ediyor, adres kuralı `evil.com\.protel.com.tr`'yi kaydediyordu.)*
+- **G16 — Akış kopyasının başarısını `feof()` ile ölçme.** Farklı dosya
+  sistemleri arasında (`ext4` → `tmpfs` / ağ paylaşımı) `stream_copy_to_stream`
+  bütün baytları kopyaladığı hâlde kaynakta `feof()` false kalabiliyor; kopya
+  "başarısız" sayılır. Ölçüt kopyalanan bayt sayısının kaynağın boyutuna
+  (`fstat`) eşitliği. Kopyalayan kodu ayrı bir dosya sistemine (`/dev/shm`)
+  yazarak sına; aynı diskte geçmesi kanıt değildir.
+  *(BY-008 `AtomikDosya::kopyala`; NAS bağlayıcısını yazan ajan yakaladı.)*
 
 ## 2. Ön yüz
 

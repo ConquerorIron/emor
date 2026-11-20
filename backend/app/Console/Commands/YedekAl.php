@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Services\Yedekleme\SaklamaPolitikasi;
 use App\Services\Yedekleme\YedekAlici;
 use App\Services\Yedekleme\YedekAlmaHatasi;
 use App\Services\Yedekleme\YedekDurumu;
@@ -29,7 +30,7 @@ final class YedekAl extends Command
 {
     public const KILIT_MESGUL = 75;
 
-    public function handle(YedekAlici $alici, YedeklemeYapilandirmasi $yapilandirma): int
+    public function handle(YedekAlici $alici, YedeklemeYapilandirmasi $yapilandirma, SaklamaPolitikasi $saklama): int
     {
         $kaynak = YedekKaynagi::tryFrom((string) $this->option('kaynak'));
         if (! in_array($kaynak, [YedekKaynagi::Elle, YedekKaynagi::YayinOncesi], true)) {
@@ -61,6 +62,15 @@ final class YedekAl extends Command
         try {
             $aciklama = $this->option('aciklama');
             $yedek = $alici->al($kilit, $kaynak, is_string($aciklama) && $aciklama !== '' ? mb_substr($aciklama, 0, 500) : null, $kullanici === null ? null : (int) $kullanici);
+
+            // Her yedekten sonra temizlik (README §4.3) — modül açıksa; hatası yedeği bozmaz
+            if ($yedek->durum === YedekDurumu::Tamam && $yapilandirma->aktif()) {
+                try {
+                    $saklama->uygula($kullanici === null ? null : (int) $kullanici);
+                } catch (Throwable $hata) {
+                    $this->warn('Temizlik çalışmadı: '.$hata->getMessage());
+                }
+            }
         } catch (YedekAlmaHatasi $hata) {
             $this->error($hata->getMessage());
 

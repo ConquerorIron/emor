@@ -119,6 +119,16 @@ final class MailAyarServisi
 
     private function uygula(MailAyari $ayar): void
     {
+        self::mailerKur($ayar);
+    }
+
+    /**
+     * `uygulama` mailer'ını verilen tanımla kurar. Yedekleme bildirimcisi de
+     * kullanır: veritabanına ulaşılamazken ayarın dosya kopyasından
+     * kurulmuş (kaydedilmemiş) MailAyari nesnesiyle (README §4.8, BY-012).
+     */
+    public static function mailerKur(MailAyari $ayar): void
+    {
         Config::set('mail.mailers.'.self::MAILER, [
             'transport' => 'smtp',
             'scheme' => $ayar->sifreleme === MailAyari::SIFRELEME_SSL ? 'smtps' : 'smtp',

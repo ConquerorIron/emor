@@ -50,12 +50,22 @@ return [
     // BY-014, BY-025). Sunucu düzeninde /var/lib/emor-yedek/istekler.
     'istek_klasoru' => env('YEDEKLEME_ISTEK_KLASORU') ?: storage_path('app/yedek-istekler'),
 
+    // İşleri kim yapar (README §5.2, BY-025): `servis` = ayrı servis hesabının
+    // çalıştırıcısı (ekran ve yayın isteği istek klasörüne bırakıp bekler);
+    // `dogrudan` = geçiş dönemi, komutu çağıran süreç (zamanlayıcı / yayın)
+    // işi kendisi yapar. Tanınmayan değer `dogrudan`.
+    'calistirici' => env('YEDEKLEME_CALISTIRICI') === 'servis' ? 'servis' : 'dogrudan',
+
     // Ayar kopyası ve denetim günlüğünün dosyası (README §5.3, §4.9): geri
     // yüklemeyle eskimeyen kayıt. Sunucu düzeninde /var/lib/emor-yedek/durum altında.
     'ayar_kopyasi' => env('YEDEKLEME_AYAR_KOPYASI') ?: storage_path('app/yedek-durum/ayarlar.json'),
 
     // Bir kopyanın en çok kaç kez deneneceği (her denemede yeniden bağlanılır)
     'kopya_deneme' => 3,
+
+    // Tek temizlikte bundan çok dosya silinirse "beklenmedik temizlik"
+    // bildirimi gider (README §4.8)
+    'beklenmedik_silme' => 10,
 
     // Her yedekten sonra geçici veritabanına sınama geri yüklemesi (README
     // §4.4 2. düzey). Veritabanı açma yetkisi ister: servis hesabı kurulana

@@ -108,6 +108,12 @@ final class YedeklemeYapilandirmasi
         return $this->pozitifTamSayi('kopya_bekleme_gun');
     }
 
+    /** İşleri ayrı servis hesabının çalıştırıcısı mı yapıyor (BY-025) */
+    public function servisCalistiricisi(): bool
+    {
+        return config('yedekleme.calistirici') === 'servis';
+    }
+
     public function sinamaGeriYuklemesi(): bool
     {
         return config('yedekleme.sinama_geri_yukleme') === true;

@@ -53,3 +53,19 @@ Schedule::command('efatura:senkron --saglayici=protel --gun=45')
     ->dailyAt('03:30')
     ->timezone('Europe/Istanbul')
     ->withoutOverlapping(120);
+
+// Yedekleme (docs/yedekleme). YEDEKLEME_AKTIF kapalıyken komutlar hiçbir şey
+// yapmadan çıkar. Asıl çakışma koruması dosya kilididir (YedekKilidi);
+// zamanlayıcının kilidi veritabanındaki önbellektedir, geri yüklemede kaybolur.
+// Yedek, yayın sırasında (bakım modu) da alınabilmeli (README §4.2).
+Schedule::command('yedek:zamanla')
+    ->everyMinute()
+    ->evenInMaintenanceMode()
+    ->withoutOverlapping(120);
+
+// Temizlik her yedekten sonra da çalışır; günlük çalışma elle alınan ve
+// yayın öncesi yedeklerin sürelerini işletir (README §4.3)
+Schedule::command('yedek:temizle')
+    ->dailyAt('04:10')
+    ->timezone('Europe/Istanbul')
+    ->withoutOverlapping(60);

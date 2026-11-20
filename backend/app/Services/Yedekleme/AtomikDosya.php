@@ -38,10 +38,15 @@ final class AtomikDosya
         }
 
         try {
-            self::akisla($yol, $izin, function ($hedef) use ($giris): bool {
+            $beklenen = fstat($giris)['size'] ?? null;
+
+            // feof() kullanılmaz: farklı dosya sistemleri arasında bütün baytlar
+            // kopyalansa da false kalabiliyor (NAS hedefinde görüldü). Ölçüt,
+            // kopyalanan bayt sayısının kaynağın boyutuna eşit olması.
+            self::akisla($yol, $izin, function ($hedef) use ($giris, $beklenen): bool {
                 $boyut = stream_copy_to_stream($giris, $hedef);
 
-                return $boyut !== false && feof($giris);
+                return $boyut !== false && $beklenen !== null && $boyut === $beklenen;
             });
         } finally {
             fclose($giris);

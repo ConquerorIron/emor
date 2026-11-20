@@ -135,6 +135,21 @@ Betiğin **yapmadıkları** (sonunda hatırlatır):
 - Servisi etkinleştirmek: `sudo systemctl enable --now emor-yedek` (BY-025,
   komut yazıldıktan sonra).
 
+**Modül açıldıktan sonra bir kez** (BY-013): `deploy.sh`'ın bugüne kadar
+`/var/backups/emor`'a aldığı imzasız yedekler içeri alınır. Komut yedek
+klasörüne ve imza anahtarına yazdığı için servis hesabıyla ve servis tanımının
+ortamıyla (kendi önbellek / günlük yolları, parola dosyası — README §5.5, D7)
+çalışır; iki kez çalıştırmak yedeği çoğaltmaz, kaynak dosyalara dokunmaz:
+
+```bash
+cd /var/www/emor/backend
+sudo -u emor-yedek env $(systemctl show emor-yedek -p Environment --value) \
+  php artisan yedek:eski-yedekleri-al --klasor=/var/backups/emor
+```
+
+Servis hesabıyla elle çalıştırılan her yedekleme komutu (`yedek:tara`,
+`yedek:acil` …) aynı kalıpla çalıştırılır.
+
 Parola hiçbir komut satırına, ortam değişkenine ya da çıktıya yazılmaz; yeni
 parola gerekirse psql'e standart girdiden verilir, parola dosyası rol
 güncellendikten sonra geçici addan taşınarak yazılır.

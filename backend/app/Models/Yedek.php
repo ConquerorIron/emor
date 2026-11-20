@@ -28,6 +28,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property YedekDurumu $durum
  * @property DogrulamaDurumu $dogrulama_durumu
  * @property bool $imzali
+ * @property bool $ice_alindi deploy.sh'ın eski yedeğinden sonradan içeri alındı (BY-013)
  * @property int|null $boyut
  * @property string|null $sha256
  * @property CarbonImmutable|null $alinma_zamani
@@ -49,6 +50,19 @@ final class Yedek extends Model
 
     /** Yalnız uygulama kodu doldurur (istekten toplu atama yok) */
     protected $guarded = ['id'];
+
+    /** Veritabanı varsayılanının kaydedilmemiş nesnedeki yansıması (Dikkat_Edilecekler K4) */
+    protected $attributes = ['ice_alindi' => false];
+
+    /**
+     * Ekrandan geri yüklenebilir mi (README §4.5 güven sınırı): yalnız bu
+     * sistemin imzaladığı ve tamamlanmış yedek. İmzasız ("güvenilmeyen")
+     * dosya bu sunucuda geri yüklenmez.
+     */
+    public function geriYuklenebilirMi(): bool
+    {
+        return $this->imzali && $this->durum === YedekDurumu::Tamam;
+    }
 
     /**
      * @return HasMany<YedekKopyasi, $this>
@@ -84,6 +98,7 @@ final class Yedek extends Model
             'durum' => YedekDurumu::class,
             'dogrulama_durumu' => DogrulamaDurumu::class,
             'imzali' => 'boolean',
+            'ice_alindi' => 'boolean',
             'boyut' => 'integer',
             'alinma_zamani' => 'immutable_datetime',
             'bitti' => 'immutable_datetime',

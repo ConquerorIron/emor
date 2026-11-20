@@ -40,6 +40,9 @@ final class YedekAlici
         private readonly ManifestDeposu $manifestler,
         private readonly OlayGunlugu $olaylar,
         private readonly YedekDenetimi $denetim,
+        private readonly YedekBildirimcisi $bildirimci,
+        private readonly YasamSinyali $sinyal,
+        private readonly AyarKopyasi $ayarKopyasi,
     ) {}
 
     /**
@@ -185,6 +188,14 @@ final class YedekAlici
             $this->denetim->kaydet('yedek_al', IslemSonucu::Basarili, $yedek->id, $kullaniciId, $this->sureMs($baslangic), [
                 'kaynak' => $kaynak->value, 'dosya' => $dosyaAdi, 'boyut' => $manifest->boyut,
             ]);
+            $this->sinyal->gonder(YasamSinyali::YEREL);
+
+            // Ayarların dosya kopyası taze kalsın (bildirim ve geri yükleme uzlaştırması için)
+            try {
+                $this->ayarKopyasi->yaz();
+            } catch (Throwable $hata) {
+                report($hata);
+            }
         } catch (Throwable $hata) {
             @unlink($gecici);
             // Manifest yazıldı ama dosya taşınamadıysa dosyasız manifest bırakma
@@ -209,6 +220,11 @@ final class YedekAlici
             $this->denetim->kaydet('yedek_al', IslemSonucu::Basarisiz, $yedek->id, $kullaniciId, $this->sureMs($baslangic), [
                 'kaynak' => $kaynak->value, 'kod' => $kod,
             ], $mesaj);
+
+            $this->bildirimci->bildir(
+                $kod === YedekAlmaHatasi::DISK_DOLU ? 'disk_esigi' : 'yedek_basarisiz',
+                [__('yedekleme.mail.yedek_basarisiz').": {$dosyaAdi}", "{$kod}: {$mesaj}"],
+            );
         }
 
         return $yedek->refresh();

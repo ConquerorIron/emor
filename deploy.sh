@@ -51,39 +51,20 @@ if [[ ! -f backend/.env ]]; then
   exit 1
 fi
 
-env_val() {
-  grep -E "^$1=" backend/.env | head -n1 | cut -d'=' -f2- | tr -d '"' | tr -d "'"
-}
-
 echo "==> Deploy başladı (branch: $BRANCH)"
 
 # --------- 1. PostgreSQL yedeği (deploy ÖNCESİ durum) ---------
+# Yedeği uygulama alır (BY-013): modül açıksa imzalı "yayın öncesi" yedek,
+# aynı kilitle (açık geri yükleme varken başlamaz); kapalıysa eski davranış —
+# $BACKUP_DIR'e <vt>_predeploy_<zaman>.dump. Bağlantı bilgisi Laravel'in
+# yapılandırmasından, parola PGPASSFILE ile gelir; bu betik .env okumaz.
+# Yedek alınamazsa yayın burada durur: bakım modu, kod çekme, migration yok.
 if [[ "$WITH_BACKUP" -eq 1 ]]; then
-  DB_DATABASE="$(env_val DB_DATABASE)"
-  DB_USERNAME="$(env_val DB_USERNAME)"
-  DB_PASSWORD="$(env_val DB_PASSWORD)"
-  DB_HOST="$(env_val DB_HOST)"; DB_HOST="${DB_HOST:-127.0.0.1}"
-  DB_PORT="$(env_val DB_PORT)"; DB_PORT="${DB_PORT:-5432}"
-
-  if [[ -z "$DB_DATABASE" || -z "$DB_USERNAME" ]]; then
-    echo "HATA: backend/.env içinde DB_DATABASE / DB_USERNAME boş."
+  echo "==> PostgreSQL yedeği (yayın öncesi)"
+  if ! php backend/artisan yedek:yayin-oncesi --eski-klasor="$BACKUP_DIR"; then
+    echo "HATA: Yayın öncesi yedek alınamadı; yayın yapılmadı. (Yedeksiz yayın için: --no-backup)"
     exit 1
   fi
-
-  if ! command -v pg_dump >/dev/null 2>&1; then
-    echo "HATA: pg_dump bulunamadı — ya kurun ya --no-backup kullanın."
-    exit 1
-  fi
-
-  if [[ ! -d "$BACKUP_DIR" ]]; then
-    mkdir -p "$BACKUP_DIR" 2>/dev/null || { sudo mkdir -p "$BACKUP_DIR" && sudo chown "$(id -un)" "$BACKUP_DIR"; }
-  fi
-
-  TS="$(date +%F_%H%M%S)"
-  BACKUP_FILE="$BACKUP_DIR/${DB_DATABASE}_predeploy_${TS}.dump"
-  echo "==> PostgreSQL yedeği: $BACKUP_FILE"
-  PGPASSWORD="$DB_PASSWORD" pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USERNAME" \
-    -d "$DB_DATABASE" --format=custom --file="$BACKUP_FILE"
 fi
 
 # --------- 2. Bakım modu ---------

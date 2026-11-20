@@ -24,6 +24,9 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $enaz_adet
  * @property int $enaz_bos_alan_yuzde
  * @property list<string> $bildirim_alicilari
+ * @property string|null $sinyal_yerel_adresi Yaşam sinyali: yerel yedek (README §4.8)
+ * @property string|null $sinyal_uzak_adresi Yaşam sinyali: sunucu dışı kopya
+ * @property string|null $sinyal_sinama_adresi Yaşam sinyali: sınama geri yüklemesi
  */
 final class YedekAyari extends Model
 {
@@ -52,6 +55,9 @@ final class YedekAyari extends Model
         'enaz_adet',
         'enaz_bos_alan_yuzde',
         'bildirim_alicilari',
+        'sinyal_yerel_adresi',
+        'sinyal_uzak_adresi',
+        'sinyal_sinama_adresi',
     ];
 
     /**

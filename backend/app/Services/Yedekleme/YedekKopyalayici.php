@@ -35,6 +35,8 @@ final class YedekKopyalayici
         private readonly OlayGunlugu $olaylar,
         private readonly YedekDenetimi $denetim,
         private readonly KopyaSifreleyici $sifreleyici,
+        private readonly YedekBildirimcisi $bildirimci,
+        private readonly YasamSinyali $sinyal,
     ) {}
 
     /**
@@ -77,13 +79,16 @@ final class YedekKopyalayici
                 $this->denetim->kaydet('kopya', IslemSonucu::Basarili, $yedek->id, $kullaniciId, $this->sureMs($baslangic), [
                     'hedef' => $hedef->ad, 'deneme' => $deneme, 'sifreli' => $sifreli,
                 ]);
+                if ($sifreli) {
+                    $this->sinyal->gonder(YasamSinyali::UZAK);
+                }
 
                 return $kopya;
             } catch (Throwable $hata) {
                 $sonHata = $hata;
 
                 // Yapılandırma / şifreleme eksikliği yeniden denemeyle düzelmez (D8)
-                if ($hata instanceof HedefHatasi && in_array($hata->kod, [HedefHatasi::YAPILANDIRMA, HedefHatasi::KIMLIK, HedefHatasi::YENIDEN_BAGLAN, HedefHatasi::SUNUCU_PARMAK_IZI, HedefHatasi::SERTIFIKA, HedefHatasi::BAGLI_DEGIL], true)) {
+                if ($hata instanceof HedefHatasi && in_array($hata->kod, [HedefHatasi::YAPILANDIRMA, HedefHatasi::KIMLIK, HedefHatasi::YENIDEN_BAGLAN, HedefHatasi::SUNUCU_PARMAK_IZI, HedefHatasi::SERTIFIKA, HedefHatasi::BAGLI_DEGIL, HedefHatasi::KOTA], true)) {
                     break;
                 }
 
@@ -102,6 +107,7 @@ final class YedekKopyalayici
         $this->denetim->kaydet('kopya', IslemSonucu::Basarisiz, $yedek->id, $kullaniciId, $this->sureMs($baslangic), [
             'hedef' => $hedef->ad, 'kod' => $kod,
         ], $mesaj);
+        $this->bildirimci->bildir('kopya_basarisiz', ["{$hedef->ad}: {$yedek->dosya_adi}", "{$kod}: {$mesaj}"], 'kopya:'.$hedef->id);
 
         return $kopya;
     }
