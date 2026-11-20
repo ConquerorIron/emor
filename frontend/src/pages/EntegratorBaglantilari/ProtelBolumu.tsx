@@ -78,7 +78,9 @@ function ProtelFormu({
     defaultValues: { kullanici_adi: tanim?.kullanici_adi ?? '', sifre: '', vkn: tanim?.vkn ?? '' },
   })
 
-  // Kayıt sonrası liste yenilenir; form tanımla anahtarlı olduğu için şifre alanı boşalır
+  // Kayıt sonrası liste yenilenir; form tanımla anahtarlı olduğu için şifre alanı boşalır.
+  // Kayıt sürerken alanlar salt okunur: yanıt (sıfırlama / yeniden kurulum) arada
+  // yazılan değeri silmesin (PRT-R11)
   const kaydet = useMutation({
     mutationFn: (girdi: ProtelGirdisi) => protelBaglantiGuncelle(ortam, govde(girdi)),
     onSuccess: async () => {
@@ -146,6 +148,7 @@ function ProtelFormu({
             type="email"
             autoComplete="off"
             hata={alanHatasi(errors.kullanici_adi?.message)}
+            readOnly={isSubmitting}
             {...register('kullanici_adi')}
           />
         </div>
@@ -156,6 +159,7 @@ function ProtelFormu({
           autoComplete="new-password"
           placeholder={tanim?.sifre_dolu ? '••••••••' : undefined}
           hata={alanHatasi(errors.sifre?.message)}
+          readOnly={isSubmitting}
           {...register('sifre')}
         />
         <Input
@@ -165,6 +169,7 @@ function ProtelFormu({
           maxLength={11}
           autoComplete="off"
           hata={alanHatasi(errors.vkn?.message)}
+          readOnly={isSubmitting}
           {...register('vkn')}
         />
       </div>

@@ -356,8 +356,12 @@ export function ProtelFaturalariPage() {
             yukleniyor={excelSuruyor}
             disabled={
               tarihHatasi !== null ||
-              // Yenilenirken (filtre ya da ortam değişti) görünen ≠ inecek olan (F1, PRT-R3)
+              // Yenilenirken (filtre ya da ortam değişti) görünen ≠ inecek olan (F1, PRT-R3).
+              // Bağlantı yokken istek beklemeye alınır (paused): isFetching false
+              // olur, eski veri durur — üç durum birlikte (PRT-R9)
               liste.isFetching ||
+              liste.isPaused ||
+              liste.isPlaceholderData ||
               (liste.data?.meta.total ?? 0) === 0 ||
               excelKolonlari.length === 0
             }

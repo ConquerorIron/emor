@@ -232,6 +232,29 @@ final class ProtelIstemcisiTest extends TestCase
         Http::assertSentCount(2);
     }
 
+    /**
+     * .NET kodlayıcısı base64'teki `+`'yı unicode kaçışıyla (ters bölü + u002B)
+     * yazar: büyük PDF yanıtında yüz binlerce kaçış olur. Ondalığı koruyan
+     * çözüm (PRT-R8) bunu sınıra takılmadan ve değiştirmeden okur.
+     */
+    public function test_kacisli_buyuk_pdf_yaniti_aynen_cozulur_ondalik_metin_kalir(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        $base64 = str_repeat('J+V+B+E/', 400000);
+        $kacisli = str_replace(['+', '/'], [chr(92).'u002B', chr(92).'/'], $base64);
+        $govde = '{"isSuccess":false,"outputDatas":["'.$kacisli.'"],"invoices":[{"payableAmount":1786.5}]}';
+        Http::preventStrayRequests();
+        Http::fake([
+            self::GIRIS_URL => self::girisYaniti(),
+            self::PDF_URL => Http::response($govde, 200, ['Content-Type' => 'application/json']),
+        ]);
+
+        $yanit = (new ProtelIstemcisi)->post($this->tanim(), ProtelIstemcisi::YOL_FATURA_PDF, self::PDF_GOVDESI);
+
+        $this->assertSame($base64, $yanit['outputDatas'][0]);
+        $this->assertSame('1786.5', $yanit['invoices'][0]['payableAmount']);
+    }
+
     private function tokenOf(Request $istek): string
     {
         return substr($istek->header('Authorization')[0] ?? '', 7);

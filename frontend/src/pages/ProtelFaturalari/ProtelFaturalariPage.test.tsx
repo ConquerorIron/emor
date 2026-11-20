@@ -1,3 +1,4 @@
+import { onlineManager } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -123,6 +124,9 @@ function ciz(izinler: string[]) {
 
 describe('ProtelFaturalariPage', () => {
   beforeEach(() => {
+    // Varsayılan tarih aralığı bugüne bağlı: saat sabit (PRT-R10)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-19T09:00:00'))
     localStorage.clear()
     api.durum.mockResolvedValue(durum())
   })
@@ -130,6 +134,8 @@ describe('ProtelFaturalariPage', () => {
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()
+    vi.useRealTimers()
+    onlineManager.setOnline(true)
   })
 
   it('Protel durum kolonlarını gösterir; eMOR ve gizleme yoktur', async () => {
@@ -178,7 +184,7 @@ describe('ProtelFaturalariPage', () => {
     ]
     // Ekrandaki listenin ortamı (kapsam) — sunucuda farklıysa 409 (PRT-R3)
     expect(ortam).toBe('canli')
-    expect(filtre).toMatchObject({ baslangic: '2026-01-01', erp_okundu: '' })
+    expect(filtre).toMatchObject({ baslangic: '2026-01-01', bitis: '2026-11-19', erp_okundu: '' })
     expect(siralama).toEqual({ anahtar: 'olusturma_zamani', yon: 'desc' })
     expect(sayfa).toBe(1)
     expect(kolonlar.map((k) => k.anahtar)).toEqual(
@@ -197,19 +203,46 @@ describe('ProtelFaturalariPage', () => {
   })
 
   it('2 Ocak 2027 açılışında geçerli aralıkla liste ister (PRT-R4)', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2027-01-02T09:00:00'))
-    try {
-      api.faturalar.mockResolvedValue(liste([FATURA]))
-      ciz(['protel_faturalari.goruntule'])
+    api.faturalar.mockResolvedValue(liste([FATURA]))
+    ciz(['protel_faturalari.goruntule'])
 
-      await waitFor(() => expect(api.faturalar).toHaveBeenCalled())
-      expect(api.faturalar.mock.calls[0][0]).toMatchObject({
-        baslangic: '2026-01-02',
-        bitis: '2027-01-02',
-      })
-    } finally {
-      vi.useRealTimers()
-    }
+    await waitFor(() => expect(api.faturalar).toHaveBeenCalled())
+    expect(api.faturalar.mock.calls[0][0]).toMatchObject({
+      baslangic: '2026-01-02',
+      bitis: '2027-01-02',
+    })
+  })
+
+  it('bağlantı yokken yeni filtre beklerken Excel eski listede kapalıdır; sonuç gelince yeni filtreyle iner (PRT-R9)', async () => {
+    api.faturalar.mockResolvedValue(liste([FATURA]))
+    api.excel.mockResolvedValue(undefined)
+    ciz(['protel_faturalari.goruntule', 'protel_faturalari.disari_aktar'])
+    await screen.findByText('OTL2026000000001')
+    const excel = screen.getByRole('button', { name: 'Excel' })
+    expect(excel).toBeEnabled()
+
+    onlineManager.setOnline(false)
+    fireEvent.change(screen.getByLabelText('Ara'), { target: { value: 'deniz' } })
+
+    // Arama gecikmeyle uygulanır; istek beklemeye alınır, eski satırlar ekranda kalır
+    await waitFor(() => expect(excel).toBeDisabled())
+    expect(screen.getByText('OTL2026000000001')).toBeInTheDocument()
+    expect(api.faturalar).toHaveBeenCalledTimes(1)
+
+    onlineManager.setOnline(true)
+    await waitFor(() =>
+      expect(api.faturalar).toHaveBeenLastCalledWith(
+        expect.objectContaining({ ara: 'deniz' }),
+        expect.anything(),
+        1,
+      ),
+    )
+    await waitFor(() => expect(excel).toBeEnabled())
+    fireEvent.click(excel)
+
+    await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
+    expect(api.excel.mock.calls[0][0]).toMatchObject({ ara: 'deniz' })
+    expect(api.excel.mock.calls[0][4]).toBe('canli')
   })
 })

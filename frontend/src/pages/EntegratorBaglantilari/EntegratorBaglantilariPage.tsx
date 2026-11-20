@@ -161,7 +161,8 @@ function BaglantiFormu({
   })
 
   // Kayıt sonrası liste yenilenir; sayfa formu tanımla anahtarladığı için form
-  // yeniden kurulur ve şifre alanı boşalır
+  // yeniden kurulur ve şifre alanı boşalır. Kayıt sürerken alanlar salt okunur:
+  // yanıttaki reset arada yazılan değeri silmesin (PRT-R11, G1)
   const kaydet = useMutation({
     mutationFn: (girdi: BaglantiGirdisi) => entegratorBaglantiGuncelle(ortam, girdidenGovde(girdi)),
     onSuccess: async (kaydedilen) => {
@@ -253,6 +254,7 @@ function BaglantiFormu({
             inputMode="url"
             autoComplete="off"
             hata={alanHatasi(errors.api_url?.message)}
+            readOnly={isSubmitting}
             {...register('api_url')}
           />
           <p className="mt-1 text-xs break-all text-slate-500 dark:text-slate-400">
@@ -264,6 +266,7 @@ function BaglantiFormu({
           label={t('ayarlar.entegrator.kullaniciAdi')}
           autoComplete="off"
           hata={alanHatasi(errors.kullanici_adi?.message)}
+          readOnly={isSubmitting}
           {...register('kullanici_adi')}
         />
         <Input
@@ -273,6 +276,7 @@ function BaglantiFormu({
           autoComplete="new-password"
           placeholder={tanim?.sifre_dolu ? '••••••••' : undefined}
           hata={alanHatasi(errors.sifre?.message)}
+          readOnly={isSubmitting}
           {...register('sifre')}
         />
         <Input
@@ -282,6 +286,7 @@ function BaglantiFormu({
           maxLength={11}
           autoComplete="off"
           hata={alanHatasi(errors.vkn?.message)}
+          readOnly={isSubmitting}
           {...register('vkn')}
         />
         <Input
@@ -290,6 +295,7 @@ function BaglantiFormu({
           placeholder={`${URN_ONEKI}…`}
           autoComplete="off"
           hata={alanHatasi(errors.posta_kutusu?.message)}
+          readOnly={isSubmitting}
           {...register('posta_kutusu')}
         />
         <Input
@@ -298,6 +304,7 @@ function BaglantiFormu({
           placeholder={`${URN_ONEKI}…`}
           autoComplete="off"
           hata={alanHatasi(errors.gonderici_birim?.message)}
+          readOnly={isSubmitting}
           {...register('gonderici_birim')}
         />
       </div>
@@ -315,6 +322,7 @@ function BaglantiFormu({
             max={ARALIK.enCok}
             step={1}
             hata={alanHatasi(errors.senkron_araligi_dakika?.message)}
+            readOnly={isSubmitting}
             {...register('senkron_araligi_dakika', { valueAsNumber: true })}
           />
           <Input
@@ -325,6 +333,7 @@ function BaglantiFormu({
             max={SAYFA.enCok}
             step={1}
             hata={alanHatasi(errors.sayfa_boyutu?.message)}
+            readOnly={isSubmitting}
             {...register('sayfa_boyutu', { valueAsNumber: true })}
           />
         </div>

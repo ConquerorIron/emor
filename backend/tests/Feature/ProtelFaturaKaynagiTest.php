@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Models\EFatura;
 use App\Models\EFaturaSenkronCalismasi;
 use App\Models\EntegratorBaglanti;
+use App\Services\Entegrator\EntegratorFatura;
 use App\Services\Entegrator\EntegratorHatasi;
 use App\Services\Entegrator\FaturaOkumaSonucu;
 use App\Services\Entegrator\FaturaYonu;
@@ -14,6 +15,7 @@ use App\Services\Entegrator\ProtelFaturaKaynagi;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
 use Tests\TestCase;
@@ -81,15 +83,25 @@ final class ProtelFaturaKaynagiTest extends TestCase
     }
 
     /**
+     * Ham JSON gövdesi kurulur: `'@ham:…'` değerleri tırnaksız JSON sayısı
+     * olarak yazılır. PHP float'ının kaybettiği basamaklar ancak böyle
+     * sınanır (PRT-R8).
+     *
      * @param  list<array<string, mixed>>  $kayitlar
      */
     private function protelYaniti(array $kayitlar): void
     {
+        // Başarılı yanıtta da isSuccess=false geliyor (PRT-01)
+        $govde = (string) preg_replace(
+            '/"@ham:([^"]+)"/',
+            '$1',
+            json_encode(['invoiceList' => $kayitlar, 'status' => 'Success', 'isSuccess' => false], JSON_THROW_ON_ERROR),
+        );
+
         Http::preventStrayRequests();
         Http::fake([
             self::GIRIS_URL => ProtelIstemcisiTest::girisYaniti(),
-            // Başarılı yanıtta da isSuccess=false geliyor (PRT-01)
-            self::LISTE_URL => Http::response(['invoiceList' => $kayitlar, 'status' => 'Success', 'isSuccess' => false]),
+            self::LISTE_URL => Http::response($govde, 200, ['Content-Type' => 'application/json']),
         ]);
     }
 
@@ -162,6 +174,35 @@ final class ProtelFaturaKaynagiTest extends TestCase
         $this->assertCount(1, $sonuc->faturalar);
         $this->assertSame(FaturaOkumaSonucu::EKSIK_VERI_HATASI, $sonuc->eksikNedeni);
         $this->assertSame(['kaynak_id' => 2, 'alanlar' => ['issueDate', 'payableAmount']], $sonuc->hataliKayitlar[0]);
+    }
+
+    /**
+     * Tutar ve KDV float'a çevrilmeden okunur (PRT-R8): 16 tam basamak ve
+     * kuruş aynen kalır; 4 basamağa yarım sıfırdan uzağa yuvarlanır;
+     * yuvarlamayla 17 basamağa taşan ve üslü yazılan değer hatalı kayıttır.
+     */
+    public function test_tutar_ve_kdv_ondalik_hassasiyetiyle_okunur_tasan_ve_uslu_deger_hatali_kayittir(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        $this->protelYaniti([
+            $this->kayit(['id' => 1, 'payableAmount' => '@ham:1234567890123456.23', 'taxTotal' => '@ham:-9999999999999999.9999']),
+            // dize içindeki sayılar ve kaçışlar olduğu gibi kalır
+            $this->kayit(['id' => 2, 'payableAmount' => '@ham:12.34565', 'taxTotal' => '@ham:-0.00005', 'supplierTitle' => 'Kat "12.5" \\ 3e2 Ltd.']),
+            $this->kayit(['id' => 3, 'payableAmount' => '@ham:9999999999999999.99995']),
+            $this->kayit(['id' => 4, 'payableAmount' => '@ham:1.5e3']),
+        ]);
+
+        $sonuc = $this->oku($this->tanim());
+
+        $this->assertSame(
+            [[1, '1234567890123456.23', '-9999999999999999.9999'], [2, '12.3457', '-0.0001']],
+            array_map(fn (EntegratorFatura $f): array => [$f->kaynakId, $f->tutar, $f->vergiTutari], $sonuc->faturalar),
+        );
+        $this->assertSame('Kat "12.5" \\ 3e2 Ltd.', $sonuc->faturalar[1]->gondericiUnvan);
+        $this->assertSame([
+            ['kaynak_id' => 3, 'alanlar' => ['payableAmount']],
+            ['kaynak_id' => 4, 'alanlar' => ['payableAmount']],
+        ], $sonuc->hataliKayitlar);
     }
 
     public function test_liste_dizisi_yoksa_yanit_gecersizdir(): void
@@ -274,8 +315,8 @@ final class ProtelFaturaKaynagiTest extends TestCase
             $this->kayit(['id' => 1, 'lineCount' => 2147483647, 'payableAmount' => 9999999999999999, 'taxTotal' => -9999999999999999]),
             $this->kayit(['id' => 2, 'lineCount' => 2147483648]),
             $this->kayit(['id' => 3, 'payableAmount' => 10000000000000000]),
-            // float 9999999999999999.5 → 1e16: yuvarlamadan sonra 17 basamak
-            $this->kayit(['id' => 4, 'payableAmount' => 9999999999999999.5]),
+            // yuvarlamadan sonra 17 basamak
+            $this->kayit(['id' => 4, 'payableAmount' => '@ham:9999999999999999.99995']),
         ]);
 
         $this->artisan('efatura:senkron', ['--saglayici' => 'protel', '--baslangic' => '2026-05-01'])->assertFailed();
@@ -287,5 +328,29 @@ final class ProtelFaturaKaynagiTest extends TestCase
         $calisma = EFaturaSenkronCalismasi::query()->sole();
         $this->assertSame(EFaturaSenkronCalismasi::DURUM_EKSIK, $calisma->durum);
         $this->assertSame(3, $calisma->hatali_adet);
+    }
+
+    /**
+     * Yazım yolunda da float'a çevrilmez (PRT-R8). SQLite `numeric` 15 anlamlı
+     * basamaktan fazlasını saklamaz; sözleşme canlı veritabanınındır.
+     */
+    public function test_postgresql_buyuk_ondalik_tutar_ve_kdvyi_aynen_saklar(): void
+    {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('SQLite numeric 15 anlamlı basamak saklar; yalnız PostgreSQL.');
+        }
+
+        config(['entegrator.protel.aktif' => true]);
+        $this->travelTo(CarbonImmutable::parse('2026-05-31 12:00', 'Europe/Istanbul'));
+        $this->tanim();
+        $this->protelYaniti([
+            $this->kayit(['payableAmount' => '@ham:1234567890123456.23', 'taxTotal' => '@ham:-9999999999999999.9999']),
+        ]);
+
+        $this->artisan('efatura:senkron', ['--saglayici' => 'protel', '--baslangic' => '2026-05-01'])->assertSuccessful();
+
+        $fatura = EFatura::query()->sole();
+        $this->assertSame('1234567890123456.2300', $fatura->tutar);
+        $this->assertSame('-9999999999999999.9999', $fatura->vergi_tutari);
     }
 }

@@ -168,8 +168,12 @@ describe('EntegratorBaglantilariPage', () => {
     })
   })
 
-  it('kayıttan sonra girilen şifreyi formdan temizler', async () => {
-    api.guncelle.mockResolvedValue({ ...TEST_TANIMI, updated_at: '2026-09-23T11:00:00Z' })
+  it('kayıt sürerken alanlar salt okunur; kayıttan sonra girilen şifreyi formdan temizler', async () => {
+    const kaydedilen = { ...TEST_TANIMI, updated_at: '2026-09-23T11:00:00Z' }
+    let bitir!: (tanim: typeof kaydedilen) => void
+    api.guncelle.mockImplementation(
+      () => new Promise<typeof kaydedilen>((resolve) => (bitir = resolve)),
+    )
     ciz()
     await screen.findByDisplayValue('deneme-kullanici')
 
@@ -178,7 +182,13 @@ describe('EntegratorBaglantilariPage', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Kaydet' })[0])
 
     await waitFor(() => expect(api.guncelle).toHaveBeenCalledTimes(1))
+    // Yanıttaki reset arada yazılan değeri silmesin (PRT-R11, G1)
+    expect(sifre).toHaveAttribute('readonly')
+    expect(document.getElementById('entegrator-test-kullanici')).toHaveAttribute('readonly')
+
+    bitir(kaydedilen)
     await waitFor(() => expect(document.getElementById('entegrator-test-sifre')).toHaveValue(''))
+    expect(document.getElementById('entegrator-test-sifre')).not.toHaveAttribute('readonly')
   })
 
   it('senkron aralığı 15 dakikadan, fatura sayısı 100 den fazla olamaz; geçerliler gönderilir', async () => {
@@ -327,7 +337,7 @@ describe('EntegratorBaglantilariPage', () => {
       expect(api.guncelle).not.toHaveBeenCalled()
     })
 
-    it('yalnız şifre değişip kaydedilince şifre alanı boşalır (PRT-R6)', async () => {
+    it('kayıt sürerken alanlar salt okunur; yalnız şifre değişip kaydedilince şifre alanı boşalır (PRT-R6, PRT-R11)', async () => {
       const protelTanimi = {
         ...TEST_TANIMI,
         saglayici: 'protel' as const,
@@ -339,7 +349,10 @@ describe('EntegratorBaglantilariPage', () => {
           protel: { test: protelTanimi, canli: null, aktif_ortam: 'test', modul_aktif: true },
         }),
       )
-      api.protelGuncelle.mockResolvedValue(protelTanimi)
+      let bitir!: (tanim: typeof protelTanimi) => void
+      api.protelGuncelle.mockImplementation(
+        () => new Promise<typeof protelTanimi>((resolve) => (bitir = resolve)),
+      )
       ciz()
       await screen.findByDisplayValue('ws@otel.test')
       const form = protelFormu()
@@ -354,7 +367,14 @@ describe('EntegratorBaglantilariPage', () => {
         sifre: 'yeni-sifre',
         vkn: '4550357065',
       })
+      // Yanıt gelmeden yazılan yeni değer, yanıttaki sıfırlamayla silinmesin
+      for (const alan of ['kullanici', 'sifre', 'vkn']) {
+        expect(document.getElementById(`protel-test-${alan}`)).toHaveAttribute('readonly')
+      }
+
+      bitir(protelTanimi)
       await waitFor(() => expect(sifre).toHaveValue(''))
+      expect(sifre).not.toHaveAttribute('readonly')
     })
 
     it('e-posta olmayan kullanıcıyla istek göndermez', async () => {

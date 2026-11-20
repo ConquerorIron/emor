@@ -205,23 +205,27 @@ final class ProtelFaturaKaynagi implements FaturaKaynagi
     }
 
     /**
-     * Protel tutarı JSON sayısıdır (`1786.0`, `401.98`). Ondalık METNE çevrilir
-     * (4 basamağa yuvarlanır, sondaki sıfırlar atılır). Saklama sözleşmesi
-     * `numeric(20,4)`: en çok 16 tam basamak — yuvarlamadan SONRA denetlenir;
-     * aşan değer null (veri hatası, toplu yazıma ulaşmaz — PRT-R5).
+     * Protel tutarı JSON sayısıdır (`1786.0`, `401.98`); istemci ondalığı METİN
+     * olarak verir, float'a hiç çevrilmez (PRT-R8). 4 basamağa yuvarlanır (yarım
+     * sıfırdan uzağa), sondaki sıfırlar atılır. Saklama sözleşmesi
+     * `numeric(20,4)`: en çok 16 tam basamak — yuvarlamadan SONRA denetlenir.
+     * Aşan ya da düz ondalık olmayan (üslü) değer null: veri hatası, toplu
+     * yazıma ulaşmaz (PRT-R5).
      */
     private function tutar(mixed $deger): ?string
     {
-        if (is_int($deger)) {
-            $metin = (string) $deger;
-        } elseif (is_float($deger) && is_finite($deger)) {
-            $metin = rtrim(rtrim(number_format($deger, 4, '.', ''), '0'), '.');
-            $metin = $metin === '-0' ? '0' : $metin;
-        } else {
+        $metin = is_int($deger) ? (string) $deger : $deger;
+
+        if (! is_string($metin) || preg_match('/^-?\d+(?:\.\d+)?$/D', $metin) !== 1) {
             return null;
         }
 
-        return strlen(explode('.', ltrim($metin, '-'))[0]) <= 16 ? $metin : null;
+        // bcadd sonucu ölçeğe KESER: yarım eklemek yuvarlamadır
+        $yuvarlak = bcadd($metin, str_starts_with($metin, '-') ? '-0.00005' : '0.00005', 4);
+        $yuvarlak = rtrim(rtrim($yuvarlak, '0'), '.');
+        $yuvarlak = $yuvarlak === '-0' ? '0' : $yuvarlak;
+
+        return strlen(explode('.', ltrim($yuvarlak, '-'))[0]) <= 16 ? $yuvarlak : null;
     }
 
     /** Protel bayrakları 0/1 tam sayıdır */

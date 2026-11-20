@@ -140,7 +140,7 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 | BY-002 | Keşif: mevcut yedeği geri yükleme, PostgreSQL davranışları | 0 | — | PASSED |
 | BY-003 | Sunucu kurulum betiği | 0 | BY-002 | PASSED |
 | BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | PASSED |
-| BY-005 | Dosya kilidi ve işlem durumu dosyası | 1 | BY-004 | REVIEW_BEKLIYOR |
+| BY-005 | Dosya kilidi ve işlem durumu dosyası | 1 | BY-004 | PASSED |
 | BY-006 | Manifest, imza, olay günlüğü | 1 | BY-004 | YAPILACAK |
 | BY-007 | Yedek alma (`yedek:al`) | 1 | BY-005, BY-006 | YAPILACAK |
 | BY-008 | Hedef soyutlaması, Yerel disk hedefi, kopyalama | 1 | BY-007 | YAPILACAK |
@@ -1712,7 +1712,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-005 — Dosya kilidi ve işlem durumu dosyası
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-004
+- **Durum:** PASSED · **Bağımlı:** BY-004
 - **Tasarım:** README §5.2 (kilit), §6.4 (yeniden başlatmaya dayanıklılık), §7.2
 - **Kapsam:**
   - `YedekKilidi`: işletim sistemi düzeyinde dosya kilidi; veritabanına ve
@@ -2246,6 +2246,15 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     - G1: `scandir` ile yokluk arayan başka kod yok.
     - D6'ya eklendi: yokluk araması kurulumun garanti ettiği kökün üstüne çıkmaz.
     - Kontroller: backend 877/877, Pint temiz. Canlıya alınmadı.
+  - 2026-11-20 Codex → PASSED · incelenen commit `f714924`
+    - **BY-005-R12 kapandı.** Kurulmamış kök `IslemDurumuBozuk` veriyor.
+      Yokluk araması kalıcı kökün üstüne çıkmıyor. Kurulu ve okunabilir
+      kökte henüz durum dosyası yoksa null davranışı korunuyor.
+    - Kök eksik, kurulu boş kök, okunamayan kök ve yalnız geçilebilir
+      üst dizin testleri WSL'de root dışı kullanıcıyla geçti.
+      SQLite backend **877/877** ve ayrı PostgreSQL 16 kümesinde
+      yedekleme ile e-Fatura kapsamındaki seçili testler **362/362**.
+      Pint geçti. Doğrulama yerel dosya sistemiyle yapıldı.
 
 ### BY-006 — Manifest, imza, olay günlüğü
 

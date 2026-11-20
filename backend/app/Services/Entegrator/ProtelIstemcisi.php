@@ -194,14 +194,107 @@ final class ProtelIstemcisi
             throw $this->basarisizYanitHatasi($yanit);
         }
 
-        $json = $yanit->json();
+        return $this->ondalikKoruyarakCoz($yanit->body());
+    }
 
-        if (! is_array($json)) {
+    /**
+     * JSON yanıtını ondalıklı sayıları METİN olarak koruyarak çözer (PRT-R8).
+     * `json_decode` ondalıklı sayıyı float'a çevirir: 15 anlamlı basamağı aşan
+     * tutar (`1234567890123456.23` → `…56.25`) sessizce değişir ve PHP'nin
+     * ayrıştırıcısında ondalığı metin veren bir seçenek yoktur. Bu yüzden ancak
+     * olağan çözümden geçen (geçerli) gövdede dize dışındaki ondalıklı / üslü
+     * sayı belirteçleri tırnağa alınır; sonuç olağan
+     * çözümle karşılaştırılır — yapı ve her değer aynı olmalı, yoksa yanıt
+     * geçersiz sayılır (dönüşüm hatası sessiz kalmasın — G3).
+     *
+     * @return array<string, mixed>
+     */
+    private function ondalikKoruyarakCoz(string $govde): array
+    {
+        $olagan = json_decode($govde, true, 512, JSON_BIGINT_AS_STRING);
+
+        if (! is_array($olagan)) {
             throw EntegratorHatasi::yanitGecersiz();
         }
 
-        /** @var array<string, mixed> $json */
-        return $json;
+        $korunan = json_decode($this->ondalikSayilariTirnakla($govde), true, 512, JSON_BIGINT_AS_STRING);
+
+        if (! is_array($korunan) || ! $this->ayniDeger($olagan, $korunan)) {
+            throw EntegratorHatasi::yanitGecersiz();
+        }
+
+        /** @var array<string, mixed> $korunan */
+        return $korunan;
+    }
+
+    /**
+     * Geçerli JSON'da dize dışındaki ondalıklı / üslü sayıları tırnağa alır.
+     * Düzenli ifade değil doğrusal tarama: kaçışlı uzun dizede (.NET base64
+     * PDF'teki `+`'yı unicode kaçışıyla yazar) PCRE geri izleme sınırına takılmaz.
+     */
+    private function ondalikSayilariTirnakla(string $govde): string
+    {
+        $sonuc = '';
+        $uzunluk = strlen($govde);
+        $i = 0;
+
+        while ($i < $uzunluk) {
+            $atlanan = strcspn($govde, '"-0123456789', $i);
+            $sonuc .= substr($govde, $i, $atlanan);
+            $i += $atlanan;
+
+            if ($i >= $uzunluk) {
+                break;
+            }
+
+            if ($govde[$i] === '"') {
+                $bas = $i++;
+                while ($i < $uzunluk) {
+                    $i += strcspn($govde, '"\\', $i);
+                    if ($i < $uzunluk && $govde[$i] === '\\') {
+                        $i += 2;
+
+                        continue;
+                    }
+                    $i++;
+
+                    break;
+                }
+                $sonuc .= substr($govde, $bas, $i - $bas);
+
+                continue;
+            }
+
+            $sayi = substr($govde, $i, strspn($govde, '-+0123456789.eE', $i));
+            $sonuc .= strpbrk($sayi, '.eE') === false ? $sayi : '"'.$sayi.'"';
+            $i += strlen($sayi);
+        }
+
+        return $sonuc;
+    }
+
+    /** Olağan çözümdeki her float, korunan çözümde aynı sayıyı veren metin olmalı; gerisi birebir. */
+    private function ayniDeger(mixed $olagan, mixed $korunan): bool
+    {
+        if (is_float($olagan)) {
+            return is_string($korunan) && is_numeric($korunan) && (float) $korunan === $olagan;
+        }
+
+        if (! is_array($olagan)) {
+            return $olagan === $korunan;
+        }
+
+        if (! is_array($korunan) || array_keys($olagan) !== array_keys($korunan)) {
+            return false;
+        }
+
+        foreach ($olagan as $anahtar => $deger) {
+            if (! $this->ayniDeger($deger, $korunan[$anahtar])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

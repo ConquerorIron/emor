@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode } from 'react'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,7 +8,6 @@ import type { Kullanici } from '@/features/auth/types'
 import type { EFatura, EFaturaListesi, SenkronDurumu } from '@/features/efatura/efaturaApi'
 import { AuthContext } from '@/providers/auth-context'
 import { ThemeProvider } from '@/providers/ThemeProvider'
-import { bugunIso, gunEkle } from '@/utils/tarih'
 
 import { EFaturalarPage } from './EFaturalarPage'
 
@@ -155,6 +154,9 @@ const TUM_IZINLER = ['efatura.goruntule', 'efatura.pdf', 'efatura.disari_aktar',
 
 describe('EFaturalarPage', () => {
   beforeEach(() => {
+    // Varsayılan tarih aralığı bugüne bağlı: saat sabit (PRT-R10)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-19T09:00:00'))
     localStorage.clear()
     api.faturalar.mockResolvedValue(LISTE)
     api.durum.mockResolvedValue(durum())
@@ -164,6 +166,8 @@ describe('EFaturalarPage', () => {
     cleanup()
     vi.clearAllMocks()
     vi.unstubAllGlobals()
+    vi.useRealTimers()
+    onlineManager.setOnline(true)
     window.history.replaceState(null, '', '/')
   })
 
@@ -173,7 +177,7 @@ describe('EFaturalarPage', () => {
     expect(await screen.findByText('Deniz Boya Ltd.')).toBeInTheDocument()
     expect(api.faturalar).toHaveBeenCalledWith(
       'gelen',
-      expect.objectContaining({ baslangic: '2026-01-01', bitis: bugunIso() }),
+      expect.objectContaining({ baslangic: '2026-01-01', bitis: '2026-11-19' }),
       VARSAYILAN_SIRALAMA,
       1,
     )
@@ -253,6 +257,38 @@ describe('EFaturalarPage', () => {
     await waitFor(() => expect(screen.queryByText('Güncelleniyor…')).not.toBeInTheDocument())
     expect(screen.queryByText('Deniz Boya Ltd.')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Özet')).toHaveTextContent('0')
+  })
+
+  it('bağlantı yokken yeni filtre beklerken Excel eski listede kapalıdır; sonuç gelince yeni filtreyle iner (PRT-R9)', async () => {
+    api.excel.mockResolvedValue(undefined)
+    ciz(['efatura.goruntule', 'efatura.disari_aktar'])
+    await screen.findByText('Deniz Boya Ltd.')
+    const excel = screen.getByRole('button', { name: 'Excel' })
+    expect(excel).toBeEnabled()
+
+    onlineManager.setOnline(false)
+    fireEvent.change(screen.getByLabelText('Ara'), { target: { value: 'baska' } })
+
+    // Arama gecikmeyle uygulanır; istek beklemeye alınır, eski satırlar ekranda kalır
+    await waitFor(() => expect(excel).toBeDisabled())
+    expect(screen.getByText('Deniz Boya Ltd.')).toBeInTheDocument()
+    expect(api.faturalar).toHaveBeenCalledTimes(1)
+
+    onlineManager.setOnline(true)
+    await waitFor(() =>
+      expect(api.faturalar).toHaveBeenLastCalledWith(
+        'gelen',
+        expect.objectContaining({ ara: 'baska' }),
+        VARSAYILAN_SIRALAMA,
+        1,
+      ),
+    )
+    await waitFor(() => expect(excel).toBeEnabled())
+    fireEvent.click(excel)
+
+    await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
+    expect(api.excel.mock.calls[0][1]).toMatchObject({ ara: 'baska' })
+    expect(api.excel.mock.calls[0][5]).toBe('test')
   })
 
   it('sayfalama tablonun üstünde ve altında var; varsayılan 50, biri değişince diğeri de değişir', async () => {
@@ -597,7 +633,7 @@ describe('EFaturalarPage', () => {
     expect([yon, siralama, sayfa]).toEqual(['gelen', VARSAYILAN_SIRALAMA, 1])
     // Ekrandaki listenin ortamı: sunucuda aktif ortam değiştiyse indirme reddedilir
     expect(ortam).toBe('test')
-    expect(filtre).toMatchObject({ baslangic: '2026-01-01', bitis: bugunIso() })
+    expect(filtre).toMatchObject({ baslangic: '2026-01-01', bitis: '2026-11-19' })
     expect(kolonlar.slice(0, 3)).toEqual([
       { anahtar: 'erp_okundu', baslik: 'ERP Okudu' },
       { anahtar: 'emor', baslik: 'eMOR' },
@@ -868,12 +904,8 @@ describe('EFaturalarPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Senkronu Başlat' }))
 
     await waitFor(() => expect(api.senkron).toHaveBeenCalledTimes(1))
-    const bugun = bugunIso()
-    const yediGunOnce = gunEkle(bugun, -6)
-    expect(api.senkron).toHaveBeenCalledWith({
-      baslangic: yediGunOnce < '2026-01-01' ? '2026-01-01' : yediGunOnce,
-      bitis: bugun,
-    })
+    // Varsayılan: son 7 gün
+    expect(api.senkron).toHaveBeenCalledWith({ baslangic: '2026-11-13', bitis: '2026-11-19' })
   })
 
   it('sene başından bugüne elle senkron başlatılabilir (92 günlük eski sınır yok)', async () => {
@@ -889,7 +921,7 @@ describe('EFaturalarPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Senkronu Başlat' }))
 
     await waitFor(() =>
-      expect(api.senkron).toHaveBeenCalledWith({ baslangic: '2026-01-01', bitis: bugunIso() }),
+      expect(api.senkron).toHaveBeenCalledWith({ baslangic: '2026-01-01', bitis: '2026-11-19' }),
     )
   })
 

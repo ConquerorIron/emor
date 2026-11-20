@@ -142,6 +142,15 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   veriyi reddeder. Sınırın iki yanını PostgreSQL'de sına.
   *(PRT-R5: Protel ve İzibiz okuyucuları `lineCount`'u 4.294.967.295'e kadar
   kabul ediyordu — G1.)*
+  Sınırı genişletirken **temsil hassasiyetini** de sına: PHP `json_decode`
+  ondalıklı sayıyı float yapar, 15 anlamlı basamaktan sonrası değişir
+  (`1234567890123456.23` → `…56.25`). Para tutarını float'tan geçirme; sınır
+  testinde en büyük geçerli değeri sıfır olmayan kuruşla ve ham gövdeyle kur.
+  *(PRT-R8: R5 düzeltmesi 16 tam basamağı kabul etti, kuruşlar bozuldu.)*
+  Dış yanıtın tamamına düzenli ifade uygularken en büyük, en çok kaçışlı
+  gerçekçi gövdeyle sına: PCRE `backtrack_limit` aşılınca `preg_*` `null`
+  döner, geçerli yanıt "bozuk" sayılır. Doğrusal iş için `strcspn` / `strspn`.
+  *(PRT-R8 öz-incelemesi: base64 PDF'teki unicode kaçışları sınırı aştırdı.)*
 
 ## 2. Ön yüz
 
@@ -155,6 +164,16 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   Düğmeyi `isFetching`'e bağla ve isteğe ekranda görünen kapsamı (ör.
   `kapsam.ortam`) ekle; sunucu uyuşmazlıkta reddetsin.
   *(PRT-R3: ortam değişirken Excel yeni ortamın faturalarını indirebiliyordu.)*
+  Bağlantı yokken sorgu **beklemeye** alınır (`fetchStatus = 'paused'`):
+  `isFetching` false olur, eski veri durur. Düğmeyi `isFetching || isPaused ||
+  isPlaceholderData`'ya bağla; testte `onlineManager.setOnline(false)` ile sına.
+  *(PRT-R9: R3'te `isPlaceholderData` yerine yalnız `isFetching` kaldı.)*
+- **F3 — Yanıtta formu sıfırlayan kayıtta alanlar kayıt boyunca kilitli olsun.**
+  `onSuccess`'te `reset` / `resetField` ya da tanımla anahtarlı yeniden kurulum,
+  istek sürerken yazılan değeri siler. Kayıt sürerken alanları salt okunur yap
+  (`readOnly={isSubmitting}`; `disabled` RHF'de değeri boşaltır). Testte yanıtı
+  geciktir, beklerken `readonly`'yi ve yanıttan sonra alanın açıldığını sına.
+  *(PRT-R11: Protel şifre alanı; İzibiz formunda da aynıydı — G1.)*
 - **F2 — Sabit başlangıç tarihi + azami aralık, gelecekte kendiliğinden bozulur.**
   Varsayılan filtre `sabit tarih … bugün` ise aralık sınırı bir gün aşılır ve
   ekran açılışta boş kalır. Başlangıcı `max(sabit tarih, bugün − (sınır − 1))`
@@ -203,6 +222,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   sınatır. Farklı kurgu gerekiyorsa adlı durum (`plansiz()`) kullan.
   *(BY-004-R3: planlı kopyanın yedeği `elle`, hedefi plana bağlı değildi.
   BY-004-R6: `plan` kaynaklı yedeğin dosya adı `erp_elle_` ile başlıyordu.)*
+- **T12 — Varsayılanı bugüne bağlı ekranın testinde saati dosya düzeyinde sabitle.**
+  `bugunIso()` ile beklenen değer kurmak testi gerçek takvime bağlar: bir sınır
+  günü (aralık sınırı, yıl başı) geçince test düşer ya da yanlış davranışı
+  "doğru" diye sınar. `beforeEach`'te `vi.useFakeTimers({ toFake: ['Date'] })` +
+  `vi.setSystemTime(…)`, beklentiler sabit tarihle; sınır günü ayrı testte.
+  *(PRT-R10: 2 Ocak 2027'de dört test düşüyordu.)*
 - **T11 — Testin ortam varsayımını koru.** İzin kaldırarak sınayan test
   (`chmod 0000`) root altında anlamsızdır; `SIGKILL` sabiti `pcntl` ister;
   `flock` gibi dış komut her yerde yoktur. Varsayım tutmuyorsa testi nedeniyle
