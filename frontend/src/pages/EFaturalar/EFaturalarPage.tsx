@@ -169,14 +169,19 @@ function HizliFiltre({
   )
 }
 
-/** Henüz kaynağı olmayan sistem kolonu (Protel / SAP servisi bekleniyor): boş, açıklamalı */
-function SistemBekleniyor() {
+/**
+ * Sistem kolonu (Protel Okudu / Protel / SAP): değer gelince Evet/Hayır; kaynak uç
+ * (Protel / SAP servisi) gelene kadar boş ve açıklamalı.
+ */
+function SistemDurumu({ deger }: { deger: boolean | null }) {
   const { t } = useTranslation()
 
-  return (
+  return deger === null ? (
     <span className="text-slate-400" title={t('efatura.kolon.sistemBekleniyor')}>
       —
     </span>
+  ) : (
+    <EvetHayirRozeti deger={deger} />
   )
 }
 
@@ -317,6 +322,7 @@ export function EFaturalarPage({
           {
             anahtar: 'entegrator',
             baslik: t('efatura.kolon.entegrator'),
+            siralamaAnahtari: 'entegrator',
             render: (f: EFatura) =>
               f.saglayici ? (
                 <span className="font-semibold whitespace-nowrap">
@@ -349,20 +355,23 @@ export function EFaturalarPage({
           {
             anahtar: 'protel_okudu',
             baslik: t('efatura.kolon.protelOkudu'),
+            siralamaAnahtari: 'protel_okudu',
             hizala: 'orta' as const,
-            render: () => <SistemBekleniyor />,
+            render: (f: EFatura) => <SistemDurumu deger={f.protel_okundu} />,
           },
           {
             anahtar: 'protel',
             baslik: t('efatura.kolon.protel'),
+            siralamaAnahtari: 'protel',
             hizala: 'orta' as const,
-            render: () => <SistemBekleniyor />,
+            render: (f: EFatura) => <SistemDurumu deger={f.protel_islendi} />,
           },
           {
             anahtar: 'sap',
             baslik: t('efatura.kolon.sap'),
+            siralamaAnahtari: 'sap',
             hizala: 'orta' as const,
-            render: () => <SistemBekleniyor />,
+            render: (f: EFatura) => <SistemDurumu deger={f.sap_islendi} />,
           },
         ]
       : []),

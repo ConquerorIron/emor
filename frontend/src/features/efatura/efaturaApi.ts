@@ -77,6 +77,10 @@ export interface EFatura {
   gizlenme_zamani: string | null
   /** Gizleyen kullanıcının adı */
   gizleyen: string | null
+  /** Tüm Faturalar: hangi sisteme girildi — kaynak uçlar (Protel / SAP) gelene kadar null */
+  protel_okundu: boolean | null
+  protel_islendi: boolean | null
+  sap_islendi: boolean | null
   /** Yalnız Tüm Faturalar: satırın posta kutusu (XML yalnız İzibiz'de) */
   saglayici?: 'izibiz' | 'protel'
 }

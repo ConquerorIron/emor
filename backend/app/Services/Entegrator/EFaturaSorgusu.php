@@ -26,7 +26,12 @@ final class EFaturaSorgusu
         'emor', 'erp_okundu', 'karsi_vkn', 'karsi_ad_soyad', 'fatura_tipi', 'para_birimi',
         'irsaliye_no', 'siparis_no', 'durum', 'zarf_durumu', 'yanit_aciklamasi',
         'senaryo', 'vergi_tutari', 'erp_durumu', 'yazdirildi',
+        // Tüm Faturalar
+        'entegrator', 'protel_okudu', 'protel', 'sap',
     ];
+
+    /** Satırın sağlayıcısı (Tüm Faturalar'ın Entegratör kolonu) — sabit ifade, girdi içermez */
+    private const SAGLAYICI_IFADESI = '(SELECT saglayici FROM entegrator_baglantilari WHERE entegrator_baglantilari.id = efatura_faturalari.entegrator_baglanti_id)';
 
     /**
      * @param  EntegratorBaglanti|list<EntegratorBaglanti>  $tanimlar
@@ -136,6 +141,10 @@ final class EFaturaSorgusu
             'durum' => 'durum_aciklamasi',
             'zarf_durumu' => 'gib_durum_kodu',
             'emor' => 'emor_durumu',
+            'entegrator' => self::SAGLAYICI_IFADESI,
+            'protel_okudu' => 'protel_okundu',
+            'protel' => 'protel_islendi',
+            'sap' => 'sap_islendi',
             default => 'belge_tarihi',
         };
 
@@ -145,6 +154,8 @@ final class EFaturaSorgusu
         if ($sutun === 'emor_durumu') {
             // Aşama sırası (alfabetik değil): işlendi > havuzda > yok
             $sorgu->orderByRaw("CASE emor_durumu WHEN 'islendi' THEN 4 WHEN 'elle_islendi' THEN 3 WHEN 'havuzda' THEN 2 ELSE 1 END {$yonu}");
+        } elseif ($sutun === self::SAGLAYICI_IFADESI) {
+            $sorgu->orderByRaw("{$sutun} {$yonu}");
         } else {
             $sorgu->orderBy($sutun, $yonu);
         }

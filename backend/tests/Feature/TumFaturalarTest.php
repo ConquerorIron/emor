@@ -69,6 +69,28 @@ final class TumFaturalarTest extends TestCase
         );
     }
 
+    /**
+     * Entegratör (tanımın sağlayıcısı) ve sistem kolonlarına göre sıralanır;
+     * bilinmeyen (null) sistem durumu yönden bağımsız en sonda.
+     */
+    public function test_entegrator_ve_sistem_kolonlarina_gore_siralanir_bos_degerler_sonda(): void
+    {
+        [$izibiz, $protel] = $this->tanimlar();
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTL1', 'sap_islendi' => true]);
+        EFatura::factory()->create(['entegrator_baglanti_id' => $izibiz->id, 'belge_no' => 'INS1', 'sap_islendi' => null]);
+        EFatura::factory()->create(['entegrator_baglanti_id' => $izibiz->id, 'belge_no' => 'INS2', 'sap_islendi' => false]);
+        $kullanici = $this->izinli('tum_faturalar.goruntule');
+        $sirali = fn (string $kolon, string $yon): array => array_column(
+            $this->actingAs($kullanici)->getJson('/api/v1/tum-faturalar/faturalar?'.self::ARALIK."&sirala={$kolon}&yon={$yon}")->assertOk()->json('data'),
+            'belge_no',
+        );
+
+        $this->assertSame(['INS1', 'INS2', 'OTL1'], $sirali('entegrator', 'asc'));
+        $this->assertSame(['OTL1', 'INS2', 'INS1'], $sirali('entegrator', 'desc'));
+        $this->assertSame(['INS2', 'OTL1', 'INS1'], $sirali('sap', 'asc'));
+        $this->assertSame(['OTL1', 'INS2', 'INS1'], $sirali('sap', 'desc'));
+    }
+
     public function test_yalniz_bir_saglayici_aktifse_onun_faturalari_hicbiri_yoksa_hata_doner(): void
     {
         $kullanici = $this->izinli('tum_faturalar.goruntule');
@@ -136,11 +158,11 @@ final class TumFaturalarTest extends TestCase
         $this->actingAs($kullanici)->getJson("/api/v1/tum-faturalar/faturalar/{$pasif->id}/pdf")->assertNotFound();
     }
 
-    public function test_excel_iki_saglayicinin_satirlarini_entegrator_adiyla_ve_ekrandaki_kolonlarla_yazar_sistem_kolonlari_bos_kalir(): void
+    public function test_excel_iki_saglayicinin_satirlarini_entegrator_adiyla_ve_ekrandaki_kolonlarla_yazar_bilinmeyen_sistem_durumu_bos_kalir(): void
     {
         [$izibiz, $protel] = $this->tanimlar();
-        EFatura::factory()->create(['entegrator_baglanti_id' => $izibiz->id, 'belge_no' => 'INS1', 'erp_okundu' => true]);
-        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTL1', 'erp_okundu' => null]);
+        EFatura::factory()->create(['entegrator_baglanti_id' => $izibiz->id, 'belge_no' => 'INS1', 'erp_okundu' => true, 'sap_islendi' => true]);
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTL1', 'erp_okundu' => null, 'protel_okundu' => false]);
         $kolonlar = ['entegrator' => 'Entegratör', 'belge_no' => 'Fatura No', 'erp_okundu' => 'eMOR Okudu', 'protel_okudu' => 'Protel Okudu', 'protel' => 'Protel', 'sap' => 'SAP'];
         $sorgu = http_build_query(['kolonlar' => array_keys($kolonlar), 'basliklar' => array_values($kolonlar), 'sirala' => 'belge_no', 'yon' => 'asc']);
 
@@ -154,8 +176,8 @@ final class TumFaturalarTest extends TestCase
 
         $sayfa = $kitap->getSheet(0);
         $this->assertSame(array_values($kolonlar), $sayfa->rangeToArray('A1:F1')[0]);
-        $this->assertSame(['İzibiz', 'INS1', 'Evet', null, null, null], $sayfa->rangeToArray('A2:F2')[0]);
-        $this->assertSame(['Protel', 'OTL1', null, null, null, null], $sayfa->rangeToArray('A3:F3')[0]);
+        $this->assertSame(['İzibiz', 'INS1', 'Evet', null, null, 'Evet'], $sayfa->rangeToArray('A2:F2')[0]);
+        $this->assertSame(['Protel', 'OTL1', null, 'Hayır', null, null], $sayfa->rangeToArray('A3:F3')[0]);
         $this->assertSame(['Liste', 'Tüm Faturalar (İzibiz + Protel)'], $kitap->getSheet(1)->rangeToArray('A1:B1')[0]);
         $this->assertSame(['Ortam', 'Canlı'], $kitap->getSheet(1)->rangeToArray('A2:B2')[0]);
     }

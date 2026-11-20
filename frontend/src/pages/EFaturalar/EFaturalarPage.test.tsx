@@ -85,6 +85,9 @@ const FATURA: EFatura = {
   gizli: false,
   gizlenme_zamani: null,
   gizleyen: null,
+  protel_okundu: null,
+  protel_islendi: null,
+  sap_islendi: null,
 }
 
 /** Gelen faturalar kullanıcı henüz sıralamadıysa en son alınan üstte açılır */
@@ -1027,6 +1030,39 @@ describe('EFaturalarPage', () => {
       // Senkron sağlayıcı ekranlarında: durum istenmez
       expect(api.durum).not.toHaveBeenCalled()
       expect(screen.queryByRole('button', { name: 'Entegratör Senkronla' })).not.toBeInTheDocument()
+    })
+
+    it('Entegratör ve sistem kolonlarına göre sıralanır; dolu sistem durumu Evet/Hayır görünür', async () => {
+      api.faturalar.mockResolvedValue({
+        ...BIRLESIK,
+        data: [{ ...FATURA, saglayici: 'izibiz', sap_islendi: true }, PROTEL_FATURASI],
+      })
+      ciz(IZINLER, 'tum')
+      await screen.findByText('Otel Tedarik A.Ş.')
+
+      const izibizSatiri = screen.getByText('ABC2026000000001').closest('tr') as HTMLElement
+      expect(within(izibizSatiri).getAllByTitle(/servisi açıldığında gelecek/)).toHaveLength(2)
+      expect(within(izibizSatiri).getByText('Evet')).toBeInTheDocument()
+
+      for (const [baslik, anahtar] of [
+        [/^Entegratör/, 'entegrator'],
+        [/^Protel Okudu/, 'protel_okudu'],
+        [/^Protel(?! Okudu)/, 'protel'],
+        [/^SAP/, 'sap'],
+      ] as const) {
+        fireEvent.click(
+          within(screen.getByRole('columnheader', { name: baslik })).getByRole('button'),
+        )
+        await waitFor(() =>
+          expect(api.faturalar).toHaveBeenLastCalledWith(
+            'gelen',
+            expect.anything(),
+            { anahtar, yon: 'asc' },
+            1,
+            'tum',
+          ),
+        )
+      }
     })
 
     it('Excel ekrandaki kapsamla birleşik uçtan; Protel faturasının PDF’i açılır, XML düğmesi yoktur', async () => {

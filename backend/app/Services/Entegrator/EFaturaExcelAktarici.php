@@ -67,7 +67,7 @@ final class EFaturaExcelAktarici
         // Protel ekranı (PRT-12)
         'erp_durumu' => ['metin', 14],
         'yazdirildi' => ['metin', 10],
-        // Tüm Faturalar: hangi sisteme girildi — kaynak uçlar henüz yok, boş yazılır
+        // Tüm Faturalar: hangi sisteme girildi — kaynak uçlar gelene kadar boş (null)
         'protel_okudu' => ['metin', 12],
         'protel' => ['metin', 12],
         'sap' => ['metin', 10],
@@ -187,7 +187,9 @@ final class EFaturaExcelAktarici
                 null => null,
             }],
             'emor' => ['metin', $f->emor_durumu === null ? null : __('efatura.emor.'.$f->emor_durumu->value)],
-            'protel_okudu', 'protel', 'sap' => ['metin', null],
+            'protel_okudu' => ['metin', $this->evetHayir($f->protel_okundu)],
+            'protel' => ['metin', $this->evetHayir($f->protel_islendi)],
+            'sap' => ['metin', $this->evetHayir($f->sap_islendi)],
             'yazdirildi' => ['metin', match ($f->yazdirildi) {
                 true => __('efatura.evet'),
                 false => __('efatura.hayir'),
@@ -252,6 +254,15 @@ final class EFaturaExcelAktarici
             'M' => $sayi * 1024 ** 2,
             'K' => $sayi * 1024,
             default => $sayi,
+        };
+    }
+
+    private function evetHayir(?bool $deger): ?string
+    {
+        return match ($deger) {
+            true => __('efatura.evet'),
+            false => __('efatura.hayir'),
+            null => null,
         };
     }
 

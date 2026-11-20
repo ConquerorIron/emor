@@ -69,6 +69,10 @@ final class EFaturaResource extends JsonResource
             // Protel'e özgü (İzibiz'de null) — yalnız gösterilir
             'erp_durumu' => $this->getAttribute('erp_durumu'),
             'yazdirildi' => $this->getAttribute('yazdirildi'),
+            // Tüm Faturalar: hangi sisteme girildi (kaynak uçlar gelene kadar null)
+            'protel_okundu' => $this->getAttribute('protel_okundu'),
+            'protel_islendi' => $this->getAttribute('protel_islendi'),
+            'sap_islendi' => $this->getAttribute('sap_islendi'),
             'son_gorulme' => $this->getAttribute('son_gorulme')?->toIso8601String(),
             'gizli' => $this->gizlenme_zamani !== null,
             'gizlenme_zamani' => $this->gizlenme_zamani?->toIso8601String(),

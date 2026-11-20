@@ -74,6 +74,9 @@ const FATURA: EFatura = {
   gizli: false,
   gizlenme_zamani: null,
   gizleyen: null,
+  protel_okundu: null,
+  protel_islendi: null,
+  sap_islendi: null,
 }
 
 function liste(faturalar: EFatura[]): EFaturaListesi {

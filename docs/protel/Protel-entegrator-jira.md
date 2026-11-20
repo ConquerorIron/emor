@@ -528,6 +528,11 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
     **Entegratör** kolonu — satırın posta kutusu (İzibiz / Protel); Excel'de de
     (`entegrator`, sağlayıcı kapsamdaki tanımlardan eşlenir: `cursor()` eager
     load yapmaz). Testler güncellendi (ekran hücreleri, Excel içeriği).
+  - 2026-11-20 Claude · kullanıcı isteği: Entegratör, Protel Okudu, Protel, SAP
+    kolonlarına göre sıralama. Entegratör tanımın sağlayıcısıyla (sabit alt sorgu);
+    sistem kolonları için `efatura_faturalari`'na boş olabilen `protel_okundu`,
+    `protel_islendi`, `sap_islendi` (kaynak uçlar bunlara yazacak; senkron yazmaz).
+    Boşlar sıralamada en sonda; dolu değer ekranda ve Excel'de Evet/Hayır.
 
 ---
 
