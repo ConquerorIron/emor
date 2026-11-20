@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Builder;
  * Faturalar'da sağlayıcı başına aktif tanım) + yöndür (test ve canlı hesabın
  * faturaları karışmaz). Sıralama kolonları allow-list'tir.
  *
- * @phpstan-type Filtre array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, otel_erp_okundu?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null}
+ * @phpstan-type Filtre array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, otel_erp_okundu?: string|null, entegrator?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null}
  */
 final class EFaturaSorgusu
 {
@@ -40,6 +40,7 @@ final class EFaturaSorgusu
      */
     public function filtrele(EntegratorBaglanti|array $tanimlar, FaturaYonu $yon, array $filtre): Builder
     {
+        $tanimlar = $tanimlar instanceof EntegratorBaglanti ? [$tanimlar] : $tanimlar;
         $sorgu = EFatura::query()
             ->whereIn('entegrator_baglanti_id', $this->tanimIdleri($tanimlar))
             ->where('yon', $yon->value)
@@ -52,9 +53,11 @@ final class EFaturaSorgusu
             [$karsiVkn, $karsiUnvan] = $this->karsiKolonlar($yon);
             $karsiAdSoyad = $yon === FaturaYonu::Gelen ? 'gonderici_ad_soyad' : 'alici_ad_soyad';
             $desen = '%'.$ara.'%';
+            // Tüm Faturalar: Entegratör kolonu (tanımın sağlayıcısı) da aranır
+            $saglayiciTanimlari = count($tanimlar) > 1 ? $this->adiEslesenTanimlar($tanimlar, $ara) : [];
 
             // Değer bağlanır; joker karakterler yalnız aramayı genişletir
-            $sorgu->where(function (Builder $q) use ($desen, $karsiVkn, $karsiUnvan, $karsiAdSoyad): void {
+            $sorgu->where(function (Builder $q) use ($desen, $karsiVkn, $karsiUnvan, $karsiAdSoyad, $saglayiciTanimlari): void {
                 $q->whereLike('belge_no', $desen)
                     ->orWhereLike('ettn', $desen)
                     ->orWhereLike($karsiVkn, $desen)
@@ -65,8 +68,17 @@ final class EFaturaSorgusu
                     ->orWhereLike('irsaliye_no', $desen)
                     // Fatura zarf durumu ekranda "1300 BAŞARIYLA TAMAMLANDI" diye görünür
                     ->orWhereLike('gib_durum_aciklamasi', $desen)
-                    ->orWhereRaw('CAST(gib_durum_kodu AS TEXT) LIKE ?', [$desen]);
+                    ->orWhereRaw('CAST(gib_durum_kodu AS TEXT) LIKE ?', [$desen])
+                    ->when($saglayiciTanimlari !== [], fn (Builder $q) => $q->orWhereIn('entegrator_baglanti_id', $saglayiciTanimlari));
             });
+        }
+
+        // Tüm Faturalar: yalnız bir sağlayıcının (İzibiz / Protel) faturaları
+        if (($filtre['entegrator'] ?? null) !== null) {
+            $sorgu->whereIn('entegrator_baglanti_id', array_map(
+                fn (EntegratorBaglanti $t): int => $t->id,
+                array_filter($tanimlar, fn (EntegratorBaglanti $t): bool => $t->saglayici === $filtre['entegrator']),
+            ));
         }
 
         if (($filtre['durum'] ?? null) !== null) {
@@ -259,6 +271,24 @@ final class EFaturaSorgusu
         return $yon === FaturaYonu::Gelen
             ? ['gonderici_vkn', 'gonderici_unvan']
             : ['alici_vkn', 'alici_unvan'];
+    }
+
+    /**
+     * Ekrandaki sağlayıcı adı (İzibiz / Protel) aranan metni içeren tanımlar.
+     * Karşılaştırma büyük/küçük harf ve Türkçe I/İ duyarsız ("izibiz", "IZIBIZ").
+     *
+     * @param  list<EntegratorBaglanti>  $tanimlar
+     * @return list<int>
+     */
+    private function adiEslesenTanimlar(array $tanimlar, string $ara): array
+    {
+        $sade = fn (string $metin): string => mb_strtolower(str_replace(['İ', 'I', 'ı'], 'i', $metin));
+        $aranan = $sade($ara);
+
+        return array_values(array_map(
+            fn (EntegratorBaglanti $t): int => $t->id,
+            array_filter($tanimlar, fn (EntegratorBaglanti $t): bool => str_contains($sade(__('efatura.saglayici.'.$t->saglayici)), $aranan)),
+        ));
     }
 
     /**

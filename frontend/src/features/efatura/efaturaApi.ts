@@ -131,6 +131,8 @@ export interface EFaturaFiltresi {
   durum: string
   erp_okundu: ErpOkunduFiltresi
   emor: EmorFiltresi
+  /** Yalnız Tüm Faturalar: tek sağlayıcının faturaları */
+  entegrator: '' | 'izibiz' | 'protel'
   para_birimi: string
   tip: string
   istisna_kodu: string
@@ -185,6 +187,7 @@ function parametreler(filtre: EFaturaFiltresi, siralama: Siralama | null): Recor
     'durum',
     'erp_okundu',
     'emor',
+    'entegrator',
     'para_birimi',
     'tip',
     'istisna_kodu',

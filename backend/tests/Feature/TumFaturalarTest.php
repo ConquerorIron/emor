@@ -91,6 +91,27 @@ final class TumFaturalarTest extends TestCase
         $this->assertSame(['OTL1', 'INS2', 'INS1'], $sirali('sap', 'desc'));
     }
 
+    /** Entegratör filtresi ve aramada Entegratör kolonu (tanımın sağlayıcısı; harf / I-İ duyarsız). */
+    public function test_entegrator_filtresi_ve_aramasi_saglayici_adiyla_eslesir(): void
+    {
+        [$izibiz, $protel] = $this->tanimlar();
+        EFatura::factory()->create(['entegrator_baglanti_id' => $izibiz->id, 'belge_no' => 'INS1']);
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTL1']);
+        $kullanici = $this->izinli('tum_faturalar.goruntule');
+        $bulunan = fn (string $sorgu): array => array_column(
+            $this->actingAs($kullanici)->getJson('/api/v1/tum-faturalar/faturalar?'.self::ARALIK.'&'.$sorgu)->assertOk()->json('data'),
+            'belge_no',
+        );
+
+        $this->assertSame(['OTL1'], $bulunan('entegrator=protel'));
+        $this->assertSame(['INS1'], $bulunan('entegrator=izibiz'));
+        $this->assertSame(['OTL1'], $bulunan('ara=PROTEL'));
+        $this->assertSame(['INS1'], $bulunan('ara='.urlencode('İzibiz')));
+        $this->assertSame(['INS1'], $bulunan('ara=izib'));
+        $this->assertSame([], $bulunan('ara=protel&entegrator=izibiz'));
+        $this->actingAs($kullanici)->getJson('/api/v1/tum-faturalar/faturalar?'.self::ARALIK.'&entegrator=sap')->assertUnprocessable();
+    }
+
     public function test_yalniz_bir_saglayici_aktifse_onun_faturalari_hicbiri_yoksa_hata_doner(): void
     {
         $kullanici = $this->izinli('tum_faturalar.goruntule');

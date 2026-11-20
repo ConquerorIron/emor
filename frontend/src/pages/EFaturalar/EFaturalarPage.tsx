@@ -59,6 +59,7 @@ const BOS_FILTRE: Omit<EFaturaFiltresi, 'baslangic' | 'bitis'> = {
   durum: '',
   erp_okundu: '',
   emor: '',
+  entegrator: '',
   para_birimi: '',
   tip: '',
   istisna_kodu: '',
@@ -610,6 +611,10 @@ export function EFaturalarPage({
     value: d,
     label: t(`efatura.${d}`),
   }))
+  const entegratorSecenekleri: SecenekOgesi[] = (['izibiz', 'protel'] as const).map((d) => ({
+    value: d,
+    label: t(`efatura.saglayici.${d}`),
+  }))
   // Seçili değer yeni aralığın seçeneklerinde yoksa da görünür kalır
   // (aksi hâlde kutu "Hepsi" derken filtre isteğe gitmeye devam eder)
   const secili = (ogeler: SecenekOgesi[], deger: string) =>
@@ -759,6 +764,22 @@ export function EFaturalarPage({
             onChange={(olay) => filtreDegistir('ara', olay.target.value)}
           />
         </div>
+        {tum ? (
+          <div className="w-full sm:w-36">
+            <SelectField
+              id="efatura-entegrator"
+              label={t('efatura.kolon.entegrator')}
+              options={entegratorSecenekleri}
+              value={secili(entegratorSecenekleri, filtre.entegrator)}
+              onChange={(secim) =>
+                filtreDegistir('entegrator', (secim?.value ?? '') as EFaturaFiltresi['entegrator'])
+              }
+              placeholder={t('efatura.hepsi')}
+              isClearable
+              isSearchable={false}
+            />
+          </div>
+        ) : null}
         <div className="w-full sm:w-60">
           <SelectField
             id="efatura-durum"

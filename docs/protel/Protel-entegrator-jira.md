@@ -551,6 +551,11 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
       DB kolonları da düşürüldü (hiç dolmamıştı). SAP kalıyor.
     - **Hızlı filtre:** "ERP İşlenenler" eklendi (`emor=islenmis` = İşlendi +
       İşlendi (elle)); "ERP İşlenmeyenler"in karşılığı.
+  - 2026-11-20 Claude · kullanıcı isteği: Tüm Faturalar'da **Entegratör filtresi**
+    (`entegrator=izibiz|protel`). Ara kutusu Entegratör kolonunda da arar:
+    sağlayıcı adı tanımdan geldiği için ("protel", "İzibiz", harf / I-İ duyarsız)
+    adı eşleşen tanımın faturaları gelir. Bu yalnız birden çok tanımlı kapsamda
+    uygulanır; sağlayıcı ekranında "protel" yazmak her satırı getirmez.
 
 ---
 

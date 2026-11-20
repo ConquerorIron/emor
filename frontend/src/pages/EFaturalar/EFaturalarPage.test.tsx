@@ -1135,5 +1135,32 @@ describe('EFaturalarPage', () => {
       expect(api.pdf).toHaveBeenCalledWith(12, 'tum')
       expect(within(dialog).queryByRole('button', { name: 'XML İndir' })).not.toBeInTheDocument()
     })
+
+    it('Entegratör filtresi seçilen sağlayıcıyı ister; sağlayıcı ekranlarında yoktur', async () => {
+      api.faturalar.mockResolvedValue(BIRLESIK)
+      ciz(IZINLER, 'tum')
+      await screen.findByText('Otel Tedarik A.Ş.')
+      const alan = document.querySelector<HTMLElement>(
+        'label[for="efatura-entegrator"]',
+      )!.parentElement!
+
+      fireEvent.keyDown(within(alan).getByRole('combobox'), { key: 'ArrowDown' })
+      fireEvent.click(await screen.findByRole('option', { name: 'Protel' }))
+
+      await waitFor(() =>
+        expect(api.faturalar).toHaveBeenLastCalledWith(
+          'gelen',
+          expect.objectContaining({ entegrator: 'protel' }),
+          VARSAYILAN_SIRALAMA,
+          1,
+          'tum',
+        ),
+      )
+      cleanup()
+
+      ciz(IZINLER)
+      await screen.findByText('Deniz Boya Ltd.')
+      expect(document.querySelector('label[for="efatura-entegrator"]')).toBeNull()
+    })
   })
 })
