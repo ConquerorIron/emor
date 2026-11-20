@@ -732,7 +732,8 @@
       "protel": "Protel",
       "sap": "SAP",
       "sistemBekleniyor": "Bu bilgi, ilgili sistemin (Protel / SAP) servisi açıldığında gelecek.",
-      "entegrator": "Entegratör"
+      "entegrator": "Entegratör",
+      "siraNo": "Sıra No"
     },
     "erpSenkron": {
       "ac": "ERP Senkronla",

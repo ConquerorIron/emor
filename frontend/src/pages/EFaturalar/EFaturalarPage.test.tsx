@@ -95,7 +95,7 @@ const VARSAYILAN_SIRALAMA = { anahtar: 'olusturma_zamani', yon: 'desc' }
 
 const LISTE: EFaturaListesi = {
   data: [FATURA],
-  meta: { current_page: 1, last_page: 1, total: 1 },
+  meta: { current_page: 1, last_page: 1, total: 1, from: 1 },
   ozet: [{ para_birimi: 'TRY', adet: 1, tutar: '1250.50', vergi_tutari: '208.42' }],
   secenekler: {
     durumlar: [{ deger: 'RECEIVED', aciklama: 'Alındı' }],
@@ -200,10 +200,23 @@ describe('EFaturalarPage', () => {
     expect(screen.queryByRole('button', { name: 'Entegratör Senkronla' })).not.toBeInTheDocument()
   })
 
+  it('Sıra No sayfalar boyunca kesintisiz sayar (2. sayfa 51den başlar)', async () => {
+    api.faturalar.mockResolvedValue({
+      ...LISTE,
+      data: [FATURA, { ...FATURA, id: 12, belge_no: 'ABC2026000000002' }],
+      meta: { current_page: 2, last_page: 2, total: 52, from: 51 },
+    })
+    ciz(['efatura.goruntule'])
+    await screen.findAllByText('Deniz Boya Ltd.')
+
+    const satirlar = screen.getAllByRole('row').slice(1)
+    expect(satirlar.map((satir) => satir.querySelector('td')?.textContent)).toEqual(['51', '52'])
+  })
+
   it('başka sayfadayken arama yapılınca gecikmeyle ve 1. sayfadan uygular', async () => {
     api.faturalar.mockResolvedValue({
       ...LISTE,
-      meta: { current_page: 1, last_page: 3, total: 60 },
+      meta: { current_page: 1, last_page: 3, total: 60, from: 1 },
     })
     ciz(['efatura.goruntule'])
     await screen.findByText('Deniz Boya Ltd.')
@@ -258,7 +271,12 @@ describe('EFaturalarPage', () => {
     // "Güncelleniyor" yeni filtrenin ilk çiziminde görünür, istek ise sonraki
     // effect'te atılır: yük altında bitirmeden önce isteğin başlaması beklenir
     await waitFor(() => expect(bitir).toBeTypeOf('function'))
-    bitir({ ...LISTE, data: [], meta: { current_page: 1, last_page: 1, total: 0 }, ozet: [] })
+    bitir({
+      ...LISTE,
+      data: [],
+      meta: { current_page: 1, last_page: 1, total: 0, from: null },
+      ozet: [],
+    })
 
     await waitFor(() => expect(screen.queryByText('Güncelleniyor…')).not.toBeInTheDocument())
     expect(screen.queryByText('Deniz Boya Ltd.')).not.toBeInTheDocument()
@@ -314,17 +332,19 @@ describe('EFaturalarPage', () => {
     expect(localStorage.getItem('erp.sayfaBoyutu')).toBe('100')
   })
 
-  it('kolonlar istenen sırada ve varsayılan hepsi açık; gizlenen kolon tarayıcıda hatırlanır', async () => {
+  it('kolonlar istenen sırada (en solda Sıra No ve ikonlu işlemler) ve varsayılan hepsi açık; gizlenen kolon tarayıcıda hatırlanır', async () => {
     ciz(['efatura.goruntule'])
     await screen.findByText('Deniz Boya Ltd.')
     // Sıralanabilir başlıklardaki ok simgesi hariç
     const basliklar = () =>
       screen.getAllByRole('columnheader').map((th) => th.textContent?.replace(/[↕▲▼]/g, ''))
 
-    // İşlemler (Detay/PDF) en solda, başlıksız
-    expect(basliklar()[0]).toBe('')
-    expect(screen.getAllByRole('row')[1].querySelector('td')).toHaveTextContent('Detay')
-    expect(basliklar().slice(1, 14)).toEqual([
+    // En solda Sıra No, yanında başlıksız işlemler (Detay / PDF ikonları)
+    expect(basliklar().slice(0, 2)).toEqual(['Sıra No', ''])
+    const ilkSatir = screen.getAllByRole('row')[1].querySelectorAll('td')
+    expect(ilkSatir[0]).toHaveTextContent('1')
+    expect(within(ilkSatir[1]).getByRole('button', { name: 'Detay' })).toBeInTheDocument()
+    expect(basliklar().slice(2, 15)).toEqual([
       'ERP Okudu',
       'eMOR',
       'Fatura No',
@@ -814,7 +834,7 @@ describe('EFaturalarPage', () => {
   it('son sayfa boşalınca (ör. son fatura gizlenince) son dolu sayfaya dönülür', async () => {
     api.faturalar.mockResolvedValue({
       ...LISTE,
-      meta: { current_page: 1, last_page: 3, total: 120 },
+      meta: { current_page: 1, last_page: 3, total: 120, from: 1 },
     })
     ciz(['efatura.goruntule'])
     await screen.findByText('Deniz Boya Ltd.')
@@ -822,7 +842,7 @@ describe('EFaturalarPage', () => {
     api.faturalar.mockResolvedValue({
       ...LISTE,
       data: [],
-      meta: { current_page: 3, last_page: 2, total: 100 },
+      meta: { current_page: 3, last_page: 2, total: 100, from: null },
     })
     fireEvent.click(screen.getAllByRole('button', { name: '3' })[0])
 
@@ -990,7 +1010,7 @@ describe('EFaturalarPage', () => {
     const BIRLESIK: EFaturaListesi = {
       ...LISTE,
       data: [{ ...FATURA, saglayici: 'izibiz' }, PROTEL_FATURASI],
-      meta: { current_page: 1, last_page: 1, total: 2 },
+      meta: { current_page: 1, last_page: 1, total: 2, from: 1 },
       kapsam: { ortam: 'izibiz:canli,protel:canli' },
     }
     const IZINLER = ['tum_faturalar.goruntule', 'tum_faturalar.pdf', 'tum_faturalar.disari_aktar']
@@ -1011,7 +1031,7 @@ describe('EFaturalarPage', () => {
       const basliklar = screen
         .getAllByRole('columnheader')
         .map((th) => th.textContent?.replace(/[↕▲▼]/g, ''))
-      expect(basliklar.slice(1, 8)).toEqual([
+      expect(basliklar.slice(2, 9)).toEqual([
         'Entegratör',
         'eMOR Okudu',
         'eMOR',
@@ -1022,9 +1042,9 @@ describe('EFaturalarPage', () => {
       ])
       // Kaynak uç gelene kadar sistem kolonları boş ve açıklamalı
       const satir = screen.getByText('OTL2026000000002').closest('tr') as HTMLElement
-      expect(satir.querySelectorAll('td')[1]).toHaveTextContent('Protel')
+      expect(satir.querySelectorAll('td')[2]).toHaveTextContent('Protel')
       const izibizSatiri = screen.getByText('ABC2026000000001').closest('tr') as HTMLElement
-      expect(izibizSatiri.querySelectorAll('td')[1]).toHaveTextContent('İzibiz')
+      expect(izibizSatiri.querySelectorAll('td')[2]).toHaveTextContent('İzibiz')
       expect(within(satir).getAllByTitle(/servisi açıldığında gelecek/)).toHaveLength(3)
       expect(screen.queryByText('ERP Okudu')).not.toBeInTheDocument()
       // Senkron sağlayıcı ekranlarında: durum istenmez

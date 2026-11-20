@@ -732,7 +732,8 @@
       "protel": "Protel",
       "sap": "SAP",
       "sistemBekleniyor": "This will be filled once the system's (Protel / SAP) service is available.",
-      "entegrator": "Integrator"
+      "entegrator": "Integrator",
+      "siraNo": "No."
     },
     "erpSenkron": {
       "ac": "Sync with ERP",

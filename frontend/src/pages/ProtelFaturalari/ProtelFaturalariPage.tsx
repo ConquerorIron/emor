@@ -17,7 +17,13 @@ import { TarihInput } from '@/components/TarihInput'
 import { LISTE_AZAMI_GUN, tutarGoster, varsayilanBaslangic } from '@/features/efatura/bicim'
 import { durumIsaretSinifi, durumSatirSinifi } from '@/features/efatura/durumRenkleri'
 import type { EFatura, ErpOkunduFiltresi, ExcelKolonu } from '@/features/efatura/efaturaApi'
-import { EvetHayirRozeti, Metin, OzetKartlari } from '@/features/efatura/ListeParcalari'
+import {
+  EvetHayirRozeti,
+  Metin,
+  OzetKartlari,
+  PdfDugmesi,
+  SiraNo,
+} from '@/features/efatura/ListeParcalari'
 import { PdfGoruntuleyici } from '@/features/efatura/PdfGoruntuleyici'
 import {
   type ProtelFaturaFiltresi,
@@ -294,17 +300,22 @@ export function ProtelFaturalariPage() {
     },
   ]
 
+  // Sıra No sayfalar boyunca kesintisiz: sunucunun sayfa başlangıcından
+  const ilkSira = liste.data?.meta.from ?? 1
   const kolonlar: DataTableKolonu<EFatura>[] = [
+    {
+      // Sıra No en solda, her zaman görünür (kullanıcı isteği 2026-11-20)
+      anahtar: 'sira_no',
+      baslik: t('efatura.kolon.siraNo'),
+      hizala: 'orta' as const,
+      render: (_f: EFatura, sira: number) => <SiraNo deger={ilkSira + sira} />,
+    },
     ...(pdfIzni
       ? [
           {
             anahtar: 'islemler',
             baslik: '',
-            render: (f: EFatura) => (
-              <Button variant="secondary" onClick={() => setPdf(f)}>
-                {t('efatura.pdf')}
-              </Button>
-            ),
+            render: (f: EFatura) => <PdfDugmesi onClick={() => setPdf(f)} />,
           },
         ]
       : []),
@@ -521,6 +532,8 @@ export function ProtelFaturalariPage() {
               satirAnahtari={(f) => f.id}
               yukleniyor={liste.isPending}
               ustKaydirma
+              // Bir boy küçük yazı: çok kolonlu liste (kullanıcı isteği 2026-11-20)
+              yaziBoyutu="kucuk"
               satirSinifi={(f) => durumSatirSinifi(f.durum)}
               siralama={siralama}
               siralamaDegistir={(anahtar) => {

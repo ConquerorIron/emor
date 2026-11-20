@@ -94,7 +94,8 @@ export interface ParaBirimiOzeti {
 
 export interface EFaturaListesi {
   data: EFatura[]
-  meta: { current_page: number; last_page: number; total: number }
+  /** from: sayfanın ilk satırının genel sırası (Sıra No); boş listede null */
+  meta: { current_page: number; last_page: number; total: number; from: number | null }
   ozet: ParaBirimiOzeti[]
   secenekler: {
     /** İzibiz durum kodu + Türkçe açıklaması */

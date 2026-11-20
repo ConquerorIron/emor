@@ -33,7 +33,14 @@ import {
   senkronDurumuGetir,
   xmlIndir,
 } from '@/features/efatura/efaturaApi'
-import { EvetHayirRozeti, Metin, OzetKartlari } from '@/features/efatura/ListeParcalari'
+import {
+  DetayDugmesi,
+  EvetHayirRozeti,
+  Metin,
+  OzetKartlari,
+  PdfDugmesi,
+  SiraNo,
+} from '@/features/efatura/ListeParcalari'
 import { PdfGoruntuleyici } from '@/features/efatura/PdfGoruntuleyici'
 import { SenkronDurumuPaneli } from '@/features/efatura/SenkronDurumuPaneli'
 import { useDebounce } from '@/hooks/useDebounce'
@@ -552,21 +559,24 @@ export function EFaturalarPage({
     },
   ]
 
+  // Sıra No sayfalar boyunca kesintisiz: sunucunun sayfa başlangıcından
+  const ilkSira = liste.data?.meta.from ?? 1
   const kolonlar: DataTableKolonu<EFatura>[] = [
     {
-      // İşlemler en solda ve her zaman görünür (seçicide yok) — kullanıcı isteği 2026-09-24
+      // Sıra No en solda, her zaman görünür (kullanıcı isteği 2026-11-20)
+      anahtar: 'sira_no',
+      baslik: t('efatura.kolon.siraNo'),
+      hizala: 'orta',
+      render: (_f, sira) => <SiraNo deger={ilkSira + sira} />,
+    },
+    {
+      // İşlemler (ikon) her zaman görünür (seçicide yok) — kullanıcı isteği 2026-09-24
       anahtar: 'islemler',
       baslik: '',
       render: (f) => (
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => setPencere({ tur: 'detay', fatura: f })}>
-            {t('efatura.detay')}
-          </Button>
-          {pdfIzni ? (
-            <Button variant="secondary" onClick={() => setPencere({ tur: 'pdf', fatura: f })}>
-              {t('efatura.pdf')}
-            </Button>
-          ) : null}
+        <div className="flex items-center gap-1">
+          <DetayDugmesi onClick={() => setPencere({ tur: 'detay', fatura: f })} />
+          {pdfIzni ? <PdfDugmesi onClick={() => setPencere({ tur: 'pdf', fatura: f })} /> : null}
           {f.gizli ? (
             <span
               className="self-center rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200"
@@ -887,6 +897,8 @@ export function EFaturalarPage({
               satirAnahtari={(f) => f.id}
               yukleniyor={liste.isPending}
               ustKaydirma
+              // Bir boy küçük yazı: çok kolonlu liste (kullanıcı isteği 2026-11-20)
+              yaziBoyutu="kucuk"
               satirSinifi={(f) => (f.gizli ? GIZLI_SATIR : durumSatirSinifi(f.durum))}
               siralama={siralama}
               siralamaDegistir={(anahtar) => {

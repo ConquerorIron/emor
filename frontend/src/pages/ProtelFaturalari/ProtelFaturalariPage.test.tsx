@@ -82,7 +82,7 @@ const FATURA: EFatura = {
 function liste(faturalar: EFatura[]): EFaturaListesi {
   return {
     data: faturalar,
-    meta: { current_page: 1, last_page: 1, total: faturalar.length },
+    meta: { current_page: 1, last_page: 1, total: faturalar.length, from: 1 },
     ozet: [
       { para_birimi: 'TRY', adet: faturalar.length, tutar: '1786.00', vergi_tutari: '401.98' },
     ],
@@ -141,11 +141,13 @@ describe('ProtelFaturalariPage', () => {
     onlineManager.setOnline(true)
   })
 
-  it('Protel durum kolonlarını gösterir; eMOR ve gizleme yoktur', async () => {
+  it('en solda Sıra No; Protel durum kolonlarını gösterir; eMOR ve gizleme yoktur', async () => {
     api.faturalar.mockResolvedValue(liste([FATURA]))
     ciz(['protel_faturalari.goruntule'])
 
     const satir = (await screen.findByText('OTL2026000000001')).closest('tr') as HTMLElement
+    expect(screen.getAllByRole('columnheader')[0]).toHaveTextContent('Sıra No')
+    expect(satir.querySelector('td')).toHaveTextContent('1')
     expect(within(satir).getByText('Muhasebeleşti')).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: /Otel ERP Durumu/ })).toBeInTheDocument()
     expect(screen.queryByRole('columnheader', { name: /eMOR/ })).not.toBeInTheDocument()
