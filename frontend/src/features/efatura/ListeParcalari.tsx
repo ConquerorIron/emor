@@ -125,38 +125,53 @@ export function DetayDugmesi({ onClick }: { onClick: () => void }) {
   )
 }
 
-/** Fatura aslı (PDF): kırmızı PDF belgesi ikonu (satır içi SVG — harici dosya yok) */
+/**
+ * Fatura aslı (PDF): klasik PDF dosyası ikonu — kıvrık köşeli sayfa, kırmızı
+ * "PDF" şeridi ve kırmızı kıvrım (kullanıcının örneğine benzer; marka logosu
+ * kopyalanmadı). Satır içi SVG: harici dosya yok, her boyutta net.
+ */
 export function PdfDugmesi({ onClick }: { onClick: () => void }) {
   const { t } = useTranslation()
 
   return (
     <IkonDugmesi etiket={t('efatura.pdf')} onClick={onClick}>
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5">
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="size-6">
+        {/* Sayfa ve kıvrık köşe */}
         <path
-          d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"
-          fill="#fff"
-          stroke="#b91c1c"
-          strokeWidth={1.2}
+          d="M5.5 2h9.5l5 5v14.25a.75.75 0 0 1-.75.75H5.5a.75.75 0 0 1-.75-.75V2.75A.75.75 0 0 1 5.5 2Z"
+          fill="#fafafa"
+          stroke="#9ca3af"
+          strokeWidth={0.8}
         />
         <path
-          d="M15 2v5h5"
-          fill="#fecaca"
-          stroke="#b91c1c"
-          strokeWidth={1.2}
+          d="M15 2v5h5Z"
+          fill="#d1d5db"
+          stroke="#9ca3af"
+          strokeWidth={0.8}
           strokeLinejoin="round"
         />
-        <rect x="2" y="11" width="16" height="7" rx="1.2" fill="#dc2626" />
+        {/* Kırmızı PDF şeridi (sayfanın soluna taşar) */}
+        <rect x="2.5" y="7.5" width="14.5" height="5.6" rx="0.5" fill="#c62828" />
         <text
-          x="10"
-          y="16.6"
+          x="9.75"
+          y="11.85"
           textAnchor="middle"
-          fontSize="5.6"
+          fontSize="4.6"
           fontWeight={700}
           fill="#fff"
           fontFamily="Arial, Helvetica, sans-serif"
         >
           PDF
         </text>
+        {/* Kırmızı kıvrım */}
+        <path
+          d="M8.4 20.2c1.3-1.1 2.7-3 3.2-4.9.2-.8-.6-1-.8-.3-.4 1.6 1.9 3.6 4.9 3.9.9.1.9.8 0 .8-2.6-.2-5.4.1-7.3.5"
+          fill="none"
+          stroke="#c62828"
+          strokeWidth={0.9}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     </IkonDugmesi>
   )
