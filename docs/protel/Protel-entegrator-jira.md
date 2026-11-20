@@ -553,8 +553,8 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 
 ### PRT-15 — Canlıya alma
 
-- **Durum:** YAPILACAK · **Bağımlı:** PRT-14 · **Ön koşul:** Codex `PASSED` ve
-  kullanıcının "canlıya al" talimatı (§2.1 madde 2).
+- **Durum:** CANLIDA (9. adım ve muhasebe kullanımı bekleniyor) · **Bağımlı:** PRT-14 ·
+  **Ön koşul:** Codex `PASSED` ve kullanıcının "canlıya al" talimatı (§2.1 madde 2).
 - **Kapsam:**
   1. **Önce:** sunucudaki commit ile gidecek commit arası listelenir;
      birlikte gidecek başka işler (yedekleme, eFatura 86d6844 kilidi)
@@ -579,6 +579,22 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
   - [ ] Durum görüntüsünde bizim kaynaklı değişiklik yok.
   - [ ] Muhasebe ekranı kullandı.
 - **İnceleme günlüğü:**
+  - 2026-11-20 Claude · kullanıcı "canlıya al" (PRT-07 PASSED'dan sonra):
+    1. Birlikte giden: yedekleme BY-001…005 (YEDEKLEME_AKTIF tanımsız = kapalı;
+       sunucuda yedek cron'u / kurulumu yok), İzibiz kilidi 86d6844 (artımlı 10 gün),
+       migration'lar `create_yedekleme_tables`, `add_protel_alanlari…`, sonra `add_auth_url…`.
+    2. Deploy `324bc5f` → `ae6abe2` → `d0cc71f`, her biri "Deploy tamamlandı".
+    3. Durum görüntüsü Protel şifresi gerektirmesin diye veritabanından alınacak:
+       ilk tarama sonrası satırlar = başlangıç; 24 saat sonra (gece tazelemesi) karşılaştırma.
+    4. Sunucu `.env` `PROTEL_AKTIF=true`, `config:cache`.
+    5. Şifreyi kullanıcı ekrandan girdi (şifre Claude'a gelmedi). Adresler tanıma
+       açıkça yazıldı (kimlik sürümü değişmedi), sınama başarılı (HALİÇ ALTIN BOYNUZ
+       MARİNA …), Protel aktif ortamı Canlı.
+    6. İlk tarama kuyruktan (`www-data`; admin `laravel.log`'a yazamaz):
+       11 ay, hepsi `tam`, **2.646 fatura**, hatalı 0 (yerel kabulde 2.640 — aradaki günler).
+    7. İlk zamanlanmış artımlı çalışma `tam` (103 okunan, 0 yeni).
+    - İzibiz ve Protel arasında ortak ETTN **0** (Tüm Faturalar'da çift satır yok).
+    - Bekleyen: 8 (rollere `protel_faturalari.*` / `tum_faturalar.*`), 9 (24 saat sonra karşılaştırma).
 
 ---
 

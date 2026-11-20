@@ -83,13 +83,19 @@ function formAnahtari(tanim: EntegratorBaglanti | null): string {
     : 'yeni'
 }
 
-/** Formun adres alanları: yalnız ekrandan tanımlanmış adres dolu gelir; varsayılan ipucudur. */
+/**
+ * Formun adres alanları kullanılan adresle DOLU gelir; yeni tanımda ortamın
+ * varsayılanı yazılıdır — kullanıcı yalnız şifreyi girer (kullanıcı isteği
+ * 2026-11-20). Alan boşaltılırsa yine varsayılan kullanılır.
+ */
 function formAdresleri(
   tanim: EntegratorBaglanti | null,
+  varsayilanGiris: string,
+  varsayilanFatura: string,
 ): Pick<ProtelGirdisi, 'auth_url' | 'api_url'> {
   return {
-    auth_url: tanim?.auth_url_ozel ? (tanim.auth_url ?? '') : '',
-    api_url: tanim?.api_url_ozel ? tanim.api_url : '',
+    auth_url: tanim?.auth_url ?? varsayilanGiris,
+    api_url: tanim?.api_url ?? varsayilanFatura,
   }
 }
 
@@ -120,7 +126,7 @@ function ProtelFormu({
   } = useForm<ProtelGirdisi>({
     resolver: standardSchemaResolver(protelSemasi(!tanim?.sifre_dolu)),
     defaultValues: {
-      ...formAdresleri(tanim),
+      ...formAdresleri(tanim, varsayilanGirisAdresi, varsayilanFaturaAdresi),
       kullanici_adi: tanim?.kullanici_adi ?? '',
       sifre: '',
       vkn: tanim?.vkn ?? '',

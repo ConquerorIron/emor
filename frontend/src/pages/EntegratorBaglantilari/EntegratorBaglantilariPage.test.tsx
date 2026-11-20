@@ -328,7 +328,7 @@ describe('EntegratorBaglantilariPage', () => {
   describe('Protel bölümü (PRT-03, PRT-05)', () => {
     const protelFormu = () => screen.getByRole('form', { name: 'Protel Test tanımı' })
 
-    it('tanımı adresler, kullanıcı, şifre, VKN ve senkron aralığıyla kaydeder; boş adres varsayılandır', async () => {
+    it('yeni tanımda adresler varsayılanla dolu gelir; adresler, kullanıcı, şifre, VKN ve senkron aralığıyla kaydeder', async () => {
       api.protelGuncelle.mockResolvedValue({ ...TEST_TANIMI, saglayici: 'protel' })
       ciz()
       await screen.findByDisplayValue('deneme-kullanici')
@@ -343,8 +343,12 @@ describe('EntegratorBaglantilariPage', () => {
       fireEvent.change(document.getElementById('protel-test-vkn') as HTMLInputElement, {
         target: { value: '4550357065' },
       })
+      // Yeni tanımda adresler varsayılanla dolu gelir: yalnız şifre girilir
       const girisAdresi = within(form).getByLabelText('Giriş (token) adresi')
-      expect(girisAdresi).toHaveAttribute('placeholder', 'https://authrestapitest.protel.com.tr')
+      expect(girisAdresi).toHaveValue('https://authrestapitest.protel.com.tr')
+      expect(within(form).getByLabelText('Fatura API adresi')).toHaveValue(
+        'https://einvoicerestapitest.protel.com.tr',
+      )
       fireEvent.change(girisAdresi, { target: { value: ' https://giris2.protel.com.tr ' } })
       fireEvent.change(within(form).getByLabelText('Otomatik senkron aralığı (dakika)'), {
         target: { value: '30' },
@@ -354,7 +358,7 @@ describe('EntegratorBaglantilariPage', () => {
       await waitFor(() => expect(api.protelGuncelle).toHaveBeenCalledTimes(1))
       expect(api.protelGuncelle).toHaveBeenCalledWith('test', {
         auth_url: 'https://giris2.protel.com.tr',
-        api_url: null,
+        api_url: 'https://einvoicerestapitest.protel.com.tr',
         kullanici_adi: 'ws@otel.test',
         sifre: 'gizli',
         vkn: '4550357065',
@@ -364,9 +368,14 @@ describe('EntegratorBaglantilariPage', () => {
     })
 
     it('kayıt sürerken alanlar salt okunur; yalnız şifre değişip kaydedilince şifre alanı boşalır (PRT-R6, PRT-R11)', async () => {
+      // Kayıtlı tanımın adresleri (varsayılan da olsa) formda dolu görünür
       const protelTanimi = {
         ...TEST_TANIMI,
         saglayici: 'protel' as const,
+        auth_url: 'https://authrestapitest.protel.com.tr',
+        auth_url_ozel: false,
+        api_url: 'https://einvoicerestapitest.protel.com.tr',
+        api_url_ozel: false,
         kullanici_adi: 'ws@otel.test',
         vkn: '4550357065',
       }
@@ -395,8 +404,8 @@ describe('EntegratorBaglantilariPage', () => {
 
       await waitFor(() => expect(api.protelGuncelle).toHaveBeenCalledTimes(1))
       expect(api.protelGuncelle).toHaveBeenCalledWith('test', {
-        auth_url: null,
-        api_url: null,
+        auth_url: 'https://authrestapitest.protel.com.tr',
+        api_url: 'https://einvoicerestapitest.protel.com.tr',
         kullanici_adi: 'ws@otel.test',
         sifre: 'yeni-sifre',
         vkn: '4550357065',
@@ -446,8 +455,8 @@ describe('EntegratorBaglantilariPage', () => {
 
       expect(await within(form).findByText('Giriş başarılı: Deneme Otel A.Ş.')).toBeInTheDocument()
       expect(api.protelSina).toHaveBeenCalledWith('test', {
-        auth_url: null,
-        api_url: null,
+        auth_url: 'https://authrestapitest.protel.com.tr',
+        api_url: 'https://einvoicerestapitest.protel.com.tr',
         kullanici_adi: 'ws@otel.test',
         vkn: '4550357065',
         senkron_araligi_dakika: 15,
