@@ -12,6 +12,10 @@ export interface EntegratorBaglanti {
   api_url: string
   /** true: adres ekrandan tanımlanmış; false: ortamın varsayılanı kullanılıyor */
   api_url_ozel: boolean
+  /** Yalnız Protel: ayrı giriş (token) sunucusu — kullanılan adres */
+  auth_url?: string
+  /** Yalnız Protel: true ise giriş adresi ekrandan tanımlanmış */
+  auth_url_ozel?: boolean
   portal_url: string
   kullanici_adi: string
   vkn: string
@@ -45,14 +49,21 @@ export interface ProtelBaglantilari {
   aktif_ortam: EntegratorOrtam | null
   /** Sunucu ayarı PROTEL_AKTIF: kapalıyken sınama ve senkron Protel'e istek göndermez */
   modul_aktif: boolean
+  /** Adres alanları boş bırakılırsa kullanılacak adresler */
+  varsayilan_auth_url: Record<EntegratorOrtam, string>
+  varsayilan_api_url: Record<EntegratorOrtam, string>
 }
 
-/** Protel tanımı: adres yok (sunucudaki sabit adresler), kullanıcı e-posta */
+/** Protel tanımı: giriş ve fatura adresleri (null = varsayılan), kullanıcı e-posta */
 export interface ProtelBaglantiGovdesi {
+  /** null = ortamın varsayılanı. Değişirse şifre yeniden istenir. */
+  auth_url: string | null
+  api_url: string | null
   kullanici_adi: string
   /** Boş bırakılırsa gönderilmez — kullanıcı aynıysa kayıtlı şifre korunur */
   sifre?: string
   vkn: string
+  senkron_araligi_dakika: number
 }
 
 export interface ProtelSinamaSonucu {

@@ -23,6 +23,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $saglayici
  * @property string $ortam
  * @property string|null $api_url
+ * @property string|null $auth_url Protel giriş sunucusu (İzibiz'de hep NULL)
  * @property string $kullanici_adi
  * @property string $sifre
  * @property string $vkn
@@ -77,6 +78,7 @@ final class EntegratorBaglanti extends Model
         'saglayici',
         'ortam',
         'api_url',
+        'auth_url',
         'kullanici_adi',
         'sifre',
         'vkn',
@@ -90,21 +92,22 @@ final class EntegratorBaglanti extends Model
     /** @var list<string> */
     protected $hidden = ['sifre'];
 
-    /**
-     * Kullanılan adres: tanımlanmışsa o, değilse ortamın varsayılanı. Protel'de
-     * kayıtlı adres hiç kullanılmaz (yalnız config'teki sabit adres).
-     */
+    /** Kullanılan adres: tanımlanmışsa o, değilse ortamın varsayılanı. */
     public function apiUrl(): string
     {
-        if ($this->saglayici === self::SAGLAYICI_PROTEL) {
-            return $this->varsayilanApiUrl();
-        }
-
         return $this->api_url ?? $this->varsayilanApiUrl();
     }
 
-    /** Protel'in giriş (token) sunucusu — fatura sunucusundan ayrıdır. */
+    /**
+     * Protel'in giriş (token) sunucusu — fatura sunucusundan ayrıdır.
+     * Tanımlanmışsa o, değilse ortamın varsayılanı.
+     */
     public function authUrl(): string
+    {
+        return $this->auth_url ?? $this->varsayilanAuthUrl();
+    }
+
+    public function varsayilanAuthUrl(): string
     {
         return (string) config("entegrator.{$this->saglayici}.ortamlar.{$this->ortam}.auth_url");
     }

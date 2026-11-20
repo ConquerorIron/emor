@@ -10,12 +10,17 @@ use Illuminate\Contracts\Validation\ValidationRule;
 
 /**
  * Entegratör API adresi: yalnız `https://alan-adı[:port]` (yol, sorgu,
- * kullanıcı bilgisi yok) ve alan adı config'teki izinli listede
- * (`entegrator.izibiz.izinli_alan_adlari`, alt alan adları dahil).
- * Kayıtlı şifre ve token bu adrese gönderildiği için serbest adres kabul edilmez.
+ * kullanıcı bilgisi yok) ve alan adı sağlayıcının config'teki izinli
+ * listesinde (`entegrator.<saglayici>.izinli_alan_adlari`, alt alan adları
+ * dahil). Kayıtlı şifre ve token bu adrese gönderildiği için serbest adres
+ * kabul edilmez.
  */
 final class EntegratorApiAdresi implements ValidationRule
 {
+    public function __construct(
+        private readonly string $saglayici = EntegratorBaglanti::SAGLAYICI_IZIBIZ,
+    ) {}
+
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         if ($value === null || $value === '') {
@@ -30,7 +35,7 @@ final class EntegratorApiAdresi implements ValidationRule
 
         $host = strtolower((string) parse_url(trim($value), PHP_URL_HOST));
         /** @var list<string> $izinliler */
-        $izinliler = config('entegrator.izibiz.izinli_alan_adlari', []);
+        $izinliler = config("entegrator.{$this->saglayici}.izinli_alan_adlari", []);
 
         foreach ($izinliler as $izinli) {
             $izinli = strtolower($izinli);

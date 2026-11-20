@@ -378,9 +378,13 @@
     },
     "protel": {
       "baslik": "Protel — the hotel's mailbox",
-      "aciklama": "The hotel's incoming e-invoices are read only. Addresses are fixed on the server; the active environment is chosen independently of İzibiz.",
+      "aciklama": "The hotel's incoming e-invoices are read only. The active environment is chosen independently of İzibiz.",
       "modulKapali": "The Protel connection is disabled on the server (PROTEL_AKTIF). Definitions can be saved, but testing and sync send no requests to Protel.",
       "kullanici": "User (e-mail)",
+      "girisAdresi": "Login (token) address",
+      "faturaAdresi": "Invoice API address",
+      "adresNotu": "If left empty, the environment default is used: {{varsayilan}}. Only https and the protel.com.tr domain; re-enter the password if you change the address.",
+      "senkronNotu": "Automatic fetching runs at most every 15 minutes; each run reads invoices that reached Protel in the last 10 days. The active environment's setting is used.",
       "formBaslik": "Protel {{ortam}} definition",
       "kaydedildi": "Protel {{ortam}} definition saved.",
       "sinamaBasarili": "Login succeeded: {{firma}}",
@@ -390,7 +394,8 @@
       "canliOnayBaslik": "Switch Protel to the live environment?",
       "canliOnayMesaj": "Protel invoices will be read from the live account. Nothing is changed in Protel.",
       "dogrulama": {
-        "ePosta": "Enter a valid e-mail address."
+        "ePosta": "Enter a valid e-mail address.",
+        "aralikGecersiz": "Interval must be between 15 and 1440 minutes."
       }
     },
     "roller": {

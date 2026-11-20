@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Ayar\ProtelBaglantiGuncelleRequest;
 use App\Http\Resources\EntegratorBaglantiResource;
 use App\Models\EntegratorBaglanti;
+use App\Rules\EntegratorApiAdresi;
 use App\Services\Entegrator\ProtelIstemcisi;
 use App\Services\EntegratorBaglantiServisi;
 use Illuminate\Http\JsonResponse;
@@ -32,7 +33,7 @@ final class ProtelBaglantiController extends Controller
 
     public function guncelle(ProtelBaglantiGuncelleRequest $request, string $ortam): JsonResponse
     {
-        /** @var array{kullanici_adi: string, sifre?: string|null, vkn: string} $veri */
+        /** @var array{kullanici_adi: string, sifre?: string|null, vkn: string, api_url?: string|null, auth_url?: string|null, senkron_araligi_dakika?: int} $veri */
         $veri = $request->validated();
 
         $tanim = $this->servis->guncelle($ortam, $veri, self::SAGLAYICI);
@@ -49,13 +50,16 @@ final class ProtelBaglantiController extends Controller
 
     /**
      * Bağlantıyı sına: yalnız giriş (AccessToken) yapılır; önbellek ve kayıtlı
-     * tanım değişmez. Boş şifre yalnız kullanıcı kayıtlıyla aynıysa kayıtlı
-     * şifreye düşer. PROTEL_AKTIF kapalıyken istek gitmez (409 PROTEL_KAPALI).
+     * tanım değişmez. Formdaki (kaydedilmemiş) adreslerle de denenir. Boş
+     * şifre yalnız kullanıcı VE giriş adresi kayıtlıyla aynıysa kayıtlı şifreye
+     * düşer. PROTEL_AKTIF kapalıyken istek gitmez (409 PROTEL_KAPALI).
      */
     public function sina(Request $request, string $ortam, ProtelIstemcisi $istemci): JsonResponse
     {
-        /** @var array{kullanici_adi?: string|null, sifre?: string|null, vkn?: string|null} $veri */
+        /** @var array{kullanici_adi?: string|null, sifre?: string|null, vkn?: string|null, auth_url?: string|null, api_url?: string|null} $veri */
         $veri = $request->validate([
+            'auth_url' => ['nullable', 'string', 'max:255', new EntegratorApiAdresi(self::SAGLAYICI)],
+            'api_url' => ['nullable', 'string', 'max:255', new EntegratorApiAdresi(self::SAGLAYICI)],
             'kullanici_adi' => ['nullable', 'string', 'email', 'max:128'],
             'sifre' => ['nullable', 'string', 'max:255'],
             'vkn' => ['nullable', 'string', 'regex:/^\d{10,11}$/D'],
@@ -65,6 +69,20 @@ final class ProtelBaglantiController extends Controller
         $kullaniciAdi = $veri['kullanici_adi'] ?? $kayitli?->kullanici_adi ?? '';
         $vkn = $veri['vkn'] ?? $kayitli?->vkn ?? '';
         $sifre = $veri['sifre'] ?? '';
+
+        // Kaydedilmeyen geçici tanım: kayıtlı modele dokunulmaz
+        $tanim = new EntegratorBaglanti([
+            'saglayici' => self::SAGLAYICI,
+            'ortam' => $ortam,
+            'auth_url' => array_key_exists('auth_url', $veri)
+                ? EntegratorBaglantiServisi::saklanacakAdres($veri['auth_url'])
+                : $kayitli?->auth_url,
+            'api_url' => array_key_exists('api_url', $veri)
+                ? EntegratorBaglantiServisi::saklanacakAdres($veri['api_url'])
+                : $kayitli?->api_url,
+            'kullanici_adi' => $kullaniciAdi,
+            'vkn' => $vkn,
+        ]);
 
         if ($kullaniciAdi === '') {
             throw ValidationException::withMessages(['kullanici_adi' => __('hata.entegrator_kullanici_zorunlu')]);
@@ -83,16 +101,14 @@ final class ProtelBaglantiController extends Controller
                 throw ValidationException::withMessages(['sifre' => __('hata.entegrator_sifre_kullanici_degisti')]);
             }
 
+            // Kayıtlı şifre yeni (henüz doğrulanmamış) bir giriş adresine gönderilmesin
+            if ($tanim->authUrl() !== $kayitli->authUrl()) {
+                throw ValidationException::withMessages(['sifre' => __('hata.entegrator_sifre_adres_degisti')]);
+            }
+
             $sifre = $kayitli->sifre;
         }
 
-        // Kaydedilmeyen geçici tanım: kayıtlı modele dokunulmaz
-        $tanim = new EntegratorBaglanti([
-            'saglayici' => self::SAGLAYICI,
-            'ortam' => $ortam,
-            'kullanici_adi' => $kullaniciAdi,
-            'vkn' => $vkn,
-        ]);
         $tanim->sifre = $sifre;
 
         $token = $istemci->tokenAl($tanim);

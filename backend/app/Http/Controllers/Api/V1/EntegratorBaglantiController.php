@@ -85,6 +85,15 @@ final class EntegratorBaglantiController extends Controller
                 : null,
             'aktif_ortam' => $this->servis->aktif($saglayici)?->ortam,
             'modul_aktif' => (bool) config('entegrator.protel.aktif'),
+            // Adres alanları boş bırakılırsa kullanılacak adresler (formun ipucu)
+            'varsayilan_auth_url' => [
+                EntegratorBaglanti::ORTAM_TEST => (string) config('entegrator.protel.ortamlar.test.auth_url'),
+                EntegratorBaglanti::ORTAM_CANLI => (string) config('entegrator.protel.ortamlar.canli.auth_url'),
+            ],
+            'varsayilan_api_url' => [
+                EntegratorBaglanti::ORTAM_TEST => (string) config('entegrator.protel.ortamlar.test.api_url'),
+                EntegratorBaglanti::ORTAM_CANLI => (string) config('entegrator.protel.ortamlar.canli.api_url'),
+            ],
         ];
     }
 

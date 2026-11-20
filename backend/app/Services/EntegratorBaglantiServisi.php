@@ -68,7 +68,7 @@ final class EntegratorBaglantiServisi
      * kullanıcı adı değişiyorsa şifre de yeniden girilmelidir (kayıtlı şifre
      * başka bir hesabın şifresi olarak denenmesin).
      *
-     * @param  array{kullanici_adi: string, sifre?: string|null, vkn: string, posta_kutusu?: string|null, gonderici_birim?: string|null, api_url?: string|null}  $veri
+     * @param  array{kullanici_adi: string, sifre?: string|null, vkn: string, posta_kutusu?: string|null, gonderici_birim?: string|null, api_url?: string|null, auth_url?: string|null, senkron_araligi_dakika?: int, sayfa_boyutu?: int}  $veri
      */
     public function guncelle(string $ortam, array $veri, string $saglayici = self::SAGLAYICI): EntegratorBaglanti
     {
@@ -127,7 +127,7 @@ final class EntegratorBaglantiServisi
     }
 
     /**
-     * @param  array{kullanici_adi: string, sifre?: string|null, vkn: string, posta_kutusu?: string|null, gonderici_birim?: string|null, api_url?: string|null}  $veri
+     * @param  array{kullanici_adi: string, sifre?: string|null, vkn: string, posta_kutusu?: string|null, gonderici_birim?: string|null, api_url?: string|null, auth_url?: string|null, senkron_araligi_dakika?: int, sayfa_boyutu?: int}  $veri
      */
     private function kaydet(string $ortam, array $veri, string $saglayici): EntegratorBaglanti
     {
@@ -154,14 +154,18 @@ final class EntegratorBaglantiServisi
             ]);
         }
 
-        // Adres gönderilmediyse değişmez; boş = ortamın varsayılanı. Protel'de
-        // adres hiç saklanmaz (yalnız config'teki sabit adres kullanılır)
+        // Adres gönderilmediyse değişmez; boş = ortamın varsayılanı. Protel'in
+        // giriş sunucusu ayrıdır (`auth_url`); İzibiz'de giriş adresi saklanmaz
         $protel = $saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL;
-        $yeniAdres = $protel ? null : (array_key_exists('api_url', $veri)
+        $yeniAdres = array_key_exists('api_url', $veri)
             ? self::saklanacakAdres($veri['api_url'])
-            : $baglanti->api_url);
+            : $baglanti->api_url;
+        $yeniGirisAdresi = ! $protel ? null : (array_key_exists('auth_url', $veri)
+            ? self::saklanacakAdres($veri['auth_url'])
+            : $baglanti->auth_url);
         $adresDegisti = $baglanti->exists
-            && ($yeniAdres ?? $baglanti->varsayilanApiUrl()) !== $baglanti->apiUrl();
+            && (($yeniAdres ?? $baglanti->varsayilanApiUrl()) !== $baglanti->apiUrl()
+                || ($protel && ($yeniGirisAdresi ?? $baglanti->varsayilanAuthUrl()) !== $baglanti->authUrl()));
 
         // Kayıtlı şifre yeni (henüz doğrulanmamış) bir adrese gönderilmesin
         if ($adresDegisti && $sifreBos) {
@@ -185,6 +189,7 @@ final class EntegratorBaglantiServisi
 
         $baglanti->fill([
             'api_url' => $yeniAdres,
+            'auth_url' => $yeniGirisAdresi,
             'kullanici_adi' => $veri['kullanici_adi'],
             'vkn' => $veri['vkn'],
             'posta_kutusu' => $protel ? null : ($veri['posta_kutusu'] ?? null),

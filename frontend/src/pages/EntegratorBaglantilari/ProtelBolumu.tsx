@@ -22,8 +22,20 @@ import {
   protelBaglantiSina,
 } from '@/features/ayarlar/entegratorApi'
 
+import { adresGovdesi, API_ADRESI, ARALIK } from './adresKurallari'
+
 function protelSemasi(sifreZorunlu: boolean) {
+  const adres = z
+    .string()
+    .max(255)
+    .refine(
+      (deger) => deger.trim() === '' || API_ADRESI.test(deger.trim()),
+      'ayarlar.entegrator.dogrulama.apiAdresiGecersiz',
+    )
+
   return z.object({
+    auth_url: adres,
+    api_url: adres,
     kullanici_adi: z.email('ayarlar.protel.dogrulama.ePosta').max(128),
     sifre: z
       .string()
@@ -33,6 +45,11 @@ function protelSemasi(sifreZorunlu: boolean) {
         'ayarlar.entegrator.dogrulama.sifreZorunlu',
       ),
     vkn: z.string().regex(/^\d{10,11}$/, 'ayarlar.entegrator.dogrulama.vknGecersiz'),
+    senkron_araligi_dakika: z
+      .number('ayarlar.protel.dogrulama.aralikGecersiz')
+      .int('ayarlar.protel.dogrulama.aralikGecersiz')
+      .min(ARALIK.enAz, 'ayarlar.protel.dogrulama.aralikGecersiz')
+      .max(ARALIK.enCok, 'ayarlar.protel.dogrulama.aralikGecersiz'),
   })
 }
 
@@ -40,8 +57,11 @@ type ProtelGirdisi = z.infer<ReturnType<typeof protelSemasi>>
 
 function govde(girdi: ProtelGirdisi): ProtelBaglantiGovdesi {
   return {
+    auth_url: adresGovdesi(girdi.auth_url),
+    api_url: adresGovdesi(girdi.api_url),
     kullanici_adi: girdi.kullanici_adi,
     vkn: girdi.vkn,
+    senkron_araligi_dakika: girdi.senkron_araligi_dakika,
     // Boş bırakılırsa gönderilmez — kullanıcı aynıysa sunucu kayıtlı şifreyi korur
     ...(girdi.sifre !== '' ? { sifre: girdi.sifre } : {}),
   }
@@ -49,16 +69,40 @@ function govde(girdi: ProtelGirdisi): ProtelBaglantiGovdesi {
 
 function formAnahtari(tanim: EntegratorBaglanti | null): string {
   return tanim
-    ? JSON.stringify([tanim.id, tanim.kullanici_adi, tanim.vkn, tanim.sifre_dolu])
+    ? JSON.stringify([
+        tanim.id,
+        tanim.auth_url,
+        tanim.auth_url_ozel,
+        tanim.api_url,
+        tanim.api_url_ozel,
+        tanim.kullanici_adi,
+        tanim.vkn,
+        tanim.senkron_araligi_dakika,
+        tanim.sifre_dolu,
+      ])
     : 'yeni'
+}
+
+/** Formun adres alanları: yalnız ekrandan tanımlanmış adres dolu gelir; varsayılan ipucudur. */
+function formAdresleri(
+  tanim: EntegratorBaglanti | null,
+): Pick<ProtelGirdisi, 'auth_url' | 'api_url'> {
+  return {
+    auth_url: tanim?.auth_url_ozel ? (tanim.auth_url ?? '') : '',
+    api_url: tanim?.api_url_ozel ? tanim.api_url : '',
+  }
 }
 
 function ProtelFormu({
   ortam,
   tanim,
+  varsayilanGirisAdresi,
+  varsayilanFaturaAdresi,
 }: {
   ortam: EntegratorOrtam
   tanim: EntegratorBaglanti | null
+  varsayilanGirisAdresi: string
+  varsayilanFaturaAdresi: string
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -75,7 +119,13 @@ function ProtelFormu({
     formState: { errors, isSubmitting },
   } = useForm<ProtelGirdisi>({
     resolver: standardSchemaResolver(protelSemasi(!tanim?.sifre_dolu)),
-    defaultValues: { kullanici_adi: tanim?.kullanici_adi ?? '', sifre: '', vkn: tanim?.vkn ?? '' },
+    defaultValues: {
+      ...formAdresleri(tanim),
+      kullanici_adi: tanim?.kullanici_adi ?? '',
+      sifre: '',
+      vkn: tanim?.vkn ?? '',
+      senkron_araligi_dakika: tanim?.senkron_araligi_dakika ?? ARALIK.enAz,
+    },
   })
 
   // Kayıt sonrası liste yenilenir; form tanımla anahtarlı olduğu için şifre alanı boşalır.
@@ -143,6 +193,36 @@ function ProtelFormu({
       <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <Input
+            id={`protel-${ortam}-giris-adresi`}
+            label={t('ayarlar.protel.girisAdresi')}
+            placeholder={varsayilanGirisAdresi}
+            inputMode="url"
+            autoComplete="off"
+            hata={alanHatasi(errors.auth_url?.message)}
+            readOnly={isSubmitting}
+            {...register('auth_url')}
+          />
+          <p className="mt-1 text-xs break-all text-slate-500 dark:text-slate-400">
+            {t('ayarlar.protel.adresNotu', { varsayilan: varsayilanGirisAdresi })}
+          </p>
+        </div>
+        <div className="sm:col-span-2">
+          <Input
+            id={`protel-${ortam}-fatura-adresi`}
+            label={t('ayarlar.protel.faturaAdresi')}
+            placeholder={varsayilanFaturaAdresi}
+            inputMode="url"
+            autoComplete="off"
+            hata={alanHatasi(errors.api_url?.message)}
+            readOnly={isSubmitting}
+            {...register('api_url')}
+          />
+          <p className="mt-1 text-xs break-all text-slate-500 dark:text-slate-400">
+            {t('ayarlar.protel.adresNotu', { varsayilan: varsayilanFaturaAdresi })}
+          </p>
+        </div>
+        <div className="sm:col-span-2">
+          <Input
             id={`protel-${ortam}-kullanici`}
             label={t('ayarlar.protel.kullanici')}
             type="email"
@@ -173,6 +253,28 @@ function ProtelFormu({
           {...register('vkn')}
         />
       </div>
+
+      <fieldset className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
+        <legend className="pr-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+          {t('ayarlar.entegrator.senkronAyarlari')}
+        </legend>
+        <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+          <Input
+            id={`protel-${ortam}-aralik`}
+            type="number"
+            label={t('ayarlar.entegrator.senkronAraligi')}
+            min={ARALIK.enAz}
+            max={ARALIK.enCok}
+            step={1}
+            hata={alanHatasi(errors.senkron_araligi_dakika?.message)}
+            readOnly={isSubmitting}
+            {...register('senkron_araligi_dakika', { valueAsNumber: true })}
+          />
+        </div>
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          {t('ayarlar.protel.senkronNotu')}
+        </p>
+      </fieldset>
 
       {tanim?.sifre_dolu ? (
         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
@@ -301,8 +403,9 @@ function ProtelAktifOrtam({ veri }: { veri: ProtelBaglantilari }) {
 }
 
 /**
- * Protel — otelin e-Fatura posta kutusu (PRT-03, PRT-05). Yalnız okunur;
- * adres sunucuda sabit. Aktif ortam İzibiz'den bağımsızdır.
+ * Protel — otelin e-Fatura posta kutusu (PRT-03, PRT-05). Yalnız okunur.
+ * Adresler ve senkron aralığı İzibiz formundaki gibi ekrandan girilir (boş
+ * adres = varsayılan). Aktif ortam İzibiz'den bağımsızdır.
  */
 export function ProtelBolumu({ veri }: { veri: ProtelBaglantilari }) {
   const { t } = useTranslation()
@@ -327,11 +430,15 @@ export function ProtelBolumu({ veri }: { veri: ProtelBaglantilari }) {
           key={`protel-test-${formAnahtari(veri.test)}`}
           ortam="test"
           tanim={veri.test}
+          varsayilanGirisAdresi={veri.varsayilan_auth_url.test}
+          varsayilanFaturaAdresi={veri.varsayilan_api_url.test}
         />
         <ProtelFormu
           key={`protel-canli-${formAnahtari(veri.canli)}`}
           ortam="canli"
           tanim={veri.canli}
+          varsayilanGirisAdresi={veri.varsayilan_auth_url.canli}
+          varsayilanFaturaAdresi={veri.varsayilan_api_url.canli}
         />
       </div>
     </section>

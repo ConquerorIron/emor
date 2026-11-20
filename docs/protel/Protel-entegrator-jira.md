@@ -261,6 +261,15 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
   - 2026-11-19 Claude → REVIEW_BEKLIYOR · PRT-R1 (VKN), PRT-R6 (şifre alanı) düzeltildi (§5).
   - 2026-11-20 Codex → PASSED · commit `f714924`
     VKN değişikliğinde geçmiş korunuyor ve yalnız şifre güncellenince gönderilen değer temizleniyor. Geciken kayıt yanıtı için PRT-R11 [P3] (§5).
+  - 2026-11-20 Claude · **kullanıcı kararı: adresler ve senkron aralığı İzibiz
+    formundaki gibi ekrandan girilir** (önceki "adres sunucuda sabit" kararı
+    kaldırıldı). Yeni kolon `auth_url` (Protel giriş sunucusu; fatura adresi
+    mevcut `api_url`). Boş = config'teki ortam varsayılanı (formda ipucu).
+    İzibiz'deki korumalar aynen: yalnız https ve `protel.com.tr`
+    (`EntegratorApiAdresi('protel')`; istemcideki `adresDenetle` de duruyor),
+    adres değişince şifre yeniden istenir ve token sürümü artar, kaydedilmemiş
+    adresle sınamada kayıtlı şifre gönderilmez. Testler eski kodda kırmızı.
+    Commit: `feat(protel): adresler ve senkron araligi ekrandan …`.
 
 ### PRT-04 — Protel istemcisi ve iki katmanlı kilit
 

@@ -33,31 +33,109 @@ final class ProtelBaglantiTest extends TestCase
         return $kullanici;
     }
 
-    public function test_tanim_kaydedilir_adres_ve_izibiz_alanlari_saklanmaz_sifre_donmez(): void
+    /** Adresler ve senkron aralığı İzibiz'deki gibi ekrandan girilir (kullanıcı kararı 2026-11-20). */
+    public function test_tanim_adresleri_ve_senkron_araligi_kaydedilir_izibiz_alanlari_saklanmaz_sifre_donmez(): void
     {
         $this->yonetici();
         $izibiz = EntegratorBaglanti::factory()->aktif()->create();
 
         $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test', [
+            'auth_url' => 'https://Giris2.Protel.com.tr/',
+            'api_url' => 'https://fatura2.protel.com.tr',
             'kullanici_adi' => 'ws@ornek.test',
             'sifre' => 'gizli-sifre',
             'vkn' => '1234567890',
+            'senkron_araligi_dakika' => 30,
             // Protel formunda yok; gönderilse de saklanmaz
-            'api_url' => 'https://baska.protel.com.tr',
             'posta_kutusu' => 'urn:mail:pk@ornek.test',
         ])
             ->assertOk()
             ->assertJsonPath('data.saglayici', 'protel')
-            ->assertJsonPath('data.api_url', 'https://einvoicerestapitest.protel.com.tr')
-            ->assertJsonPath('data.api_url_ozel', false)
+            ->assertJsonPath('data.auth_url', 'https://giris2.protel.com.tr')
+            ->assertJsonPath('data.auth_url_ozel', true)
+            ->assertJsonPath('data.api_url', 'https://fatura2.protel.com.tr')
+            ->assertJsonPath('data.api_url_ozel', true)
+            ->assertJsonPath('data.senkron_araligi_dakika', 30)
             ->assertJsonPath('data.sifre_dolu', true)
             ->assertJsonMissingPath('data.sifre');
 
         $tanim = EntegratorBaglanti::query()->where('saglayici', 'protel')->sole();
-        $this->assertNull($tanim->api_url);
         $this->assertNull($tanim->posta_kutusu);
         $this->assertSame('gizli-sifre', $tanim->sifre);
         $this->assertTrue($izibiz->refresh()->aktif);
+
+        // Boş adres = ortamın varsayılanı; varsayılanlar formun ipucu olarak döner
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test', [
+            'auth_url' => '', 'api_url' => null, 'kullanici_adi' => 'ws@ornek.test', 'sifre' => 'gizli-sifre', 'vkn' => '1234567890',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.auth_url', 'https://authrestapitest.protel.com.tr')
+            ->assertJsonPath('data.auth_url_ozel', false)
+            ->assertJsonPath('data.api_url_ozel', false);
+        $this->getJson('/api/v1/ayarlar/entegrator-baglantilari')
+            ->assertJsonPath('data.protel.varsayilan_auth_url.canli', 'https://authrestapi.protel.com.tr')
+            ->assertJsonPath('data.protel.varsayilan_api_url.canli', 'https://einvoicerestapi.protel.com.tr')
+            ->assertJsonMissingPath('data.canli.auth_url');
+    }
+
+    public function test_izinli_alan_adi_disindaki_ya_da_https_olmayan_adres_reddedilir(): void
+    {
+        $this->yonetici();
+
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test', [
+            'auth_url' => 'https://protel.com.tr.kotu.example',
+            'api_url' => 'http://einvoicerestapi.protel.com.tr',
+            'kullanici_adi' => 'ws@ornek.test', 'sifre' => 's', 'vkn' => '1234567890',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['auth_url', 'api_url'], 'hatalar');
+
+        $this->assertSame(0, EntegratorBaglanti::query()->count());
+    }
+
+    /** Kayıtlı şifre henüz doğrulanmamış yeni bir adrese gönderilmez (İzibiz kuralı). */
+    public function test_adres_degisince_sifre_yeniden_istenir_sinamada_kayitli_sifre_gonderilmez(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        Http::preventStrayRequests();
+        Http::fake();
+        $this->yonetici();
+        $tanim = EntegratorBaglanti::factory()->protel()->create();
+        $mesaj = 'API adresi değiştiğinde entegratör şifresi yeniden girilmelidir.';
+
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test', [
+            'auth_url' => 'https://giris2.protel.com.tr', 'kullanici_adi' => $tanim->kullanici_adi, 'vkn' => $tanim->vkn,
+        ])->assertUnprocessable()->assertJsonPath('hatalar.sifre.0', $mesaj);
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test', [
+            'api_url' => 'https://fatura2.protel.com.tr', 'kullanici_adi' => $tanim->kullanici_adi, 'vkn' => $tanim->vkn,
+        ])->assertUnprocessable()->assertJsonPath('hatalar.sifre.0', $mesaj);
+        $this->postJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test/sina', ['auth_url' => 'https://giris2.protel.com.tr'])
+            ->assertUnprocessable()->assertJsonPath('hatalar.sifre.0', $mesaj);
+
+        Http::assertNothingSent();
+        $this->assertNull($tanim->refresh()->auth_url);
+        $this->assertNull($tanim->api_url);
+    }
+
+    public function test_kayitli_adresler_giris_sinama_ve_listede_kullanilir(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://giris2.protel.com.tr/v1/Auth/AccessToken' => ProtelIstemcisiTest::girisYaniti(),
+            'https://fatura2.protel.com.tr/v1/Document/GetInvoiceList' => Http::response(['invoiceList' => []]),
+        ]);
+        $this->yonetici();
+        $tanim = EntegratorBaglanti::factory()->protel()->aktif()->create([
+            'auth_url' => 'https://giris2.protel.com.tr',
+            'api_url' => 'https://fatura2.protel.com.tr',
+        ]);
+
+        $this->postJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test/sina', [])->assertOk();
+        app(ProtelIstemcisi::class)->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, [
+            'startDate' => '2026-11-01T00:00:00', 'endDate' => '2026-11-19T23:59:59', 'filterDateType' => 'DocumentDate',
+            'documentDirection' => 'Incoming', 'erpRecievedStatus' => 'All', 'erpStatus' => 'All',
+        ]);
+
+        Http::assertSentCount(3);
     }
 
     public function test_kullanici_adi_e_posta_olmali(): void

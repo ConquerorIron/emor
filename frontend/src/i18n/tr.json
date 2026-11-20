@@ -378,9 +378,13 @@
     },
     "protel": {
       "baslik": "Protel — otelin posta kutusu",
-      "aciklama": "Otelin gelen e-Faturaları yalnız okunur. Adresler sunucuda sabittir; aktif ortam İzibiz'den bağımsız seçilir.",
+      "aciklama": "Otelin gelen e-Faturaları yalnız okunur. Aktif ortam İzibiz'den bağımsız seçilir.",
       "modulKapali": "Protel bağlantısı sunucuda kapalı (PROTEL_AKTIF). Tanım kaydedilebilir ama sınama ve senkron Protel'e istek göndermez.",
       "kullanici": "Kullanıcı (e-posta)",
+      "girisAdresi": "Giriş (token) adresi",
+      "faturaAdresi": "Fatura API adresi",
+      "adresNotu": "Boş bırakılırsa ortamın varsayılan adresi kullanılır: {{varsayilan}}. Yalnız https ve protel.com.tr alan adı; adres değişirse şifreyi yeniden girin.",
+      "senkronNotu": "Otomatik çekim en az 15 dakikada bir yapılır; her çekim son 10 günde Protel'e ulaşan faturaları okur. Aktif ortamın ayarı kullanılır.",
       "formBaslik": "Protel {{ortam}} tanımı",
       "kaydedildi": "Protel {{ortam}} tanımı kaydedildi.",
       "sinamaBasarili": "Giriş başarılı: {{firma}}",
@@ -390,7 +394,8 @@
       "canliOnayBaslik": "Protel canlı ortamına geçilsin mi?",
       "canliOnayMesaj": "Protel faturaları canlı hesaptan okunacak. Protel'de hiçbir şey değiştirilmez.",
       "dogrulama": {
-        "ePosta": "Geçerli bir e-posta adresi girin."
+        "ePosta": "Geçerli bir e-posta adresi girin.",
+        "aralikGecersiz": "Aralık 15 ile 1440 dakika arasında olmalı."
       }
     },
     "roller": {

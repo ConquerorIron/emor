@@ -25,6 +25,9 @@ final class EntegratorBaglantiResource extends JsonResource
             // Kullanılan adres; `api_url_ozel` false ise ortamın varsayılanıdır
             'api_url' => $this->apiUrl(),
             'api_url_ozel' => $this->api_url !== null,
+            // Protel'in ayrı giriş sunucusu; `auth_url_ozel` false ise varsayılan
+            'auth_url' => $this->when($this->saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL, fn (): string => $this->authUrl()),
+            'auth_url_ozel' => $this->when($this->saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL, fn (): bool => $this->auth_url !== null),
             'portal_url' => $this->portalUrl(),
             'kullanici_adi' => $this->kullanici_adi,
             'vkn' => $this->vkn,

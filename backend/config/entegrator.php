@@ -53,8 +53,9 @@ return [
 
     // Otelin e-Fatura posta kutusu: Protel markalı Süper Entegratör REST API'si
     // (docs/protel). YALNIZ OKUMA — izinli metotlar ve gövde alanları
-    // ProtelIstemcisi'nde kilitlidir. Adresler ekrandan DEĞİŞTİRİLEMEZ:
-    // kayıtlı şifre yalnız buradaki sabit adreslere gider.
+    // ProtelIstemcisi'nde kilitlidir. Aşağıdaki adresler ortamların
+    // varsayılanıdır; tanımda ekrandan başka adres girilebilir (İzibiz gibi),
+    // ama yalnız https ve izinli alan adıyla (kayıtlı şifre başka sunucuya gitmesin).
     'protel' => [
         'ortamlar' => [
             'test' => [

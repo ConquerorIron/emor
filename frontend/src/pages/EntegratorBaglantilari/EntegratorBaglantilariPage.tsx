@@ -26,16 +26,12 @@ import {
 } from '@/features/ayarlar/entegratorApi'
 import { useIzin } from '@/hooks/useIzin'
 
+import { adresGovdesi, API_ADRESI, ARALIK } from './adresKurallari'
 import { ProtelBolumu } from './ProtelBolumu'
 
 const URN_ONEKI = 'urn:mail:'
 
-// Yalnız https://alan-adı[:port] — izinli alan adı listesi backend'de denetlenir
-const API_ADRESI = /^https:\/\/[A-Za-z0-9.-]+(:\d+)?\/?$/
-
-// İzibiz kuralları (backend EntegratorBaglanti ile aynı): zamanlayıcı en az 15 dk,
-// tek çağrıda en çok 100 fatura
-const ARALIK = { enAz: 15, enCok: 1440 }
+// İzibiz kuralı (backend EntegratorBaglanti ile aynı): tek çağrıda en çok 100 fatura
 const SAYFA = { enAz: 10, enCok: 100 }
 
 function baglantiSchemaOlustur(sifreZorunlu: boolean) {
@@ -80,11 +76,6 @@ function baglantiSchemaOlustur(sifreZorunlu: boolean) {
 }
 
 type BaglantiGirdisi = z.infer<ReturnType<typeof baglantiSchemaOlustur>>
-
-/** Boş adres = ortamın varsayılanı (null gönderilir). */
-function adresGovdesi(adres: string): string | null {
-  return adres.trim() === '' ? null : adres.trim()
-}
 
 function girdidenGovde(girdi: BaglantiGirdisi): EntegratorBaglantiGovdesi {
   return {

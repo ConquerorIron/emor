@@ -49,6 +49,17 @@ const TEST_TANIMI = {
   updated_at: '2026-09-23T10:00:00Z',
 }
 
+const PROTEL_VARSAYILAN = {
+  varsayilan_auth_url: {
+    test: 'https://authrestapitest.protel.com.tr',
+    canli: 'https://authrestapi.protel.com.tr',
+  },
+  varsayilan_api_url: {
+    test: 'https://einvoicerestapitest.protel.com.tr',
+    canli: 'https://einvoicerestapi.protel.com.tr',
+  },
+}
+
 function veri(degisen: Partial<EntegratorBaglantilar> = {}): EntegratorBaglantilar {
   return {
     test: TEST_TANIMI,
@@ -60,7 +71,13 @@ function veri(degisen: Partial<EntegratorBaglantilar> = {}): EntegratorBaglantil
       test: 'https://apitest.izibiz.com.tr',
       canli: 'https://api.izibiz.com.tr',
     },
-    protel: { test: null, canli: null, aktif_ortam: null, modul_aktif: false },
+    protel: {
+      test: null,
+      canli: null,
+      aktif_ortam: null,
+      modul_aktif: false,
+      ...PROTEL_VARSAYILAN,
+    },
     ...degisen,
   }
 }
@@ -311,7 +328,7 @@ describe('EntegratorBaglantilariPage', () => {
   describe('Protel bölümü (PRT-03, PRT-05)', () => {
     const protelFormu = () => screen.getByRole('form', { name: 'Protel Test tanımı' })
 
-    it('tanımı yalnız kullanıcı, şifre ve VKN ile kaydeder', async () => {
+    it('tanımı adresler, kullanıcı, şifre, VKN ve senkron aralığıyla kaydeder; boş adres varsayılandır', async () => {
       api.protelGuncelle.mockResolvedValue({ ...TEST_TANIMI, saglayici: 'protel' })
       ciz()
       await screen.findByDisplayValue('deneme-kullanici')
@@ -326,13 +343,22 @@ describe('EntegratorBaglantilariPage', () => {
       fireEvent.change(document.getElementById('protel-test-vkn') as HTMLInputElement, {
         target: { value: '4550357065' },
       })
+      const girisAdresi = within(form).getByLabelText('Giriş (token) adresi')
+      expect(girisAdresi).toHaveAttribute('placeholder', 'https://authrestapitest.protel.com.tr')
+      fireEvent.change(girisAdresi, { target: { value: ' https://giris2.protel.com.tr ' } })
+      fireEvent.change(within(form).getByLabelText('Otomatik senkron aralığı (dakika)'), {
+        target: { value: '30' },
+      })
       fireEvent.click(within(form).getByRole('button', { name: 'Kaydet' }))
 
       await waitFor(() => expect(api.protelGuncelle).toHaveBeenCalledTimes(1))
       expect(api.protelGuncelle).toHaveBeenCalledWith('test', {
+        auth_url: 'https://giris2.protel.com.tr',
+        api_url: null,
         kullanici_adi: 'ws@otel.test',
         sifre: 'gizli',
         vkn: '4550357065',
+        senkron_araligi_dakika: 30,
       })
       expect(api.guncelle).not.toHaveBeenCalled()
     })
@@ -346,7 +372,13 @@ describe('EntegratorBaglantilariPage', () => {
       }
       api.getir.mockResolvedValue(
         veri({
-          protel: { test: protelTanimi, canli: null, aktif_ortam: 'test', modul_aktif: true },
+          protel: {
+            test: protelTanimi,
+            canli: null,
+            aktif_ortam: 'test',
+            modul_aktif: true,
+            ...PROTEL_VARSAYILAN,
+          },
         }),
       )
       let bitir!: (tanim: typeof protelTanimi) => void
@@ -363,12 +395,15 @@ describe('EntegratorBaglantilariPage', () => {
 
       await waitFor(() => expect(api.protelGuncelle).toHaveBeenCalledTimes(1))
       expect(api.protelGuncelle).toHaveBeenCalledWith('test', {
+        auth_url: null,
+        api_url: null,
         kullanici_adi: 'ws@otel.test',
         sifre: 'yeni-sifre',
         vkn: '4550357065',
+        senkron_araligi_dakika: 15,
       })
       // Yanıt gelmeden yazılan yeni değer, yanıttaki sıfırlamayla silinmesin
-      for (const alan of ['kullanici', 'sifre', 'vkn']) {
+      for (const alan of ['giris-adresi', 'fatura-adresi', 'kullanici', 'sifre', 'vkn', 'aralik']) {
         expect(document.getElementById(`protel-test-${alan}`)).toHaveAttribute('readonly')
       }
 
@@ -411,8 +446,11 @@ describe('EntegratorBaglantilariPage', () => {
 
       expect(await within(form).findByText('Giriş başarılı: Deneme Otel A.Ş.')).toBeInTheDocument()
       expect(api.protelSina).toHaveBeenCalledWith('test', {
+        auth_url: null,
+        api_url: null,
         kullanici_adi: 'ws@otel.test',
         vkn: '4550357065',
+        senkron_araligi_dakika: 15,
       })
     })
   })

@@ -426,3 +426,10 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   Kurulum ve temizlik aynı ayarı değiştirebiliyorsa kesinti ve tekrar
   çalıştırmada da mevcut ortamı koru (testing-best-practices: *isolation*).
   *(BY-003, `6c96ea8`: test yerel PostgreSQL yönetici rolü ayarını sıfırlıyordu.)*
+- **K8 — Kardeş modülün kullanıcıya açtığı ayarı yeni modülde kendiliğinden
+  kapatma.** İkinci bir sağlayıcı / ekran eklerken önce kardeşin ayar ekranını
+  örnek al (adres, aralık, sınırlar); bir ayarı koda gömmek ya da gizlemek
+  kullanıcı kararıdır. Güvenlik gerekçesi varsa kardeşteki korumayı (izinli
+  alan adı, şifreyi yeniden isteme) uygula, ayarı kaldırma.
+  *(Protel 2026-11-20: adresler config'te sabit, senkron aralığı formda yoktu;
+  kullanıcı İzibiz'deki gibi ekrandan istedi.)*
