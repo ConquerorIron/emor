@@ -172,6 +172,55 @@ final class ProtelIstemcisi
      */
     public function post(EntegratorBaglanti $tanim, string $yol, array $govde): array
     {
+        $json = json_decode($this->istek($tanim, $yol, $govde), true);
+
+        if (! is_array($json)) {
+            throw EntegratorHatasi::yanitGecersiz();
+        }
+
+        /** @var array<string, mixed> $json */
+        return $json;
+    }
+
+    /**
+     * `post()` gibi; ancak JSON'daki her float yerine yanıttaki metni taşıyan
+     * `JsonSayisi` döner (PRT-R8). `json_decode` ondalıklı sayıyı float'a
+     * çevirir: 15 anlamlı basamağı aşan tutar (`1234567890123456.23` →
+     * `…56.25`) sessizce değişir ve PHP'nin ayrıştırıcısında ondalığı metin
+     * veren bir seçenek yoktur. Tam sayı, metin, bayrak ve null olağan
+     * çözümdeki türüyle kalır (PRT-R12): yalnız float'ın yerini tutan, metinle
+     * karışmayan bir tür eklenir. Para tutarı taşıyan fatura listesi için;
+     * PDF gibi tutarsız yanıtta gövde iki kez ayrıştırılmasın (PRT-R14).
+     *
+     * @param  array<string, mixed>  $govde
+     * @return array<string, mixed>
+     */
+    public function postSayilariKoruyarak(EntegratorBaglanti $tanim, string $yol, array $govde): array
+    {
+        $ham = $this->istek($tanim, $yol, $govde);
+        $olagan = json_decode($ham, true);
+
+        if (! is_array($olagan)) {
+            throw EntegratorHatasi::yanitGecersiz();
+        }
+
+        $metinli = json_decode($this->sayilariTirnakla($ham), true);
+
+        if (! is_array($metinli)) {
+            throw EntegratorHatasi::yanitGecersiz();
+        }
+
+        /** @var array<string, mixed> */
+        return $this->floatlariMetinle($olagan, $metinli);
+    }
+
+    /**
+     * Kilit, token ve hata eşlemesinden geçen ham yanıt gövdesi.
+     *
+     * @param  array<string, mixed>  $govde
+     */
+    private function istek(EntegratorBaglanti $tanim, string $yol, array $govde): string
+    {
         if ($yol === self::YOL_GIRIS) {
             throw new InvalidArgumentException('Giriş ucu tokenAl() ile çağrılır.');
         }
@@ -194,45 +243,16 @@ final class ProtelIstemcisi
             throw $this->basarisizYanitHatasi($yanit);
         }
 
-        return $this->ondalikKoruyarakCoz($yanit->body());
+        return $yanit->body();
     }
 
     /**
-     * JSON yanıtını ondalıklı sayıları METİN olarak koruyarak çözer (PRT-R8).
-     * `json_decode` ondalıklı sayıyı float'a çevirir: 15 anlamlı basamağı aşan
-     * tutar (`1234567890123456.23` → `…56.25`) sessizce değişir ve PHP'nin
-     * ayrıştırıcısında ondalığı metin veren bir seçenek yoktur. Bu yüzden ancak
-     * olağan çözümden geçen (geçerli) gövdede dize dışındaki ondalıklı / üslü
-     * sayı belirteçleri tırnağa alınır; sonuç olağan
-     * çözümle karşılaştırılır — yapı ve her değer aynı olmalı, yoksa yanıt
-     * geçersiz sayılır (dönüşüm hatası sessiz kalmasın — G3).
-     *
-     * @return array<string, mixed>
-     */
-    private function ondalikKoruyarakCoz(string $govde): array
-    {
-        $olagan = json_decode($govde, true, 512, JSON_BIGINT_AS_STRING);
-
-        if (! is_array($olagan)) {
-            throw EntegratorHatasi::yanitGecersiz();
-        }
-
-        $korunan = json_decode($this->ondalikSayilariTirnakla($govde), true, 512, JSON_BIGINT_AS_STRING);
-
-        if (! is_array($korunan) || ! $this->ayniDeger($olagan, $korunan)) {
-            throw EntegratorHatasi::yanitGecersiz();
-        }
-
-        /** @var array<string, mixed> $korunan */
-        return $korunan;
-    }
-
-    /**
-     * Geçerli JSON'da dize dışındaki ondalıklı / üslü sayıları tırnağa alır.
+     * Geçerli JSON'da dize dışındaki BÜTÜN sayı belirteçlerini tırnağa alır
+     * (PHP tam sayısına sığmayan tam sayı da olağan çözümde float'tır).
      * Düzenli ifade değil doğrusal tarama: kaçışlı uzun dizede (.NET base64
      * PDF'teki `+`'yı unicode kaçışıyla yazar) PCRE geri izleme sınırına takılmaz.
      */
-    private function ondalikSayilariTirnakla(string $govde): string
+    private function sayilariTirnakla(string $govde): string
     {
         $sonuc = '';
         $uzunluk = strlen($govde);
@@ -266,35 +286,45 @@ final class ProtelIstemcisi
             }
 
             $sayi = substr($govde, $i, strspn($govde, '-+0123456789.eE', $i));
-            $sonuc .= strpbrk($sayi, '.eE') === false ? $sayi : '"'.$sayi.'"';
+            $sonuc .= '"'.$sayi.'"';
             $i += strlen($sayi);
         }
 
         return $sonuc;
     }
 
-    /** Olağan çözümdeki her float, korunan çözümde aynı sayıyı veren metin olmalı; gerisi birebir. */
-    private function ayniDeger(mixed $olagan, mixed $korunan): bool
+    /**
+     * Olağan çözümü esas alır; her float'ı, tırnaklı kopyada aynı konumdaki
+     * metinle `JsonSayisi`'ye çevirir. İki çözüm uyuşmalı: yapı aynı, float
+     * aynı sayıyı veren metin, tam sayı aynı tam sayıyı veren metin, gerisi
+     * birebir — değilse yanıt geçersiz (dönüşüm hatası sessiz kalmasın — G3).
+     */
+    private function floatlariMetinle(mixed $olagan, mixed $metinli): mixed
     {
+        $uyumlu = match (true) {
+            is_float($olagan) => is_string($metinli) && is_numeric($metinli) && (float) $metinli === $olagan,
+            is_int($olagan) => is_string($metinli) && is_numeric($metinli) && (int) $metinli === $olagan,
+            is_array($olagan) => is_array($metinli) && array_keys($olagan) === array_keys($metinli),
+            default => $olagan === $metinli,
+        };
+
+        if (! $uyumlu) {
+            throw EntegratorHatasi::yanitGecersiz();
+        }
+
         if (is_float($olagan)) {
-            return is_string($korunan) && is_numeric($korunan) && (float) $korunan === $olagan;
+            /** @var string $metinli */
+            return new JsonSayisi($metinli);
         }
 
-        if (! is_array($olagan)) {
-            return $olagan === $korunan;
-        }
-
-        if (! is_array($korunan) || array_keys($olagan) !== array_keys($korunan)) {
-            return false;
-        }
-
-        foreach ($olagan as $anahtar => $deger) {
-            if (! $this->ayniDeger($deger, $korunan[$anahtar])) {
-                return false;
+        if (is_array($olagan)) {
+            /** @var array<array-key, mixed> $metinli */
+            foreach ($olagan as $anahtar => $deger) {
+                $olagan[$anahtar] = $this->floatlariMetinle($deger, $metinli[$anahtar]);
             }
         }
 
-        return true;
+        return $olagan;
     }
 
     /**

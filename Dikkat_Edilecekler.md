@@ -42,6 +42,13 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   değişken varken de sına.
   *(Fable incelemesi F8: `gecici-env-oku.php` `.env`'de olmayan anahtar için
   süreç ortamındaki değeri döndürüyordu.)*
+  Ayrıştırıcının çıktısını bir alan için düzeltirken **diğer alanların türünü
+  ve kabul edilen biçimleri koru.** Bütün sayıları metne çeviren bir çözüm,
+  sayısal fatura numarasını "metin", tırnaklı `"0"`'ı "tutar" yapar; daha katı
+  bir okuyucu dünkü geçerli girdiyi (`1.5e3`) reddeder. Kaynak türü ayırt
+  edilebilir kalsın (ayrı değer türü), dönüşüm yalnız ona ihtiyaç duyan alana
+  uygulansın; eski kodun kabul ettiği biçimleri listeleyip testte sına.
+  *(PRT-R12, PRT-R13: R8'in hassas JSON okuması.)*
 - **G4 — Değişken uzunluktaki veriyi sabit alana yazan kodu en uzun geçerli
   değerle dene.** Alan sınırı 200 karakterse 200 karakterle; kısa örnekle
   geçmesi kanıt değildir.

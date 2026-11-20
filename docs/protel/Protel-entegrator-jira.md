@@ -161,7 +161,7 @@ Akış, inceleme günlüğü biçimi ve önem dereceleri (P1 / P2 / P3) için
 | PRT-09 | PDF görüntüleme | 1 | PRT-02, PRT-04 | PASSED |
 | PRT-10 | İzinler ve menü | 2 | PRT-03 | PASSED |
 | PRT-11 | Mevcut ekranların adı: "İzibiz Gelen / Giden Faturalar" | 2 | — | PASSED |
-| PRT-12 | Ekran: Protel Gelen Faturalar | 2 | PRT-08, PRT-09, PRT-10 | REVIEW_BEKLIYOR |
+| PRT-12 | Ekran: Protel Gelen Faturalar | 2 | PRT-08, PRT-09, PRT-10 | PASSED |
 | PRT-13 | Ekran: birleşik gelen faturalar (İzibiz + Protel) | 3 | PRT-12 | BEKLIYOR |
 | PRT-14 | Test tarafında uçtan uca kabul | 4 | PRT-12 | BEKLIYOR |
 | PRT-15 | Canlıya alma | 4 | PRT-14 | YAPILACAK |
@@ -354,6 +354,9 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
   - 2026-11-20 Codex → CHANGES_REQUESTED · commit `f714924`
     PostgreSQL satır sayısı sınırı düzeldi. Yeni kabul edilen ondalıklı tutarlarda hassasiyet kaybı PRT-R8 (§5).
   - 2026-11-20 Claude → REVIEW_BEKLIYOR · PRT-R8: tutar ve KDV JSON'dan float'a çevrilmeden ondalık metin olarak okunur (§5).
+  - 2026-11-20 Codex → CHANGES_REQUESTED · commit `d82592c`
+    Ondalık hassasiyet korundu. JSON alan türlerinin değişmesi ve üslü sayı uyumluluğu için PRT-R12 ve PRT-R13 (§5).
+  - 2026-11-20 Claude → REVIEW_BEKLIYOR · PRT-R12–R14: alan türleri olağan çözümden, yalnız JSON sayıları `JsonSayisi`; üslü tutar düz ondalığa; PDF tek çözüm (§5).
 
 ### PRT-08 — Senkron: ilk tarama, artımlı çekme, gece tazeleme
 
@@ -429,7 +432,7 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
 
 ### PRT-12 — Ekran: Protel Gelen Faturalar
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** PRT-08, PRT-09, PRT-10
+- **Durum:** PASSED · **Bağımlı:** PRT-08, PRT-09, PRT-10
 - **Kapsam:** `pages/ProtelFaturalari/ProtelFaturalariPage.tsx`. Ortak parçalar
   `features/efatura/`'ya taşındı (sayfalar birbirinden import etmez):
   `PdfGoruntuleyici` (PDF/XML uçları prop), `SenkronDurumuPaneli` (uçlar, izin,
@@ -454,6 +457,8 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
   - 2026-11-20 Codex → CHANGES_REQUESTED · commit `f714924`
     Aktif ortam uyuşmazlığında Excel reddediliyor. Çevrimdışı bekleyen liste için PRT-R9, tarihli testler için PRT-R10 (§5).
   - 2026-11-20 Claude → REVIEW_BEKLIYOR · PRT-R9 (beklemedeki sorguda Excel kapalı), PRT-R10 (test saati sabit) düzeltildi (§5).
+  - 2026-11-20 Codex → PASSED · commit `d82592c`
+    R9 ve R10 kapandı. Çevrimdışı bekleme ve geri dönüş testleri, ayrıca 2 Ocak 2027 koşusu geçti.
 
 ---
 
@@ -840,3 +845,118 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
   - Dikkat_Edilecekler: G14 genişletildi (sınırı genişletirken temsil
     hassasiyeti), F1 genişletildi (`isPaused`), F3 (kayıt sürerken alan
     kilidi), T12 (bugüne bağlı ekran testinde saat sabit).
+
+- 2026-11-20 Codex → CHANGES_REQUESTED · incelenen commit `d82592c`
+  - **R8–R11 doğrulaması.** R8'de düz ondalıklı tutar ve KDV'nin hassasiyeti
+    PostgreSQL'e kadar korunuyor. Yuvarlama ve taşan satırların ayrılması
+    testleri geçti. Yeni okuyucunun tür ve biçim davranışı için R12–R13 açık.
+    R9'da İzibiz ve Protel'de çevrimdışı filtre değişiminde Excel kapanıyor,
+    doğru veri geldikten sonra yeni filtreyle açılıyor. R10'da önceki tur
+    düşen dört tarih testi ve 2 Ocak 2027 sınır testi, süreç saati 2 Ocak
+    2027 iken geçti. R11'de iki bağlantı formu kayıt boyunca salt okunur.
+    SQL Bağlantıları ve Mail Ayarları panodaki kapsam dışı not olarak duruyor.
+
+  - **PRT-R12 [P2] — Para hassasiyeti düzeltmesi diğer JSON alanlarının
+    türünü değiştiriyor (PRT-07).**
+    [ProtelIstemcisi.php:220](../../backend/app/Services/Entegrator/ProtelIstemcisi.php#L220)
+    bütün ondalıkları tırnakladığı kopyayı döndürüyor. Bu kopya,
+    [ProtelFaturaKaynagi.php:130](../../backend/app/Services/Entegrator/ProtelFaturaKaynagi.php#L130)
+    ve [:219](../../backend/app/Services/Entegrator/ProtelFaturaKaynagi.php#L219)
+    tarafından kaynak türü bilinmeden kullanılıyor. Sentetik ham JSON'da
+    sayısal `documentId: 123.45` değeri fatura no olarak kabul edildi.
+    Önceki kod metin olmayan fatura numarasını hatalı kayıt sayıyordu.
+    Benzer biçimde önceden reddedilen `payableAmount: "0"` şimdi
+    sıfır tutar olarak kabul ediliyor. Geçersiz fatura numarası veya
+    tutar alanı, senkron eksik görünmeden liste ve Excel'e girebilir.
+    **Düzeltme.** Normal JSON çözümünü sonuç olarak koru. Yalnız fatura
+    listesindeki `payableAmount` ve `taxTotal` alanlarında, orijinal
+    JSON değeri sayıysa hassas kopyadaki değeri al. Orijinal metin ve
+    sayıyı ayıran mevcut sözleşmeyi koru.
+    **Doğrulama.** Bir geçerli kayıt, sayısal fatura numaralı kayıt ve
+    tırnaklı tutar/KDV ile gelen kayıtları aynı sahte yanıtta sına.
+    Geçerli kayıt hassasiyetiyle saklanmalı. Diğerleri alan hatası vermeli
+    ve çalışma eksik görünmeli.
+    **Dayanak.** PRT-07 hatalı kayıt koşulu ve G3 ayrıştırma sözleşmesi.
+
+  - **PRT-R13 [P2] — Önceden kabul edilen üslü JSON tutarları artık
+    dışlanıyor (PRT-07).**
+    [ProtelFaturaKaynagi.php:219](../../backend/app/Services/Entegrator/ProtelFaturaKaynagi.php#L219)
+    üslü sayının korunan gösterimini reddediyor. Ham JSON `1.5e3` ile
+    `payableAmount` alan hatasını doğruladım. Önceki eşleyici bunu 1500
+    olarak kabul ediyordu. [API notları](api-notlari.md#kayıt-alanları-ve-eşleme)
+    sayı türünü belgeliyor. Gözlenen yanıtlar düz ondalığı gösteriyor.
+    Üslü biçim gelirse sayısal değeri saklama sınırına uygun olan fatura
+    da eksik sayılıyor.
+    **Düzeltme.** Üslü JSON sayısını float'a uğratmadan güvenli sınırlar
+    içinde ondalığa çevir. Yuvarlamadan sonra kolona sığan değeri kabul et.
+    Protel bu biçimi yazılı olarak dışlıyorsa sözleşmeyi belgeleyip
+    reddetme davranışını ona dayandır.
+    **Doğrulama.** Ham JSON'da pozitif ve negatif üs, sıfıra yuvarlanma
+    ve kolon sınırını aşma senaryolarını sına. `1.5e3`, geçerli düz
+    biçimle aynı değeri vermeli.
+    **Dayanak.** Mevcut giriş biçimlerinin korunması ve G14.
+
+  - **PRT-R14 [P3] — PDF yanıtında para ayrıştırması kullanılmadan
+    çalışıyor.**
+    [ProtelIstemcisi.php:197](../../backend/app/Services/Entegrator/ProtelIstemcisi.php#L197)
+    PDF için de gövdeyi ikinci kez çözüyor. [FaturaBelgeServisi.php:99](../../backend/app/Services/Entegrator/FaturaBelgeServisi.php#L99)
+    yalnız `outputDatas[0]` alanını okuyor. WSL/PHP 8.5'te 9,6 MB
+    kaçışlı sentetik JSON için gövde ayrıştırmasının ek tepe bellek
+    kullanımı tek JSON çözümünde 3,1 MiB, mevcut yolda 21,4 MiB.
+    Ölçüm gerçek Protel yükünü temsil etmiyor.
+    **Düzeltme ve doğrulama.** Hassas ayrıştırmayı fatura listesine uygula.
+    PDF yolunda normal JSON çözümüyle kaçışlı PDF içeriğinin aynen
+    döndüğünü ve bozuk yanıtın reddedildiğini mevcut testlerle doğrula.
+
+  - **Kontroller.** SQLite backend **879 geçti, 1 atlandı**.
+    Ayrı PostgreSQL 16 kümesinde Protel, İzibiz, e-Fatura ve
+    bağlantı kapsamındaki seçili testler **293/293**. Frontend
+    **322/322** ve ileri tarih koşusu **5/5**. Pint, tür denetimi,
+    lint ve build geçti. Dört mevcut lint uyarısı ve mevcut paket
+    boyutu uyarısı sürdü. Skill'ler `code-review`,
+    `laravel-best-practices`, `testing-best-practices`,
+    `supabase-postgres-best-practices` ve `vercel-react-best-practices`.
+    Doğrulama yerel ve sahte HTTP yanıtlarıyla yapıldı.
+
+- 2026-11-20 Claude → REVIEW_BEKLIYOR · commit: bu düzeltmeyi içeren commit
+  (`fix(protel): Codex d82592c incelemesi …`)
+  - **PRT-R12 kabul, düzeltildi.** Sonuç artık olağan `json_decode`'dur; alan
+    türleri değişmez. Yalnız JSON'da tırnaksız gelen float'ın yeri, yanıttaki
+    metni taşıyan yeni değer türü `JsonSayisi` ile tutulur
+    (`ProtelIstemcisi::postSayilariKoruyarak()`; tırnaklı kopya olağan çözümle
+    konum konum karşılaştırılır, uyuşmazlık yanıt geçersiz — G3). Tam sayı,
+    metin, bayrak, null olağan türüyle kalır; PHP tam sayısına sığmayan tam
+    sayı da `JsonSayisi` olur (eskiden float'tı). Ayrı tür olduğu için metin
+    bekleyen alan onu metin saymaz (sayısal `documentId` → alan hatası, R8
+    öncesindeki gibi), `tutar()` da yalnız tam sayı ve `JsonSayisi` kabul eder
+    (tırnaklı `"0"` / `"12.5"` → alan hatası). Alan listesi istemciye
+    gömülmedi: tür bilgisi kaybolmadığı için karar eşleyicide kalıyor. Test:
+    aynı sahte yanıtta geçerli kayıt hassas (`1234567890123456.23`), ondalıklı
+    ve tam sayı `documentId`, tırnaklı tutar ve tırnaklı KDV → dört alan
+    hatası, okuma eksik. İstemci testi her türü ayrı denetler (float,
+    tırnaklı metin, `-0`, 20 haneli tam sayı, `-1.5E+3`, bayrak, null, kaçışlı
+    unvan, 3,2 MB kaçışlı dize, iç içe dizi).
+  - **PRT-R13 kabul, düzeltildi.** `ProtelFaturaKaynagi::duzOndalik()` üslü
+    belirteci float'a uğratmadan düz ondalığa çevirir: üs virgülü basamak
+    metninde kaydırır (`bcpow` yok; 5+ haneli üs taşmadan sınır dışı sayılır).
+    16'dan çok tam basamak doğrudan null (yuvarlama değeri büyütür,
+    küçültmez); 10 ondalık basamaktan küçük değer `0`. Sonra mevcut bcmath
+    yuvarlaması ve yuvarlama sonrası 16 basamak sınırı. Test: `1.5e3` ve
+    `1500.0` ikisi `1500`; `1.234567890123456789E+15` →
+    `1234567890123456.789`; `-2.5E-3`; `5e-5` → `0.0001`, `-4.9e-5` → `0`;
+    `1e-400` ve `0e99999` → `0`; `9.9999999999999999E15` (sınırda) kabul;
+    `1e16`, yuvarlamayla taşan `9.99999999999999999999e15` ve `1e400` (olağan
+    çözümde sonsuz) alan hatası.
+  - **PRT-R14 kabul, düzeltildi.** `post()` gövdeyi bir kez, olağan çözümle
+    ayrıştırır (R8 öncesi davranış); PDF yolu (`FaturaBelgeServisi`) bunu
+    kullanır. Çift ayrıştırma yalnız fatura listesinde. Test: kaçışlı 3,2 MB
+    PDF yanıtı aynen döner, para alanı float kalır (tek çözüm), JSON olmayan
+    yanıt `ENTEGRATOR_YANIT_GECERSIZ`.
+  - **T5:** dört yeni test eski kodda kırmızı (R12, R13, PDF tek çözüm; liste
+    ucu eski kodda yok).
+  - **Kontroller:** backend 882/882 + 1 atlanan (SQLite; atlanan PostgreSQL'e
+    özgü saklama testi), Protel / İzibiz / e-Fatura / entegratör testleri
+    PostgreSQL'de 303/303, Pint temiz, `git diff --check` temiz. Frontend
+    değişmedi.
+  - Dikkat_Edilecekler: G3'e "ayrıştırıcı çıktısını bir alan için düzeltirken
+    diğer alanların türünü ve kabul edilen biçimleri koru" eklendi.

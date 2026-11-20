@@ -179,9 +179,9 @@ final class ProtelFaturaKaynagiTest extends TestCase
     /**
      * Tutar ve KDV float'a çevrilmeden okunur (PRT-R8): 16 tam basamak ve
      * kuruş aynen kalır; 4 basamağa yarım sıfırdan uzağa yuvarlanır;
-     * yuvarlamayla 17 basamağa taşan ve üslü yazılan değer hatalı kayıttır.
+     * yuvarlamayla 17 basamağa taşan değer hatalı kayıttır.
      */
-    public function test_tutar_ve_kdv_ondalik_hassasiyetiyle_okunur_tasan_ve_uslu_deger_hatali_kayittir(): void
+    public function test_tutar_ve_kdv_ondalik_hassasiyetiyle_okunur_tasan_deger_hatali_kayittir(): void
     {
         config(['entegrator.protel.aktif' => true]);
         $this->protelYaniti([
@@ -189,7 +189,6 @@ final class ProtelFaturaKaynagiTest extends TestCase
             // dize içindeki sayılar ve kaçışlar olduğu gibi kalır
             $this->kayit(['id' => 2, 'payableAmount' => '@ham:12.34565', 'taxTotal' => '@ham:-0.00005', 'supplierTitle' => 'Kat "12.5" \\ 3e2 Ltd.']),
             $this->kayit(['id' => 3, 'payableAmount' => '@ham:9999999999999999.99995']),
-            $this->kayit(['id' => 4, 'payableAmount' => '@ham:1.5e3']),
         ]);
 
         $sonuc = $this->oku($this->tanim());
@@ -199,9 +198,74 @@ final class ProtelFaturaKaynagiTest extends TestCase
             array_map(fn (EntegratorFatura $f): array => [$f->kaynakId, $f->tutar, $f->vergiTutari], $sonuc->faturalar),
         );
         $this->assertSame('Kat "12.5" \\ 3e2 Ltd.', $sonuc->faturalar[1]->gondericiUnvan);
+        $this->assertSame([['kaynak_id' => 3, 'alanlar' => ['payableAmount']]], $sonuc->hataliKayitlar);
+    }
+
+    /**
+     * Hassas okuma alanın JSON türünü değiştirmez (PRT-R12): sayısal fatura
+     * numarası metin, tırnaklı tutar / KDV sayı sayılmaz — hatalı kayıttır.
+     */
+    public function test_sayisal_fatura_no_ve_tirnakli_tutar_kdv_hatali_kayittir_gecerli_kayit_hassas_okunur(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        $this->protelYaniti([
+            $this->kayit(['id' => 1, 'payableAmount' => '@ham:1234567890123456.23']),
+            $this->kayit(['id' => 2, 'documentId' => '@ham:123.45']),
+            $this->kayit(['id' => 3, 'documentId' => '@ham:12345']),
+            $this->kayit(['id' => 4, 'payableAmount' => '0']),
+            $this->kayit(['id' => 5, 'taxTotal' => '12.5']),
+        ]);
+
+        $sonuc = $this->oku($this->tanim());
+
+        $this->assertSame([[1, '1234567890123456.23']], array_map(
+            fn (EntegratorFatura $f): array => [$f->kaynakId, $f->tutar],
+            $sonuc->faturalar,
+        ));
+        $this->assertSame(FaturaOkumaSonucu::EKSIK_VERI_HATASI, $sonuc->eksikNedeni);
         $this->assertSame([
-            ['kaynak_id' => 3, 'alanlar' => ['payableAmount']],
+            ['kaynak_id' => 2, 'alanlar' => ['documentId']],
+            ['kaynak_id' => 3, 'alanlar' => ['documentId']],
             ['kaynak_id' => 4, 'alanlar' => ['payableAmount']],
+            ['kaynak_id' => 5, 'alanlar' => ['taxTotal']],
+        ], $sonuc->hataliKayitlar);
+    }
+
+    /**
+     * Üslü JSON sayısı float'a uğramadan düz ondalığa çevrilir (PRT-R13):
+     * `1.5e3` düz `1500.0` ile aynı; küçük değer 4 basamakta sıfır; yuvarlamadan
+     * sonra 16 tam basamağı aşan ya da sonsuza giden değer hatalı kayıttır.
+     */
+    public function test_uslu_tutar_duz_ondalikla_ayni_okunur_sigmayan_hatali_kayittir(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        $this->protelYaniti([
+            $this->kayit(['id' => 1, 'payableAmount' => '@ham:1.5e3', 'taxTotal' => '@ham:1500.0']),
+            $this->kayit(['id' => 2, 'payableAmount' => '@ham:1.234567890123456789E+15', 'taxTotal' => '@ham:-2.5E-3']),
+            $this->kayit(['id' => 3, 'payableAmount' => '@ham:5e-5', 'taxTotal' => '@ham:-4.9e-5']),
+            $this->kayit(['id' => 4, 'payableAmount' => '@ham:1e-400', 'taxTotal' => '@ham:0e99999']),
+            $this->kayit(['id' => 5, 'payableAmount' => '@ham:9.9999999999999999E15', 'taxTotal' => null]),
+            $this->kayit(['id' => 6, 'payableAmount' => '@ham:1e16']),
+            $this->kayit(['id' => 7, 'payableAmount' => '@ham:9.99999999999999999999e15']),
+            $this->kayit(['id' => 8, 'payableAmount' => '@ham:1e400']),
+        ]);
+
+        $sonuc = $this->oku($this->tanim());
+
+        $this->assertSame([
+            [1, '1500', '1500'],
+            [2, '1234567890123456.789', '-0.0025'],
+            [3, '0.0001', '0'],
+            [4, '0', '0'],
+            [5, '9999999999999999.9', null],
+        ], array_map(
+            fn (EntegratorFatura $f): array => [$f->kaynakId, $f->tutar, $f->vergiTutari],
+            $sonuc->faturalar,
+        ));
+        $this->assertSame([
+            ['kaynak_id' => 6, 'alanlar' => ['payableAmount']],
+            ['kaynak_id' => 7, 'alanlar' => ['payableAmount']],
+            ['kaynak_id' => 8, 'alanlar' => ['payableAmount']],
         ], $sonuc->hataliKayitlar);
     }
 

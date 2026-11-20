@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Models\EntegratorBaglanti;
 use App\Services\Entegrator\EntegratorHatasi;
+use App\Services\Entegrator\JsonSayisi;
 use App\Services\Entegrator\ProtelIstemcisi;
 use Closure;
 use GuzzleHttp\Promise\PromiseInterface;
@@ -237,22 +238,73 @@ final class ProtelIstemcisiTest extends TestCase
      * yazar: büyük PDF yanıtında yüz binlerce kaçış olur. Ondalığı koruyan
      * çözüm (PRT-R8) bunu sınıra takılmadan ve değiştirmeden okur.
      */
-    public function test_kacisli_buyuk_pdf_yaniti_aynen_cozulur_ondalik_metin_kalir(): void
+    /**
+     * .NET base64 PDF'teki `+`'yı unicode kaçışıyla yazar (3,2 MB, 1,6 milyon
+     * kaçış). Kaçışlar `chr(92)` ile kurulur: düz yazılan kaçış dizisi araçta
+     * `+`'ya dönüşüp testi kaçışsız bırakabiliyor.
+     */
+    private static function kacisliBase64(string $base64): string
+    {
+        return str_replace(['+', '/'], [chr(92).'u002B', chr(92).'/'], $base64);
+    }
+
+    /** PDF'te para alanı yok: gövde bir kez, olağan çözümle ayrıştırılır (PRT-R14). */
+    public function test_pdf_yaniti_olagan_cozumle_aynen_doner_json_olmayan_yanit_gecersizdir(): void
     {
         config(['entegrator.protel.aktif' => true]);
         $base64 = str_repeat('J+V+B+E/', 400000);
-        $kacisli = str_replace(['+', '/'], [chr(92).'u002B', chr(92).'/'], $base64);
-        $govde = '{"isSuccess":false,"outputDatas":["'.$kacisli.'"],"invoices":[{"payableAmount":1786.5}]}';
+        $govde = '{"isSuccess":false,"outputDatas":["'.self::kacisliBase64($base64).'"],"tutar":1786.5}';
         Http::preventStrayRequests();
         Http::fake([
             self::GIRIS_URL => self::girisYaniti(),
-            self::PDF_URL => Http::response($govde, 200, ['Content-Type' => 'application/json']),
+            self::PDF_URL => Http::sequence()
+                ->push($govde, 200, ['Content-Type' => 'application/json'])
+                ->push('<html>hata</html>', 200),
         ]);
+        $tanim = $this->tanim();
+        $istemci = new ProtelIstemcisi;
 
-        $yanit = (new ProtelIstemcisi)->post($this->tanim(), ProtelIstemcisi::YOL_FATURA_PDF, self::PDF_GOVDESI);
+        $yanit = $istemci->post($tanim, ProtelIstemcisi::YOL_FATURA_PDF, self::PDF_GOVDESI);
 
         $this->assertSame($base64, $yanit['outputDatas'][0]);
-        $this->assertSame('1786.5', $yanit['invoices'][0]['payableAmount']);
+        $this->assertSame(1786.5, $yanit['tutar']);
+        $hata = $this->hataBekle(fn () => $istemci->post($tanim, ProtelIstemcisi::YOL_FATURA_PDF, self::PDF_GOVDESI));
+        $this->assertSame(EntegratorHatasi::YANIT_GECERSIZ, $hata->kod);
+    }
+
+    /**
+     * Liste yolunda yalnız JSON SAYISI olan float `JsonSayisi`'ye döner
+     * (PRT-R8); tırnaklı metin metin, tam sayı tam sayı kalır (PRT-R12).
+     * Doğrusal tarama kaçışlı büyük dizede de aynı sonucu verir.
+     */
+    public function test_sayilari_koruyan_cozum_yalniz_json_sayilarini_metinle_tasir_turleri_korur(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        $base64 = str_repeat('J+V+B+E/', 400000);
+        $govde = '{"invoiceList":[{"id":7,"payableAmount":1234567890123456.23,"taxTotal":"0",'
+            .'"documentId":123.45,"lineCount":-0,"buyuk":12345678901234567890,"uslu":-1.5E+3,'
+            .'"isRead":true,"despatchId":null,"unvan":"Kat \"12.5\" '.chr(92).chr(92).' 3e2",'
+            .'"ek":"'.self::kacisliBase64($base64).'","ic":[0.1,[2]]}]}';
+        Http::preventStrayRequests();
+        Http::fake([
+            self::GIRIS_URL => self::girisYaniti(),
+            self::LISTE_URL => Http::response($govde, 200, ['Content-Type' => 'application/json']),
+        ]);
+
+        $kayit = (new ProtelIstemcisi)->postSayilariKoruyarak($this->tanim(), ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI)['invoiceList'][0];
+
+        $this->assertSame(7, $kayit['id']);
+        $this->assertEquals(new JsonSayisi('1234567890123456.23'), $kayit['payableAmount']);
+        $this->assertSame('0', $kayit['taxTotal']);
+        $this->assertEquals(new JsonSayisi('123.45'), $kayit['documentId']);
+        $this->assertSame(0, $kayit['lineCount']);
+        $this->assertEquals(new JsonSayisi('12345678901234567890'), $kayit['buyuk']);
+        $this->assertEquals(new JsonSayisi('-1.5E+3'), $kayit['uslu']);
+        $this->assertTrue($kayit['isRead']);
+        $this->assertNull($kayit['despatchId']);
+        $this->assertSame('Kat "12.5" '.chr(92).' 3e2', $kayit['unvan']);
+        $this->assertSame($base64, $kayit['ek']);
+        $this->assertEquals([new JsonSayisi('0.1'), [2]], $kayit['ic']);
     }
 
     private function tokenOf(Request $istek): string

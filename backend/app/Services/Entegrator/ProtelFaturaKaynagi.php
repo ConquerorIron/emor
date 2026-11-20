@@ -44,7 +44,7 @@ final class ProtelFaturaKaynagi implements FaturaKaynagi
         $basladi = CarbonImmutable::now();
 
         // Tarihler İstanbul takvim günüdür; Protel saat dilimi eki beklemez
-        $govde = $this->istemci->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, [
+        $govde = $this->istemci->postSayilariKoruyarak($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, [
             'startDate' => $baslangic->format('Y-m-d').'T00:00:00',
             'endDate' => $bitis->format('Y-m-d').'T23:59:59',
             'filterDateType' => self::TARIH_TURLERI[$tarihTuru],
@@ -205,18 +205,22 @@ final class ProtelFaturaKaynagi implements FaturaKaynagi
     }
 
     /**
-     * Protel tutarı JSON sayısıdır (`1786.0`, `401.98`); istemci ondalığı METİN
-     * olarak verir, float'a hiç çevrilmez (PRT-R8). 4 basamağa yuvarlanır (yarım
+     * Protel tutarı JSON sayısıdır (`1786.0`, `401.98`); ondalık, istemcinin
+     * verdiği yanıt metninden okunur, float'a hiç çevrilmez (PRT-R8). Tırnaklı
+     * metin (`"0"`) tutar değildir (PRT-R12). 4 basamağa yuvarlanır (yarım
      * sıfırdan uzağa), sondaki sıfırlar atılır. Saklama sözleşmesi
-     * `numeric(20,4)`: en çok 16 tam basamak — yuvarlamadan SONRA denetlenir.
-     * Aşan ya da düz ondalık olmayan (üslü) değer null: veri hatası, toplu
-     * yazıma ulaşmaz (PRT-R5).
+     * `numeric(20,4)`: en çok 16 tam basamak — yuvarlamadan SONRA denetlenir;
+     * aşan değer null: veri hatası, toplu yazıma ulaşmaz (PRT-R5).
      */
     private function tutar(mixed $deger): ?string
     {
-        $metin = is_int($deger) ? (string) $deger : $deger;
+        $metin = match (true) {
+            is_int($deger) => (string) $deger,
+            $deger instanceof JsonSayisi => $this->duzOndalik($deger->metin),
+            default => null,
+        };
 
-        if (! is_string($metin) || preg_match('/^-?\d+(?:\.\d+)?$/D', $metin) !== 1) {
+        if ($metin === null) {
             return null;
         }
 
@@ -226,6 +230,50 @@ final class ProtelFaturaKaynagi implements FaturaKaynagi
         $yuvarlak = $yuvarlak === '-0' ? '0' : $yuvarlak;
 
         return strlen(explode('.', ltrim($yuvarlak, '-'))[0]) <= 16 ? $yuvarlak : null;
+    }
+
+    /**
+     * JSON sayı belirtecini (`-1.5e3`, `12.30`, `4E-2`) float'a uğratmadan düz
+     * ondalığa çevirir (PRT-R13). Üs, virgülü kaydırmaktır: basamaklar metin
+     * olarak kaydırılır (`bcpow` yok, dev üs bellek tüketmez). 16'dan çok tam
+     * basamaklı değer saklamaya sığmaz (yuvarlama büyütür, küçültmez): null.
+     * 10 ondalık basamaktan küçük değer 4 basamakta sıfırdır: `0`.
+     */
+    private function duzOndalik(string $sayi): ?string
+    {
+        if (preg_match('/^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?)(\d+))?$/D', $sayi, $p) !== 1) {
+            return null;
+        }
+
+        $basamaklar = $p[2].($p[3] ?? '');
+        $usRakami = ltrim($p[5] ?? '', '0');
+        // 5+ haneli üs her durumda sınırın dışındadır; tam sayıya taşmasın
+        $us = strlen($usRakami) > 4 ? 100000 : (int) $usRakami;
+        $nokta = strlen($p[2]) + (($p[4] ?? '') === '-' ? -$us : $us);
+
+        $anlamli = ltrim($basamaklar, '0');
+        if ($anlamli === '') {
+            return '0';
+        }
+
+        // değer = 0.<anlamli> × 10^nokta
+        $nokta -= strlen($basamaklar) - strlen($anlamli);
+
+        if ($nokta > 16) {
+            return null;
+        }
+
+        if ($nokta < -10) {
+            return '0';
+        }
+
+        $duz = match (true) {
+            $nokta <= 0 => '0.'.str_repeat('0', -$nokta).$anlamli,
+            $nokta >= strlen($anlamli) => $anlamli.str_repeat('0', $nokta - strlen($anlamli)),
+            default => substr($anlamli, 0, $nokta).'.'.substr($anlamli, $nokta),
+        };
+
+        return $p[1].$duz;
     }
 
     /** Protel bayrakları 0/1 tam sayıdır */
