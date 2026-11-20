@@ -100,6 +100,16 @@ return [
 
         // Denetim kaydı: ERP'ye yapılan yazımlar gibi izi kalması gereken işlemler.
         // Genel LOG_LEVEL'dan (üretimde warning) bağımsız, bir yıl saklanır.
+        // Yedekleme denetim günlüğü (README §4.9, §7.3): veritabanı geri
+        // yüklense de kalan kayıt. Servis hesabında LOG_KLASORU servisin klasörü.
+        'yedekleme' => [
+            'driver' => 'daily',
+            'path' => $gunlukKlasoru.'/yedekleme.log',
+            'level' => 'info',
+            'days' => 400,
+            'replace_placeholders' => true,
+        ],
+
         'denetim' => [
             'driver' => 'daily',
             'path' => $gunlukKlasoru.'/denetim.log',

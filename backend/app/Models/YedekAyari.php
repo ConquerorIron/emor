@@ -55,6 +55,15 @@ final class YedekAyari extends Model
     ];
 
     /**
+     * Tek satır; kaydedilmemişse migration varsayılanlarıyla yeni nesne
+     * (kaydetmez — okuyan yer satır açmasın).
+     */
+    public static function guncel(): self
+    {
+        return self::query()->where('anahtar', self::ANAHTAR)->first() ?? new self;
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array

@@ -19,6 +19,10 @@ use App\Services\Kesinti\ErpProjeKaynagi;
 use App\Services\Kesinti\ErpProjeSorgusu;
 use App\Services\Rapor\ErpRaporKaynagi;
 use App\Services\Rapor\ErpRaporSorgusu;
+use App\Services\Yedekleme\Hedefler\HedefKatalogu;
+use App\Services\Yedekleme\KaynakVeritabani;
+use App\Services\Yedekleme\PostgresKaynakVeritabani;
+use App\Services\Yedekleme\YedekImzasi;
 use App\Yetki\Izin;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -64,6 +68,12 @@ class AppServiceProvider extends ServiceProvider
             ErpRaporKaynagi::class,
             ErpRaporSorgusu::class,
         );
+
+        // Yedekleme: anlık görüntü PostgreSQL'de; testler sahtesini bağlar
+        $this->app->bind(KaynakVeritabani::class, PostgresKaynakVeritabani::class);
+        // Bir istek / komut boyunca tek imza nesnesi (anahtar bir kez okunur)
+        $this->app->scoped(YedekImzasi::class);
+        $this->app->singleton(HedefKatalogu::class);
 
         // TCPDF (kesinti ekstresi) hatada varsayılan olarak die() çağırır: istek
         // 200 ile yarım kalırdı. Kütüphane yüklenmeden önce istisnaya çevrilir;

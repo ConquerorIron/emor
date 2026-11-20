@@ -141,9 +141,9 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 | BY-003 | Sunucu kurulum betiği | 0 | BY-002 | PASSED |
 | BY-004 | Veri modeli, yapılandırma, izinler | 1 | BY-002 | PASSED |
 | BY-005 | Dosya kilidi ve işlem durumu dosyası | 1 | BY-004 | PASSED |
-| BY-006 | Manifest, imza, olay günlüğü | 1 | BY-004 | YAPILACAK |
-| BY-007 | Yedek alma (`yedek:al`) | 1 | BY-005, BY-006 | YAPILACAK |
-| BY-008 | Hedef soyutlaması, Yerel disk hedefi, kopyalama | 1 | BY-007 | YAPILACAK |
+| BY-006 | Manifest, imza, olay günlüğü | 1 | BY-004 | REVIEW_BEKLIYOR |
+| BY-007 | Yedek alma (`yedek:al`) | 1 | BY-005, BY-006 | REVIEW_BEKLIYOR |
+| BY-008 | Hedef soyutlaması, Yerel disk hedefi, kopyalama | 1 | BY-007 | REVIEW_BEKLIYOR |
 | BY-009 | Planlar ve zamanlayıcı | 1 | BY-008 | YAPILACAK |
 | BY-010 | Saklama ve temizlik | 1 | BY-009 | YAPILACAK |
 | BY-011 | Klasör tarama, dizini yeniden kurma | 1 | BY-006, BY-008 | YAPILACAK |
@@ -2258,7 +2258,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-006 — Manifest, imza, olay günlüğü
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-004
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-004
 - **Tasarım:** README §5.3, §4.5 (güven sınırı), §7.5
 - **Kapsam:**
   - `YedekManifesti`: README §5.3'teki alanlar; yaz / oku / doğrula. Şema sürümü alanı.
@@ -2268,17 +2268,51 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - `OlayGunlugu`: salt eklemeli dosya (satır başına JSON): sabitleme, doğrulama
     sonucu, kopya durumu, silinme. Manifest + olay günlüğünden "güncel durum" hesabı.
 - **Kabul ölçütleri:**
-  - [ ] Manifestin bir baytı değişince imza doğrulaması başarısız (test).
-  - [ ] Yedek dosyası değişince özet doğrulaması başarısız (test).
-  - [ ] Olay günlüğünden durum yeniden kurulabiliyor: sabitle → çöz → sabitle sonucu "sabit" (test).
-  - [ ] Bozuk / eksik manifest "güvenilmeyen" olarak sınıflanıyor, istisna fırlatıp akışı kesmiyor.
-  - [ ] Parmak izinden `APP_KEY` elde edilemiyor; günlüklere anahtar yazılmıyor.
+  - [x] Manifestin bir baytı değişince imza doğrulaması başarısız (test).
+  - [x] Yedek dosyası değişince özet doğrulaması başarısız (test).
+  - [x] Olay günlüğünden durum yeniden kurulabiliyor: sabitle → çöz → sabitle sonucu "sabit" (test).
+  - [x] Bozuk / eksik manifest "güvenilmeyen" olarak sınıflanıyor, istisna fırlatıp akışı kesmiyor.
+  - [x] Parmak izinden `APP_KEY` elde edilemiyor; günlüklere anahtar yazılmıyor.
 - **Canlı:** Evet (etkisiz).
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-006..008 manifest, yedek alma, hedefler ve kopyalama` olan commit
+    - Skill'ler: `laravel-best-practices` (architecture, error-handling,
+      config), `testing-best-practices` (isolation, assertions).
+    - **Manifest şeması (sürüm 1)** — `YedekManifesti`; dosya
+      `{"manifest": {...}, "imza": "<hex>"}`. Alanlar: `surum`, `kimlik`,
+      `alinma_zamani` (saat dilimi ekli), `kaynak`, `plan_adlari`,
+      `veritabani`, `dosya_adi` (yol ayırıcısız), `boyut`, `sha256`,
+      `pg_sunucu_surumu`, `pg_dump_surumu`, `uygulama_surumu` (git commit,
+      depo dosyalarından), `migrationlar`, `satir_sayilari`,
+      `verisi_alinmayan_tablolar`, `veritabani_ozellikleri` {kodlama,
+      siralama, karakter_turu, ayarlar, baglanma_yetkileri}, `sahip_rol`,
+      `sifreli`, `app_key_parmak_izi`, `aciklama`, `alan_kullanici_id`,
+      `alan_kullanici`, `ice_alindi` (BY-013), `geri_yukleme_kimligi`
+      (geri yükleme öncesi yedeğin işlemi). Eksik ya da fazla alan, taşan
+      tarih, yol içeren dosya adı şema hatasıdır.
+    - **İmza:** HMAC-SHA256, kanonik JSON (`KanonikJson`: anahtarlar
+      sıralı) üzerine, alan ayrımlı önekle; anahtar
+      `yedekleme.imza_anahtari` dosyası (`yedek:imza-anahtari` üretir, 0600,
+      var olanın üstüne yazmaz). Anahtar yoksa yazma `ImzaAnahtariYok`
+      (çözümü söyleyen mesaj), okuma "güvenilmeyen".
+    - **Okuma** (`ManifestDeposu::oku`) istisna fırlatmaz:
+      `ManifestOkumaSonucu` güvenilir ya da güvenilmeyen + neden (yok,
+      okunamadı, JSON, imza yok, imza tutmuyor, anahtar yok, şema).
+    - **Olay günlüğü** `olaylar.jsonl` (yedek klasöründe): satır başına imzalı
+      JSON, `flock` + tek `fwrite` + `fsync`. Olay türleri ve ayrıntıları
+      `YedekOlayi` / `OlayTuru`: sabitlendi, sabit_cozuldu, aciklama
+      {aciklama}, dogrulandi {durum}, kopya {hedef_id, hedef_ad, durum,
+      uzak_kimlik, sifreli, sifreli_sha256, plan_idleri}, kopya_silindi
+      {hedef_id, hedef_ad}, yerel_silindi, silindi. İmzası tutmayan satır
+      atlanır ve sayılır. `GuncelDurum::hesapla` olayları zaman sırasıyla
+      uygular.
+    - **APP_KEY parmak izi:** alan ayrımlı HMAC'in ilk 16 hex'i.
+    - Testler `YedekManifestiTest` (10). Kontroller: aşağıdaki BY-008
+      kaydına bakın (üç görev aynı commit'te).
 
 ### BY-007 — Yedek alma (`yedek:al`)
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-005, BY-006
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-005, BY-006
 - **Tasarım:** README §4.1, §6.1, §7.1, §5.2 (dış komutlar, parola dosyası), §4.4 (1. düzey)
 - **Kapsam:**
   - `YedekAlici` servisi + `yedek:al {--kaynak=} {--not=}` komutu, §6.1'in 1–5. adımları.
@@ -2292,21 +2326,56 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - Geçiş dönemi: yedeği uygulama kullanıcısı alır; klasör yapılandırmadan (README §5.2).
 - **Kapsam dışı:** Hedeflere kopyalama, planlar, temizlik.
 - **Kabul ölçütleri:**
-  - [ ] Başarılı çalışmada `.dump` + imzalı `.json` oluşuyor; `yedekler` kaydı `tamam`.
-  - [ ] `pg_dump` hata verirse kayıt `basarisiz`, klasörde yarım / geçici dosya yok (test).
-  - [ ] Doğrulama adımı hata verirse yedek `basarisiz` sayılıyor, dosya listeye girmiyor (test).
-  - [ ] Kilit başka süreçteyken komut anlaşılır mesajla çıkıyor, ikinci yedek almıyor (test).
-  - [ ] Çalıştırılan komut argümanlarında parola yok (test: `Process::assertRan`).
-  - [ ] Disk alanı eşiğin altındaysa yedek başlamıyor (test).
-  - [ ] Süre sınırı yalnız pozitif tam sayı kabul ediliyor; `abc`, `0`, `-10` gibi
+  - [x] Başarılı çalışmada `.dump` + imzalı `.json` oluşuyor; `yedekler` kaydı `tamam`.
+  - [x] `pg_dump` hata verirse kayıt `basarisiz`, klasörde yarım / geçici dosya yok (test).
+  - [x] Doğrulama adımı hata verirse yedek `basarisiz` sayılıyor, dosya listeye girmiyor (test).
+  - [x] Kilit başka süreçteyken komut anlaşılır mesajla çıkıyor, ikinci yedek almıyor (test).
+  - [x] Çalıştırılan komut argümanlarında parola yok (test: `Process::assertRan`).
+  - [x] Disk alanı eşiğin altındaysa yedek başlamıyor (test).
+  - [x] Süre sınırı yalnız pozitif tam sayı kabul ediliyor; `abc`, `0`, `-10` gibi
     geçersiz ayar açık hatayla duruyor, sınırsız çalışmaya dönüşmüyor (test; BY-004-R5).
-  - [ ] Lokal PostgreSQL'de gerçek araçlarla bir kez uçtan uca denendi (günlükte not).
+  - [x] Lokal PostgreSQL'de gerçek araçlarla bir kez uçtan uca denendi (günlükte not).
 - **Canlı:** Evet (etkisiz; komut elle çalıştırılabilir).
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-006..008 manifest, yedek alma, hedefler ve kopyalama` olan commit
+    - `YedekAlici::al($kilit, $kaynak, …)`: durum klasörünün kilidi
+      tutulmuyorsa `LogicException`; açık üstüne geri yükleme varsa (geri
+      yükleme öncesi yedek hariç) `YedekAlmaHatasi`, kayıt açılmaz. Diğer
+      her hata kaydı `basarisiz` yapar (kod: DISK_DOLU, PG_DUMP, DOGRULAMA,
+      DOSYA, YAPILANDIRMA), geçici dosya silinir, denetim kaydı yazılır.
+    - Anlık görüntü `KaynakVeritabani` (gerçeği `PostgresKaynakVeritabani`:
+      ayrı bağlantıda REPEATABLE READ READ ONLY + `pg_export_snapshot()`;
+      sayımlar, migration listesi, kodlama / sıralama / ayarlar /
+      bağlanma yetkileri, tablo sahibi, sunucu sürümü o işlemden). Testlerde
+      sahtesi bağlanır.
+    - `PgAraclari`: komut dizisi, süre sınırı, `PGPASSFILE`; süreç
+      ortamındaki bütün `PG*` değişkenleri temizlenir (G12). Parola dosyası:
+      `yedekleme.parola_dosyasi` (servis hesabı) ya da geçiş döneminde
+      bağlantı tanımından 0700 klasörde 0600 geçici dosya (iş bitince silinir).
+    - Ad kalıbı `erp_<kaynak>_<YYYY-AA-GG_SSddss><saat farkı>.dump`
+      (ör. `erp_elle_2026-11-21_004007+0300.dump`); aynı saniyede `_2`.
+      Dosya izni 0640.
+    - İşlem durumu dosyası adımları enum `YedekAdimi` (basladi, pg_dump,
+      dogrulama, manifest, bitti, basarisiz).
+    - Yapılandırma: `YedeklemeYapilandirmasi` tek okuma noktası; yeni
+      anahtarlar `durum_klasoru`, `kalici_kok`, `imza_anahtari`,
+      `parola_dosyasi`, `baglanti`, `rol`, `istek_klasoru`, `ayar_kopyasi`,
+      `kopya_deneme`, `sinama_geri_yukleme`, `kopya_bekleme_gun`, araç yolları.
+      Süreler config'te `(int)` YAPILMAZ; `sureSiniri()` yalnız pozitif tam
+      sayı kabul eder (BY-004-R5). `yedekleme` günlük kanalı (denetim
+      kaydının dosya kopyası).
+    - `yedek:al {--kaynak=elle|yayin_oncesi} {--aciklama=} {--kullanici=}`:
+      yönetici komutu, modül kapalıyken de çalışır; kilit meşgulse çıkış 75.
+    - **Lokal uçtan uca (gerçek araçlar, PostgreSQL 16.15):**
+      `yedek:imza-anahtari` + `yedek:al` → 2.454.956 baytlık dump, imzalı
+      manifest (49 migration, 47 tablo sayımı, sıralama C.UTF-8), kayıt
+      `tamam / ozet_tamam / imzali`. `pg_restore --list`'te geçici
+      tabloların (sessions, cache, jobs …) TABLE DATA girdisi yok.
+    - Testler `YedekAliciTest` (13). Kontroller: BY-008 kaydına bakın.
 
 ### BY-008 — Hedef soyutlaması, Yerel disk hedefi, kopyalama
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-007
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-007
 - **Tasarım:** README §4.6, §4.2 (tek yedek, çok hedef), §6.1 (6. adım)
 - **Kapsam:**
   - `YedekHedefi` arayüzü: yaz, oku, sil, listele, sına (yaz – oku – doğrula – sil), kalan alan.
@@ -2316,13 +2385,41 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - Bir hedefin başarısızlığı diğer hedefleri ve yedeğin kendisini etkilemez.
 - **Kapsam dışı:** Uzak hedef türleri (Faz 3), şifreleme (BY-019).
 - **Kabul ölçütleri:**
-  - [ ] Yeni hedef türü eklemek yalnız yeni bir bağlayıcı sınıfı gerektiriyor (arayüz testi).
-  - [ ] İki hedeften biri hata verince diğerinin kopyası `tamam`, hatalınınki `basarisiz` (test).
-  - [ ] Kopyadan okunan dosyanın özeti kaynakla aynı değilse kopya `basarisiz` (test).
-  - [ ] "Sına" başarısız yazma / okuma / silmeyi ayrı ayrı raporluyor (test).
-  - [ ] Kopyalanmakta olan yedek temizlikten korunuyor (kullanımda işareti; test).
+  - [x] Yeni hedef türü eklemek yalnız yeni bir bağlayıcı sınıfı gerektiriyor (arayüz testi).
+  - [x] İki hedeften biri hata verince diğerinin kopyası `tamam`, hatalınınki `basarisiz` (test).
+  - [x] Kopyadan okunan dosyanın özeti kaynakla aynı değilse kopya `basarisiz` (test).
+  - [x] "Sına" başarısız yazma / okuma / silmeyi ayrı ayrı raporluyor (test).
+  - [x] Kopyalanmakta olan yedek temizlikten korunuyor (kullanımda işareti; test).
 - **Canlı:** Evet (etkisiz).
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-006..008 manifest, yedek alma, hedefler ve kopyalama` olan commit
+    - `Hedefler\HedefBaglayicisi`: baglan, yaz (yarım dosya bırakmadan; uzak
+      kimlik döner), oku, sil, listele, kalanAlan. `HedefHatasi` makine
+      okunur kodlarla. Her bağlayıcı `static tanim(HedefTuru): HedefTuruTanimi`
+      (form alanları, sunucu dışı mı, uyarı) sağlar; `HedefKatalogu`
+      tür → sınıf eşlemesi (bağlayıcısı olmayan tür listelenmez).
+    - `YerelDiskBaglayicisi`: klasör boşsa hedef yedek klasörünün kendisidir
+      (kopya yapılmaz; README §4.2'deki "yerel disk hedefi"); klasör
+      verilirse `AtomikDosya::kopyala` (geçici ad + fsync + rename + klasör fsync).
+    - `HedefSinayici`: baglan → yaz → oku → dogrula → sil, her adım ayrı
+      sonuç; başarısız adımdan sonrakiler `null` (atlandı), okuma
+      başarısız olsa da silme denenir.
+    - `YedekKopyalayici`: (yedek, hedef) tekil kopya; tamamsa yalnız plan bağı
+      eklenir (F6). Her denemede yerel dosyanın özeti manifestle, hedeften
+      geri okunan kopyanınki yazılanla karşılaştırılır. En çok
+      `kopya_deneme` (3) deneme; yapılandırma / kimlik / yeniden bağlan /
+      parmak izi / sertifika / bağlı değil hataları yeniden denenmez (D8).
+      Sunucu dışı hedefe şifreleme olmadan kopya gitmez (`KopyaSifreleyici`
+      bu görevde hata verir; BY-019 doldurur). Sonuç olay günlüğüne ve
+      denetim kaydına.
+    - `KullanimDenetimi`: kopyası bekliyor / kopyalaniyor olan ya da işlem
+      durumu dosyasında bitmemiş işlemin yedeği kullanımdadır; durum dosyası
+      okunamıyorsa hepsi kullanımda sayılır (D6). BY-010 temizliği bunu kullanır.
+    - Testler `YedekKopyalayiciTest` (10; sahte `Tests\Yedekleme\BellekHedefi`
+      yalnız arayüzü uygular, katalogda S3 yerine kaydedilir).
+    - **Kontroller (BY-006…008):** yedekleme testleri 47/47 (SQLite); tam
+      backend ve PostgreSQL alt kümesi publish.sh ile (commit öncesi). Pint temiz.
+    - Doğrulanamayan: servis hesabıyla çalışma (BY-025); canlıya alınmadı.
 
 ### BY-009 — Planlar ve zamanlayıcı
 
@@ -2827,6 +2924,17 @@ README §13'teki kararların hangi görevi beklettiği:
 Sunucu kurulumu yapılmadıysa Faz 1–3 beklemeden ilerler; Faz 4 `BEKLIYOR` olur.
 
 ### Verilmiş kullanıcı kararları
+
+- **Toplu yazım (kullanıcı kararı 2026-11-21).** "Backup yönetimi ile ilgili
+  tüm maddeleri aynı anda bitir … sabah Codex review yapar." BY-006…BY-032
+  tek oturumda, bağımlı görevin `PASSED` olması beklenmeden yazılır (§1.3
+  madde 1'in istisnası; PRT panosundaki toplu teslimle aynı). Her görev yine
+  ayrı `REVIEW_BEKLIYOR` kaydı taşır; Codex görev sırasıyla inceler. Dış ön
+  koşulu olan kabul ölçütleri (canlıda deneme, gerçek FTP / Google hesabı,
+  sunucu kurulumu) işaretlenmez, günlükte "doğrulanamayan" olarak yazılır.
+  Yeni bağımlılık eklenmez: FTP/FTPS (PHP curl), SFTP (OpenSSH `sftp`),
+  Google Drive ve S3 (Laravel HTTP istemcisi) kurulu araçlarla yazılır.
+  Canlıya alma yine yalnız kullanıcı talimatıyla (§1.3 madde 8).
 
 - **F6 — tek fiziksel kopya (kullanıcı kararı 2026-11-18, onaylandı).** Bir
   yedeğin bir hedefte tek fiziksel kopyası olur. Aynı hedefi kullanan planlar

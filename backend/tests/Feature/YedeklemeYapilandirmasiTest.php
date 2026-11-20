@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -104,7 +105,9 @@ final class YedeklemeYapilandirmasiTest extends TestCase
         $yapilandirma = $this->yapilandirma();
 
         $this->assertSame('/usr/lib/postgresql/18/bin/pg_dump', $yapilandirma['araclar']['pg_dump']);
-        $this->assertSame(900, $yapilandirma['sure_siniri']['yedek']);
+        // Ham değer tüketen sınıfta doğrulanır ve tam sayıya çevrilir (BY-007, G9)
+        config(['yedekleme.sure_siniri.yedek' => $yapilandirma['sure_siniri']['yedek']]);
+        $this->assertSame(900, app(YedeklemeYapilandirmasi::class)->sureSiniri('yedek'));
     }
 
     /**

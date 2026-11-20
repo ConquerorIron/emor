@@ -20,6 +20,64 @@ return [
     // (BY-025) /var/lib/emor-yedek/yedekler olur (sunucu-kurulumu.md).
     'klasor' => env('YEDEKLEME_KLASORU') ?: storage_path('app/yedekler'),
 
+    // İşlem durumu dosyası ve kilidin klasörü (BY-005 "Dosyaların yeri") ve
+    // kurulumun açıp diske eşitlediği kalıcı kök (KaliciKlasor). Sunucu
+    // düzeninde ikisi de /var/lib/emor-yedek/durum (BY-003); geçiş döneminde
+    // storage/app altı. Kök kurulmuş olmalı: yoksa durum "bilinmiyor" sayılır.
+    'durum_klasoru' => env('YEDEKLEME_DURUM_KLASORU') ?: storage_path('app/yedek-durum'),
+    'kalici_kok' => env('YEDEKLEME_KALICI_KOK') ?: storage_path('app'),
+
+    // Manifest imza anahtarı: veritabanının DIŞINDA duran dosya (README §5.3,
+    // §4.5). `yedek:imza-anahtari` üretir. Kaybolursa bütün yedekler
+    // "güvenilmeyen" görünür: kurtarma paketine girer (README §9, BY-024).
+    'imza_anahtari' => env('YEDEKLEME_IMZA_ANAHTARI') ?: storage_path('app/yedek-imza.key'),
+
+    // PostgreSQL parola dosyası (PGPASSFILE, izin 0600). Servis hesabında
+    // kurulumun yazdığı dosya (BY-025). Boşsa geçiş dönemi: uygulamanın
+    // bağlantı tanımından her çalışmada geçici bir dosya yazılır ve silinir.
+    // Parola hiçbir zaman komut satırına ya da ortam değişkenine girmez.
+    'parola_dosyasi' => env('YEDEKLEME_PAROLA_DOSYASI') ?: null,
+
+    // Yedeği alınan veritabanının Laravel bağlantı adı
+    'baglanti' => env('YEDEKLEME_BAGLANTI') ?: 'pgsql',
+
+    // Yedeklemenin bağlandığı rol (servis hesabı: emor_yedek). Boşsa
+    // bağlantı tanımındaki kullanıcı (geçiş dönemi). Geri yüklenen nesnelerin
+    // sahibi her zaman uygulama rolü (bağlantı tanımındaki kullanıcı) kalır.
+    'rol' => env('YEDEKLEME_ROL') ?: null,
+
+    // İstek klasörü: web süreci (ekran) yazar, çalıştırıcı okur (README §5.2,
+    // BY-014, BY-025). Sunucu düzeninde /var/lib/emor-yedek/istekler.
+    'istek_klasoru' => env('YEDEKLEME_ISTEK_KLASORU') ?: storage_path('app/yedek-istekler'),
+
+    // Ayar kopyası ve denetim günlüğünün dosyası (README §5.3, §4.9): geri
+    // yüklemeyle eskimeyen kayıt. Sunucu düzeninde /var/lib/emor-yedek/durum altında.
+    'ayar_kopyasi' => env('YEDEKLEME_AYAR_KOPYASI') ?: storage_path('app/yedek-durum/ayarlar.json'),
+
+    // Bir kopyanın en çok kaç kez deneneceği (her denemede yeniden bağlanılır)
+    'kopya_deneme' => 3,
+
+    // Her yedekten sonra geçici veritabanına sınama geri yüklemesi (README
+    // §4.4 2. düzey). Veritabanı açma yetkisi ister: servis hesabı kurulana
+    // kadar (BY-025) kapalı; uygulamanın kullanıcısı veritabanı açamaz.
+    'sinama_geri_yukleme' => AcKapa::cevir(env('YEDEKLEME_SINAMA'), false),
+
+    // Geri yüklenen kopyaların (erp_geri_*) ve erp_onceki_* veritabanlarının
+    // bekleme süresi (gün; README §4.5, §13 karar 10 — öneri 7)
+    'kopya_bekleme_gun' => env('YEDEKLEME_KOPYA_BEKLEME_GUN') ?: 7,
+
+    // Şifreleme ve uzak hedef araçları (BY-019, BY-022)
+    'gpg' => env('YEDEKLEME_GPG') ?: '/usr/bin/gpg',
+    'sftp' => env('YEDEKLEME_SFTP') ?: '/usr/bin/sftp',
+    'ssh_keyscan' => env('YEDEKLEME_SSH_KEYSCAN') ?: '/usr/bin/ssh-keyscan',
+
+    // Google Drive hedefi (BY-021): Google tarafındaki uygulama kaydının
+    // istemci kimliği ve gizli anahtarı. Boşsa "Google ile bağlan" kapalı.
+    'google' => [
+        'istemci_kimligi' => env('YEDEKLEME_GOOGLE_ISTEMCI_KIMLIGI') ?: null,
+        'istemci_sirri' => env('YEDEKLEME_GOOGLE_ISTEMCI_SIRRI') ?: null,
+    ],
+
     // Verisi yedeğe GİRMEYEN tablolar (şeması girer): oturum, önbellek ve
     // kuyruk geçicidir, geri yüklenirse bayat oturum / iş döner (README §4.1, §7.1).
     'verisi_alinmayan_tablolar' => [
@@ -39,13 +97,18 @@ return [
     ],
 
     // Süre sınırları (saniye). Asılı kalan dış komut kilidi tutar ve sonraki
-    // yedekleri sessizce engeller (Dikkat_Edilecekler D1).
+    // yedekleri sessizce engeller (Dikkat_Edilecekler D1). Burada (int)
+    // YAPILMAZ: `(int) 'abc'` = 0 = sınırsız olurdu. Değeri tüketen
+    // YedeklemeYapilandirmasi::sureSiniri() yalnız pozitif tam sayı kabul eder,
+    // geçersizde açık hatayla durur (G9, BY-004-R5).
     'sure_siniri' => [
         // pg_dump ve doğrulama okumaları (bugün ~1 sn; veri büyüdükçe uzar)
         // Boş bırakılırsa 0 (sınırsız) DEĞİL varsayılan
-        'yedek' => (int) (env('YEDEKLEME_YEDEK_SURESI') ?: 1800),
+        'yedek' => env('YEDEKLEME_YEDEK_SURESI') ?: 1800,
         // pg_restore (sınama ve gerçek geri yükleme)
-        'geri_yukleme' => (int) (env('YEDEKLEME_GERI_YUKLEME_SURESI') ?: 3600),
+        'geri_yukleme' => env('YEDEKLEME_GERI_YUKLEME_SURESI') ?: 3600,
+        // Uzak hedefe tek kopya (yükleme + geri okuma)
+        'kopya' => env('YEDEKLEME_KOPYA_SURESI') ?: 900,
         // Veritabanına bağlanma
         'baglanti' => 10,
         // Başka işlem kilidi tutuyorsa en çok bu kadar beklenir, sonra vazgeçilir

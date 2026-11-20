@@ -55,6 +55,8 @@ final class GunlukKlasoruTest extends TestCase
             'daily' => '/var/lib/emor-yedek/gunluk/laravel.log',
             'monthly' => '/var/lib/emor-yedek/gunluk/laravel.log',
             'browser' => '/var/lib/emor-yedek/gunluk/browser.log',
+            // Yedekleme denetim kaydının dosya kopyası (BY-007)
+            'yedekleme' => '/var/lib/emor-yedek/gunluk/yedekleme.log',
             'denetim' => '/var/lib/emor-yedek/gunluk/denetim.log',
             'emergency' => '/var/lib/emor-yedek/gunluk/laravel.log',
         ], $yollar);
