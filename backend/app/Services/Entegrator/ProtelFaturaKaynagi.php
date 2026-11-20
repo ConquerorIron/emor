@@ -235,9 +235,12 @@ final class ProtelFaturaKaynagi implements FaturaKaynagi
     /**
      * JSON sayı belirtecini (`-1.5e3`, `12.30`, `4E-2`) float'a uğratmadan düz
      * ondalığa çevirir (PRT-R13). Üs, virgülü kaydırmaktır: basamaklar metin
-     * olarak kaydırılır (`bcpow` yok, dev üs bellek tüketmez). 16'dan çok tam
-     * basamaklı değer saklamaya sığmaz (yuvarlama büyütür, küçültmez): null.
-     * 10 ondalık basamaktan küçük değer 4 basamakta sıfırdır: `0`.
+     * olarak kaydırılır (`bcpow` yok, dev üs bellek tüketmez). Virgülün yeri
+     * üs ile katsayının basamakları BİRLİKTE belirler (`0.000…1e10000` = 1):
+     * yer, üs tam sayıya çevrilmeden bcmath ile hesaplanır, ancak sınır
+     * içindeyse tam sayı olur (PRT-R15). 16'dan çok tam basamaklı değer
+     * saklamaya sığmaz (yuvarlama büyütür, küçültmez): null. 10 ondalık
+     * basamaktan küçük değer 4 basamakta sıfırdır: `0`.
      */
     private function duzOndalik(string $sayi): ?string
     {
@@ -246,26 +249,24 @@ final class ProtelFaturaKaynagi implements FaturaKaynagi
         }
 
         $basamaklar = $p[2].($p[3] ?? '');
-        $usRakami = ltrim($p[5] ?? '', '0');
-        // 5+ haneli üs her durumda sınırın dışındadır; tam sayıya taşmasın
-        $us = strlen($usRakami) > 4 ? 100000 : (int) $usRakami;
-        $nokta = strlen($p[2]) + (($p[4] ?? '') === '-' ? -$us : $us);
-
         $anlamli = ltrim($basamaklar, '0');
         if ($anlamli === '') {
             return '0';
         }
 
-        // değer = 0.<anlamli> × 10^nokta
-        $nokta -= strlen($basamaklar) - strlen($anlamli);
+        // değer = 0.<anlamli> × 10^nokta; nokta = tam basamak − baştaki sıfırlar + üs
+        $us = (($p[4] ?? '') === '-' ? '-' : '').(ltrim($p[5] ?? '', '0') ?: '0');
+        $nokta = bcadd((string) (strlen($p[2]) - (strlen($basamaklar) - strlen($anlamli))), $us, 0);
 
-        if ($nokta > 16) {
+        if (bccomp($nokta, '16', 0) > 0) {
             return null;
         }
 
-        if ($nokta < -10) {
+        if (bccomp($nokta, '-10', 0) < 0) {
             return '0';
         }
+
+        $nokta = (int) $nokta;
 
         $duz = match (true) {
             $nokta <= 0 => '0.'.str_repeat('0', -$nokta).$anlamli,

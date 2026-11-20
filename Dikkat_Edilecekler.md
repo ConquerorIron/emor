@@ -158,6 +158,13 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   gerçekçi gövdeyle sına: PCRE `backtrack_limit` aşılınca `preg_*` `null`
   döner, geçerli yanıt "bozuk" sayılır. Doğrusal iş için `strcspn` / `strspn`.
   *(PRT-R8 öz-incelemesi: base64 PDF'teki unicode kaçışları sınırı aştırdı.)*
+  Sınırı, sonucu belirleyen girdilerden birine **tek başına** uygulama: üslü
+  sayıda virgülün yeri üs ile katsayının basamaklarından birlikte çıkar
+  (`0.000…1e10000` = 1). "Üs 5 haneli → sınır dışı" kısayolu geçerli değeri
+  sıfır, taşanı geçerli yaptı. Önce bütün girdilerle sonucu (keyfi büyüklükte,
+  bcmath ile) hesapla, sonra sınırla karşılaştır; birbirini dengeleyen uç
+  girdilerle sına.
+  *(PRT-R15: R13'ün üs kısayolu.)*
 
 ## 2. Ön yüz
 

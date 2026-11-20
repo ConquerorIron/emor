@@ -269,6 +269,33 @@ final class ProtelFaturaKaynagiTest extends TestCase
         ], $sonuc->hataliKayitlar);
     }
 
+    /**
+     * Virgülün yerini üs ile katsayının basamakları birlikte belirler
+     * (PRT-R15): beş haneli üs uzun katsayıyla dengelenebilir. Değeri 1 olan
+     * iki gösterim 1, kolona sığmayan eşdeğerleri hatalı kayıttır.
+     */
+    public function test_uzun_katsayiyla_dengelenen_buyuk_us_gercek_degeriyle_okunur(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        $sifirlar = str_repeat('0', 10000);
+        $this->protelYaniti([
+            $this->kayit(['id' => 1, 'payableAmount' => '@ham:0.'.substr($sifirlar, 1).'1e10000', 'taxTotal' => '@ham:1'.$sifirlar.'e-10000']),
+            $this->kayit(['id' => 2, 'payableAmount' => '@ham:0.'.substr($sifirlar, 1).'1e10017']),
+            $this->kayit(['id' => 3, 'payableAmount' => '@ham:1'.$sifirlar.'0000000000000000e-10000']),
+        ]);
+
+        $sonuc = $this->oku($this->tanim());
+
+        $this->assertSame([[1, '1', '1']], array_map(
+            fn (EntegratorFatura $f): array => [$f->kaynakId, $f->tutar, $f->vergiTutari],
+            $sonuc->faturalar,
+        ));
+        $this->assertSame([
+            ['kaynak_id' => 2, 'alanlar' => ['payableAmount']],
+            ['kaynak_id' => 3, 'alanlar' => ['payableAmount']],
+        ], $sonuc->hataliKayitlar);
+    }
+
     public function test_liste_dizisi_yoksa_yanit_gecersizdir(): void
     {
         config(['entegrator.protel.aktif' => true]);

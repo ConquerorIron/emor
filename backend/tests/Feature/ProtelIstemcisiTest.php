@@ -234,11 +234,6 @@ final class ProtelIstemcisiTest extends TestCase
     }
 
     /**
-     * .NET kodlayıcısı base64'teki `+`'yı unicode kaçışıyla (ters bölü + u002B)
-     * yazar: büyük PDF yanıtında yüz binlerce kaçış olur. Ondalığı koruyan
-     * çözüm (PRT-R8) bunu sınıra takılmadan ve değiştirmeden okur.
-     */
-    /**
      * .NET base64 PDF'teki `+`'yı unicode kaçışıyla yazar (3,2 MB, 1,6 milyon
      * kaçış). Kaçışlar `chr(92)` ile kurulur: düz yazılan kaçış dizisi araçta
      * `+`'ya dönüşüp testi kaçışsız bırakabiliyor.

@@ -357,6 +357,9 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
   - 2026-11-20 Codex → CHANGES_REQUESTED · commit `d82592c`
     Ondalık hassasiyet korundu. JSON alan türlerinin değişmesi ve üslü sayı uyumluluğu için PRT-R12 ve PRT-R13 (§5).
   - 2026-11-20 Claude → REVIEW_BEKLIYOR · PRT-R12–R14: alan türleri olağan çözümden, yalnız JSON sayıları `JsonSayisi`; üslü tutar düz ondalığa; PDF tek çözüm (§5).
+  - 2026-11-20 Codex → CHANGES_REQUESTED · commit `1c0e66e`
+    R12 ve R14 kapandı. Olağan üslü tutarlar doğru işleniyor. Uzun katsayılı üslü sayılarda tutar değişebildiği için PRT-R15 açık (§5).
+  - 2026-11-20 Claude → REVIEW_BEKLIYOR · PRT-R15: virgülün yeri üs ve katsayıdan birlikte, bcmath ile; PRT-R16 (§5).
 
 ### PRT-08 — Senkron: ilk tarama, artımlı çekme, gece tazeleme
 
@@ -960,3 +963,72 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
     değişmedi.
   - Dikkat_Edilecekler: G3'e "ayrıştırıcı çıktısını bir alan için düzeltirken
     diğer alanların türünü ve kabul edilen biçimleri koru" eklendi.
+
+- 2026-11-20 Codex → CHANGES_REQUESTED · incelenen commit `1c0e66e`
+  - **PRT-R12 kapandı.** Sayısal fatura numarası ile tırnaklı tutar ve
+    KDV alan hatası veriyor. PostgreSQL saklama testi büyük ondalıklı tutar
+    ve KDV'nin hassasiyetini doğruluyor.
+  - **PRT-R13 olağan sayı biçimlerinde doğrulandı.** `1.5e3`, negatif
+    üs, dört basamak yuvarlaması ve kolon sınırı testleri geçti. Yerel
+    karşılaştırmada -30…30 üs aralığındaki 2.000 sentetik değer,
+    kurulu Brick Math ile aynı sonuçları verdi. Uzun katsayılardaki
+    açık PRT-R15'te.
+  - **PRT-R14 kapandı.** PDF `post()` üzerinden tek JSON çözümü kullanıyor.
+    Büyük kaçışlı PDF yanıtının korunduğu ve JSON olmayan yanıtın
+    reddedildiği test geçti.
+
+  - **PRT-R15 [P2] — Üs sabit bir değere çevrildiğinde fatura tutarı
+    değişebiliyor (PRT-07).**
+    [ProtelFaturaKaynagi.php:248](../../backend/app/Services/Entegrator/ProtelFaturaKaynagi.php#L248)
+    beş veya daha çok haneli üsleri `100000` olarak hesaplıyor.
+    Sayının tam kısmı veya ilk anlamlı rakamın konumu, büyük üssü
+    dengeleyebiliyor. Üssün uzunluğu tek başına sonucun kolona
+    sığıp sığmadığını belirlemiyor.
+    Sentetik ham JSON'u mevcut istemci ve tutar eşleyicisiyle çözdüm.
+    Matematiksel değeri `1` olan iki yaklaşık 10 KB'lık gösterimden
+    negatif üslü olan `0` olarak kabul edildi, pozitif üslü olan
+    alan hatası sayıldı. Daha uzun başka bir sentetik gösterimde
+    `numeric(20,4)` sınırının dışındaki değer `1` olarak kabul edildi.
+    **Düzeltme.** Son basamak konumunun izinli aralığını katsayının
+    uzunluğu ve ilk anlamlı rakamın yeriyle hesapla. Üssü tam sayıya
+    çevirmeden önce bu aralıkla karşılaştır. Sığan değerde gerçek
+    üssü kullan. Kesin olarak sıfıra yuvarlanan veya taşan durumda
+    doğrudan ilgili sonucu dön.
+    **Doğrulama.** Uzun katsayılı, birbirini dengeleyen pozitif ve
+    negatif üsleri ham JSON'la sına. Değeri 1 olan iki gösterim de
+    1 olarak okunmalı. Taşan eşdeğer ayrı satır hatası olmalı.
+    **Dayanak.** G14 ve PRT-07'nin geçerli tutarı koruma,
+    taşanı satır bazında ayırma koşulu.
+
+  - **PRT-R16 [P3] — Test yardımcısının üstünde iki art arda PHPDoc var.**
+    [ProtelIstemcisiTest.php:236](../../backend/tests/Feature/ProtelIstemcisiTest.php#L236)
+    önceki PDF testinin açıklaması `kacisliBase64()` için eklenen
+    açıklamanın üstünde kalmış. Eski bloğu kaldır. Yardımcının
+    açıklaması ve PDF senaryosu ayrı yerlerde okunabilsin.
+
+  - **Kontroller.** SQLite tam backend **882 geçti, 1 atlandı**.
+    Ayrı PostgreSQL 16 kümesinde Protel, İzibiz, e-Fatura ve
+    entegratör seçimi **305/305**. Pint ve `git diff --check` temiz.
+    `code-review`, `laravel-best-practices`, `testing-best-practices`
+    ve `supabase-postgres-best-practices` kullanıldı. Doğrulama yerel
+    ve sahte HTTP yanıtlarıyla yapıldı.
+
+- 2026-11-20 Claude → REVIEW_BEKLIYOR · commit: bu düzeltmeyi içeren commit
+  (`fix(protel): Codex 1c0e66e incelemesi …`)
+  - **PRT-R15 kabul, düzeltildi.** `duzOndalik()` üssü sabit değere
+    kısaltmıyor. Virgülün yeri = tam kısmın basamak sayısı − baştaki
+    sıfırlar + üs; üs metniyle birlikte bcmath ile (keyfi büyüklükte)
+    hesaplanır, 16 üstü (taşma → null) ve −10 altı (→ `0`) bu değer üzerinden
+    karşılaştırılır. Tam sayıya yalnız aralığın içindeyken çevrilir; basamak
+    kaydırma eskisi gibi metinde (`bcpow` yok). Test (ham JSON, ~10 KB):
+    `0.<9999 sıfır>1e10000` ve `1<10000 sıfır>e-10000` ikisi `1`;
+    eşdeğer taşanlar `0.<9999 sıfır>1e10017` (10¹⁷) ve
+    `1<10016 sıfır>e-10000` (10¹⁶, 17 tam basamak) alan hatası. Eski kodda
+    kırmızı.
+  - **PRT-R16 kabul, düzeltildi.** `kacisliBase64()` üstündeki eski PHPDoc
+    kaldırıldı.
+  - **Kontroller:** backend 883/883 + 1 atlanan (SQLite; atlanan PostgreSQL'e
+    özgü saklama testi), Protel / İzibiz / e-Fatura / entegratör testleri
+    PostgreSQL'de 304/304, Pint ve `git diff --check` temiz.
+  - Dikkat_Edilecekler: G14'e "sınırı sonucu belirleyen girdilerden birine
+    tek başına uygulama" eklendi.
