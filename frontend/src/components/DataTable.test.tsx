@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import '@/i18n/i18n'
@@ -56,5 +56,72 @@ describe('DataTable üst kaydırma çubuğu', () => {
     ciz()
 
     expect(screen.queryByTestId('ust-kaydirma')).not.toBeInTheDocument()
+  })
+
+  describe('iki çubuğun eşlenmesi', () => {
+    /** jsdom kaydırmaz: konum, tarayıcı gibi [0, azami] aralığına kırpılan bir değerle taklit edilir. */
+    function kaydirilabilir(oge: HTMLElement, azami: number) {
+      let konum = 0
+      Object.defineProperty(oge, 'scrollLeft', {
+        configurable: true,
+        get: () => konum,
+        set: (deger: number) => {
+          konum = Math.min(Math.max(deger, 0), azami)
+        },
+      })
+    }
+
+    function cubuklar(ustAzami: number, tabloAzami: number) {
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          observe() {}
+          disconnect() {}
+        },
+      )
+      genislikleriAyarla(2000, 800)
+      ciz()
+      const ust = screen.getByTestId('ust-kaydirma')
+      const tablo = screen.getByRole('table').parentElement as HTMLElement
+      kaydirilabilir(ust, ustAzami)
+      kaydirilabilir(tablo, tabloAzami)
+
+      return { ust, tablo }
+    }
+
+    it('tablo akarak kayarken üst çubuğun geç gelen olayı tabloyu geri çekmez', () => {
+      const { ust, tablo } = cubuklar(1200, 1200)
+
+      tablo.scrollLeft = 100
+      fireEvent.scroll(tablo)
+      expect(ust.scrollLeft).toBe(100)
+
+      // Yumuşak kaydırma sürüyor: üst çubuğun 100'deki olayı gelmeden tablo 150'ye vardı
+      tablo.scrollLeft = 150
+      fireEvent.scroll(ust)
+      expect(tablo.scrollLeft).toBe(150)
+
+      fireEvent.scroll(tablo)
+      expect(ust.scrollLeft).toBe(150)
+    })
+
+    it('üst çubuk sona daha erken dayanırsa tablo sondan geri itilmez', () => {
+      const { ust, tablo } = cubuklar(1198, 1200)
+
+      tablo.scrollLeft = 1200
+      fireEvent.scroll(tablo)
+      fireEvent.scroll(ust)
+
+      expect(tablo.scrollLeft).toBe(1200)
+    })
+
+    it('kullanıcı üst çubuğu kaydırınca tablo da kayar', () => {
+      const { ust, tablo } = cubuklar(1200, 1200)
+
+      ust.scrollLeft = 300
+      fireEvent.scroll(ust)
+
+      expect(tablo.scrollLeft).toBe(300)
+    })
   })
 })

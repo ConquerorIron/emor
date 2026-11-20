@@ -193,6 +193,13 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   ekran açılışta boş kalır. Başlangıcı `max(sabit tarih, bugün − (sınır − 1))`
   hesapla, ortak yardımcıdan al; testte saati sınır gününe sabitle.
   *(PRT-R4: 2 Ocak 2027'de Protel ve İzibiz ekranları listeyi durduracaktı.)*
+- **F4 — İki yönlü eşlemede programla verilen değerin olayı geri yansıtılmasın.**
+  Kaydırma gibi olaylar bir kare SONRA gelir; o arada kaynak ilerlemiş olur
+  (yumuşak kaydırma) ya da hedef değeri kırpar (farklı azami). "Değer aynıysa
+  olay gelmez" varsayımı yetmez: atadığın değeri (atamadan sonra okunmuş
+  haliyle) sakla, hedefin o değerdeki olayını yut. Testte kaynak yankıdan önce
+  ilerlesin ve hedefin aralığı kısa olsun.
+  *(DataTable üst kaydırma çubuğu: sağa kayarken tablo geri çekilip titriyordu.)*
 
 ## 3. Testler
 

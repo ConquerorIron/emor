@@ -138,10 +138,33 @@ export function DataTable<T>({
     return () => gozlemci.disconnect()
   }, [ustKaydirma])
 
-  // Değer aynıysa tarayıcı scroll olayı üretmez: iki çubuk birbirini döngüye sokmaz
+  // Programla verilen konumun scroll olayı bir kare sonra gelir (yankı)
+  const yankiRef = useRef(new WeakMap<HTMLDivElement, number>())
+
+  /**
+   * Yankı geri yansıtılmaz: yumuşak kaydırmada kaynak o arada ilerlemiş olur;
+   * eski konumu ona geri yazmak kaydırmayı geri çekip titretir. Beklenen
+   * değer atamadan SONRA okunur: tarayıcının kırptığı/yuvarladığı konumdur.
+   */
   const esle = (kaynak: HTMLDivElement | null, hedef: HTMLDivElement | null) => {
-    if (kaynak && hedef && hedef.scrollLeft !== kaynak.scrollLeft) {
+    if (!kaynak || !hedef) {
+      return
+    }
+    const yanki = yankiRef.current
+    const beklenen = yanki.get(kaynak)
+    if (beklenen !== undefined) {
+      yanki.delete(kaynak)
+      if (Math.abs(kaynak.scrollLeft - beklenen) < 1) {
+        return
+      }
+    }
+    const onceki = hedef.scrollLeft
+    if (onceki !== kaynak.scrollLeft) {
       hedef.scrollLeft = kaynak.scrollLeft
+      // Konum değişmediyse tarayıcı olay üretmez; beklenen değer bırakılmaz
+      if (hedef.scrollLeft !== onceki) {
+        yanki.set(hedef, hedef.scrollLeft)
+      }
     }
   }
 
@@ -184,13 +207,14 @@ export function DataTable<T>({
 
   return (
     <>
+      {/* Saydam yan kenarlık tablonun 1px çerçevesini karşılar: iki çubuğun kayma aralığı eşit */}
       {tasanGenislik !== null ? (
         <div
           ref={ustRef}
           data-testid="ust-kaydirma"
           aria-hidden="true"
           onScroll={() => esle(ustRef.current, kapRef.current)}
-          className="mb-1 overflow-x-auto"
+          className="mb-1 overflow-x-auto border-x border-transparent"
         >
           <div style={{ width: tasanGenislik, height: 1 }} />
         </div>
