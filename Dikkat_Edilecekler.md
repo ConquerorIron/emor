@@ -165,6 +165,16 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   bcmath ile) hesapla, sonra sınırla karşılaştır; birbirini dengeleyen uç
   girdilerle sına.
   *(PRT-R15: R13'ün üs kısayolu.)*
+- **G15 — İzin listesi değerin türünü ve biçimini de denetlesin; ayrıştırıcının
+  kabul ettiğine güvenme.** Anahtar izinli diye değeri serbest bırakma: dizi /
+  nesne değer, içinde yasak anahtar taşıyabilir; serbest alana tür (metin) ve
+  biçim (UUID, tarih) şartı koy. Adreste `parse_url`'in "host" dediğine güvenme:
+  ters eğik çizgi, `%2f`, boşluk içeren host'u da döndürür ve "izinli alan
+  adıyla bitiyor" denetimini geçer. Alan adını izinli karakter kümesiyle
+  (`[a-z0-9.-]`) doğrula; testte iç içe dizi değeri ve
+  `https://kotu.com\.izinli.com.tr` örneğini sına.
+  *(Fable incelemesi PRT-F4, PRT-F5: Protel kilidi `uuid` için dizi kabul
+  ediyor, adres kuralı `evil.com\.protel.com.tr`'yi kaydediyordu.)*
 
 ## 2. Ön yüz
 
@@ -255,6 +265,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   birlikte atla (`markTestSkipped`), yanlış kırmızı verme. Testin başlattığı
   alt süreci `try / finally` ile kapat; doğrulama düşerse yetim süreç kalmasın.
   *(Fable incelemesi F13: `YedekKilidiTest` / `IslemDurumuTest`.)*
+- **T13 — Dış servis istemcisinde hata yollarını da sına.** Mutlu yol ve kilit
+  testleri yetmez: bağlantı hatası (`Http::failedConnection`), 5xx / 429'da kaç
+  kez denendiği (`assertSentCount`), token süresi dolunca yeniden giriş.
+  Uygulamanın ele aldığı her hata dalına bir test (laravel-best-practices
+  http-client: *test timeouts, connection failures, and error responses*).
+  *(Fable incelemesi PRT-F13: Protel istemcisinde bu üçü de sınanmıyordu.)*
 
 ## 4. Betikler ve dış komutlar
 
@@ -349,6 +365,23 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   bağlantıyla root dosyasının değişmediğini sına.
   *(BY-003-R5: servis hesabının `gizli/pgpass` ve `yedekler/` yerine koyduğu
   bağlantılar, root'a ait dosya ve klasörü servise geçirdi.)*
+- **D8 — Kendiliğinden düzelmeyen hatayı otomatik iş yeniden denemesin.**
+  Kimlik reddi (hatalı şifre), yetki ve doğrulama hataları girdi değişmeden
+  düzelmez. Zamanlayıcı her turda, döngü her adımda yeniden denerse karşı
+  hesapta başarısız giriş birikir ve hesap kilitlenebilir — hesap başkasınınsa
+  onun işleyişi durur. Kalıcı hatada döngünün kalan adımlarını kes; hatayı
+  girdinin sürümüyle (kimlik sürümü) anahtarlı hatırla ve girdi değişene kadar
+  istek gönderme; elle sınama açık kalsın. Testte hatalı şifreyle çok adımlı
+  çalışmada giden istek sayısını sına (bir), ikinci çalışmada sıfır.
+  *(Fable incelemesi PRT-F1: Protel şifresi değişse senkron 15 dakikada bir,
+  ilk tarama tek çalışmada ay sayısı kadar giriş deneyecekti.)*
+- **D9 — Süre sınırı × deneme sayısı, çağıranın bekleyebileceğinden kısa olsun.**
+  İstemci ayarı toplu işe göre seçilirse (60 sn × 3 deneme) aynı ayar kullanıcı
+  isteğinde (PDF, sınama) web sunucusunun sınırını aşar; işçi süreç dakikalarca
+  tutulur. Etkileşimli çağrıya ayrı, kısa süre ve az deneme ver; kilit
+  beklemesini de buna göre sınırla (laravel-best-practices http-client:
+  *timeouts that fit the calling request or job*).
+  *(Fable incelemesi PRT-F2.)*
 
 ## 5. Tasarım dokümanları
 
@@ -384,6 +417,11 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   `$response->toException()` geçirir; bu `null`'dır. `fn (Throwable $e)` tür
   hatasıyla çöker: parametreyi `?Throwable` yaz ve 3xx yanıtla sına.
   *(PRT-04 yönlendirme testi; aynı kalıp `IzibizIstemcisi`'nde de düzeltildi — G1.)*
+- **A4 — Kullanılan PHP uzantısını `composer.json`'da beyan et.** `bcmath`,
+  `zip`, `dom` gibi uzantılar geliştirme makinesinde kurulu diye çalışır; beyan
+  yoksa yeni sunucuda `composer install` uyarmaz, kod ilk çağrıda ölür.
+  (Bağımlılık değişikliğidir: kullanıcı onayı.)
+  *(Fable incelemesi PRT-F12: `bcadd` / `bccomp`.)*
 
 ## 7. Kod kalitesi ve skill kuralları
 
@@ -448,3 +486,18 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   sağlayıcıdaki anlamını yeniden denetle.
   *(Protel 2026-11-20: `isErpRecieved` (otelin ERP'si) `erp_okundu`'ya
   yazılmıştı; Tüm Faturalar Protel faturasını "eMOR Okudu: Evet" gösterdi.)*
+- **K10 — İkinci sağlayıcıyı / ekranı kopyalayarak ekleme; ortak kısmı çıkar.**
+  İşaret: bir bulgu "… dahil — G1" notuyla iki yerde düzeltiliyorsa o kod
+  kopyadır. İkinci kullanım yazılırken ortak parçayı (token önbelleği, liste
+  kancası, çıktı akışı) tek yere al. Aynı ekranın çeşitleri için tek yöntem
+  seç: bir çeşidi kopya sayfa, diğerini boolean bayrakla yapma
+  (vercel-composition-patterns: *avoid boolean props*, *explicit variants*).
+  *(Fable incelemesi PRT-F8…F10: İzibiz ↔ Protel istemcisi, EFatura ↔ Tüm
+  Faturalar denetleyicisi, üç liste ekranı; PRT-R3 / R4 / R9 / R10 ve A3
+  ikişer kez düzeltildi.)*
+- **K11 — Karar değişince yorumu, dokümanı ve ayarı aynı commit'te güncelle.**
+  Davranışı değiştiren commit, onu anlatan sınıf yorumunu, config açıklamasını
+  ve doküman tablosunu da değiştirir. Okuyanı kalmayan ayar anahtarını sil
+  (`grep` ile okuyanı doğrula): değiştirince hiçbir şey olmayan ayar yanıltır.
+  *(Fable incelemesi PRT-F11: adresler ekrana taşındı, üç yorum "ekrandan
+  alınmaz" diyordu; `entegrator.protel.saat_dilimi` hiç okunmuyordu.)*

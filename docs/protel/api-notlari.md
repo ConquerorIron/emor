@@ -77,7 +77,7 @@ Gövde (uygulamanın gönderdiği, birebir):
 | `customerId` / `customerTitle` / `customerAlias` | | `alici_*` |
 | `status` / `statusDescription` | `Received` / `Alındı` | `durum` / `durum_aciklamasi` |
 | `gibStatus` / `gibStatusMessage` | `"1200"` / `ZARF_BASARIYLA_ISLENDI` | `gib_durum_kodu` / `gib_durum_aciklamasi` |
-| `isErpRecieved` | 0/1 | `erp_okundu` (otel ERP'si aldı mı) |
+| `isErpRecieved` | 0/1 | `otel_erp_okundu` (otel ERP'si aldı mı; `erp_okundu` eMOR'un okumasıdır, Protel'de boş) |
 | `isRead` | 0/1 | `okundu` |
 | `erpStatus` | `New` … `Booked` | `erp_durumu` (yeni kolon) |
 | `isPrinted` | 0/1 | `yazdirildi` (yeni kolon) |

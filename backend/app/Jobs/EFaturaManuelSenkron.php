@@ -8,8 +8,8 @@ use App\Models\EFaturaSenkronCalismasi;
 use App\Models\EntegratorBaglanti;
 use App\Services\Entegrator\EFaturaDurumServisi;
 use App\Services\Entegrator\EFaturaSenkronServisi;
+use App\Services\Entegrator\FaturaKaynagi;
 use App\Services\Entegrator\FaturaYonu;
-use App\Services\Entegrator\IzibizFaturaKaynagi;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -78,7 +78,7 @@ final class EFaturaManuelSenkron implements ShouldQueue
                     CarbonImmutable::parse($this->baslangic)->startOfDay(),
                     CarbonImmutable::parse($this->bitis)->startOfDay(),
                     EFaturaSenkronCalismasi::TETIKLEYEN_MANUEL,
-                    IzibizFaturaKaynagi::TARIH_BELGE,
+                    FaturaKaynagi::TARIH_BELGE,
                     $this->kullaniciId,
                     (int) config('efatura.manuel_kilit_bekleme'),
                     self::KILIT_SURESI,

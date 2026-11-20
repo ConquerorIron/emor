@@ -109,6 +109,16 @@ export interface EFaturaListesi {
   }
   /** Ekrandaki listenin ortamı (Tüm Faturalar'da sağlayıcı başına: `izibiz:canli,protel:canli`) */
   kapsam: { ortam: string }
+  /** Yalnız Tüm Faturalar: sağlayıcı başına verinin güncelliği (bu ekranda senkron paneli yok) */
+  tazelik?: SaglayiciTazeligi[]
+}
+
+export interface SaglayiciTazeligi {
+  saglayici: 'izibiz' | 'protel'
+  ortam: string
+  /** Bugünü kapsayan son tam senkronun bitişi; hiç yoksa null */
+  veri_zamani: string | null
+  guncel: boolean
 }
 
 export type ErpOkunduFiltresi = '' | 'evet' | 'hayir' | 'bilinmiyor'

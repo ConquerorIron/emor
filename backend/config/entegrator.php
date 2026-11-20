@@ -3,9 +3,10 @@
 declare(strict_types=1);
 use App\Support\AcKapa;
 
-// e-Belge entegratörü uç adresleri. Kullanıcıdan ALINMAZ ve veritabanında
-// tutulmaz: kayıtlı şifre yalnız buradaki sabit adreslere gönderilir.
-// Hesap bilgileri (kullanıcı, şifre, VKN) Ayarlar → Entegratör Bağlantıları'nda.
+// e-Belge entegratörü ayarları. Aşağıdaki adresler ortamların VARSAYILANIDIR;
+// tanımda ekrandan başka adres girilebilir ama yalnız https ve sağlayıcının
+// izinli alan adı (kayıtlı şifre başka sunucuya gitmesin). Hesap bilgileri
+// (kullanıcı, şifre, VKN, adresler) Ayarlar → Entegratör Bağlantıları'nda.
 return [
     'izibiz' => [
         'ortamlar' => [
@@ -26,7 +27,9 @@ return [
         'izinli_alan_adlari' => ['izibiz.com.tr'],
 
         // Token yanıtındaki `validity` saat dilimi eki taşımaz; İstanbul saatidir
-        // (2026-09-23 test hesabında JWT exp ile karşılaştırılarak doğrulandı)
+        // (2026-09-23 test hesabında JWT exp ile karşılaştırılarak doğrulandı).
+        // Protel tarihleri de ekisiz İstanbul saatidir (createAt, 2026-11-19):
+        // e-Fatura modülünün bütün takvim / saat çevirileri bu değeri kullanır.
         'saat_dilimi' => 'Europe/Istanbul',
 
         // Token bitişinden bu kadar önce yenilenir (saat farkı ve istek süresi payı)
@@ -77,16 +80,15 @@ return [
         // Varsayılan KAPALI: tanınmayan / boş değer kapalı sayılır (AcKapa)
         'aktif' => AcKapa::cevir(env('PROTEL_AKTIF'), false),
 
-        // Tarih alanları saat dilimi eki taşımaz; İstanbul saatidir
-        // (createAt, istek atıldığı anla karşılaştırılarak 2026-11-19'da doğrulandı)
-        'saat_dilimi' => 'Europe/Istanbul',
-
         // Token 24 saat geçerli (JWT `exp`); bitişten bu kadar önce yenilenir
         'token_guvenlik_payi_saniye' => 300,
 
         'baglanti_zaman_asimi' => 5,
-        // 180 günlük liste ~2,5 sn, PDF ~1,5 sn (2026-11-19 ölçümü)
+        // 180 günlük liste ~2,5 sn, PDF ~1,5 sn (2026-11-19 ölçümü). Liste toplu
+        // iştir (zamanlayıcı / kuyruk); giriş ve PDF kullanıcı isteğinde de
+        // çalışır, web işçisini uzun tutmasın (Fable incelemesi PRT-F2)
         'istek_zaman_asimi' => 60,
+        'kisa_istek_zaman_asimi' => 15,
 
         // API'nin tek istekteki tarih aralığı sınırı (aşılırsa 400)
         'azami_gun' => 180,

@@ -1,5 +1,5 @@
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -15,7 +15,12 @@ import { Pagination } from '@/components/Pagination'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 import { Switch } from '@/components/Switch'
 import { TarihInput } from '@/components/TarihInput'
-import { LISTE_AZAMI_GUN, tutarGoster, varsayilanBaslangic } from '@/features/efatura/bicim'
+import {
+  LISTE_AZAMI_GUN,
+  listeAraligiHatasi,
+  tutarGoster,
+  varsayilanBaslangic,
+} from '@/features/efatura/bicim'
 import { durumIsaretSinifi, durumSatirSinifi } from '@/features/efatura/durumRenkleri'
 import {
   type EFatura,
@@ -43,11 +48,12 @@ import {
 } from '@/features/efatura/ListeParcalari'
 import { PdfGoruntuleyici } from '@/features/efatura/PdfGoruntuleyici'
 import { SenkronDurumuPaneli } from '@/features/efatura/SenkronDurumuPaneli'
+import { useDurumlaTazele, useFaturaListesi } from '@/features/efatura/useFaturaListesi'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useIzin } from '@/hooks/useIzin'
 import { useKaliciSiralama } from '@/hooks/useKaliciSiralama'
 import { useKolonGorunurlugu } from '@/hooks/useKolonGorunurlugu'
-import { bugunIso, gunFarki, tarihGoster, zamanGoster } from '@/utils/tarih'
+import { bugunIso, tarihGoster, zamanGoster } from '@/utils/tarih'
 
 import { ErpSenkronDugmesi } from './ErpSenkronDugmesi'
 import { FaturaDetayi } from './FaturaDetayi'
@@ -87,18 +93,6 @@ function adrestekiErpFiltresi(): ErpOkunduFiltresi {
   const deger = new URLSearchParams(window.location.search).get('erp_okundu') ?? ''
 
   return (ERP_FILTRELERI as readonly string[]).includes(deger) ? (deger as ErpOkunduFiltresi) : ''
-}
-
-function aralikHatasi(baslangic: string, bitis: string): string | null {
-  if (baslangic === '' || bitis === '') {
-    return 'efatura.dogrulama.tarihZorunlu'
-  }
-  const fark = gunFarki(baslangic, bitis)
-  if (fark === null || fark < 0) {
-    return 'efatura.dogrulama.sira'
-  }
-
-  return fark + 1 > LISTE_AZAMI_GUN ? 'efatura.dogrulama.cokGenis' : null
 }
 
 const EMOR_ROZETLERI: Record<Exclude<EmorDurumu, 'yok'>, string> = {
@@ -200,9 +194,9 @@ type AcikPencere = { tur: 'detay' | 'pdf'; fatura: EFatura } | null
  * İzibiz gelen / giden faturalar; `kapsam="tum"` ise İzibiz + Protel gelen
  * faturaların birleşik listesi (Tüm Faturalar — kullanıcı isteği 2026-11-20).
  * Birleşik listede ekran aynıdır; farkları: kendi izinleri, "ERP Okudu" →
- * "eMOR Okudu", hangi sisteme girildiğini gösteren Protel Okudu / Protel / SAP
- * kolonları (kaynak uçlar gelene kadar boş), senkron ve gizleme yok (sağlayıcı
- * ekranlarında).
+ * "eMOR Okudu", Entegratör kolonu ve filtresi, SAP kolonu (kaynak uç gelene
+ * kadar boş), senkron ve gizleme yok (sağlayıcı ekranlarında); onun yerine
+ * güncel olmayan posta kutusu uyarısı.
  */
 export function EFaturalarPage({
   yon,
@@ -212,7 +206,6 @@ export function EFaturalarPage({
   kapsam?: FaturaKapsami
 }) {
   const { t } = useTranslation()
-  const queryClient = useQueryClient()
   const tum = kapsam === 'tum'
   const izinOneki = tum ? 'tum_faturalar' : 'efatura'
   const pdfIzni = useIzin(`${izinOneki}.pdf`)
@@ -242,7 +235,7 @@ export function EFaturalarPage({
   // Arama yazarken her tuşta istek atılmaz; diğer filtreler anında uygulanır
   const ara = useDebounce(filtre.ara)
   const sorguFiltresi: EFaturaFiltresi = { ...filtre, ara }
-  const tarihHatasi = aralikHatasi(filtre.baslangic, filtre.bitis)
+  const tarihHatasi = listeAraligiHatasi(filtre.baslangic, filtre.bitis)
 
   const filtreDegistir = <K extends keyof EFaturaFiltresi>(alan: K, deger: EFaturaFiltresi[K]) => {
     setFiltre((onceki) => ({ ...onceki, [alan]: deger }))
@@ -265,49 +258,19 @@ export function EFaturalarPage({
     },
   })
 
-  const liste = useQuery({
+  const { liste, eskiVeri, yenileniyor } = useFaturaListesi({
     queryKey: tum
       ? queryKeys.tumFaturalar.liste({ ...sorguFiltresi, siralama, sayfa })
       : queryKeys.efatura.liste(yon, { ...sorguFiltresi, siralama, sayfa }),
     queryFn: () => faturalariGetir(yon, sorguFiltresi, siralama, sayfa, kapsam),
     enabled: tarihHatasi === null,
-    placeholderData: keepPreviousData,
+    sayfa,
+    setSayfa,
   })
-
-  // Son sayfadaki son fatura gizlenince (ya da kayıtlar azalınca) boş sayfada kalınmaz
-  const sonSayfa = liste.isPlaceholderData ? undefined : liste.data?.meta.last_page
-  useEffect(() => {
-    if (sonSayfa !== undefined && sayfa > Math.max(sonSayfa, 1)) {
-      setSayfa(Math.max(sonSayfa, 1))
-    }
-  }, [sonSayfa, sayfa])
-
-  // Sunucudaki veri değiştiğinde liste tazelenir: aktif ortam değişti (başka
-  // sekme/yönetici), yeni bir senkron bitti (veri zamanı ilerledi) ya da
-  // elle/zamanlanmış senkron sürüyor↔bitti. Yoklama arasına düşen kısa
-  // senkron da veri zamanından yakalanır.
-  const yonDurumu = durum.data?.yonler?.[yon]
-  const tazelikIzi = durum.data
-    ? `${durum.data.ortam ?? ''}|${yonDurumu?.veri_zamani ?? ''}|${String(
-        durum.data.manuel_istek !== null || (yonDurumu?.calisiyor ?? false),
-      )}`
-    : null
-  const oncekiTazelikIzi = useRef<string | null>(null)
-  useEffect(() => {
-    if (tazelikIzi === null) {
-      return
-    }
-    if (oncekiTazelikIzi.current !== null && oncekiTazelikIzi.current !== tazelikIzi) {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.efatura.yonListeleri(yon) })
-    }
-    oncekiTazelikIzi.current = tazelikIzi
-  }, [tazelikIzi, queryClient, yon])
-
-  // Filtre/sıralama değişince yeni sonuç gelene kadar önceki sonuç yerinde
-  // kalır (tablo silinip yeniden çizilmez) ama soluk ve "güncelleniyor"
-  // işaretlidir — yeni filtreninmiş gibi sunulmaz, Excel bu arada kapalıdır
-  const eskiVeri = liste.isPlaceholderData
+  useDurumlaTazele(durum.data, yon, queryKeys.efatura.yonListeleri(yon))
   const eskiVeriSinifi = `transition-opacity ${eskiVeri ? 'opacity-50' : ''}`
+  // Tüm Faturalar'da senkron paneli yok: duran posta kutusu burada söylenir (PRT-F3)
+  const eskiKalanlar = tum ? (liste.data?.tazelik ?? []).filter((d) => !d.guncel) : []
 
   const excelAl = async (gorunenKolonlar: ExcelKolonu[], ortam: string) => {
     setExcelSuruyor(true)
@@ -647,12 +610,7 @@ export function EFaturalarPage({
             yukleniyor={excelSuruyor}
             disabled={
               tarihHatasi !== null ||
-              // Yenilenirken (filtre ya da ortam değişti) görünen ≠ inecek olan (F1, PRT-R3).
-              // Bağlantı yokken istek beklemeye alınır (paused): isFetching false
-              // olur, eski veri durur — üç durum birlikte (PRT-R9)
-              liste.isFetching ||
-              liste.isPaused ||
-              liste.isPlaceholderData ||
+              yenileniyor ||
               (liste.data?.meta.total ?? 0) === 0 ||
               excelKolonlari.length === 0
             }
@@ -732,6 +690,18 @@ export function EFaturalarPage({
           // Güncellik bilinmiyorsa liste güncel sanılmasın
           <ErrorState mesaj={t('efatura.durumAlinamadi')} tekrarDene={() => void durum.refetch()} />
         ) : null}
+        {eskiKalanlar.map((d) => (
+          <p
+            key={d.saglayici}
+            role="alert"
+            className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+          >
+            {t('efatura.tumGuncelDegil', {
+              saglayici: t(`efatura.saglayici.${d.saglayici}`),
+              zaman: zamanGoster(d.veri_zamani),
+            })}
+          </p>
+        ))}
       </div>
 
       {/* Kısa değerli alanlar dar (tarih, ERP okudu, para birimi); sığmayan alta geçer */}

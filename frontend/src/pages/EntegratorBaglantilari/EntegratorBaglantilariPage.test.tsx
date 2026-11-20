@@ -328,7 +328,7 @@ describe('EntegratorBaglantilariPage', () => {
   describe('Protel bölümü (PRT-03, PRT-05)', () => {
     const protelFormu = () => screen.getByRole('form', { name: 'Protel Test tanımı' })
 
-    it('yeni tanımda adresler varsayılanla dolu gelir; adresler, kullanıcı, şifre, VKN ve senkron aralığıyla kaydeder', async () => {
+    it('yeni tanımda adresler varsayılanla dolu gelir; değişen adres, kullanıcı, şifre, VKN ve senkron aralığıyla kaydeder, varsayılan adres boş gider', async () => {
       api.protelGuncelle.mockResolvedValue({ ...TEST_TANIMI, saglayici: 'protel' })
       ciz()
       await screen.findByDisplayValue('deneme-kullanici')
@@ -356,9 +356,10 @@ describe('EntegratorBaglantilariPage', () => {
       fireEvent.click(within(form).getByRole('button', { name: 'Kaydet' }))
 
       await waitFor(() => expect(api.protelGuncelle).toHaveBeenCalledTimes(1))
+      // Varsayılana eşit adres null: config varsayılanı değişirse tanım onu izler (PRT-F14)
       expect(api.protelGuncelle).toHaveBeenCalledWith('test', {
         auth_url: 'https://giris2.protel.com.tr',
-        api_url: 'https://einvoicerestapitest.protel.com.tr',
+        api_url: null,
         kullanici_adi: 'ws@otel.test',
         sifre: 'gizli',
         vkn: '4550357065',
@@ -404,8 +405,8 @@ describe('EntegratorBaglantilariPage', () => {
 
       await waitFor(() => expect(api.protelGuncelle).toHaveBeenCalledTimes(1))
       expect(api.protelGuncelle).toHaveBeenCalledWith('test', {
-        auth_url: 'https://authrestapitest.protel.com.tr',
-        api_url: 'https://einvoicerestapitest.protel.com.tr',
+        auth_url: null,
+        api_url: null,
         kullanici_adi: 'ws@otel.test',
         sifre: 'yeni-sifre',
         vkn: '4550357065',
@@ -455,8 +456,8 @@ describe('EntegratorBaglantilariPage', () => {
 
       expect(await within(form).findByText('Giriş başarılı: Deneme Otel A.Ş.')).toBeInTheDocument()
       expect(api.protelSina).toHaveBeenCalledWith('test', {
-        auth_url: 'https://authrestapitest.protel.com.tr',
-        api_url: 'https://einvoicerestapitest.protel.com.tr',
+        auth_url: null,
+        api_url: null,
         kullanici_adi: 'ws@otel.test',
         vkn: '4550357065',
         senkron_araligi_dakika: 15,

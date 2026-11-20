@@ -655,6 +655,7 @@
     "veriZamaniYok": "No successful sync covering today yet.",
     "senkronKapali": "Scheduled sync is disabled on the server; the list is not updated automatically.",
     "guncelDegil": "Data may be stale: no successful sync covering today in the last hour. Recent invoices may be missing.",
+    "tumGuncelDegil": "{{saglayici}} invoices may be stale (last successful update: {{zaman}}). The reason is shown in the sync panel of the {{saglayici}} screen.",
     "ardisikHata": "Last {{sayi}} sync runs failed or were incomplete ({{neden}}, {{zaman}}).",
     "alan": {
       "belgeNo": "Invoice No",

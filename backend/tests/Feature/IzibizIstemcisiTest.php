@@ -28,7 +28,7 @@ final class IzibizIstemcisiTest extends TestCase
 
     private function istemci(): IzibizIstemcisi
     {
-        return new IzibizIstemcisi;
+        return app(IzibizIstemcisi::class);
     }
 
     /**

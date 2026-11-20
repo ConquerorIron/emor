@@ -655,6 +655,7 @@
     "veriZamaniYok": "Bugünü kapsayan başarılı bir senkron henüz yok.",
     "senkronKapali": "Zamanlanmış senkron sunucuda kapalı; liste kendiliğinden güncellenmiyor.",
     "guncelDegil": "Veri güncel olmayabilir: son bir saatte bugünü kapsayan başarılı senkron yok. Yakın tarihli faturalar eksik görünebilir.",
+    "tumGuncelDegil": "{{saglayici}} faturaları güncel olmayabilir (son başarılı güncelleme: {{zaman}}). Nedeni {{saglayici}} ekranının senkron panelinde görünür.",
     "ardisikHata": "Son {{sayi}} senkron başarısız ya da eksik bitti ({{neden}}, {{zaman}}).",
     "alan": {
       "belgeNo": "Fatura No",

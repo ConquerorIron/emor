@@ -366,6 +366,54 @@ final class ProtelFaturaKaynagiTest extends TestCase
         $this->assertSame(['gelen'], EFaturaSenkronCalismasi::query()->distinct()->pluck('yon')->all());
     }
 
+    /**
+     * Kimlik reddi kendiliğinden düzelmez: ilk taramanın kalan ayları ayrı ayrı
+     * giriş denemesin — saniyeler içinde biriken başarısız girişler otelin
+     * hesabını kilitleyebilir (PRT-F1).
+     */
+    public function test_kimlik_reddinde_senkron_kalan_aylari_okumaz(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        $this->travelTo(CarbonImmutable::parse('2026-05-31 12:00', 'Europe/Istanbul'));
+        $this->tanim();
+        Http::preventStrayRequests();
+        Http::fake([self::GIRIS_URL => Http::response(['isSuccessed' => false, 'result' => 'LoginFailed'], 401)]);
+
+        $this->artisan('efatura:senkron', ['--saglayici' => 'protel', '--baslangic' => '2026-03-01'])->assertFailed();
+
+        Http::assertSentCount(1);
+        $calisma = EFaturaSenkronCalismasi::query()->sole();
+        $this->assertSame(EntegratorHatasi::KIMLIK_HATALI, $calisma->hata_kodu);
+        $this->assertSame('2026-03-01', $calisma->baslangic->toDateString());
+    }
+
+    /** Aralık denetimi tanım başınadır: İzibiz'in yeni çalışması Protel'i bekletmez. */
+    public function test_protel_senkron_araligi_izibiz_calismalarindan_bagimsizdir(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        $this->travelTo(CarbonImmutable::parse('2026-05-31 12:00', 'Europe/Istanbul'));
+        $this->tanim();
+        $izibiz = EntegratorBaglanti::factory()->aktif()->create();
+        EFaturaSenkronCalismasi::query()->create([
+            'entegrator_baglanti_id' => $izibiz->id,
+            'yon' => 'gelen',
+            'tarih_turu' => ProtelFaturaKaynagi::TARIH_ULASMA,
+            'baslangic' => '2026-05-31',
+            'bitis' => '2026-05-31',
+            'tetikleyen' => EFaturaSenkronCalismasi::TETIKLEYEN_ZAMANLANMIS,
+            'durum' => EFaturaSenkronCalismasi::DURUM_TAM,
+            'basladi' => CarbonImmutable::now()->subMinute(),
+            'bitti' => CarbonImmutable::now()->subMinute(),
+        ]);
+        $this->protelYaniti([]);
+
+        $this->artisan('efatura:senkron', [
+            '--saglayici' => 'protel', '--gun' => 1, '--tarih-turu' => 'DELIVERY', '--aralik-denetimi' => true,
+        ])->assertSuccessful();
+
+        $this->assertCount(1, Http::recorded(fn (Request $istek): bool => $istek->url() === self::LISTE_URL));
+    }
+
     public function test_modul_kapaliyken_senkron_protele_istek_gondermez(): void
     {
         config(['entegrator.protel.aktif' => false]);

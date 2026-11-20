@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * e-Belge entegratörü (İzibiz) bağlantı tanımı — ortam ('test' | 'canli')
+ * e-Belge entegratörü (İzibiz, Protel) bağlantı tanımı — ortam ('test' | 'canli')
  * başına tek satır (EFAT-15, S9: tek şirket / tek hesap). Şifre encrypted
  * cast ile saklanır ve serileştirmede gizlidir (SqlBaglanti deseni).
  *
@@ -42,8 +42,8 @@ final class EntegratorBaglanti extends Model
     public const SAGLAYICI_IZIBIZ = 'izibiz';
 
     /**
-     * Otelin posta kutusu (docs/protel). Yalnız okunur; adresi ekrandan
-     * değiştirilemez (`api_url` her zaman null, adres config'ten).
+     * Otelin posta kutusu (docs/protel). Yalnız okunur. Giriş (`auth_url`) ve
+     * fatura (`api_url`) adresleri ekrandan girilir; boşsa ortamın varsayılanı.
      */
     public const SAGLAYICI_PROTEL = 'protel';
 
@@ -127,7 +127,7 @@ final class EntegratorBaglanti extends Model
 
         if (! is_array($parca)
             || strtolower($parca['scheme'] ?? '') !== 'https'
-            || ($parca['host'] ?? '') === ''
+            || ! self::alanAdiGecerli($parca['host'] ?? '')
             || isset($parca['user']) || isset($parca['pass'])
             || isset($parca['query']) || isset($parca['fragment'])
             || ! in_array($parca['path'] ?? '', ['', '/'], true)) {
@@ -135,6 +135,16 @@ final class EntegratorBaglanti extends Model
         }
 
         return 'https://'.strtolower($parca['host']).(isset($parca['port']) ? ':'.$parca['port'] : '');
+    }
+
+    /**
+     * Alan adı yalnız harf, rakam, nokta ve tireden oluşur. `parse_url` ters
+     * eğik çizgi, `%2f`, boşluk içeren host'u da döndürür; bunlar "izinli alan
+     * adıyla biter" denetimini geçerdi (Fable incelemesi PRT-F4).
+     */
+    public static function alanAdiGecerli(string $alanAdi): bool
+    {
+        return preg_match('/^[A-Za-z0-9.-]+$/D', $alanAdi) === 1;
     }
 
     public function portalUrl(): string

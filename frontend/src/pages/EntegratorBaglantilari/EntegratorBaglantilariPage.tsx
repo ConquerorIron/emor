@@ -25,6 +25,7 @@ import {
   type EntegratorSinamaSonucu,
 } from '@/features/ayarlar/entegratorApi'
 import { useIzin } from '@/hooks/useIzin'
+import { zamanGoster } from '@/utils/tarih'
 
 import { adresGovdesi, API_ADRESI, ARALIK } from './adresKurallari'
 import { ProtelBolumu } from './ProtelBolumu'
@@ -353,7 +354,7 @@ function BaglantiFormu({
           <p className="font-semibold">{t('ayarlar.entegrator.sinamaBasarili')}</p>
           <p className="mt-1">
             {t('ayarlar.entegrator.tokenGecerlilik', {
-              zaman: new Date(sinamaSonucu.gecerlilik_bitis).toLocaleString(),
+              zaman: zamanGoster(sinamaSonucu.gecerlilik_bitis),
             })}
           </p>
           <p className="mt-1 text-xs">{t('ayarlar.entegrator.sinamaKapsami')}</p>
@@ -432,7 +433,9 @@ function AktifOrtamBolumu({
     mutationFn: (ortam: EntegratorOrtam) => entegratorAktifOrtamDegistir(ortam),
     onSuccess: async (tanim) => {
       // Eski ortamın fatura listeleri önbellekte kalıp yeni ortamınmış gibi görünmesin
+      // (Tüm Faturalar da İzibiz'in aktif tanımını gösterir)
       queryClient.removeQueries({ queryKey: queryKeys.efatura.hepsi })
+      queryClient.removeQueries({ queryKey: queryKeys.tumFaturalar.hepsi })
       await queryClient.invalidateQueries({ queryKey: queryKeys.ayarlar.entegratorBaglantilari })
       toast.success(
         t('ayarlar.entegrator.aktifYapildi', { ortam: t(`ayarlar.sql.ortam.${tanim.ortam}`) }),

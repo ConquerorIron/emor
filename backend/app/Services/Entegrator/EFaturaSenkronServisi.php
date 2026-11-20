@@ -19,7 +19,8 @@ use Throwable;
  * Entegratör e-Fatura özetlerini PostgreSQL'e senkronlar (EFAT-10, faz 1;
  * PRT-08). Kaynak tanımın sağlayıcısına göre seçilir: İzibiz ya da Protel.
  *
- * - Aralık takvim aylarına bölünür; her ay ayrı çalışma kaydıdır.
+ * - Aralık takvim aylarına bölünür; her ay ayrı çalışma kaydıdır. Kimlik
+ *   reddi ya da kapalı modülde kalan aylar okunmaz (her ay yeniden giriş olurdu).
  * - İzibiz okunurken veritabanı transaction'ı açık tutulmaz; kayıtlar
  *   okuma bitince kısa transaction'larla upsert edilir.
  * - Aynı tanım + yön için eşzamanlı senkron kilitle engellenir (zamanlanmış
@@ -32,6 +33,9 @@ use Throwable;
 final class EFaturaSenkronServisi
 {
     private const YAZMA_PARTISI = 500;
+
+    /** Girdi değişmeden düzelmeyen hatalar: aralığın kalan ayları okunmaz */
+    private const KALICI_HATALAR = [EntegratorHatasi::KIMLIK_HATALI, EntegratorHatasi::PROTEL_KAPALI];
 
     public function __construct(
         private readonly IzibizFaturaKaynagi $izibiz,
@@ -70,7 +74,14 @@ final class EFaturaSenkronServisi
             $calismalar = [];
 
             foreach ($this->aylaraBol($baslangic, $bitis) as [$ayBasi, $aySonu]) {
-                $calismalar[] = $this->aralikSenkronEt($tanim, $yon, $ayBasi, $aySonu, $tetikleyen, $tarihTuru, $kullaniciId);
+                $calisma = $this->aralikSenkronEt($tanim, $yon, $ayBasi, $aySonu, $tetikleyen, $tarihTuru, $kullaniciId);
+                $calismalar[] = $calisma;
+
+                // Kendiliğinden düzelmeyen hata: kalan aylar yeniden giriş
+                // denemesin (Dikkat_Edilecekler D8, Fable incelemesi PRT-F1)
+                if (in_array($calisma->hata_kodu, self::KALICI_HATALAR, true)) {
+                    break;
+                }
             }
 
             return $calismalar;

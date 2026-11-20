@@ -29,11 +29,13 @@ export const queryKeys = {
   },
   // Tüm Faturalar — İzibiz + Protel gelen faturaların birleşik listesi
   tumFaturalar: {
+    hepsi: ['tumFaturalar'],
     liste: (parametreler: Record<string, unknown>) =>
       ['tumFaturalar', 'liste', parametreler] as const,
   },
   // Protel Gelen Faturalar (PRT-12) — otelin posta kutusu
   protel: {
+    hepsi: ['protel'],
     durum: ['protel', 'durum'],
     listeler: ['protel', 'liste'],
     liste: (parametreler: Record<string, unknown>) => ['protel', 'liste', parametreler] as const,

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\EFatura;
+use App\Models\EFaturaSenkronCalismasi;
 use App\Models\EntegratorBaglanti;
 use App\Models\Rol;
 use App\Models\User;
 use App\Services\ErpBelgeArsivi;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
@@ -110,6 +112,37 @@ final class TumFaturalarTest extends TestCase
         $this->assertSame(['INS1'], $bulunan('ara=izib'));
         $this->assertSame([], $bulunan('ara=protel&entegrator=izibiz'));
         $this->actingAs($kullanici)->getJson('/api/v1/tum-faturalar/faturalar?'.self::ARALIK.'&entegrator=sap')->assertUnprocessable();
+    }
+
+    /**
+     * Bu ekranda senkron paneli yok: bir posta kutusunun senkronu durursa
+     * (ör. Protel şifresi değişti) ekran bunu söylemeli (PRT-F3).
+     */
+    public function test_saglayici_basina_verinin_guncelligi_doner(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-11-20 10:00', 'Europe/Istanbul'));
+        [$izibiz] = $this->tanimlar();
+        EFaturaSenkronCalismasi::query()->create([
+            'entegrator_baglanti_id' => $izibiz->id,
+            'yon' => 'gelen',
+            'tarih_turu' => 'DELIVERY',
+            'baslangic' => '2026-11-11',
+            'bitis' => '2026-11-20',
+            'tetikleyen' => EFaturaSenkronCalismasi::TETIKLEYEN_ZAMANLANMIS,
+            'durum' => EFaturaSenkronCalismasi::DURUM_TAM,
+            'basladi' => CarbonImmutable::now()->subMinutes(5),
+            'bitti' => CarbonImmutable::now()->subMinutes(4),
+        ]);
+
+        $yanit = $this->actingAs($this->izinli('tum_faturalar.goruntule'))
+            ->getJson('/api/v1/tum-faturalar/faturalar?'.self::ARALIK)
+            ->assertOk();
+
+        $this->assertSame([['izibiz', 'canli', true], ['protel', 'canli', false]], array_map(
+            fn (array $t): array => [$t['saglayici'], $t['ortam'], $t['guncel']],
+            $yanit->json('tazelik'),
+        ));
+        $this->assertNull($yanit->json('tazelik.1.veri_zamani'));
     }
 
     public function test_yalniz_bir_saglayici_aktifse_onun_faturalari_hicbiri_yoksa_hata_doner(): void

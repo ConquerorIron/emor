@@ -12,6 +12,7 @@ use App\Services\Entegrator\ProtelIstemcisi;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -89,6 +90,56 @@ final class ProtelBaglantiTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors(['auth_url', 'api_url'], 'hatalar');
 
         $this->assertSame(0, EntegratorBaglanti::query()->count());
+    }
+
+    /** `parse_url` bunları host sayar ve "protel.com.tr ile biter" denetimini geçerdi (PRT-F4). */
+    #[DataProvider('gecersizKarakterliAdresler')]
+    public function test_alan_adinda_gecersiz_karakter_olan_adres_reddedilir(string $adres): void
+    {
+        $this->yonetici();
+
+        $this->putJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test', [
+            'auth_url' => $adres, 'kullanici_adi' => 'ws@ornek.test', 'sifre' => 's', 'vkn' => '1234567890',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['auth_url'], 'hatalar');
+
+        $this->assertSame(0, EntegratorBaglanti::query()->count());
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function gecersizKarakterliAdresler(): array
+    {
+        return ProtelIstemcisiTest::gecersizKarakterliAdresler();
+    }
+
+    /**
+     * Otomatik işler reddedilen girişi bekletir (PRT-F1); kayıtlı şifreyle
+     * başarılı sınama (Protel'de şifre geri alındı) bekletmeyi kaldırır.
+     */
+    public function test_kayitli_sifreyle_basarili_sinama_bekletilen_giris_reddini_kaldirir(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        Http::preventStrayRequests();
+        Http::fake([
+            self::GIRIS_URL => Http::sequence()
+                ->pushResponse(Http::response(['isSuccessed' => false, 'result' => 'LoginFailed'], 401))
+                ->pushResponse(ProtelIstemcisiTest::girisYaniti())
+                ->pushResponse(ProtelIstemcisiTest::girisYaniti()),
+        ]);
+        $this->yonetici();
+        $tanim = EntegratorBaglanti::factory()->protel()->aktif()->create();
+        $istemci = app(ProtelIstemcisi::class);
+        try {
+            $istemci->token($tanim);
+        } catch (EntegratorHatasi) {
+            // Beklenen: ilk giriş reddedildi, red hatırlandı
+        }
+
+        $this->postJson('/api/v1/ayarlar/entegrator-baglantilari/protel/test/sina', [])->assertOk();
+
+        $this->assertNotSame('', $istemci->token($tanim));
+        Http::assertSentCount(3);
     }
 
     /** Kayıtlı şifre henüz doğrulanmamış yeni bir adrese gönderilmez (İzibiz kuralı). */

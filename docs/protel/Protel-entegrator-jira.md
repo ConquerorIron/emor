@@ -164,7 +164,7 @@ Akış, inceleme günlüğü biçimi ve önem dereceleri (P1 / P2 / P3) için
 | PRT-12 | Ekran: Protel Gelen Faturalar | 2 | PRT-08, PRT-09, PRT-10 | PASSED |
 | PRT-13 | Ekran: birleşik gelen faturalar (İzibiz + Protel) | 3 | PRT-12 | REVIEW_BEKLIYOR |
 | PRT-14 | Test tarafında uçtan uca kabul | 4 | PRT-12 | BEKLIYOR |
-| PRT-15 | Canlıya alma | 4 | PRT-14 | YAPILACAK |
+| PRT-15 | Canlıya alma | 4 | PRT-14 | CANLIDA |
 
 **Kilometre taşları**
 
@@ -1144,3 +1144,39 @@ alınması (faz 2); Protel giden faturaları (kapsam dışı).
     `code-review`, `laravel-best-practices`, `testing-best-practices`
     ve `supabase-postgres-best-practices` kullanıldı. Doğrulama yerel
     ve sahte HTTP yanıtlarıyla yapıldı. PRT-14 kullanıcı kabulü bekleniyor.
+
+- 2026-11-20 Fable → modül incelemesi (salt okuma, PRT-F1…F14); Claude düzeltti
+  (kullanıcı: "haklı gördüklerini uygula, canlıya al"):
+  - **PRT-F1 [P1] düzeltildi.** Reddedilen giriş kimlik sürümüyle anahtarlı
+    6 saat hatırlanır, otomatik işler istek göndermez (`EntegratorTokenOnbellegi`,
+    İzibiz dahil — G1); senkron ay döngüsü kimlik reddinde / kapalı modülde
+    kesilir; girişte 429 tekrarlanmaz. Kimlik güncellenince ya da kayıtlı
+    şifreyle başarılı sınamada red kalkar; red bir kez günlüğe yazılır.
+  - **PRT-F2 düzeltildi.** Giriş ve PDF 15 sn + tek tekrar
+    (`kisa_istek_zaman_asimi`); liste 60 sn + iki tekrar; token kilidi girişe göre.
+  - **PRT-F3 düzeltildi (ekran kısmı).** Tüm Faturalar yanıtında sağlayıcı
+    başına `tazelik`; güncel olmayan posta kutusu için uyarı şeridi. Mail
+    alarmı kapsam dışı (kullanıcı kararı "şimdilik yalnız ekran").
+  - **PRT-F4, F5 düzeltildi.** Alan adı yalnız `[A-Za-z0-9.-]`
+    (`EntegratorBaglanti::alanAdiGecerli`, kayıt ve istemci); kilit bütün
+    değerlerin metin, `uuid` / tarihlerin biçimli olmasını ister.
+  - **PRT-F8, F9, F10 düzeltildi.** Ortak token önbelleği; Excel / PDF / XML
+    yanıtı `EFaturaCiktisi`; ön yüzde `useFaturaListesi` / `useDurumlaTazele`
+    ve `listeAraligiHatasi`. İki `FaturaKaynagi`'nın küçük yardımcıları
+    bilinçli bırakıldı (biçimleri farklı: tutar, tarih).
+  - **PRT-F11, F12 düzeltildi.** Eskimiş yorumlar; okunmayan
+    `entegrator.protel.saat_dilimi` silindi (izibiz değeri ortak, yorumu
+    güncel); `FaturaKaynagi::TARIH_*`; `ext-bcmath` composer'da beyanlı;
+    `.env.example`'da `PROTEL_AKTIF`; api-notlari eşleme tablosu.
+  - **PRT-F14 kısmen.** Varsayılana eşit adres null gönderilir; ortam
+    değişince Tüm Faturalar önbelleği de silinir; 401'de yalnız reddedilen
+    token atılır; sınama zamanı `zamanGoster` ile.
+  - **Uygulanmayanlar (gerekçe):** F6 saklama süresi kullanıcı kararıdır
+    (sorgu bugün küçük); F7 bilgi. F14'ten: yinelenen Protel `id` aynı kaydın
+    kopyasıdır, "eksik" alarmı gürültü olurdu; `endDate` kesirli saniyesi
+    Protel'de ölçülmeden değiştirilmez (gece belge tarihli tarama kapatır);
+    `sina`'nın denetleyicide durması İzibiz kardeşiyle aynı kalıp; yayımlanmış
+    migration'a `declare` eklenmez (K6).
+  - Testler: F1, F2, F3, F4, F5 için yeni testler düzeltmeden önce kırmızı
+    (13); ek kapsam: bağlantı hatası, token süresi, Protel aralığının
+    İzibiz'den bağımsızlığı.

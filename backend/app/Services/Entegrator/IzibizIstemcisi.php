@@ -6,14 +6,10 @@ namespace App\Services\Entegrator;
 
 use App\Models\EntegratorBaglanti;
 use Carbon\CarbonImmutable;
-use Illuminate\Contracts\Cache\LockTimeoutException;
-use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
 use Throwable;
@@ -28,8 +24,8 @@ use Throwable;
  * - `validity` saat dilimi eki taşımayan İstanbul saatidir; ömür ~12 saat
  * - Uzatma (`PUT`) süreyi uzatmıyor → kullanılmaz, gerekince yeniden alınır
  *
- * Adres her zaman tanımın ortamından türetilir (config/entegrator.php);
- * kayıtlı şifre başka bir adrese gönderilemez.
+ * Adres tanımdandır (ekrandan; yalnız https + izinli alan adı) ya da ortamın
+ * varsayılanı (config/entegrator.php); kayıtlı şifre başka adrese gönderilemez.
  */
 final class IzibizIstemcisi
 {
@@ -37,6 +33,10 @@ final class IzibizIstemcisi
 
     /** Bağlantı hatası, 5xx ve 429'da bekleme süreleri (ms) — 2 yeniden deneme. */
     private const YENIDEN_DENEME_MS = [250, 1000];
+
+    public function __construct(
+        private readonly EntegratorTokenOnbellegi $onbellek,
+    ) {}
 
     /**
      * Önbellek ve kilit OLMADAN kimlikle token alır. Bağlantı sınaması
@@ -88,47 +88,17 @@ final class IzibizIstemcisi
     }
 
     /**
-     * Kayıtlı tanım için geçerli token. Önbellekte şifreli tutulur; anahtar
-     * kimlik sürümünü içerir. Eşzamanlı yenileme (web + kuyruk) kilitle tek
-     * isteğe indirilir; kilit alındıktan sonra önbellek yeniden okunur.
+     * Kayıtlı tanım için geçerli token (EntegratorTokenOnbellegi): önbellekte
+     * şifreli, eşzamanlı yenileme (web + kuyruk) tek girişe indirilir,
+     * reddedilen kimlik otomatik işlerde yeniden denenmez.
      */
     public function token(EntegratorBaglanti $tanim): string
     {
-        // Kuyruk işi tanımı önceden yüklemiş olabilir; anahtar ve kimlik
-        // veritabanındaki güncel sürümden alınır.
-        $tanim->refresh();
-        $anahtar = $tanim->tokenOnbellekAnahtari();
+        return $this->onbellek->token($tanim, $this->kilitSuresi(), $this->guvenlikPayi(), function () use ($tanim): array {
+            $token = $this->tokenAl($tanim);
 
-        $onbellekte = $this->onbellektenOku($anahtar);
-        if ($onbellekte !== null) {
-            return $onbellekte;
-        }
-
-        try {
-            $kilitSuresi = $this->kilitSuresi();
-
-            return Cache::lock($anahtar.':kilit', $kilitSuresi)->block($kilitSuresi, function () use ($anahtar, $tanim): string {
-                $onbellekte = $this->onbellektenOku($anahtar);
-                if ($onbellekte !== null) {
-                    return $onbellekte;
-                }
-
-                $token = $this->tokenAl($tanim);
-                $sure = $token->bitis->getTimestamp() - CarbonImmutable::now()->getTimestamp() - $this->guvenlikPayi();
-
-                Cache::put($anahtar, Crypt::encryptString($token->erisimToken), $sure);
-
-                return $token->erisimToken;
-            });
-        } catch (LockTimeoutException) {
-            // Başka süreç kilidi tutarken token alamadı / çok uzun sürdü
-            throw EntegratorHatasi::erisilemedi();
-        }
-    }
-
-    public function tokenUnut(EntegratorBaglanti $tanim): void
-    {
-        Cache::forget($tanim->tokenOnbellekAnahtari());
+            return [$token->erisimToken, $token->bitis];
+        });
     }
 
     /**
@@ -209,10 +179,11 @@ final class IzibizIstemcisi
         };
 
         $this->yolIzinliMi('POST', $yol);
-        $yanit = $gonder($this->token($tanim));
+        $token = $this->token($tanim);
+        $yanit = $gonder($token);
 
         if (in_array($yanit->status(), [401, 403], true)) {
-            $this->tokenUnut($tanim);
+            $this->onbellek->unut($tanim, $token);
             $yanit = $gonder($this->token($tanim));
         }
 
@@ -277,10 +248,11 @@ final class IzibizIstemcisi
     {
         $this->yolIzinliMi('GET', $yol);
 
-        $yanit = $this->tokenliGet($tanim, $yol, $sorgu, $this->token($tanim), $kabul);
+        $token = $this->token($tanim);
+        $yanit = $this->tokenliGet($tanim, $yol, $sorgu, $token, $kabul);
 
         if (in_array($yanit->status(), [401, 403], true)) {
-            $this->tokenUnut($tanim);
+            $this->onbellek->unut($tanim, $token);
             $yanit = $this->tokenliGet($tanim, $yol, $sorgu, $this->token($tanim), $kabul);
         }
 
@@ -320,7 +292,7 @@ final class IzibizIstemcisi
             ->asJson()
             ->connectTimeout((int) config('entegrator.izibiz.baglanti_zaman_asimi'))
             ->timeout((int) config('entegrator.izibiz.istek_zaman_asimi'))
-            // Adres config'ten gelir; başka bir hedefe yönlendirme izlenmez
+            // Adres tanımdan (izinli alan adı) ya da config varsayılanından; başka hedefe yönlendirme izlenmez
             ->withoutRedirecting()
             ->retry(
                 self::YENIDEN_DENEME_MS,
@@ -330,24 +302,6 @@ final class IzibizIstemcisi
                         && ($hata->response->serverError() || $hata->response->status() === 429)),
                 throw: false,
             );
-    }
-
-    private function onbellektenOku(string $anahtar): ?string
-    {
-        $sifreli = Cache::get($anahtar);
-
-        if (! is_string($sifreli)) {
-            return null;
-        }
-
-        try {
-            return Crypt::decryptString($sifreli);
-        } catch (DecryptException) {
-            // APP_KEY değişmiş olabilir — bozuk kaydı at, yeniden alınsın
-            Cache::forget($anahtar);
-
-            return null;
-        }
     }
 
     /**

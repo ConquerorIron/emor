@@ -21,6 +21,7 @@ import {
   protelBaglantiGuncelle,
   protelBaglantiSina,
 } from '@/features/ayarlar/entegratorApi'
+import { zamanGoster } from '@/utils/tarih'
 
 import { adresGovdesi, API_ADRESI, ARALIK } from './adresKurallari'
 
@@ -55,10 +56,24 @@ function protelSemasi(sifreZorunlu: boolean) {
 
 type ProtelGirdisi = z.infer<ReturnType<typeof protelSemasi>>
 
-function govde(girdi: ProtelGirdisi): ProtelBaglantiGovdesi {
+/**
+ * Ortamın varsayılanına eşit adres null (varsayılan) gönderilir: form
+ * varsayılanla dolu gelir; aynen kaydedilse "özel adres" sayılır ve config
+ * varsayılanı sonradan değişince tanım eski adreste kalırdı (PRT-F14).
+ */
+function tanimAdresi(deger: string, varsayilan: string): string | null {
+  const adres = adresGovdesi(deger)
+
+  return adres !== null && adres.replace(/\/$/, '').toLowerCase() === varsayilan ? null : adres
+}
+
+function govde(
+  girdi: ProtelGirdisi,
+  varsayilan: { giris: string; fatura: string },
+): ProtelBaglantiGovdesi {
   return {
-    auth_url: adresGovdesi(girdi.auth_url),
-    api_url: adresGovdesi(girdi.api_url),
+    auth_url: tanimAdresi(girdi.auth_url, varsayilan.giris),
+    api_url: tanimAdresi(girdi.api_url, varsayilan.fatura),
     kullanici_adi: girdi.kullanici_adi,
     vkn: girdi.vkn,
     senkron_araligi_dakika: girdi.senkron_araligi_dakika,
@@ -115,6 +130,7 @@ function ProtelFormu({
   const [sinamaSonucu, setSinamaSonucu] = useState<ProtelSinamaSonucu | null>(null)
   const [sinamaHatasi, setSinamaHatasi] = useState<string | null>(null)
   const sinamaSurumu = useRef(0)
+  const varsayilan = { giris: varsayilanGirisAdresi, fatura: varsayilanFaturaAdresi }
 
   const {
     register,
@@ -138,7 +154,7 @@ function ProtelFormu({
   // Kayıt sürerken alanlar salt okunur: yanıt (sıfırlama / yeniden kurulum) arada
   // yazılan değeri silmesin (PRT-R11)
   const kaydet = useMutation({
-    mutationFn: (girdi: ProtelGirdisi) => protelBaglantiGuncelle(ortam, govde(girdi)),
+    mutationFn: (girdi: ProtelGirdisi) => protelBaglantiGuncelle(ortam, govde(girdi, varsayilan)),
     onSuccess: async () => {
       // Form yalnız şifre değiştiyse yeniden kurulmaz: girilen şifre alanda kalmasın (PRT-R6)
       resetField('sifre', { defaultValue: '' })
@@ -151,7 +167,7 @@ function ProtelFormu({
   })
 
   const sina = useMutation({
-    mutationFn: (_surum: number) => protelBaglantiSina(ortam, govde(getValues())),
+    mutationFn: (_surum: number) => protelBaglantiSina(ortam, govde(getValues(), varsayilan)),
     onSuccess: (sonuc, surum) => {
       if (surum !== sinamaSurumu.current) return
       setSinamaHatasi(null)
@@ -304,7 +320,7 @@ function ProtelFormu({
           </p>
           <p className="mt-1">
             {t('ayarlar.entegrator.tokenGecerlilik', {
-              zaman: new Date(sinamaSonucu.gecerlilik_bitis).toLocaleString(),
+              zaman: zamanGoster(sinamaSonucu.gecerlilik_bitis),
             })}
           </p>
         </div>
@@ -345,7 +361,9 @@ function ProtelAktifOrtam({ veri }: { veri: ProtelBaglantilari }) {
     mutationFn: (ortam: EntegratorOrtam) => protelAktifOrtamDegistir(ortam),
     onSuccess: async (tanim) => {
       // Eski ortamın listeleri önbellekte kalıp yeni ortamınmış gibi görünmesin
-      queryClient.removeQueries({ queryKey: ['protel'] })
+      // (Tüm Faturalar da Protel'in aktif tanımını gösterir)
+      queryClient.removeQueries({ queryKey: queryKeys.protel.hepsi })
+      queryClient.removeQueries({ queryKey: queryKeys.tumFaturalar.hepsi })
       await queryClient.invalidateQueries({ queryKey: queryKeys.ayarlar.entegratorBaglantilari })
       toast.success(
         t('ayarlar.protel.aktifYapildi', { ortam: t(`ayarlar.sql.ortam.${tanim.ortam}`) }),

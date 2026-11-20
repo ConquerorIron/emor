@@ -10,7 +10,7 @@ use App\Http\Requests\EFatura\EFaturaListeRequest;
 use App\Http\Resources\EFaturaResource;
 use App\Models\EFatura;
 use App\Models\EntegratorBaglanti;
-use App\Services\Entegrator\EFaturaExcelAktarici;
+use App\Services\Entegrator\EFaturaCiktisi;
 use App\Services\Entegrator\EFaturaSorgusu;
 use App\Services\Entegrator\EntegratorHatasi;
 use App\Services\Entegrator\FaturaBelgeServisi;
@@ -59,106 +59,33 @@ final class EFaturaController extends Controller
             ->response();
     }
 
-    public function excel(EFaturaListeRequest $request, string $yon, EFaturaExcelAktarici $aktarici): BinaryFileResponse|JsonResponse
+    public function excel(EFaturaListeRequest $request, string $yon, EFaturaCiktisi $cikti): BinaryFileResponse|JsonResponse
     {
         $tanim = $this->aktifTanim($request);
-
-        // Ekrandaki liste başka ortamın verisiyse (ortam değişti, liste henüz
-        // tazelenmedi) görülenden farklı faturalar inmesin (PRT-R3, F1)
-        if ($request->filled('ortam') && $request->input('ortam') !== $tanim->ortam) {
-            return response()->json([
-                'kod' => 'ENTEGRATOR_ORTAM_DEGISTI',
-                'mesaj' => __('hata.entegrator_ortam_degisti'),
-            ], 409);
-        }
-        $faturaYonu = FaturaYonu::from($yon);
-        $filtre = $request->filtre();
-
-        $sorgu = $this->sorgu->filtrele($tanim, $faturaYonu, $filtre);
-
-        // Ekrandaki sayfa (kullanıcı isteği 2026-09-24): tablonun o an gösterdiği satırlar
-        if ($request->filled('page')) {
-            $idler = $this->sorgu->sirala($sorgu->clone(), $faturaYonu, $request->input('sirala'), $request->input('yon'))
-                ->forPage($request->integer('page'), $request->sayfaBoyutu())
-                ->pluck('efatura_faturalari.id');
-            $sorgu = EFatura::query()->whereKey($idler);
-        }
-
-        $adet = $sorgu->count();
-        $sinir = (int) config('efatura.excel_azami_satir');
-
-        if ($adet > $sinir) {
-            return response()->json([
-                'kod' => 'EFATURA_EXCEL_COK_BUYUK',
-                'mesaj' => __('hata.efatura_excel_cok_buyuk', ['adet' => $adet, 'sinir' => $sinir]),
-            ], 422);
-        }
-
-        $yol = $aktarici->olustur(
-            $this->sorgu->sirala($sorgu->clone(), $faturaYonu, $request->input('sirala'), $request->input('yon')),
-            $faturaYonu,
-            $tanim,
-            $this->sorgu->ozet($sorgu),
-            ['baslangic' => $filtre['baslangic'], 'bitis' => $filtre['bitis']],
-            $request->excelKolonlari(),
-        );
-
-        Log::info('e-Fatura Excel çıktısı alındı', [
-            'kullanici_id' => $request->user()?->id,
-            'yon' => $faturaYonu->value,
-            'ortam' => $tanim->ortam,
-            'adet' => $adet,
-        ]);
-
         $onEk = $tanim->saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL ? 'protel' : 'efatura';
-        $ad = sprintf('%s-%s-%s-%s.xlsx', $onEk, $faturaYonu->value, $filtre['baslangic'], $filtre['bitis']);
 
-        return response()
-            ->download($yol, $ad, [
-                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'Cache-Control' => 'private, no-store',
-            ])
-            ->deleteFileAfterSend();
+        return $cikti->excel($request, $tanim, FaturaYonu::from($yon), $tanim->ortam, "{$onEk}-{$yon}");
     }
 
     /**
-     * Fatura aslı önce ERP havuzundan, yoksa İzibiz'den anlık okunur
-     * (saklanmaz). Bearer token ve İzibiz adresi tarayıcıya gitmez; yalnız
-     * PDF gövdesi ve kaynağı (X-Belge-Kaynagi: erp|entegrator) döner.
+     * Fatura aslı önce ERP havuzundan, yoksa entegratörden anlık okunur
+     * (saklanmaz; Protel'de yalnız entegratörden — FaturaBelgeServisi).
      */
-    public function pdf(Request $request, int $fatura, FaturaBelgeServisi $belgeler): Response
+    public function pdf(Request $request, int $fatura, FaturaBelgeServisi $belgeler, EFaturaCiktisi $cikti): Response
     {
         $tanim = $this->aktifTanim($request);
         $kayit = $this->aktifHesabinFaturasi($tanim, $fatura);
-        ['icerik' => $pdf, 'kaynak' => $kaynak] = $belgeler->pdf($tanim, $kayit);
 
-        return response($pdf, 200, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="'.$this->dosyaAdi($kayit, 'pdf').'"',
-            'Cache-Control' => 'private, no-store',
-            'X-Content-Type-Options' => 'nosniff',
-            'X-Belge-Kaynagi' => $kaynak,
-        ]);
+        return $cikti->belge($kayit, $belgeler->pdf($tanim, $kayit), 'pdf');
     }
 
-    /**
-     * UBL XML — PDF ile aynı kaynak sırası. Tarayıcıda çizilmesin diye her
-     * zaman ek (attachment) olarak ve betik çalıştırmayan CSP ile döner.
-     */
-    public function xml(Request $request, int $fatura, FaturaBelgeServisi $belgeler): Response
+    /** UBL XML — PDF ile aynı kaynak sırası (Protel'de yok). */
+    public function xml(Request $request, int $fatura, FaturaBelgeServisi $belgeler, EFaturaCiktisi $cikti): Response
     {
         $tanim = $this->aktifTanim($request);
         $kayit = $this->aktifHesabinFaturasi($tanim, $fatura);
-        ['icerik' => $xml, 'kaynak' => $kaynak] = $belgeler->xml($tanim, $kayit);
 
-        return response($xml, 200, [
-            'Content-Type' => 'application/xml; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="'.$this->dosyaAdi($kayit, 'xml').'"',
-            'Cache-Control' => 'private, no-store',
-            'X-Content-Type-Options' => 'nosniff',
-            'Content-Security-Policy' => 'sandbox',
-            'X-Belge-Kaynagi' => $kaynak,
-        ]);
+        return $cikti->belge($kayit, $belgeler->xml($tanim, $kayit), 'xml');
     }
 
     /**
@@ -201,12 +128,6 @@ final class EFaturaController extends Controller
         return EFatura::query()
             ->where('entegrator_baglanti_id', $tanim->id)
             ->find($fatura) ?? throw new NotFoundHttpException;
-    }
-
-    /** Dosya adında yalnız güvenli karakterler (başlık enjeksiyonu yok). */
-    private function dosyaAdi(EFatura $fatura, string $uzanti): string
-    {
-        return preg_replace('/[^A-Za-z0-9._-]/', '_', $fatura->belge_no).'.'.$uzanti;
     }
 
     private function aktifTanim(Request $request): EntegratorBaglanti

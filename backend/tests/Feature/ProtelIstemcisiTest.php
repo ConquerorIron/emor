@@ -123,7 +123,7 @@ final class ProtelIstemcisiTest extends TestCase
         Http::fake();
         $tanim = $this->tanim();
 
-        $this->reddiBekle(fn () => (new ProtelIstemcisi)->post($tanim, $yol, []));
+        $this->reddiBekle(fn () => app(ProtelIstemcisi::class)->post($tanim, $yol, []));
     }
 
     /**
@@ -143,6 +143,11 @@ final class ProtelIstemcisiTest extends TestCase
             'ERP durumu süzgeci All değil' => [ProtelIstemcisi::YOL_FATURA_LISTESI, [...self::LISTE_GOVDESI, 'erpStatus' => 'New']],
             'ERP aldı süzgeci All değil' => [ProtelIstemcisi::YOL_FATURA_LISTESI, [...self::LISTE_GOVDESI, 'erpRecievedStatus' => 'Unreceived']],
             'PDF çıktı türü UBL' => [ProtelIstemcisi::YOL_FATURA_PDF, [...self::PDF_GOVDESI, 'outputType' => 'Ubl']],
+            // Anahtar izinli olsa da değer metin ve biçiminde olmalı (PRT-F5)
+            'PDF uuid içinde set alanı' => [ProtelIstemcisi::YOL_FATURA_PDF, [...self::PDF_GOVDESI, 'uuid' => ['setErpStatus' => 'Booked']]],
+            'PDF uuid biçimsiz' => [ProtelIstemcisi::YOL_FATURA_PDF, [...self::PDF_GOVDESI, 'uuid' => 'c14ffe5c']],
+            'liste başlangıcı sayı' => [ProtelIstemcisi::YOL_FATURA_LISTESI, [...self::LISTE_GOVDESI, 'startDate' => 20261101]],
+            'liste bitişi biçimsiz' => [ProtelIstemcisi::YOL_FATURA_LISTESI, [...self::LISTE_GOVDESI, 'endDate' => '2026-11-19']],
         ];
     }
 
@@ -157,7 +162,7 @@ final class ProtelIstemcisiTest extends TestCase
         Http::fake();
         $tanim = $this->tanim();
 
-        $this->reddiBekle(fn () => (new ProtelIstemcisi)->post($tanim, $yol, $govde));
+        $this->reddiBekle(fn () => app(ProtelIstemcisi::class)->post($tanim, $yol, $govde));
     }
 
     public function test_giris_ucu_post_ile_cagrilamaz(): void
@@ -167,7 +172,7 @@ final class ProtelIstemcisiTest extends TestCase
         Http::fake();
         $tanim = $this->tanim();
 
-        $this->reddiBekle(fn () => (new ProtelIstemcisi)->post($tanim, ProtelIstemcisi::YOL_GIRIS, []));
+        $this->reddiBekle(fn () => app(ProtelIstemcisi::class)->post($tanim, ProtelIstemcisi::YOL_GIRIS, []));
     }
 
     public function test_modul_kapaliyken_hicbir_istek_gonderilmez(): void
@@ -177,8 +182,8 @@ final class ProtelIstemcisiTest extends TestCase
         Http::fake();
         $tanim = $this->tanim();
 
-        $giris = $this->hataBekle(fn () => (new ProtelIstemcisi)->tokenAl($tanim));
-        $liste = $this->hataBekle(fn () => (new ProtelIstemcisi)->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI));
+        $giris = $this->hataBekle(fn () => app(ProtelIstemcisi::class)->tokenAl($tanim));
+        $liste = $this->hataBekle(fn () => app(ProtelIstemcisi::class)->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI));
 
         $this->assertSame(EntegratorHatasi::PROTEL_KAPALI, $giris->kod);
         $this->assertSame(EntegratorHatasi::PROTEL_KAPALI, $liste->kod);
@@ -192,7 +197,7 @@ final class ProtelIstemcisiTest extends TestCase
         Http::fake();
         $izibiz = EntegratorBaglanti::factory()->aktif()->create();
 
-        $this->reddiBekle(fn () => (new ProtelIstemcisi)->post($izibiz, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI));
+        $this->reddiBekle(fn () => app(ProtelIstemcisi::class)->post($izibiz, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI));
     }
 
     public function test_izinli_alan_adi_disindaki_adrese_istek_gonderilmez(): void
@@ -205,7 +210,33 @@ final class ProtelIstemcisiTest extends TestCase
         Http::fake();
         $tanim = $this->tanim();
 
-        $this->reddiBekle(fn () => (new ProtelIstemcisi)->tokenAl($tanim));
+        $this->reddiBekle(fn () => app(ProtelIstemcisi::class)->tokenAl($tanim));
+    }
+
+    /**
+     * `parse_url` bu host'ları döndürür ve hepsi "protel.com.tr ile biter"
+     * (PRT-F4): alan adı karakterleri ayrıca denetlenmeli.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function gecersizKarakterliAdresler(): array
+    {
+        return [
+            'ters eğik çizgi' => ['https://kotu.example\\.protel.com.tr'],
+            'kodlanmış eğik çizgi' => ['https://kotu.example%2f.protel.com.tr'],
+            'boşluk' => ['https://kotu.example .protel.com.tr'],
+        ];
+    }
+
+    #[DataProvider('gecersizKarakterliAdresler')]
+    public function test_alan_adinda_gecersiz_karakter_olan_adrese_istek_gonderilmez(string $adres): void
+    {
+        config(['entegrator.protel.aktif' => true, 'entegrator.protel.ortamlar.test.auth_url' => $adres]);
+        Http::preventStrayRequests();
+        Http::fake();
+        $tanim = $this->tanim();
+
+        $this->reddiBekle(fn () => app(ProtelIstemcisi::class)->tokenAl($tanim));
     }
 
     public function test_izinli_istek_birebir_izinli_govdeyle_ve_bearer_tokenla_gider(): void
@@ -218,7 +249,7 @@ final class ProtelIstemcisiTest extends TestCase
         ]);
         $tanim = $this->tanim();
 
-        (new ProtelIstemcisi)->post($tanim, ProtelIstemcisi::YOL_FATURA_PDF, self::PDF_GOVDESI);
+        app(ProtelIstemcisi::class)->post($tanim, ProtelIstemcisi::YOL_FATURA_PDF, self::PDF_GOVDESI);
 
         Http::assertSent(fn (Request $istek): bool => $istek->url() === self::GIRIS_URL
             && $istek->data() === [
@@ -257,7 +288,7 @@ final class ProtelIstemcisiTest extends TestCase
                 ->push('<html>hata</html>', 200),
         ]);
         $tanim = $this->tanim();
-        $istemci = new ProtelIstemcisi;
+        $istemci = app(ProtelIstemcisi::class);
 
         $yanit = $istemci->post($tanim, ProtelIstemcisi::YOL_FATURA_PDF, self::PDF_GOVDESI);
 
@@ -286,7 +317,7 @@ final class ProtelIstemcisiTest extends TestCase
             self::LISTE_URL => Http::response($govde, 200, ['Content-Type' => 'application/json']),
         ]);
 
-        $kayit = (new ProtelIstemcisi)->postSayilariKoruyarak($this->tanim(), ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI)['invoiceList'][0];
+        $kayit = app(ProtelIstemcisi::class)->postSayilariKoruyarak($this->tanim(), ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI)['invoiceList'][0];
 
         $this->assertSame(7, $kayit['id']);
         $this->assertEquals(new JsonSayisi('1234567890123456.23'), $kayit['payableAmount']);
@@ -319,7 +350,7 @@ final class ProtelIstemcisiTest extends TestCase
                 ->push(['invoiceList' => []]),
         ]);
         $tanim = $this->tanim();
-        $istemci = new ProtelIstemcisi;
+        $istemci = app(ProtelIstemcisi::class);
 
         $istemci->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI);
         $istemci->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI);
@@ -340,7 +371,7 @@ final class ProtelIstemcisiTest extends TestCase
         ]);
         $tanim = $this->tanim();
 
-        $hata = $this->hataBekle(fn () => (new ProtelIstemcisi)->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI));
+        $hata = $this->hataBekle(fn () => app(ProtelIstemcisi::class)->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI));
 
         $this->assertSame(EntegratorHatasi::KIMLIK_HATALI, $hata->kod);
     }
@@ -353,7 +384,7 @@ final class ProtelIstemcisiTest extends TestCase
             'isSuccessed' => false, 'result' => 'LoginFailed', 'resultMessageCode' => 'MSG.Auth.LoginFailed',
         ], 401)]);
 
-        $hata = $this->hataBekle(fn () => (new ProtelIstemcisi)->tokenAl($this->tanim()));
+        $hata = $this->hataBekle(fn () => app(ProtelIstemcisi::class)->tokenAl($this->tanim()));
 
         $this->assertSame(EntegratorHatasi::KIMLIK_HATALI, $hata->kod);
         $this->assertSame('LoginFailed', $hata->saglayiciKodu);
@@ -365,7 +396,7 @@ final class ProtelIstemcisiTest extends TestCase
         Http::preventStrayRequests();
         Http::fake([self::GIRIS_URL => self::girisYaniti('9999999999')]);
 
-        $hata = $this->hataBekle(fn () => (new ProtelIstemcisi)->tokenAl($this->tanim()));
+        $hata = $this->hataBekle(fn () => app(ProtelIstemcisi::class)->tokenAl($this->tanim()));
 
         $this->assertSame('VKN_UYUSMUYOR', $hata->saglayiciKodu);
     }
@@ -392,7 +423,7 @@ final class ProtelIstemcisiTest extends TestCase
         ]);
         $tanim = $this->tanim();
 
-        $hata = $this->hataBekle(fn () => (new ProtelIstemcisi)->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI));
+        $hata = $this->hataBekle(fn () => app(ProtelIstemcisi::class)->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI));
 
         $metin = $hata->getMessage().json_encode($hata->context());
         $this->assertSame('InputValidationFailed', $hata->saglayiciKodu);
@@ -408,9 +439,121 @@ final class ProtelIstemcisiTest extends TestCase
             self::GIRIS_URL => Http::response(null, 307, ['Location' => 'https://saldirgan.test/topla']),
         ]);
 
-        $hata = $this->hataBekle(fn () => (new ProtelIstemcisi)->tokenAl($this->tanim()));
+        $hata = $this->hataBekle(fn () => app(ProtelIstemcisi::class)->tokenAl($this->tanim()));
 
         $this->assertSame(EntegratorHatasi::HATA, $hata->kod);
         Http::assertSentCount(1);
+    }
+
+    private function girisReddi(): PromiseInterface
+    {
+        return Http::response(['isSuccessed' => false, 'result' => 'LoginFailed', 'resultMessageCode' => 'MSG.Auth.LoginFailed'], 401);
+    }
+
+    /**
+     * Şifre Protel'de değiştiyse otomatik senkron her turda yeniden giriş
+     * denemesin: başarısız girişler otelin hesabını kilitleyebilir (PRT-F1).
+     */
+    public function test_reddedilen_giris_ayni_kimlikle_yeniden_denenmez(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        Http::preventStrayRequests();
+        Http::fake([self::GIRIS_URL => $this->girisReddi()]);
+        $tanim = $this->tanim();
+        $istemci = app(ProtelIstemcisi::class);
+        $this->hataBekle(fn () => $istemci->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI));
+
+        $hata = $this->hataBekle(fn () => $istemci->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI));
+
+        $this->assertSame(EntegratorHatasi::KIMLIK_HATALI, $hata->kod);
+        $this->assertSame('GIRIS_BEKLETILIYOR', $hata->saglayiciKodu);
+        Http::assertSentCount(1);
+    }
+
+    public function test_kimlik_guncellenince_bekletilen_giris_reddi_kalkar(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        Http::preventStrayRequests();
+        Http::fake([
+            self::GIRIS_URL => Http::sequence()->pushResponse($this->girisReddi())->pushResponse(self::girisYaniti()),
+            self::LISTE_URL => Http::response(['invoiceList' => []]),
+        ]);
+        $tanim = $this->tanim();
+        $istemci = app(ProtelIstemcisi::class);
+        $this->hataBekle(fn () => $istemci->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI));
+        // Ekrandan yeni şifre girildi: kimlik sürümü artar (EntegratorBaglantiServisi)
+        $tanim->forceFill(['sifre' => 'yeni-sifre', 'kimlik_surumu' => $tanim->kimlik_surumu + 1])->save();
+
+        $yanit = $istemci->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI);
+
+        $this->assertSame([], $yanit['invoiceList']);
+        $this->assertCount(2, Http::recorded(fn (Request $istek): bool => $istek->url() === self::GIRIS_URL));
+    }
+
+    /** İstek sınırındaki hesaba art arda giriş gönderilmez (PRT-F1). */
+    public function test_giris_istek_sinirinda_tekrarlanmaz(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        Sleep::fake();
+        Http::preventStrayRequests();
+        Http::fake([self::GIRIS_URL => Http::response(null, 429)]);
+
+        $hata = $this->hataBekle(fn () => app(ProtelIstemcisi::class)->tokenAl($this->tanim()));
+
+        $this->assertSame(EntegratorHatasi::ERISILEMEDI, $hata->kod);
+        Http::assertSentCount(1);
+    }
+
+    /** PDF kullanıcı isteğidir: Protel yavaşken web işçisini uzun tutmasın (PRT-F2). */
+    public function test_pdf_sunucu_hatasinda_yalniz_bir_kez_tekrarlanir(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        Sleep::fake();
+        Http::preventStrayRequests();
+        Http::fake([
+            self::GIRIS_URL => self::girisYaniti(),
+            self::PDF_URL => Http::response(null, 503),
+        ]);
+        $tanim = $this->tanim();
+
+        $hata = $this->hataBekle(fn () => app(ProtelIstemcisi::class)->post($tanim, ProtelIstemcisi::YOL_FATURA_PDF, self::PDF_GOVDESI));
+
+        $this->assertSame(EntegratorHatasi::ERISILEMEDI, $hata->kod);
+        $this->assertCount(2, Http::recorded(fn (Request $istek): bool => $istek->url() === self::PDF_URL));
+    }
+
+    public function test_liste_baglanti_hatasinda_iki_kez_tekrarlanir_sonra_erisilemedi_doner(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        Sleep::fake();
+        Http::preventStrayRequests();
+        Http::fake([
+            self::GIRIS_URL => self::girisYaniti(),
+            self::LISTE_URL => Http::failedConnection(),
+        ]);
+        $tanim = $this->tanim();
+
+        $hata = $this->hataBekle(fn () => app(ProtelIstemcisi::class)->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI));
+
+        $this->assertSame(EntegratorHatasi::ERISILEMEDI, $hata->kod);
+        $this->assertCount(3, Http::recorded(fn (Request $istek): bool => $istek->url() === self::LISTE_URL));
+    }
+
+    public function test_suresi_dolan_token_yerine_yeniden_giris_yapilir(): void
+    {
+        config(['entegrator.protel.aktif' => true]);
+        Http::preventStrayRequests();
+        Http::fake([
+            self::GIRIS_URL => self::girisYaniti(exp: now()->addHours(2)->getTimestamp()),
+            self::LISTE_URL => Http::response(['invoiceList' => []]),
+        ]);
+        $tanim = $this->tanim();
+        $istemci = app(ProtelIstemcisi::class);
+        $istemci->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI);
+        $this->travel(2)->hours();
+
+        $istemci->post($tanim, ProtelIstemcisi::YOL_FATURA_LISTESI, self::LISTE_GOVDESI);
+
+        $this->assertCount(2, Http::recorded(fn (Request $istek): bool => $istek->url() === self::GIRIS_URL));
     }
 }

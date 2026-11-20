@@ -9,6 +9,7 @@ use App\Http\Requests\Ayar\EntegratorBaglantiGuncelleRequest;
 use App\Http\Resources\EntegratorBaglantiResource;
 use App\Models\EntegratorBaglanti;
 use App\Rules\EntegratorApiAdresi;
+use App\Services\Entegrator\EntegratorTokenOnbellegi;
 use App\Services\Entegrator\IzibizIstemcisi;
 use App\Services\EntegratorBaglantiServisi;
 use App\Services\MssqlBaglantiServisi;
@@ -125,9 +126,10 @@ final class EntegratorBaglantiController extends Controller
      * kayıtlı şifreye düşer (kayıtlı şifre formdaki yeni adrese gitmez).
      *
      * Başarı yalnız kimlik doğrulamanın geçtiğini söyler; fatura okuma
-     * yetkisi listeleme sırasında (EFAT-07) ayrıca sınanır.
+     * yetkisi listeleme sırasında (EFAT-07) ayrıca sınanır. Kayıtlı şifreyle
+     * başarılı sınama, otomatik işlerin beklettiği kimlik reddini siler.
      */
-    public function sina(Request $request, string $ortam, IzibizIstemcisi $istemci): JsonResponse
+    public function sina(Request $request, string $ortam, IzibizIstemcisi $istemci, EntegratorTokenOnbellegi $onbellek): JsonResponse
     {
         /** @var array{kullanici_adi?: string|null, sifre?: string|null, api_url?: string|null} $veri */
         $veri = $request->validate([
@@ -181,6 +183,11 @@ final class EntegratorBaglantiController extends Controller
         $tanim->sifre = $sifre;
 
         $token = $istemci->tokenAl($tanim);
+
+        // Kayıtlı tanımın kimliğiyle (kullanıcı, şifre, adres) giriş yeniden başardı
+        if ($kayitli !== null && $sifre === $kayitli->sifre && $kullaniciAdi === $kayitli->kullanici_adi && $tanim->apiUrl() === $kayitli->apiUrl()) {
+            $onbellek->reddiUnut($kayitli);
+        }
 
         return response()->json([
             'data' => [

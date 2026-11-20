@@ -1,5 +1,5 @@
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -14,7 +14,12 @@ import { Modal } from '@/components/Modal'
 import { Pagination } from '@/components/Pagination'
 import { SelectField, type SecenekOgesi } from '@/components/SelectField'
 import { TarihInput } from '@/components/TarihInput'
-import { LISTE_AZAMI_GUN, tutarGoster, varsayilanBaslangic } from '@/features/efatura/bicim'
+import {
+  LISTE_AZAMI_GUN,
+  listeAraligiHatasi,
+  tutarGoster,
+  varsayilanBaslangic,
+} from '@/features/efatura/bicim'
 import { durumIsaretSinifi, durumSatirSinifi } from '@/features/efatura/durumRenkleri'
 import type { EFatura, ErpOkunduFiltresi, ExcelKolonu } from '@/features/efatura/efaturaApi'
 import {
@@ -34,28 +39,17 @@ import {
   protelSenkronBaslat,
 } from '@/features/efatura/protelApi'
 import { SenkronDurumuPaneli } from '@/features/efatura/SenkronDurumuPaneli'
+import { useDurumlaTazele, useFaturaListesi } from '@/features/efatura/useFaturaListesi'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useIzin } from '@/hooks/useIzin'
 import { useKaliciSiralama } from '@/hooks/useKaliciSiralama'
 import { useKolonGorunurlugu } from '@/hooks/useKolonGorunurlugu'
-import { bugunIso, gunFarki, tarihGoster, zamanGoster } from '@/utils/tarih'
+import { bugunIso, tarihGoster, zamanGoster } from '@/utils/tarih'
 
 const ERP_FILTRELERI: readonly ErpOkunduFiltresi[] = ['evet', 'hayir', 'bilinmiyor']
 
 /** Protel `erpStatus` değerleri (Swagger enum'u); bilinmeyen değer olduğu gibi gösterilir */
 const ERP_DURUMLARI = ['New', 'Processing', 'Completed', 'Cancelled', 'Error', 'Booked'] as const
-
-function aralikHatasi(baslangic: string, bitis: string): string | null {
-  if (baslangic === '' || bitis === '') {
-    return 'efatura.dogrulama.tarihZorunlu'
-  }
-  const fark = gunFarki(baslangic, bitis)
-  if (fark === null || fark < 0) {
-    return 'efatura.dogrulama.sira'
-  }
-
-  return fark + 1 > LISTE_AZAMI_GUN ? 'efatura.dogrulama.cokGenis' : null
-}
 
 type AcikPdf = EFatura | null
 
@@ -66,7 +60,6 @@ type AcikPdf = EFatura | null
  */
 export function ProtelFaturalariPage() {
   const { t } = useTranslation()
-  const queryClient = useQueryClient()
   const pdfIzni = useIzin('protel_faturalari.pdf')
   const excelIzni = useIzin('protel_faturalari.disari_aktar')
   const senkronIzni = useIzin('protel_faturalari.senkron')
@@ -92,7 +85,7 @@ export function ProtelFaturalariPage() {
 
   const ara = useDebounce(filtre.ara)
   const sorguFiltresi: ProtelFaturaFiltresi = { ...filtre, ara }
-  const tarihHatasi = aralikHatasi(filtre.baslangic, filtre.bitis)
+  const tarihHatasi = listeAraligiHatasi(filtre.baslangic, filtre.bitis)
 
   const filtreDegistir = <K extends keyof ProtelFaturaFiltresi>(
     alan: K,
@@ -113,40 +106,15 @@ export function ProtelFaturalariPage() {
     },
   })
 
-  const liste = useQuery({
+  const { liste, eskiVeri, yenileniyor } = useFaturaListesi({
     queryKey: queryKeys.protel.liste({ ...sorguFiltresi, siralama, sayfa }),
     queryFn: () => protelFaturalariGetir(sorguFiltresi, siralama, sayfa),
     enabled: tarihHatasi === null,
-    placeholderData: keepPreviousData,
+    sayfa,
+    setSayfa,
   })
-
-  const sonSayfa = liste.isPlaceholderData ? undefined : liste.data?.meta.last_page
-  useEffect(() => {
-    if (sonSayfa !== undefined && sayfa > Math.max(sonSayfa, 1)) {
-      setSayfa(Math.max(sonSayfa, 1))
-    }
-  }, [sonSayfa, sayfa])
-
   // Yeni senkron bitince / ortam değişince liste tazelenir (İzibiz ekranıyla aynı)
-  const gelen = durum.data?.yonler?.gelen
-  const tazelikIzi = durum.data
-    ? `${durum.data.ortam ?? ''}|${gelen?.veri_zamani ?? ''}|${String(
-        durum.data.manuel_istek !== null || (gelen?.calisiyor ?? false),
-      )}`
-    : null
-  const oncekiTazelikIzi = useRef<string | null>(null)
-  useEffect(() => {
-    if (tazelikIzi === null) {
-      return
-    }
-    if (oncekiTazelikIzi.current !== null && oncekiTazelikIzi.current !== tazelikIzi) {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.protel.listeler })
-    }
-    oncekiTazelikIzi.current = tazelikIzi
-  }, [tazelikIzi, queryClient])
-
-  // Yenilenirken eski sonuç soluk kalır; Excel bu arada kapalı (Dikkat_Edilecekler F1)
-  const eskiVeri = liste.isPlaceholderData
+  useDurumlaTazele(durum.data, 'gelen', queryKeys.protel.listeler)
   const eskiVeriSinifi = `transition-opacity ${eskiVeri ? 'opacity-50' : ''}`
 
   const excelAl = async (kolonlar: ExcelKolonu[], ortam: string) => {
@@ -367,12 +335,7 @@ export function ProtelFaturalariPage() {
             yukleniyor={excelSuruyor}
             disabled={
               tarihHatasi !== null ||
-              // Yenilenirken (filtre ya da ortam değişti) görünen ≠ inecek olan (F1, PRT-R3).
-              // Bağlantı yokken istek beklemeye alınır (paused): isFetching false
-              // olur, eski veri durur — üç durum birlikte (PRT-R9)
-              liste.isFetching ||
-              liste.isPaused ||
-              liste.isPlaceholderData ||
+              yenileniyor ||
               (liste.data?.meta.total ?? 0) === 0 ||
               excelKolonlari.length === 0
             }

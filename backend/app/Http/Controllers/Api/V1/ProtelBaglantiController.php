@@ -9,6 +9,7 @@ use App\Http\Requests\Ayar\ProtelBaglantiGuncelleRequest;
 use App\Http\Resources\EntegratorBaglantiResource;
 use App\Models\EntegratorBaglanti;
 use App\Rules\EntegratorApiAdresi;
+use App\Services\Entegrator\EntegratorTokenOnbellegi;
 use App\Services\Entegrator\ProtelIstemcisi;
 use App\Services\EntegratorBaglantiServisi;
 use Illuminate\Http\JsonResponse;
@@ -52,9 +53,10 @@ final class ProtelBaglantiController extends Controller
      * Bağlantıyı sına: yalnız giriş (AccessToken) yapılır; önbellek ve kayıtlı
      * tanım değişmez. Formdaki (kaydedilmemiş) adreslerle de denenir. Boş
      * şifre yalnız kullanıcı VE giriş adresi kayıtlıyla aynıysa kayıtlı şifreye
-     * düşer. PROTEL_AKTIF kapalıyken istek gitmez (409 PROTEL_KAPALI).
+     * düşer. PROTEL_AKTIF kapalıyken istek gitmez (409 PROTEL_KAPALI). Kayıtlı
+     * şifreyle başarılı sınama, otomatik işlerin beklettiği kimlik reddini siler.
      */
-    public function sina(Request $request, string $ortam, ProtelIstemcisi $istemci): JsonResponse
+    public function sina(Request $request, string $ortam, ProtelIstemcisi $istemci, EntegratorTokenOnbellegi $onbellek): JsonResponse
     {
         /** @var array{kullanici_adi?: string|null, sifre?: string|null, vkn?: string|null, auth_url?: string|null, api_url?: string|null} $veri */
         $veri = $request->validate([
@@ -112,6 +114,11 @@ final class ProtelBaglantiController extends Controller
         $tanim->sifre = $sifre;
 
         $token = $istemci->tokenAl($tanim);
+
+        // Kayıtlı tanımın kimliğiyle (kullanıcı, şifre, giriş adresi) giriş yeniden başardı
+        if ($kayitli !== null && $sifre === $kayitli->sifre && $kullaniciAdi === $kayitli->kullanici_adi && $tanim->authUrl() === $kayitli->authUrl()) {
+            $onbellek->reddiUnut($kayitli);
+        }
 
         return response()->json([
             'data' => [

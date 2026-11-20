@@ -1037,7 +1037,7 @@ describe('EFaturalarPage', () => {
     }
     const IZINLER = ['tum_faturalar.goruntule', 'tum_faturalar.pdf', 'tum_faturalar.disari_aktar']
 
-    it('birleşik listeyi ister; en solda Entegratör, eMOR Okudu ve eMOR yanında Protel Okudu, Protel, SAP kolonları boş; senkron paneli yok', async () => {
+    it('birleşik listeyi ister; en solda Entegratör, sonra eMOR Okudu, eMOR ve boş SAP kolonu; senkron paneli yok', async () => {
       api.faturalar.mockResolvedValue(BIRLESIK)
       ciz(IZINLER, 'tum')
       await screen.findByText('Otel Tedarik A.Ş.')
@@ -1134,6 +1134,29 @@ describe('EFaturalarPage', () => {
       await within(dialog).findByTitle('Fatura OTL2026000000002 — PDF')
       expect(api.pdf).toHaveBeenCalledWith(12, 'tum')
       expect(within(dialog).queryByRole('button', { name: 'XML İndir' })).not.toBeInTheDocument()
+    })
+
+    it('güncel olmayan posta kutusunu son güncelleme zamanıyla uyarır; güncel olanı uyarmaz (PRT-F3)', async () => {
+      api.faturalar.mockResolvedValue({
+        ...BIRLESIK,
+        tazelik: [
+          {
+            saglayici: 'izibiz',
+            ortam: 'canli',
+            veri_zamani: '2026-11-20T07:00:00Z',
+            guncel: true,
+          },
+          { saglayici: 'protel', ortam: 'canli', veri_zamani: null, guncel: false },
+        ],
+      })
+      ciz(IZINLER, 'tum')
+      await screen.findByText('Otel Tedarik A.Ş.')
+
+      const uyarilar = screen.getAllByText(/faturaları güncel olmayabilir/)
+      expect(uyarilar).toHaveLength(1)
+      expect(uyarilar[0]).toHaveTextContent(
+        'Protel faturaları güncel olmayabilir (son başarılı güncelleme: —)',
+      )
     })
 
     it('Entegratör filtresi seçilen sağlayıcıyı ister; sağlayıcı ekranlarında yoktur', async () => {

@@ -7,8 +7,8 @@ namespace App\Console\Commands;
 use App\Models\EFaturaSenkronCalismasi;
 use App\Models\EntegratorBaglanti;
 use App\Services\Entegrator\EFaturaSenkronServisi;
+use App\Services\Entegrator\FaturaKaynagi;
 use App\Services\Entegrator\FaturaYonu;
-use App\Services\Entegrator\IzibizFaturaKaynagi;
 use App\Services\EntegratorBaglantiServisi;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Attributes\Description;
@@ -76,7 +76,7 @@ final class EFaturaSenkron extends Command
         try {
             [$baslangic, $bitis] = $this->aralik();
             $yonler = $this->yonler($protel);
-            $tarihTuru = $this->secenek('tarih-turu', [IzibizFaturaKaynagi::TARIH_BELGE, IzibizFaturaKaynagi::TARIH_ULASMA]);
+            $tarihTuru = $this->secenek('tarih-turu', [FaturaKaynagi::TARIH_BELGE, FaturaKaynagi::TARIH_ULASMA]);
             $tetikleyen = $this->secenek('tetikleyen', [
                 EFaturaSenkronCalismasi::TETIKLEYEN_ZAMANLANMIS,
                 EFaturaSenkronCalismasi::TETIKLEYEN_MANUEL,
@@ -156,7 +156,7 @@ final class EFaturaSenkron extends Command
         $son = EFaturaSenkronCalismasi::query()
             ->where('entegrator_baglanti_id', $tanim->id)
             ->where('tetikleyen', EFaturaSenkronCalismasi::TETIKLEYEN_ZAMANLANMIS)
-            ->where('tarih_turu', IzibizFaturaKaynagi::TARIH_ULASMA)
+            ->where('tarih_turu', FaturaKaynagi::TARIH_ULASMA)
             ->max('basladi');
 
         if ($son === null) {

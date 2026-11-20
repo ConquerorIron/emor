@@ -6,14 +6,10 @@ namespace App\Services\Entegrator;
 
 use App\Models\EntegratorBaglanti;
 use Carbon\CarbonImmutable;
-use Illuminate\Contracts\Cache\LockTimeoutException;
-use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
 use Throwable;
@@ -31,8 +27,10 @@ use Throwable;
  *    sabit alanlarda yalnız izinli değerler. `setErpStatus`,
  *    `setErpRecievedStatus`, `setIsRead` gibi alanlar hiçbir zaman gitmez.
  *
- * Ek önlemler: modül kapalıyken (PROTEL_AKTIF) hiçbir istek gitmez; adresler
- * config'ten gelir ve yalnız izinli alan adlarına çıkar; yönlendirme izlenmez.
+ * Ek önlemler: modül kapalıyken (PROTEL_AKTIF) hiçbir istek gitmez; adres
+ * tanımdan (ekrandan girilir; boşsa config'teki ortam varsayılanı) gelir ve
+ * yalnız https + izinli alan adına çıkar; yönlendirme izlenmez. Reddedilen
+ * kimlik otomatik işlerde yeniden denenmez (EntegratorTokenOnbellegi).
  *
  * Doğrulanan davranış (docs/protel/api-notlari.md): token 24 saat (JWT `exp`),
  * `Authorization: Bearer`; hatalı/eksik token 401 gövdesiz; başarılı liste
@@ -71,11 +69,33 @@ final class ProtelIstemcisi
         'outputType' => ['Pdf'],
     ];
 
-    /** Bağlantı hatası, 5xx ve 429'da bekleme süreleri (ms) — yalnız okuma metotları tekrarlanır. */
-    private const YENIDEN_DENEME_MS = [250, 1000];
+    /**
+     * Serbest değerli alanların biçimi (PRT-F5): anahtar izinli diye değer
+     * serbest değildir — dizi değer içinde yasak anahtar taşıyabilir. Bütün
+     * değerler metindir; buradakiler ayrıca bu biçimde olmalı.
+     */
+    private const BICIMLER = [
+        'uuid' => '/^[0-9a-fA-F-]{36}$/D',
+        'startDate' => '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/D',
+        'endDate' => '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/D',
+    ];
+
+    /**
+     * Bağlantı hatası ve 5xx'te bekleme süreleri (ms). Fatura listesi toplu
+     * iştir (zamanlayıcı / kuyruk): uzun süre, iki tekrar. Giriş ve PDF
+     * kullanıcı isteğinde de çalışır: kısa süre, tek tekrar — Protel yavaşken
+     * bir PDF tıklaması web işçisini dakikalarca tutmasın (PRT-F2).
+     */
+    private const LISTE_YENIDEN_DENEME_MS = [250, 1000];
+
+    private const KISA_YENIDEN_DENEME_MS = [500];
 
     /** JWT okunamazsa varsayılan token ömrü (sn) — en kötü ihtimalle daha sık giriş yapılır. */
     private const VARSAYILAN_TOKEN_OMRU = 3600;
+
+    public function __construct(
+        private readonly EntegratorTokenOnbellegi $onbellek,
+    ) {}
 
     /**
      * Önbellek ve kilit OLMADAN token alır. Bağlantı sınaması (kaydedilmemiş
@@ -123,43 +143,17 @@ final class ProtelIstemcisi
     }
 
     /**
-     * Kayıtlı tanım için geçerli token: önbellekte şifreli; anahtar kimlik
-     * sürümünü içerir; eşzamanlı yenileme kilitle tek isteğe indirilir.
+     * Kayıtlı tanım için geçerli token (EntegratorTokenOnbellegi): önbellekte
+     * şifreli, eşzamanlı yenileme tek girişe indirilir, reddedilen kimlik
+     * yeniden denenmez.
      */
     public function token(EntegratorBaglanti $tanim): string
     {
-        $tanim->refresh();
-        $anahtar = $tanim->tokenOnbellekAnahtari();
+        return $this->onbellek->token($tanim, $this->kilitSuresi(), $this->guvenlikPayi(), function () use ($tanim): array {
+            $token = $this->tokenAl($tanim);
 
-        $onbellekte = $this->onbellektenOku($anahtar);
-        if ($onbellekte !== null) {
-            return $onbellekte;
-        }
-
-        try {
-            $kilitSuresi = $this->kilitSuresi();
-
-            return Cache::lock($anahtar.':kilit', $kilitSuresi)->block($kilitSuresi, function () use ($anahtar, $tanim): string {
-                $onbellekte = $this->onbellektenOku($anahtar);
-                if ($onbellekte !== null) {
-                    return $onbellekte;
-                }
-
-                $token = $this->tokenAl($tanim);
-                $sure = $token->bitis->getTimestamp() - CarbonImmutable::now()->getTimestamp() - $this->guvenlikPayi();
-
-                Cache::put($anahtar, Crypt::encryptString($token->erisimToken), max(60, $sure));
-
-                return $token->erisimToken;
-            });
-        } catch (LockTimeoutException) {
-            throw EntegratorHatasi::erisilemedi();
-        }
-    }
-
-    public function tokenUnut(EntegratorBaglanti $tanim): void
-    {
-        Cache::forget($tanim->tokenOnbellekAnahtari());
+            return [$token->erisimToken, $token->bitis];
+        });
     }
 
     /**
@@ -228,10 +222,11 @@ final class ProtelIstemcisi
         // Kilit token almadan ÖNCE: yasak bir çağrı için giriş isteği de gitmesin
         $this->kilitDenetle($yol, $govde);
 
-        $yanit = $this->gonder($tanim, $yol, $govde, $this->token($tanim));
+        $token = $this->token($tanim);
+        $yanit = $this->gonder($tanim, $yol, $govde, $token);
 
         if ($yanit->status() === 401) {
-            $this->tokenUnut($tanim);
+            $this->onbellek->unut($tanim, $token);
             $yanit = $this->gonder($tanim, $yol, $govde, $this->token($tanim));
         }
 
@@ -348,7 +343,7 @@ final class ProtelIstemcisi
         $taban = $yol === self::YOL_GIRIS ? $tanim->authUrl() : $tanim->apiUrl();
         $this->adresDenetle($taban);
 
-        $istemci = $this->istemci($taban);
+        $istemci = $this->istemci($taban, $yol);
         if ($token !== null) {
             $istemci = $istemci->withToken($token);
         }
@@ -381,19 +376,29 @@ final class ProtelIstemcisi
                 throw new InvalidArgumentException("Protel isteğinde izinsiz alan: {$anahtar}");
             }
 
-            if (isset(self::SABIT_DEGERLER[$anahtar]) && ! in_array($deger, self::SABIT_DEGERLER[$anahtar], true)) {
+            $bicim = self::BICIMLER[$anahtar] ?? null;
+            $gecersiz = ! is_string($deger)
+                || (isset(self::SABIT_DEGERLER[$anahtar]) && ! in_array($deger, self::SABIT_DEGERLER[$anahtar], true))
+                || ($bicim !== null && preg_match($bicim, $deger) !== 1);
+
+            if ($gecersiz) {
                 throw new InvalidArgumentException("Protel isteğinde izinsiz değer: {$anahtar}");
             }
         }
     }
 
+    /**
+     * `parse_url` ters eğik çizgi, `%2f`, boşluk içeren host'u da döndürür
+     * (`evil.com\.protel.com.tr` "izinli alan adıyla biter"): alan adı
+     * karakterleri ayrıca denetlenir (PRT-F4).
+     */
     private function adresDenetle(string $taban): void
     {
         $parca = parse_url($taban);
         $alanAdi = is_array($parca) ? strtolower($parca['host'] ?? '') : '';
         $izinli = false;
 
-        if (is_array($parca) && ($parca['scheme'] ?? '') === 'https' && $alanAdi !== '') {
+        if (is_array($parca) && ($parca['scheme'] ?? '') === 'https' && EntegratorBaglanti::alanAdiGecerli($alanAdi)) {
             foreach ((array) config('entegrator.protel.izinli_alan_adlari') as $kok) {
                 if (is_string($kok) && ($alanAdi === $kok || str_ends_with($alanAdi, '.'.$kok))) {
                     $izinli = true;
@@ -406,21 +411,29 @@ final class ProtelIstemcisi
         }
     }
 
-    private function istemci(string $taban): PendingRequest
+    /**
+     * Fatura listesi uzun süre ve iki tekrarla, giriş ve PDF kısa süre ve tek
+     * tekrarla (PRT-F2). 429 (istek sınırı) girişte tekrarlanmaz: sınırdaki
+     * hesaba art arda giriş göndermek kilitlenmeyi yaklaştırır (PRT-F1).
+     */
+    private function istemci(string $taban, string $yol): PendingRequest
     {
+        $liste = $yol === self::YOL_FATURA_LISTESI;
+        $giris = $yol === self::YOL_GIRIS;
+
         return Http::baseUrl($taban)
             ->acceptJson()
             ->asJson()
             ->connectTimeout((int) config('entegrator.protel.baglanti_zaman_asimi'))
-            ->timeout((int) config('entegrator.protel.istek_zaman_asimi'))
+            ->timeout((int) config($liste ? 'entegrator.protel.istek_zaman_asimi' : 'entegrator.protel.kisa_istek_zaman_asimi'))
             // Yönlendirme şifreli gövdeyi başka bir adrese taşıyabilir
             ->withoutRedirecting()
             ->retry(
-                self::YENIDEN_DENEME_MS,
+                $liste ? self::LISTE_YENIDEN_DENEME_MS : self::KISA_YENIDEN_DENEME_MS,
                 0,
                 fn (?Throwable $hata): bool => $hata instanceof ConnectionException
                     || ($hata instanceof RequestException
-                        && ($hata->response->serverError() || $hata->response->status() === 429)),
+                        && ($hata->response->serverError() || (! $giris && $hata->response->status() === 429))),
                 throw: false,
             );
     }
@@ -465,33 +478,17 @@ final class ProtelIstemcisi
         return $deger !== null && preg_match('/^[A-Za-z]{1,40}$/D', $deger) === 1 ? $deger : null;
     }
 
-    private function onbellektenOku(string $anahtar): ?string
-    {
-        $sifreli = Cache::get($anahtar);
-
-        if (! is_string($sifreli)) {
-            return null;
-        }
-
-        try {
-            return Crypt::decryptString($sifreli);
-        } catch (DecryptException) {
-            Cache::forget($anahtar);
-
-            return null;
-        }
-    }
-
     private function guvenlikPayi(): int
     {
         return (int) config('entegrator.protel.token_guvenlik_payi_saniye');
     }
 
+    /** Kilit altında yalnız giriş yapılır: girişin denemeleri + beklemeleri + pay. */
     private function kilitSuresi(): int
     {
-        $denemeSayisi = count(self::YENIDEN_DENEME_MS) + 1;
-        $istekSuresi = (int) config('entegrator.protel.istek_zaman_asimi');
+        $denemeSayisi = count(self::KISA_YENIDEN_DENEME_MS) + 1;
+        $istekSuresi = (int) config('entegrator.protel.baglanti_zaman_asimi') + (int) config('entegrator.protel.kisa_istek_zaman_asimi');
 
-        return max(30, $denemeSayisi * $istekSuresi + (int) ceil(array_sum(self::YENIDEN_DENEME_MS) / 1000) + 10);
+        return max(30, $denemeSayisi * $istekSuresi + (int) ceil(array_sum(self::KISA_YENIDEN_DENEME_MS) / 1000) + 5);
     }
 }
