@@ -17,7 +17,8 @@ use Throwable;
  * Yedek alma (BY-007; README §6.1 1–5. adımlar, §4.1, §4.4 1. düzey):
  *
  * 1. Kilit çağıranda (yaz kuralı: durum klasörünün kilidi tutulmalı). Ölen
- *    bir süreçten kalan `calisiyor` kayıt önce sonuçlanır (SahipsizYedekler).
+ *    bir süreçten kalan `calisiyor` kayıt önce sonuçlanır (SahipsizYedekler);
+ *    sonuçlandırma depoyu doğrulamadan hiçbir kayda dokunmaz (BY-011-R4).
  * 2. Yedek klasörü depo işaretiyle doğrulanamazsa (bağlanmamış disk;
  *    YedekDeposu, BY-011-R3) yedek başlamaz, kayıt `basarisiz` olur. Boş
  *    disk alanı eşiğin altındaysa yedek başlamaz; eski yedekler kural
@@ -51,7 +52,6 @@ final class YedekAlici
         private readonly AyarKopyasi $ayarKopyasi,
         private readonly GeriYukleyici $geriYukleyici,
         private readonly SahipsizYedekler $sahipsizler,
-        private readonly YedekDeposu $depo,
     ) {}
 
     /**
@@ -79,8 +79,17 @@ final class YedekAlici
             throw new LogicException('Yedek yalnız yedekleme kilidini tutan süreç tarafından alınır.');
         }
 
-        // Ölen önceki süreçten kalan `calisiyor` kaydı sonuçlanır (BY-007-R1)
-        $this->sahipsizler->sonuclandir($kilit);
+        // Ölen önceki süreçten kalan `calisiyor` kaydı sonuçlanır (BY-007-R1).
+        // Sonuçlandırma önce depoyu doğrular (BY-011-R4): doğrulanamazsa eski
+        // kayda dokunulmaz, bu yedek aşağıda o hatayla başarısız olur (kayıt,
+        // denetim, bildirim — depo denetimi önceden de yedeğin hata yolundaydı).
+        $klasor = $this->klasoruHazirla();
+        $oncekiHata = null;
+        try {
+            $this->sahipsizler->sonuclandir($kilit);
+        } catch (Throwable $hata) {
+            $oncekiHata = $hata;
+        }
 
         // Geri yükleme öncesi yedeği geri yüklemenin İÇİNDE alınır; diğerleri
         // açık bir üstüne geri yükleme varken başlamaz (README §6.4)
@@ -90,7 +99,6 @@ final class YedekAlici
         }
 
         $baslangic = hrtime(true);
-        $klasor = $this->klasoruHazirla();
         $zaman = CarbonImmutable::now('Europe/Istanbul');
         $dosyaAdi = $this->dosyaAdi($klasor, $kaynak, $zaman);
         $islemKimligi = (string) Str::uuid();
@@ -130,10 +138,11 @@ final class YedekAlici
         try {
             $yaz(YedekAdimi::Basladi->value);
             // Diski ayrılmış bağlama noktasına (kök diske) yazılmaz (BY-011-R3)
-            try {
-                $this->depo->hazirla();
-            } catch (DepoIsaretiYok $hata) {
-                throw new YedekAlmaHatasi(YedekAlmaHatasi::DEPO, $hata->getMessage());
+            if ($oncekiHata instanceof DepoIsaretiYok) {
+                throw new YedekAlmaHatasi(YedekAlmaHatasi::DEPO, $oncekiHata->getMessage());
+            }
+            if ($oncekiHata !== null) {
+                throw $oncekiHata;
             }
             $this->diskDenetle($klasor);
             $sure = $this->sureSiniri();

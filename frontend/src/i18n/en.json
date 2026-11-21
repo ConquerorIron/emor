@@ -608,6 +608,8 @@
     "HEDEF_YAPILANDIRMA_HATASI": "The target definition is incomplete or the server is not configured for this target.",
     "GOOGLE_DURUM_GECERSIZ": "The Google connection request is invalid or expired. Click \"Connect with Google\" again.",
     "GOOGLE_HESAP_DOGRULANAMADI": "This target holds copies and the connected Google account could not be verified as the registered one; the previous connection was kept. Try again; add a new target for a different account.",
+    "GOOGLE_HESAP_OKUNAMADI": "The connected Google account's identity (email) could not be read; the connection was not saved. Try \"Connect with Google\" again.",
+    "KOPYA_KONUMU_DOGRULANAMADI": "This copy was made at a different (or unknown) location than the target's current one, so it was not linked to the target; it is not used for restore or deletion. Correct the target to the copy's location or add a new target.",
     "PLAN_KOPYALI": "This plan has {{kopya}} copies and cannot be deleted. You can deactivate it instead (its history is kept).",
     "PLAN_HEDEFI_KOPYALI": "A target that has copies cannot be removed from the plan.",
     "GERI_YUKLEME_HEDEF_ADI_GECERSIZ": "The restore target name is invalid.",
@@ -1487,7 +1489,8 @@
       "kopyalaniyor": "Copying",
       "tamam": "Copied",
       "basarisiz": "Failed",
-      "silindi": "Deleted"
+      "silindi": "Deleted",
+      "konum_belirsiz": "Location not verified"
     },
     "istek": {
       "tur": {

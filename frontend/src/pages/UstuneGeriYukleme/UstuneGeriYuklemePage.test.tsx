@@ -235,6 +235,73 @@ describe('UstuneGeriYuklemePage', () => {
     )
   })
 
+  it('yanıtı kaybolan karar sayfa yenilenince aynı istek anahtarıyla yeniden gönderilir; depoya erişim anahtarı girmez (BY-030-R4)', async () => {
+    anahtariSakla()
+    api.durum.mockResolvedValue(
+      gorunum({
+        durum: 'onay_bekliyor',
+        adim: 'onay_bekliyor',
+        yer_degistirildi: true,
+        yapilabilir: { onayla: true, geri_don: true },
+        onay_bilgisi: {
+          ...ONAY_BILGISI,
+          ayar_gruplari: [
+            { grup: 'mail', farkli: true },
+            { grup: 'hedefler', farkli: true },
+          ],
+          ayar_kopyasi_yok: false,
+        },
+      }),
+    )
+    // İlk karar sunucuda kabul edildi ama yanıt ulaşmadı
+    api.karar
+      .mockRejectedValueOnce(new Error('Network Error'))
+      .mockResolvedValue({ istek_kimligi: KARAR, durum: 'kuyrukta' })
+    const sec = async (gruplar: [string, string][]) => {
+      const bolum = await screen.findByRole('region', { name: 'Hangi ayarlar geçerli olsun?' })
+      for (const [grup, secim] of gruplar) {
+        fireEvent.click(
+          within(within(bolum).getByRole('group', { name: grup })).getByRole('radio', {
+            name: secim,
+          }),
+        )
+      }
+      fireEvent.click(screen.getByRole('button', { name: 'Onayla' }))
+      fireEvent.click(
+        within(await screen.findByRole('dialog')).getByRole('button', { name: 'Onayla' }),
+      )
+    }
+    const bekleyenDepo = `erp.yedekleme.istekAnahtarlari.v1.ustune.${ISLEM}`
+
+    ciz()
+    await sec([
+      ['Mail ayarları', 'Güncel (bugünkü)'],
+      ['Yedek hedefleri', 'Geri yüklenen (yedekteki)'],
+    ])
+    await waitFor(() => expect(api.karar).toHaveBeenCalledTimes(1))
+    const ilk = api.karar.mock.calls[0][2] as string
+    // Bekleyen kayıtta yalnız imza, UUID anahtar ve zaman; erişim anahtarı yok
+    const bekleyen = JSON.parse(localStorage.getItem(bekleyenDepo) ?? '[]') as object[]
+    expect(bekleyen.map((kayit) => Object.keys(kayit).sort())).toEqual([
+      ['anahtar', 'imza', 'zaman'],
+    ])
+    expect(localStorage.getItem(bekleyenDepo)).not.toContain(ANAHTAR)
+
+    // Sayfa yenilendi: aynı karar (seçimler başka sırayla) aynı anahtarı taşır
+    cleanup()
+    ciz()
+    await sec([
+      ['Yedek hedefleri', 'Geri yüklenen (yedekteki)'],
+      ['Mail ayarları', 'Güncel (bugünkü)'],
+    ])
+
+    await waitFor(() => expect(api.karar).toHaveBeenCalledTimes(2))
+    expect(api.karar.mock.calls[1][2]).toBe(ilk)
+    // Kabul geldi: bekleyen anahtar silinir, karar izlenir
+    await waitFor(() => expect(api.durum).toHaveBeenCalledWith(ISLEM, ANAHTAR, KARAR))
+    expect(localStorage.getItem(bekleyenDepo)).toBeNull()
+  })
+
   it('"Geri dön" geri-don ucuna gider', async () => {
     anahtariSakla()
     api.durum.mockResolvedValue(

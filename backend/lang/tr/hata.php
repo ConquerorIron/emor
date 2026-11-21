@@ -120,6 +120,7 @@ return [
     'yedek_google_yapilandirilmadi' => 'Google bağlantısı için sunucuda istemci kimliği ve sırrı tanımlı değil (YEDEKLEME_GOOGLE_*).',
     'yedek_google_durum_gecersiz' => 'Google bağlantısı doğrulanamadı (süresi geçmiş ya da başka bir oturumdan). "Google ile bağlan"ı yeniden deneyin.',
     'yedek_google_baglanamadi' => 'Google bağlantısı kurulamadı. Yeniden deneyin.',
+    'yedek_google_hesap_okunamadi' => 'Bağlanan Google hesabının kimliği (e-posta) okunamadı; bağlantı kaydedilmedi. "Google ile bağlan"ı yeniden deneyin.',
     'yedek_google_hesap_dogrulanamadi' => 'Bu hedefte kopyalar var ve bağlanan Google hesabının kayıtlı hesapla aynı olduğu doğrulanamadı; eski bağlantı korundu. Yeniden deneyin; başka bir hesap için yeni bir hedef ekleyin.',
     'yedek_plani_kopyali' => 'Bu plana bağlı :adet kopya var; plan silinemez. Pasife alın — geçmişi durur.',
     'yedek_plan_hedefi_kopyali' => 'Kopyası olan hedef plandan çıkarılamaz: :hedefler. Bu kopyaların saklama kuralı kaybolur; önce saklama kuralıyla temizlenmelerini bekleyin.',

@@ -51,7 +51,10 @@ uzak yaşam sinyali gider.
   "kurtarma paketi bekleniyor" yazar ve saklama o yedeğin **yerel arşivini
   silmez**. Paketin manifest arşivi yedek klasöründeki bütün manifestleri
   taşıdığı için o hedefe giden bir sonraki başarılı paket, eksik kalan
-  kopyaları da kurtarmaya hazır yapar (BY-010-R2, BY-024-R3).
+  kopyaları da kurtarmaya hazır yapar (BY-010-R2, BY-024-R3). Hazır sayılmak
+  için arşivdeki manifestin imzası geçerli, kimliği o yedeğin ve özeti
+  yedeğinkiyle aynı olmalı; o manifesti taşıyan son tamam sürüm hedeften
+  silinince kopya yeniden "hazır değil" olur (BY-024-R5).
 - Eski sürüm silinirken işaretçi silinemezse (ör. kovada yalnız işaretçiye
   silme izni yok) sürümün hiçbir dosyasına dokunulmaz: hedefte "tamam"
   görünen her set eksiksizdir (BY-024-R4).

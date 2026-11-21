@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Yedekleme;
 
+use App\Models\YedekKopyasi;
 use Carbon\CarbonImmutable;
 use Throwable;
 
@@ -11,7 +12,8 @@ use Throwable;
  * Olay günlüğünün bir satırı. Ayrıntı alanları türe göre (Backup-Jira BY-006):
  * - dogrulandi: {durum: DogrulamaDurumu}
  * - aciklama: {aciklama: string|null}
- * - kopya: {hedef_id, hedef_ad, durum: KopyaDurumu, uzak_kimlik, sifreli, sifreli_sha256, plan_idleri}
+ * - kopya: {hedef_id, hedef_ad, durum: KopyaDurumu, uzak_kimlik, sifreli, sifreli_sha256, konum_izi, plan_idleri}
+ *   (konum_izi: kopyanın yapıldığı yer, HedefKonumu::iz; eski olaylarda yok — BY-028-R5)
  * - kopya_silindi: {hedef_id, hedef_ad, hata_kodu?} (hata_kodu: fiziksel silinmedi, ör. HEDEF_SILME_YETKISI_YOK)
  * - sabitlendi, sabit_cozuldu, yerel_silindi, silindi: {}
  */
@@ -36,6 +38,24 @@ final readonly class YedekOlayi
     public static function simdi(string $yedekKimligi, OlayTuru $tur, array $ayrinti = [], ?int $kullaniciId = null): self
     {
         return new self(CarbonImmutable::now('UTC'), $yedekKimligi, $tur, $ayrinti, $kullaniciId);
+    }
+
+    /**
+     * Kopyanın güncel hâlini taşıyan `kopya` olayı: kopyalayıcı da saklama da
+     * aynı biçimi yazar (konum izi dahil; BY-028-R5).
+     */
+    public static function kopya(YedekKopyasi $kopya, string $yedekKimligi, ?string $hedefAd): self
+    {
+        return self::simdi($yedekKimligi, OlayTuru::Kopya, [
+            'hedef_id' => (int) $kopya->yedek_hedefi_id,
+            'hedef_ad' => $hedefAd,
+            'durum' => $kopya->durum->value,
+            'uzak_kimlik' => $kopya->uzak_kimlik,
+            'sifreli' => $kopya->sifreli,
+            'sifreli_sha256' => $kopya->sifreli_sha256,
+            'konum_izi' => $kopya->konum_izi,
+            'plan_idleri' => array_map('intval', $kopya->planlar()->pluck('yedek_planlari.id')->all()),
+        ]);
     }
 
     /**

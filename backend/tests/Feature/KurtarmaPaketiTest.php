@@ -20,6 +20,7 @@ use App\Services\Yedekleme\KurtarmaPaketi;
 use App\Services\Yedekleme\ManifestDeposu;
 use App\Services\Yedekleme\OlayGunlugu;
 use App\Services\Yedekleme\SaklamaPolitikasi;
+use App\Services\Yedekleme\YedekImzasi;
 use App\Services\Yedekleme\YedekKopyalayici;
 use App\Services\Yedekleme\YedekOzeti;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -78,15 +79,23 @@ final class KurtarmaPaketiTest extends TestCase
         parent::tearDown();
     }
 
-    /** Yedek klasöründe dump'ı ve (içeriği önemsiz) manifesti olan yedek */
+    /** Yedek klasöründe dump'ı ve kendisine ait imzalı manifesti olan yedek (T10: geçerli paket bileşeni) */
     private function yedek(string $icerik = 'PGDMP-yedek'): Yedek
     {
         $yedek = Yedek::factory()->create(['sha256' => hash('sha256', $icerik), 'boyut' => strlen($icerik)]);
-        @mkdir(config('yedekleme.klasor'), 0750, true);
         file_put_contents(config('yedekleme.klasor').'/'.$yedek->dosya_adi, $icerik);
-        file_put_contents(config('yedekleme.klasor').'/'.$this->manifestAdi($yedek), '{"manifest":{},"imza":""}');
+        $this->manifestYaz($yedek);
 
         return $yedek;
+    }
+
+    /** Yedeğin adıyla imzalı manifest yazar; kimlik / özet verilirse manifestte onlar durur */
+    private function manifestYaz(Yedek $yedek, ?string $kimlik = null, ?string $sha256 = null): string
+    {
+        return app(ManifestDeposu::class)->yaz(
+            YedekManifestiTest::manifest(kimlik: $kimlik ?? $yedek->kimlik, sha256: $sha256 ?? (string) $yedek->sha256, boyut: (int) $yedek->boyut, dosyaAdi: $yedek->dosya_adi),
+            config('yedekleme.klasor'),
+        );
     }
 
     private function manifestAdi(Yedek $yedek): string
@@ -407,5 +416,123 @@ final class KurtarmaPaketiTest extends TestCase
         $this->assertCount(12, BellekHedefi::$dosyalar);
         $kayit = json_decode((string) file_get_contents(config('yedekleme.durum_klasoru').'/kurtarma-paketleri.json'), true);
         $this->assertCount($kayittakiSurum, $kayit['hedefler'][$hedef->id]);
+    }
+
+    /**
+     * @return array<string, array{\Closure(self, Yedek): void}>
+     */
+    public static function gecersizManifestler(): array
+    {
+        return [
+            'imzası bozuk (içerik imzadan sonra değişmiş)' => [function (self $test, Yedek $yedek): void {
+                $yol = $test->manifestYaz($yedek);
+                $veri = json_decode((string) file_get_contents($yol), true, 32, JSON_THROW_ON_ERROR);
+                $veri['manifest']['aciklama'] = 'imzadan sonra değişti';
+                file_put_contents($yol, json_encode($veri, JSON_THROW_ON_ERROR));
+            }],
+            'doğru imzalı ama başka yedeğin manifesti (aynı adla)' => [function (self $test, Yedek $yedek): void {
+                $baska = Yedek::factory()->create();
+                rename($test->manifestYaz($baska), ManifestDeposu::jsonYolu(config('yedekleme.klasor').'/'.$yedek->dosya_adi));
+            }],
+            'doğru imzalı, kimliği aynı ama özeti katalogla uyuşmayan' => [function (self $test, Yedek $yedek): void {
+                $test->manifestYaz($yedek, sha256: hash('sha256', 'baska-dump'));
+            }],
+        ];
+    }
+
+    /**
+     * BY-024-R5, BY-010-R3: hazırlık arşive giren manifestin geçerli imzasına,
+     * yedek kimliğine ve SHA-256 özetine bağlıdır; adı tutması yetmez. Aynı
+     * hedefe giden başarılı pakette geçersiz manifestli kopya hazır olmaz
+     * (geçerli manifestli kopya olur), tek uzak hedefli planda yerel arşiv
+     * silinmez.
+     *
+     * @param  \Closure(self, Yedek): void  $boz
+     */
+    #[DataProvider('gecersizManifestler')]
+    public function test_gecersiz_manifestli_kopya_basarili_paketle_kurtarmaya_hazir_olmaz_yerel_arsiv_silinmez(\Closure $boz): void
+    {
+        $hedef = $this->bellekHedefi();
+        $gecerliKopya = app(YedekKopyalayici::class)->kopyala($this->yedek('PGDMP-gecerli'), $hedef);
+        $icerik = 'PGDMP-plan-yedegi';
+        $yedek = Yedek::factory()->plan()->create(['sha256' => hash('sha256', $icerik), 'boyut' => strlen($icerik), 'alinma_zamani' => now()->subHour()]);
+        $klasor = config('yedekleme.klasor');
+        file_put_contents($klasor.'/'.$yedek->dosya_adi, $icerik);
+        $boz($this, $yedek);
+        $plan = YedekPlani::factory()->create();
+        $plan->hedefler()->attach($hedef, ['sakla_son_adet' => 14]);
+        $this->travel(1)->seconds();
+
+        $kopya = app(YedekKopyalayici::class)->kopyala($yedek, $hedef, [$plan->id]);
+        $onizleme = app(SaklamaPolitikasi::class)->hesapla();
+        app(SaklamaPolitikasi::class)->uygula();
+
+        $this->assertSame(KopyaDurumu::Tamam, $kopya->durum);
+        $this->assertSame(IslemSonucu::Basarili, YedekIslemKaydi::query()->where('islem', 'kurtarma_paketi')->latest('id')->first()->sonuc);
+        $this->assertCount(2, $this->isaretciler($hedef));
+        $this->assertTrue($gecerliKopya->refresh()->kurtarma_hazir);
+        $this->assertFalse($kopya->refresh()->kurtarma_hazir);
+        $this->assertContains('kurtarma_paketi_eksik', $onizleme['korunan'][$yedek->id]);
+        $this->assertFileExists($klasor.'/'.$yedek->dosya_adi);
+        $this->assertNull($yedek->refresh()->yerel_silinme_zamani);
+    }
+
+    /**
+     * BY-024-R5: hazırlığın dayanağı hedefte kalan tamam sürümlerdir. Yedeğin
+     * doğrulanmış manifestini taşıyan sürüm durdukça kopya hazır kalır; son
+     * böyle sürüm dönüşümle (son iki tamam sürüm) silinince işaret geri alınır.
+     */
+    public function test_dogrulanmis_manifesti_tasiyan_son_surum_donusumle_kalkinca_hazir_isareti_geri_alinir(): void
+    {
+        $hedef = $this->bellekHedefi();
+        $yedek = $this->yedek();
+        $kopya = app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        $ilkHazir = $kopya->refresh()->kurtarma_hazir;
+        unlink(ManifestDeposu::jsonYolu(config('yedekleme.klasor').'/'.$yedek->dosya_adi));
+        $paket = app(KurtarmaPaketi::class);
+
+        $this->travel(1)->seconds();
+        $this->assertTrue($paket->gonder($hedef));
+        $ikincidenSonraHazir = $kopya->refresh()->kurtarma_hazir;
+        $this->travel(1)->seconds();
+        $this->assertTrue($paket->gonder($hedef));
+
+        $this->assertTrue($ilkHazir);
+        $this->assertTrue($ikincidenSonraHazir);
+        $this->assertFalse($kopya->refresh()->kurtarma_hazir);
+        $this->assertCount(2, $this->isaretciler($hedef));
+    }
+
+    /**
+     * BY-024-R5: doğrulanmış manifest listesi olmayan (eski biçimli) sürüm
+     * kaydı reddedilmez — sürümleri dönüşümle silinir — ama hazırlığa dayanak
+     * olmaz (bilinmiyor = hazır değil).
+     */
+    public function test_eski_bicimli_surum_kaydi_okunur_listesiz_surum_hazirliga_dayanak_olmaz(): void
+    {
+        $hedef = $this->bellekHedefi();
+        $yedek = $this->yedek();
+        $kopya = app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        [$eski] = $this->isaretciler($hedef);
+        $yol = config('yedekleme.durum_klasoru').'/kurtarma-paketleri.json';
+        $hedefler = json_decode((string) file_get_contents($yol), true, 16, JSON_THROW_ON_ERROR)['hedefler'];
+        foreach ($hedefler as $id => $surumler) {
+            foreach (array_keys($surumler) as $i) {
+                unset($hedefler[$id][$i]['yedekler']);
+            }
+        }
+        file_put_contents($yol, json_encode(['hedefler' => $hedefler, 'imza' => app(YedekImzasi::class)->imzala($hedefler)], JSON_THROW_ON_ERROR));
+        unlink(ManifestDeposu::jsonYolu(config('yedekleme.klasor').'/'.$yedek->dosya_adi));
+        $paket = app(KurtarmaPaketi::class);
+
+        $this->travel(1)->seconds();
+        $this->assertTrue($paket->gonder($hedef));
+        $ikincidenSonraHazir = $kopya->refresh()->kurtarma_hazir;
+        $this->travel(1)->seconds();
+        $this->assertTrue($paket->gonder($hedef));
+
+        $this->assertFalse($ikincidenSonraHazir);
+        $this->assertNotContains($eski['surum'], array_column($this->isaretciler($hedef), 'surum'));
+        $this->assertCount(2, $this->isaretciler($hedef));
     }
 }

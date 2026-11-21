@@ -389,6 +389,80 @@ describe('YedeklerPage', () => {
     expect(api.tara.mock.calls[2][0]).not.toBe(ilk)
   })
 
+  it('yanıtı kaybolan iş sayfa yenilendikten sonra da aynı istek anahtarını taşır; kabulden sonra yeni iş yeni anahtar alır (BY-014-R3)', async () => {
+    // İlk istek sunucuda kabul edildi ama yanıt ulaşmadı
+    api.yedekAl
+      .mockRejectedValueOnce(new Error('Network Error'))
+      .mockResolvedValue({ istek_kimligi: ISTEK_1, durum: 'kuyrukta' })
+    api.istek.mockResolvedValue({ kimlik: ISTEK_1, durum: 'tamam', yedek_kimligi: YEDEK.kimlik })
+    const yedekAl = async () => {
+      await satir(YEDEK.dosya_adi)
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Şimdi Yedek Al' })).toBeEnabled(),
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Şimdi Yedek Al' }))
+      fireEvent.click(
+        within(await screen.findByRole('dialog')).getByRole('button', { name: 'Yedek Al' }),
+      )
+    }
+    const bekleyenDepo = 'erp.yedekleme.istekAnahtarlari.v1.kullanici.1'
+
+    ciz()
+    await yedekAl()
+    await waitFor(() => expect(api.yedekAl).toHaveBeenCalledTimes(1))
+    const ilk = api.yedekAl.mock.calls[0][1] as string
+    expect(localStorage.getItem(bekleyenDepo)).toContain(ilk)
+
+    // Sayfa yenilendi (bileşen yeniden kuruldu): aynı iş aynı anahtarla
+    cleanup()
+    ciz()
+    await yedekAl()
+    await waitFor(() => expect(api.yedekAl).toHaveBeenCalledTimes(2))
+    expect(api.yedekAl.mock.calls[1][1]).toBe(ilk)
+
+    // Kabul geldi: bekleyen anahtar silinir; aynı işin yeni gönderimi yeni bir iştir
+    await waitFor(() => expect(localStorage.getItem(bekleyenDepo)).toBeNull())
+    expect(await screen.findByText('Yedek alındı.')).toBeInTheDocument()
+    await yedekAl()
+    await waitFor(() => expect(api.yedekAl).toHaveBeenCalledTimes(3))
+    expect(api.yedekAl.mock.calls[2][1]).not.toBe(ilk)
+  })
+
+  it('süresi geçmiş bekleyen anahtar kullanılmaz; depo erişilemezse anahtar bellekte yaşar (BY-014-R3)', async () => {
+    const eski = '33333333-3333-4333-8333-333333333333'
+    localStorage.setItem(
+      'erp.yedekleme.istekAnahtarlari.v1.kullanici.1',
+      JSON.stringify([
+        { imza: '{"tur":"tara"}', anahtar: eski, zaman: Date.now() - 16 * 60 * 1000 },
+      ]),
+    )
+    api.tara.mockRejectedValue(new Error('Network Error'))
+    ciz()
+    const tara = await screen.findByRole('button', { name: 'Klasörü Tara' })
+    await satir(YEDEK.dosya_adi)
+
+    fireEvent.click(tara)
+    await waitFor(() => expect(api.tara).toHaveBeenCalledTimes(1))
+    expect(api.tara.mock.calls[0][0]).not.toBe(eski)
+
+    // Gizli pencere / kota: depo hata verir, aynı çizimde yeniden deneme yine aynı anahtarı taşır
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('kapalı', 'SecurityError')
+    })
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('dolu', 'QuotaExceededError')
+    })
+    try {
+      await waitFor(() => expect(tara).toBeEnabled())
+      fireEvent.click(tara)
+      await waitFor(() => expect(api.tara).toHaveBeenCalledTimes(2))
+      expect(api.tara.mock.calls[1][0]).toBe(api.tara.mock.calls[0][0])
+    } finally {
+      getItem.mockRestore()
+      setItem.mockRestore()
+    }
+  })
+
   it('yalnız şifreli kopyası olan yedekte geri yükleme yerine kurtarma yolu yazılır; yerel ve şifresiz uzak kopyada geri yükleme vardır (BY-027-R1)', async () => {
     api.liste.mockResolvedValue(liste([YEDEK, UZAKTA, YALNIZ_SIFRELI]))
     ciz(['yedekler.goruntule', 'yedekler.al', 'geri_yukleme.kopya'], true)

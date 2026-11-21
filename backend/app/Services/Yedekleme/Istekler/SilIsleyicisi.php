@@ -6,6 +6,7 @@ namespace App\Services\Yedekleme\Istekler;
 
 use App\Models\YedekKopyasi;
 use App\Services\Yedekleme\DepoIsaretiYok;
+use App\Services\Yedekleme\HedefKonumu;
 use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use App\Services\Yedekleme\Hedefler\YerelDiskBaglayicisi;
@@ -26,7 +27,8 @@ use Throwable;
  * yedek silinmez. Bir hedef silinemezse diğerleri sürer; yedek ancak
  * hiçbir yerde kopyası kalmayınca `silindi` olur (YerelDosyaSilici), kayıt
  * ve imzalı manifest kalır. Kopya silme sonucunu saklamayla aynı adım yazar
- * (KopyaSilmeKaydi; BY-025-R3).
+ * (KopyaSilmeKaydi; BY-025-R3). Yeri doğrulanamayan (`konum_belirsiz`)
+ * kopya silinmez, sonuçta "silinemedi" olarak listelenir (BY-028-R5).
  */
 final class SilIsleyicisi implements IstekIsleyicisi
 {
@@ -90,6 +92,13 @@ final class SilIsleyicisi implements IstekIsleyicisi
                 $hatalar[] = $kopya->hedef->ad.': '.$hata::class;
             }
         }
+
+        // Yeri doğrulanamayan kopya silinmez — hedefin bugünkü yerindeki başka bir dosyaya
+        // dokunulabilirdi — ve silinmiş de sayılmaz: sonuçta görünür (BY-028-R5)
+        YedekKopyasi::query()->with('hedef')->where('yedek_id', $yedek->id)->where('durum', KopyaDurumu::KonumBelirsiz->value)->orderBy('id')->get()
+            ->each(function (YedekKopyasi $kopya) use (&$hatalar): void {
+                $hatalar[] = $kopya->hedef->ad.': '.HedefKonumu::DOGRULANAMADI;
+            });
 
         // F7: başka bir yerde doğrulanmış kopya kaldıysa durum `silindi` olmaz
         $this->yerelSilici->sil($yedek->refresh());

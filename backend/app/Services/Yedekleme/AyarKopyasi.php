@@ -9,6 +9,7 @@ use App\Models\YedekAyari;
 use App\Models\YedekHedefi;
 use App\Models\YedekPlani;
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Support\Facades\Crypt;
 use JsonException;
 use Throwable;
@@ -41,14 +42,18 @@ final class AyarKopyasi
         private readonly YedekImzasi $imza,
     ) {}
 
+    /**
+     * @throws DecryptException Veritabanındaki SMTP parolası çözülemiyor (kopya yazılmaz)
+     */
     public function yaz(): void
     {
         $mail = MailAyari::query()->where('anahtar', MailAyari::ANAHTAR)->first();
-        $icerik = $this->icerik($mail);
+        $sifre = $mail?->sifre;
+        $icerik = $this->icerik($mail, $sifre);
         $veri = [
             'surum' => self::SURUM,
             'zaman' => CarbonImmutable::now('UTC')->toIso8601String(),
-            'parmak_izi' => $this->parmakIzi($icerik, $mail),
+            'parmak_izi' => $this->parmakIzi($icerik, $sifre),
             ...$icerik,
         ];
 
@@ -69,6 +74,8 @@ final class AyarKopyasi
      * yazamadığı kopyayı da bu uzlaştırır (BY-018-R2).
      *
      * @return bool Yazıldı mı
+     *
+     * @throws DecryptException Veritabanındaki SMTP parolası çözülemiyor (çağıran günlüğe yazar, turu sürdürür)
      */
     public function guncelDegilseYaz(): bool
     {
@@ -86,17 +93,34 @@ final class AyarKopyasi
      * veritabanındaki ayarlarla aynı mı. İmza anahtarı bu süreçte okunamıyorsa
      * (servis kipinde web süreci — README §5.5) bilinemez: null. Güncel
      * değilse çalıştırıcının her turu yazar (guncelDegilseYaz).
+     *
+     * Veritabanındaki SMTP parolası çözülemiyorsa (bozuk değer, APP_KEY
+     * değişmiş) kopya o ayardan üretilemez, dolayısıyla güncel değildir:
+     * false. Okuma ucu bu yüzden düşmez; yazımdaki hata denetime ayar ekranında
+     * ve çalıştırıcı günlüğünde düşer (BY-018-R3).
      */
     public function guncelMi(): ?bool
     {
-        return $this->imza->anahtarVarMi() ? $this->veritabanindakiyleAyniMi() : null;
+        if (! $this->imza->anahtarVarMi()) {
+            return null;
+        }
+
+        try {
+            return $this->veritabanindakiyleAyniMi();
+        } catch (DecryptException) {
+            return false;
+        }
     }
 
+    /**
+     * @throws DecryptException
+     */
     private function veritabanindakiyleAyniMi(): bool
     {
         $mail = MailAyari::query()->where('anahtar', MailAyari::ANAHTAR)->first();
+        $sifre = $mail?->sifre;
 
-        return ($this->oku()['parmak_izi'] ?? null) === $this->parmakIzi($this->icerik($mail), $mail);
+        return ($this->oku()['parmak_izi'] ?? null) === $this->parmakIzi($this->icerik($mail, $sifre), $sifre);
     }
 
     /**
@@ -105,20 +129,21 @@ final class AyarKopyasi
      *
      * @param  array<string, mixed>  $icerik
      */
-    private function parmakIzi(array $icerik, ?MailAyari $mail): string
+    private function parmakIzi(array $icerik, ?string $sifre): string
     {
         $icerik['mail'] = $icerik['mail'] === null ? null : [
             ...array_diff_key($icerik['mail'], ['sifre_sifreli' => true]),
-            'sifre' => $mail?->sifre === null ? null : hash_hmac('sha256', $mail->sifre, (string) config('app.key')),
+            'sifre' => $sifre === null ? null : hash_hmac('sha256', $sifre, (string) config('app.key')),
         ];
 
         return hash('sha256', KanonikJson::kodla(json_decode(json_encode($icerik, JSON_THROW_ON_ERROR), true)));
     }
 
     /**
+     * @param  string|null  $sifre  Mail ayarının çözülmüş parolası (şifrelenip dosyaya girer)
      * @return array<string, mixed>
      */
-    private function icerik(?MailAyari $mail): array
+    private function icerik(?MailAyari $mail, ?string $sifre): array
     {
         $ayar = YedekAyari::guncel();
 
@@ -128,7 +153,7 @@ final class AyarKopyasi
                 'port' => $mail->port,
                 'sifreleme' => $mail->sifreleme,
                 'kullanici_adi' => $mail->kullanici_adi,
-                'sifre_sifreli' => $mail->sifre === null ? null : Crypt::encryptString($mail->sifre),
+                'sifre_sifreli' => $sifre === null ? null : Crypt::encryptString($sifre),
                 'gonderen_adres' => $mail->gonderen_adres,
                 'gonderen_ad' => $mail->gonderen_ad,
                 'yonlendirme_adresi' => $mail->yonlendirme_adresi,
@@ -166,8 +191,15 @@ final class AyarKopyasi
     {
         if ($kopya === null) {
             $mail = MailAyari::query()->where('anahtar', MailAyari::ANAHTAR)->first();
-            $icerik = $this->icerik($mail);
-            $sifre = $mail?->sifre;
+            // Şifreli parola karşılaştırmaya girmez (aşağıda HMAC'i girer)
+            $icerik = $this->icerik($mail, null);
+            try {
+                $sifre = $mail?->sifre;
+            } catch (DecryptException) {
+                // Veritabanında çözülemeyen parola (geri yüklenen yedek başka APP_KEY'le)
+                // hiçbir parolayla — kopyanın çözülemeyeniyle de — eşleşmesin (BY-018-R3)
+                $sifre = "\0cozulemedi:veritabani";
+            }
         } else {
             $icerik = $kopya;
             try {

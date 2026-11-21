@@ -14,7 +14,7 @@ use Carbon\CarbonImmutable;
 final readonly class GuncelDurum
 {
     /**
-     * @param  array<string, array{hedef_id: int|null, hedef_ad: string|null, durum: string, uzak_kimlik: string|null, sifreli: bool, sifreli_sha256: string|null, plan_idleri: list<int>, silindi: bool, hata_kodu: string|null}>  $kopyalar  hedef anahtarı ("id:<n>" ya da "ad:<ad>") => kopya
+     * @param  array<string, array{hedef_id: int|null, hedef_ad: string|null, durum: string, uzak_kimlik: string|null, sifreli: bool, sifreli_sha256: string|null, konum_izi: string|null, plan_idleri: list<int>, silindi: bool, hata_kodu: string|null}>  $kopyalar  hedef anahtarı ("id:<n>" ya da "ad:<ad>") => kopya
      */
     public function __construct(
         public bool $sabit,
@@ -68,6 +68,8 @@ final readonly class GuncelDurum
                             'uzak_kimlik' => is_string($a['uzak_kimlik'] ?? null) ? $a['uzak_kimlik'] : null,
                             'sifreli' => ($a['sifreli'] ?? false) === true,
                             'sifreli_sha256' => is_string($a['sifreli_sha256'] ?? null) ? $a['sifreli_sha256'] : null,
+                            // Biçimsiz iz izsiz sayılır: konum doğrulanamaz (BY-028-R5)
+                            'konum_izi' => is_string($a['konum_izi'] ?? null) && preg_match('/^[0-9a-f]{64}$/D', $a['konum_izi']) === 1 ? $a['konum_izi'] : null,
                             'plan_idleri' => array_values(array_filter((array) ($a['plan_idleri'] ?? []), 'is_int')),
                             'silindi' => false,
                             'hata_kodu' => null,

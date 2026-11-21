@@ -44,6 +44,7 @@ final class YedekKopyalayici
         private readonly YedekBildirimcisi $bildirimci,
         private readonly YasamSinyali $sinyal,
         private readonly KurtarmaPaketi $kurtarma,
+        private readonly HedefKonumu $konum,
     ) {}
 
     /**
@@ -80,13 +81,14 @@ final class YedekKopyalayici
             $kopya->increment('deneme');
 
             try {
-                [$uzakKimlik, $sifreli, $sifreliOzet] = $this->bir($yedek, $hedef);
+                [$uzakKimlik, $sifreli, $sifreliOzet, $konumIzi] = $this->bir($yedek, $hedef);
 
                 $kopya->fill([
                     'durum' => KopyaDurumu::Tamam,
                     'uzak_kimlik' => $uzakKimlik,
                     'sifreli' => $sifreli,
                     'sifreli_sha256' => $sifreliOzet,
+                    'konum_izi' => $konumIzi,
                     'tamamlanma_zamani' => CarbonImmutable::now(),
                     'silinme_zamani' => null,
                 ])->save();
@@ -134,11 +136,17 @@ final class YedekKopyalayici
 
     /**
      * Bir deneme: (gerekirse şifrele) → yaz → geri oku → özeti karşılaştır.
+     * Kopya hedefin kilit altında okunmuş konumuna gider; o konumun izi kopyayla
+     * birlikte saklanır. Konumu bilinemeyen hedefe (hesabı okunmamış Drive
+     * bağlantısı) kopya gönderilmez: yeri doğrulanamayan kopya kullanılamaz
+     * (BY-028-R5, BY-021-R3).
      *
-     * @return array{0: string, 1: bool, 2: string|null} [uzak kimlik, şifreli mi, şifreli kopyanın özeti]
+     * @return array{0: string, 1: bool, 2: string|null, 3: string} [uzak kimlik, şifreli mi, şifreli kopyanın özeti, konum izi]
      */
     private function bir(Yedek $yedek, YedekHedefi $hedef): array
     {
+        $konumIzi = $this->konum->iz($hedef)
+            ?? throw new HedefHatasi(HedefHatasi::YAPILANDIRMA, 'Hedefin konumu belirlenemiyor (bağlı hesap bilinmiyor); hedefi yeniden bağlayın. Kopyalanmadı.');
         $kaynak = $this->yapilandirma->klasor().'/'.$yedek->dosya_adi;
 
         if (! is_file($kaynak)) {
@@ -176,7 +184,7 @@ final class YedekKopyalayici
                 throw new HedefHatasi(HedefHatasi::OKUNAMADI, 'Hedeften geri okunan kopyanın özeti yazılanla aynı değil.');
             }
 
-            return [$uzakKimlik, $sunucuDisi, $sifreliOzet];
+            return [$uzakKimlik, $sunucuDisi, $sifreliOzet, $konumIzi];
         } finally {
             foreach (glob($calisma.'/*') ?: [] as $dosya) {
                 @unlink($dosya);
@@ -199,15 +207,7 @@ final class YedekKopyalayici
 
     private function olayYaz(Yedek $yedek, YedekHedefi $hedef, YedekKopyasi $kopya): void
     {
-        $this->olaylar->ekle(YedekOlayi::simdi($yedek->kimlik, OlayTuru::Kopya, [
-            'hedef_id' => $hedef->id,
-            'hedef_ad' => $hedef->ad,
-            'durum' => $kopya->durum->value,
-            'uzak_kimlik' => $kopya->uzak_kimlik,
-            'sifreli' => $kopya->sifreli,
-            'sifreli_sha256' => $kopya->sifreli_sha256,
-            'plan_idleri' => array_map('intval', $kopya->planlar()->pluck('yedek_planlari.id')->all()),
-        ]));
+        $this->olaylar->ekle(YedekOlayi::kopya($kopya, $yedek->kimlik, $hedef->ad));
     }
 
     private function sureMs(int $baslangic): int

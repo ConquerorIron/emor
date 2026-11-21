@@ -12,7 +12,9 @@ use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
 use App\Services\Yedekleme\DizinKurucu;
 use App\Services\Yedekleme\GeriYuklemeDurumu;
+use App\Services\Yedekleme\GeriYuklemeKaynaklari;
 use App\Services\Yedekleme\GeriYuklemeTuru;
+use App\Services\Yedekleme\HedefKonumu;
 use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use App\Services\Yedekleme\HedefTuru;
@@ -361,6 +363,104 @@ final class DizinKurucuTest extends TestCase
         $this->assertSame([YedekDurumu::Tamam, null], [$yedek->durum, $yedek->yerel_silinme_zamani]);
         $this->assertSame(KopyaDurumu::Tamam, $kopya->refresh()->durum);
         $this->assertSame($uzak, BellekHedefi::$dosyalar);
+    }
+
+    /**
+     * BY-028-R5: eski yedeğin anında kopyasız olan hedef sonra yer değiştirir
+     * ve yeni yerde kopya alınır. Eski veritabanı geri yüklenince hedef eski
+     * yerindedir: olay günlüğündeki yeni yer kopyası ona `tamam` bağlanmaz,
+     * geri yükleme kaynağı sayılmaz, elle silmede o hedeften silinmez. Hedef
+     * kopyanın yerine dönünce kopya yeniden `tamam` bağlanır.
+     */
+    public function test_yer_degistiren_hedefin_yeni_yerdeki_kopyasi_eski_yerine_donen_hedefe_tamam_baglanmaz_kaynak_ve_silme_disinda_kalir(): void
+    {
+        $yedek = $this->gercekYedek();
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Uzak', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'eski-kova']]);
+        // Kopyasız hedef yer değiştirir; yeni yerde kopya alınır
+        $hedef->update(['baglanti' => ['kova' => 'yeni-kova']]);
+        app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        $uzak = BellekHedefi::$dosyalar;
+        // Eski veritabanı geri yüklendi: hedef eski yerinde, kopya kaydı yok
+        $hedef->update(['baglanti' => ['kova' => 'eski-kova']]);
+        $this->dizinleriBosalt();
+
+        $this->tara();
+
+        $kurulan = Yedek::query()->where('kimlik', $yedek->kimlik)->sole();
+        $kopya = YedekKopyasi::query()->where('yedek_id', $kurulan->id)->sole();
+        $this->assertSame([KopyaDurumu::KonumBelirsiz, HedefKonumu::DOGRULANAMADI], [$kopya->durum, $kopya->hata_kodu]);
+        // Yerel dosya olmasaydı geri yüklenecek uzak kopya yok
+        $kaynaklar = GeriYuklemeKaynaklari::sec(false, $kurulan->kopyalar);
+        $this->assertSame([[], false], [$kaynaklar->uzaklar, $kaynaklar->sifreliVar]);
+
+        // Elle silme o kopyayı hedefin bugünkü yerinden silmeye kalkmaz; sonuçta görünür
+        $istek = new Istek((string) Str::uuid(), 'sil', ['yedek_kimligi' => $yedek->kimlik], null, CarbonImmutable::now(), 0);
+        $sonuc = app(SilIsleyicisi::class)->isle($istek, $this->kilitAl());
+        $this->tutulanKilit?->birak();
+        $this->assertSame('YEDEK_KOPYA_SILINEMEDI', $sonuc->kod);
+        $this->assertStringContainsString('Uzak: '.HedefKonumu::DOGRULANAMADI, (string) $sonuc->mesaj);
+        $this->assertSame($uzak, BellekHedefi::$dosyalar);
+        $this->assertSame(KopyaDurumu::KonumBelirsiz, $kopya->refresh()->durum);
+    }
+
+    /** BY-028-R5: konumu aynı kalan normal yolda kopya bağlanmaya devam eder; hedef kopyanın yerine dönünce yeniden `tamam` olur. */
+    public function test_hedef_kopyanin_yerine_donunce_yeniden_kurulan_kopya_tamam_baglanir(): void
+    {
+        $yedek = $this->gercekYedek();
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Uzak', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'yeni-kova']]);
+        app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        $hedef->update(['baglanti' => ['kova' => 'eski-kova']]);
+        $this->tara();
+        $this->assertSame(KopyaDurumu::KonumBelirsiz, YedekKopyasi::query()->where('yedek_id', $yedek->id)->sole()->durum);
+
+        $hedef->update(['baglanti' => ['kova' => 'yeni-kova']]);
+        $this->tara();
+
+        $kopya = YedekKopyasi::query()->where('yedek_id', $yedek->id)->sole();
+        $this->assertSame([KopyaDurumu::Tamam, null], [$kopya->durum, $kopya->hata_kodu]);
+        $this->assertSame(app(HedefKonumu::class)->iz($hedef->refresh()), $kopya->konum_izi);
+    }
+
+    /** BY-028-R5: saklamanın bağ kaldırma olayı da konum izini taşır; dizin yeniden kurulunca kopya `tamam` ve kalan bağıyla gelir. */
+    public function test_saklama_bag_kaldirdiktan_sonra_yeniden_kurulan_kopya_tamam_kalir(): void
+    {
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Ortak', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'k']]);
+        $kisa = YedekPlani::factory()->create();
+        $kisa->hedefler()->attach($hedef, ['sakla_son_adet' => 1]);
+        $uzun = YedekPlani::factory()->create();
+        $uzun->hedefler()->attach($hedef, ['sakla_son_adet' => 10]);
+        $eski = app(YedekAlici::class)->al($this->kilitAl(), YedekKaynagi::Plan, null, null, [$kisa->ad, $uzun->ad]);
+        $this->tutulanKilit?->birak();
+        app(YedekKopyalayici::class)->kopyala($eski, $hedef, [$kisa->id, $uzun->id]);
+        $this->travel(1)->hours();
+        $yeni = app(YedekAlici::class)->al($this->kilitAl(), YedekKaynagi::Plan, null, null, [$kisa->ad, $uzun->ad]);
+        $this->tutulanKilit?->birak();
+        app(YedekKopyalayici::class)->kopyala($yeni, $hedef, [$kisa->id, $uzun->id]);
+        app(SaklamaPolitikasi::class)->uygula();
+        $this->dizinleriBosalt();
+
+        $this->tara();
+
+        $kopya = YedekKopyasi::query()->whereHas('yedek', fn ($q) => $q->where('kimlik', $eski->kimlik))->sole();
+        $this->assertSame(KopyaDurumu::Tamam, $kopya->durum);
+        $this->assertSame([$uzun->id], $kopya->planlar()->pluck('yedek_planlari.id')->map(fn (mixed $id): int => (int) $id)->all());
+    }
+
+    /** BY-028-R5: konum izi olmayan (eski) kopya olayı yeniden kurulunca çözümlenmiş kopya sayılmaz. */
+    public function test_konum_izi_olmayan_eski_kopya_olayi_yeniden_kurulunca_tamam_baglanmaz(): void
+    {
+        $yedek = $this->gercekYedek();
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Uzak', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'k']]);
+        app(OlayGunlugu::class)->ekle(YedekOlayi::simdi($yedek->kimlik, OlayTuru::Kopya, [
+            'hedef_id' => $hedef->id, 'hedef_ad' => $hedef->ad, 'durum' => 'tamam', 'uzak_kimlik' => $hedef->id.'/'.$yedek->dosya_adi,
+            'sifreli' => false, 'sifreli_sha256' => null, 'plan_idleri' => [],
+        ]));
+        $this->dizinleriBosalt();
+
+        $this->tara();
+
+        $kopya = YedekKopyasi::query()->whereHas('yedek', fn ($q) => $q->where('kimlik', $yedek->kimlik))->sole();
+        $this->assertSame([KopyaDurumu::KonumBelirsiz, null], [$kopya->durum, $kopya->konum_izi]);
     }
 
     private function planYedegi(YedekHedefi $hedef, YedekPlani $plan): Yedek

@@ -18,6 +18,7 @@ use App\Services\Yedekleme\OlayGunlugu;
 use App\Services\Yedekleme\YedekDurumu;
 use App\Services\Yedekleme\YedekKopyalayici;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Sleep;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -171,6 +172,26 @@ final class YedekKopyalayiciTest extends TestCase
         $this->assertSame(0, BellekHedefi::$yazmaSayisi);
         // Yapılandırma eksiği yeniden denenmez (D8)
         $this->assertSame(1, $kopya->deneme);
+    }
+
+    /**
+     * BY-028-R5, BY-021-R3: bağlı hesabı okunmamış Drive hedefinin konumu
+     * belirlenemez; oraya yapılan kopyanın yeri hiçbir zaman doğrulanamazdı.
+     * Kopya gönderilmez, hedefe istek gitmez, yeniden denenmez.
+     */
+    public function test_hesabi_bilinmeyen_drive_hedefine_kopya_gonderilmez(): void
+    {
+        config(['yedekleme.google.istemci_kimligi' => 'istemci-1.apps.googleusercontent.com', 'yedekleme.google.istemci_sirri' => 'GOCSPX-sir']);
+        Http::preventStrayRequests();
+        Http::fake([]);
+        $hedef = YedekHedefi::factory()->create(['tur' => HedefTuru::GoogleDrive, 'baglanti' => ['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1'], 'gizli_bilgiler' => ['yenileme_anahtari' => 'yenileme']]);
+
+        $kopya = $this->kopyalayici()->kopyala($this->yedek(), $hedef);
+
+        $this->assertSame([KopyaDurumu::Basarisiz, HedefHatasi::YAPILANDIRMA, 1], [$kopya->durum, $kopya->hata_kodu, $kopya->deneme]);
+        // Şifreleme anahtarı eksikliği de aynı kodu verir: nedeni iletiden ayırt edilir
+        $this->assertStringContainsString('konumu belirlenemiyor', (string) $kopya->hata_mesaji);
+        Http::assertNothingSent();
     }
 
     /** Aynı hedefi paylaşan iki plan tek fiziksel kopyaya bağlanır (F6). */

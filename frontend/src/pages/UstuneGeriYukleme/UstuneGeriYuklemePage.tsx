@@ -137,8 +137,9 @@ export function UstuneGeriYuklemePage() {
   const secimlerTamam = secimGerekenler.every((grup) => ayarSecimleri[grup] !== undefined)
 
   // Aynı kararın yeniden denemesi aynı istek anahtarını taşır: yanıtı
-  // alınamayan karar sunucuda kabul edilmiş olabilir (BY-030-R3)
-  const istekAnahtarlari = useIstekAnahtarlari()
+  // alınamayan karar sunucuda kabul edilmiş olabilir (BY-030-R3). Sayfa
+  // oturum dışıdır: kapsam işlemdir; sayfa yenilense de anahtar kalır (BY-030-R4)
+  const istekAnahtarlari = useIstekAnahtarlari(`ustune.${islemKimligi}`)
   const kararEylemi = (secim: 'onayla' | 'geri-don') =>
     secim === 'onayla' ? { secim, ayarSecimleri } : { secim }
   const karar = useMutation({

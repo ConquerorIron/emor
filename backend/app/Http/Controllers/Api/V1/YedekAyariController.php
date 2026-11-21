@@ -15,6 +15,7 @@ use App\Services\Yedekleme\YedekDenetimi;
 use App\Services\Yedekleme\YedekImzasi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use Closure;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -130,7 +131,8 @@ final class YedekAyariController extends Controller
      *   şey değişmez (BY-018-R1).
      * - Commit'ten sonra kopya yazılamazsa ayar yine kaydedilmiştir: yanıt
      *   başarılıdır, `ayar_kopyasi_guncel: false` ve denetimde `ayar_kopyasi`
-     *   `basarisiz` (AYAR_KOPYASI_YAZILAMADI) ile izlenir. Uzlaştırmayı
+     *   `basarisiz` (AYAR_KOPYASI_YAZILAMADI; veritabanındaki şifreli ayar
+     *   çözülemiyorsa AYAR_KOPYASI_AYAR_COZULEMEDI) ile izlenir. Uzlaştırmayı
      *   çalıştırıcının her turu yapar (AyarKopyasi::guncelDegilseYaz — doğrudan
      *   kipte zamanlayıcının dakikalık `yedek:calistir --tek-tur`'u, servis
      *   kipinde servis döngüsü; ikisi de kopyayı yazabilen ve imza anahtarını
@@ -176,6 +178,9 @@ final class YedekAyariController extends Controller
             return;
         } catch (KalicilikDogrulanamadi $hata) {
             [$sonuc, $kod] = [IslemSonucu::Basarili, 'AYAR_KOPYASI_KALICILIGI_DOGRULANAMADI'];
+        } catch (DecryptException $hata) {
+            // Veritabanındaki şifreli ayar (SMTP parolası) çözülemiyor: kopya üretilemez (BY-018-R3)
+            [$sonuc, $kod] = [IslemSonucu::Basarisiz, 'AYAR_KOPYASI_AYAR_COZULEMEDI'];
         } catch (Throwable $hata) {
             [$sonuc, $kod] = [IslemSonucu::Basarisiz, 'AYAR_KOPYASI_YAZILAMADI'];
         }

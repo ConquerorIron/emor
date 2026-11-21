@@ -21,8 +21,9 @@ use Throwable;
  * bütçe biten adım çalışmaz (`SURE_DOLDU`). Adım süresince son zaman etkin
  * bütçedir (SureButcesi::icinde): bağlayıcının içindeki token yenileme, 401
  * sonrası tekrar, yeniden denemeler, beklemeler ve dış süreçler de ona uyar
- * (BY-016-R4). Silme için küçük bir pay ayrılır ve silme, pay da tükenmiş
- * olsa en kısa sınırla yine denenir.
+ * (BY-016-R4). Silme için küçük bir pay ayrılır; önceki bir adım payı da
+ * tüketmişse silme yine bağlayıcının kullanabileceği en kısa süreyle
+ * (TEMIZLIK_ASGARI) denenir (BY-016-R5).
  */
 final class HedefSinayici
 {
@@ -31,6 +32,16 @@ final class HedefSinayici
 
     /** Sınama dosyasını silmeye ayrılan pay (sn) */
     public const TEMIZLIK_PAYI = 5;
+
+    /**
+     * Temizliğin her durumda alacağı en kısa süre (sn). Bağlayıcı çağrıyı
+     * ancak kalan süre en az 1 sn iken yapar (SureButcesi::sinirla): tam 1
+     * sn'lik alt bütçe, ilk denetime kadar geçen bir anla tükenir ve silme
+     * yapılmazdı (BY-016-R5). Olağan akışta temizlik TEMIZLIK_PAYI içinde
+     * kalır (toplam bütçe aşılmaz); bu taban yalnız önceki bir adım payını
+     * aşmışsa (süre sınırı alamayan çağrı) devreye girer.
+     */
+    public const TEMIZLIK_ASGARI = 2;
 
     /** Bütçe bittiği için çalıştırılmayan adımın kodu */
     public const SURE_DOLDU = 'HEDEF_SINAMA_SURESI_DOLDU';
@@ -189,8 +200,10 @@ final class HedefSinayici
             throw new HedefHatasi(self::SURE_DOLDU, 'Sınamanın süresi doldu; bu adım çalıştırılmadı.');
         }
 
+        // Temizlik, bütçe tükenmiş olsa da bağlayıcının gerçekten kullanabileceği sürede çalışır (BY-016-R5)
+        $sure = $herDurumda ? max((float) self::TEMIZLIK_ASGARI, $kullanilabilir) : $kullanilabilir;
         // Süre sınırı en az 1 sn: 0 Symfony Process'te "sınırsız" demektir (G9)
-        $sinir = max(1, (int) floor($kullanilabilir / self::BAGLAYICI_CARPANI));
+        $sinir = max(1, (int) floor($sure / self::BAGLAYICI_CARPANI));
         $onceki = ['yedekleme.sure_siniri.kopya' => config('yedekleme.sure_siniri.kopya'), 'yedekleme.sure_siniri.baglanti' => config('yedekleme.sure_siniri.baglanti')];
         config([
             'yedekleme.sure_siniri.kopya' => min($this->yapilandirma->sureSiniri('kopya'), $sinir),
@@ -198,8 +211,7 @@ final class HedefSinayici
         ]);
 
         try {
-            // Temizlik bütçe bitmiş olsa da en kısa sınırla (1 sn) denenir
-            return $butce->alt(max(1.0, $kullanilabilir))->icinde($is);
+            return $butce->alt($sure)->icinde($is);
         } finally {
             config($onceki);
         }

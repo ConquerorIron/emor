@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\YedekAyari;
 use App\Models\YedekIslemKaydi;
 use App\Services\Yedekleme\AyarKopyasi;
+use App\Services\Yedekleme\AyarSecimi;
 use App\Services\Yedekleme\IslemKaydi;
 use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\IslemTuru;
@@ -220,6 +221,36 @@ final class YedekAyariApiTest extends TestCase
         $this->assertSame(45, app(AyarKopyasi::class)->oku()['yedek_ayarlari']['elle_gun'] ?? null);
         $son = YedekIslemKaydi::query()->latest('id')->firstOrFail();
         $this->assertSame(['ayar_kopyasi', IslemSonucu::Basarili, 'AYAR_KOPYASI_KALICILIGI_DOGRULANAMADI'], [$son->islem, $son->sonuc, $son->ayrinti['kod']]);
+    }
+
+    /**
+     * BY-018-R3: veritabanındaki şifreli SMTP parolası çözülemiyor (bozuk değer,
+     * APP_KEY değişmiş). Ayar kaydedilir; kopya üretilemez, bu denetimde ve
+     * ekranda görünür; okuma ucu ve çalıştırıcı turu düşmez.
+     */
+    public function test_smtp_parolasi_cozulemezse_ayar_kaydedilir_kopya_guncel_degil_okuma_ve_calistirici_dusmez(): void
+    {
+        MailAyari::query()->create(['anahtar' => MailAyari::ANAHTAR, 'sunucu' => 'smtp.ornek.test', 'port' => 587, 'sifreleme' => 'tls', 'kullanici_adi' => 'u', 'sifre' => 'gizli', 'gonderen_adres' => 'a@ornek.test', 'gonderen_ad' => 'eMOR']);
+        $this->putJson(self::K.'/yedek-ayarlari', $this->govde(['elle_gun' => 40]))->assertOk()->assertJsonPath('data.ayar_kopyasi_guncel', true);
+        $yol = config('yedekleme.ayar_kopyasi');
+        $onceki = (string) file_get_contents($yol);
+        MailAyari::query()->toBase()->update(['sifre' => 'bozuk-sifreli-deger']);
+
+        $this->putJson(self::K.'/yedek-ayarlari', $this->govde(['elle_gun' => 45]))
+            ->assertOk()->assertJsonPath('data.elle_gun', 45)->assertJsonPath('data.ayar_kopyasi_guncel', false);
+
+        $this->assertSame(45, YedekAyari::guncel()->elle_gun);
+        $this->assertSame($onceki, file_get_contents($yol));
+        $son = YedekIslemKaydi::query()->latest('id')->firstOrFail();
+        $this->assertSame(['ayar_kopyasi', IslemSonucu::Basarisiz, 'AYAR_KOPYASI_AYAR_COZULEMEDI', 'ayar_guncelle'], [$son->islem, $son->sonuc, $son->ayrinti['kod'], $son->ayrinti['tetikleyen']]);
+        $this->getJson(self::K.'/yedek-ayarlari')->assertOk()->assertJsonPath('data.ayar_kopyasi_guncel', false);
+
+        $this->artisan('yedek:calistir', ['--tek-tur' => true])->assertSuccessful();
+        $this->assertSame($onceki, file_get_contents($yol));
+
+        // Onay ekranının karşılaştırması da düşmez: çözülemeyen parola "farklı" sayılır
+        $mailGrubu = array_values(array_filter(app(AyarSecimi::class)->karsilastir()['gruplar'], fn (array $g): bool => $g['grup'] === 'mail'));
+        $this->assertSame([['grup' => 'mail', 'farkli' => true]], $mailGrubu);
     }
 
     public function test_en_az_sayi_1in_altina_indirilemez_https_olmayan_sinyal_reddedilir(): void

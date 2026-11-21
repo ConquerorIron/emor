@@ -49,6 +49,11 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   değiştir; testte varsayılan ayrı alanlar + adresli tanım kullan.
   *(Codex BY-028-R4: servis rolüne geçiş DB_URL'de uygulama rolüne dönüyordu;
   pg_dump da ham tanımın varsayılanlarına gidiyordu — G1.)*
+  `url` tek gölge değil: PostgreSQL bağlayıcısı DSN'i `connect_via_database` /
+  `connect_via_port`, `read` / `write` alt tanımlarından da kurar. Bağlayıcının
+  DSN'i nereden kurduğunu oku ve etkin değeri gerçek bağlantıyla sına
+  (`current_database()`), tanımdaki alanla değil.
+  *(Codex BY-028-R6: çocuk migration süreci canlı veritabanına bağlanıyordu.)*
   Ayrıştırıcının çıktısını bir alan için düzeltirken **diğer alanların türünü
   ve kabul edilen biçimleri koru.** Bütün sayıları metne çeviren bir çözüm,
   sayısal fatura numarasını "metin", tırnaklı `"0"`'ı "tutar" yapar; daha katı
@@ -227,6 +232,16 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   çıkar (port, kullanıcı, yol biçimi); listede olmayan alan değişikliği
   denetimi atlar. Testte `"001"` / `"1"`, `"22"` / `22` örneklerini dene.
   *(Codex BY-016-R3: kopyalı hedefte port ve `001 → 1` değişikliği geçiyordu.)*
+- **G21 — Dış kayıt değişebilen bir varlığı kimliğiyle anıyorsa anlamının
+  izini de taşısın.** Olay günlüğü "hedef 5'e kopyalandı" derken hedef 5'in
+  adresi sonra değişebilir; geri yükleme / yeniden kurma aynı kimliği bugünkü
+  adrese bağlar. Kimliğe anlam veren özniteliklerin izini (konum, hesap) kayda
+  yaz, bağlarken izi karşılaştır; izsiz eski kaydı "doğrulanamadı" say. Aynı
+  ailede: kimlik alanı (hesap e-postası) ilk kayıtta isteğe bağlı bırakılırsa
+  sonra doğrulanamaz ve yenilemeyi kilitler — ilk kayıtta zorunlu tut, eski
+  kaydı somut kanıtla (klasöre erişim) uzlaştır.
+  *(Codex BY-028-R5: yeni konumdaki kopya eski adrese `tamam` bağlanıyordu.
+  BY-021-R3: hesabı okunamayan ilk Drive bağlantısı yenilenemiyordu.)*
 
 ## 2. Ön yüz
 
@@ -366,6 +381,10 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   ayarlanınca bekleme uzar ya da erken biter; sonlu olmayan / negatif süreyi
   baştan reddet.
   *(BY-001-R2. BY-005-R5: kilit beklemesi `microtime` ile ölçülüyordu.)*
+  Alt bütçenin tabanı tüketicinin kabul eşiğine eşitse (taban 1 sn, tüketici
+  `kalan < 1` → ret) ilk denetimde biter: taban, eşik + hazırlık payından
+  büyük olsun. İki denetim arasında ilerleyen sahte saatle sına.
+  *(Codex BY-016-R5: sınama dosyasının temizliği hiç çağrılmıyordu.)*
 - **D2 — Sır hiçbir yere sızmasın.** Parola komut satırında, ortam
   değişkeninde ya da günlükte olmaz. Hata mesajına ham girdiyi / hatalı
   satırı yazma; kütüphanenin hata metni de sır içerebilir. **Karşı tarafın
@@ -485,6 +504,10 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   (kopya başına bayrak), silme kararını ona bağla; ortadaki parça düşünce
   yerelin kaldığını sına.
   *(Codex BY-010-R2 / BY-024-R3: paket başarısızken yerel arşiv silinebiliyordu.)*
+  Hazırlık bayrağı **doğrulanıp yayımlanan baytlara** bağlanır (imza + kimlik +
+  özet), ad eşleşmesine değil; dayandığı şey sonradan kalkınca (sürüm
+  dönüşümü, temizlik) bayrak kalanlardan yeniden hesaplanır.
+  *(Codex BY-024-R5 / BY-010-R3: aynı adlı bozuk manifest "hazır" sayılıyordu.)*
 - **D5 — Root, başkasının değiştirebildiği yolda bağlantı izleyerek işlem
   yapmasın.** `chown`, `chmod`, `setfacl`, `cp`, `>` hedefteki sembolik
   bağlantıyı izler; yolu yazabilen hesap root'u yönetilen alanın dışına

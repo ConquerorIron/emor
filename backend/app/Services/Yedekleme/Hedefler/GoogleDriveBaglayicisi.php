@@ -49,6 +49,9 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
 
     public const VARSAYILAN_KLASOR_ADI = 'eMOR Yedekleri';
 
+    /** İzin kodu değişiminde hesabın kimliği okunamadı; bağlantı kaydedilmez */
+    public const HESAP_OKUNAMADI = 'GOOGLE_HESAP_OKUNAMADI';
+
     private const YETKI_ADRESI = 'https://accounts.google.com/o/oauth2/v2/auth';
 
     private const TOKEN_ADRESI = 'https://oauth2.googleapis.com/token';
@@ -120,14 +123,21 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
      * İzin kodunu kalıcı yenileme anahtarıyla değiştirir. Kod tek kullanımlık
      * olduğu için istek yeniden denenmez. Kullanıcı izin ekranında Drive
      * kutusunu kaldırdıysa (`drive.file` verilmediyse) bağlantı kurulmaz.
-     * E-posta `about.user`'dan okunur; okunamazsa null — kopyası olan hedefte
-     * çağıran hesabı doğrulanmamış sayar ve bağlantıyı değiştirmez (BY-021-R2).
+     * Hesabın e-postası (`about.user`) ZORUNLUDUR: okunamazsa bağlantı
+     * kurulmaz (HESAP_OKUNAMADI, yeniden denenebilir) — kimliksiz bağlantı
+     * kopya alır, sonra aynı hesapla bile yenilenemezdi (BY-021-R3).
      *
-     * @return array{yenileme_anahtari: string, eposta: string|null}
+     * `$klasorKimligi` verilirse (hesabı kayıtlı olmayan eski hedef) yeni
+     * bağlantının o klasöre erişip erişemediği de sorulur: `drive.file`
+     * yetkisiyle uygulamanın açtığı klasör yalnız o hesaptan görünür, erişim
+     * aynı hesabın kanıtıdır. Doğrulanamazsa (yok, başka tür, hata)
+     * `dogrulanan_klasor` null döner.
+     *
+     * @return array{yenileme_anahtari: string, eposta: string, dogrulanan_klasor: string|null}
      *
      * @throws HedefHatasi
      */
-    public static function kodDegistir(string $kod, string $donusAdresi): array
+    public static function kodDegistir(string $kod, string $donusAdresi, ?string $klasorKimligi = null): array
     {
         [$istemciKimligi, $istemciSirri] = self::istemciBilgileri();
 
@@ -158,7 +168,14 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
             throw new HedefHatasi(HedefHatasi::KIMLIK, 'Google izninde Drive yetkisi verilmedi; izin ekranında Drive kutusu işaretlenmeli.');
         }
 
-        return ['yenileme_anahtari' => $yenileme, 'eposta' => self::eposta($erisim)];
+        $eposta = self::eposta($erisim)
+            ?? throw new HedefHatasi(self::HESAP_OKUNAMADI, 'Bağlanan Google hesabının kimliği (e-posta) okunamadı; bağlantı kaydedilmedi. Yeniden deneyin.');
+
+        return [
+            'yenileme_anahtari' => $yenileme,
+            'eposta' => $eposta,
+            'dogrulanan_klasor' => $klasorKimligi !== null && self::klasoreErisilebilir($erisim, $klasorKimligi) ? $klasorKimligi : null,
+        ];
     }
 
     /** Kimlik doğrulaması ve yedek klasörü (yoksa açılır, kimliği kaydedilir). */
@@ -632,6 +649,24 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
         $eposta = $yanit->successful() ? $yanit->json('user.emailAddress') : null;
 
         return is_string($eposta) && filter_var($eposta, FILTER_VALIDATE_EMAIL) !== false ? $eposta : null;
+    }
+
+    /** Erişim anahtarının hesabında bu kimlikli klasör var mı; her hata "doğrulanamadı" (false). */
+    private static function klasoreErisilebilir(string $erisim, string $kimlik): bool
+    {
+        if (preg_match(self::KIMLIK, $kimlik) !== 1) {
+            return false;
+        }
+
+        try {
+            $yanit = self::istemciKur(app(YedeklemeYapilandirmasi::class), false, true)
+                ->withToken($erisim)
+                ->get(self::API.'/files/'.$kimlik, ['fields' => 'id,mimeType']);
+        } catch (ConnectionException) {
+            return false;
+        }
+
+        return $yanit->successful() && $yanit->json('id') === $kimlik && $yanit->json('mimeType') === self::KLASOR_TURU;
     }
 
     /**

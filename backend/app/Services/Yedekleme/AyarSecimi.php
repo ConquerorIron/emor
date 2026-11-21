@@ -248,7 +248,10 @@ final class AyarSecimi
      * - Kopyası olan hedefin yeri (sunucu, port, klasör, hesap…) değişmişse
      *   hedef geri yüklenen yerinde ve sırlarıyla kalır — geri yüklenen kopya
      *   kayıtları o yerdeki dosyaları gösterir — ama PASİF açılır (bugün o yer
-     *   kullanılmıyor); yeni yer için yönetici yeni hedef ekler.
+     *   kullanılmıyor); yeni yer için yönetici yeni hedef ekler. "Kopyası
+     *   olan" yalnız yeri doğrulanmış kopyadır: dizin kurulurken olay
+     *   günlüğünden gelen başka yerdeki kopya `konum_belirsiz` olur, kilidi
+     *   tutmaz; hedef bugünkü yerine dönünce sonraki tarama onu bağlar (BY-028-R5).
      * - Sırrın gideceği adres değişmişse geri yüklenen (eski) sırlar yeni
      *   adrese gönderilmesin diye silinir, hedef PASİF açılır.
      * - Aksi hâlde bugünkü bağlantı yazılır, sırlar geri yüklenen hâliyle kalır.

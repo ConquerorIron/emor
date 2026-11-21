@@ -91,6 +91,7 @@ const KOPYA_RENGI: Record<KopyaDurumu, RozetRengi> = {
   tamam: 'yesil',
   basarisiz: 'kirmizi',
   silindi: 'gri',
+  konum_belirsiz: 'sari',
 }
 
 /** Çalıştırıcıya bırakılan Yedekler işleri */
@@ -177,7 +178,8 @@ export function YedeklerPage() {
   const silebilir = useIzin('yedekler.sil')
   const kopyalayabilir = useIzin('geri_yukleme.kopya')
   // Üstüne geri yükleme izinle verilmez: yalnız sistem yöneticisi (README §4.9)
-  const yonetici = useAuth().user?.sistem_yoneticisi === true
+  const kullanici = useAuth().user
+  const yonetici = kullanici?.sistem_yoneticisi === true
   const { calisanlar, calisiyor, baslat } = useIstekTakibi('yedekler')
 
   const [filtre, setFiltre] = useState<YedekFiltresi>(BOS_FILTRE)
@@ -220,8 +222,9 @@ export function YedeklerPage() {
   // bir sonraki çizimde kapatır; aradaki tıklamayı eşzamanlı bayrak yakalar.
   const gonderiliyor = useRef(false)
   // Yanıtı alınamayan iş sunucuda kabul edilmiş olabilir: aynı işin yeniden
-  // denemesi aynı istek anahtarını taşır, ikinci iş bırakılmaz (BY-014-R2)
-  const istekAnahtarlari = useIstekAnahtarlari()
+  // denemesi — sayfa yenilendikten sonra da — aynı istek anahtarını taşır,
+  // ikinci iş bırakılmaz (BY-014-R2, BY-014-R3)
+  const istekAnahtarlari = useIstekAnahtarlari(`kullanici.${kullanici?.id ?? 'yok'}`)
   const istek = useMutation({
     mutationFn: (yeni: YedekIstegi) => istegiBirak(yeni, istekAnahtarlari.anahtar(yeni)),
     onSuccess: (kabul, gonderilen) => {

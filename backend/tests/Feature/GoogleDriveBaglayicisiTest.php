@@ -374,7 +374,7 @@ final class GoogleDriveBaglayicisiTest extends TestCase
 
         $sonuc = GoogleDriveBaglayicisi::kodDegistir('4/izin-kodu', 'https://erp.ornek.test/donus');
 
-        $this->assertSame(['yenileme_anahtari' => self::YENILEME, 'eposta' => 'yedek@ornek.test'], $sonuc);
+        $this->assertSame(['yenileme_anahtari' => self::YENILEME, 'eposta' => 'yedek@ornek.test', 'dogrulanan_klasor' => null], $sonuc);
         Http::assertSent(fn (Request $istek): bool => $istek->url() === self::TOKEN && $istek->data() === [
             'grant_type' => 'authorization_code',
             'code' => '4/izin-kodu',

@@ -29,6 +29,9 @@ use Throwable;
  *   yerde kopyası yoksa durumu `silindi` olur.
  * - Yerel dosyası silinmiş ama manifesti duran yedek, olay günlüğündeki uzak
  *   kopyalarıyla bulunur (F7).
+ * - Olaydaki tamam kopya hedefe ancak konum izi hedefin bugünkü iziyle
+ *   aynıysa `tamam` bağlanır; değilse (ya da iz yoksa) `konum_belirsiz`
+ *   olur ve hiçbir yerde kopya sayılmaz (HedefKonumu::konumdaMi; BY-028-R5).
  * - Tek bir bozuk dosya taramayı durdurmaz.
  * - Yedek klasörü yoksa ya da okunamıyorsa (bağlanmamış disk, izin) tarama
  *   dizine DOKUNMADAN hata verir: "erişemiyorum" boş klasör sayılıp kayıtlar
@@ -48,6 +51,7 @@ final class DizinKurucu
         private readonly OlayGunlugu $olaylar,
         private readonly SahipsizYedekler $sahipsizler,
         private readonly YedekDeposu $depo,
+        private readonly HedefKonumu $konum,
     ) {}
 
     /**
@@ -199,13 +203,23 @@ final class DizinKurucu
 
                 $kopya = YedekKopyasi::query()->firstOrNew(['yedek_id' => $yedek->id, 'yedek_hedefi_id' => $hedef->id]);
                 $kopyaDurumu = KopyaDurumu::from($k['durum']);
+                // Tamam kopya hedefe ancak olaydaki konum izi hedefin BUGÜNKÜ iziyle aynıysa bağlanır:
+                // geri yüklenen veritabanında hedef eski yerinde olabilir (BY-028-R5). İzsiz eski olay da doğrulanamaz.
+                if ($kopyaDurumu === KopyaDurumu::Tamam && ! $this->konum->konumdaMi($hedef, $k['konum_izi'])) {
+                    $kopyaDurumu = KopyaDurumu::KonumBelirsiz;
+                }
                 $kopya->fill([
                     'durum' => $kopyaDurumu,
-                    // Silme yetkisi reddiyle bizden çıkmış kopya kodunu korur (BY-023-R1)
-                    'hata_kodu' => $kopyaDurumu === KopyaDurumu::Silindi ? $k['hata_kodu'] : $kopya->hata_kodu,
+                    'hata_kodu' => match ($kopyaDurumu) {
+                        // Silme yetkisi reddiyle bizden çıkmış kopya kodunu korur (BY-023-R1)
+                        KopyaDurumu::Silindi => $k['hata_kodu'],
+                        KopyaDurumu::KonumBelirsiz => HedefKonumu::DOGRULANAMADI,
+                        default => $kopya->hata_kodu === HedefKonumu::DOGRULANAMADI ? null : $kopya->hata_kodu,
+                    },
                     'uzak_kimlik' => $k['uzak_kimlik'],
                     'sifreli' => $k['sifreli'],
                     'sifreli_sha256' => $k['sifreli_sha256'],
+                    'konum_izi' => $k['konum_izi'],
                     'deneme' => $kopya->deneme ?? 0,
                 ])->save();
 

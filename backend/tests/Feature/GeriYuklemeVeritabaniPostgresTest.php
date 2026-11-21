@@ -15,6 +15,8 @@ use App\Services\Yedekleme\PostgresKaynakVeritabani;
 use App\Services\Yedekleme\YedekAlici;
 use App\Services\Yedekleme\YedekDurumu;
 use App\Services\Yedekleme\YedekKaynagi;
+use App\Services\Yedekleme\YeniVeritabanindaMigration;
+use Illuminate\Database\Connectors\PostgresConnector;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -190,6 +192,53 @@ final class GeriYuklemeVeritabaniPostgresTest extends TestCase
         $this->assertSame(YedekDurumu::Tamam, $oncesi->durum, (string) $oncesi->hata_mesaji);
         $manifest = app(ManifestDeposu::class)->oku(ManifestDeposu::jsonYolu(config('yedekleme.klasor').'/'.$oncesi->dosya_adi))->manifest;
         $this->assertSame([$canli, 2], [$manifest->veritabani, $manifest->satirSayilari['t']]);
+    }
+
+    /**
+     * BY-028-R6: adresin sorgu parametresi `connect_via_database` Laravel'in
+     * DSN'inde `database`'in önüne geçer. Çocuk migration süreci yine de yeni
+     * veritabanına bağlanır ve migration'lar orada (canlıda değil) çalışır.
+     */
+    public function test_db_url_deki_connect_via_database_e_ragmen_cocuk_migration_sureci_yeni_veritabanina_baglanir(): void
+    {
+        $canli = $this->canliAc(ozelYetki: false);
+        $hedef = 'erp_geri_20261121_000000_c3'.bin2hex(random_bytes(3));
+        $this->veritabanlari[] = $hedef;
+        $this->yonetici("CREATE DATABASE {$hedef} OWNER {$this->rolApp};");
+        config(['database.connections.yedek_test' => [
+            'driver' => 'pgsql', 'url' => sprintf('postgresql://%s:%s@127.0.0.1:5432/%s?connect_via_database=%s', $this->rolApp, $this->parolalar[$this->rolApp], $canli, $canli),
+            'host' => '127.0.0.1', 'port' => '5432', 'database' => 'laravel', 'username' => 'root', 'password' => '',
+            'charset' => 'utf8', 'search_path' => 'public', 'sslmode' => 'prefer',
+        ]]);
+        DB::purge('yedek_test');
+        $migration = app(YeniVeritabanindaMigration::class);
+
+        $dosya = $migration->yapilandirmaDosyasiYaz($hedef, $this->klasor);
+        $dsn = (new class extends PostgresConnector
+        {
+            /** @param  array<string, mixed>  $tanim */
+            public function uret(array $tanim): string
+            {
+                return $this->getDsn($tanim);
+            }
+        })->uret((require $dosya)['database']['connections']['yedek_test']);
+        $this->assertStringContainsString("dbname='{$hedef}'", $dsn);
+
+        // Gerçek alt süreç, yalnız bu yapılandırmayla
+        $surec = new \Symfony\Component\Process\Process(
+            [PHP_BINARY, base_path('artisan'), 'tinker', '--execute', 'echo "VT=".DB::selectOne("select current_database() as ad")->ad;'],
+            base_path(),
+            ['APP_CONFIG_CACHE' => $dosya],
+        );
+        $surec->setTimeout(60)->run();
+        $this->assertTrue($surec->isSuccessful(), $surec->getErrorOutput());
+        $this->assertStringContainsString("VT={$hedef}", $surec->getOutput());
+
+        $migration->calistir($hedef);
+
+        $migrationTablosu = fn (string $vt): mixed => $this->baglan($vt, $this->rolApp)->query("SELECT to_regclass('public.migrations')")->fetchColumn();
+        $this->assertNotNull($migrationTablosu($hedef));
+        $this->assertNull($migrationTablosu($canli));
     }
 
     public function test_varsayilan_yetkili_canlida_bariyer_geri_sarilinca_varsayilana_esdeger_doner(): void

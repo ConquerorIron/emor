@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Yedekleme;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Process;
 use LogicException;
 use Throwable;
@@ -21,6 +22,9 @@ use Throwable;
  *
  * - canlı veritabanını gösteren HER pgsql bağlantısı yeni veritabanını gösterir
  *   (adresle — DB_URL — tanımlı bağlantı önce somut tanıma çevrilir),
+ * - o bağlantılarda DSN'i `database` / `port` yerine kuran yönlendirme alanları
+ *   (YONLENDIRMELER) kaldırılır: bağlantı, pg_dump / pg_restore'un kullandığı
+ *   uç noktaya (host:port) ve yeni veritabanına gider,
  * - varsayılan bağlantı yedekleme bağlantısıdır,
  * - önbellek `array`, oturum `array`, kuyruk `sync`tir.
  *
@@ -29,6 +33,18 @@ use Throwable;
  */
 final class YeniVeritabanindaMigration
 {
+    /**
+     * Laravel'in PostgreSQL bağlantısını `database` / `port`'tan ÖNCE kuran
+     * alanlar (kurulu 13.x: PostgresConnector::getDsn `connect_via_database ??
+     * database`, `connect_via_port ?? port`; ConnectionFactory `read` / `write`
+     * / `direct` alt tanımlarını üste birleştirir, `pooled` doğrudan uç ister).
+     * DB_URL'nin sorgu parametresinden de gelirler (`?connect_via_database=…`).
+     * Yeni veritabanına göre çevrilemezler (havuzdaki takma ad, yineleme
+     * sunucusu yeni veritabanını tanımaz): yeni veritabanı bağlantısında
+     * kaldırılırlar (BY-028-R6).
+     */
+    private const YONLENDIRMELER = ['connect_via_database', 'connect_via_port', 'read', 'write', 'direct', 'pooled'];
+
     public function __construct(
         private readonly YedeklemeYapilandirmasi $yapilandirma,
         private readonly PgAraclari $pg,
@@ -95,8 +111,10 @@ final class YeniVeritabanindaMigration
                 continue;
             }
 
-            if (($tanim['database'] ?? null) === $canli) {
-                $tanim['database'] = $hedef;
+            if (in_array($canli, self::veritabaniAdlari($tanim), true)) {
+                // Yönlendirme alanları `database`'in önüne geçer (BY-028-R6): çocuk
+                // bağlantı, pg_restore'un az önce yazdığı yere — host:port/yeni veritabanı — gider
+                $tanim = [...Arr::except($tanim, self::YONLENDIRMELER), 'database' => $hedef];
             }
             $ayarlar['database']['connections'][$ad] = $tanim;
         }
@@ -125,6 +143,33 @@ final class YeniVeritabanindaMigration
         }
 
         return $yol;
+    }
+
+    /**
+     * Tanımın bağlanabileceği bütün veritabanı adları: `database`,
+     * `connect_via_database` ve okuma / yazma / doğrudan alt tanımlarındakiler
+     * (tek tanım ya da tanım listesi).
+     *
+     * @param  array<string, mixed>  $tanim
+     * @return list<mixed>
+     */
+    private static function veritabaniAdlari(array $tanim): array
+    {
+        $tanimlar = [$tanim];
+        foreach (['read', 'write', 'direct'] as $tur) {
+            $alt = $tanim[$tur] ?? null;
+            if (is_array($alt)) {
+                array_push($tanimlar, ...(array_is_list($alt) ? array_filter($alt, 'is_array') : [$alt]));
+            }
+        }
+
+        $adlar = [];
+        foreach ($tanimlar as $t) {
+            $adlar[] = $t['database'] ?? null;
+            $adlar[] = $t['connect_via_database'] ?? null;
+        }
+
+        return $adlar;
     }
 
     private function geciciKlasor(): string

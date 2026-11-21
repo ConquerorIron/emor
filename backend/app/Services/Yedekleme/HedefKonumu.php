@@ -43,6 +43,14 @@ use Illuminate\Database\Eloquent\Builder;
  *
  * Karşılaştırma alan biçimine göre normalleştirilmiş değerler arasında
  * KESİN eşitliktir (`===`).
+ *
+ * Aynı bileşenler konum izini de verir (`iz`, BY-028-R5): kopya kaydı ve
+ * imzalı kopya olayı yapıldığı yerin izini taşır; dizin kurulurken izi
+ * hedefin bugünkü iziyle uyuşmayan (ya da izsiz) kopya hedefe `tamam`
+ * bağlanmaz (KopyaDurumu::KonumBelirsiz). Kilit kopyası duran hedefin yerini
+ * sabit tutar; iz, kilidin göremediği yolu kapatır: veritabanı geri
+ * yüklenince hedef eski yerine döner, olay günlüğü sonraki yerdeki kopyaları
+ * da taşır.
  */
 final class HedefKonumu
 {
@@ -78,7 +86,48 @@ final class HedefKonumu
     /** `withExists` sütunu: liste sorgusunda hedef başına ayrı sorgu olmasın */
     public const KOPYALI_SUTUNU = 'konumda_kopya_var';
 
+    /** Yeri hedefin bugünkü konumu olarak doğrulanamayan kopyanın hata kodu (KopyaDurumu::KonumBelirsiz) */
+    public const DOGRULANAMADI = 'KOPYA_KONUMU_DOGRULANAMADI';
+
     public function __construct(private readonly HedefKatalogu $katalog) {}
+
+    /**
+     * Hedefin bugünkü fiziksel konumunun değişmez kimliği (BY-028-R5): tür +
+     * konum bileşenlerinin (aşağıdaki karşılaştırmayla AYNI normalleştirme)
+     * kanonik JSON'unun SHA-256'sı. Kopya kaydına ve imzalı kopya olayına
+     * yazılır; sır ve konum belirlemeyen alan girmez. Konum bilinemiyorsa
+     * null: bağlayıcısı kurulu olmayan tür ya da bağlayıcının yazdığı
+     * bileşeni (Google hesabı) henüz olmayan hedef.
+     */
+    public function iz(YedekHedefi $hedef): ?string
+    {
+        if (! $this->katalog->destekleniyorMu($hedef->tur)) {
+            return null;
+        }
+
+        $varsayilanlar = $this->varsayilanlar($hedef);
+        $baglayicininki = self::BAGLAYICI_ALANLARI[$hedef->tur->value] ?? [];
+        $konum = [];
+        foreach ($this->alanlar($hedef, self::KONUM_ALANLARI) as $ad) {
+            $konum[$ad] = self::normallestir(self::BICIMLER[$ad] ?? 'metin', $hedef->baglanti[$ad] ?? null, $varsayilanlar[$ad] ?? null);
+            if ($konum[$ad] === null && in_array($ad, $baglayicininki, true)) {
+                return null;
+            }
+        }
+
+        return hash('sha256', KanonikJson::kodla(['tur' => $hedef->tur->value, 'konum' => $konum]));
+    }
+
+    /**
+     * Kopyanın konum izi hedefin bugünkü konumunu mu gösteriyor. İzsiz (eski)
+     * kopya ve konumu bilinemeyen hedef doğrulanamaz: false.
+     */
+    public function konumdaMi(YedekHedefi $hedef, ?string $iz): bool
+    {
+        $bugunku = $iz === null ? null : $this->iz($hedef);
+
+        return $bugunku !== null && hash_equals($bugunku, $iz);
+    }
 
     /**
      * Liste sorgusuna "konumda kopya var mı" sütununu ekler.
@@ -157,10 +206,7 @@ final class HedefKonumu
      */
     private function farkli(YedekHedefi $hedef, array $adlar, array $yeniAcik): array
     {
-        $varsayilanlar = [];
-        foreach ($this->katalog->tanim($hedef->tur)->alanlar as $alan) {
-            $varsayilanlar[$alan->ad] = $alan->varsayilan;
-        }
+        $varsayilanlar = $this->varsayilanlar($hedef);
 
         return array_values(array_filter($adlar, function (string $ad) use ($hedef, $yeniAcik, $varsayilanlar): bool {
             $bicim = self::BICIMLER[$ad] ?? 'metin';
@@ -169,6 +215,21 @@ final class HedefKonumu
             return self::normallestir($bicim, $hedef->baglanti[$ad] ?? null, $varsayilan)
                 !== self::normallestir($bicim, $yeniAcik[$ad] ?? null, $varsayilan);
         }));
+    }
+
+    /**
+     * Tanımdaki alan varsayılanları (boş değer bağlayıcıda bunlara döner).
+     *
+     * @return array<string, mixed>
+     */
+    private function varsayilanlar(YedekHedefi $hedef): array
+    {
+        $varsayilanlar = [];
+        foreach ($this->katalog->tanim($hedef->tur)->alanlar as $alan) {
+            $varsayilanlar[$alan->ad] = $alan->varsayilan;
+        }
+
+        return $varsayilanlar;
     }
 
     /**

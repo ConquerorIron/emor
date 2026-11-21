@@ -122,6 +122,73 @@ final class HedefSinayiciTest extends TestCase
     }
 
     /**
+     * BY-016-R5: süre sınırı alamayan bir adım (NAS dosya çağrısı) bütçeyi
+     * tüketse de temizlik, bağlayıcının gerçekten kullanabildiği süreyle
+     * çağrılır: silme isteğini hazırlarken saat ilerler (1 ns), bağlayıcı
+     * sınırını çağrı anında okur ve silme yapılır.
+     */
+    public function test_butce_tukenince_temizlik_ilerleyen_saatte_de_silme_cagrisini_kullanilabilir_sureyle_yapar(): void
+    {
+        config(['yedekleme.sure_siniri.kopya' => 900, 'yedekleme.sure_siniri.baglanti' => 10]);
+        $saat = new class
+        {
+            public int $ns = 1_000_000_000;
+        };
+        $baglayici = new class($saat) implements HedefBaglayicisi
+        {
+            /** @var array<string, string> */
+            public array $dosyalar = [];
+
+            public ?int $silmeSiniri = null;
+
+            public function __construct(private readonly object $saat) {}
+
+            public function baglan(): void {}
+
+            public function yaz(string $yerelYol, string $ad): string
+            {
+                // Süre sınırı almayan yazım bütün bütçeyi tüketir
+                $this->saat->ns += HedefSinayici::TOPLAM_SURE * 1_000_000_000;
+                $this->dosyalar[$ad] = (string) file_get_contents($yerelYol);
+
+                return $ad;
+            }
+
+            public function oku(string $uzakKimlik, string $yerelYol): void
+            {
+                file_put_contents($yerelYol, $this->dosyalar[$uzakKimlik]);
+            }
+
+            public function sil(string $uzakKimlik): void
+            {
+                $this->saat->ns += 1;
+                $this->silmeSiniri = app(YedeklemeYapilandirmasi::class)->sureSiniri('baglanti');
+                unset($this->dosyalar[$uzakKimlik]);
+            }
+
+            public function listele(): array
+            {
+                return array_keys($this->dosyalar);
+            }
+
+            public function kalanAlan(): ?int
+            {
+                return null;
+            }
+        };
+        $yazimSonu = $saat->ns + HedefSinayici::TOPLAM_SURE * 1_000_000_000;
+
+        $adimlar = collect(app(HedefSinayici::class)->sina($baglayici, new SureButcesi(HedefSinayici::TOPLAM_SURE, fn (): int => $saat->ns)))->keyBy('adim');
+
+        $this->assertSame(['yaz' => true, 'oku' => false, 'sil' => true], $adimlar->only(['yaz', 'oku', 'sil'])->map(fn (array $a) => $a['basarili'])->all());
+        $this->assertSame(HedefSinayici::SURE_DOLDU, $adimlar['oku']['kod']);
+        $this->assertSame([], $baglayici->dosyalar);
+        $this->assertGreaterThanOrEqual(1, $baglayici->silmeSiniri);
+        // Temizliğin tabanı, aşılmış bütçenin üstüne yalnız TEMIZLIK_ASGARI kadar ekleyebilir
+        $this->assertLessThanOrEqual($yazimSonu + HedefSinayici::TEMIZLIK_ASGARI * 1_000_000_000, $saat->ns);
+    }
+
+    /**
      * BY-016-R4: Drive tek çağrıda token + istek + 401 sonrası token yenileme
      * yapar; yenileme 5xx ile yeniden denenir. Her istek kendisine verilen süre
      * sınırının sonunda yanıt verir (yavaş sunucu), beklemeler sahte saati

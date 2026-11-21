@@ -253,6 +253,39 @@ final class YedekAliciTest extends TestCase
     }
 
     /**
+     * BY-011-R4: dosyası ve imzalı manifesti diskte yayımlanmış `calisiyor`
+     * kaydı, disk ayrılmışken (boş bağlama noktası) alınmaya çalışılan yedekte
+     * "yarıda kaldı" yapılmaz; disk geri gelince sonraki yedek onu tamamlar.
+     */
+    public function test_disk_ayrilmisken_sahipsiz_kayit_degismez_disk_gelince_manifestiyle_tamamlanir(): void
+    {
+        $this->sahtePgAraclari();
+        $kilit = $this->kilitAl();
+        app(YedekAlici::class)->al($kilit, YedekKaynagi::Elle);
+        $olen = app(YedekAlici::class)->al($kilit, YedekKaynagi::Elle);
+        $olen->update(['durum' => YedekDurumu::Calisiyor, 'imzali' => false, 'dogrulama_durumu' => DogrulamaDurumu::Dogrulanmadi, 'boyut' => null, 'sha256' => null, 'bitti' => null]);
+        $klasor = config('yedekleme.klasor');
+        $dump = $klasor.'/'.$olen->dosya_adi;
+        $ozet = hash_file('sha256', $dump);
+        rename($klasor, $klasor.'-disk');
+        mkdir($klasor, 0750);
+
+        $diskYokken = app(YedekAlici::class)->al($kilit, YedekKaynagi::Elle);
+        $olenDiskYokken = $olen->fresh();
+        rmdir($klasor);
+        rename($klasor.'-disk', $klasor);
+        app(YedekAlici::class)->al($kilit, YedekKaynagi::Elle);
+
+        $this->assertSame([YedekDurumu::Basarisiz, YedekAlmaHatasi::DEPO], [$diskYokken->durum, $diskYokken->hata_kodu]);
+        $this->assertSame([YedekDurumu::Calisiyor, null, null], [$olenDiskYokken->durum, $olenDiskYokken->hata_kodu, $olenDiskYokken->bitti]);
+        $olen->refresh();
+        $this->assertSame([YedekDurumu::Tamam, null], [$olen->durum, $olen->hata_kodu]);
+        $this->assertTrue($olen->imzali);
+        $this->assertSame($ozet, $olen->sha256);
+        $this->assertFileExists(ManifestDeposu::jsonYolu($dump));
+    }
+
+    /**
      * @return array<string, array{\Closure(string): void}>
      */
     public static function dogrulanamayanDepolar(): array

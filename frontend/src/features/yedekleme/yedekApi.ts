@@ -6,7 +6,8 @@ import { ISTEK_ANAHTARI_BASLIGI } from './useIstekAnahtarlari'
 export type YedekKaynagi = 'elle' | 'plan' | 'yayin_oncesi' | 'geri_yukleme_oncesi'
 export type YedekDurumu = 'kuyrukta' | 'calisiyor' | 'tamam' | 'basarisiz' | 'silindi'
 export type DogrulamaDurumu = 'dogrulanmadi' | 'ozet_tamam' | 'sinama_gecti' | 'basarisiz'
-export type KopyaDurumu = 'bekliyor' | 'kopyalaniyor' | 'tamam' | 'basarisiz' | 'silindi'
+export type KopyaDurumu =
+  'bekliyor' | 'kopyalaniyor' | 'tamam' | 'basarisiz' | 'silindi' | 'konum_belirsiz'
 
 export const YEDEK_KAYNAKLARI: YedekKaynagi[] = [
   'elle',

@@ -25,7 +25,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property string|null $uzak_kimlik
  * @property bool $sifreli
  * @property string|null $sifreli_sha256
- * @property bool $kurtarma_hazir Şifreli kopya için: o hedefe bu yedeğin manifestini taşıyan kurtarma paketi doğrulandı (BY-010-R2)
+ * @property bool $kurtarma_hazir Şifreli kopya için: o hedefte bu yedeğin doğrulanmış manifestini (imza, kimlik, özet) taşıyan tamam bir kurtarma paketi sürümü duruyor (BY-010-R2, BY-024-R5)
+ * @property string|null $konum_izi Kopyanın yapıldığı yerin kimliği (HedefKonumu::iz; BY-028-R5); izsiz kopya yeri doğrulanamayandır
  * @property int $deneme
  * @property string|null $hata_kodu
  * @property string|null $hata_mesaji

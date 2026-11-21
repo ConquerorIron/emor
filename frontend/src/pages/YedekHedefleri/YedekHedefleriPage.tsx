@@ -35,6 +35,7 @@ const KOPYA_RENGI: Record<KopyaDurumu, RozetRengi> = {
   tamam: 'yesil',
   basarisiz: 'kirmizi',
   silindi: 'gri',
+  konum_belirsiz: 'sari',
 }
 
 type OnayIslemi = 'sil' | 'google_kes' | 'anahtar_sifirla'

@@ -162,6 +162,11 @@ sunucu yöneticisi yetkisi ister ve bu dokümanın kapsamı dışındadır.
     (`yedek_kopyalari.kurtarma_hazir`; §9 "Kurtarma paketi"). Paketin
     manifest arşivi yedek klasöründeki bütün manifestleri taşır: sonraki
     başarılı paket, önceki paketi yarım kalmış kopyaları da hazır yapar.
+    Hazırlık adın tutmasına değil arşive giren baytlara bağlıdır (BY-024-R5):
+    manifestin imzası geçerli, yedek kimliği aynı ve özeti katalogdakiyle aynı
+    olmalı. Dayanak hedefte KALAN tamam paket sürümleridir: yedeğin
+    doğrulanmış manifestini taşıyan son sürüm dönüşümle silinince işaret geri
+    alınır.
     Şifresiz kopya yalnız sunucu içi yerel disk hedefidir; kurtarma paketi ona
     gitmez, ekrandaki geri yükleme yedek klasöründe kalan manifestle yapılır:
     `tamam` olması yeter. Planlı yedeğin yerel dosyası, en az bir uzak kopyası
@@ -177,7 +182,10 @@ sunucu yöneticisi yetkisi ister ve bu dokümanın kapsamı dışındadır.
     sistemin deposu olduğunu gösterir; kurulum betiği açar. Ayrı diske
     bağlanmış klasörün diski ayrılınca bağlama noktası boş ve okunabilir
     kalır: işaret görünmez, tarama dizine dokunmadan durur ("dosya yok"
-    yapmaz), yedek alma kök diske yazmaz (`YEDEK_DEPO_ISARETI_YOK`). İşaretsiz
+    yapmaz), yedek alma kök diske yazmaz (`YEDEK_DEPO_ISARETI_YOK`); ölen
+    süreçten kalan `calisiyor` kayıt da depo doğrulanmadan "yarıda kaldı"
+    yapılmaz, disk geri gelince diskteki imzalı manifestiyle tamamlanır
+    (BY-011-R4). İşaretsiz
     klasörü uygulama yalnız katalogda tamamlanmış yedek yoksa (ilk kurulum,
     tablolar boşaltılıp yeniden kurma) ya da katalogdaki bir yedeğin manifesti
     / dump'ı oradaysa (işaretten önce kurulmuş depo) kendisi işaretler.
@@ -315,7 +323,11 @@ yönetici komutuyla içeri alınır (YDK-09). Tarayıcıdan yedek yükleme yok
 
 - Hedef tanımlanırken "Google ile bağlan" düğmesi Google'ın izin ekranını açar;
   giriş yapan hesap yedeklerin gideceği hesaptır. Ekranda bağlı hesabın e-posta
-  adresi ve bağlanma tarihi görünür; "Bağlantıyı kes" ile kaldırılır.
+  adresi ve bağlanma tarihi görünür; "Bağlantıyı kes" ile kaldırılır. Hesabın
+  e-postası okunamazsa bağlantı kaydedilmez, yeniden denenir (BY-021-R3).
+  Kopyası olan hedef ancak aynı hesapla yeniden bağlanır; hesabı kayıtlı
+  olmayan eski hedefte aynılık, yeni bağlantının kayıtlı yedek klasörüne
+  erişebilmesiyle kanıtlanır.
 - Yedekler gece kimse giriş yapmadan gideceği için uygulama, Google'dan kalıcı
   bir yenileme anahtarı alır ve şifreli saklar. Kullanıcının parolası uygulamaya
   hiç gelmez.
@@ -576,13 +588,29 @@ olay günlüğüne** yazılır. Dizin yeniden kurulurken manifest ile olay günl
 birlikte okunur. Böylece eski bir yedeğe dönüldüğünde, bugün sabitlenmiş bir
 yedek sabitliğini kaybedip temizliğe girmez.
 
+**Kopyanın yeri de kaydedilir (BY-028-R5).** Kopya kaydı ve kopya olayı,
+kopyanın yapıldığı yerin değişmez izini taşır: hedefin konum alanlarının
+(sunucu, port, kullanıcı, klasör, kova, Google hesabı…) normalleştirilmiş
+hâlinin SHA-256'sı (`HedefKonumu::iz`; sır içermez). Dizin kurulurken olaydaki
+iz hedefin bugünkü iziyle uyuşmayan — ya da izi olmayan eski — kopya hedefe
+`tamam` bağlanmaz, **"konumu doğrulanamadı"** (`konum_belirsiz`) olur: ekranda
+uyarıyla görünür, geri yükleme kaynağı, silme, saklama ve kurtarma hazırlığı
+onu kopya saymaz, hedefin konum kilidini tutmaz. Örnek: eski yedeğin anında
+kopyasız olan hedef sonra yer değiştirip yeni yerde kopya almışsa, eski
+veritabanı geri yüklenince hedef eski yerindedir; yeni yerdeki kopya ona
+bağlanmaz. Hedef kopyanın yerine döndürülünce sonraki taramada kopya yeniden
+`tamam` olur. Konumu bilinemeyen hedefe (hesabı okunmamış Google bağlantısı)
+kopya gönderilmez.
+
 **Ayarlar da geri döner.** Planlar, saklama kuralları ve hedef tanımları
 veritabanında durduğu için üstüne geri yüklemede eski hâllerine döner. Her
 değişiklikte bu ayarların bir kopyası dosyaya yazılır — yalnız commit olmuş
 ayarlardan, veritabanından yeniden okunarak (BY-018-R2): commit düşerse dosya
 değişmez; commit'ten sonra yazılamazsa ayar kaydedilmiş sayılır, ekranda "kopya
 güncel değil" görünür ve çalıştırıcının her turu (doğrudan kipte zamanlayıcının
-dakikalık turu, servis kipinde servis döngüsü) farkı görüp yazar. Geri yüklemeden sonra
+dakikalık turu, servis kipinde servis döngüsü) farkı görüp yazar. Veritabanındaki şifreli
+ayar (SMTP parolası) çözülemiyorsa kopya üretilemez: kayıt yine başarılıdır, denetime
+`AYAR_KOPYASI_AYAR_COZULEMEDI` düşer, ekran "kopya güncel değil" gösterir (BY-018-R3). Geri yüklemeden sonra
 dosyadaki güncel ayarlar ile veritabanındaki eski ayarlar karşılaştırılır; fark
 yöneticiye gösterilir ve hangisinin geçerli olacağı sorulur (§6.4).
 
@@ -646,7 +674,9 @@ kaydı, sonra yayın; denetim yazılamazsa istek yayınlanmaz. İstek dosyası
 `bekleyen/`'e taşındıktan sonraki hata (klasör eşitlenemedi) isteği başarısız
 göstermez: istek çalıştırıcıya görünmüştür, kabul (202) döner, denetime
 belirsizlik notu düşer. İstemci her eylem için bir `Idempotency-Key` üretir ve
-yeniden denemede aynısını gönderir; istek kimliği bu anahtar ile eylemden
+yeniden denemede aynısını gönderir — bekleyen anahtar tarayıcıda
+(`localStorage`, kullanıcı ya da işlem kapsamında, 15 dakika) durur, sayfa
+yenilense de kaybolmaz, kabulde silinir (BY-014-R3, BY-030-R4); istek kimliği bu anahtar ile eylemden
 (tür, kullanıcı, parametreler) türetilir. O kimlikle istek (bekleyen /
 işleniyor / sonuç) varsa ikinci dosya yazılmaz, mevcut kabul döner; bakış ve
 yazım `bekleyen/.kabul.kilit` dosya kilidi altında tek adımdır.
@@ -713,6 +743,11 @@ da yapılabilir.
    Migration **ayrı bir süreçte**, bütün veritabanı ayarı yeni veritabanını
    gösterecek şekilde çalışır. Yalnız bağlantı adını değiştirmek yetmez:
    önbelleği, kuyruğu ve varsayılan bağlantıyı kullanan kod canlı `erp`'ye gider.
+   Canlıyı gösteren bağlantılarda DSN'i `database` / `port`'tan önce kuran
+   yönlendirme alanları (`connect_via_database`, `connect_via_port`, `read`,
+   `write`, `direct`, `pooled` — DB_URL sorgu parametresinden de gelir)
+   kaldırılır: çocuk süreç pg_restore'un yazdığı uç noktaya (host:port) ve yeni
+   veritabanına bağlanır (BY-028-R6).
    Buraya kadar canlı veritabanına dokunulmadı. 4. ya da 5. adımda hata olursa
    yeni veritabanı silinir, servisler başlatılır, bakım modundan çıkılır; veri
    aynen durur.

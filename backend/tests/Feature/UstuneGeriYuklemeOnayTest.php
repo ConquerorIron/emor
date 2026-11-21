@@ -17,6 +17,8 @@ use App\Services\Yedekleme\BakimModu;
 use App\Services\Yedekleme\ErisimAnahtari;
 use App\Services\Yedekleme\GeriYuklemeDurumu;
 use App\Services\Yedekleme\GeriYuklemeHatasi;
+use App\Services\Yedekleme\Hedefler\HedefKatalogu;
+use App\Services\Yedekleme\HedefTuru;
 use App\Services\Yedekleme\IslemKaydi;
 use App\Services\Yedekleme\IstekKutusu;
 use App\Services\Yedekleme\Istekler\IstekCalistiricisi;
@@ -25,6 +27,7 @@ use App\Services\Yedekleme\OnayBilgisi;
 use App\Services\Yedekleme\SiklikTuru;
 use App\Services\Yedekleme\UstuneGeriYuklemeAdimi;
 use App\Services\Yedekleme\UstuneGeriYukleyici;
+use App\Services\Yedekleme\YedekKopyalayici;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Events\CommandStarting;
@@ -42,6 +45,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 use Tests\TestCase;
+use Tests\Yedekleme\BellekHedefi;
 use Tests\Yedekleme\SahtePostgres;
 use Tests\Yedekleme\UstuneGeriYuklemeOrtami;
 use Tests\Yedekleme\YedeklemeOrtami;
@@ -430,6 +434,47 @@ final class UstuneGeriYuklemeOnayTest extends TestCase
         $uyarilar = implode(' ', json_decode((string) DB::table('yedek_islem_kayitlari')->where('islem', 'geri_yukle_ustune_ayar_secimi')->value('ayrinti'), true)['uyarilar'] ?? []);
         $this->assertStringContainsString('"Disk": kopyaların durduğu yer (klasor)', $uyarilar);
         $this->assertStringContainsString('"FTP" bağlantı adresi yedekten sonra değişmiş', $uyarilar);
+    }
+
+    /**
+     * @return iterable<string, array{0: string, 1: string, 2: KopyaDurumu}>
+     */
+    public static function hedefSecimleri(): iterable
+    {
+        // [hedefler seçimi, onaydan sonra hedefin kovası, kopyanın durumu]
+        yield 'güncel: hedef bugünkü yerine döner, kopya ona bağlanır' => ['guncel', 'yeni-kova', KopyaDurumu::Tamam];
+        yield 'geri yüklenen: hedef eski yerinde kalır, kopyanın yeri doğrulanamaz' => ['geri_yuklenen', 'eski-kova', KopyaDurumu::KonumBelirsiz];
+    }
+
+    /**
+     * BY-028-R5: yedeğin anında kopyasız olan hedef sonra yer değiştirmiş ve
+     * yeni yerde kopya almış. Üstüne geri yüklemede dizin olay günlüğünden
+     * kurulurken bu kopya eski yere dönen hedefe `tamam` bağlanmaz; "güncel"
+     * hedef seçilince hedef bugünkü yerine döner (eski yerde doğrulanmış
+     * kopyası olmadığı için kilitli değildir) ve kopya ona bağlanır.
+     */
+    #[DataProvider('hedefSecimleri')]
+    public function test_yedekten_sonra_yer_degistiren_kopyasiz_hedefin_yeni_yer_kopyasi_eski_yere_tamam_baglanmaz(string $secim, string $kova, KopyaDurumu $kopyaDurumu): void
+    {
+        BellekHedefi::sifirla();
+        app(HedefKatalogu::class)->kaydet(HedefTuru::S3, BellekHedefi::class);
+        // Bugün: hedef yeni kovada, yedeğin kopyası orada
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Uzak', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'yeni-kova']]);
+        $yedek = $this->ustuneYedekAl();
+        $this->assertSame(KopyaDurumu::Tamam, app(YedekKopyalayici::class)->kopyala($yedek, $hedef)->durum);
+        // Geri yüklenen veritabanı (yedeğin anı): hedef eski kovada ve kopyasız
+        $this->yerDegistirmeSonrasi = function () use ($hedef): void {
+            YedekKopyasi::query()->delete();
+            $hedef->forceFill(['baglanti' => ['kova' => 'eski-kova']])->save();
+        };
+        [$kayit] = $this->ustuneBaslat($yedek, $this->yonetici->id);
+        $this->assertNull($this->kancaHatasi);
+
+        $son = app(UstuneGeriYukleyici::class)->onayla($this->kilitAl(), $kayit->kimlik, ['hedefler' => $secim]);
+
+        $this->assertSame(UstuneGeriYuklemeAdimi::Onaylandi->value, $son->adim);
+        $this->assertSame($kova, $hedef->refresh()->baglanti['kova']);
+        $this->assertSame($kopyaDurumu, YedekKopyasi::query()->where('yedek_id', $yedek->id)->where('yedek_hedefi_id', $hedef->id)->sole()->durum);
     }
 
     public function test_onay_bilgisi_ortam_kullanici_rol_ayar_ve_kaybolacak_yukleme_farkini_verir(): void

@@ -350,15 +350,8 @@ final class SaklamaPolitikasi
     /** Bağ kalktığında kopyanın güncel plan listesi olay günlüğüne (dizin yeniden kurulurken bağ geri gelmesin). */
     private function kopyaOlayi(YedekKopyasi $kopya): void
     {
-        $this->olaylar->ekle(YedekOlayi::simdi($kopya->yedek->kimlik, OlayTuru::Kopya, [
-            'hedef_id' => $kopya->yedek_hedefi_id,
-            'hedef_ad' => $kopya->hedef->ad,
-            'durum' => $kopya->durum->value,
-            'uzak_kimlik' => $kopya->uzak_kimlik,
-            'sifreli' => $kopya->sifreli,
-            'sifreli_sha256' => $kopya->sifreli_sha256,
-            'plan_idleri' => array_map('intval', $kopya->planlar()->pluck('yedek_planlari.id')->all()),
-        ]));
+        // Kopyalayıcıyla aynı biçim: konum izi düşerse dizin kopyayı yeri doğrulanamamış sayardı (BY-028-R5)
+        $this->olaylar->ekle(YedekOlayi::kopya($kopya, $kopya->yedek->kimlik, $kopya->hedef->ad));
     }
 
     /**

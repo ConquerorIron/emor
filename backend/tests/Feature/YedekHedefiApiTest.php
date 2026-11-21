@@ -365,37 +365,106 @@ final class YedekHedefiApiTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{0: string|null, 1: bool}>
+     * Sağlayıcı sahteleri: hesap bilgisi (`about`) ve kayıtlı klasörün yeni
+     * bağlantıyla sorgusu; null verilen uç sahtelenmez (istek giderse test düşer).
      */
-    public static function dogrulanamayanHesaplar(): iterable
-    {
-        // [kayıtlı e-posta, Google hesap bilgisi okunabiliyor mu]
-        yield 'hesap bilgisi alınamadı (geçici hata)' => ['yedek@ornek.test', false];
-        yield 'kayıtlı hesap bilinmiyor' => [null, true];
-    }
-
-    /** BY-021-R2 */
-    #[DataProvider('dogrulanamayanHesaplar')]
-    public function test_kopyali_drive_hedefinde_hesap_dogrulanamazsa_eski_anahtar_ve_klasor_degismez(?string $kayitliEposta, bool $hesapOkunur): void
+    private function googleYanitlari(int $hesapDurumu, ?int $klasorDurumu = null): void
     {
         Sleep::fake();
         config(['yedekleme.google.istemci_kimligi' => 'istemci-1.apps.googleusercontent.com', 'yedekleme.google.istemci_sirri' => 'GOCSPX-sir', 'app.url' => 'https://erp.ornek.test']);
         Http::preventStrayRequests();
-        Http::fake([
+        Http::fake(array_filter([
             'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'ya29.erisim', 'refresh_token' => 'yeni-anahtar', 'expires_in' => 3599, 'scope' => GoogleDriveBaglayicisi::KAPSAM, 'token_type' => 'Bearer']),
-            'https://www.googleapis.com/drive/v3/about?fields=*' => $hesapOkunur ? Http::response(['user' => ['emailAddress' => 'yedek@ornek.test']]) : Http::response('', 503),
-        ]);
+            'https://www.googleapis.com/drive/v3/about?fields=*' => $hesapDurumu === 200 ? Http::response(['user' => ['emailAddress' => 'yedek@ornek.test']]) : Http::response('', $hesapDurumu),
+            'https://www.googleapis.com/drive/v3/files/klasor-1?*' => match ($klasorDurumu) {
+                null => null,
+                200 => Http::response(['id' => 'klasor-1', 'mimeType' => 'application/vnd.google-apps.folder']),
+                default => Http::response('', $klasorDurumu),
+            },
+        ]));
+    }
+
+    /**
+     * @return iterable<string, array{0: string|null, 1: int, 2: int|null, 3: int, 4: string}>
+     */
+    public static function dogrulanamayanHesaplar(): iterable
+    {
+        // [kayıtlı e-posta, hesap bilgisi yanıtı, kayıtlı klasör sorgusunun yanıtı, beklenen durum, beklenen kod]
+        yield 'hesap bilgisi alınamadı (geçici hata)' => ['yedek@ornek.test', 503, null, 422, 'GOOGLE_HESAP_OKUNAMADI'];
+        yield 'kayıtlı hesap bilinmiyor, kayıtlı klasör yeni hesapta yok' => [null, 200, 404, 409, 'GOOGLE_HESAP_DOGRULANAMADI'];
+        yield 'kayıtlı hesap bilinmiyor, klasör sorgusu geçici hata' => [null, 200, 503, 409, 'GOOGLE_HESAP_DOGRULANAMADI'];
+    }
+
+    /** BY-021-R2, R3 */
+    #[DataProvider('dogrulanamayanHesaplar')]
+    public function test_kopyali_drive_hedefinde_hesap_dogrulanamazsa_eski_anahtar_ve_klasor_degismez(?string $kayitliEposta, int $hesapDurumu, ?int $klasorDurumu, int $beklenenDurum, string $beklenenKod): void
+    {
+        $this->googleYanitlari($hesapDurumu, $klasorDurumu);
         $baglanti = ['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'durum' => 'yeniden_baglan', ...($kayitliEposta === null ? [] : ['eposta' => $kayitliEposta])];
         $hedef = YedekHedefi::factory()->create(['ad' => 'Drive', 'tur' => HedefTuru::GoogleDrive, 'baglanti' => $baglanti, 'gizli_bilgiler' => ['yenileme_anahtari' => 'eski-anahtar']]);
         YedekKopyasi::query()->create(['yedek_id' => Yedek::factory()->create()->id, 'yedek_hedefi_id' => $hedef->id, 'durum' => KopyaDurumu::Tamam, 'uzak_kimlik' => 'drive-dosya-1', 'sifreli' => true]);
 
         $this->postJson(self::K.'/google/donus', ['kod' => 'yetki-kodu', 'durum' => $this->googleDurumu($hedef)])
-            ->assertStatus(409)->assertJsonPath('kod', 'GOOGLE_HESAP_DOGRULANAMADI');
+            ->assertStatus($beklenenDurum)->assertJsonPath('kod', $beklenenKod);
 
         $hedef->refresh();
         $this->assertEquals($baglanti, $hedef->baglanti);
         $this->assertSame(['yenileme_anahtari' => 'eski-anahtar'], $hedef->gizli_bilgiler);
-        $this->assertSame('GOOGLE_HESAP_DOGRULANAMADI', YedekIslemKaydi::query()->where('islem', 'hedef_google_baglan')->sole()->hata_mesaji);
+        $this->assertSame($beklenenKod, YedekIslemKaydi::query()->where('islem', 'hedef_google_baglan')->sole()->hata_mesaji);
+    }
+
+    /**
+     * BY-021-R3: ilk bağlantıda hesap kimliği okunamazsa hiçbir şey kaydedilmez
+     * (kimliksiz hedef kopya alıp sonra yenilenemez hâle düşmesin); yeniden
+     * "Google ile bağlan" denenebilir.
+     */
+    public function test_ilk_google_baglantisinda_hesap_okunamazsa_hicbir_sey_kaydedilmez_yeniden_denenebilir(): void
+    {
+        Sleep::fake();
+        config(['yedekleme.google.istemci_kimligi' => 'istemci-1.apps.googleusercontent.com', 'yedekleme.google.istemci_sirri' => 'GOCSPX-sir', 'app.url' => 'https://erp.ornek.test']);
+        $hesapOkunur = false;
+        Http::preventStrayRequests();
+        Http::fake(function (Request $istek) use (&$hesapOkunur) {
+            if ($istek->url() === 'https://oauth2.googleapis.com/token') {
+                return Http::response(['access_token' => 'ya29.erisim', 'refresh_token' => 'yeni-anahtar', 'expires_in' => 3599, 'scope' => GoogleDriveBaglayicisi::KAPSAM, 'token_type' => 'Bearer']);
+            }
+
+            return str_starts_with($istek->url(), 'https://www.googleapis.com/drive/v3/about?') && $hesapOkunur
+                ? Http::response(['user' => ['emailAddress' => 'yedek@ornek.test']])
+                : Http::response('', 503);
+        });
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Drive', 'tur' => HedefTuru::GoogleDrive, 'baglanti' => ['klasor_adi' => 'eMOR']]);
+
+        $this->postJson(self::K.'/google/donus', ['kod' => 'yetki-kodu', 'durum' => $this->googleDurumu($hedef)])
+            ->assertStatus(422)->assertJsonPath('kod', 'GOOGLE_HESAP_OKUNAMADI');
+
+        $hedef->refresh();
+        $this->assertSame(['klasor_adi' => 'eMOR'], $hedef->baglanti);
+        $this->assertNull($hedef->gizli_bilgiler);
+
+        $hesapOkunur = true;
+        $this->postJson(self::K.'/google/donus', ['kod' => 'yetki-kodu-2', 'durum' => $this->googleDurumu($hedef)])->assertOk();
+        $hedef->refresh();
+        $this->assertSame(['yedek@ornek.test', 'yeni-anahtar'], [$hedef->baglanti['eposta'], $hedef->gizli_bilgiler['yenileme_anahtari']]);
+    }
+
+    /**
+     * BY-021-R3: hesabı kayıtlı olmayan (eski) kopyalı hedef, yeni bağlantı
+     * kayıtlı klasöre erişebiliyor ve klasör aynıysa aynı hesap sayılır: hesap
+     * e-postası doldurulur, klasör (ve içindeki kopyalar) korunur.
+     */
+    public function test_kimliksiz_eski_kopyali_drive_hedefi_kayitli_klasore_erisen_hesapla_yeniden_baglanir_klasor_korunur(): void
+    {
+        $this->googleYanitlari(200, 200);
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Drive', 'tur' => HedefTuru::GoogleDrive, 'baglanti' => ['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'durum' => 'yeniden_baglan'], 'gizli_bilgiler' => ['yenileme_anahtari' => 'eski-anahtar']]);
+        YedekKopyasi::query()->create(['yedek_id' => Yedek::factory()->create()->id, 'yedek_hedefi_id' => $hedef->id, 'durum' => KopyaDurumu::Tamam, 'uzak_kimlik' => 'drive-dosya-1', 'sifreli' => true]);
+
+        $this->postJson(self::K.'/google/donus', ['kod' => 'yetki-kodu', 'durum' => $this->googleDurumu($hedef)])->assertOk();
+
+        $hedef->refresh();
+        $this->assertEquals(['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'eposta' => 'yedek@ornek.test'], $hedef->baglanti);
+        $this->assertSame(['yenileme_anahtari' => 'yeni-anahtar'], $hedef->gizli_bilgiler);
+        Http::assertSent(fn (Request $istek): bool => str_starts_with($istek->url(), 'https://www.googleapis.com/drive/v3/files/klasor-1?') && $istek->hasHeader('Authorization', 'Bearer ya29.erisim'));
     }
 
     /** BY-021-R2: aynı hesap yeniden bağlanınca klasör (ve içindeki kopyalar) aynen kullanılır */

@@ -14,6 +14,7 @@ use App\Models\YedekKopyasi;
  *
  * 1. Yerel dosya.
  * 2. Tamamlanmış, ŞİFRESİZ uzak kopyalar (ör. ikinci yerel disk), eskiden yeniye.
+ *    Yeri doğrulanamayan (`konum_belirsiz`) kopya kaynak değildir (BY-028-R5).
  *
  * Yalnız şifreli kopya kalmışsa çözmek için özel anahtar gerekir; sunucu özel
  * anahtar saklamaz (README §4.7): komut satırından `yedek:sifre-coz` ile

@@ -22,6 +22,12 @@ use LogicException;
  * - Yoksa `basarisiz` (`YEDEK_YARIDA_KALDI`): geçici dosyalar ve dosyası
  *   olmayan manifest silinir; son başarısız deneme saklamanın temkin
  *   kuralına görünür.
+ *
+ * "Dosya yok" kararı ancak doğrulanmış depoda verilir (D3, D6; BY-011-R4):
+ * hiçbir kayda dokunmadan önce yedek klasörü depo işaretiyle doğrulanır
+ * (YedekDeposu). Disk ayrılmışken bağlama noktası boş görünür; manifesti ve
+ * dump'ı diskte yayımlanmış yedek "yarıda kaldı" sayılırdı. Doğrulanamazsa
+ * hiçbir kayıt değişmez; disk geri gelince sonraki çağrı yedeği tamamlar.
  */
 final class SahipsizYedekler
 {
@@ -32,18 +38,22 @@ final class SahipsizYedekler
         private readonly ManifestDeposu $manifestler,
         private readonly OlayGunlugu $olaylar,
         private readonly YedekDenetimi $denetim,
+        private readonly YedekDeposu $depo,
     ) {}
 
     /**
      * @return array{tamamlanan: int, yarida_kalan: int}
      *
      * @throws LogicException Kilit tutulmuyor (başka bir süreç o anda yedek alıyor olabilir)
+     * @throws DepoIsaretiYok Yedek klasörü depo olarak doğrulanamadı (hiçbir kayıt değişmedi)
      */
     public function sonuclandir(YedekKilidi $kilit): array
     {
         if (! $kilit->dosyayiTutuyorMu($this->yapilandirma->durumKlasoru().'/kilit')) {
             throw new LogicException('Sahipsiz yedek yalnız yedekleme kilidini tutan süreçte sonuçlandırılır.');
         }
+
+        $this->depo->hazirla();
 
         $sayac = ['tamamlanan' => 0, 'yarida_kalan' => 0];
 

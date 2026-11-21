@@ -42,9 +42,13 @@ use Illuminate\Validation\ValidationException;
  * - Kopyası duran hedefin konumu (sunucu, port, klasör, kova…) değiştirilemez:
  *   409 `HEDEF_KONUMU_DEGISMEZ`, yeni konum için yeni hedef açılır
  *   (`HedefKonumu`, BY-016-R1/R3; denetim ve kayıt hedef satırının kilidi
- *   altında). Sır yenileme serbesttir. Kopyalı Google Drive hedefi ancak
- *   aynı hesap doğrulanınca yeniden bağlanır; hesap bilgisi alınamazsa eski
- *   bağlantı aynen kalır: 409 `GOOGLE_HESAP_DOGRULANAMADI` (BY-021-R2).
+ *   altında). Sır yenileme serbesttir. Google bağlantısı hesabın kimliği
+ *   (e-posta) okunmadan kaydedilmez: 422 `GOOGLE_HESAP_OKUNAMADI`, yeniden
+ *   denenebilir (BY-021-R3). Kopyalı Google Drive hedefi ancak aynı hesap
+ *   doğrulanınca yeniden bağlanır — kayıtlı e-postayla ya da (hesabı
+ *   kayıtlı olmayan eski hedefte) yeni bağlantının kayıtlı klasöre
+ *   erişmesiyle; doğrulanamazsa eski bağlantı aynen kalır: 409
+ *   `GOOGLE_HESAP_DOGRULANAMADI` (BY-021-R2, R3).
  * - "Sına" web isteğinde çalışır; bütün adımlar tek toplam süre bütçesini
  *   paylaşır (`HedefSinayici`, D9).
  */
@@ -244,23 +248,32 @@ final class YedekHedefiController extends Controller
             $kilit->release();
         }
 
+        // Hesabı kayıtlı olmayan eski hedefte kayıtlı klasör yeni bağlantıyla da sorulur (BY-021-R3)
+        $kayitliKlasor = ($hedef->baglanti['eposta'] ?? null) === null ? ($hedef->baglanti['klasor_kimligi'] ?? null) : null;
+
         try {
-            $sonuc = GoogleDriveBaglayicisi::kodDegistir($veri['kod'], self::googleDonusAdresi());
+            $sonuc = GoogleDriveBaglayicisi::kodDegistir($veri['kod'], self::googleDonusAdresi(), is_string($kayitliKlasor) ? $kayitliKlasor : null);
         } catch (HedefHatasi $hata) {
             $this->denetle('hedef_google_baglan', $request, $hedef, [], $hata->kod);
 
-            return response()->json(['kod' => $hata->kod, 'mesaj' => __('hata.yedek_google_baglanamadi')], 422);
+            // Hesap kimliği okunamadı: hiçbir şey kaydedilmedi, yeniden denenebilir
+            $mesaj = $hata->kod === GoogleDriveBaglayicisi::HESAP_OKUNAMADI ? 'hata.yedek_google_hesap_okunamadi' : 'hata.yedek_google_baglanamadi';
+
+            return response()->json(['kod' => $hata->kod, 'mesaj' => __($mesaj)], 422);
         }
 
         $red = DB::transaction(function () use ($hedef, $sonuc): ?string {
             $hedef = YedekHedefi::query()->whereKey($hedef->getKey())->lockForUpdate()->firstOrFail();
             $oncekiHesap = $hedef->baglanti['eposta'] ?? null;
-            $ayniHesap = $oncekiHesap !== null && $oncekiHesap === $sonuc['eposta'];
+            // Kayıtlı hesap bilinmiyorsa: yeni bağlantı kayıtlı klasöre (kilit altındaki değer) erişebildiyse aynı hesaptır
+            $klasorKaniti = $oncekiHesap === null && $sonuc['dogrulanan_klasor'] !== null
+                && $sonuc['dogrulanan_klasor'] === ($hedef->baglanti['klasor_kimligi'] ?? null);
+            $ayniHesap = ($oncekiHesap !== null && $oncekiHesap === $sonuc['eposta']) || $klasorKaniti;
 
             // Kopyalı hedefte dosya kimlikleri bağlı hesaptadır: hesabın aynı olduğu
-            // DOĞRULANMADIKÇA (yeni ya da kayıtlı e-posta bilinmiyor) eski bağlantı aynen kalır
+            // DOĞRULANMADIKÇA (kayıtlı hesap bilinmiyor, klasör kanıtı yok) eski bağlantı aynen kalır
             if (! $ayniHesap && $this->konum->kilitliAlanlar($hedef) !== []) {
-                return $oncekiHesap === null || $sonuc['eposta'] === null ? 'GOOGLE_HESAP_DOGRULANAMADI' : 'HEDEF_KONUMU_DEGISMEZ';
+                return $oncekiHesap === null ? 'GOOGLE_HESAP_DOGRULANAMADI' : 'HEDEF_KONUMU_DEGISMEZ';
             }
 
             $baglanti = $hedef->baglanti ?? [];
