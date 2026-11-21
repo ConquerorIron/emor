@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Yedekleme\Istekler;
 
 use App\Models\YedekKopyasi;
+use App\Services\Yedekleme\DepoIsaretiYok;
 use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use App\Services\Yedekleme\Hedefler\YerelDiskBaglayicisi;
@@ -13,6 +14,7 @@ use App\Services\Yedekleme\KopyaDurumu;
 use App\Services\Yedekleme\KopyaSilmeKaydi;
 use App\Services\Yedekleme\KullanimDenetimi;
 use App\Services\Yedekleme\YedekDenetimi;
+use App\Services\Yedekleme\YedekDeposu;
 use App\Services\Yedekleme\YedekKilidi;
 use App\Services\Yedekleme\YerelDosyaSilici;
 use App\Yetki\Izin;
@@ -34,6 +36,7 @@ final class SilIsleyicisi implements IstekIsleyicisi
         private readonly HedefKatalogu $katalog,
         private readonly KullanimDenetimi $kullanim,
         private readonly YerelDosyaSilici $yerelSilici,
+        private readonly YedekDeposu $depo,
         private readonly KopyaSilmeKaydi $silmeKaydi,
         private readonly YedekDenetimi $denetim,
     ) {}
@@ -53,6 +56,13 @@ final class SilIsleyicisi implements IstekIsleyicisi
 
         if ($this->kullanim->kullanimdaMi($yedek)) {
             throw new IstekReddi('YEDEK_KULLANIMDA', 'Yedek şu anda kullanımda (kopyalanıyor ya da geri yükleniyor).');
+        }
+
+        // Bağlanmamış diskte dosya "yok" görünür; yedek katalogdan düşmesin (BY-011-R3, G1)
+        try {
+            $this->depo->hazirla();
+        } catch (DepoIsaretiYok $hata) {
+            throw new IstekReddi('YEDEK_SILME_DEPO_DOGRULANAMADI', $hata->getMessage());
         }
 
         $hatalar = [];

@@ -65,21 +65,38 @@ final class AyarKopyasi
      * Kopya veritabanındaki ayarlardan farklıysa (ya da yoksa / bozuksa) yazar.
      * Çalıştırıcı her turda çağırır: ayar ekranları web sürecinde değişir,
      * servis kipinde web süreci kopyayı yazamaz (README §5.5); mail ayarı
-     * ekranı da kopyayı bilmez.
+     * ekranı da kopyayı bilmez. Doğrudan kipte ayar ekranının commit'ten sonra
+     * yazamadığı kopyayı da bu uzlaştırır (BY-018-R2).
      *
      * @return bool Yazıldı mı
      */
     public function guncelDegilseYaz(): bool
     {
-        $mail = MailAyari::query()->where('anahtar', MailAyari::ANAHTAR)->first();
-
-        if (($this->oku()['parmak_izi'] ?? null) === $this->parmakIzi($this->icerik($mail), $mail)) {
+        if ($this->veritabanindakiyleAyniMi()) {
             return false;
         }
 
         $this->yaz();
 
         return true;
+    }
+
+    /**
+     * Ekranın "kopya güncel mi" bilgisi (BY-018-R2): imzası tutan kopya
+     * veritabanındaki ayarlarla aynı mı. İmza anahtarı bu süreçte okunamıyorsa
+     * (servis kipinde web süreci — README §5.5) bilinemez: null. Güncel
+     * değilse çalıştırıcının her turu yazar (guncelDegilseYaz).
+     */
+    public function guncelMi(): ?bool
+    {
+        return $this->imza->anahtarVarMi() ? $this->veritabanindakiyleAyniMi() : null;
+    }
+
+    private function veritabanindakiyleAyniMi(): bool
+    {
+        $mail = MailAyari::query()->where('anahtar', MailAyari::ANAHTAR)->first();
+
+        return ($this->oku()['parmak_izi'] ?? null) === $this->parmakIzi($this->icerik($mail), $mail);
     }
 
     /**

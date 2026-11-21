@@ -38,6 +38,9 @@ final class BellekHedefi implements HedefBaglayicisi
     /** Adı bu metinle biten dosyanın yazımı hata verir (çok dosyalı işin ara adımı) */
     public static ?string $yazilamayanAdSonu = null;
 
+    /** Kimliği bu metinle biten dosyanın silinmesi hata verir (kod: $hataKodu ?? SILINEMEDI); diğerleri silinir */
+    public static ?string $silinemeyenAdSonu = null;
+
     public function __construct(public readonly YedekHedefi $hedef) {}
 
     public static function sifirla(): void
@@ -50,6 +53,7 @@ final class BellekHedefi implements HedefBaglayicisi
         self::$yazmaSayisi = 0;
         self::$herYazimdaYeniKimlik = false;
         self::$yazilamayanAdSonu = null;
+        self::$silinemeyenAdSonu = null;
     }
 
     public static function tanim(HedefTuru $tur): HedefTuruTanimi
@@ -87,6 +91,9 @@ final class BellekHedefi implements HedefBaglayicisi
     public function sil(string $uzakKimlik): void
     {
         $this->hata('sil', HedefHatasi::SILINEMEDI);
+        if (self::$silinemeyenAdSonu !== null && str_ends_with($uzakKimlik, self::$silinemeyenAdSonu)) {
+            throw new HedefHatasi(self::$hataKodu ?? HedefHatasi::SILINEMEDI, "sahte silme hatası: {$uzakKimlik}");
+        }
         unset(self::$dosyalar[$uzakKimlik]);
     }
 

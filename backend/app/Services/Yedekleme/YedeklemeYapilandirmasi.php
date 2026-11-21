@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Yedekleme;
 
+use App\Services\Yedekleme\Hedefler\HedefHatasi;
+
 /**
  * Yedekleme yapılandırmasının tek okuma noktası (config/yedekleme.php).
  * Değeri tüketen yer doğrular: geçersiz ayar sessizce dönüştürülmez, açık
@@ -91,11 +93,15 @@ final class YedeklemeYapilandirmasi
      * metni) kabul edilir: `abc`, `0`, `-10`, `1.5` açık hatadır — Symfony
      * Process'te 0 "sınırsız" demektir (G9).
      *
+     * Etkin bir süre bütçesi varsa ("Bağlantıyı Sına") değer kalan süreye
+     * kısalır; son zaman geçtiyse çağrı yapılmaz (SureButcesi, BY-016-R4).
+     *
      * @throws YapilandirmaHatasi
+     * @throws HedefHatasi Etkin bütçenin son zamanı geçti
      */
     public function sureSiniri(string $ad): int
     {
-        return $this->pozitifTamSayi("sure_siniri.{$ad}");
+        return SureButcesi::sinirla($this->pozitifTamSayi("sure_siniri.{$ad}"));
     }
 
     public function kopyaDenemeSayisi(): int

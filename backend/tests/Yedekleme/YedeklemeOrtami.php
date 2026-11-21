@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Yedekleme;
 
 use App\Services\Yedekleme\KaynakVeritabani;
+use App\Services\Yedekleme\YedekDeposu;
 use App\Services\Yedekleme\YedekImzasi;
 use App\Services\Yedekleme\YedekKilidi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
@@ -12,6 +13,7 @@ use Closure;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Str;
 
 /**
  * Yedekleme testlerinin ortak ortamı: geçici klasörler, imza anahtarı, sahte
@@ -46,6 +48,10 @@ trait YedeklemeOrtami
             ],
             'yedekleme.araclar' => ['pg_dump' => '/usr/bin/pg_dump', 'pg_restore' => '/usr/bin/pg_restore', 'psql' => '/usr/bin/psql'],
         ]);
+
+        // Kurulumdaki gibi: yedek klasörü depo işaretiyle hazır (YedekDeposu; BY-011-R3)
+        mkdir($this->yedekKoku.'/yedekler', 0750);
+        file_put_contents($this->yedekKoku.'/yedekler/'.YedekDeposu::ISARET, 'emor-yedek-deposu '.Str::uuid()->toString()."\n");
 
         app(YedekImzasi::class)->anahtarUret();
         $this->kaynakVeritabani = new SahteKaynakVeritabani;
@@ -103,11 +109,11 @@ trait YedeklemeOrtami
         }
     }
 
-    /** @return list<string> */
+    /** @return list<string> Depo işareti hariç */
     protected function klasordekiDosyalar(): array
     {
         $klasor = config('yedekleme.klasor');
 
-        return is_dir($klasor) ? array_values(array_diff(scandir($klasor) ?: [], ['.', '..'])) : [];
+        return is_dir($klasor) ? array_values(array_diff(scandir($klasor) ?: [], ['.', '..', YedekDeposu::ISARET])) : [];
     }
 }

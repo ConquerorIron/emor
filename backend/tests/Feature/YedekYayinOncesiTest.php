@@ -166,6 +166,42 @@ final class YedekYayinOncesiTest extends TestCase
         Process::assertNothingRan();
     }
 
+    /**
+     * G1 / BY-014-R2: istek yayımlandı ama klasör eşitlenemedi — yayın durmaz,
+     * aynı isteğin sonucu beklenir; ikinci yedek isteği bırakılmaz.
+     */
+    public function test_istek_klasoru_esitlenemese_de_yayimlanan_istegin_sonucu_beklenir(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('root klasör iznini aşar (T11).');
+        }
+        config(['yedekleme.calistirici' => 'servis']);
+        Process::fake();
+        Sleep::fake();
+        $kutu = app(IstekKutusu::class);
+        $klasor = config('yedekleme.istek_klasoru').'/bekleyen';
+        @mkdir($klasor, 0770, true);
+        // Yazılabilir ve geçilebilir ama okunamaz: taşıma olur, eşitlemek için açılamaz
+        chmod($klasor, 0300);
+        $istekler = [];
+        Sleep::whenFakingSleep(function () use ($kutu, $klasor, &$istekler): void {
+            chmod($klasor, 0770);
+            foreach ($kutu->bekleyenler() as $yol) {
+                $istekler[] = basename($yol, '.json');
+                $kutu->sil($yol);
+                $kutu->sonucYaz(basename($yol, '.json'), 'tamam');
+            }
+        });
+
+        try {
+            $this->artisan('yedek:yayin-oncesi')->assertSuccessful();
+        } finally {
+            chmod($klasor, 0770);
+        }
+
+        $this->assertCount(1, $istekler);
+    }
+
     public function test_servis_yanit_vermezse_yayin_durur_istek_geri_cekilir(): void
     {
         config(['yedekleme.calistirici' => 'servis']);

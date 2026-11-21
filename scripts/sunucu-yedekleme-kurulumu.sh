@@ -12,8 +12,9 @@
 #   1. Linux kullanıcısı ve grubu   emor-yedek (giriş yapamaz)
 #   2. Grup üyelikleri              web kullanıcısı yedekleri okuyabilsin, istek bırakabilsin
 #   3. Klasörler ve izinler         /var/lib/emor-yedek/{yedekler,istekler,durum,gunluk,gizli,onbellek}
-#                                   (README §5.5 tablosu; yayın kullanıcısına ACL ile dar erişim)
-#   4. Gizli dosyalar               veritabanı parola dosyası; imza anahtarının yeri
+#                                   (README §5.5 tablosu; yayın kullanıcısına ACL ile dar erişim);
+#                                   yedekler/.emor-yedek-deposu depo işareti (var olana dokunmaz)
+#   4. Gizli dosyalar              veritabanı parola dosyası; imza anahtarının yeri
 #   5. PostgreSQL rolleri           emor_yedek (yedek / geri yükleme), emor_inceleme (salt okunur)
 #   6. Servis tanımı                emor-yedek.service — KURULUR, ETKİNLEŞTİRİLMEZ
 #   7. Dar sudo kuralı              yalnız kuyruk servisini durdur / başlat / sorgula
@@ -451,6 +452,45 @@ if [[ -d "$YEDEK_KOKU/durum" ]]; then
   done
 elif [[ "$KIP" == denetle ]]; then
   eksik "ACL'ler ve kilit dosyası (klasörler yok)"
+fi
+
+# Depo işareti (BY-011-R3; backend YedekDeposu): yedekler/'in bu sistemin
+# deposu olduğunu gösteren tek satırlık dosya, "emor-yedek-deposu <uuid>".
+# Yedek klasörü ayrı bir diske bağlıysa disk ayrılınca bağlama noktası boş ve
+# okunabilir kalır; işaret diskte durduğu için o zaman görünmez ve uygulama
+# tarama / yedek almayı dizine ve klasöre dokunmadan durdurur. Disk ayrı
+# bağlanacaksa ÖNCE bağlanır, sonra bu betik çalışır (sunucu-kurulumu.md).
+# Var olan işarete dokunulmaz (kimliği değişmez); biçimi tanınmıyorsa elle
+# bakılır. Dosyayı servis hesabı açar ve okur: root, servisin yazabildiği
+# klasörde dosya açmaz / bağlantı izlemez (bağlantı güvenliği). Yerine
+# sabit bağlantıyla konur: aynı anda açılmış bir işaretin üstüne yazılmaz.
+DEPO_ISARETI="$YEDEK_KOKU/yedekler/.emor-yedek-deposu"
+DEPO_BICIMI=$'^emor-yedek-deposu [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\n?$'
+if [[ -n "${REDDEDILEN[$YEDEK_KOKU/yedekler]:-}" ]]; then
+  :   # yukarıda bildirildi
+elif [[ ! -d "$YEDEK_KOKU/yedekler" ]] || (( ! KULLANICI_VAR )); then
+  if [[ "$KIP" == denetle ]]; then eksik "depo işareti (yedekler/ klasörü yok)"; fi
+elif tur_denetle "$DEPO_ISARETI" f; then
+  if [[ -f "$DEPO_ISARETI" ]]; then
+    # Sondaki "x": komut ikamesi sondaki satır sonlarını silmesin (biçim birebir denetlenir)
+    depo_icerigi="$(runuser -u "$YEDEK_KULLANICI" -- head -c 200 -- "$DEPO_ISARETI" 2>/dev/null; printf x)"
+    depo_icerigi="${depo_icerigi%x}"
+    if [[ "$depo_icerigi" =~ $DEPO_BICIMI ]]; then
+      tamam "depo işareti: $DEPO_ISARETI"
+    else
+      eksik "depo işaretinin biçimi tanınmıyor: $DEPO_ISARETI — betik dokunmaz, elle inceleyin"
+    fi
+    izin_denetle "$DEPO_ISARETI" 0640
+    acl_denetle "$DEPO_ISARETI" 0640 ""
+  else
+    duzelt "depo işareti açıldı: $DEPO_ISARETI (0640)" \
+      runuser -u "$YEDEK_KULLANICI" -- bash -c '
+        umask 027
+        t="$(mktemp "$1/.emor-yedek-deposu.XXXXXX")" || exit 1
+        trap "rm -f \"\$t\"" EXIT
+        printf "emor-yedek-deposu %s\n" "$(cat /proc/sys/kernel/random/uuid)" > "$t" && chmod 0640 "$t" \
+          && sync -- "$t" && ln -T -- "$t" "$2" && sync -- "$1"' _ "$YEDEK_KOKU/yedekler" "$DEPO_ISARETI"
+  fi
 fi
 
 # ---------------------------------------------------------------------------

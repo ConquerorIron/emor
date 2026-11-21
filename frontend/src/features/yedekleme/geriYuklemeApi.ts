@@ -1,6 +1,6 @@
 import { api } from '@/api/client'
 
-import type { IstekKabulu } from './yedekApi'
+import { istekBirak, type IstekKabulu } from './yedekApi'
 
 export type GeriYuklemeTuru = 'kopya' | 'ustune'
 export type GeriYuklemeDurumu =
@@ -47,16 +47,17 @@ export async function geriYuklemeleriGetir(): Promise<GeriYukleme[]> {
 }
 
 /** "Farklı adla geri yükle": canlı veritabanına dokunmaz; ad sistem üretir (409 GERI_YUKLEME_YEDEK_GERI_YUKLENEMEZ) */
-export async function kopyaGeriYukle(
+export function kopyaGeriYukle(
   yedekKimligi: string,
   ek: string | null,
+  istekAnahtari: string,
 ): Promise<IstekKabulu> {
-  const yanit = await api.post<{ data: IstekKabulu }>(
+  return istekBirak(
+    'post',
     `/api/v1/ayarlar/yedekler/${yedekKimligi}/kopya-geri-yukle`,
+    istekAnahtari,
     { ek },
   )
-
-  return yanit.data.data
 }
 
 /** Bekleyen kopyayı siler (409 GERI_YUKLEME_KOPYA_YOK) */

@@ -33,15 +33,7 @@ final class YedekDenetimi
     ): void {
         $hata = $hata === null ? null : Str::limit($hata, 1000);
 
-        Log::channel('yedekleme')->info('yedekleme.'.$islem, array_filter([
-            'sonuc' => $sonuc->value,
-            'yedek_id' => $yedekId,
-            'geri_yukleme_id' => $geriYuklemeId,
-            'kullanici_id' => $kullaniciId,
-            'sure_ms' => $sureMs,
-            'ayrinti' => $ayrinti === [] ? null : $ayrinti,
-            'hata' => $hata,
-        ], fn (mixed $deger): bool => $deger !== null));
+        $this->gunlugeYaz($islem, $sonuc, $yedekId, $kullaniciId, $sureMs, $ayrinti, $hata, $geriYuklemeId);
 
         try {
             YedekIslemKaydi::query()->create([
@@ -57,5 +49,33 @@ final class YedekDenetimi
         } catch (Throwable $e) {
             Log::channel('yedekleme')->warning('Denetim kaydı veritabanına yazılamadı; yalnız dosyada', ['hata' => $e::class]);
         }
+    }
+
+    /**
+     * Yalnız dosyaya (`yedekleme` kanalı): veritabanına dokunulmaması gereken
+     * yerde — üstüne geri yüklemenin oturumsuz karar uçları; veritabanı yer
+     * değiştirmiş ya da erişilemez olabilir (BY-030). Yazılamazsa istisna.
+     *
+     * @param  array<string, mixed>  $ayrinti
+     */
+    public function gunlugeYaz(
+        string $islem,
+        IslemSonucu $sonuc,
+        ?int $yedekId = null,
+        ?int $kullaniciId = null,
+        ?int $sureMs = null,
+        array $ayrinti = [],
+        ?string $hata = null,
+        ?int $geriYuklemeId = null,
+    ): void {
+        Log::channel('yedekleme')->info('yedekleme.'.$islem, array_filter([
+            'sonuc' => $sonuc->value,
+            'yedek_id' => $yedekId,
+            'geri_yukleme_id' => $geriYuklemeId,
+            'kullanici_id' => $kullaniciId,
+            'sure_ms' => $sureMs,
+            'ayrinti' => $ayrinti === [] ? null : $ayrinti,
+            'hata' => $hata === null ? null : Str::limit($hata, 1000),
+        ], fn (mixed $deger): bool => $deger !== null));
     }
 }

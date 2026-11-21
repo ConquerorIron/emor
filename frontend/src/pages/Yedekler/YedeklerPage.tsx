@@ -18,6 +18,7 @@ import { boyutGoster, istanbulZamani } from '@/features/yedekleme/bicim'
 import { kopyaGeriYukle } from '@/features/yedekleme/geriYuklemeApi'
 import { IstekSeridi } from '@/features/yedekleme/IstekSeridi'
 import { Rozet, type RozetRengi } from '@/features/yedekleme/Rozet'
+import { useIstekAnahtarlari } from '@/features/yedekleme/useIstekAnahtarlari'
 import { useIstekTakibi } from '@/features/yedekleme/useIstekTakibi'
 import {
   aciklamaKaydet,
@@ -100,24 +101,24 @@ type YedekIstegi =
   | { tur: 'aciklama'; kimlik: string; aciklama: string | null }
   | { tur: 'kopya_geri_yukle'; kimlik: string; ek: string | null }
 
-function istegiBirak(istek: YedekIstegi): Promise<IstekKabulu> {
+function istegiBirak(istek: YedekIstegi, anahtar: string): Promise<IstekKabulu> {
   switch (istek.tur) {
     case 'kopya_geri_yukle':
-      return kopyaGeriYukle(istek.kimlik, istek.ek)
+      return kopyaGeriYukle(istek.kimlik, istek.ek, anahtar)
     case 'yedek_al':
-      return yedekAl(istek.aciklama)
+      return yedekAl(istek.aciklama, anahtar)
     case 'tara':
-      return klasoruTara()
+      return klasoruTara(anahtar)
     case 'dogrula':
-      return yedegiDogrula(istek.kimlik)
+      return yedegiDogrula(istek.kimlik, anahtar)
     case 'sabitle':
-      return yedegiSabitle(istek.kimlik)
+      return yedegiSabitle(istek.kimlik, anahtar)
     case 'sabit_coz':
-      return sabitlemeyiKaldir(istek.kimlik)
+      return sabitlemeyiKaldir(istek.kimlik, anahtar)
     case 'sil':
-      return yedegiSil(istek.kimlik)
+      return yedegiSil(istek.kimlik, anahtar)
     case 'aciklama':
-      return aciklamaKaydet(istek.kimlik, istek.aciklama)
+      return aciklamaKaydet(istek.kimlik, istek.aciklama, anahtar)
   }
 }
 
@@ -218,9 +219,13 @@ export function YedeklerPage() {
   // ardışık tıklama ikinci bir iş bırakmasın (BY-015-R1). `isPending` düğmeyi
   // bir sonraki çizimde kapatır; aradaki tıklamayı eşzamanlı bayrak yakalar.
   const gonderiliyor = useRef(false)
+  // Yanıtı alınamayan iş sunucuda kabul edilmiş olabilir: aynı işin yeniden
+  // denemesi aynı istek anahtarını taşır, ikinci iş bırakılmaz (BY-014-R2)
+  const istekAnahtarlari = useIstekAnahtarlari()
   const istek = useMutation({
-    mutationFn: istegiBirak,
+    mutationFn: (yeni: YedekIstegi) => istegiBirak(yeni, istekAnahtarlari.anahtar(yeni)),
     onSuccess: (kabul, gonderilen) => {
+      istekAnahtarlari.kabulEdildi(gonderilen)
       baslat(kabul, gonderilen.tur)
       setYeniYedekAcik(false)
       setNotDuzenlenen(null)
@@ -359,6 +364,11 @@ export function YedeklerPage() {
                   {kopya.sifreli ? (
                     <span className="text-xs text-slate-500 dark:text-slate-400">
                       {t('yedekleme.yedekler.sifreli')}
+                    </span>
+                  ) : null}
+                  {kopya.durum === 'tamam' && !kopya.kurtarma_hazir ? (
+                    <span className="text-xs text-amber-700 dark:text-amber-400">
+                      {t('yedekleme.yedekler.kurtarmaPaketiEksik')}
                     </span>
                   ) : null}
                 </li>

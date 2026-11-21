@@ -54,6 +54,27 @@ Web kullanıcısı (`www-data`) `emor-yedek` grubuna alınır; yayın kullanıc�
 Servis hesabı da web grubuna alınır: geri yüklemede uygulamayı bakım moduna
 almak ve önbelleği temizlemek, uygulamanın `storage/` klasörüne yazmayı ister.
 
+**Depo işareti (BY-011-R3).** Betik `yedekler/.emor-yedek-deposu` dosyasını
+açar (servis hesabı yazar, 0640; içerik tek satır `emor-yedek-deposu <uuid>`,
+uygulamanın `YedekDeposu` biçimi). Yedek klasörü ayrı bir diske bağlanmışsa
+disk ayrılınca bağlama noktası boş ve okunabilir kalır; işaret diskin
+kendisinde durduğu için o zaman görünmez. Uygulama işaretsiz klasörü depo
+saymaz: `yedek:tara` dizine dokunmadan durur, yedek alma bağlama noktasına
+(kök diske) yazmaz (`YEDEK_DEPO_ISARETI_YOK`). İşaretsiz klasörü uygulama
+yalnız şu durumda kendisi işaretler: katalogda tamamlanmış yedek yoksa (ilk
+kurulum) ya da katalogdaki bir yedeğin manifesti / dump'ı o klasördeyse
+(işaretten önce kurulmuş depo).
+
+- Var olan işarete betik dokunmaz (kimliği değişmez); biçimi tanınmıyorsa
+  denetim "eksik" yazar, kurulum elle bakılmasını ister. Bağlantı ya da sabit
+  bağlantıysa betik durur (aşağıdaki bağlantı güvenliği).
+- **Disk ayrı bağlanacaksa önce bağlanır, sonra betik çalışır.** Betik disk
+  bağlanmadan çalışırsa işaret bağlama noktasının altındaki klasörde kalır:
+  disk bağlıyken görünmez, disk ayrılınca görünür ve korumayı boşa çıkarır.
+  Böyle olduysa diski ayırıp alttaki klasördeki işareti silin, diski bağlayıp
+  betiği yeniden çalıştırın. Yedekleri başka bir diske taşırken de alttaki
+  klasörde dosya bırakmayın.
+
 **Servis web kullanıcısının yazabildiği PHP dosyasını yüklemez.** Uygulamanın
 `bootstrap/cache/*.php` dosyalarını ve derlenmiş görünümlerini (`storage/framework/views`)
 web kullanıcısı yazabilir (sunucuda `admin:www-data`, g+w). Servis bunları

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\IstekAnahtari;
 use App\Http\Resources\YedekResource;
 use App\Models\Yedek;
 use App\Services\Yedekleme\DogrulamaDurumu;
@@ -26,6 +27,8 @@ use Illuminate\Validation\Rule;
  * değiştiren her işlem istek klasörüne bırakılır, işi çalıştırıcı yapar
  * (web isteğinde `pg_dump` yok). Ön koşulu tutmayan istek (sabit / kullanımda
  * yedeği silmek) bırakılmadan 409 ile döner; çalıştırıcı aynı denetimi yine yapar.
+ * İstemci `Idempotency-Key` gönderirse aynı eylemin yeniden denemesi ikinci
+ * iş bırakmaz, mevcut kabulü alır (IstekAnahtari; BY-014-R2).
  */
 final class YedekController extends Controller
 {
@@ -91,7 +94,7 @@ final class YedekController extends Controller
         return $this->kabul($this->istekler->birak('yedek_al', [
             'kaynak' => YedekKaynagi::Elle->value,
             'aciklama' => $veri['aciklama'] ?? null,
-        ], (int) $request->user()->id));
+        ], (int) $request->user()->id, null, IstekAnahtari::oku($request)));
     }
 
     /** 2. düzey doğrulama: sınama geri yüklemesi (README §4.4) */
@@ -111,7 +114,7 @@ final class YedekController extends Controller
             return $this->reddet($engel, 'hata.yedek_dogrulama_kaynagi_yok');
         }
 
-        return $this->kabul($this->istekler->birak('dogrula', ['yedek_kimligi' => $yedek->kimlik], (int) $request->user()->id, $yedek->id));
+        return $this->kabul($this->istekler->birak('dogrula', ['yedek_kimligi' => $yedek->kimlik], (int) $request->user()->id, $yedek->id, IstekAnahtari::oku($request)));
     }
 
     public function sabitle(Request $request, string $kimlik): JsonResponse
@@ -137,7 +140,7 @@ final class YedekController extends Controller
         return $this->kabul($this->istekler->birak('aciklama', [
             'yedek_kimligi' => $yedek->kimlik,
             'aciklama' => $veri['aciklama'] ?? null,
-        ], (int) $request->user()->id, $yedek->id));
+        ], (int) $request->user()->id, $yedek->id, IstekAnahtari::oku($request)));
     }
 
     /**
@@ -162,7 +165,7 @@ final class YedekController extends Controller
     /** "Klasörü Tara": dizini manifestlerden yeniden kurar (BY-011) */
     public function tara(Request $request): JsonResponse
     {
-        return $this->kabul($this->istekler->birak('tara', [], (int) $request->user()->id));
+        return $this->kabul($this->istekler->birak('tara', [], (int) $request->user()->id, null, IstekAnahtari::oku($request)));
     }
 
     private function yedekIstegi(Request $request, string $kimlik, string $tur): JsonResponse
@@ -173,7 +176,7 @@ final class YedekController extends Controller
             return $this->reddet('YEDEK_SILINMIS', 'hata.yedek_silinmis');
         }
 
-        return $this->kabul($this->istekler->birak($tur, ['yedek_kimligi' => $yedek->kimlik], (int) $request->user()->id, $yedek->id));
+        return $this->kabul($this->istekler->birak($tur, ['yedek_kimligi' => $yedek->kimlik], (int) $request->user()->id, $yedek->id, IstekAnahtari::oku($request)));
     }
 
     private function bul(string $kimlik): Yedek

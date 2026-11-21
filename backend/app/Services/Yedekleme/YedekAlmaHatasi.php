@@ -26,6 +26,9 @@ final class YedekAlmaHatasi extends RuntimeException
 
     public const YAPILANDIRMA = 'YEDEK_YAPILANDIRMA_HATASI';
 
+    /** Yedek klasörü depo olarak doğrulanamadı: bağlanmamış disk (YedekDeposu; BY-011-R3) */
+    public const DEPO = 'YEDEK_DEPO_ISARETI_YOK';
+
     public function __construct(public readonly string $kod, string $mesaj)
     {
         parent::__construct($mesaj);

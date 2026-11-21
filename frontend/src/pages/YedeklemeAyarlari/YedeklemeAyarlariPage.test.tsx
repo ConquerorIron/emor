@@ -38,6 +38,7 @@ const AYAR: YedekAyarlari = {
     kullanici: 'Yedek <yedek@ornek.test>',
     bitis: null,
   },
+  ayar_kopyasi_guncel: true,
 }
 
 function ciz(izinler = ['yedek_planlari.goruntule', 'yedek_planlari.guncelle']) {
@@ -60,6 +61,18 @@ describe('YedeklemeAyarlariPage', () => {
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()
+  })
+
+  it('kayıttan sonra dosya kopyası güncel değilse bunu bildirir (BY-018-R2)', async () => {
+    api.kaydet.mockResolvedValue({ ...AYAR, ayar_kopyasi_guncel: false })
+    ciz()
+    await screen.findByDisplayValue('bt@ornek.test')
+    expect(screen.queryByText(/dosya kopyası henüz güncel değil/)).not.toBeInTheDocument()
+
+    fireEvent.change(alan('ayar-elle_gun'), { target: { value: '45' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
+
+    expect(await screen.findByText(/dosya kopyası henüz güncel değil/)).toBeInTheDocument()
   })
 
   it("en az yedek sayısı 1'in altına indirilemez", async () => {

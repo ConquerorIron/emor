@@ -273,11 +273,14 @@ final class UstuneGeriYukleyici
 
     /**
      * Onay / geri dönüş kararının kanıtını tüketir (BY-030-R1): nonce işlem
-     * durumuna yazılır; aynı kanıt ikinci kez kullanılamaz. Süresi geçmiş
-     * nonce'lar düşer (onların kanıtı zaten reddedilir).
+     * durumuna yazılır; aynı kanıt ikinci kez kullanılamaz. Yalnız süresi
+     * geçmiş nonce'lar düşer (onların kanıtı zaten reddedilir). Süresi
+     * geçmemiş tüketilmiş kanıt asla unutulmaz (BY-030-R2, G18): liste
+     * süresi geçmemişlerle doluysa yeni karar açık kodla reddedilir — kanıt
+     * en çok KANIT_OMRU_SN yaşar, birkaç dakika sonra yer açılır.
      *
      * @throws LogicException Kilit tutulmuyor
-     * @throws GeriYuklemeHatasi KARAR_KANITI_KULLANILDI; işlem bu kimlikle açık değil
+     * @throws GeriYuklemeHatasi KARAR_KANITI_KULLANILDI; KARAR_KAPASITESI_DOLU; işlem bu kimlikle açık değil
      */
     public function kanitTuket(YedekKilidi $kilit, string $islemKimligi, string $nonce, int $sonGecerlilik): void
     {
@@ -290,9 +293,12 @@ final class UstuneGeriYukleyici
             throw new GeriYuklemeHatasi(GeriYuklemeHatasi::KARAR_KANITI_KULLANILDI, 'Bu karar daha önce işlendi; yeniden uygulanmadı.');
         }
 
+        if (count($kanitlar) >= IslemKaydi::EN_COK_KANIT) {
+            throw new GeriYuklemeHatasi(GeriYuklemeHatasi::KARAR_KAPASITESI_DOLU, 'Kısa sürede çok fazla karar işlendi; bu karar uygulanmadı. Birkaç dakika sonra yeniden deneyin.');
+        }
+
         $kanitlar[$nonce] = $sonGecerlilik;
         asort($kanitlar);
-        $kanitlar = array_slice($kanitlar, -IslemKaydi::EN_COK_KANIT, null, true);
 
         $this->yaz($kilit, $kayit, $adim, $kayit->acik, $kayit->hata, kullanilanKanitlar: $kanitlar);
     }

@@ -7,6 +7,7 @@ namespace App\Services\Yedekleme;
 use App\Services\Yedekleme\Istekler\Istek;
 use App\Services\Yedekleme\Istekler\IstekReddi;
 use Carbon\CarbonImmutable;
+use Closure;
 use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -69,6 +70,9 @@ final class IstekKutusu
     /** Bundan eski istek işlenmez (çalıştırıcı uzun süre durduysa bayat iş başlamasın) */
     public const GECERLILIK_SAAT = 24;
 
+    /** yoksaYayinla() kabul kilidini en çok bu kadar bekler (yayın bir fsync sürer) */
+    private const KABUL_KILIDI_BEKLEME_SN = 10;
+
     private const ALANLAR = ['surum', 'kimlik', 'tur', 'parametreler', 'kullanici_id', 'zaman'];
 
     private const UUID = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D';
@@ -86,6 +90,7 @@ final class IstekKutusu
      * @return string İsteğin kimliği (yoklama için)
      *
      * @throws InvalidArgumentException Tür ya da parametreler şemaya uymuyor (çalıştırıcı da reddederdi)
+     * @throws KalicilikDogrulanamadi İstek yayımlandı (çalıştırıcıya görünür), klasör eşitlenemedi
      */
     public function yaz(string $tur, array $parametreler, ?int $kullaniciId, ?string $kimlik = null): string
     {
@@ -111,6 +116,38 @@ final class IstekKutusu
         AtomikDosya::yaz($klasor.'/'.$kimlik.'.json', $icerik, 0640);
 
         return $kimlik;
+    }
+
+    /**
+     * Aynı kimlikle en çok bir istek yayınlanır (BY-014-R2): kimlik bir
+     * dosyada (bekleyen / işleniyor / sonuç — durum()) görünüyorsa $yayinla
+     * çağrılmaz. Bakış ve yayın, `bekleyen/`'deki kabul kilidi altında tek
+     * adımdır (G18): aynı kimlikle eşzamanlı iki istek, çalıştırıcı ilkini
+     * üstlenmiş olsa da ikinci dosyayı yazamaz. Kilit en çok
+     * KABUL_KILIDI_BEKLEME_SN beklenir (D1; monoton saat).
+     *
+     * @param  Closure(): void  $yayinla
+     * @return bool Yayınlandı mı (false: bu kimlikle istek zaten vardı)
+     *
+     * @throws RuntimeException Kabul kilidi alınamadı (hiçbir şey yayınlanmadı)
+     */
+    public function yoksaYayinla(string $kimlik, Closure $yayinla): bool
+    {
+        $this->kimlikDenetle($kimlik);
+        $kilit = $this->kabulKilidiniAl();
+
+        try {
+            if ($this->durum($kimlik) !== null) {
+                return false;
+            }
+
+            $yayinla();
+
+            return true;
+        } finally {
+            flock($kilit, LOCK_UN);
+            fclose($kilit);
+        }
     }
 
     /**
@@ -453,6 +490,38 @@ final class IstekKutusu
         }
 
         return $dosyalar;
+    }
+
+    /**
+     * `bekleyen/.kabul.kilit` üzerinde dışlayıcı dosya kilidi (flock;
+     * veritabanına dayanmaz — karar uçları veritabanı yokken de çalışır).
+     * Nokta önekli ad: listele() yalnız UUID adlı istekleri görür.
+     *
+     * @return resource
+     *
+     * @throws RuntimeException
+     */
+    private function kabulKilidiniAl()
+    {
+        $yol = $this->klasor('bekleyen', 0770).'/.kabul.kilit';
+        $tutamac = @fopen($yol, 'c');
+        if ($tutamac === false) {
+            throw new RuntimeException("İstek kabul kilidi açılamadı: {$yol}");
+        }
+
+        $son = hrtime(true) + self::KABUL_KILIDI_BEKLEME_SN * 1_000_000_000;
+        $mesgul = 0;
+        while (! flock($tutamac, LOCK_EX | LOCK_NB, $mesgul)) {
+            if ($mesgul !== 1 || hrtime(true) >= $son) {
+                fclose($tutamac);
+
+                throw new RuntimeException($mesgul === 1 ? 'İstek kabul kilidi zamanında alınamadı.' : "İstek kabul kilidi alınamadı: {$yol}");
+            }
+
+            Sleep::usleep(50_000);
+        }
+
+        return $tutamac;
     }
 
     /**

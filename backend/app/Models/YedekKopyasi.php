@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property string|null $uzak_kimlik
  * @property bool $sifreli
  * @property string|null $sifreli_sha256
+ * @property bool $kurtarma_hazir Şifreli kopya için: o hedefe bu yedeğin manifestini taşıyan kurtarma paketi doğrulandı (BY-010-R2)
  * @property int $deneme
  * @property string|null $hata_kodu
  * @property string|null $hata_mesaji
@@ -73,6 +74,23 @@ final class YedekKopyasi extends Model
     }
 
     /**
+     * Kopya, bulunduğu yerin olağan yoluyla geri yüklenebilir mi (BY-010-R2,
+     * BY-024-R3). `tamam` yalnız aktarımın doğrulandığını söyler:
+     *
+     * - Şifreli (sunucu dışı) kopya, sunucu kaybında kurtarma paketiyle açılır
+     *   (kurtarma.md §4); o hedefte bu yedeğin imzalı manifestini taşıyan
+     *   doğrulanmış bir paket olmalı (`kurtarma_hazir`, KurtarmaPaketi işaretler).
+     * - Şifresiz kopya yalnız sunucu içi yerel disk hedefidir (HedefKatalogu:
+     *   `sunucuDisi` false); kurtarma paketi ona gönderilmez, ekrandaki geri
+     *   yükleme yedek klasöründe kalan manifestle yapar (README §4.3): `tamam`
+     *   olması yeter.
+     */
+    public function kurtarmayaHazirMi(): bool
+    {
+        return $this->durum === KopyaDurumu::Tamam && (! $this->sifreli || $this->kurtarma_hazir === true);
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
@@ -80,6 +98,7 @@ final class YedekKopyasi extends Model
         return [
             'durum' => KopyaDurumu::class,
             'sifreli' => 'boolean',
+            'kurtarma_hazir' => 'boolean',
             'deneme' => 'integer',
             'tamamlanma_zamani' => 'immutable_datetime',
             'silinme_zamani' => 'immutable_datetime',

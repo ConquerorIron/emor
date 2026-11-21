@@ -6,6 +6,7 @@ namespace App\Services\Yedekleme\Hedefler;
 
 use App\Models\YedekHedefi;
 use App\Services\Yedekleme\HedefTuru;
+use App\Services\Yedekleme\SureButcesi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 
 /**
@@ -34,6 +35,9 @@ final class FtpBaglayicisi implements HedefBaglayicisi
 
     /** Sır içinde satır sonu / NUL: FTP komutuna ek komut sızdırır */
     public const SIR_DESENI = '/^[^\x00\r\n]{1,1024}$/D';
+
+    /** Port boşken kullanılan (tanımın varsayılanı da bu: konum karşılaştırması onu okur — HedefKonumu) */
+    public const VARSAYILAN_PORT = 21;
 
     private const CURLE_COULDNT_RESOLVE_HOST = 6;
 
@@ -65,7 +69,7 @@ final class FtpBaglayicisi implements HedefBaglayicisi
     {
         return new HedefTuruTanimi($tur, [
             new HedefAlani('sunucu', 'yedekleme.hedef.alan.sunucu', zorunlu: true, kurallar: ['nullable', 'string', 'max:253', 'regex:'.self::SUNUCU_DESENI]),
-            new HedefAlani('port', 'yedekleme.hedef.alan.port', HedefAlani::SAYI, kurallar: ['nullable', 'integer', 'between:1,65535'], varsayilan: 21),
+            new HedefAlani('port', 'yedekleme.hedef.alan.port', HedefAlani::SAYI, kurallar: ['nullable', 'integer', 'between:1,65535'], varsayilan: self::VARSAYILAN_PORT),
             new HedefAlani('kullanici_adi', 'yedekleme.hedef.alan.kullanici_adi', zorunlu: true, kurallar: ['nullable', 'string', 'max:128', 'regex:'.self::KULLANICI_DESENI]),
             new HedefAlani('sifre', 'yedekleme.hedef.alan.sifre', HedefAlani::PAROLA, zorunlu: true, gizli: true, kurallar: ['nullable', 'string', 'regex:'.self::SIR_DESENI]),
             new HedefAlani('klasor', 'yedekleme.hedef.alan.klasor', kurallar: ['nullable', 'string', 'max:500', 'regex:'.self::KLASOR_DESENI]),
@@ -188,10 +192,14 @@ final class FtpBaglayicisi implements HedefBaglayicisi
         return $adlar;
     }
 
-    /** Yarım kalan geçici dosyayı temizler; bağlantı koptuysa yapılacak bir şey yok. */
+    /** Yarım kalan geçici dosyayı temizler; bağlantı koptuysa ya da süre bittiyse yapılacak bir şey yok. */
     private function geciciyiSil(string $gecici): void
     {
-        $this->dele($gecici);
+        try {
+            $this->dele($gecici);
+        } catch (HedefHatasi) {
+            // Asıl hata yukarıda bildirilir
+        }
     }
 
     /**
@@ -209,6 +217,7 @@ final class FtpBaglayicisi implements HedefBaglayicisi
      */
     private function istek(string $adres, array $secenekler, bool $aktarim): array
     {
+        // Sınamada süre sınırları ortak son zamana kısalır, son zaman geçtiyse istek çıkmaz (SureButcesi)
         $baglanti = $this->yapilandirma->sureSiniri('baglanti');
         $ortak = [
             CURLOPT_URL => $adres,
@@ -217,7 +226,7 @@ final class FtpBaglayicisi implements HedefBaglayicisi
             CURLOPT_PASSWORD => $this->sifre(),
             CURLOPT_CONNECTTIMEOUT => $baglanti,
             // Aktarım dışı komutlar kısa sürer; asılı sunucu kilidi tutmasın (D1, D9)
-            CURLOPT_TIMEOUT => $aktarim ? $this->yapilandirma->sureSiniri('kopya') : $baglanti * 3,
+            CURLOPT_TIMEOUT => $aktarim ? $this->yapilandirma->sureSiniri('kopya') : SureButcesi::sinirla($baglanti * 3),
             CURLOPT_NOSIGNAL => true,
             CURLOPT_FORBID_REUSE => true,
             CURLOPT_FRESH_CONNECT => true,
@@ -316,7 +325,7 @@ final class FtpBaglayicisi implements HedefBaglayicisi
         $port = $this->hedef->baglanti['port'] ?? null;
 
         if ($port === null || $port === '') {
-            return 21;
+            return self::VARSAYILAN_PORT;
         }
 
         if (is_string($port) && preg_match('/^[1-9][0-9]{0,4}$/D', $port) === 1) {

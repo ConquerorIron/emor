@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\IstekAnahtari;
 use App\Models\Yedek;
 use App\Services\Yedekleme\AyarKopyasi;
 use App\Services\Yedekleme\AyarSecimi;
@@ -22,7 +23,6 @@ use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -51,10 +51,16 @@ final class UstuneGeriYuklemeController extends Controller
         private readonly YedeklemeYapilandirmasi $yapilandirma,
         private readonly IstekKutusu $kutu,
         private readonly OnayBilgisi $onayBilgisi,
+        private readonly YedekIstekServisi $istekler,
     ) {}
 
-    /** "Üstüne geri yükle" (onay metni = canlı veritabanının adı) */
-    public function baslat(Request $request, YedekIstekServisi $istekler, PgAraclari $pg, string $kimlik): JsonResponse
+    /**
+     * "Üstüne geri yükle" (onay metni = canlı veritabanının adı). İstemci
+     * anahtarı (Idempotency-Key) burada kullanılmaz: erişim anahtarı yalnız
+     * ilk yanıtta döner, yeniden denemeye verilemez; ikinci istek çalıştırıcıda
+     * "açık geri yükleme var" diye reddedilir.
+     */
+    public function baslat(Request $request, PgAraclari $pg, string $kimlik): JsonResponse
     {
         /** @var array{onay_metni: string} $veri */
         $veri = $request->validate(['onay_metni' => ['required', 'string', 'max:128']]);
@@ -77,7 +83,7 @@ final class UstuneGeriYuklemeController extends Controller
         }
 
         $anahtar = ErisimAnahtari::uret();
-        $istek = $istekler->birak('ustune_geri_yukle', [
+        $istek = $this->istekler->birak('ustune_geri_yukle', [
             'yedek_kimligi' => $yedek->kimlik,
             'onay_metni' => $veri['onay_metni'],
             'erisim_anahtari_ozeti' => ErisimAnahtari::ozet($anahtar),
@@ -177,20 +183,24 @@ final class UstuneGeriYuklemeController extends Controller
             $parametreler['ayar_secimleri'] = AyarSecimi::metne($secimler);
         }
 
+        // Kabul sözleşmesi Yedekler istekleriyle ortak (YedekIstekServisi;
+        // BY-030-R3): önce günlük, sonra yayın; yayımlanmış karar kabul
+        // edilmiştir; aynı Idempotency-Key ile yeniden deneme aynı kararı izler.
         // İsteğe anahtar DEĞİL, kısa ömürlü, tek kullanımlık, karara ve
         // seçimlere bağlı kanıt yazılır (BY-030-R1); çalıştırıcı özetle doğrular
-        $son = CarbonImmutable::now()->getTimestamp() + ErisimAnahtari::KANIT_OMRU_SN;
-        $nonce = ErisimAnahtari::nonce();
-        $istek = $this->kutu->yaz($tur, [
-            'islem_kimligi' => $islem,
-            'son_gecerlilik' => $son,
-            'nonce' => $nonce,
-            ...$parametreler,
-            'kanit' => ErisimAnahtari::kanit((string) $kayit->erisimAnahtariOzeti, $islem, $tur, $son, $nonce, $parametreler['ayar_secimleri'] ?? ''),
-        ], $kayit->isteyenKullaniciId);
-        // Denetim kaydı veritabanına yazılmaz (erişilemez olabilir): günlüğe;
-        // çalıştırıcı işlerken ayrıca kaydeder
-        Log::channel('yedekleme')->info('yedekleme.istek', ['tur' => $tur, 'istek' => $istek, 'islem' => $islem, 'kullanici_id' => $kayit->isteyenKullaniciId]);
+        $secim = $parametreler['ayar_secimleri'] ?? '';
+        $istek = $this->istekler->kararBirak($tur, $islem, $secim, function () use ($kayit, $islem, $tur, $parametreler, $secim): array {
+            $son = CarbonImmutable::now()->getTimestamp() + ErisimAnahtari::KANIT_OMRU_SN;
+            $nonce = ErisimAnahtari::nonce();
+
+            return [
+                'islem_kimligi' => $islem,
+                'son_gecerlilik' => $son,
+                'nonce' => $nonce,
+                ...$parametreler,
+                'kanit' => ErisimAnahtari::kanit((string) $kayit->erisimAnahtariOzeti, $islem, $tur, $son, $nonce, $secim),
+            ];
+        }, $kayit->isteyenKullaniciId, IstekAnahtari::oku($request));
 
         return response()->json(['data' => ['istek_kimligi' => $istek, 'durum' => 'kuyrukta']], 202);
     }

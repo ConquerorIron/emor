@@ -49,7 +49,7 @@ final class YedekManifestiTest extends TestCase
         parent::tearDown();
     }
 
-    public static function manifest(string $kimlik = self::KIMLIK, string $sha256 = '', int $boyut = 5, string $dosyaAdi = 'erp_elle_2026-11-21_101500+0300.dump'): YedekManifesti
+    public static function manifest(string $kimlik = self::KIMLIK, string $sha256 = '', int $boyut = 5, string $dosyaAdi = 'erp_elle_2026-11-21_101500+0300.dump', ?string $baglanmaYetkileri = null): YedekManifesti
     {
         return new YedekManifesti(
             kimlik: $kimlik,
@@ -66,7 +66,7 @@ final class YedekManifestiTest extends TestCase
             migrationlar: ['0001_01_01_000000_create_users_table'],
             satirSayilari: ['users' => 3, 'sessions' => 0],
             verisiAlinmayanTablolar: ['sessions'],
-            veritabaniOzellikleri: ['kodlama' => 'UTF8', 'siralama' => 'en_US.UTF-8', 'karakter_turu' => 'en_US.UTF-8', 'ayarlar' => ['TimeZone=UTC'], 'baglanma_yetkileri' => null],
+            veritabaniOzellikleri: ['kodlama' => 'UTF8', 'siralama' => 'en_US.UTF-8', 'karakter_turu' => 'en_US.UTF-8', 'ayarlar' => ['TimeZone=UTC'], 'baglanma_yetkileri' => $baglanmaYetkileri],
             sahipRol: 'erp',
             sifreli: false,
             appKeyParmakIzi: AppKeyParmakIzi::hesapla(),

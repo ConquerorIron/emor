@@ -42,6 +42,13 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   değişken varken de sına.
   *(Fable incelemesi F8: `gecici-env-oku.php` `.env`'de olmayan anahtar için
   süreç ortamındaki değeri döndürüyordu.)*
+  Aynı aile: Laravel bağlantı tanımında `url` (DB_URL) ayrı alanların
+  (`username`, `database`…) ÜSTÜNE yazılır. Bir alanı değiştiren ya da ham
+  okuyan kod adresli kurulumda etkisizdir. Önce tanımı çerçevenin
+  ayrıştırıcısıyla (`ConfigurationUrlParser`) somut hâle getir, sonra
+  değiştir; testte varsayılan ayrı alanlar + adresli tanım kullan.
+  *(Codex BY-028-R4: servis rolüne geçiş DB_URL'de uygulama rolüne dönüyordu;
+  pg_dump da ham tanımın varsayılanlarına gidiyordu — G1.)*
   Ayrıştırıcının çıktısını bir alan için düzeltirken **diğer alanların türünü
   ve kabul edilen biçimleri koru.** Bütün sayıları metne çeviren bir çözüm,
   sayısal fatura numarasını "metin", tırnaklı `"0"`'ı "tutar" yapar; daha katı
@@ -199,12 +206,27 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   da kilidi testin kendisi tutarak kur.
   *(Codex BY-025-R2: yetki kilitten önce denetleniyordu. BY-021-R1: Google
   dönüş durumu.)*
+  Tek kullanımlık değerlerin "görüldü" listesini kapasiteyle KIRPMA: süresi
+  dolmamış bir değer listeden düşerse yeniden kullanılabilir. Yalnız süresi
+  dolanı at, liste doluysa yenisini açık hatayla reddet. Yeniden denenebilir
+  istekte istemci eylem başına bir anahtar tutar; sunucu kimliği anahtar +
+  eylemden türetir, "var mı" bakışı ile yazım aynı kilit altındadır.
+  *(Codex BY-030-R2: 64'lük liste süresi dolmamış kanıtı unutuyordu.
+  BY-014-R2, BY-030-R3: yeniden deneme ikinci iş bırakabiliyordu.)*
 - **G19 — Aynı fiziksel nesneyi tanıyan ölçüt tek yardımcıda ve gerçek konuma
   göre olsun.** Yol metniyle karşılaştıran bir kod ile `realpath` / aygıt +
   düğüm ile karşılaştıran kardeşi birlikte yaşarsa (sondaki `/`, `..`,
   sembolik bağlantı) aynı dosya "bağımsız kopya" sayılır ve tek arşiv silinir.
   Testte aynı klasörün üç yazımını dene.
   *(Codex BY-008-R1.)*
+- **G20 — Kimlik, konum ve sır kararında PHP `==` / `!=` kullanma.** Sayı
+  görünümlü iki metni sayı olarak karşılaştırır: `"001" == "1"`, `"1e1" ==
+  "10"`. Alan tipine uygun normalleştir (port → tam sayı, boş port →
+  bağlayıcının kendi varsayılanı, yol → sondaki `/`), sonra `===`. Konumu
+  belirleyen alanların listesini bağlayıcının GERÇEKTEN kullandıklarından
+  çıkar (port, kullanıcı, yol biçimi); listede olmayan alan değişikliği
+  denetimi atlar. Testte `"001"` / `"1"`, `"22"` / `22` örneklerini dene.
+  *(Codex BY-016-R3: kopyalı hedefte port ve `001 → 1` değişikliği geçiyordu.)*
 
 ## 2. Ön yüz
 
@@ -326,6 +348,14 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   tutulan durum (son çalışma zamanı) "süreç yeniden başladı" testini yanlış
   yeşil yapar. `app(Kernel::class)->setArtisan(null)` ile yeni nesne kur.
   *(Codex BY-009-R1 düzeltmesinin ilk testi bu yüzden yanlış yeşildi.)*
+- **T16 — İkinci bağlantıyla eşzamanlılık sınarken test işlemini hesaba kat.**
+  Satır kilidi SQLite'ta görünmez; PostgreSQL'de ikinci bağlantıyla sına ve
+  ona `lock_timeout` koy (bekleme 55P03 olarak görünsün, süreç asılı
+  kalmasın). `LazilyRefreshDatabase` ilk sorguda `migrate:fresh`
+  çalıştırabilir: ikinci bağlantıdan yazmadan önce test bağlantısında bir
+  sorgu çalıştır. İkinci bağlantının satırlarını, test işlemi geri alındıktan
+  sonra çalışan bir `beforeApplicationDestroyed` geri çağrısında temizle.
+  *(BY-016-R3 kilit testi: temizlik test işleminin satırlarını bekleyip asıldı.)*
 
 ## 4. Betikler ve dış komutlar
 
@@ -372,6 +402,16 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   Testte ortadaki parçayı düşür: önceki set aynen, sinyal gitmemiş olmalı.
   *(Codex BY-024-R1: kurtarma paketi. BY-014-R1: istek yayınlandıktan sonra
   denetim kaydı düşünce iş çalışıyor, istemci 500 görüp tekrar deniyordu.)*
+  **Taşımadan SONRAKİ hata "yapılmadı" değildir.** `rename` ile okuyana
+  görünen dosya, ardından klasör eşitlenemese de yayımlanmıştır: çağıran
+  "yayımlandı, kalıcılığı belirsiz" (ayrı istisna) ile "yayımlanmadı"yı
+  ayırsın; yoksa iş çalışırken istemci hata görür ve ikinci işi bırakır,
+  çalıştırıcı yazdığı sonucu "yarıda kaldı" sayar. Ayrımı ekleyince her
+  çağıranı tara (G1). Geri alınamayan yazım (dosya) veritabanı işleminden
+  SONRA, commit olmuş veriden üretilir; yazılamazsa durum izlenebilir kalır
+  ve düzenli çalışan bir iş uzlaştırır.
+  *(Codex BY-014-R2, BY-018-R2; G1: `yedek:yayin-oncesi` ve çalıştırıcının
+  sonuç yazımı da aynı ayrımı yapmıyordu.)*
   *(BY-005-R3: taşıma sonrası klasör eşitlenmiyordu. BY-005-R9: ilk eşitleme
   başarısız olunca yeniden deneme üst klasörü atlayıp başarı dönüyordu.
   BY-005-R11: R9 düzeltmesi köke kadar eşitleyince yalnız geçilebilir üst
@@ -395,6 +435,15 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   klasörü BOŞ liste yapar; buna dayanan eşitleme (katalogdan silme) geçici bir
   disk arızasında kayıtları düşürür. Erişilemeyen kaynakta değişiklikten önce dur.
   *(Codex BY-011-R1.)*
+  **Okunabilen klasör doğru klasör değildir.** Ayrı diske bağlanan klasör,
+  disk ayrılınca alttaki boş ve okunabilir dizin olarak kalır: `scandir`
+  başarılı, her dosya "yok". Silme, katalog değişikliği ya da yazım öncesi
+  depoyu diskin kendisindeki bir işaretle doğrula. O klasöre yazan / oradan
+  karar veren HER yolu say (tarama, yedek alma, saklama, elle silme, olay
+  günlüğü) — biri atlanırsa kayıt düşer ya da yazım kök diske gider. Testte
+  klasörü taşıyıp yerine boş dizin koy ve "hiçbir şey yazılmadı"yı da sına.
+  *(Codex BY-011-R3; G1: saklama ve elle silme yedeği "silindi" yapıyor,
+  olay günlüğünü boş bağlama noktasına yazıyordu.)*
 - **D7 — Ayrı hesap, daha az güvenilen hesabın yazabildiği kodu çalıştırmasın.**
   Bir işi "ele geçirilse bile X'e ulaşamasın" diye ayrı hesaba veriyorsan, o
   hesabın çalıştırdığı / yüklediği her dosyayı say: PHP önbellekleri
@@ -430,6 +479,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   (bağlantı, okuma, açılış) doğrulanmasından sonra; iki kopya farklıysa hiçbiri
   silinmez, elle bakılır.
   *(BY-003-R1: hedefte bozuk parola dosyası varken geçerli eski kopya silindi.)*
+  Ölçüt **"kurtarmaya yeterli"**dir, "aktarıldı" değil: şifreli dump
+  uzakta doğrulanmış olsa da onu açacak manifest / anahtar paketi oraya
+  gitmediyse uzak kopya tek başına kurtarma sağlamaz. Hazırlığı ayrı izle
+  (kopya başına bayrak), silme kararını ona bağla; ortadaki parça düşünce
+  yerelin kaldığını sına.
+  *(Codex BY-010-R2 / BY-024-R3: paket başarısızken yerel arşiv silinebiliyordu.)*
 - **D5 — Root, başkasının değiştirebildiği yolda bağlantı izleyerek işlem
   yapmasın.** `chown`, `chmod`, `setfacl`, `cp`, `>` hedefteki sembolik
   bağlantıyı izler; yolu yazabilen hesap root'u yönetilen alanın dışına

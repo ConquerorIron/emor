@@ -280,9 +280,9 @@ describe('YedekHedefleriPage', () => {
     expect(sonuc).toHaveTextContent('Oku: atlandı')
   })
 
-  it('kopyası olan hedefte konum alanları salt okunur ve nedeni yazılı; parola yenilenerek kaydedilir (BY-016-R1)', async () => {
+  it('kopyası olan hedefte konum alanları (port dahil) salt okunur ve nedeni yazılı; parola yenilenerek kaydedilir (BY-016-R1, R3)', async () => {
     api.hedefler.mockResolvedValue([
-      { ...FTP_HEDEFI, konum_kilitli_alanlar: ['sunucu', 'klasor', 'kullanici_adi'] },
+      { ...FTP_HEDEFI, konum_kilitli_alanlar: ['sunucu', 'port', 'kullanici_adi', 'klasor'] },
     ])
     api.kaydet.mockResolvedValue(FTP_HEDEFI)
     ciz()
@@ -291,11 +291,12 @@ describe('YedekHedefleriPage', () => {
     expect(within(dialog).getByRole('note')).toHaveTextContent(
       'kopyaların durduğu yeri belirleyen alanlar kilitli',
     )
-    for (const etiket of ['Sunucu *', 'Kullanıcı adı *', 'Klasör']) {
+    for (const etiket of ['Sunucu *', 'Port', 'Kullanıcı adı *', 'Klasör']) {
       expect(within(dialog).getByLabelText(etiket)).toHaveAttribute('readonly')
     }
-    expect(within(dialog).getByLabelText('Port')).not.toHaveAttribute('readonly')
     expect(within(dialog).getByLabelText('Parola')).not.toHaveAttribute('readonly')
+    // Konum olmayan evet/hayır alanı (pasif kip) açık
+    expect(within(dialog).getByRole('switch', { name: 'Pasif kip (passive mode)' })).toBeEnabled()
 
     fireEvent.change(within(dialog).getByLabelText('Parola'), { target: { value: 'Yeni-Parola' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
@@ -312,6 +313,62 @@ describe('YedekHedefleriPage', () => {
           klasor: '/yedek',
           pasif: true,
         },
+      }),
+    )
+  })
+
+  it('kilitli evet/hayır konum alanı (S3 yol stili) değiştirilemez, değeri gövdede kalır (BY-016-R3)', async () => {
+    const S3: HedefTuruTanimi = {
+      tur: 's3',
+      alanlar: [
+        {
+          ad: 'kova',
+          etiket: 'yedekleme.hedef.alan.kova',
+          tur: 'metin',
+          zorunlu: true,
+          gizli: false,
+          varsayilan: null,
+        },
+        {
+          ad: 'yol_stili',
+          etiket: 'yedekleme.hedef.alan.yol_stili',
+          tur: 'evet_hayir',
+          zorunlu: false,
+          gizli: false,
+          varsayilan: false,
+        },
+      ],
+      sunucu_disi: true,
+      uyari: null,
+      oauth: false,
+    }
+    api.turler.mockResolvedValue([FTP, S3])
+    api.hedefler.mockResolvedValue([
+      {
+        ...FTP_HEDEFI,
+        id: 7,
+        ad: 'Kova',
+        tur: 's3',
+        baglanti: { kova: 'emor', yol_stili: true },
+        gizli_kayitli: {},
+        konum_kilitli_alanlar: ['kova', 'yol_stili'],
+      },
+      FTP_HEDEFI,
+    ])
+    api.kaydet.mockResolvedValue(FTP_HEDEFI)
+    ciz()
+    const dialog = await duzenle('Kova')
+
+    const yolStili = within(dialog).getByRole('switch', { name: 'Yol stili adres (path-style)' })
+    expect(yolStili).toBeDisabled()
+    fireEvent.click(yolStili)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+
+    await waitFor(() =>
+      expect(api.kaydet).toHaveBeenCalledWith(7, {
+        ad: 'Kova',
+        aktif: true,
+        alanlar: { kova: 'emor', yol_stili: true },
       }),
     )
   })

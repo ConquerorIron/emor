@@ -454,6 +454,33 @@ final class YedekCalistiriciTest extends TestCase
         $this->assertFalse($this->yedek->refresh()->sabit, 'Yarıda kalan istek yeniden çalıştırılmaz');
     }
 
+    /**
+     * G1 / BY-014-R2: sonuç yerine taşınıp yalnız klasör eşitlemesi
+     * doğrulanamadıysa sonuç yazılmış sayılır; üstlenilen dosya kalıp
+     * sonraki turda gerçek sonucu "yarıda kaldı" ile ezmez.
+     */
+    public function test_sonuc_klasoru_esitlenemese_de_yazilan_sonuc_sonraki_turda_yarida_kaldi_ile_ezilmez(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('root klasör iznini aşar (T11).');
+        }
+        $kimlik = $this->hamIstek($this->gecerliIstek((string) Str::uuid()));
+        $sonucKlasoru = config('yedekleme.istek_klasoru').'/sonuc';
+        @mkdir($sonucKlasoru, 0750, true);
+        // Yazılabilir ve geçilebilir ama okunamaz: taşıma olur, eşitlemek için açılamaz
+        chmod($sonucKlasoru, 0300);
+
+        try {
+            $this->tur();
+        } finally {
+            chmod($sonucKlasoru, 0750);
+        }
+        $this->tur();
+
+        $this->assertSame('tamam', $this->sonuc($kimlik)['durum']);
+        $this->assertSame([], glob(config('yedekleme.istek_klasoru').'/isleniyor/*.json'));
+    }
+
     public function test_bir_haftadan_eski_sonuclar_silinir(): void
     {
         $eski = (string) Str::uuid();

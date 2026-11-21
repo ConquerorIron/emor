@@ -97,7 +97,7 @@ Aşağıda "servis olarak" denen her komut bu kalıpla çalıştırılır.
   | `yedek:imza-anahtari` | imza anahtarını üretir (varsa dokunmaz) |
   | `yedek:calistir [--tek-tur]` | istek klasörünü işler |
   | `yedek:sifre-coz <dosya> <cikis> --anahtar=` | sunucu dışı kopyayı çözer (kurtarma) |
-  | `yedek:manifest-dogrula <dump> [--manifest=]` | dump'ı imzalı manifestine karşı doğrular (imza, boyut, SHA-256); elle geri yüklemeden önce (kurtarma.md §4.8) |
+  | `yedek:manifest-dogrula <dump> [--manifest=] [--yetkileri-uygula=<vt> \| --yetkileri-denetle=<vt>]` | dump'ı imzalı manifestine karşı doğrular (imza, boyut, SHA-256); elle geri yüklemeden önce (kurtarma.md §4.8). Doğrulanınca manifestteki bağlanma yetkilerini veritabanına uygular ya da (değiştirmeden) eşdeğerliğini denetler (kurtarma.md §4.9, §4.11) |
   | `yedek:acil durum\|onayla\|geri-don` | üstüne geri yüklemenin acil durum yolu (§6) |
 
 - **Yayın:** modül açıksa `deploy.sh` önce **yayın kilidini**
@@ -205,7 +205,8 @@ sudo -u emor-yedek env $(systemctl show emor-yedek -p Environment --value) php a
 | `HEDEF_BAGLI_DEGIL` | NAS paylaşımı bağlı değil | `mount`; yerel diske yazılmadı |
 | `HEDEF_YAPILANDIRMA_HATASI` (şifreleme) | açık anahtar yok / kayıtlı parmak iziyle uyuşmuyor / süresi dolmuş | yeniden denenmez (D8); Ayarlar → açık anahtar; sunucu dışına şifresiz gitmez |
 | `YEDEK_GPG_HATASI` (kopyada) | gpg süre sınırını aştı, çalıştırılamadı ya da geçici klasör / disk sorunu | geçici sayılır: kopya `kopya_deneme` kez denenir; sürerse disk / yük ve `YEDEKLEME_SIFRELEME_SURESI` |
-| İşlem Günlüğü'nde `kurtarma_paketi` başarısız | kurtarma paketinin yeni sürümü yarıda kaldı; yazılan dosyaları silindi, önceki tamam sürüm yetkili kaldı; uzak yaşam sinyali gitmedi | hata mesajındaki koda göre hedefi / günlük dosyasını düzelt; sonraki sunucu dışı kopyada yeniden gönderilir (kurtarma.md §1) |
+| İşlem Günlüğü'nde `kurtarma_paketi` başarısız | kurtarma paketinin yeni sürümü yarıda kaldı; yazılan dosyaları silindi, önceki tamam sürüm yetkili kaldı; uzak yaşam sinyali gitmedi. Kopya "tamam" ama **kurtarmaya hazır değil** (ekranda "kurtarma paketi bekleniyor"): yerel arşiv silinmez | hata mesajındaki koda göre hedefi / günlük dosyasını düzelt; sonraki sunucu dışı kopyada yeniden gönderilir, başarılı paket bekleyen kopyaları da hazır yapar (kurtarma.md §1) |
+| `YEDEK_DEPO_ISARETI_YOK` | yedek klasöründe depo işareti (`.emor-yedek-deposu`) yok ve katalogdaki yedeklerin hiçbiri orada değil: yedek diski bağlı değil (boş bağlama noktası) ya da klasör yanlış | yedek alınmadı, tarama dizine dokunmadı. Diski bağla (`mount`, `findmnt <klasör>`); disk bağlı ve klasör doğruysa kurulum betiğini çalıştır (işareti açar; sunucu-kurulumu.md §2 "Depo işareti") |
 | `HEDEF_SILME_YETKISI_YOK` | hedef silmeye izin vermiyor (S3 kilidi) | hata değil; hedefin kendi kuralı temizler |
 | `GERI_YUKLEME_SEMA_UYUMSUZ` | yedekte olup kodda olmayan migration | doğru kod sürümünü yayınla |
 | `GERI_YUKLEME_KARSILASTIRMA_TUTMADI` | satır sayısı / migration listesi tutmadı | yedek "doğrulama başarısız"; başka yedek |
@@ -231,6 +232,10 @@ bakım modundan çıkmadı / iş çalıştırmadı.
 | gpg süre aşımı (geçici) | `KopyaSifreleyiciTest::test_gpg_sure_asiminda_kopya_yeniden_denenir_yalniz_sifreli_dosya_gider` | ikinci denemede tamam; hedefe yalnız şifreli dosya | evet | — |
 | Kurtarma paketinin ara dosyası yazılamaz | `KurtarmaPaketiTest::test_ara_bilesen_yazilamazsa_onceki_paket_yetkili_kalir_yasam_sinyali_gitmez` | yeni sürüm silindi; önceki sürüm ve işaretçisi aynen, ondan çözülüyor; uzak sinyal gitmedi | evet | — |
 | Bozuk manifest / yanlış imza anahtarıyla elle geri yükleme | `YedekManifestDogrulaTest` | `yedek:manifest-dogrula` başarısız, geri yükleme başlamaz | evet | — |
+| Kurtarma paketi gönderilemeden yerel arşivin temizlenmesi | `KurtarmaPaketiTest::test_paketi_eksik_sifreli_kopya_yerel_arsivi_tutar_paket_dogrulaninca_temizlik_siler_set_imzayi_dogrular` | yerel dump kalır; sonraki paketle kopya hazır, temizlik siler; uzaktaki setle imza SQL'den önce doğrulanır | evet | — |
+| Eski paket sürümünün işaretçisi silinemez | `KurtarmaPaketiTest::test_isaretcisi_silinemeyen_eski_surumun_hicbir_bileseni_silinmez` | sürümün hiçbir bileşeni silinmez; "tamam" görünen set eksiksiz | evet | — |
+| Yedek diski ayrılmış (boş, okunabilir bağlama noktası) | `DizinKurucuTest` (erişilemeyen klasör senaryoları), `YedekAliciTest::test_depo_dogrulanamazsa_yedek_alinmaz_klasore_yazilmaz` | tarama dizine dokunmaz; yedek alınmaz, bağlama noktasına yazılmaz (`YEDEK_DEPO_ISARETI_YOK`) | evet | — |
+| Elle kurtarmada bağlanma yetkileri (daraltılmış CONNECT) | `YedekManifestDogrulaPostgresTest` (gerçek PG), lokal prova (kurtarma.md §8) | manifestteki ACL eşdeğer uygulanır; açılıştan önce denetim | evet | — |
 | Migration hatası | `UstuneGeriYukleyiciTest` | yeni veritabanı silindi, canlı aynen | evet | evet |
 | Ad değiştirme sırasında kesinti | lokal PG (öncesi / sonrası öldürme), `test_yer_degistirmede_olen_islem_adlara_gore_karar_verir` | adlara göre geri sar / devam | evet | evet |
 | Veritabanına erişimin kesilmesi | `UstuneGeriYuklemeApiTest` (ilerleme ucu DB yokken), `test_acil_durum_komutu_veritabani_erisilemezken_onaylar` | kilit dosyada; yetkili okur, anahtarsız 401/403 | evet | evet |

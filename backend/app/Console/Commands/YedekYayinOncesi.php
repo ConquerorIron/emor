@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Services\Yedekleme\IstekKutusu;
+use App\Services\Yedekleme\KalicilikDogrulanamadi;
 use App\Services\Yedekleme\PgAraclari;
 use App\Services\Yedekleme\YedekAlici;
 use App\Services\Yedekleme\YedekAlmaHatasi;
@@ -64,8 +65,16 @@ final class YedekYayinOncesi extends Command
 
     private function servisle(IstekKutusu $kutu): int
     {
+        $kimlik = (string) Str::uuid();
+
         try {
-            $kimlik = $kutu->yaz('yedek_al', ['kaynak' => YedekKaynagi::YayinOncesi->value, 'aciklama' => null], null);
+            try {
+                $kutu->yaz('yedek_al', ['kaynak' => YedekKaynagi::YayinOncesi->value, 'aciklama' => null], null, $kimlik);
+            } catch (KalicilikDogrulanamadi) {
+                // İstek yayımlandı, yalnız klasör eşitlemesi doğrulanamadı: çalıştırıcı
+                // onu işleyecek; durmak yayını bozar, yeniden istemek ikinci yedek alır (G1, BY-014-R2)
+                $this->warn('Yayın öncesi yedek isteğinin diske eşitlendiği doğrulanamadı; istek görünür, sonucu bekleniyor.');
+            }
             $this->line('Yayın öncesi yedek istendi; çalıştırıcı bekleniyor…');
             $sonuc = $kutu->bekle($kimlik, self::SERVIS_BEKLEME);
         } catch (Throwable $hata) {

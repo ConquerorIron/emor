@@ -8,6 +8,7 @@ use App\Models\Yedek;
 use App\Models\YedekAyari;
 use App\Models\YedekHedefi;
 use App\Models\YedekIslemKaydi;
+use App\Models\YedekPlani;
 use App\Services\Yedekleme\AyarKopyasi;
 use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
@@ -16,12 +17,16 @@ use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\KopyaDurumu;
 use App\Services\Yedekleme\KopyaSifreleyici;
 use App\Services\Yedekleme\KurtarmaPaketi;
+use App\Services\Yedekleme\ManifestDeposu;
 use App\Services\Yedekleme\OlayGunlugu;
+use App\Services\Yedekleme\SaklamaPolitikasi;
 use App\Services\Yedekleme\YedekKopyalayici;
+use App\Services\Yedekleme\YedekOzeti;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Process\Process;
 use Tests\TestCase;
 use Tests\Yedekleme\BellekHedefi;
@@ -303,5 +308,104 @@ final class KurtarmaPaketiTest extends TestCase
 
         $this->assertArrayHasKey($yedekKimligi, BellekHedefi::$dosyalar);
         $this->assertCount(13, BellekHedefi::$dosyalar);
+    }
+
+    /**
+     * BY-010-R2, BY-024-R3: aktarımı doğrulanan şifreli kopya, o hedefe yedeğin
+     * manifestini taşıyan paket doğrulanmadan kurtarmaya hazır değildir; tek
+     * uzak hedefli planda yerel arşiv silinmez. Sonraki başarılı paket kopyayı
+     * hazır yapar, temizlik yereli siler ve uzaktaki tam setle (paketten çıkan
+     * imzalı manifest + şifreli dump) SQL'den önce imza doğrulanır.
+     */
+    public function test_paketi_eksik_sifreli_kopya_yerel_arsivi_tutar_paket_dogrulaninca_temizlik_siler_set_imzayi_dogrular(): void
+    {
+        $icerik = 'PGDMP-plan-yedegi';
+        $yedek = Yedek::factory()->plan()->create(['sha256' => hash('sha256', $icerik), 'boyut' => strlen($icerik), 'alinma_zamani' => now()->subHour()]);
+        $klasor = config('yedekleme.klasor');
+        @mkdir($klasor, 0750, true);
+        file_put_contents($klasor.'/'.$yedek->dosya_adi, $icerik);
+        app(ManifestDeposu::class)->yaz(YedekManifestiTest::manifest(kimlik: $yedek->kimlik, sha256: hash('sha256', $icerik), boyut: strlen($icerik), dosyaAdi: $yedek->dosya_adi), $klasor);
+        $hedef = $this->bellekHedefi();
+        $plan = YedekPlani::factory()->create();
+        $plan->hedefler()->attach($hedef, ['sakla_son_adet' => 14]);
+        BellekHedefi::$yazilamayanAdSonu = '-'.KurtarmaPaketi::DENETIM;
+
+        $kopya = app(YedekKopyalayici::class)->kopyala($yedek, $hedef, [$plan->id]);
+        $onizleme = app(SaklamaPolitikasi::class)->hesapla();
+        app(SaklamaPolitikasi::class)->uygula();
+
+        $this->assertSame(KopyaDurumu::Tamam, $kopya->durum);
+        $this->assertFalse($kopya->refresh()->kurtarma_hazir);
+        $this->assertSame([], $this->isaretciler($hedef));
+        $this->assertContains('kurtarma_paketi_eksik', $onizleme['korunan'][$yedek->id]);
+        $this->assertFileExists($klasor.'/'.$yedek->dosya_adi);
+        $this->assertNull($yedek->refresh()->yerel_silinme_zamani);
+        $this->assertNull(app(YedekOzeti::class)->hesapla()['son_uzak']);
+
+        BellekHedefi::$yazilamayanAdSonu = null;
+        $this->assertTrue(app(KurtarmaPaketi::class)->gonder($hedef));
+        app(SaklamaPolitikasi::class)->uygula();
+
+        $this->assertTrue($kopya->refresh()->kurtarma_hazir);
+        $this->assertFileDoesNotExist($klasor.'/'.$yedek->dosya_adi);
+        $this->assertFileExists(ManifestDeposu::jsonYolu($klasor.'/'.$yedek->dosya_adi));
+        $this->assertNotNull($yedek->refresh()->yerel_silinme_zamani);
+        $this->assertNotNull(app(YedekOzeti::class)->hesapla()['son_uzak']);
+
+        // Boş sunucudaki gibi: yalnız uzaktakilerle (işaretçi → manifest arşivi + şifreli dump)
+        [$isaretci] = $this->isaretciler($hedef);
+        $acik = $this->paketiAc($hedef, $isaretci);
+        $kurtarma = $this->yedekKoku.'/kurtarma';
+        mkdir($kurtarma.'/m', 0700, true);
+        file_put_contents($kurtarma.'/manifestler.tar', $acik[KurtarmaPaketi::MANIFESTLER]);
+        (new Process(['/usr/bin/tar', '-xf', $kurtarma.'/manifestler.tar', '-C', $kurtarma.'/m']))->mustRun();
+        file_put_contents($kurtarma.'/'.$yedek->dosya_adi, $this->coz(BellekHedefi::$dosyalar[(string) $kopya->uzak_kimlik]));
+
+        $this->artisan('yedek:manifest-dogrula', ['dump' => $kurtarma.'/'.$yedek->dosya_adi, '--manifest' => ManifestDeposu::jsonYolu($kurtarma.'/m/'.$yedek->dosya_adi)])
+            ->expectsOutputToContain('DOGRULANDI')
+            ->assertSuccessful();
+    }
+
+    /**
+     * @return array<string, array{string, int}>
+     */
+    public static function isaretciSilinemeyenHedefler(): array
+    {
+        return [
+            // Kalıcı ret: set hedefin kendi kuralına bırakılır, kayıt büyümez (D8)
+            'silme yetkisi yok' => [HedefHatasi::SILME_YETKISI_YOK, 2],
+            // Geçici hata: sürüm kayıtta kalır, sonraki gönderimde yeniden denenir
+            'geçici silme hatası' => [HedefHatasi::SILINEMEDI, 3],
+        ];
+    }
+
+    /**
+     * BY-024-R4: eski sürümün işaretçisi silinemezse (kova izni ya da nesne
+     * koruması yalnız işaretçide) bileşenleri de silinmez: hedefte "tamam"
+     * görünen her set eksiksiz ve açılabilir kalır.
+     */
+    #[DataProvider('isaretciSilinemeyenHedefler')]
+    public function test_isaretcisi_silinemeyen_eski_surumun_hicbir_bileseni_silinmez(string $kod, int $kayittakiSurum): void
+    {
+        BellekHedefi::$silinemeyenAdSonu = '-'.KurtarmaPaketi::ISARETCI;
+        BellekHedefi::$hataKodu = $kod;
+        $hedef = $this->bellekHedefi();
+        $paket = app(KurtarmaPaketi::class);
+        @mkdir(config('yedekleme.klasor'), 0750, true);
+        file_put_contents(app(OlayGunlugu::class)->yol(), "{}\n");
+
+        for ($i = 0; $i < 3; $i++) {
+            $this->assertTrue($paket->gonder($hedef));
+            $this->travel(1)->seconds();
+        }
+
+        $isaretciler = $this->isaretciler($hedef);
+        $this->assertCount(3, $isaretciler);
+        foreach ($isaretciler as $isaretci) {
+            $this->assertSame([KurtarmaPaketi::OLAYLAR, KurtarmaPaketi::AYARLAR, KurtarmaPaketi::DENETIM], array_keys($this->paketiAc($hedef, $isaretci)));
+        }
+        $this->assertCount(12, BellekHedefi::$dosyalar);
+        $kayit = json_decode((string) file_get_contents(config('yedekleme.durum_klasoru').'/kurtarma-paketleri.json'), true);
+        $this->assertCount($kayittakiSurum, $kayit['hedefler'][$hedef->id]);
     }
 }

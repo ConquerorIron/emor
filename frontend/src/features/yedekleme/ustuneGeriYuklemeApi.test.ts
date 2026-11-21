@@ -6,6 +6,7 @@ import { ustuneDurumGetir, UstuneGeriYuklemeHatasi, ustuneKararVer } from './ust
 
 const ISLEM = '11111111-1111-4111-8111-111111111111'
 const ANAHTAR = 'b'.repeat(64)
+const ISTEK_ANAHTARI = '33333333-3333-4333-8333-333333333333'
 
 function yanit(durum: number, govde: unknown): Response {
   return new Response(JSON.stringify(govde), {
@@ -49,7 +50,7 @@ describe('üstüne geri yükleme ilerleme uçları', () => {
     expect(dinleyici).not.toHaveBeenCalled()
   })
 
-  it('onay ve geri dönüş kendi uçlarına anahtarla POST edilir', async () => {
+  it('onay ve geri dönüş kendi uçlarına anahtarla ve istek anahtarıyla POST edilir', async () => {
     const fetchSahte = vi
       .fn()
       .mockImplementation(() =>
@@ -57,8 +58,8 @@ describe('üstüne geri yükleme ilerleme uçları', () => {
       )
     vi.stubGlobal('fetch', fetchSahte)
 
-    await ustuneKararVer(ISLEM, ANAHTAR, 'onayla', { mail: 'guncel' })
-    await ustuneKararVer(ISLEM, ANAHTAR, 'geri-don')
+    await ustuneKararVer(ISLEM, ANAHTAR, ISTEK_ANAHTARI, 'onayla', { mail: 'guncel' })
+    await ustuneKararVer(ISLEM, ANAHTAR, ISTEK_ANAHTARI, 'geri-don')
 
     expect(
       fetchSahte.mock.calls.map(([adres, secenek]) => [
@@ -75,7 +76,11 @@ describe('üstüne geri yükleme ilerleme uçları', () => {
       [`/api/v1/yedekleme/ustune-geri-yukleme/${ISLEM}/geri-don`, 'POST', undefined],
     ])
     expect((fetchSahte.mock.calls[0][1] as RequestInit).headers).toEqual(
-      expect.objectContaining({ 'Content-Type': 'application/json', 'X-Erisim-Anahtari': ANAHTAR }),
+      expect.objectContaining({
+        'Content-Type': 'application/json',
+        'X-Erisim-Anahtari': ANAHTAR,
+        'Idempotency-Key': ISTEK_ANAHTARI,
+      }),
     )
     expect((fetchSahte.mock.calls[1][1] as RequestInit).credentials).toBe('omit')
   })

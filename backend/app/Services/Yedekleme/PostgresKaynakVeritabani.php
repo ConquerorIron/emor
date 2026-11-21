@@ -16,17 +16,21 @@ use Throwable;
  * İşlem açık kaldıkça `pg_dump --snapshot` aynı görüntüyü görür (README §6.1).
  *
  * Uygulamanın kendi bağlantısı kullanılmaz: onun işlem sayacı ve önbelleği
- * yedekle karışmasın.
+ * yedekle karışmasın. Bağlantı, araçların (pg_dump) kullandığı SOMUT tanımla
+ * açılır (PgAraclari::tanim — BY-028-R4).
  */
 final class PostgresKaynakVeritabani implements KaynakVeritabani
 {
     private const BAGLANTI = 'yedekleme_anlik_goruntu';
 
-    public function __construct(private readonly YedeklemeYapilandirmasi $yapilandirma) {}
+    public function __construct(
+        private readonly YedeklemeYapilandirmasi $yapilandirma,
+        private readonly PgAraclari $pg,
+    ) {}
 
     public function anlikGoruntuyle(Closure $is): mixed
     {
-        config(['database.connections.'.self::BAGLANTI => config('database.connections.'.$this->yapilandirma->baglantiAdi())]);
+        config(['database.connections.'.self::BAGLANTI => $this->pg->tanim()]);
         DB::purge(self::BAGLANTI);
         $baglanti = DB::connection(self::BAGLANTI);
         $pdo = $baglanti->getPdo();

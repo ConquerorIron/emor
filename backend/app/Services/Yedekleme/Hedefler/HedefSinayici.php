@@ -18,8 +18,11 @@ use Throwable;
  * Sınama web isteğinde çalışır: bütün adımlar TEK bir toplam süre bütçesini
  * paylaşır (D9, BY-016-R2). Her adımdan önce bağlayıcının okuduğu süre
  * sınırları (`sure_siniri.kopya` / `.baglanti`) kalan süreye göre kısaltılır;
- * bütçe biten adım çalışmaz (`SURE_DOLDU`). Silme için küçük bir pay ayrılır
- * ve silme, pay da tükenmiş olsa en kısa sınırla yine denenir.
+ * bütçe biten adım çalışmaz (`SURE_DOLDU`). Adım süresince son zaman etkin
+ * bütçedir (SureButcesi::icinde): bağlayıcının içindeki token yenileme, 401
+ * sonrası tekrar, yeniden denemeler, beklemeler ve dış süreçler de ona uyar
+ * (BY-016-R4). Silme için küçük bir pay ayrılır ve silme, pay da tükenmiş
+ * olsa en kısa sınırla yine denenir.
  */
 final class HedefSinayici
 {
@@ -167,7 +170,10 @@ final class HedefSinayici
 
     /**
      * Çağrıyı kalan süreyle sınırlı çalıştırır: bağlayıcının okuduğu süre
-     * sınırları çağrı boyunca kısaltılır, sonra eski değerine döner.
+     * sınırları çağrı boyunca kısaltılır, sonra eski değerine döner. Ayrıca
+     * adımın son zamanı (kalan − pay) çağrı boyunca etkin bütçedir: bağlayıcının
+     * içindeki her istek, yeniden deneme, bekleme ve dış süreç ona uyar
+     * (BY-016-R4) — üçte bir kuralı yalnız yeniden denemeye yer bırakır.
      *
      * @template T
      *
@@ -192,7 +198,8 @@ final class HedefSinayici
         ]);
 
         try {
-            return $is();
+            // Temizlik bütçe bitmiş olsa da en kısa sınırla (1 sn) denenir
+            return $butce->alt(max(1.0, $kullanilabilir))->icinde($is);
         } finally {
             config($onceki);
         }

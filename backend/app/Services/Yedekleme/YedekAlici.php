@@ -18,7 +18,9 @@ use Throwable;
  *
  * 1. Kilit çağıranda (yaz kuralı: durum klasörünün kilidi tutulmalı). Ölen
  *    bir süreçten kalan `calisiyor` kayıt önce sonuçlanır (SahipsizYedekler).
- * 2. Boş disk alanı eşiğin altındaysa yedek başlamaz; eski yedekler kural
+ * 2. Yedek klasörü depo işaretiyle doğrulanamazsa (bağlanmamış disk;
+ *    YedekDeposu, BY-011-R3) yedek başlamaz, kayıt `basarisiz` olur. Boş
+ *    disk alanı eşiğin altındaysa yedek başlamaz; eski yedekler kural
  *    dışı silinmez (README §4.3).
  * 3. Anlık görüntü açılır; sayımlar ve migration listesi ondan okunur;
  *    `pg_dump --snapshot` aynı görüntüyle GEÇİCİ ada yazar. Geçici tabloların
@@ -49,6 +51,7 @@ final class YedekAlici
         private readonly AyarKopyasi $ayarKopyasi,
         private readonly GeriYukleyici $geriYukleyici,
         private readonly SahipsizYedekler $sahipsizler,
+        private readonly YedekDeposu $depo,
     ) {}
 
     /**
@@ -126,6 +129,12 @@ final class YedekAlici
 
         try {
             $yaz(YedekAdimi::Basladi->value);
+            // Diski ayrılmış bağlama noktasına (kök diske) yazılmaz (BY-011-R3)
+            try {
+                $this->depo->hazirla();
+            } catch (DepoIsaretiYok $hata) {
+                throw new YedekAlmaHatasi(YedekAlmaHatasi::DEPO, $hata->getMessage());
+            }
             $this->diskDenetle($klasor);
             $sure = $this->sureSiniri();
 

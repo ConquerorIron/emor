@@ -129,6 +129,9 @@ final class GeriYuklemeHatasi extends RuntimeException
     /** Bu karar kanıtı daha önce kullanıldı (tek kullanım) */
     public const KARAR_KANITI_KULLANILDI = 'GERI_YUKLEME_KARAR_KANITI_KULLANILDI';
 
+    /** Süresi geçmemiş tüketilmiş kanıt listesi dolu (IslemKaydi::EN_COK_KANIT): yeni karar uygulanmadı; kanıtlar en çok 5 dakikada düşer */
+    public const KARAR_KAPASITESI_DOLU = 'GERI_YUKLEME_KARAR_KAPASITESI_DOLU';
+
     /**
      * Yedeğin kendisinden kaynaklanan hatalar: sınamada bunlar yedeği
      * "doğrulama başarısız" yapar. Diğerleri (bağlantı, yetki, yapılandırma)

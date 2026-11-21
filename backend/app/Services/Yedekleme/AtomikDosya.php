@@ -12,11 +12,16 @@ use RuntimeException;
  * taşınır, sonra klasör diske zorlanır. Hata yolunda geçici dosya silinir;
  * eski dosya (varsa) yerinde kalır. `tempnam` kullanılmaz: klasör yazılamazsa
  * sistem geçici klasörüne düşer ve taşıma tek adım olmaktan çıkar.
+ *
+ * Hatalar iki türlüdür: taşımadan ÖNCE düz RuntimeException (dosya
+ * yayımlanmadı, eskisi yerinde); taşımadan SONRA KalicilikDogrulanamadi
+ * (yeni dosya görünür, kalıcılığı doğrulanamadı — BY-014-R2).
  */
 final class AtomikDosya
 {
     /**
-     * @throws RuntimeException
+     * @throws KalicilikDogrulanamadi Dosya yayımlandı, klasör eşitlenemedi
+     * @throws RuntimeException Dosya yayımlanmadı
      */
     public static function yaz(string $yol, string $icerik, int $izin = 0640): void
     {
@@ -94,6 +99,11 @@ final class AtomikDosya
             }
         }
 
-        KaliciKlasor::esitle($klasor);
+        try {
+            KaliciKlasor::esitle($klasor);
+        } catch (RuntimeException $hata) {
+            // Taşıma oldu: dosya artık okuyanlara görünür; "yazılmadı" denemez
+            throw new KalicilikDogrulanamadi("Dosya yerine taşındı ama klasör diske eşitlenemedi: {$yol}", 0, $hata);
+        }
     }
 }

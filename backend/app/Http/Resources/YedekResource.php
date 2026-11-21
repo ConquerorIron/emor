@@ -53,6 +53,8 @@ final class YedekResource extends JsonResource
                 'hedef_tur' => $k->hedef?->tur->value,
                 'durum' => $k->durum->value,
                 'sifreli' => $k->sifreli,
+                // `durum: tamam` = aktarım doğrulandı; bu = boş sunucuda da açılabilir (kurtarma paketi; BY-010-R2)
+                'kurtarma_hazir' => $k->kurtarmayaHazirMi(),
                 'tamamlanma_zamani' => $k->tamamlanma_zamani?->toIso8601String(),
                 'hata_kodu' => $k->hata_kodu,
             ])->values()->all()),

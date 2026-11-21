@@ -48,6 +48,7 @@ const BILINEN_ISLEMLER = [
   'plan_guncelle',
   'plan_sil',
   'ayar_guncelle',
+  'ayar_kopyasi',
   'sifreleme_anahtari_yukle',
   'sifreleme_anahtari_kaldir',
 ] as const

@@ -10,6 +10,7 @@ use App\Models\YedekHedefi;
 use App\Models\YedekIslemKaydi;
 use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
+use App\Services\Yedekleme\DepoIsaretiYok;
 use App\Services\Yedekleme\DogrulamaDurumu;
 use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
@@ -22,6 +23,7 @@ use App\Services\Yedekleme\YedekDurumu;
 use App\Services\Yedekleme\YedekKaynagi;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 use Tests\Yedekleme\BellekHedefi;
 use Tests\Yedekleme\YedeklemeOrtami;
@@ -41,7 +43,6 @@ final class SaklamaPolitikasiTest extends TestCase
         BellekHedefi::sifirla();
         app(HedefKatalogu::class)->kaydet(HedefTuru::S3, BellekHedefi::class);
         $this->travelTo(CarbonImmutable::parse('2026-11-21 12:00', 'UTC'));
-        mkdir(config('yedekleme.klasor'), 0750, true);
         YedekAyari::query()->create(['enaz_adet' => 1, 'elle_gun' => 0]);
     }
 
@@ -345,6 +346,49 @@ final class SaklamaPolitikasiTest extends TestCase
 
         $this->assertFileExists(config('yedekleme.klasor').'/'.$eski->dosya_adi);
         $this->assertContains('uzak_kopya_dogrulanmadi', app(SaklamaPolitikasi::class)->hesapla()['korunan'][$eski->id]);
+    }
+
+    /**
+     * BY-011-R3 / G1: yedek diski bağlı değilken (boş, okunabilir bağlama
+     * noktası) temizlik yerel dosyaya ve ana klasör kopyasına dokunmaz;
+     * dosyası "yok" görünen yedek katalogdan düşmez.
+     */
+    public function test_yedek_diski_bagli_degilken_temizlik_yerel_dosyaya_ve_kataloga_dokunmaz(): void
+    {
+        $ana = $this->anaYerelHedef();
+        $yerelPlan = $this->plan($ana, 1);
+        $eskiElle = $this->yedek(5);
+        $this->yedek(1);
+        $eskiPlan = $this->yedek(5, YedekKaynagi::Plan);
+        $anaKopya = $this->kopya($eskiPlan, $ana, [$yerelPlan]);
+        $this->kopya($this->yedek(1, YedekKaynagi::Plan), $ana, [$yerelPlan]);
+        $this->assertEqualsCanonicalizing([$eskiElle->id, $eskiPlan->id], $this->silinecekYedekler());
+        $baglar = DB::table('yedek_kopya_planlari')->count();
+        $klasor = config('yedekleme.klasor');
+        rename($klasor, $klasor.'-disk');
+        mkdir($klasor, 0750);
+
+        try {
+            try {
+                app(SaklamaPolitikasi::class)->uygula();
+                $this->fail('Depo doğrulanmadan temizlik durmalıydı');
+            } catch (DepoIsaretiYok) {
+            }
+            $this->assertSame([], array_values(array_diff(scandir($klasor), ['.', '..'])), 'Bağlama noktasına (olay günlüğü dahil) hiçbir şey yazılmaz');
+        } finally {
+            array_map('unlink', glob($klasor.'/{,.}[!.]*', GLOB_BRACE) ?: []);
+            rmdir($klasor);
+            rename($klasor.'-disk', $klasor);
+        }
+
+        $this->assertSame($baglar, DB::table('yedek_kopya_planlari')->count());
+        $this->assertSame('YEDEK_DEPO_ISARETI_YOK', YedekIslemKaydi::query()->where('islem', 'saklama_sil')->sole()->ayrinti['kod']);
+        foreach ([$eskiElle, $eskiPlan] as $yedek) {
+            $yedek->refresh();
+            $this->assertSame([YedekDurumu::Tamam, null], [$yedek->durum, $yedek->yerel_silinme_zamani]);
+            $this->assertFileExists($klasor.'/'.$yedek->dosya_adi);
+        }
+        $this->assertSame(KopyaDurumu::Tamam, $anaKopya->refresh()->durum);
     }
 
     /** F7: hiçbir kopyası kalmayan yedek `silindi`. */

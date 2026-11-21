@@ -6,6 +6,7 @@ namespace App\Services\Yedekleme\Hedefler;
 
 use App\Models\YedekHedefi;
 use App\Services\Yedekleme\HedefTuru;
+use App\Services\Yedekleme\SureButcesi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Process\Exceptions\ProcessTimedOutException;
@@ -31,6 +32,9 @@ final class SftpBaglayicisi implements HedefBaglayicisi
     /** Anahtar türleri, tercih sırasıyla */
     private const ANAHTAR_TURLERI = ['ssh-ed25519', 'ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384', 'ecdsa-sha2-nistp521', 'ssh-rsa'];
 
+    /** Port boşken kullanılan (tanımın varsayılanı da bu: konum karşılaştırması onu okur — HedefKonumu) */
+    public const VARSAYILAN_PORT = 22;
+
     public function __construct(
         private readonly YedekHedefi $hedef,
         private readonly YedeklemeYapilandirmasi $yapilandirma,
@@ -40,7 +44,7 @@ final class SftpBaglayicisi implements HedefBaglayicisi
     {
         return new HedefTuruTanimi(HedefTuru::Sftp, [
             new HedefAlani('sunucu', 'yedekleme.hedef.alan.sunucu', zorunlu: true, kurallar: ['nullable', 'string', 'max:253', 'regex:'.FtpBaglayicisi::SUNUCU_DESENI]),
-            new HedefAlani('port', 'yedekleme.hedef.alan.port', HedefAlani::SAYI, kurallar: ['nullable', 'integer', 'between:1,65535'], varsayilan: 22),
+            new HedefAlani('port', 'yedekleme.hedef.alan.port', HedefAlani::SAYI, kurallar: ['nullable', 'integer', 'between:1,65535'], varsayilan: self::VARSAYILAN_PORT),
             new HedefAlani('kullanici_adi', 'yedekleme.hedef.alan.kullanici_adi', zorunlu: true, kurallar: ['nullable', 'string', 'max:128', 'regex:'.FtpBaglayicisi::KULLANICI_DESENI]),
             new HedefAlani('klasor', 'yedekleme.hedef.alan.klasor', kurallar: ['nullable', 'string', 'max:500', 'regex:'.FtpBaglayicisi::KLASOR_DESENI]),
             new HedefAlani('ozel_anahtar', 'yedekleme.hedef.alan.ozel_anahtar', HedefAlani::UZUN_METIN, gizli: true, kurallar: ['nullable', 'string', 'max:16384']),
@@ -177,8 +181,9 @@ final class SftpBaglayicisi implements HedefBaglayicisi
             throw new HedefHatasi(HedefHatasi::YAPILANDIRMA, 'Sunucunun parmak izi kayıtlı değil; önce "Bağlantıyı Sına" çalıştırılmalı.');
         }
 
+        // Sınamada süre sınırları ortak son zamana kısalır, son zaman geçtiyse süreç başlamaz (SureButcesi)
         $baglanti = $this->yapilandirma->sureSiniri('baglanti');
-        $sure = $aktarim ? $this->yapilandirma->sureSiniri('kopya') : $baglanti * 3;
+        $sure = $aktarim ? $this->yapilandirma->sureSiniri('kopya') : SureButcesi::sinirla($baglanti * 3);
         $calisma = $this->geciciKlasor();
 
         try {
@@ -292,7 +297,7 @@ final class SftpBaglayicisi implements HedefBaglayicisi
         $baglanti = $this->yapilandirma->sureSiniri('baglanti');
 
         try {
-            $sonuc = Process::timeout($baglanti * 2 + 5)
+            $sonuc = Process::timeout(SureButcesi::sinirla($baglanti * 2 + 5))
                 ->env(['SSH_AUTH_SOCK' => false])
                 ->run([$this->yapilandirma->arac('ssh_keyscan'), '-T', (string) $baglanti, '-p', (string) $port, '-t', 'ed25519,ecdsa,rsa', $sunucu]);
         } catch (ProcessTimedOutException) {
@@ -378,7 +383,7 @@ final class SftpBaglayicisi implements HedefBaglayicisi
         $port = $this->hedef->baglanti['port'] ?? null;
 
         if ($port === null || $port === '') {
-            return 22;
+            return self::VARSAYILAN_PORT;
         }
 
         if (is_string($port) && preg_match('/^[1-9][0-9]{0,4}$/D', $port) === 1) {

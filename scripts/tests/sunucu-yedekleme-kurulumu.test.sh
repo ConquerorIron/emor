@@ -80,12 +80,15 @@ bekle "kök ve üstü eşitlendi" esitlendi "$(dirname "$K") $K"
 bekle "durum klasörü ve kök eşitlendi" esitlendi "$K $K/durum"
 bekle "kilit dosyası ve klasörü eşitlendi" esitlendi "$K/durum/kilit $K/durum"
 bekle "yayın kilidi ve klasörü eşitlendi" esitlendi "$K/durum/yayin.kilit $K/durum"
+bekle "depo işareti ve klasörü eşitlendi (BY-011-R3)" esitlendi "$K/yedekler"
+ISARET_ILK="$(cat "$K/yedekler/.emor-yedek-deposu" 2>/dev/null)"
 echo "== C. İkinci kurulum: değişiklik yok"
 sync_sifirla
 PATH="$SAHTE_PATH" calistir "ikinci kurulum" 0
 bekle "ikinci kurulumda 0 değişiklik" grep -q "KURULUM: 0 değişiklik" "$D/son.txt"
 bekle "ikinci kurulumda YAPILDI yok" bash -c "! grep -q YAPILDI '$D/son.txt'"
 bekle "var olan klasörler de yeniden eşitlendi (D3)" esitlendi "$K $K/durum"
+bekle "var olan depo işareti korundu (kimliği değişmedi)" bash -c "[[ -n '$ISARET_ILK' && \"\$(cat $K/yedekler/.emor-yedek-deposu)\" == '$ISARET_ILK' ]]"
 echo "== D. Denetim temiz"
 calistir "denetim temiz" 0 --denetle
 cp "$D/son.txt" "$D/denetim_temiz.txt"
@@ -155,6 +158,11 @@ bekle "yayın gruba alınmadı"        bash -c "! id -nG $Y | tr ' ' '\n' | grep
 bekle "inceleme rolü NOLOGIN"       bash -c "[[ \$(runuser -u postgres -- psql -X -A -t -c \"select rolcanlogin from pg_roles where rolname='emor_inceleme_deneme'\") == f ]]"
 bekle "onbellek servisin, 0700"     bash -c "[[ \$(stat -c '%U %a' $K/onbellek) == 'emor-yedek-deneme 700' ]]"
 bekle "web onbellek'e giremez"      bash -c "! runuser -u www-data -- ls $K/onbellek 2>/dev/null"
+# BY-011-R3: depo işareti (uygulamanın YedekDeposu biçimi), servisin; web okur, yayın erişmez
+bekle "depo işareti servisin, 0640" bash -c "[[ \$(stat -c '%U:%G %a %h' $K/yedekler/.emor-yedek-deposu) == 'emor-yedek-deneme:emor-yedek-deneme 640 1' ]]"
+bekle "depo işaretinin biçimi uygulamanınki" bash -c "printf '%s\n' \"\$(cat $K/yedekler/.emor-yedek-deposu)\" | cmp -s - $K/yedekler/.emor-yedek-deposu && grep -Eqx 'emor-yedek-deposu [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' $K/yedekler/.emor-yedek-deposu"
+bekle "işaretin geçici kopyası kalmadı" bash -c "[[ -z \$(ls -A $K/yedekler | grep -v -x -e .emor-yedek-deposu) ]]"
+bekle "web depo işaretini okur"     runuser -u www-data -- cat $K/yedekler/.emor-yedek-deposu
 
 echo "== E2. Servis, web kullanıcısının yazabildiği PHP dosyalarını yüklemez (Fable incelemesi F1)"
 # Uygulama servis tanımındaki ortamla açılır; yüklenen dosyalar arasında
@@ -260,7 +268,7 @@ bekle "ön koşul: servis korunan nesnelere erişemez" servis_erisemez
 bekle "servis yönetilen alt klasörü yerinden oynatamaz" bash -c "! runuser -u emor-yedek-deneme -- mv $K/yedekler $K/yedekler.x 2>/dev/null"
 bekle "servis kök klasöre bağlantı koyamaz"   bash -c "! runuser -u emor-yedek-deneme -- ln -s $KZ $K/yeni 2>/dev/null"
 cp -p $K/gizli/pgpass $D/pgpass.yedek
-for yaprak in gizli/pgpass gizli/imza.anahtar durum/kilit durum/yayin.kilit; do
+for yaprak in gizli/pgpass gizli/imza.anahtar durum/kilit durum/yayin.kilit yedekler/.emor-yedek-deposu; do
   # Servis hesabı, yazabildiği klasörde dosyayı korunan dosyaya bağlantıyla değiştirir
   runuser -u emor-yedek-deneme -- bash -c "rm -f $K/$yaprak && ln -s $KD $K/$yaprak"
   calistir "$yaprak bağlantı: denetim eksik" 1 --denetle
@@ -295,6 +303,20 @@ chmod 755 $D
 calistir "geri konunca kurulum" 0
 calistir "geri konunca denetim temiz" 0 --denetle
 rm -f $D/pgpass.yedek
+
+echo "== F4. Depo işareti: biçimi bozuksa denetim söyler, kurulum dokunmaz; yoksa açılır (BY-011-R3)"
+ISARET=$K/yedekler/.emor-yedek-deposu
+runuser -u emor-yedek-deneme -- bash -c "printf 'bozuk\n' > $ISARET"
+calistir "bozuk işaret: denetim eksik" 1 --denetle
+bekle "denetim biçimi söyledi" grep -q "depo işaretinin biçimi tanınmıyor" "$D/son.txt"
+calistir "bozuk işaret: kurulum elle bakılacak der" 1
+bekle "kurulum bozuk işarete dokunmadı" bash -c "[[ \$(cat $ISARET) == bozuk ]]"
+runuser -u emor-yedek-deneme -- rm -f $ISARET
+calistir "işaretsiz yedekler/: denetim eksik" 1 --denetle
+bekle "denetim işareti açmadı" test ! -e $ISARET
+calistir "kurulum işareti yeniden açar" 0
+bekle "yeni işaret uygulamanın biçiminde" grep -Eqx 'emor-yedek-deposu [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' $ISARET
+calistir "ardından denetim temiz" 0 --denetle
 
 echo "== G. Eski yerdeki parola dosyası: yeni yer doğrulanmadan silinmez (BY-003-R1)"
 P=$K/gizli/pgpass; E="$EMOR_ESKI_PGPASS"

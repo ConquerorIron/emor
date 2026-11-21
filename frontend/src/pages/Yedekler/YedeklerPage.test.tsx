@@ -104,6 +104,7 @@ const UZAKTA: Yedek = {
       hedef_tur: 'yerel',
       durum: 'tamam',
       sifreli: false,
+      kurtarma_hazir: true,
       tamamlanma_zamani: '2026-11-09T23:10:00+00:00',
       hata_kodu: null,
     },
@@ -219,7 +220,7 @@ describe('YedeklerPage', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Sil' }))
 
-    await waitFor(() => expect(api.sil).toHaveBeenCalledWith(YEDEK.kimlik))
+    await waitFor(() => expect(api.sil).toHaveBeenCalledWith(YEDEK.kimlik, expect.any(String)))
     expect(await screen.findByRole('status')).toHaveTextContent('Yedek silme')
   })
 
@@ -236,7 +237,7 @@ describe('YedeklerPage', () => {
     const dialog = await screen.findByRole('dialog')
     expect(api.sabitCoz).not.toHaveBeenCalled()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Sabitlemeyi kaldır' }))
-    await waitFor(() => expect(api.sabitCoz).toHaveBeenCalledWith(SABIT.kimlik))
+    await waitFor(() => expect(api.sabitCoz).toHaveBeenCalledWith(SABIT.kimlik, expect.any(String)))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     // İlk istek sürerken yeni işlem başlatılmaz
@@ -261,7 +262,9 @@ describe('YedeklerPage', () => {
     })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Yedek Al' }))
 
-    await waitFor(() => expect(api.yedekAl).toHaveBeenCalledWith('yıl sonu kapanışı öncesi'))
+    await waitFor(() =>
+      expect(api.yedekAl).toHaveBeenCalledWith('yıl sonu kapanışı öncesi', expect.any(String)),
+    )
     expect(await screen.findByRole('status')).toHaveTextContent('Yedek alma — çalışıyor')
     expect(screen.getByRole('button', { name: 'Klasörü Tara' })).toBeDisabled()
     expect(within(await satir(YEDEK.dosya_adi)).getByRole('button', { name: 'Sil' })).toBeDisabled()
@@ -351,6 +354,41 @@ describe('YedeklerPage', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Klasör tarama')
   })
 
+  it('yanıtı alınamayan iş yeniden denenince aynı istek anahtarını taşır; kabulden sonra yeni iş yeni anahtar alır (BY-014-R2)', async () => {
+    api.tara
+      .mockRejectedValueOnce(new Error('Network Error'))
+      .mockResolvedValue({ istek_kimligi: ISTEK_1, durum: 'kuyrukta' })
+    api.sabitle.mockRejectedValueOnce(new Error('Network Error'))
+    api.istek.mockResolvedValue({ kimlik: ISTEK_1, durum: 'tamam', tarama: { eklenen: 0 } })
+    ciz()
+    const yedek = await satir(YEDEK.dosya_adi)
+    const tara = screen.getByRole('button', { name: 'Klasörü Tara' })
+
+    fireEvent.click(tara)
+    await waitFor(() => expect(api.tara).toHaveBeenCalledTimes(1))
+    // Arada başka bir iş: kendi anahtarını alır, taramanınkini bozmaz
+    await waitFor(() =>
+      expect(within(yedek).getByRole('button', { name: 'Sabitle' })).toBeEnabled(),
+    )
+    fireEvent.click(within(yedek).getByRole('button', { name: 'Sabitle' }))
+    await waitFor(() => expect(api.sabitle).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(tara).toBeEnabled())
+    fireEvent.click(tara)
+    await waitFor(() => expect(api.tara).toHaveBeenCalledTimes(2))
+
+    const ilk = api.tara.mock.calls[0][0] as string
+    expect(ilk).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(api.tara.mock.calls[1][0]).toBe(ilk)
+    expect(api.sabitle.mock.calls[0][1]).not.toBe(ilk)
+
+    // Kabul geldi ve iş bitti: aynı işin yeni gönderimi yeni bir iştir
+    expect(await screen.findByText(/Yedek klasörü tarandı/)).toBeInTheDocument()
+    await waitFor(() => expect(tara).toBeEnabled())
+    fireEvent.click(tara)
+    await waitFor(() => expect(api.tara).toHaveBeenCalledTimes(3))
+    expect(api.tara.mock.calls[2][0]).not.toBe(ilk)
+  })
+
   it('yalnız şifreli kopyası olan yedekte geri yükleme yerine kurtarma yolu yazılır; yerel ve şifresiz uzak kopyada geri yükleme vardır (BY-027-R1)', async () => {
     api.liste.mockResolvedValue(liste([YEDEK, UZAKTA, YALNIZ_SIFRELI]))
     ciz(['yedekler.goruntule', 'yedekler.al', 'geri_yukleme.kopya'], true)
@@ -368,6 +406,22 @@ describe('YedeklerPage', () => {
     expect(within(sifreli).queryByRole('button', { name: 'Doğrula' })).not.toBeInTheDocument()
     expect(sifreli).toHaveTextContent('yedek:sifre-coz')
     expect(sifreli).toHaveTextContent('docs/yedekleme/kurtarma.md')
+  })
+
+  it('aktarımı tamam ama kurtarma paketi gitmemiş şifreli kopyada "kurtarma paketi bekleniyor" yazar (BY-010-R2)', async () => {
+    const paketsiz: Yedek = {
+      ...YALNIZ_SIFRELI,
+      kimlik: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+      dosya_adi: 'erp_plan_20261121_0200.dump',
+      kopyalar: [{ ...YALNIZ_SIFRELI.kopyalar[0], kurtarma_hazir: false }],
+    }
+    api.liste.mockResolvedValue(liste([YALNIZ_SIFRELI, paketsiz]))
+    ciz()
+
+    expect(await satir(paketsiz.dosya_adi)).toHaveTextContent('kurtarma paketi bekleniyor')
+    expect(await satir(YALNIZ_SIFRELI.dosya_adi)).not.toHaveTextContent(
+      'kurtarma paketi bekleniyor',
+    )
   })
 
   it('"Farklı adla geri yükle" yalnız geri_yukleme.kopya izniyle ve geri yüklenebilir satırda vardır', async () => {
@@ -411,7 +465,9 @@ describe('YedeklerPage', () => {
     expect(dialog).toHaveTextContent('erp_geri_YYYYAAGG_SSDDss_mart1')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Geri Yükle' }))
 
-    await waitFor(() => expect(api.kopyaGeriYukle).toHaveBeenCalledWith(YEDEK.kimlik, 'mart1'))
+    await waitFor(() =>
+      expect(api.kopyaGeriYukle).toHaveBeenCalledWith(YEDEK.kimlik, 'mart1', expect.any(String)),
+    )
     expect(await screen.findByRole('status')).toHaveTextContent('Farklı adla geri yükleme')
   })
 

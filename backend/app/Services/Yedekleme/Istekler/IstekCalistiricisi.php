@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\Yedekleme\IslemDurumuBozuk;
 use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\IstekKutusu;
+use App\Services\Yedekleme\KalicilikDogrulanamadi;
 use App\Services\Yedekleme\KopyaVeritabanlari;
 use App\Services\Yedekleme\UstuneGeriYukleyici;
 use App\Services\Yedekleme\YapilandirmaHatasi;
@@ -290,7 +291,8 @@ final class IstekCalistiricisi
     /**
      * Sonucu yazar, reddi denetim kaydına geçirir, üstlenilen dosyayı siler.
      * Sonuç yazılamazsa dosya `isleniyor/`'da kalır; sonraki tur onu
-     * "yarıda kaldı" diye yeniden sonuçlandırmayı dener.
+     * "yarıda kaldı" diye yeniden sonuçlandırmayı dener. Sonuç yerine
+     * taşındıysa (yalnız eşitleme doğrulanamadıysa) yazılmış sayılır.
      *
      * @param  int|null  $kullaniciId  Yetkisi doğrulanmış kullanıcı (denetim kaydının sahibi)
      * @param  array{tur?: string, istekteki_kullanici?: int|null, gonderen_uid?: int}  $baglam
@@ -306,7 +308,14 @@ final class IstekCalistiricisi
         }
 
         try {
-            $this->kutu->sonucYaz($kimlik, $sonuc->durum, $sonuc->kod, $sonuc->mesaj, $sonuc->ek);
+            try {
+                $this->kutu->sonucYaz($kimlik, $sonuc->durum, $sonuc->kod, $sonuc->mesaj, $sonuc->ek);
+            } catch (KalicilikDogrulanamadi) {
+                // Sonuç yerinde (okuyana görünür), yalnız klasör eşitlemesi doğrulanamadı.
+                // Üstlenilen dosya kalırsa sonraki tur gerçek sonucu "yarıda kaldı" ile
+                // ezerdi (G1, BY-014-R2)
+                Log::channel('yedekleme')->warning('İstek sonucunun diske eşitlendiği doğrulanamadı', ['istek' => $kimlik]);
+            }
             $this->kutu->sil($yol);
         } catch (Throwable $hata) {
             Log::channel('yedekleme')->error('İstek sonucu yazılamadı', ['istek' => $kimlik, 'hata' => $hata::class]);

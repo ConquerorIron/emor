@@ -32,7 +32,9 @@ use Throwable;
  * - Tek bir bozuk dosya taramayı durdurmaz.
  * - Yedek klasörü yoksa ya da okunamıyorsa (bağlanmamış disk, izin) tarama
  *   dizine DOKUNMADAN hata verir: "erişemiyorum" boş klasör sayılıp kayıtlar
- *   "dosya yok" yapılmaz (D6; BY-011-R1). Okunabilen boş klasör olağan taramadır.
+ *   "dosya yok" yapılmaz (D6; BY-011-R1). Okunabilen klasör ancak depo
+ *   işaretiyle (YedekDeposu) depo sayılır: diski ayrılmış boş bağlama noktası
+ *   da okunabilir (BY-011-R3). İşaretli boş klasör olağan taramadır.
  * - Kilidi tutan çağıran kilidi verirse ölen süreçten kalan `calisiyor`
  *   yedek kayıtları önce sonuçlanır (SahipsizYedekler; BY-007-R1).
  * - Ana klasör hedefi YerelDiskBaglayicisi::anaKlasorHedefiMi ile tanınır
@@ -45,13 +47,14 @@ final class DizinKurucu
         private readonly ManifestDeposu $manifestler,
         private readonly OlayGunlugu $olaylar,
         private readonly SahipsizYedekler $sahipsizler,
+        private readonly YedekDeposu $depo,
     ) {}
 
     /**
      * @param  YedekKilidi|null  $kilit  Tutulan yedekleme kilidi; verilmezse sahipsiz kayıtlara dokunulmaz
      * @return array{guvenilir: int, guvenilmeyen: int, eklenen: int, dosyasi_yok: int, bozuk: int, gecersiz_olay: int, bulunamayan_hedef: int, sahipsiz: int}
      *
-     * @throws RuntimeException Yedek klasörü yok ya da okunamıyor (dizin değişmedi)
+     * @throws RuntimeException Yedek klasörü yok, okunamıyor ya da depo olarak doğrulanamadı (DepoIsaretiYok; dizin değişmedi)
      * @throws LogicException Verilen kilit tutulmuyor
      */
     public function tara(?YedekKilidi $kilit = null): array
@@ -62,6 +65,9 @@ final class DizinKurucu
         if ($dosyalar === false) {
             throw new RuntimeException("Yedek klasörü bulunamadı ya da okunamıyor; dizin değiştirilmedi: {$klasor}");
         }
+
+        // Okunabilen klasör de depo olmayabilir: diski ayrılmış boş bağlama noktası (BY-011-R3)
+        $this->depo->hazirla();
 
         $sayac = ['guvenilir' => 0, 'guvenilmeyen' => 0, 'eklenen' => 0, 'dosyasi_yok' => 0, 'bozuk' => 0, 'gecersiz_olay' => 0, 'bulunamayan_hedef' => 0, 'sahipsiz' => 0];
 

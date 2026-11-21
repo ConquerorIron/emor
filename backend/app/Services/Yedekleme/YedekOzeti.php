@@ -19,7 +19,8 @@ use Carbon\CarbonImmutable;
  *
  * Sınama zamanı sınamanın başarılı denetim kaydından gelir, yedek satırının
  * değişme zamanından değil (not / sabitleme yeni sınama gibi görünmesin;
- * BY-012-R1). Uzak kopyada README §4.8 "veri zamanı"nı ister: eski bir yedeğin
+ * BY-012-R1). Uzak kopya, kurtarma paketiyle birlikte doğrulanmış (kurtarmaya
+ * hazır) şifreli kopyadır (BY-010-R2). Uzak kopyada README §4.8 "veri zamanı"nı ister: eski bir yedeğin
  * bugün aktarılması sunucu dışındaki verinin tazeliğini değiştirmez.
  */
 final class YedekOzeti
@@ -36,6 +37,8 @@ final class YedekOzeti
             ->join('yedekler', 'yedekler.id', '=', 'yedek_kopyalari.yedek_id')
             ->where('yedek_kopyalari.durum', KopyaDurumu::Tamam->value)
             ->where('yedek_kopyalari.sifreli', true)
+            // Sunucu kaybında açılabilen: kurtarma paketi de doğrulanmış (BY-010-R2; uzak yaşam sinyaliyle aynı ölçüt)
+            ->where('yedek_kopyalari.kurtarma_hazir', true)
             ->max('yedekler.alinma_zamani');
         // Sınamanın KENDİ kaydından (denetim kaydı); yedek satırının updated_at'i
         // not / sabitleme ile de ilerler (BY-012-R1)

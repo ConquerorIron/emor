@@ -161,7 +161,9 @@ describe('UstuneGeriYuklemePage', () => {
     expect(api.karar).not.toHaveBeenCalled()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Onayla' }))
 
-    await waitFor(() => expect(api.karar).toHaveBeenCalledWith(ISLEM, ANAHTAR, 'onayla', {}))
+    await waitFor(() =>
+      expect(api.karar).toHaveBeenCalledWith(ISLEM, ANAHTAR, expect.any(String), 'onayla', {}),
+    )
     await waitFor(() => expect(api.durum).toHaveBeenCalledWith(ISLEM, ANAHTAR, KARAR))
     expect(JSON.parse(localStorage.getItem(DEPO) ?? '{}').karar_istegi).toBe(KARAR)
   })
@@ -226,7 +228,7 @@ describe('UstuneGeriYuklemePage', () => {
     )
 
     await waitFor(() =>
-      expect(api.karar).toHaveBeenCalledWith(ISLEM, ANAHTAR, 'onayla', {
+      expect(api.karar).toHaveBeenCalledWith(ISLEM, ANAHTAR, expect.any(String), 'onayla', {
         mail: 'guncel',
         hedefler: 'geri_yuklenen',
       }),
@@ -250,7 +252,9 @@ describe('UstuneGeriYuklemePage', () => {
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Geri dön' }),
     )
 
-    await waitFor(() => expect(api.karar).toHaveBeenCalledWith(ISLEM, ANAHTAR, 'geri-don'))
+    await waitFor(() =>
+      expect(api.karar).toHaveBeenCalledWith(ISLEM, ANAHTAR, expect.any(String), 'geri-don'),
+    )
   })
 
   it('süresi dolan anahtarda nedeni ve acil durum komutunu gösterir', async () => {

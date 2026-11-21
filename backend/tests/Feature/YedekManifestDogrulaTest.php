@@ -7,7 +7,9 @@ namespace Tests\Feature;
 use App\Services\Yedekleme\ManifestDeposu;
 use App\Services\Yedekleme\YedekImzasi;
 use Closure;
+use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Process;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -43,13 +45,24 @@ final class YedekManifestDogrulaTest extends TestCase
     }
 
     /** Kurtarmadaki gibi: çözülmüş dump ve imzalı manifesti yan yana */
-    private function yedek(string $icerik = 'dump!'): string
+    private function yedek(string $icerik = 'dump!', ?string $acl = null): string
     {
         $dump = $this->klasor.'/'.self::DUMP_ADI;
         file_put_contents($dump, $icerik);
-        app(ManifestDeposu::class)->yaz(YedekManifestiTest::manifest(dosyaAdi: self::DUMP_ADI), $this->klasor);
+        app(ManifestDeposu::class)->yaz(YedekManifestiTest::manifest(dosyaAdi: self::DUMP_ADI, baglanmaYetkileri: $acl), $this->klasor);
 
         return $dump;
+    }
+
+    /** Yetki seçeneklerinin bağlantısı: servis kipindeki gibi yedekleme bağlantısı (psql sahte) */
+    private function yedekBaglantisi(): void
+    {
+        config([
+            'yedekleme.baglanti' => 'yedek_test',
+            'yedekleme.parola_dosyasi' => null,
+            'database.connections.yedek_test' => ['driver' => 'pgsql', 'host' => '127.0.0.1', 'port' => 5432, 'database' => 'erp', 'username' => 'erp', 'password' => 'parola'],
+            'yedekleme.araclar' => ['pg_dump' => '/usr/bin/pg_dump', 'pg_restore' => '/usr/bin/pg_restore', 'psql' => '/usr/bin/psql'],
+        ]);
     }
 
     public function test_imzasi_ve_ozeti_tutan_yedek_dogrulanir_createdb_degerleri_yazilir(): void
@@ -105,6 +118,53 @@ final class YedekManifestDogrulaTest extends TestCase
 
         $this->artisan('yedek:manifest-dogrula', ['dump' => $dump])
             ->expectsOutputToContain('GERI_YUKLEME_OZET_TUTMUYOR')
+            ->assertFailed();
+    }
+
+    /** BY-031-R2: imza doğrulanmadan veritabanına hiç bağlanılmaz, yetkiler değişmez. */
+    public function test_imzasi_tutmayan_manifestte_baglanma_yetkilerine_hic_dokunulmaz(): void
+    {
+        Process::fake();
+        $dump = $this->yedek();
+        $manifest = ManifestDeposu::jsonYolu($dump);
+        file_put_contents($manifest, str_replace(hash('sha256', 'dump!'), hash('sha256', 'dumP!'), (string) file_get_contents($manifest)));
+
+        $this->artisan('yedek:manifest-dogrula', ['dump' => $dump, '--yetkileri-uygula' => 'erp'])
+            ->expectsOutputToContain('GERI_YUKLEME_IMZA_GECERSIZ')
+            ->doesntExpectOutputToContain('YETKILER_UYGULANDI')
+            ->assertFailed();
+
+        Process::assertNothingRan();
+    }
+
+    /** BY-031-R2: doğrulanan imzalı manifestteki bağlanma yetkileri, ekrandaki geri yüklemenin koduyla veritabanına gider. */
+    public function test_dogrulanan_manifestin_baglanma_yetkileri_veritabanina_uygulanir(): void
+    {
+        $this->yedekBaglantisi();
+        Process::fake(['*' => '']);
+        $dump = $this->yedek(acl: '{erp=CTc/erp,diger=c/erp}');
+
+        $this->artisan('yedek:manifest-dogrula', ['dump' => $dump, '--yetkileri-uygula' => 'erp'])
+            ->expectsOutputToContain('DOGRULANDI')
+            ->expectsOutputToContain('YETKILER_UYGULANDI')
+            ->assertSuccessful();
+
+        Process::assertRan(fn (PendingProcess $p): bool => str_ends_with((string) ((array) $p->command)[0], 'psql')
+            && in_array('--set=ad=erp', (array) $p->command, true)
+            && in_array('--set=acl={erp=CTc/erp,diger=c/erp}', (array) $p->command, true)
+            && in_array('--set=varsayilan=0', (array) $p->command, true));
+    }
+
+    /** BY-031-R2: açılıştan önceki denetim eşdeğer olmayan yetkide başarısız döner ve açılışa izin vermez. */
+    public function test_baglanma_yetkileri_esdeger_degilse_denetim_basarisiz_doner(): void
+    {
+        $this->yedekBaglantisi();
+        Process::fake(['*psql*' => "f\n", '*' => '']);
+        $dump = $this->yedek(acl: '{erp=CTc/erp,diger=c/erp}');
+
+        $this->artisan('yedek:manifest-dogrula', ['dump' => $dump, '--yetkileri-denetle' => 'erp'])
+            ->expectsOutputToContain('eşdeğer DEĞİL')
+            ->doesntExpectOutputToContain('YETKILER_ESDEGER')
             ->assertFailed();
     }
 

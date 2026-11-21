@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\YedekAyari;
 use App\Services\Yedekleme\AyarKopyasi;
 use App\Services\Yedekleme\IslemSonucu;
+use App\Services\Yedekleme\KalicilikDogrulanamadi;
 use App\Services\Yedekleme\KopyaSifreleyici;
 use App\Services\Yedekleme\SifrelemeHatasi;
 use App\Services\Yedekleme\YedekDenetimi;
@@ -25,8 +26,8 @@ use Throwable;
  * Ayarlar → Yedekleme Ayarları (BY-018; README §4.3, §4.8, §4.7). Tek satır.
  * Her değişiklik denetim kaydına (eski → yeni değerler) ve ayar dosya
  * kopyasına yazılır (`AyarKopyasi`: veritabanı geri yüklenince ayarlar
- * kaybolmasın; çalıştırıcı mail ayarını oradan da okur). Doğrudan kipte
- * kopya yazılamazsa veritabanı değişikliği de geri alınır (kaydet()).
+ * kaybolmasın; çalıştırıcı mail ayarını oradan da okur). Kopya yalnız commit
+ * olmuş ayarlardan üretilir; yazılamazsa izlenir ve çalıştırıcı uzlaştırır (kaydet()).
  *
  * Şifreleme açık anahtarı ayrı uçla yüklenir; özel anahtar içeren metin
  * reddedilir (sunucu özel anahtar saklamaz — BY-019).
@@ -120,16 +121,22 @@ final class YedekAyariController extends Controller
     }
 
     /**
-     * Değişikliği uygular: veritabanı, denetim kaydı ve (doğrudan kipte) ayar
-     * dosya kopyası birlikte; biri olmazsa hiçbiri olmaz (BY-018-R1, D3).
+     * Değişikliği uygular: veritabanı + denetim kaydı tek işlemde; ayar dosya
+     * kopyası (doğrudan kipte) ANCAK commit'ten sonra, veritabanından yeniden
+     * okunarak yazılır (BY-018-R2, D3). Böylece imzalı dosya hiçbir zaman
+     * kaydedilmemiş bir ayarı göstermez: commit düşerse dosyaya dokunulmaz.
      *
      * - Ön koşul (imza anahtarı) YAZMADAN önce denetlenir: yoksa 409, hiçbir
-     *   şey değişmez.
-     * - Veritabanı yazımı + kopya yazımı tek işlemde: kopya yazılamazsa işlem
-     *   geri alınır. Kopya atomik yazılır (geçici ad + taşıma): önceki kopya
-     *   baytlarıyla kalır. Hata istemciye döner; denetime `basarisiz` eklenir.
+     *   şey değişmez (BY-018-R1).
+     * - Commit'ten sonra kopya yazılamazsa ayar yine kaydedilmiştir: yanıt
+     *   başarılıdır, `ayar_kopyasi_guncel: false` ve denetimde `ayar_kopyasi`
+     *   `basarisiz` (AYAR_KOPYASI_YAZILAMADI) ile izlenir. Uzlaştırmayı
+     *   çalıştırıcının her turu yapar (AyarKopyasi::guncelDegilseYaz — doğrudan
+     *   kipte zamanlayıcının dakikalık `yedek:calistir --tek-tur`'u, servis
+     *   kipinde servis döngüsü; ikisi de kopyayı yazabilen ve imza anahtarını
+     *   okuyabilen hesaptır).
      * - Servis kipinde web süreci durum klasörüne yazamaz ve imza anahtarını
-     *   okuyamaz (README §5.5): kopyayı çalıştırıcı her turda tazeler.
+     *   okuyamaz (README §5.5): kopyayı yalnız çalıştırıcı tazeler.
      *
      * @param  Closure(YedekAyari): array<string, mixed>  $degistir  Değişikliği yapar, denetim ayrıntısını döner
      */
@@ -142,39 +149,42 @@ final class YedekAyariController extends Controller
             throw new HttpResponseException(response()->json(['kod' => 'YEDEK_IMZA_ANAHTARI_YOK', 'mesaj' => __('hata.yedek_imza_anahtari_yok')], 409));
         }
 
-        $kopyaHatasi = null;
+        $ayar = DB::transaction(function () use ($islem, $degistir, $kullaniciId): YedekAyari {
+            $ayar = YedekAyari::guncel();
+            $this->denetim->kaydet($islem, IslemSonucu::Basarili, null, $kullaniciId, null, $degistir($ayar));
+
+            return $ayar;
+        });
+
+        if ($dogrudan) {
+            $this->kopyayiYaz($islem, $kullaniciId);
+        }
+
+        return $ayar;
+    }
+
+    /**
+     * Commit olmuş ayarlardan kopyayı yazar; hatası kaydı geri almaz, izlenir.
+     * Taşımadan sonraki hata (klasör eşitlenemedi) dosyayı veritabanıyla aynı
+     * bırakır; kesintide eskisine dönerse çalıştırıcı farkı görüp yeniden yazar.
+     */
+    private function kopyayiYaz(string $islem, int $kullaniciId): void
+    {
+        try {
+            $this->ayarKopyasi->yaz();
+
+            return;
+        } catch (KalicilikDogrulanamadi $hata) {
+            [$sonuc, $kod] = [IslemSonucu::Basarili, 'AYAR_KOPYASI_KALICILIGI_DOGRULANAMADI'];
+        } catch (Throwable $hata) {
+            [$sonuc, $kod] = [IslemSonucu::Basarisiz, 'AYAR_KOPYASI_YAZILAMADI'];
+        }
 
         try {
-            return DB::transaction(function () use ($islem, $degistir, $dogrudan, $kullaniciId, &$kopyaHatasi): YedekAyari {
-                $ayar = YedekAyari::guncel();
-                $this->denetim->kaydet($islem, IslemSonucu::Basarili, null, $kullaniciId, null, $degistir($ayar));
-
-                // Son adım: geri alınamayan tek yazım (dosya) en sonda
-                if ($dogrudan) {
-                    try {
-                        $this->ayarKopyasi->yaz();
-                    } catch (Throwable $hata) {
-                        $kopyaHatasi = $hata;
-
-                        throw $hata;
-                    }
-                }
-
-                return $ayar;
-            });
-        } catch (Throwable $hata) {
-            if ($kopyaHatasi === null) {
-                throw $hata;
-            }
-
-            try {
-                $this->denetim->kaydet($islem, IslemSonucu::Basarisiz, null, $kullaniciId, null, ['kod' => 'AYAR_KOPYASI_YAZILAMADI'], $hata::class);
-            } catch (Throwable) {
-                // En iyi çaba: asıl hata aşağıda raporlanır
-            }
             report($hata);
-
-            throw new HttpResponseException(response()->json(['kod' => 'YEDEK_AYAR_KOPYASI_YAZILAMADI', 'mesaj' => __('hata.yedek_ayar_kopyasi_yazilamadi')], 500));
+            $this->denetim->kaydet('ayar_kopyasi', $sonuc, null, $kullaniciId, null, ['kod' => $kod, 'tetikleyen' => $islem], $hata::class);
+        } catch (Throwable) {
+            // En iyi çaba: ayar kaydedildi; kopyanın durumu ekranda (ayar_kopyasi_guncel)
         }
     }
 
@@ -207,6 +217,8 @@ final class YedekAyariController extends Controller
                 'kullanici' => $ayar->sifreleme_anahtar_kullanicisi,
                 'bitis' => $ayar->sifreleme_anahtar_bitisi?->toIso8601String(),
             ],
+            // false: dosya kopyası veritabanının gerisinde (çalıştırıcı yazacak); null: bu süreç bilemez (BY-018-R2)
+            'ayar_kopyasi_guncel' => $this->ayarKopyasi->guncelMi(),
         ];
     }
 }

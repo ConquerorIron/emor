@@ -16,6 +16,8 @@ use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Sleep;
+use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 use Tests\Yedekleme\YedeklemeOrtami;
@@ -156,6 +158,147 @@ final class YedekApiTest extends TestCase
         $this->assertFileDoesNotExist($this->yedekKoku.'/dosya/istekler');
     }
 
+    private function bekleyenKlasoru(): string
+    {
+        $klasor = config('yedekleme.istek_klasoru').'/bekleyen';
+        @mkdir($klasor, 0770, true);
+
+        return $klasor;
+    }
+
+    private function rootDegilse(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('root klasör iznini aşar (T11).');
+        }
+    }
+
+    /**
+     * BY-014-R2: istek dosyası çalıştırıcıya göründükten sonra klasör
+     * eşitlenemezse istek kabul edilmiştir (202, belirsizlik notu); aynı
+     * anahtarla yeniden deneme ikinci dosya yazmaz.
+     */
+    public function test_klasor_esitlemesi_bozulsa_da_yayimlanan_istek_kabul_edilir_yeniden_deneme_ikinci_dosya_yazmaz(): void
+    {
+        $this->rootDegilse();
+        $kullanici = $this->izinli('yedekler.goruntule', 'yedekler.al');
+        $anahtar = (string) Str::uuid();
+        $klasor = $this->bekleyenKlasoru();
+        // Yazılabilir ve geçilebilir ama okunamaz: taşıma olur, klasör eşitlemek için açılamaz
+        chmod($klasor, 0300);
+
+        try {
+            $ilk = $this->actingAs($kullanici)->postJson(self::K.'/yedekler/tara', [], ['Idempotency-Key' => $anahtar])
+                ->assertStatus(202)->json('data.istek_kimligi');
+            $tekrar = $this->postJson(self::K.'/yedekler/tara', [], ['Idempotency-Key' => $anahtar])
+                ->assertStatus(202)->json('data.istek_kimligi');
+        } finally {
+            chmod($klasor, 0770);
+        }
+
+        $this->assertSame($ilk, $tekrar);
+        $this->assertSame([$ilk.'.json'], array_map('basename', app(IstekKutusu::class)->bekleyenler()));
+        $kayitlar = YedekIslemKaydi::query()->orderBy('id')->get();
+        $this->assertSame([['basarili', null], ['basarili', 'ISTEK_KALICILIGI_DOGRULANAMADI']], $kayitlar->map(fn (YedekIslemKaydi $k): array => [$k->sonuc->value, $k->ayrinti['kod'] ?? null])->all());
+        $this->assertSame([$ilk, $ilk], $kayitlar->map(fn (YedekIslemKaydi $k): string => $k->ayrinti['istek'])->all());
+        $this->getJson(self::K.'/yedekler/istekler/'.$ilk)->assertOk()->assertJsonPath('data.durum', 'kuyrukta');
+    }
+
+    public function test_ayni_istek_anahtariyla_yeniden_deneme_en_cok_bir_is_birakir_baska_eylem_ve_kullanici_ayri_kimlik_alir(): void
+    {
+        $kullanici = $this->izinli('yedekler.goruntule', 'yedekler.al');
+        $anahtar = (string) Str::uuid();
+        $kutu = app(IstekKutusu::class);
+        $tara = fn (User $kim, string $anahtar): string => $this->actingAs($kim)
+            ->postJson(self::K.'/yedekler/tara', [], ['Idempotency-Key' => $anahtar])->assertStatus(202)->json('data.istek_kimligi');
+
+        $kimlik = $tara($kullanici, $anahtar);
+        $this->assertSame($kimlik, $tara($kullanici, $anahtar));
+        $this->assertCount(1, $kutu->bekleyenler());
+
+        // Çalıştırıcı işledi (üstlendi, sonucu yazdı): yeniden deneme yine aynı kabulü alır, yeni iş yok
+        $yol = (string) $kutu->talepEt($kutu->bekleyenler()[0]);
+        $kutu->sonucYaz($kimlik, 'tamam');
+        $kutu->sil($yol);
+        $this->assertSame($kimlik, $tara($kullanici, strtoupper($anahtar)));
+        $this->assertSame([], $kutu->bekleyenler());
+        $this->assertSame(1, YedekIslemKaydi::query()->count());
+
+        // Aynı anahtar başka kullanıcıda ya da başka eylemde başka iştir
+        $baska = $tara($this->izinli('yedekler.goruntule', 'yedekler.al'), $anahtar);
+        $yeniYedek = $this->actingAs($kullanici)->postJson(self::K.'/yedekler', ['aciklama' => null], ['Idempotency-Key' => $anahtar])
+            ->assertStatus(202)->json('data.istek_kimligi');
+        $this->assertCount(3, array_unique([$kimlik, $baska, $yeniYedek]));
+        $this->assertCount(2, $kutu->bekleyenler());
+
+        $this->postJson(self::K.'/yedekler/tara', [], ['Idempotency-Key' => 'tekrar-1'])
+            ->assertStatus(422)->assertJsonPath('kod', 'DOGRULAMA');
+    }
+
+    /** Taşımadan önceki hata: istek yayımlanmadı, başarısız döner; aynı anahtarla yeniden deneme yayınlar. */
+    public function test_istek_tasinmadan_once_yazilamazsa_500_dosya_yok_ayni_anahtarla_yeniden_deneme_bir_kez_yayinlar(): void
+    {
+        $this->rootDegilse();
+        $kullanici = $this->izinli('yedekler.goruntule', 'yedekler.al');
+        $anahtar = (string) Str::uuid();
+        $klasor = $this->bekleyenKlasoru();
+        // Kabul kilidi önceki bir istekten kalmış; klasöre yeni dosya yazılamıyor (geçici dosya açılamaz)
+        touch($klasor.'/.kabul.kilit');
+        chmod($klasor, 0500);
+
+        try {
+            $this->actingAs($kullanici)->postJson(self::K.'/yedekler/tara', [], ['Idempotency-Key' => $anahtar])->assertStatus(500);
+        } finally {
+            chmod($klasor, 0770);
+        }
+
+        $this->assertSame([], app(IstekKutusu::class)->bekleyenler());
+        $kayitlar = YedekIslemKaydi::query()->orderBy('id')->get();
+        $this->assertSame(['basarili', 'basarisiz'], $kayitlar->map(fn (YedekIslemKaydi $k): string => $k->sonuc->value)->all());
+        $this->assertSame('ISTEK_YAYINLANAMADI', $kayitlar[1]->ayrinti['kod']);
+
+        $kimlik = $this->postJson(self::K.'/yedekler/tara', [], ['Idempotency-Key' => $anahtar])->assertStatus(202)->json('data.istek_kimligi');
+        $this->assertSame($kayitlar[0]->ayrinti['istek'], $kimlik);
+        $this->assertSame([$kimlik.'.json'], array_map('basename', app(IstekKutusu::class)->bekleyenler()));
+    }
+
+    /**
+     * G18: aynı anahtarla eşzamanlı ikinci istek kabul kilidini bekler ve
+     * kilit altında yeniden bakar; ilk istek o arada yayınladıysa ikinci
+     * dosyayı ve ikinci denetim kaydını yazmaz.
+     */
+    public function test_ayni_anahtarla_eszamanli_istek_kabul_kilidini_bekler_ilk_yayinlanmissa_yazmaz(): void
+    {
+        $kullanici = $this->izinli('yedekler.goruntule', 'yedekler.al');
+        $anahtar = (string) Str::uuid();
+        $kutu = app(IstekKutusu::class);
+        $kimlik = $this->actingAs($kullanici)->postJson(self::K.'/yedekler/tara', [], ['Idempotency-Key' => $anahtar])->json('data.istek_kimligi');
+        $yol = $this->bekleyenKlasoru().'/'.$kimlik.'.json';
+        // İlk istek henüz yayınlamamış gibi: dosya kilit beklenirken yayınlanacak
+        $ilkinIcerigi = (string) file_get_contents($yol);
+        unlink($yol);
+
+        $kilit = fopen($this->bekleyenKlasoru().'/.kabul.kilit', 'c');
+        $this->assertTrue(flock($kilit, LOCK_EX));
+        Sleep::fake();
+        Sleep::whenFakingSleep(function () use (&$kilit, $yol, $ilkinIcerigi): void {
+            if ($kilit !== null) {
+                file_put_contents($yol, $ilkinIcerigi);
+                flock($kilit, LOCK_UN);
+                fclose($kilit);
+                $kilit = null;
+            }
+        });
+
+        $this->postJson(self::K.'/yedekler/tara', [], ['Idempotency-Key' => $anahtar])
+            ->assertStatus(202)->assertJsonPath('data.istek_kimligi', $kimlik);
+
+        $this->assertNull($kilit, 'istek kilidi beklemeliydi');
+        $this->assertSame($ilkinIcerigi, file_get_contents($yol));
+        $this->assertCount(1, $kutu->bekleyenler());
+        $this->assertSame(1, YedekIslemKaydi::query()->count());
+    }
+
     public function test_webden_geri_yukleme_kaynagi_yerel_sifresiz_uzak_ve_yalniz_sifreli_kopyaya_gore_bildirilir(): void
     {
         $yerel = Yedek::factory()->create();
@@ -260,7 +403,7 @@ final class YedekApiTest extends TestCase
         $this->assertStringNotContainsString('yazılamadı', $govde);
         $satir = collect($yanit->json('data'))->firstWhere('kimlik', $yedek->kimlik);
         $this->assertSame('PG_DUMP', $satir['hata_kodu']);
-        $this->assertSame([['hedef_id' => $hedef->id, 'hedef_ad' => 'İkinci disk', 'hedef_tur' => 'yerel', 'durum' => 'tamam', 'sifreli' => false, 'tamamlanma_zamani' => null, 'hata_kodu' => null]], $satir['kopyalar']);
+        $this->assertSame([['hedef_id' => $hedef->id, 'hedef_ad' => 'İkinci disk', 'hedef_tur' => 'yerel', 'durum' => 'tamam', 'sifreli' => false, 'kurtarma_hazir' => true, 'tamamlanma_zamani' => null, 'hata_kodu' => null]], $satir['kopyalar']);
         // Süzgeç: yalnız güvenilmeyenler
         $this->getJson(self::K.'/yedekler?guvenilmeyen=1')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.geri_yuklenebilir', false);
     }

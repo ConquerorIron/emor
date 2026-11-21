@@ -7,6 +7,7 @@ namespace App\Services\Yedekleme\Hedefler;
 use App\Models\YedekHedefi;
 use App\Services\Yedekleme\AtomikDosya;
 use App\Services\Yedekleme\HedefTuru;
+use App\Services\Yedekleme\SureButcesi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use Carbon\CarbonImmutable;
 use GuzzleHttp\Psr7\LazyOpenStream;
@@ -271,21 +272,41 @@ final class S3Baglayicisi implements HedefBaglayicisi
         }
     }
 
+    /**
+     * Sınamada (etkin süre bütçesi) sınırlar ortak son zamana kısalır, deneme
+     * ve önündeki bekleme sığmıyorsa yapılmaz (BY-016-R4).
+     */
     private function istemci(bool $dosyaTasir): PendingRequest
     {
         $kopyaSuresi = $this->yapilandirma->sureSiniri('kopya');
+        $baglanti = $this->yapilandirma->sureSiniri('baglanti');
+        $zamanAsimi = $dosyaTasir ? $kopyaSuresi : min(self::KISA_ISTEK_SURESI, $kopyaSuresi);
 
-        return Http::connectTimeout($this->yapilandirma->sureSiniri('baglanti'))
-            ->timeout($dosyaTasir ? $kopyaSuresi : min(self::KISA_ISTEK_SURESI, $kopyaSuresi))
+        return Http::connectTimeout($baglanti)
+            ->timeout($zamanAsimi)
             ->withoutRedirecting()
             ->retry(
                 self::YENIDEN_DENEME_MS,
                 0,
-                fn (?Throwable $hata): bool => ($hata instanceof ConnectionException && ! $this->sertifikaHatasiMi($hata))
+                fn (?Throwable $hata, PendingRequest $istek): bool => (($hata instanceof ConnectionException && ! $this->sertifikaHatasiMi($hata))
                     || ($hata instanceof RequestException
-                        && ($hata->response->serverError() || $hata->response->status() === 429)),
+                        && ($hata->response->serverError() || $hata->response->status() === 429)))
+                    && $this->denemeyiSinirla($istek, $baglanti, $zamanAsimi),
                 throw: false,
             );
+    }
+
+    /** Sonraki deneme etkin süre bütçesine sığıyorsa süre sınırlarını kalan süreye kısaltır */
+    private function denemeyiSinirla(PendingRequest $istek, int $baglanti, int $zamanAsimi): bool
+    {
+        $sinir = SureButcesi::denemeSiniri($zamanAsimi, max(self::YENIDEN_DENEME_MS));
+        if ($sinir === null) {
+            return false;
+        }
+
+        $istek->connectTimeout(min($baglanti, $sinir))->timeout($sinir);
+
+        return true;
     }
 
     /**

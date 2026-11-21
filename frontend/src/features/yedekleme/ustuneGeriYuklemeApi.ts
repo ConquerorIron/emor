@@ -1,5 +1,7 @@
 import { api } from '@/api/client'
 
+import { ISTEK_ANAHTARI_BASLIGI } from './useIstekAnahtarlari'
+
 /** 13 ileri adım (backend UstuneGeriYuklemeAdimi) — ekranın adım listesi */
 export type UstuneDurum =
   | 'kuyrukta'
@@ -140,6 +142,7 @@ async function anahtarliIstek<T>(
   yol: string,
   anahtar: string,
   istekGovdesi?: Record<string, unknown>,
+  istekAnahtari?: string,
 ): Promise<T> {
   let yanit: Response
   try {
@@ -151,6 +154,7 @@ async function anahtarliIstek<T>(
         Accept: 'application/json',
         'X-Erisim-Anahtari': anahtar,
         ...(istekGovdesi === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(istekAnahtari === undefined ? {} : { [ISTEK_ANAHTARI_BASLIGI]: istekAnahtari }),
       },
       ...(istekGovdesi === undefined ? {} : { body: JSON.stringify(istekGovdesi) }),
     })
@@ -179,11 +183,13 @@ export function ustuneDurumGetir(
 /**
  * "Onayla" / "Geri dön" — 409 GERI_YUKLEME_ISLEM_DURUMU_UYGUN_DEGIL yapılabilir
  * değilse. Onay, farkı olan her ayar grubunun seçimini taşır (422
- * GERI_YUKLEME_AYAR_SECIMI_EKSIK aksi hâlde).
+ * GERI_YUKLEME_AYAR_SECIMI_EKSIK aksi hâlde). `istekAnahtari`: aynı kararın
+ * yeniden denemesinde aynı — sunucu ikinci karar isteği bırakmaz (BY-030-R3).
  */
 export function ustuneKararVer(
   islem: string,
   anahtar: string,
+  istekAnahtari: string,
   karar: 'onayla' | 'geri-don',
   ayarSecimleri?: Partial<Record<AyarGrubu, AyarSecimi>>,
 ): Promise<{ istek_kimligi: string; durum: 'kuyrukta' }> {
@@ -192,5 +198,6 @@ export function ustuneKararVer(
     `${KOK}/${islem}/${karar}`,
     anahtar,
     karar === 'onayla' ? { ayar_secimleri: ayarSecimleri ?? {} } : undefined,
+    istekAnahtari,
   )
 }

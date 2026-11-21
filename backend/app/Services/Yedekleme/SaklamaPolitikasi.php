@@ -43,13 +43,16 @@ use Throwable;
  *    okunamıyorsa da (kullanımdakiler bilinmiyor) silinmez.
  * 6. Planlı yedeğin yerel dosyası (planlarında yedek klasörü hedefi yoksa)
  *    otomatik olarak YALNIZ burada silinir: bütün zorunlu hedefler doğrulanmış
- *    olmalı, sabit / kullanımdaki yedeğin dosyası kalır (BY-010-R1).
- *    PlanliYedek her yedekten sonra burayı çalıştırır.
+ *    olmalı, sabit / kullanımdaki yedeğin dosyası kalır (BY-010-R1). En az bir
+ *    uzak kopya KURTARMAYA HAZIR olmalı (YedekKopyasi::kurtarmayaHazirMi;
+ *    BY-010-R2): şifreli kopyanın aktarımı doğrulanmış ama o hedefe yedeğin
+ *    manifestini taşıyan kurtarma paketi gitmemişse yerel arşiv kalır
+ *    (`kurtarma_paketi_eksik`). PlanliYedek her yedekten sonra burayı çalıştırır.
  */
 final class SaklamaPolitikasi
 {
     /** Plan yedeğinin yerel (aktarım) dosyasını tutan korumalar — bkz. hesapla() */
-    private const YEREL_AKTARIM_KORUMALARI = ['sabit', 'kullanimda', 'uzak_kopya_dogrulanmadi'];
+    private const YEREL_AKTARIM_KORUMALARI = ['sabit', 'kullanimda', 'uzak_kopya_dogrulanmadi', 'kurtarma_paketi_eksik'];
 
     public function __construct(
         private readonly HedefKatalogu $katalog,
@@ -59,6 +62,7 @@ final class SaklamaPolitikasi
         private readonly OlayGunlugu $olaylar,
         private readonly YedekDenetimi $denetim,
         private readonly YedekBildirimcisi $bildirimci,
+        private readonly YedekDeposu $depo,
     ) {}
 
     /**
@@ -153,6 +157,7 @@ final class SaklamaPolitikasi
         $anaKopyasiOlanlar = $kopyalar->filter(fn (YedekKopyasi $k): bool => isset($anaHedefler[$k->yedek_hedefi_id]))->pluck('yedek_id')->all();
         $klasorGrubu = $yedekler->filter(fn (Yedek $y): bool => $y->yerel_silinme_zamani === null && ! in_array($y->id, $anaKopyasiOlanlar, true))->values();
         $uzakKopyasiOlanlar = $kopyalar->filter(fn (YedekKopyasi $k): bool => ! isset($anaHedefler[$k->yedek_hedefi_id]))->pluck('yedek_id')->unique()->all();
+        $hazirUzakKopyasiOlanlar = $kopyalar->filter(fn (YedekKopyasi $k): bool => ! isset($anaHedefler[$k->yedek_hedefi_id]) && $k->kurtarmayaHazirMi())->pluck('yedek_id')->unique()->all();
 
         foreach ($gruplar as $hedefId => $grup) {
             $adaylar = [];
@@ -181,13 +186,19 @@ final class SaklamaPolitikasi
         // Sabit ve kullanımdaki yedeğin dosyası da kalır. "Son başarılı",
         // "doğrulanmış en yeni" ve en az sayı yedeğin KENDİSİNİ korur: yedek
         // uzak hedefte durduğu için bu korumalar onun grubunda uygulanır,
-        // aktarım kaynağı olan yerel dosyayı tutmaz.
+        // aktarım kaynağı olan yerel dosyayı tutmaz. Uzak kopyalardan en az
+        // biri kurtarmaya hazır olmalı (BY-010-R2): yoksa sunucu kaybında yeni
+        // şifreli dump'ın imzalı manifesti hiçbir pakette bulunmaz.
         $adaylar = [];
         $zamanlanmamis = $klasorGrubu->filter(fn (Yedek $y): bool => $y->kaynak !== YedekKaynagi::Plan)->values();
         foreach ($klasorGrubu as $yedek) {
             if ($yedek->kaynak === YedekKaynagi::Plan) {
+                $uzakVar = in_array($yedek->id, $uzakKopyasiOlanlar, true);
+                if ($uzakVar && ! in_array($yedek->id, $hazirUzakKopyasiOlanlar, true)) {
+                    $yerelKorunan[$yedek->id][] = 'kurtarma_paketi_eksik';
+                }
                 $engel = array_intersect($yerelKorunan[$yedek->id] ?? [], self::YEREL_AKTARIM_KORUMALARI);
-                if (in_array($yedek->id, $uzakKopyasiOlanlar, true) && $engel === []) {
+                if ($uzakVar && $engel === []) {
                     $kararlar[] = new SilmeKarari(SilmeKarari::DOSYA, $yedek->id, null, null, null, SilmeKarari::NEDEN_UZAK_KOPYA_VAR);
                 }
 
@@ -227,6 +238,17 @@ final class SaklamaPolitikasi
      */
     public function uygula(?int $kullaniciId = null): array
     {
+        // Bağlanmamış diskte yerel dosyalar "yok" görünür (yedek katalogdan düşerdi)
+        // ve her karar imzalı olay günlüğünü yedek klasörüne yazar (kök diske düşerdi):
+        // depo doğrulanmadan hiçbir karar uygulanmaz (BY-011-R3, G1)
+        try {
+            $this->depo->hazirla();
+        } catch (DepoIsaretiYok $hata) {
+            $this->denetim->kaydet('saklama_sil', IslemSonucu::Basarisiz, null, $kullaniciId, null, ['kod' => YedekAlmaHatasi::DEPO], $hata->getMessage());
+
+            throw $hata;
+        }
+
         $hesap = $this->hesapla();
         $sonuc = ['bag' => 0, 'dosya' => 0, 'atlanan_hedefler' => [], 'bilgi' => [], 'kararlar' => []];
 

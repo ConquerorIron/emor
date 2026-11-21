@@ -19,7 +19,8 @@ use Throwable;
  * dosyasına yazılır (APP_CONFIG_CACHE) — Laravel önbellek varken `.env`'i
  * okumaz, ortamdan da etkilenmez (G12) — ve dosyada:
  *
- * - canlı veritabanını gösteren HER pgsql bağlantısı yeni veritabanını gösterir,
+ * - canlı veritabanını gösteren HER pgsql bağlantısı yeni veritabanını gösterir
+ *   (adresle — DB_URL — tanımlı bağlantı önce somut tanıma çevrilir),
  * - varsayılan bağlantı yedekleme bağlantısıdır,
  * - önbellek `array`, oturum `array`, kuyruk `sync`tir.
  *
@@ -82,19 +83,22 @@ final class YeniVeritabanindaMigration
         $baglantiAdi = $this->yapilandirma->baglantiAdi();
 
         foreach ($ayarlar['database']['connections'] ?? [] as $ad => $tanim) {
-            if (! is_array($tanim) || ($tanim['driver'] ?? null) !== 'pgsql') {
+            if (! is_array($tanim)) {
                 continue;
             }
 
             // Adres (URL) ayrı alanların önüne geçer: içindeki veritabanı adı
-            // değiştirilmeden çocuk süreç canlıya bağlanabilirdi
-            if (($tanim['url'] ?? null) !== null && $tanim['url'] !== '') {
-                throw new GeriYuklemeHatasi(GeriYuklemeHatasi::MIGRATION, "PostgreSQL bağlantısı ({$ad}) adresle (DB_URL) tanımlı; migration'ın yeni veritabanına gideceği güvenle sağlanamaz.");
+            // değiştirilmeden çocuk süreç canlıya bağlanırdı. Tanım somut hâle
+            // çevrilir (`url` kalmaz), veritabanı adı tek doğruluk kaynağı olur (BY-028-R4)
+            $tanim = PgAraclari::somut($tanim);
+            if (($tanim['driver'] ?? null) !== 'pgsql') {
+                continue;
             }
 
             if (($tanim['database'] ?? null) === $canli) {
-                $ayarlar['database']['connections'][$ad]['database'] = $hedef;
+                $tanim['database'] = $hedef;
             }
+            $ayarlar['database']['connections'][$ad] = $tanim;
         }
 
         if (($ayarlar['database']['connections'][$baglantiAdi]['database'] ?? null) !== $hedef) {

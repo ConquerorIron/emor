@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Yedekleme;
 
 use App\Models\YedekHedefi;
+use App\Models\YedekKopyasi;
 use App\Services\Yedekleme\Hedefler\HedefBaglayicisi;
 use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
@@ -41,8 +42,16 @@ use Throwable;
  *    bileşenlerin adı, şifreli özeti, boyutu) yazılıp geri okunur. Hedefte
  *    "yetkili paket" = işaretçisi olan EN YENİ sürüm (sürüm adı UTC zamanla
  *    başlar, ada göre sıralanır). İşaretçisi olmayan sürüm yarımdır, okunmaz.
- * 4. Ancak ondan sonra eski sürümler silinir: son SAKLANAN_SURUM tamam sürüm
- *    (yeni + bir önceki) kalır. Silmede önce işaretçi, sonra bileşenler.
+ * 4. Paket doğrulanınca manifest arşivine GİREN yedeklerin bu hedefteki
+ *    `tamam` kopyaları KURTARMAYA HAZIR işaretlenir (`kurtarma_hazir`;
+ *    BY-010-R2, BY-024-R3): boş sunucuda o kopya bu paketle açılabilir.
+ *    Arşiv yedek klasöründeki bütün manifestleri taşıdığı için sonraki
+ *    başarılı paket, önceki paketi yarım kalmış kopyaları da hazır yapar.
+ *    Saklama, hazır uzak kopyası olmayan yedeğin yerel arşivini silmez.
+ * 5. Ancak ondan sonra eski sürümler silinir: son SAKLANAN_SURUM tamam sürüm
+ *    (yeni + bir önceki) kalır. Silmede önce işaretçi, sonra bileşenler;
+ *    işaretçi silinemezse sürümün hiçbir bileşenine dokunulmaz (BY-024-R4):
+ *    hedefte "tamam" görünen bir set hiçbir an eksik kalmaz.
  *
  * Arada hata olursa yeni sürümün yazılan dosyaları silinmeye çalışılır;
  * önceki tamam sürüm ve işaretçisi hiç değişmez. Silinemeyenler durum
@@ -56,7 +65,8 @@ use Throwable;
  *
  * Buradaki hata yedeğin kopyasını başarısız SAYMAZ: istisna dışarı taşmaz,
  * denetim kaydına (dosya + veritabanı) yazılır; sonuç `gonder()`'ün dönüş
- * değeridir (uzak yaşam sinyali buna bağlı — YedekKopyalayici).
+ * değeridir (uzak yaşam sinyali buna bağlı — YedekKopyalayici). Kopya yine
+ * de kurtarmaya hazır OLMAZ; yerel arşivi saklama tutar (4. adım).
  */
 final class KurtarmaPaketi
 {
@@ -108,6 +118,7 @@ final class KurtarmaPaketi
         /** @var list<string> $yazilan Yeni sürümün hedefe yazılan bileşenlerinin kimlikleri */
         $yazilan = [];
         $isaretci = null;
+        $tamamlandi = false;
         $temizlenemeyen = 0;
         $hataMesaji = null;
 
@@ -119,9 +130,11 @@ final class KurtarmaPaketi
 
             $baglayici = $this->katalog->olustur($hedef);
 
-            // 1. Önce hepsi şifrelenir: şifreleme hatasında hedefe hiçbir şey gitmez
+            // 1. Önce hepsi şifrelenir: şifreleme hatasında hedefe hiçbir şey gitmez.
+            // Arşive giren manifestlerin listesi bir kez alınır: hazır işaretlenecek kopyalar bunlardır
+            $manifestAdlari = $this->manifestAdlari();
             $sifreliler = [];
-            foreach ($this->kaynaklar($calisma) as $bilesen => $yerel) {
+            foreach ($this->kaynaklar($calisma, $manifestAdlari) as $bilesen => $yerel) {
                 if ($yerel === null) {
                     $atlanan[] = $bilesen;
 
@@ -159,8 +172,14 @@ final class KurtarmaPaketi
             $this->surumuKaydet($hedef, $surum, $yazilan, $isaretci, false);
             $this->geriOkuDenetle($baglayici, $isaretci, $isaretciYolu, $calisma, $isaretciAdi);
             $this->surumuKaydet($hedef, $surum, $yazilan, $isaretci, true);
+            $tamamlandi = true;
 
-            // 4. Eski sürümler: yenisi doğrulandıktan sonra
+            // 4. Paketteki manifestlerin kopyaları kurtarmaya hazır (yalnız manifest bileşeni gittiyse)
+            if (isset($sifreliler[self::MANIFESTLER])) {
+                $this->hazirIsaretle($hedef, $manifestAdlari);
+            }
+
+            // 5. Eski sürümler: yenisi doğrulandıktan sonra
             $temizlenemeyen = $this->eskileriSil($baglayici, $hedef);
         } catch (Throwable $hata) {
             $hataMesaji = match (true) {
@@ -168,7 +187,8 @@ final class KurtarmaPaketi
                 default => $hata::class.': '.Str::limit($hata->getMessage(), 300),
             };
 
-            if ($baglayici !== null && ($yazilan !== [] || $isaretci !== null)) {
+            // Tamamlanmış sürüm (işaretçisi doğrulandı) sonraki bir adımın hatasıyla silinmez
+            if (! $tamamlandi && $baglayici !== null && ($yazilan !== [] || $isaretci !== null)) {
                 $this->yarimSurumuSil($baglayici, $hedef, $surum, $yazilan, $isaretci);
             }
         } finally {
@@ -267,6 +287,18 @@ final class KurtarmaPaketi
      * Önce işaretçi (sürüm artık "tamam" görünmesin), sonra bileşenler.
      * Her silmeden sonra kayıt güncellenir; hepsi silinince sürüm kayıttan çıkar.
      *
+     * İşaretçi silinemezse bileşenlere DOKUNULMAZ (BY-024-R4): işaretçi
+     * hedefte durdukça sürüm kurtarmada "tamam" görünür, seti eksiltmek onu
+     * okunamaz yapardı (D3).
+     * - Geçici hata: sürüm işaretçisi ve bütün bileşenleriyle kayıtta kalır,
+     *   sonraki başarılı gönderimde yeniden denenir.
+     * - `SILME_YETKISI_YOK` (değiştirilemez saklama, silme izni yok): hata
+     *   kendiliğinden düzelmez, her gönderimde yeniden denemek kaydı büyütürdü
+     *   (D8). Set eksiksiz hâliyle hedefin kendi kuralına bırakılır (README
+     *   §4.3 / §4.6 ile aynı karar) ve kayıttan çıkar.
+     * İşaretçi silindikten sonra bileşende `SILME_YETKISI_YOK` gelirse bileşen
+     * bizden çıkmış sayılır: sürüm artık "tamam" görünmez, kalan dosya zararsızdır.
+     *
      * @param  array{surum: string, tamam: bool, kimlikler: list<string>, isaretci: string|null}  $kayit
      *
      * @throws Throwable İlk silinemeyen dosyada
@@ -274,30 +306,62 @@ final class KurtarmaPaketi
     private function surumuSil(HedefBaglayicisi $baglayici, YedekHedefi $hedef, array $kayit): void
     {
         $kalan = $kayit['kimlikler'];
-        $uzaktanSil = function (string $kimlik) use ($baglayici): void {
-            try {
-                $baglayici->sil($kimlik);
-            } catch (HedefHatasi $hata) {
-                // Değiştirilemez saklama: hedefin kendi kuralı temizler (README §4.6);
-                // kayıtta tutmak onu her gönderimde büyütürdü
-                if ($hata->kod !== HedefHatasi::SILME_YETKISI_YOK) {
-                    throw $hata;
-                }
-            }
-        };
+        $hedefeBirakildi = false;
 
         try {
             if ($kayit['isaretci'] !== null) {
-                $uzaktanSil($kayit['isaretci']);
+                try {
+                    $baglayici->sil($kayit['isaretci']);
+                } catch (HedefHatasi $hata) {
+                    if ($hata->kod !== HedefHatasi::SILME_YETKISI_YOK) {
+                        throw $hata;
+                    }
+
+                    $hedefeBirakildi = true;
+
+                    return;
+                }
                 $kayit['isaretci'] = null;
             }
 
             while ($kalan !== []) {
-                $uzaktanSil($kalan[0]);
+                try {
+                    $baglayici->sil($kalan[0]);
+                } catch (HedefHatasi $hata) {
+                    if ($hata->kod !== HedefHatasi::SILME_YETKISI_YOK) {
+                        throw $hata;
+                    }
+                }
                 array_shift($kalan);
             }
         } finally {
-            $this->surumuKaydet($hedef, $kayit['surum'], $kalan, $kayit['isaretci'], false, sil: $kalan === [] && $kayit['isaretci'] === null);
+            $this->surumuKaydet($hedef, $kayit['surum'], $kalan, $kayit['isaretci'], false, sil: $hedefeBirakildi || ($kalan === [] && $kayit['isaretci'] === null));
+        }
+    }
+
+    /**
+     * Paketin manifest arşivine giren yedeklerin bu hedefteki `tamam`
+     * kopyalarını kurtarmaya hazır işaretler (BY-010-R2). Manifest adı dump
+     * adından türer (`erp_….json` ↔ `erp_….dump`; ManifestDeposu::jsonYolu).
+     * Henüz hazır olmayan kopyalar azdır (son paketten sonra gelenler):
+     * onlar okunup adla eşlenir.
+     *
+     * @param  list<string>  $manifestAdlari
+     */
+    private function hazirIsaretle(YedekHedefi $hedef, array $manifestAdlari): void
+    {
+        $arsivde = array_fill_keys($manifestAdlari, true);
+        $idler = YedekKopyasi::query()
+            ->where('yedek_hedefi_id', $hedef->id)
+            ->where('durum', KopyaDurumu::Tamam->value)
+            ->where('kurtarma_hazir', false)
+            ->with('yedek:id,dosya_adi')
+            ->get()
+            ->filter(fn (YedekKopyasi $k): bool => $k->yedek !== null && isset($arsivde[ManifestDeposu::jsonYolu($k->yedek->dosya_adi)]))
+            ->modelKeys();
+
+        if ($idler !== []) {
+            YedekKopyasi::query()->whereKey($idler)->update(['kurtarma_hazir' => true]);
         }
     }
 
@@ -344,9 +408,10 @@ final class KurtarmaPaketi
      * yoksa null). Yazılmakta olan günlükler kilit altında kopyalanır: gpg
      * büyüyen dosyayı okumaz.
      *
+     * @param  list<string>  $manifestAdlari  manifestAdlari()
      * @return array<string, string|null>
      */
-    private function kaynaklar(string $calisma): array
+    private function kaynaklar(string $calisma, array $manifestAdlari): array
     {
         $ayarlar = $this->yapilandirma->ayarKopyasiYolu();
 
@@ -354,29 +419,42 @@ final class KurtarmaPaketi
             self::OLAYLAR => $this->anlikKopya([$this->olaylar->yol()], $calisma.'/olaylar.jsonl'),
             self::AYARLAR => $this->anlikKopya([$ayarlar], $calisma.'/ayarlar.json'),
             self::DENETIM => $this->anlikKopya($this->denetimGunlukleri(), $calisma.'/denetim.log'),
-            self::MANIFESTLER => $this->manifestArsivi($calisma.'/manifestler.tar'),
+            self::MANIFESTLER => $this->manifestArsivi($calisma.'/manifestler.tar', $manifestAdlari),
         ];
     }
 
     /**
-     * Yedek klasöründeki manifestlerin tar arşivi (klasöre göre göreli adlar:
+     * Yedek klasöründeki manifestlerin adları, sıralı.
+     *
+     * @return list<string>
+     */
+    private function manifestAdlari(): array
+    {
+        $adlar = array_values(array_filter(
+            array_map('basename', glob($this->yapilandirma->klasor().'/erp_*.json') ?: []),
+            fn (string $ad): bool => preg_match('/^erp_[A-Za-z0-9._+-]{1,200}\.json$/D', $ad) === 1,
+        ));
+        sort($adlar, SORT_STRING);
+
+        return $adlar;
+    }
+
+    /**
+     * Verilen manifestlerin tar arşivi (klasöre göre göreli adlar:
      * `tar -xf … -C <yedek klasörü>` ile yerlerine açılır). Manifest yoksa null.
+     *
+     * @param  list<string>  $adlar
      *
      * @throws RuntimeException
      */
-    private function manifestArsivi(string $cikis): ?string
+    private function manifestArsivi(string $cikis, array $adlar): ?string
     {
         $klasor = $this->yapilandirma->klasor();
-        $adlar = array_values(array_filter(
-            array_map('basename', glob($klasor.'/erp_*.json') ?: []),
-            fn (string $ad): bool => preg_match('/^erp_[A-Za-z0-9._+-]{1,200}\.json$/D', $ad) === 1,
-        ));
 
         if ($adlar === []) {
             return null;
         }
 
-        sort($adlar, SORT_STRING);
         $sonuc = Process::timeout($this->yapilandirma->sureSiniri('kopya'))
             // Devralınan TAR_OPTIONS arşivin biçimini değiştirmesin (G12)
             ->env(['TAR_OPTIONS' => false])

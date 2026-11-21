@@ -12,12 +12,14 @@ use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
 use App\Services\Yedekleme\IstekKutusu;
 use App\Services\Yedekleme\KopyaDurumu;
+use App\Services\Yedekleme\PlanliYedek;
 use App\Services\Yedekleme\SaklamaPolitikasi;
 use App\Services\Yedekleme\SilmeKarari;
 use App\Services\Yedekleme\YedekKaynagi;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Sleep;
 use Tests\TestCase;
 use Tests\Yedekleme\YedeklemeOrtami;
 
@@ -38,7 +40,6 @@ final class YedekPlaniApiTest extends TestCase
         config(['yedekleme.aktif' => true]);
         // Cumartesi 2026-11-21 12:00 İstanbul
         $this->travelTo(CarbonImmutable::parse('2026-11-21 09:00', 'UTC'));
-        mkdir(config('yedekleme.klasor'), 0750, true);
         YedekAyari::query()->create(['enaz_adet' => 1]);
         $this->actingAs(User::factory()->yonetici()->create());
     }
@@ -168,14 +169,17 @@ final class YedekPlaniApiTest extends TestCase
     }
 
     /**
-     * Son çalışması `$sonCalisma`'da biten plan (UTC, bugün).
+     * Son çalışmasının yedeği `$yedek` olan, o çalışmada `$hedefler`e
+     * kopyalanmış plan (PlanliYedek'in yazdığı bağ). `$yedek` null: hiç çalışmadı.
      *
      * @param  list<YedekHedefi>  $hedefler
      */
-    private function calismisPlan(string $ad, array $hedefler, string $sonCalisma): YedekPlani
+    private function calismisPlan(string $ad, array $hedefler, ?Yedek $yedek): YedekPlani
     {
-        $plan = YedekPlani::factory()->create(['ad' => $ad, 'son_calisma' => CarbonImmutable::parse('2026-11-21 '.$sonCalisma, 'UTC')]);
-        $plan->hedefler()->attach(array_fill_keys(array_map(fn (YedekHedefi $h): int => $h->id, $hedefler), ['sakla_son_adet' => 3]));
+        $hedefIdleri = array_map(fn (YedekHedefi $h): int => $h->id, $hedefler);
+        $plan = YedekPlani::factory()->create(['ad' => $ad]);
+        $plan->forceFill(['son_calisma' => $yedek === null ? null : CarbonImmutable::now(), 'son_yedek_id' => $yedek?->id, 'son_hedef_idleri' => $yedek === null ? null : $hedefIdleri])->save();
+        $plan->hedefler()->attach(array_fill_keys($hedefIdleri, ['sakla_son_adet' => 3]));
 
         return $plan;
     }
@@ -183,28 +187,24 @@ final class YedekPlaniApiTest extends TestCase
     /**
      * @param  array<string, mixed>  $ozellik
      */
-    private function planYedegi(string $acilis, array $ozellik = []): Yedek
+    private function planYedegi(array $ozellik = []): Yedek
     {
-        return Yedek::factory()->plan()->create(['created_at' => CarbonImmutable::parse('2026-11-21 '.$acilis, 'UTC'), ...$ozellik]);
+        return Yedek::factory()->plan()->create($ozellik);
     }
 
     public function test_son_calismanin_sonucu_basarili_yedek_hatali_ve_hedef_hatali_ayri_doner(): void
     {
         [$yerel, $ikinci] = [YedekHedefi::factory()->create(['ad' => 'Yerel']), YedekHedefi::factory()->create(['ad' => 'İkinci'])];
-        $this->calismisPlan('A Başarılı', [$yerel], '06:00');
-        $this->calismisPlan('B Dump hatalı', [$yerel], '07:00');
-        $this->calismisPlan('C Hedef hatalı', [$yerel, $ikinci], '08:00');
-        $this->calismisPlan('D Hiç çalışmadı', [$yerel], '05:00')->forceFill(['son_calisma' => null])->save();
 
-        $a = $this->planYedegi('05:59');
+        $a = $this->planYedegi();
         YedekKopyasi::query()->create(['yedek_id' => $a->id, 'yedek_hedefi_id' => $yerel->id, 'durum' => KopyaDurumu::Tamam]);
-        $this->planYedegi('06:59', ['durum' => 'basarisiz', 'hata_kodu' => 'PG_DUMP', 'alinma_zamani' => null]);
-        $c = $this->planYedegi('07:59');
+        $this->calismisPlan('A Başarılı', [$yerel], $a);
+        $this->calismisPlan('B Dump hatalı', [$yerel], $this->planYedegi(['durum' => 'basarisiz', 'hata_kodu' => 'PG_DUMP', 'alinma_zamani' => null]));
+        $c = $this->planYedegi();
         YedekKopyasi::query()->create(['yedek_id' => $c->id, 'yedek_hedefi_id' => $yerel->id, 'durum' => KopyaDurumu::Tamam]);
         YedekKopyasi::query()->create(['yedek_id' => $c->id, 'yedek_hedefi_id' => $ikinci->id, 'durum' => KopyaDurumu::Basarisiz, 'hata_kodu' => 'HEDEF_ERISILEMEDI']);
-        // Plan dışı ve son çalışmadan sonra açılan yedekler sonucu etkilemez
-        Yedek::factory()->create(['created_at' => CarbonImmutable::parse('2026-11-21 07:30', 'UTC'), 'durum' => 'basarisiz']);
-        $this->planYedegi('08:30', ['durum' => 'basarisiz', 'hata_kodu' => 'DISK_DOLU']);
+        $this->calismisPlan('C Hedef hatalı', [$yerel, $ikinci], $c);
+        $this->calismisPlan('D Hiç çalışmadı', [$yerel], null);
 
         $sonuclar = collect($this->getJson(self::K)->assertOk()->json('data'))->pluck('son_sonuc', 'ad')->all();
 
@@ -216,11 +216,74 @@ final class YedekPlaniApiTest extends TestCase
         ], $sonuclar);
     }
 
+    /**
+     * BY-017-R3: zaman dondurulmuş — iki ayrı çalışma aynı saniyede biter ve
+     * açılır. Birinin yedeği ötekinin sonucu sayılmaz.
+     */
+    public function test_ayni_saniyede_ardisik_iki_calismada_her_plan_kendi_sonucunu_gosterir(): void
+    {
+        $this->sahtePgAraclari();
+        Sleep::fake();
+        $disk = YedekHedefi::factory()->create(['ad' => 'Disk', 'baglanti' => ['klasor' => '/proc/yedek-yazilamaz']]);
+        [$a, $b] = [$this->calismisPlan('A', [$disk], null), $this->calismisPlan('B', [$disk], null)];
+        $kilit = $this->kilitAl();
+
+        // A: disk yazılamaz → hedef hatası. B: aynı saniyede, disk düzeltilmiş → başarılı
+        $yedekA = app(PlanliYedek::class)->calistir(YedekPlani::query()->whereKey($a->id)->get(), $kilit);
+        mkdir($this->yedekKoku.'/disk', 0750, true);
+        $disk->update(['baglanti' => ['klasor' => $this->yedekKoku.'/disk']]);
+        app(PlanliYedek::class)->calistir(YedekPlani::query()->whereKey($b->id)->get(), $kilit);
+
+        $sonuclar = collect($this->getJson(self::K)->assertOk()->json('data'))->pluck('son_sonuc', 'ad')->all();
+
+        $hataKodu = $yedekA->kopyalar()->sole()->hata_kodu;
+        $this->assertNotNull($hataKodu);
+        $this->assertSame([
+            'A' => ['durum' => 'hedef_basarisiz', 'hata_kodu' => null, 'basarisiz_hedefler' => [['hedef_id' => $disk->id, 'ad' => 'Disk', 'hata_kodu' => $hataKodu]]],
+            'B' => ['durum' => 'basarili', 'hata_kodu' => null, 'basarisiz_hedefler' => []],
+        ], $sonuclar);
+    }
+
+    /** Aynı ana düşen planlar tek yedeği paylaşır; her plan yalnız kendi hedeflerinin sonucunu görür. */
+    public function test_tek_yedegi_paylasan_planlarda_digerinin_hedef_hatasi_sonuca_girmez(): void
+    {
+        $this->sahtePgAraclari();
+        Sleep::fake();
+        mkdir($this->yedekKoku.'/disk-2', 0750, true);
+        $iyi = YedekHedefi::factory()->create(['ad' => 'Disk 2', 'baglanti' => ['klasor' => $this->yedekKoku.'/disk-2']]);
+        $bozuk = YedekHedefi::factory()->create(['ad' => 'Bozuk', 'baglanti' => ['klasor' => '/proc/yedek-yazilamaz']]);
+        $a = $this->calismisPlan('A', [$iyi], null);
+        $b = $this->calismisPlan('B', [$bozuk], null);
+
+        app(PlanliYedek::class)->calistir(YedekPlani::query()->whereKey([$a->id, $b->id])->get(), $this->kilitAl());
+
+        $sonuclar = collect($this->getJson(self::K)->assertOk()->json('data'))->pluck('son_sonuc.durum', 'ad')->all();
+        $this->assertSame(['A' => 'basarili', 'B' => 'hedef_basarisiz'], $sonuclar);
+    }
+
+    public function test_calismadan_sonra_basarisiz_hedef_plandan_cikarilinca_son_sonuc_degismez(): void
+    {
+        $this->sahtePgAraclari();
+        Sleep::fake();
+        mkdir($this->yedekKoku.'/disk-2', 0750, true);
+        $iyi = YedekHedefi::factory()->create(['ad' => 'Disk 2', 'baglanti' => ['klasor' => $this->yedekKoku.'/disk-2']]);
+        $bozuk = YedekHedefi::factory()->create(['ad' => 'Bozuk', 'baglanti' => ['klasor' => '/proc/yedek-yazilamaz']]);
+        $plan = $this->calismisPlan('Gece', [$iyi, $bozuk], null);
+        app(PlanliYedek::class)->calistir(YedekPlani::query()->whereKey($plan->id)->get(), $this->kilitAl());
+
+        // Başarısız kopyanın plan bağı yok: hedef plandan çıkarılabilir (F6 engeli yalnız bağlı kopyada)
+        $yanit = $this->putJson(self::K.'/'.$plan->id, $this->govde('Gece', 'gunluk', '02:00', [], [['hedef_id' => $iyi->id, 'sakla_son_adet' => 3]]))->assertOk();
+
+        $this->assertSame([$iyi->id], array_column($yanit->json('data.hedefler'), 'hedef_id'));
+        $this->assertSame('hedef_basarisiz', $yanit->json('data.son_sonuc.durum'));
+        $this->assertSame([[$bozuk->id, 'Bozuk']], array_map(fn (array $h): array => [$h['hedef_id'], $h['ad']], $yanit->json('data.son_sonuc.basarisiz_hedefler')));
+    }
+
     public function test_plan_listesi_sorgu_sayisi_plan_sayisindan_bagimsizdir_degerler_degismez(): void
     {
         $hedef = YedekHedefi::factory()->create(['ad' => 'Yerel']);
-        $ilk = $this->calismisPlan('Plan 1', [$hedef], '06:00');
-        $yedek = $this->planYedegi('05:59');
+        $yedek = $this->planYedegi();
+        $ilk = $this->calismisPlan('Plan 1', [$hedef], $yedek);
         YedekKopyasi::query()->create(['yedek_id' => $yedek->id, 'yedek_hedefi_id' => $hedef->id, 'durum' => KopyaDurumu::Tamam])
             ->planlar()->attach($ilk->id, ['yedek_hedefi_id' => $hedef->id]);
         $sorguSayisi = function (): array {
@@ -233,9 +296,10 @@ final class YedekPlaniApiTest extends TestCase
         };
         [$tekPlanda] = $sorguSayisi();
 
-        foreach (['Plan 2' => ['06:50', '06:55'], 'Plan 3' => ['07:00', '07:05'], 'Plan 4' => ['07:10', '07:15']] as $ad => [$acilis, $bitis]) {
-            $plan = $this->calismisPlan($ad, [$hedef, YedekHedefi::factory()->create()], $bitis);
-            $kopya = YedekKopyasi::query()->create(['yedek_id' => $this->planYedegi($acilis)->id, 'yedek_hedefi_id' => $hedef->id, 'durum' => KopyaDurumu::Tamam]);
+        foreach (['Plan 2', 'Plan 3', 'Plan 4'] as $ad) {
+            $yedek = $this->planYedegi();
+            $plan = $this->calismisPlan($ad, [$hedef, YedekHedefi::factory()->create()], $yedek);
+            $kopya = YedekKopyasi::query()->create(['yedek_id' => $yedek->id, 'yedek_hedefi_id' => $hedef->id, 'durum' => KopyaDurumu::Tamam]);
             $kopya->planlar()->attach($plan->id, ['yedek_hedefi_id' => $hedef->id]);
         }
         [$dortPlanda, $veri] = $sorguSayisi();

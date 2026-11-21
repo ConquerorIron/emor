@@ -28,7 +28,8 @@ use Throwable;
  * - Hedef sırları (parola, anahtar) dosyaya HİÇ yazılmaz. Geri yüklenen
  *   veritabanında bulunan hedefin sırları olduğu gibi (yedeğin anındaki hâli)
  *   kalır; yedekten sonra eklenmiş hedef sırsız ve PASİF açılır — yönetici
- *   sırlarını yeniden girip etkinleştirir (uyarı döner).
+ *   sırlarını yeniden girip etkinleştirir (uyarı döner). Mevcut hedefte
+ *   normal güncellemenin konum ve sır kuralları geçerlidir (hedefleriYaz).
  * - Açık şifreleme anahtarı dosyada yoktur (yalnız parmak izi): yedek
  *   ayarlarında anahtar alanlarına dokunulmaz, parmak izi farklıysa uyarı.
  *
@@ -49,7 +50,10 @@ final class AyarSecimi
         'sinyal_yerel_adresi', 'sinyal_uzak_adresi', 'sinyal_sinama_adresi',
     ];
 
-    public function __construct(private readonly AyarKopyasi $kopya) {}
+    public function __construct(
+        private readonly AyarKopyasi $kopya,
+        private readonly HedefKonumu $konum,
+    ) {}
 
     /**
      * @param  array<mixed>  $secimler
@@ -238,8 +242,16 @@ final class AyarSecimi
     }
 
     /**
-     * Dosyadaki hedefler: varsa güncellenir (sırları geri yüklenen hâliyle
-     * kalır), yoksa aynı kimlikle sırsız ve pasif açılır.
+     * Dosyadaki hedefler: yoksa aynı kimlikle sırsız ve pasif açılır; varsa
+     * normal hedef güncellemesinin konum ve sır kuralları (HedefKonumu,
+     * BY-028-R3) uygulanır:
+     * - Kopyası olan hedefin yeri (sunucu, port, klasör, hesap…) değişmişse
+     *   hedef geri yüklenen yerinde ve sırlarıyla kalır — geri yüklenen kopya
+     *   kayıtları o yerdeki dosyaları gösterir — ama PASİF açılır (bugün o yer
+     *   kullanılmıyor); yeni yer için yönetici yeni hedef ekler.
+     * - Sırrın gideceği adres değişmişse geri yüklenen (eski) sırlar yeni
+     *   adrese gönderilmesin diye silinir, hedef PASİF açılır.
+     * - Aksi hâlde bugünkü bağlantı yazılır, sırlar geri yüklenen hâliyle kalır.
      *
      * @param  list<array<string, mixed>>  $hedefler
      * @return list<string>
@@ -252,16 +264,35 @@ final class AyarSecimi
 
         foreach ($hedefler as $h) {
             $hedef = YedekHedefi::query()->find($h['id']);
-            $yeni = $hedef === null;
-            $hedef ??= new YedekHedefi;
-            $baglantiDegisti = ! $yeni && KanonikJson::kodla($hedef->baglanti) !== KanonikJson::kodla($h['baglanti'] ?? []);
-            $hedef->forceFill(['ad' => $h['ad'], 'tur' => $h['tur'], 'aktif' => $yeni ? false : (bool) $h['aktif'], 'baglanti' => $h['baglanti'] ?? []]);
+            $baglanti = is_array($h['baglanti'] ?? null) ? $h['baglanti'] : [];
 
-            if ($yeni) {
+            if ($hedef === null) {
+                $hedef = (new YedekHedefi)->forceFill(['ad' => $h['ad'], 'tur' => $h['tur'], 'aktif' => false, 'baglanti' => $baglanti, 'gizli_bilgiler' => null]);
                 $hedef->id = (int) $h['id'];
-                $hedef->gizli_bilgiler = null;
+                $hedef->save();
                 $eklendi = true;
                 $uyarilar[] = "Yedek hedefi \"{$h['ad']}\" yedekten sonra eklenmiş: sırları (parola / anahtar) dosya kopyasında olmadığı için PASİF açıldı. Sırlarını yeniden girip etkinleştirin.";
+
+                continue;
+            }
+
+            $turDegisti = $hedef->tur->value !== $h['tur'];
+            $konumFarki = $turDegisti ? $this->konum->kilitliAlanlar($hedef) : $this->konum->degisenKilitliAlanlar($hedef, $baglanti);
+
+            if ($konumFarki !== []) {
+                $hedef->forceFill(['ad' => $h['ad'], 'aktif' => false])->save();
+                $uyarilar[] = "Yedek hedefi \"{$h['ad']}\": kopyaların durduğu yer (".implode(', ', $konumFarki).') yedekten sonra değişmiş; geri yüklenen kopya kayıtları eski yerdeki dosyaları gösterdiği için hedef eski yerinde bırakıldı ve PASİF açıldı. Yeni yer için yeni bir hedef ekleyin.';
+
+                continue;
+            }
+
+            $adresDegisti = $turDegisti || $this->konum->adresDegistiMi($hedef, $baglanti);
+            $baglantiDegisti = KanonikJson::kodla($hedef->baglanti) !== KanonikJson::kodla($baglanti);
+            $hedef->forceFill(['ad' => $h['ad'], 'tur' => $h['tur'], 'aktif' => $adresDegisti ? false : (bool) $h['aktif'], 'baglanti' => $baglanti]);
+
+            if ($adresDegisti) {
+                $hedef->gizli_bilgiler = null;
+                $uyarilar[] = "Yedek hedefi \"{$h['ad']}\" bağlantı adresi yedekten sonra değişmiş: geri yüklenen (eski) sırları yeni adrese gönderilmesin diye silindi ve PASİF açıldı. Sırlarını yeniden girip etkinleştirin.";
             } elseif ($baglantiDegisti) {
                 $uyarilar[] = "Yedek hedefi \"{$h['ad']}\" bağlantı bilgisi güncellendi; sırları geri yüklenen (yedeğin anındaki) hâlinde. Değiştiyse yeniden girin.";
             }

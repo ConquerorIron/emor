@@ -136,7 +136,6 @@ final class YedekBildirimTest extends TestCase
     public function test_sinamadan_sonra_yalniz_aciklama_degisince_ozetin_sinama_zamani_ilerlemez(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-11-18 03:00', 'UTC'));
-        mkdir(config('yedekleme.klasor'), 0750, true);
         $yedek = Yedek::factory()->create(['dogrulama_durumu' => DogrulamaDurumu::SinamaGecti]);
         app(YedekDenetimi::class)->kaydet('sinama_geri_yukleme', IslemSonucu::Basarili, $yedek->id);
         $this->travelTo(CarbonImmutable::parse('2026-11-21 12:00', 'UTC'));

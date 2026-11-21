@@ -1,6 +1,7 @@
 import { api } from '@/api/client'
 
 import { yedeklemeSayfaBoyutu } from './bicim'
+import { ISTEK_ANAHTARI_BASLIGI } from './useIstekAnahtarlari'
 
 export type YedekKaynagi = 'elle' | 'plan' | 'yayin_oncesi' | 'geri_yukleme_oncesi'
 export type YedekDurumu = 'kuyrukta' | 'calisiyor' | 'tamam' | 'basarisiz' | 'silindi'
@@ -26,6 +27,8 @@ export interface YedekKopyasi {
   hedef_tur: string | null
   durum: KopyaDurumu
   sifreli: boolean
+  /** `tamam` aktarımın doğrulandığını söyler; bu, kurtarma paketiyle boş sunucuda da açılabildiğini (şifresizde tamam ile aynı) */
+  kurtarma_hazir: boolean
   tamamlanma_zamani: string | null
   hata_kodu: string | null
 }
@@ -163,47 +166,57 @@ export async function istekDurumuGetir(kimlik: string): Promise<IstekDurumu> {
   return yanit.data.data
 }
 
-async function istekBirak(
+/**
+ * İşi çalıştırıcıya bırakır. `istekAnahtari`: aynı eylemin yeniden denemesinde
+ * aynı (useIstekAnahtarlari) — sunucu ikinci iş bırakmaz, mevcut kabulü döner.
+ */
+export async function istekBirak(
   yontem: 'post' | 'put' | 'delete',
   adres: string,
+  istekAnahtari: string,
   govde?: unknown,
 ): Promise<IstekKabulu> {
+  const ayar = { headers: { [ISTEK_ANAHTARI_BASLIGI]: istekAnahtari } }
   const yanit =
     yontem === 'delete'
-      ? await api.delete<{ data: IstekKabulu }>(adres)
-      : await api[yontem]<{ data: IstekKabulu }>(adres, govde)
+      ? await api.delete<{ data: IstekKabulu }>(adres, ayar)
+      : await api[yontem]<{ data: IstekKabulu }>(adres, govde, ayar)
 
   return yanit.data.data
 }
 
 /** "Şimdi Yedek Al" */
-export function yedekAl(aciklama: string | null): Promise<IstekKabulu> {
-  return istekBirak('post', KOK, { aciklama })
+export function yedekAl(aciklama: string | null, istekAnahtari: string): Promise<IstekKabulu> {
+  return istekBirak('post', KOK, istekAnahtari, { aciklama })
 }
 
 /** "Klasörü Tara": dizini manifestlerden yeniden kurar */
-export function klasoruTara(): Promise<IstekKabulu> {
-  return istekBirak('post', `${KOK}/tara`)
+export function klasoruTara(istekAnahtari: string): Promise<IstekKabulu> {
+  return istekBirak('post', `${KOK}/tara`, istekAnahtari)
 }
 
 /** Sınama geri yüklemesi; yalnız geri yüklenebilir yedekte (409 YEDEK_DOGRULANAMAZ) */
-export function yedegiDogrula(kimlik: string): Promise<IstekKabulu> {
-  return istekBirak('post', `${KOK}/${kimlik}/dogrula`)
+export function yedegiDogrula(kimlik: string, istekAnahtari: string): Promise<IstekKabulu> {
+  return istekBirak('post', `${KOK}/${kimlik}/dogrula`, istekAnahtari)
 }
 
-export function aciklamaKaydet(kimlik: string, aciklama: string | null): Promise<IstekKabulu> {
-  return istekBirak('put', `${KOK}/${kimlik}/aciklama`, { aciklama })
+export function aciklamaKaydet(
+  kimlik: string,
+  aciklama: string | null,
+  istekAnahtari: string,
+): Promise<IstekKabulu> {
+  return istekBirak('put', `${KOK}/${kimlik}/aciklama`, istekAnahtari, { aciklama })
 }
 
-export function yedegiSabitle(kimlik: string): Promise<IstekKabulu> {
-  return istekBirak('post', `${KOK}/${kimlik}/sabit`)
+export function yedegiSabitle(kimlik: string, istekAnahtari: string): Promise<IstekKabulu> {
+  return istekBirak('post', `${KOK}/${kimlik}/sabit`, istekAnahtari)
 }
 
-export function sabitlemeyiKaldir(kimlik: string): Promise<IstekKabulu> {
-  return istekBirak('delete', `${KOK}/${kimlik}/sabit`)
+export function sabitlemeyiKaldir(kimlik: string, istekAnahtari: string): Promise<IstekKabulu> {
+  return istekBirak('delete', `${KOK}/${kimlik}/sabit`, istekAnahtari)
 }
 
 /** 409 YEDEK_SABIT / YEDEK_KULLANIMDA / YEDEK_SILINMIS */
-export function yedegiSil(kimlik: string): Promise<IstekKabulu> {
-  return istekBirak('delete', `${KOK}/${kimlik}`)
+export function yedegiSil(kimlik: string, istekAnahtari: string): Promise<IstekKabulu> {
+  return istekBirak('delete', `${KOK}/${kimlik}`, istekAnahtari)
 }

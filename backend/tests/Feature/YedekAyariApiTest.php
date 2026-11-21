@@ -15,8 +15,11 @@ use App\Services\Yedekleme\IslemTuru;
 use App\Services\Yedekleme\YedekDenetimi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Events\TransactionCommitted;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Tests\TestCase;
 use Tests\Yedekleme\YedeklemeOrtami;
 
@@ -130,12 +133,46 @@ final class YedekAyariApiTest extends TestCase
         $this->assertSame(0, YedekIslemKaydi::query()->count());
     }
 
-    public function test_ayar_kopyasi_yazilamazsa_veritabani_geri_alinir_onceki_kopya_baytlariyla_kalir(): void
+    private function rootDegilse(): void
     {
         if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
             $this->markTestSkipped('root klasör iznini aşar (T11).');
         }
+    }
+
+    /**
+     * BY-018-R2: dosya yalnız commit olmuş ayarlardan. Commit anında dosya
+     * hâlâ eski; commit düşerse hiç yazılmaz, eski baytlarıyla kalır.
+     * (Test işlemi iç içe olduğundan gerçek geri alma burada kurulamaz:
+     * commit anı `TransactionCommitted` olayıdır, hata oradan fırlatılır.)
+     */
+    public function test_commit_aninda_ayar_dosyasi_eski_commit_duserse_eski_baytlariyla_kalir(): void
+    {
         $this->putJson(self::K.'/yedek-ayarlari', $this->govde(['elle_gun' => 40]))->assertOk();
+        $yol = config('yedekleme.ayar_kopyasi');
+        $onceki = (string) file_get_contents($yol);
+        $commitAnindaki = null;
+        Event::listen(TransactionCommitted::class, function () use ($yol, &$commitAnindaki): void {
+            $commitAnindaki = (string) file_get_contents($yol);
+
+            throw new RuntimeException('commit düştü');
+        });
+
+        $this->putJson(self::K.'/yedek-ayarlari', $this->govde(['elle_gun' => 45]))->assertStatus(500);
+
+        $this->assertSame($onceki, $commitAnindaki, 'dosya commit\'ten önce yazılmamalı');
+        $this->assertSame($onceki, file_get_contents($yol));
+    }
+
+    /**
+     * BY-018-R2: commit oldu, dosya yazılamadı (taşımadan önce): ayar
+     * kaydedilmiştir, kopyanın geride olduğu izlenir; çalıştırıcının sonraki
+     * turu dosyayı veritabanına getirir.
+     */
+    public function test_commit_sonrasi_kopya_yazilamazsa_ayar_kaydedilir_durum_izlenir_calistirici_uzlastirir(): void
+    {
+        $this->rootDegilse();
+        $this->putJson(self::K.'/yedek-ayarlari', $this->govde(['elle_gun' => 40]))->assertOk()->assertJsonPath('data.ayar_kopyasi_guncel', true);
         $yol = config('yedekleme.ayar_kopyasi');
         $onceki = (string) file_get_contents($yol);
         $klasor = dirname($yol);
@@ -143,18 +180,46 @@ final class YedekAyariApiTest extends TestCase
 
         try {
             $this->putJson(self::K.'/yedek-ayarlari', $this->govde(['elle_gun' => 45]))
-                ->assertStatus(500)->assertJsonPath('kod', 'YEDEK_AYAR_KOPYASI_YAZILAMADI');
+                ->assertOk()->assertJsonPath('data.elle_gun', 45)->assertJsonPath('data.ayar_kopyasi_guncel', false);
         } finally {
             chmod($klasor, 0750);
         }
 
-        $this->assertSame(40, YedekAyari::guncel()->elle_gun);
+        $this->assertSame(45, YedekAyari::guncel()->elle_gun);
         $this->assertSame($onceki, file_get_contents($yol));
         $this->assertSame([], array_values(array_diff(scandir($klasor) ?: [], ['.', '..', basename($yol), 'kilit'])), 'geçici dosya kalmamalı');
         $son = YedekIslemKaydi::query()->latest('id')->firstOrFail();
-        $this->assertSame(['ayar_guncelle', IslemSonucu::Basarisiz, 'AYAR_KOPYASI_YAZILAMADI'], [$son->islem, $son->sonuc, $son->ayrinti['kod']]);
-        // Başarılı sanılan ikinci değişikliğin kaydı veritabanında kalmadı
-        $this->assertSame(1, YedekIslemKaydi::query()->where('sonuc', IslemSonucu::Basarili->value)->count());
+        $this->assertSame(['ayar_kopyasi', IslemSonucu::Basarisiz, 'AYAR_KOPYASI_YAZILAMADI', 'ayar_guncelle'], [$son->islem, $son->sonuc, $son->ayrinti['kod'], $son->ayrinti['tetikleyen']]);
+        $this->getJson(self::K.'/yedek-ayarlari')->assertOk()->assertJsonPath('data.ayar_kopyasi_guncel', false);
+
+        $this->artisan('yedek:calistir', ['--tek-tur' => true])->assertSuccessful();
+
+        $this->assertSame(45, app(AyarKopyasi::class)->oku()['yedek_ayarlari']['elle_gun'] ?? null);
+        $this->getJson(self::K.'/yedek-ayarlari')->assertOk()->assertJsonPath('data.ayar_kopyasi_guncel', true);
+    }
+
+    /**
+     * BY-018-R2: taşımadan sonra klasör eşitlenemezse dosya veritabanıyla
+     * aynıdır; kayıt başarılı, kalıcılığın doğrulanamadığı denetimde.
+     */
+    public function test_ayar_dosyasi_tasindiktan_sonra_klasor_esitlenemezse_kayit_basarili_kopya_guncel_not_dusulur(): void
+    {
+        $this->rootDegilse();
+        $this->putJson(self::K.'/yedek-ayarlari', $this->govde(['elle_gun' => 40]))->assertOk();
+        $klasor = dirname(config('yedekleme.ayar_kopyasi'));
+        // Yazılabilir, geçilebilir, okunamaz: taşıma olur, klasör eşitlemek için açılamaz
+        chmod($klasor, 0300);
+
+        try {
+            $this->putJson(self::K.'/yedek-ayarlari', $this->govde(['elle_gun' => 45]))
+                ->assertOk()->assertJsonPath('data.ayar_kopyasi_guncel', true);
+        } finally {
+            chmod($klasor, 0750);
+        }
+
+        $this->assertSame(45, app(AyarKopyasi::class)->oku()['yedek_ayarlari']['elle_gun'] ?? null);
+        $son = YedekIslemKaydi::query()->latest('id')->firstOrFail();
+        $this->assertSame(['ayar_kopyasi', IslemSonucu::Basarili, 'AYAR_KOPYASI_KALICILIGI_DOGRULANAMADI'], [$son->islem, $son->sonuc, $son->ayrinti['kod']]);
     }
 
     public function test_en_az_sayi_1in_altina_indirilemez_https_olmayan_sinyal_reddedilir(): void

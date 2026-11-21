@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\IstekAnahtari;
 use App\Models\GeriYukleme;
 use App\Models\Yedek;
 use App\Services\Yedekleme\GeriYuklemeDurumu;
@@ -66,7 +67,7 @@ final class GeriYuklemeController extends Controller
             return response()->json(['kod' => 'GERI_YUKLEME_YEDEK_GERI_YUKLENEMEZ', 'mesaj' => __('hata.yedek_geri_yuklenemez')], 409);
         }
 
-        $istek = $this->istekler->birak('kopya_geri_yukle', ['yedek_kimligi' => $yedek->kimlik, 'ek' => $veri['ek'] ?? null], (int) $request->user()->id, $yedek->id);
+        $istek = $this->istekler->birak('kopya_geri_yukle', ['yedek_kimligi' => $yedek->kimlik, 'ek' => $veri['ek'] ?? null], (int) $request->user()->id, $yedek->id, IstekAnahtari::oku($request));
 
         return response()->json(['data' => ['istek_kimligi' => $istek, 'durum' => 'kuyrukta']], 202);
     }

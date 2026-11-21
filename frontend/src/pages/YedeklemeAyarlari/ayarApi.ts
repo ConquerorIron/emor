@@ -16,9 +16,14 @@ export interface YedekAyarlari {
   sinyal_sinama_adresi: string | null
   /** Sunucu dışı kopyaların açık anahtarı; yoksa sunucu dışına kopya gönderilmez */
   sifreleme: { parmak_izi: string; kullanici: string | null; bitis: string | null } | null
+  /**
+   * Ayarların dosya kopyası veritabanıyla aynı mı (false: çalıştırıcı en geç
+   * bir dakikada yazar); null: sunucu bu süreçte bilemez (servis kipi)
+   */
+  ayar_kopyasi_guncel: boolean | null
 }
 
-export type YedekAyarGovdesi = Omit<YedekAyarlari, 'sifreleme'>
+export type YedekAyarGovdesi = Omit<YedekAyarlari, 'sifreleme' | 'ayar_kopyasi_guncel'>
 
 const KOK = '/api/v1/ayarlar/yedek-ayarlari'
 

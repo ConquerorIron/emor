@@ -10,6 +10,7 @@ use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -67,10 +68,27 @@ final class PlanliYedek
             } catch (Throwable) {
                 $sonraki = null;
             }
-            $plan->forceFill(['son_calisma' => $simdi, 'sonraki_calisma' => $sonraki])->save();
+            // Son çalışma planla ilişkili (BY-017-R3): sonucu bu yedeğin, bu
+            // çalışmada kopyalanan hedeflerindeki kopyalarından okunur
+            $plan->forceFill([
+                'son_calisma' => $simdi,
+                'sonraki_calisma' => $sonraki,
+                'son_yedek_id' => $yedek->id,
+                'son_hedef_idleri' => $this->kopyalanacaklar($plan)->modelKeys(),
+            ])->save();
         }
 
         return $yedek;
+    }
+
+    /**
+     * Planın bu çalışmada kopyalanacak hedefleri: etkin ve desteklenen.
+     *
+     * @return EloquentCollection<int, YedekHedefi>
+     */
+    private function kopyalanacaklar(YedekPlani $plan): EloquentCollection
+    {
+        return $plan->hedefler->filter(fn (YedekHedefi $h): bool => $h->aktif && $this->katalog->destekleniyorMu($h->tur))->values();
     }
 
     /**
@@ -81,10 +99,7 @@ final class PlanliYedek
         /** @var array<int, array{hedef: YedekHedefi, planlar: list<int>}> $hedefler */
         $hedefler = [];
         foreach ($planlar as $plan) {
-            foreach ($plan->hedefler as $hedef) {
-                if (! $hedef->aktif || ! $this->katalog->destekleniyorMu($hedef->tur)) {
-                    continue;
-                }
+            foreach ($this->kopyalanacaklar($plan) as $hedef) {
                 $hedefler[$hedef->id]['hedef'] = $hedef;
                 $hedefler[$hedef->id]['planlar'][] = $plan->id;
             }

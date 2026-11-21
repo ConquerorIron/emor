@@ -34,7 +34,11 @@ final readonly class IslemKaydi
         'yedek_kimligi', 'hedef_veritabani', 'onceki_veritabani', 'isteyen_kullanici_id',
     ];
 
-    /** Tutulan en çok tüketilmiş kanıt (süresi geçenler her yazımda düşer) */
+    /**
+     * Tutulan en çok tüketilmiş kanıt. Süresi geçenler her tüketimde düşer;
+     * süresi geçmemiş olan hiç düşmez — liste doluysa yeni karar reddedilir
+     * (UstuneGeriYukleyici::kanitTuket; BY-030-R2).
+     */
     public const EN_COK_KANIT = 64;
 
     /** PostgreSQL `datacl::text` için üst sınır (bayt); veritabanı ACL'si bunun çok altındadır */

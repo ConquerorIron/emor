@@ -282,6 +282,8 @@ export function HedefFormu({
     // Kayıtlı sır gösterilmez; yer tutucu yalnız kayıtlı olduğunu söyler
     const sirKayitli = alan.gizli && hedef?.gizli_kayitli[alan.ad] === true
     const yerTutucu = sirKayitli ? t('yedekleme.hedef.sirKayitli') : undefined
+    // Kopyası duran hedefin konum alanı değiştirilemez (BY-016-R1/R3; ör. port, S3 yol stili)
+    const konumKilitli = kilitliAlanlar.has(alan.ad)
 
     if (alan.tur === 'evet_hayir') {
       return (
@@ -290,11 +292,12 @@ export function HedefFormu({
           control={control}
           name={`alanlar.${alan.ad}`}
           render={({ field }) => (
+            // Controller'lı anahtarda disabled yalnız arayüzü kilitler; değer gövdede kalır
             <Switch
               id={id}
               label={etiket(alan)}
               checked={field.value === true}
-              disabled={isSubmitting}
+              disabled={isSubmitting || konumKilitli}
               onChange={(deger) => {
                 field.onChange(deger)
                 sinamayiTemizle()
@@ -332,8 +335,6 @@ export function HedefFormu({
     }
 
     // Kopyası duran hedefin konum alanı salt okunur (disabled değil: değer gövdede kalmalı)
-    const konumKilitli = kilitliAlanlar.has(alan.ad)
-
     return (
       <Input
         key={alan.ad}

@@ -9,6 +9,7 @@ use Carbon\CarbonImmutable;
 use Database\Factories\YedekPlaniFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 /**
@@ -25,6 +26,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property array<string, mixed> $siklik
  * @property CarbonImmutable|null $son_calisma
  * @property CarbonImmutable|null $sonraki_calisma
+ * @property int|null $son_yedek_id Son çalışmanın yedeği (BY-017-R3)
+ * @property list<int>|null $son_hedef_idleri Son çalışmada bu planın kopyalanacak hedefleri
  */
 final class YedekPlani extends Model
 {
@@ -62,6 +65,16 @@ final class YedekPlani extends Model
     }
 
     /**
+     * Son çalışmanın yedeği; sonucu bu yedeğin kopyalarından okunur.
+     *
+     * @return BelongsTo<Yedek, $this>
+     */
+    public function sonYedek(): BelongsTo
+    {
+        return $this->belongsTo(Yedek::class, 'son_yedek_id');
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
@@ -72,6 +85,7 @@ final class YedekPlani extends Model
             'siklik' => 'array',
             'son_calisma' => 'immutable_datetime',
             'sonraki_calisma' => 'immutable_datetime',
+            'son_hedef_idleri' => 'array',
         ];
     }
 }

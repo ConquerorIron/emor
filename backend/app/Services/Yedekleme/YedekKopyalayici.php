@@ -10,6 +10,7 @@ use App\Models\YedekKopyasi;
 use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
 use Throwable;
@@ -25,7 +26,9 @@ use Throwable;
  * - Sunucu dışı hedefe kopya şifrelenmeden GİTMEZ (README §4.7; KopyaSifreleyici).
  *   Başarılı sunucu dışı kopyadan sonra kurtarma paketi de o hedefe gider
  *   (KurtarmaPaketi; BY-024); onun hatası kopyayı başarısız saymaz ama uzak
- *   yaşam sinyali yalnız paket tamamlanınca gönderilir.
+ *   yaşam sinyali yalnız paket tamamlanınca gönderilir. Kopya `tamam` olur
+ *   (aktarım doğrulandı) ama ancak paket doğrulanınca KURTARMAYA HAZIR olur
+ *   (`kurtarma_hazir`; BY-010-R2): saklama yerel arşivi buna göre siler.
  * - Bir hedefin hatası istisna olarak dışarı taşmaz: kopya `basarisiz`
  *   olur, diğer hedefler ve yedeğin kendisi etkilenmez.
  * - Sonuç olay günlüğüne ve denetim kaydına yazılır.
@@ -60,7 +63,16 @@ final class YedekKopyalayici
         }
 
         $baslangic = hrtime(true);
-        $kopya->fill(['durum' => KopyaDurumu::Kopyalaniyor, 'hata_kodu' => null, 'hata_mesaji' => null])->save();
+        // Kopya, hedef güncellemesinin konum denetimiyle aynı satır kilidi altında "kopyalanıyor" olur
+        // ve hedefin o anki (kayıtlı) konumuna gider: denetim ile kayıt arasında başlayamaz (BY-016-R3)
+        DB::transaction(function () use ($kopya, $hedef): void {
+            $guncel = YedekHedefi::query()->whereKey($hedef->getKey())->lockForUpdate()->first();
+            if ($guncel !== null) {
+                $hedef->setRawAttributes($guncel->getAttributes(), true);
+            }
+            // Yeniden yazılan kopya, onu taşıyan yeni bir paket doğrulanana kadar kurtarmaya hazır değildir (BY-010-R2)
+            $kopya->fill(['durum' => KopyaDurumu::Kopyalaniyor, 'hata_kodu' => null, 'hata_mesaji' => null, 'kurtarma_hazir' => false])->save();
+        });
         $denemeSiniri = $this->yapilandirma->kopyaDenemeSayisi();
         $sonHata = null;
 

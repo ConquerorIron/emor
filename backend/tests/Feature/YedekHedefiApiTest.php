@@ -20,6 +20,7 @@ use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Sleep;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 use Tests\Yedekleme\BellekHedefi;
@@ -141,27 +142,55 @@ final class YedekHedefiApiTest extends TestCase
         $this->assertSame(900, config('yedekleme.sure_siniri.kopya'));
     }
 
+    /** G1 (BY-016-R3 kardeşi): formdaki "1", kayıtlı "001" sayılıp kayıtlı hedef sınanmaz */
+    public function test_sina_formdaki_sayisal_esit_gorunen_degeri_kayitli_hedefle_karistirmaz(): void
+    {
+        $hedef = YedekHedefi::factory()->create(['tur' => HedefTuru::S3, 'baglanti' => ['kova' => '001']]);
+
+        $this->postJson(self::K.'/sina', ['id' => $hedef->id, 'alanlar' => ['kova' => '1']])->assertOk()->assertJsonPath('data.kaydedildi', false);
+        $this->postJson(self::K.'/sina', ['id' => $hedef->id, 'alanlar' => ['kova' => '001']])->assertOk()->assertJsonPath('data.kaydedildi', true);
+    }
+
     public function test_kopyasi_olan_hedefte_konum_degisikligi_409_sir_ve_konum_disi_alan_degisebilir(): void
     {
-        // Göreli klasör ("emor"): kullanıcı adı da konumdur
         $id = $this->postJson(self::K, $this->ftpGovdesi())->json('data.id');
         YedekKopyasi::query()->create(['yedek_id' => Yedek::factory()->create()->id, 'yedek_hedefi_id' => $id, 'durum' => KopyaDurumu::Tamam, 'uzak_kimlik' => 'emor/erp_a.dump.gpg', 'sifreli' => true]);
 
         $this->putJson(self::K.'/'.$id, $this->ftpGovdesi(['klasor' => 'emor2', 'sifre' => '']))
             ->assertStatus(409)->assertJsonPath('kod', 'HEDEF_KONUMU_DEGISMEZ')->assertJsonPath('alanlar', ['klasor']);
-        // Sır yeniden girilse de kullanıcı adı (göreli klasörün kökü) değişmez
-        $this->putJson(self::K.'/'.$id, $this->ftpGovdesi(['kullanici_adi' => 'baska', 'sifre' => 'Yeni-Parola-2']))
-            ->assertStatus(409)->assertJsonPath('alanlar', ['kullanici_adi']);
+        // Sır yeniden girilse de kullanıcı adı (klasörün kökü) ve port değişmez
+        $this->putJson(self::K.'/'.$id, $this->ftpGovdesi(['kullanici_adi' => 'baska', 'port' => 2121, 'sifre' => 'Yeni-Parola-2']))
+            ->assertStatus(409)->assertJsonPath('alanlar', ['port', 'kullanici_adi']);
         $hedef = YedekHedefi::query()->findOrFail($id);
-        $this->assertSame(['emor', 'yedek', 'Gizli-Parola-1'], [$hedef->baglanti['klasor'], $hedef->baglanti['kullanici_adi'], $hedef->gizli_bilgiler['sifre']]);
+        $this->assertSame(['emor', 'yedek', 21, 'Gizli-Parola-1'], [$hedef->baglanti['klasor'], $hedef->baglanti['kullanici_adi'], $hedef->baglanti['port'], $hedef->gizli_bilgiler['sifre']]);
 
-        // Parola yenileme, port ve ad serbest
-        $this->putJson(self::K.'/'.$id, [...$this->ftpGovdesi(['sifre' => 'Yeni-Parola-2', 'port' => 2121]), 'ad' => 'Yedek FTP (yeni ad)'])->assertOk();
+        // Parola yenileme, pasif kip ve ad serbest
+        $this->putJson(self::K.'/'.$id, [...$this->ftpGovdesi(['sifre' => 'Yeni-Parola-2', 'pasif' => false]), 'ad' => 'Yedek FTP (yeni ad)'])->assertOk();
         $hedef->refresh();
-        $this->assertSame(['Yeni-Parola-2', 2121, 'Yedek FTP (yeni ad)'], [$hedef->gizli_bilgiler['sifre'], $hedef->baglanti['port'], $hedef->ad]);
+        $this->assertSame(['Yeni-Parola-2', false, 'Yedek FTP (yeni ad)'], [$hedef->gizli_bilgiler['sifre'], $hedef->baglanti['pasif'], $hedef->ad]);
 
         // Ekran kilitli alanları listeden öğrenir
-        $this->getJson(self::K)->assertOk()->assertJsonPath('data.0.konum_kilitli_alanlar', ['sunucu', 'klasor', 'kullanici_adi']);
+        $this->getJson(self::K)->assertOk()->assertJsonPath('data.0.konum_kilitli_alanlar', ['sunucu', 'port', 'kullanici_adi', 'klasor']);
+    }
+
+    /** BY-016-R3: port ve sayısal görünümlü klasör kesin karşılaştırılır; eşdeğer yazım ve parola yenileme serbest */
+    public function test_kopyasi_olan_sftp_hedefinde_port_ve_sayisal_bicimli_klasor_degismez_esdeger_yazim_ve_parola_yenilenir(): void
+    {
+        $alanlar = ['sunucu' => 'sftp.ornek.test', 'port' => 22, 'kullanici_adi' => 'yedekci', 'klasor' => '001', 'sifre' => 'Gizli-Parola-1'];
+        $govde = fn (array $degisen): array => ['ad' => 'SFTP', 'tur' => 'sftp', 'alanlar' => [...$alanlar, 'sifre' => '', ...$degisen]];
+        $id = $this->postJson(self::K, ['ad' => 'SFTP', 'tur' => 'sftp', 'alanlar' => $alanlar])->assertCreated()->json('data.id');
+        YedekKopyasi::query()->create(['yedek_id' => Yedek::factory()->create()->id, 'yedek_hedefi_id' => $id, 'durum' => KopyaDurumu::Kopyalaniyor, 'sifreli' => true]);
+
+        $this->putJson(self::K.'/'.$id, $govde(['port' => 2222, 'sifre' => 'Yeni-Parola-2']))->assertStatus(409)->assertJsonPath('alanlar', ['port']);
+        $this->putJson(self::K.'/'.$id, $govde(['klasor' => '1']))->assertStatus(409)->assertJsonPath('alanlar', ['klasor']);
+        $this->putJson(self::K.'/'.$id, $govde(['sunucu' => 'SFTP.ornek.test', 'klasor' => '01']))->assertStatus(409)->assertJsonPath('alanlar', ['klasor']);
+        $hedef = YedekHedefi::query()->findOrFail($id);
+        $this->assertSame([22, '001', 'Gizli-Parola-1'], [$hedef->baglanti['port'], $hedef->baglanti['klasor'], $hedef->gizli_bilgiler['sifre']]);
+
+        // Bağlayıcının aynı yere gittiği yazımlar (boş port = 22, "22", sondaki "/", alan adının harfi) + parola yenileme
+        $this->putJson(self::K.'/'.$id, $govde(['port' => null, 'klasor' => '001/', 'sunucu' => 'SFTP.Ornek.Test', 'sifre' => 'Yeni-Parola-2']))->assertOk();
+        $this->putJson(self::K.'/'.$id, $govde(['port' => '22']))->assertOk();
+        $this->assertSame('Yeni-Parola-2', $hedef->refresh()->gizli_bilgiler['sifre']);
     }
 
     public function test_yalniz_basarisiz_kopyasi_olan_hedefin_konumu_degisebilir(): void
@@ -333,5 +362,53 @@ final class YedekHedefiApiTest extends TestCase
         $hedef->refresh();
         $this->assertSame(['yedek@ornek.test', 'yeniden_baglan'], [$hedef->baglanti['eposta'], $hedef->baglanti['durum']]);
         $this->assertNull($hedef->gizli_bilgiler);
+    }
+
+    /**
+     * @return iterable<string, array{0: string|null, 1: bool}>
+     */
+    public static function dogrulanamayanHesaplar(): iterable
+    {
+        // [kayıtlı e-posta, Google hesap bilgisi okunabiliyor mu]
+        yield 'hesap bilgisi alınamadı (geçici hata)' => ['yedek@ornek.test', false];
+        yield 'kayıtlı hesap bilinmiyor' => [null, true];
+    }
+
+    /** BY-021-R2 */
+    #[DataProvider('dogrulanamayanHesaplar')]
+    public function test_kopyali_drive_hedefinde_hesap_dogrulanamazsa_eski_anahtar_ve_klasor_degismez(?string $kayitliEposta, bool $hesapOkunur): void
+    {
+        Sleep::fake();
+        config(['yedekleme.google.istemci_kimligi' => 'istemci-1.apps.googleusercontent.com', 'yedekleme.google.istemci_sirri' => 'GOCSPX-sir', 'app.url' => 'https://erp.ornek.test']);
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'ya29.erisim', 'refresh_token' => 'yeni-anahtar', 'expires_in' => 3599, 'scope' => GoogleDriveBaglayicisi::KAPSAM, 'token_type' => 'Bearer']),
+            'https://www.googleapis.com/drive/v3/about?fields=*' => $hesapOkunur ? Http::response(['user' => ['emailAddress' => 'yedek@ornek.test']]) : Http::response('', 503),
+        ]);
+        $baglanti = ['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'durum' => 'yeniden_baglan', ...($kayitliEposta === null ? [] : ['eposta' => $kayitliEposta])];
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Drive', 'tur' => HedefTuru::GoogleDrive, 'baglanti' => $baglanti, 'gizli_bilgiler' => ['yenileme_anahtari' => 'eski-anahtar']]);
+        YedekKopyasi::query()->create(['yedek_id' => Yedek::factory()->create()->id, 'yedek_hedefi_id' => $hedef->id, 'durum' => KopyaDurumu::Tamam, 'uzak_kimlik' => 'drive-dosya-1', 'sifreli' => true]);
+
+        $this->postJson(self::K.'/google/donus', ['kod' => 'yetki-kodu', 'durum' => $this->googleDurumu($hedef)])
+            ->assertStatus(409)->assertJsonPath('kod', 'GOOGLE_HESAP_DOGRULANAMADI');
+
+        $hedef->refresh();
+        $this->assertEquals($baglanti, $hedef->baglanti);
+        $this->assertSame(['yenileme_anahtari' => 'eski-anahtar'], $hedef->gizli_bilgiler);
+        $this->assertSame('GOOGLE_HESAP_DOGRULANAMADI', YedekIslemKaydi::query()->where('islem', 'hedef_google_baglan')->sole()->hata_mesaji);
+    }
+
+    /** BY-021-R2: aynı hesap yeniden bağlanınca klasör (ve içindeki kopyalar) aynen kullanılır */
+    public function test_ayni_google_hesabiyla_yeniden_baglaninca_klasor_kimligi_korunur(): void
+    {
+        $this->googleSahtesi('yedek@ornek.test');
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Drive', 'tur' => HedefTuru::GoogleDrive, 'baglanti' => ['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'eposta' => 'yedek@ornek.test', 'durum' => 'yeniden_baglan'], 'gizli_bilgiler' => ['yenileme_anahtari' => 'eski-anahtar']]);
+        YedekKopyasi::query()->create(['yedek_id' => Yedek::factory()->create()->id, 'yedek_hedefi_id' => $hedef->id, 'durum' => KopyaDurumu::Tamam, 'uzak_kimlik' => 'drive-dosya-1', 'sifreli' => true]);
+
+        $this->postJson(self::K.'/google/donus', ['kod' => 'yetki-kodu', 'durum' => $this->googleDurumu($hedef)])->assertOk();
+
+        $hedef->refresh();
+        $this->assertEquals(['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'eposta' => 'yedek@ornek.test'], $hedef->baglanti);
+        $this->assertSame('yenileme-GIZLI', $hedef->gizli_bilgiler['yenileme_anahtari']);
     }
 }

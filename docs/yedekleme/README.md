@@ -155,6 +155,33 @@ sunucu yöneticisi yetkisi ister ve bu dokümanın kapsamı dışındadır.
     kullanımdaki yedeğin dosyası kalır. "Son başarılı", "doğrulanmış en
     yeni" ve en az sayı yedeğin kendisini korur; yedek uzak hedefte durduğu
     için onun grubunda uygulanır.
+  - **"Tamam" ile "kurtarmaya hazır" ayrıdır (BY-010-R2, BY-024-R3).** Uzak
+    kopyanın `tamam` olması yalnız aktarımın (geri okuyup özetle) doğrulandığını
+    söyler. Şifreli (sunucu dışı) kopya, o hedefe yedeğin imzalı manifestini
+    taşıyan bir kurtarma paketi doğrulanınca **kurtarmaya hazır** olur
+    (`yedek_kopyalari.kurtarma_hazir`; §9 "Kurtarma paketi"). Paketin
+    manifest arşivi yedek klasöründeki bütün manifestleri taşır: sonraki
+    başarılı paket, önceki paketi yarım kalmış kopyaları da hazır yapar.
+    Şifresiz kopya yalnız sunucu içi yerel disk hedefidir; kurtarma paketi ona
+    gitmez, ekrandaki geri yükleme yedek klasöründe kalan manifestle yapılır:
+    `tamam` olması yeter. Planlı yedeğin yerel dosyası, en az bir uzak kopyası
+    kurtarmaya hazır olmadan silinmez (`kurtarma_paketi_eksik`); ekranda
+    kopyanın yanında "kurtarma paketi bekleniyor" yazar, özetteki "son sunucu
+    dışı kopya" yalnız hazır kopyaları sayar (uzak yaşam sinyaliyle aynı ölçüt).
+    Bu koruma aktarım için silinen yerel dosyayadır; zamanlanmamış yedeğin
+    süresi dolan yerel dosyası kendi kuralıyla silinir. Dizin yeniden
+    kurulunca (BY-011) şifreli kopyalar hazır değil başlar, sonraki başarılı
+    paket hazır yapar (güvenli yön).
+  - **Depo işareti (BY-011-R3).** Yedek klasörünün kökünde
+    `.emor-yedek-deposu` (tek satır, `emor-yedek-deposu <uuid>`) klasörün bu
+    sistemin deposu olduğunu gösterir; kurulum betiği açar. Ayrı diske
+    bağlanmış klasörün diski ayrılınca bağlama noktası boş ve okunabilir
+    kalır: işaret görünmez, tarama dizine dokunmadan durur ("dosya yok"
+    yapmaz), yedek alma kök diske yazmaz (`YEDEK_DEPO_ISARETI_YOK`). İşaretsiz
+    klasörü uygulama yalnız katalogda tamamlanmış yedek yoksa (ilk kurulum,
+    tablolar boşaltılıp yeniden kurma) ya da katalogdaki bir yedeğin manifesti
+    / dump'ı oradaysa (işaretten önce kurulmuş depo) kendisi işaretler.
+    Ayrıntı ve disk bağlama sırası: sunucu-kurulumu.md §2 "Depo işareti".
   - Yedek klasörünün kendisi olan yerel hedef yazımına göre değil gerçek
     konumuna (aygıt + düğüm) göre tanınır; başka bir hedefte yerel dosyanın
     kendisi bağımsız kopya sayılmaz (`HEDEF_ANA_DOSYA`; BY-008-R1).
@@ -442,7 +469,10 @@ Ayarlar ekranları ──► API (yalnız istek kaydeder, işlemi başlatmaz)
   "istek" bırakır ve yedek klasörünü **yalnız okur** (yetki matrisi §5.5, §9).
 - **İmza anahtarı yalnız servis hesabındadır.** Yedeği web süreci (`www-data`)
   alıp imzalasaydı, ele geçirilen bir web süreci zararlı bir dosyayı da
-  imzalayabilir ve yerel yedekleri silebilirdi; imza hiçbir şey kanıtlamazdı.
+  imzalayabilir ve yedek dosyalarını doğrudan silebilirdi; imza hiçbir şey
+  kanıtlamazdı. Ele geçirilen web süreci yedekleri **ekrandaki yetkili
+  kullanıcının yapabildiği** yoldan (istek) sildirebilir — sınır aşağıdaki
+  "Çalıştırıcı isteğe güvenmez" maddesinde, kullanıcı kararıyla.
 - **Çalıştırıcı isteğe güvenmez.** İstek dosyasını web süreci yazar; çalıştırıcı
   isteği yapanın yetkisini ve (geri yüklemede) onayını kendisi yeniden doğrular.
   *Uygulamada verilen karar (BY-025-R1, R2):* göndereni, isteğin içeriğinden
@@ -455,6 +485,19 @@ Ayarlar ekranları ──► API (yalnız istek kaydeder, işlemi başlatmaz)
   denetlenir. Tehdit modeli: ele geçirilmiş web hesabı başka bir kullanıcı adına
   istek yazabilir — ama veritabanına zaten yazabildiği için (kullanıcı ve rol
   tabloları dahil) sınır budur; artık yayın istisnasını taklit edemez.
+  *Kullanıcı kararı (2026-11-21, BY-025-R4):* web'den istenen **yedek silme**
+  ve **üstüne geri yükleme** için web'den bağımsız ikinci bir onay
+  (sunucuda SSH ile onay ya da doğrulama uygulaması kodu) eklenmedi; risk
+  kabul edildi. Anlamı: web hesabını ele geçiren, `yedekler.sil` /
+  geri yükleme yetkili bir kullanıcının ekrandan yapabildiği her şeyi
+  çalıştırıcıya yaptırabilir (imzalı yerel arşivi ve kopyalarını sildirmek,
+  veritabanının üstüne eski bir yedeği yükletmek). Bunlara karşı kalan
+  korumalar (sabitleme bunlardan biri değildir: sabitlemeyi kaldırma da
+  ekrandan istenir): saklamanın kendi silmeleri web'den bağımsızdır; değiştirilemez saklamalı hedef (S3 nesne kilidi)
+  uygulamanın silme isteğini reddeder; üstüne geri yükleme `erp_onceki_*`
+  kopyasını ve öncesi yedeğini bırakır; her istek denetim kaydına yazılır.
+  Ele geçirilmiş web'e karşı yedeklerin silinmezliği isteniyorsa yol,
+  değiştirilemez saklamalı bir sunucu dışı hedeftir.
 - **Yayın kilidi (BY-013-R1, BY-029-R1).** `deploy.sh`, modül açıksa bakım
   modu / kod çekme / migration'dan önce ayrı bir yayın kilidini
   (`<durum klasörü>/yayin.kilit`, `flock`) alır ve betik bitene kadar tutar;
@@ -535,7 +578,11 @@ yedek sabitliğini kaybedip temizliğe girmez.
 
 **Ayarlar da geri döner.** Planlar, saklama kuralları ve hedef tanımları
 veritabanında durduğu için üstüne geri yüklemede eski hâllerine döner. Her
-değişiklikte bu ayarların bir kopyası dosyaya yazılır. Geri yüklemeden sonra
+değişiklikte bu ayarların bir kopyası dosyaya yazılır — yalnız commit olmuş
+ayarlardan, veritabanından yeniden okunarak (BY-018-R2): commit düşerse dosya
+değişmez; commit'ten sonra yazılamazsa ayar kaydedilmiş sayılır, ekranda "kopya
+güncel değil" görünür ve çalıştırıcının her turu (doğrudan kipte zamanlayıcının
+dakikalık turu, servis kipinde servis döngüsü) farkı görüp yazar. Geri yüklemeden sonra
 dosyadaki güncel ayarlar ile veritabanındaki eski ayarlar karşılaştırılır; fark
 yöneticiye gösterilir ve hangisinin geçerli olacağı sorulur (§6.4).
 
@@ -592,6 +639,17 @@ yazabilmeli ve `sonuc/`'u okuyabilmeli (kurulum betiği). Çalıştırıcı iste
 güvenmez: düz dosya, boyut, şema (anahtarlar birebir, değerlerin türü ve
 biçimi), 24 saatten eski olmama ve kullanıcının yetkisi (veritabanından, işlem
 anında) denetlenir; reddedilen istek makine okunur kodla `basarisiz` sonuç alır.
+
+**İstek kabulü (BY-014-R1/R2, BY-030-R3).** Ekran istekleri ve üstüne geri
+yüklemenin kararları aynı sözleşmeden geçer (`YedekIstekServisi`): önce denetim
+kaydı, sonra yayın; denetim yazılamazsa istek yayınlanmaz. İstek dosyası
+`bekleyen/`'e taşındıktan sonraki hata (klasör eşitlenemedi) isteği başarısız
+göstermez: istek çalıştırıcıya görünmüştür, kabul (202) döner, denetime
+belirsizlik notu düşer. İstemci her eylem için bir `Idempotency-Key` üretir ve
+yeniden denemede aynısını gönderir; istek kimliği bu anahtar ile eylemden
+(tür, kullanıcı, parametreler) türetilir. O kimlikle istek (bekleyen /
+işleniyor / sonuç) varsa ikinci dosya yazılmaz, mevcut kabul döner; bakış ve
+yazım `bekleyen/.kabul.kilit` dosya kilidi altında tek adımdır.
 
 `deploy.sh` `pg_dump`'ı kendisi çalıştırmaz; yayın öncesi yedeği çalıştırıcıdan
 ister ve bitmesini bekler. Böylece yayın öncesi yedekler de imzalı, manifestli
@@ -755,7 +813,9 @@ bozuk bir veritabanı bırakır.
   işlem|karar|son geçerlilik|nonce|sha256(ayar seçimleri))`, son geçerlilik en
   çok 5 dakika. Çalıştırıcı kanıtı işlem durumundaki özetle sabit sürede
   doğrular (kullanıcı tablosuna bakmaz: o tablo yedeğin anındadır), süresi
-  geçmişse uygulamaz, nonce'u işlem durumunda tüketir (tek kullanım). Özet
+  geçmişse uygulamaz, nonce'u işlem durumunda tüketir (tek kullanım; süresi
+  geçmemiş tüketilmiş nonce listeden düşmez, liste — 64 — doluysa yeni karar
+  `GERI_YUKLEME_KARAR_KAPASITESI_DOLU` ile reddedilir — BY-030-R2). Özet
   işlem durumu dosyasındadır ve web süreci de okur: kanıt, diske düşen
   isteğin yeniden oynatılmasını, başka karara / seçime çevrilmesini ve
   anahtarın sızmasını önler; ele geçirilmiş web sürecine karşı koruma değildir.
@@ -791,7 +851,14 @@ bozuk bir veritabanı bırakır.
   yine yöneticinindir. Seçim ve uyarılar denetim kaydına gider. Sırlar: mail
   parolası dosyada `APP_KEY` ile şifrelidir, çözülüp yazılır; hedef sırları
   dosyaya hiç yazılmaz — geri yüklenen veritabanındaki hedefin sırları olduğu
-  gibi kalır, yedekten sonra eklenmiş hedef sırsız ve PASİF açılır (uyarı);
+  gibi kalır, yedekten sonra eklenmiş hedef sırsız ve PASİF açılır (uyarı).
+  "Güncel" hedeflerde mevcut hedefe normal hedef güncellemesinin kuralları
+  aynı yardımcıyla (`HedefKonumu`) uygulanır (BY-028-R3): kopyası olan
+  hedefin yeri (sunucu, port, kullanıcı, klasör, kova, hesap…) yedekten sonra
+  değişmişse hedef geri yüklenen yerinde ve sırlarıyla kalır (kopya kayıtları
+  o yeri gösterir) ama PASİF açılır, yeni yer için yeni hedef eklenir; sırrın
+  gideceği adres değişmişse eski sırlar silinir ve hedef PASİF açılır — eski
+  sır yeni adrese hiç gönderilmez (uyarı);
   açık şifreleme anahtarı dosyada yoktur, parmak izi farklıysa uyarı. Bugün
   olmayan plan / hedef kullanılmıyorsa silinir, kopyası / bağı varsa pasife
   alınıp adına "(silinmiş #id)" eklenir.

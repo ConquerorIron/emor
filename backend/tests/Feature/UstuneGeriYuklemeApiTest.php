@@ -13,8 +13,13 @@ use App\Services\Yedekleme\OnayBilgisi;
 use App\Services\Yedekleme\UstuneGeriYuklemeAdimi;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Monolog\Handler\AbstractProcessingHandler;
+use Monolog\Logger;
+use Monolog\LogRecord;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Tests\TestCase;
 use Tests\Yedekleme\SahtePostgres;
 use Tests\Yedekleme\UstuneGeriYuklemeOrtami;
@@ -216,6 +221,54 @@ final class UstuneGeriYuklemeApiTest extends TestCase
         // Kanıt seçimlere bağlı: başka seçimle doğrulanmaz
         $this->assertSame(ErisimAnahtari::GECERLI, ErisimAnahtari::kanitDenetle((string) $p['kanit'], $kayit->erisimAnahtariOzeti, $kayit->erisimAnahtariBitis, $kayit->kimlik, 'onayla', (int) $p['son_gecerlilik'], (string) $p['nonce'], 'mail=guncel,planlar=geri_yuklenen'));
         $this->assertSame(ErisimAnahtari::GECERSIZ, ErisimAnahtari::kanitDenetle((string) $p['kanit'], $kayit->erisimAnahtariOzeti, $kayit->erisimAnahtariBitis, $kayit->kimlik, 'onayla', (int) $p['son_gecerlilik'], (string) $p['nonce'], 'mail=geri_yuklenen,planlar=geri_yuklenen'));
+    }
+
+    /**
+     * BY-030-R3: karar dosyası yayımlandıktan sonraki arıza (klasör eşitlemesi,
+     * ardından günlüğün belirsizlik notu) kararı başarısız göstermez; kullanıcı
+     * aynı kararı izler, aynı anahtarla yeniden deneme ikinci karar bırakmaz.
+     */
+    public function test_karar_yayimlandiktan_sonraki_ariza_kabulu_bozmaz_ayni_anahtarla_yeniden_deneme_tek_karar(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('root klasör iznini aşar (T11).');
+        }
+        $anahtar = ErisimAnahtari::uret();
+        $kayit = $this->durumYaz(UstuneGeriYuklemeAdimi::OnayBekliyor, true, anahtar: $anahtar);
+        $baslik = ['X-Erisim-Anahtari' => $anahtar, 'Idempotency-Key' => (string) Str::uuid()];
+        // Günlük ilk kaydı (yayından önce) yazar; sonrakiler yazılamaz
+        $gunluk = new class extends AbstractProcessingHandler
+        {
+            /** @var list<string> */
+            public array $yazilan = [];
+
+            protected function write(LogRecord $kayit): void
+            {
+                if ($this->yazilan !== []) {
+                    throw new RuntimeException('günlük yazılamadı');
+                }
+                $this->yazilan[] = $kayit->message;
+            }
+        };
+        config(['logging.channels.yedekleme' => ['driver' => 'custom', 'via' => fn (): Logger => new Logger('yedekleme', [$gunluk])]]);
+        Log::forgetChannel('yedekleme');
+        $klasor = config('yedekleme.istek_klasoru').'/bekleyen';
+        @mkdir($klasor, 0770, true);
+        // Yazılabilir, geçilebilir, okunamaz: taşıma olur, klasör eşitlemek için açılamaz
+        chmod($klasor, 0300);
+
+        try {
+            $istek = $this->postJson(self::ISLEM.$kayit->kimlik.'/onayla', [], $baslik)->assertAccepted()->json('data.istek_kimligi');
+            $tekrar = $this->postJson(self::ISLEM.$kayit->kimlik.'/onayla', [], $baslik)->assertAccepted()->json('data.istek_kimligi');
+        } finally {
+            chmod($klasor, 0770);
+        }
+
+        $this->assertSame($istek, $tekrar);
+        $this->assertSame(['yedekleme.istek'], $gunluk->yazilan);
+        $this->assertSame([$istek.'.json'], array_map('basename', app(IstekKutusu::class)->bekleyenler()));
+        $this->getJson(self::ISLEM.$kayit->kimlik.'/durum?istek='.$istek, ['X-Erisim-Anahtari' => $anahtar])->assertOk()
+            ->assertJsonPath('data.istek.durum', 'kuyrukta');
     }
 
     public function test_yer_degistirmeden_once_onay_istegi_409(): void

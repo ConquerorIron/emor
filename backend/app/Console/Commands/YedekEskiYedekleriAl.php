@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Models\Yedek;
 use App\Services\Yedekleme\AtomikDosya;
+use App\Services\Yedekleme\DepoIsaretiYok;
 use App\Services\Yedekleme\DogrulamaDurumu;
 use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\ManifestDeposu;
@@ -13,6 +14,7 @@ use App\Services\Yedekleme\OlayGunlugu;
 use App\Services\Yedekleme\OlayTuru;
 use App\Services\Yedekleme\PgAraclari;
 use App\Services\Yedekleme\YedekDenetimi;
+use App\Services\Yedekleme\YedekDeposu;
 use App\Services\Yedekleme\YedekDurumu;
 use App\Services\Yedekleme\YedekKaynagi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
@@ -40,12 +42,14 @@ use Throwable;
  * Yedekleme kilidi altında çalışır (meşgulse çıkış 75). Yedek klasöründe aynı
  * adla FARKLI bir yedek (dosya, manifest ya da kayıt) varsa arşiv içe
  * alınmaz, hiçbir dosyaya dokunulmaz, sonda başarısız çıkılır (D4; BY-013-R2).
+ * Yedek klasörü depo işaretiyle doğrulanamazsa (bağlanmamış disk; YedekDeposu,
+ * BY-011-R3) hiçbir şey yazılmaz.
  */
 #[Signature('yedek:eski-yedekleri-al {--klasor=/var/backups/emor : deploy.sh yedeklerinin klasörü}')]
 #[Description('deploy.sh\'ın eski (imzasız) yayın öncesi yedeklerini içeri alır')]
 final class YedekEskiYedekleriAl extends Command
 {
-    public function handle(YedeklemeYapilandirmasi $yapilandirma, PgAraclari $pg, ManifestDeposu $manifestler, OlayGunlugu $olaylar, YedekDenetimi $denetim): int
+    public function handle(YedeklemeYapilandirmasi $yapilandirma, PgAraclari $pg, ManifestDeposu $manifestler, OlayGunlugu $olaylar, YedekDenetimi $denetim, YedekDeposu $depo): int
     {
         $kaynakKlasor = rtrim((string) $this->option('klasor'), '/');
         $dosyalar = glob($kaynakKlasor.'/*_predeploy_*.dump') ?: [];
@@ -79,7 +83,13 @@ final class YedekEskiYedekleriAl extends Command
         $sayac = ['alinan' => 0, 'var' => 0, 'okunamayan' => 0, 'cakisan' => 0];
 
         try {
+            // Bağlanmamış diskin boş bağlama noktasına (kök diske) yazılmaz (BY-011-R3)
+            $depo->hazirla();
             $this->iceAl($dosyalar, $yapilandirma, $pg, $hedefKlasor, $manifestler, $olaylar, $sayac);
+        } catch (DepoIsaretiYok $hata) {
+            $this->error($hata->getMessage());
+
+            return self::FAILURE;
         } finally {
             $kilit->birak();
         }

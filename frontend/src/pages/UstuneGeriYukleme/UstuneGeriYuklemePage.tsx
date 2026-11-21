@@ -22,6 +22,7 @@ import {
   ustuneIslemiUnut,
   type KayitliUstuneIslem,
 } from '@/features/yedekleme/ustuneGeriYuklemeDeposu'
+import { useIstekAnahtarlari } from '@/features/yedekleme/useIstekAnahtarlari'
 
 import { AyarSecimleri, type AyarSecimDurumu } from './AyarSecimleri'
 import { OnayBilgisiPaneli } from './OnayBilgisiPaneli'
@@ -135,12 +136,21 @@ export function UstuneGeriYuklemePage() {
     .map((g) => g.grup)
   const secimlerTamam = secimGerekenler.every((grup) => ayarSecimleri[grup] !== undefined)
 
+  // Aynı kararın yeniden denemesi aynı istek anahtarını taşır: yanıtı
+  // alınamayan karar sunucuda kabul edilmiş olabilir (BY-030-R3)
+  const istekAnahtarlari = useIstekAnahtarlari()
+  const kararEylemi = (secim: 'onayla' | 'geri-don') =>
+    secim === 'onayla' ? { secim, ayarSecimleri } : { secim }
   const karar = useMutation({
-    mutationFn: (secim: 'onayla' | 'geri-don') =>
-      secim === 'onayla'
-        ? ustuneKararVer(islemKimligi, anahtar ?? '', secim, ayarSecimleri)
-        : ustuneKararVer(islemKimligi, anahtar ?? '', secim),
-    onSuccess: (sonuc) => {
+    mutationFn: (secim: 'onayla' | 'geri-don') => {
+      const istekAnahtari = istekAnahtarlari.anahtar(kararEylemi(secim))
+
+      return secim === 'onayla'
+        ? ustuneKararVer(islemKimligi, anahtar ?? '', istekAnahtari, secim, ayarSecimleri)
+        : ustuneKararVer(islemKimligi, anahtar ?? '', istekAnahtari, secim)
+    },
+    onSuccess: (sonuc, secim) => {
+      istekAnahtarlari.kabulEdildi(kararEylemi(secim))
       if (kayit !== null) {
         const yeni = { ...kayit, karar_istegi: sonuc.istek_kimligi }
         ustuneIslemiKaydet(yeni)

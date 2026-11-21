@@ -10,6 +10,7 @@ use App\Models\MailAyari;
 use App\Models\User;
 use App\Models\Yedek;
 use App\Models\YedekHedefi;
+use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
 use App\Services\Yedekleme\AyarKopyasi;
 use App\Services\Yedekleme\BakimModu;
@@ -19,6 +20,7 @@ use App\Services\Yedekleme\GeriYuklemeHatasi;
 use App\Services\Yedekleme\IslemKaydi;
 use App\Services\Yedekleme\IstekKutusu;
 use App\Services\Yedekleme\Istekler\IstekCalistiricisi;
+use App\Services\Yedekleme\KopyaDurumu;
 use App\Services\Yedekleme\OnayBilgisi;
 use App\Services\Yedekleme\SiklikTuru;
 use App\Services\Yedekleme\UstuneGeriYuklemeAdimi;
@@ -282,6 +284,45 @@ final class UstuneGeriYuklemeOnayTest extends TestCase
         $this->assertSame([$nonce => $son], $this->durumOku()?->kullanilanKanitlar);
     }
 
+    /**
+     * BY-030-R2: liste kapasitesinde süresi geçmemiş tüketilmiş kanıt
+     * unutulmaz; yeni karar açık kodla reddedilir. Süresi geçenler atılır.
+     */
+    public function test_kanit_listesi_doluyken_suresi_gecmemis_kanit_dusmez_yeni_karar_reddedilir_suresi_gecenler_atilir(): void
+    {
+        $kayit = $this->durumYaz(UstuneGeriYuklemeAdimi::OnayBekliyor, true, isteyen: $this->yonetici->id);
+        $ustune = app(UstuneGeriYukleyici::class);
+        $kilit = $this->kilitAl();
+        $simdi = CarbonImmutable::now()->getTimestamp();
+        // En erken biten kanıt: eskiden kapasite dolunca ilk o düşüyordu
+        $ilk = ErisimAnahtari::nonce();
+        $ustune->kanitTuket($kilit, $kayit->kimlik, $ilk, $simdi + 100);
+        for ($i = 1; $i < IslemKaydi::EN_COK_KANIT; $i++) {
+            $ustune->kanitTuket($kilit, $kayit->kimlik, ErisimAnahtari::nonce(), $simdi + 200);
+        }
+
+        foreach ([[ErisimAnahtari::nonce(), GeriYuklemeHatasi::KARAR_KAPASITESI_DOLU], [$ilk, GeriYuklemeHatasi::KARAR_KANITI_KULLANILDI]] as [$nonce, $kod]) {
+            try {
+                $ustune->kanitTuket($kilit, $kayit->kimlik, $nonce, $simdi + 250);
+                $this->fail("Karar kabul edilmemeliydi ({$kod}).");
+            } catch (GeriYuklemeHatasi $hata) {
+                $this->assertSame($kod, $hata->kod);
+            }
+        }
+        $this->assertCount(IslemKaydi::EN_COK_KANIT, $this->durumOku()?->kullanilanKanitlar ?? []);
+        $this->assertArrayHasKey($ilk, $this->durumOku()?->kullanilanKanitlar ?? []);
+
+        // İlk kanıtın süresi geçti: atılır, yeni karara yer açılır
+        $this->travel(101)->seconds();
+        $yeni = ErisimAnahtari::nonce();
+        $ustune->kanitTuket($kilit, $kayit->kimlik, $yeni, $simdi + 400);
+
+        $kanitlar = $this->durumOku()?->kullanilanKanitlar ?? [];
+        $this->assertArrayNotHasKey($ilk, $kanitlar);
+        $this->assertArrayHasKey($yeni, $kanitlar);
+        $this->assertCount(IslemKaydi::EN_COK_KANIT, $kanitlar);
+    }
+
     // -------------------------------------------------- ayar seçimi (BY-028-R2)
 
     public function test_farkli_ayar_grubunda_secimsiz_onay_reddedilir_secilen_degerler_acilista_gecerli(): void
@@ -355,6 +396,40 @@ final class UstuneGeriYuklemeOnayTest extends TestCase
         $this->assertSame(['parola' => 'eski-hedef-gizli'], $eski->refresh()->gizli_bilgiler);
         $ayrinti = json_decode((string) DB::table('yedek_islem_kayitlari')->where('islem', 'geri_yukle_ustune_ayar_secimi')->value('ayrinti'), true);
         $this->assertStringContainsString('"Drive" yedekten sonra eklenmiş', implode(' ', $ayrinti['uyarilar'] ?? []));
+    }
+
+    /** BY-028-R3: "güncel" hedef uzlaştırması normal güncellemenin konum ve sır kurallarını uygular */
+    public function test_guncel_hedeflerde_yeri_ya_da_adresi_degisen_hedef_eski_sirla_etkinlesmez_kopyalar_eski_yerdeki_hedefte_kalir(): void
+    {
+        // Bugün: disk hedefi /yeni'de; FTP hedefi yeni sunucuda yeni parolayla
+        $disk = YedekHedefi::factory()->create(['ad' => 'Disk', 'aktif' => true, 'baglanti' => ['klasor' => '/yeni']]);
+        $ftp = YedekHedefi::factory()->ftp()->create(['ad' => 'FTP', 'aktif' => true, 'baglanti' => ['sunucu' => 'yeni.ornek.test', 'port' => 21, 'kullanici_adi' => 'yedek', 'klasor' => '/emor', 'pasif' => true], 'gizli_bilgiler' => ['sifre' => 'yeni-parola']]);
+        $yedek = $this->ustuneYedekAl();
+        // Geri yüklenen veritabanı (yedeğin anı): disk /eski'deydi ve orada kopyası vardı; FTP eski sunucuda eski parolayla
+        $this->yerDegistirmeSonrasi = function () use ($disk, $ftp, $yedek): void {
+            $disk->forceFill(['baglanti' => ['klasor' => '/eski']])->save();
+            YedekKopyasi::query()->create(['yedek_id' => $yedek->id, 'yedek_hedefi_id' => $disk->id, 'durum' => KopyaDurumu::Tamam, 'uzak_kimlik' => $yedek->dosya_adi, 'sifreli' => false]);
+            $ftp->forceFill(['baglanti' => [...$ftp->baglanti, 'sunucu' => 'eski.ornek.test'], 'gizli_bilgiler' => ['sifre' => 'eski-parola']])->save();
+        };
+        [$kayit] = $this->ustuneBaslat($yedek, $this->yonetici->id);
+        $this->assertNull($this->kancaHatasi);
+
+        $son = app(UstuneGeriYukleyici::class)->onayla($this->kilitAl(), $kayit->kimlik, ['hedefler' => 'guncel']);
+
+        $this->assertSame(UstuneGeriYuklemeAdimi::Onaylandi->value, $son->adim);
+        // FTP: bugünkü adres yazıldı ama eski parola o adrese gönderilemez — sırsız ve pasif
+        $ftp->refresh();
+        $this->assertSame('yeni.ornek.test', $ftp->baglanti['sunucu']);
+        $this->assertNull($ftp->gizli_bilgiler);
+        $this->assertFalse($ftp->aktif);
+        // Disk: kopya kaydı eski yeri gösteren hedefte; hedef o yerde ama pasif
+        $disk->refresh();
+        $this->assertSame('/eski', $disk->baglanti['klasor']);
+        $this->assertFalse($disk->aktif);
+        $this->assertSame([$disk->id], YedekKopyasi::query()->where('yedek_id', $yedek->id)->pluck('yedek_hedefi_id')->map(fn (mixed $id): int => (int) $id)->all());
+        $uyarilar = implode(' ', json_decode((string) DB::table('yedek_islem_kayitlari')->where('islem', 'geri_yukle_ustune_ayar_secimi')->value('ayrinti'), true)['uyarilar'] ?? []);
+        $this->assertStringContainsString('"Disk": kopyaların durduğu yer (klasor)', $uyarilar);
+        $this->assertStringContainsString('"FTP" bağlantı adresi yedekten sonra değişmiş', $uyarilar);
     }
 
     public function test_onay_bilgisi_ortam_kullanici_rol_ayar_ve_kaybolacak_yukleme_farkini_verir(): void

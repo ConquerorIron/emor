@@ -11,7 +11,8 @@ sunucu dışındaki şifreli yedekten geri kurma adımları. Tasarım: README §
 **Son deneme:** 2026-11-21, lokal (WSL, PostgreSQL 16.15) — §8. Sunucuda
 (PostgreSQL 18.6) ve boş bir Linux makinesinde servis kipiyle henüz
 denenmedi; §4'ün bugünkü sırası (sürümlü paket, imza doğrulaması, çalıştıran
-kimlikler) baştan sona uygulanmadı.
+kimlikler) baştan sona uygulanmadı. Bağlanma yetkileri adımları (§4.8 → §4.11)
+lokalde, daraltılmış CONNECT'li bir veritabanının yedeğiyle denendi (§8, ilk kayıt).
 
 ---
 
@@ -43,8 +44,17 @@ uzak yaşam sinyali gider.
 - Hedefte son **iki** tamam sürüm durur: yenisinin bir dosyası bozuk çıkarsa
   bir öncekiyle kurtarılır.
 - Gönderim yarıda kalırsa önceki tamam sürüm ve işaretçisi değişmez; yedeğin
-  kopyası yine "tamam" sayılır, hata İşlem Günlüğü'nde `kurtarma_paketi`
-  olarak görünür ve uzak yaşam sinyali gitmez (izleyici uyarır).
+  kopyası "tamam" (aktarım doğrulandı) ama **kurtarmaya hazır değil**
+  sayılır: o yedeğin imzalı manifesti henüz o hedefteki hiçbir pakette
+  yoktur. Hata İşlem Günlüğü'nde `kurtarma_paketi` olarak görünür, uzak yaşam
+  sinyali gitmez (izleyici uyarır), Yedekler ekranında kopyanın yanında
+  "kurtarma paketi bekleniyor" yazar ve saklama o yedeğin **yerel arşivini
+  silmez**. Paketin manifest arşivi yedek klasöründeki bütün manifestleri
+  taşıdığı için o hedefe giden bir sonraki başarılı paket, eksik kalan
+  kopyaları da kurtarmaya hazır yapar (BY-010-R2, BY-024-R3).
+- Eski sürüm silinirken işaretçi silinemezse (ör. kovada yalnız işaretçiye
+  silme izni yok) sürümün hiçbir dosyasına dokunulmaz: hedefte "tamam"
+  görünen her set eksiksizdir (BY-024-R4).
 - Adlar `erp_` ile başlamadığı için yedek listesine ve temizliğe girmezler.
 
 İşaretçi imzalı değildir: yalnız indirmenin bozulmadığını gösterir. Yedeğin bu
@@ -195,6 +205,11 @@ sudo scripts/sunucu-yedekleme-kurulumu.sh             # kur
 sudo scripts/sunucu-yedekleme-kurulumu.sh --denetle   # yalnız "[BİLGİ] imza anahtarı henüz yok" kalmalı
 ```
 
+Betik yedek klasörüne depo işaretini de (`yedekler/.emor-yedek-deposu`)
+koyar: tarama ve yedek alma, işareti olmayan klasörü (ör. diski bağlanmamış
+bağlama noktası) depo saymaz (sunucu-kurulumu.md §2 "Depo işareti"). Yedek klasörü ayrı bir
+diske bağlanacaksa disk **betikten önce** bağlanır.
+
 Betik `backend/.env`'i, `backend/vendor`'ı (§4.3) ve `erp` rolünü (§4.2) ister.
 Servis **etkinleştirilmez** (§4.11'e kadar): kurtarma sürerken çalıştırıcı
 iş almaz.
@@ -304,6 +319,7 @@ yükleme yapılmaz**, hiçbir SQL çalıştırılmaz:
 | `GERI_YUKLEME_IMZA_GECERSIZ: imza anahtarı yok` | §4.5 yapılmadı / `.env` yolu farklı | §4.5, §4.3'teki yol |
 | `GERI_YUKLEME_IMZA_GECERSIZ: manifest bozuk / imzasız / yok / başka bir yedeğin` | Arşivde bu yedeğin geçerli manifesti yok | Başka bir yedek ya da önceki paket sürümü |
 | `GERI_YUKLEME_OZET_TUTMUYOR` | Dump bozuk, eksik ya da başka dosya | Dump'ı yeniden indirip çözün; olmazsa başka yedek |
+| `GERI_YUKLEME_VERITABANI_YETKILERI` (yalnız `--yetkileri-…` ile, §4.9 / §4.11) | Bağlanma yetkileri manifestle eşdeğer uygulanamadı / eşdeğer değil (ör. yetkideki rol bu sunucuda yok); uygulama yetkileri hiç değiştirmez | Eksik rolü açın (§4.2) ve adımı yineleyin; olmazsa uygulamayı AÇMAYIN |
 
 Doğrulanınca dosyaları servis hesabı yerlerine koyar (yalnız düz dosyalar;
 arşivdeki bağlantı vb. alınmaz):
@@ -346,6 +362,27 @@ servis pg_restore -h 127.0.0.1 -U emor_yedek -d erp \
 Nesnelerin sahibi `erp` olur (`--role=erp`; `emor_yedek` `erp`'nin üyesi).
 Parola komut satırına yazılmaz, sorulmaz.
 
+**Bağlanma yetkileri — emor-yedek (BY-031-R2).** `createdb` veritabanını
+varsayılan yetkilerle açar (PUBLIC herkes bağlanır, geçici tablo açar);
+`pg_restore --no-owner` veritabanının kendi ACL'sini (CONNECT / TEMP)
+getirmez. Kaynakta bağlanma daraltılmışsa (ör. yalnız belirli rollere
+CONNECT) yeni veritabanı farklı yetkilerle açılırdı. İmzalı manifestteki
+`baglanma_yetkileri` (`yedek:manifest-dogrula` çıktısında "Bağlanma
+yetkileri (datacl)") yeni veritabanına, ekrandaki geri yüklemenin kullandığı
+kodla uygulanır: imza ve özet YENİDEN doğrulanır, sonra yetkiler tek işlemde
+eşdeğer yapılır (sonuç (rol, yetki, devredilebilir) kümesi olarak
+karşılaştırılır; tutmazsa yetkiler hiç değişmez, çıkış kodu 1):
+
+```bash
+# emor-yedek — manifest dump'ın yanında (§4.8'de yedekler/'e kondu)
+servis php artisan yedek:manifest-dogrula /var/lib/emor-yedek/yedekler/<ad>.dump --yetkileri-uygula=erp
+# beklenen son satır: "YETKILER_UYGULANDI: erp veritabanının bağlanma yetkileri manifestle eşdeğer."
+```
+
+`GERI_YUKLEME_VERITABANI_YETKILERI` yazarsa (genellikle yetkide adı geçen bir
+rol bu sunucuda yok) rolü açın (§4.2) ve yineleyin; uygulamayı açmayın.
+SQL elle yazılmaz: aynı iş tek yerde, `GeriYuklemeVeritabani` içindedir (K10).
+
 Oturum, önbellek ve kuyruk tablolarının (`sessions`, `cache`, `jobs` …) yalnız
 şeması gelir, verisi boştur (README §7.1) — beklenen durumdur.
 
@@ -368,7 +405,18 @@ php artisan optimize
 anahtar ya da klasör görüyordur: `servis` kalıbıyla çalıştırıldığını, imza
 anahtarını (§4.5) ve `.env`'deki yolları (§4.3) denetleyin.
 
-### 4.11 Servisler — root
+### 4.11 Servisler — önce emor-yedek denetimi, sonra root
+
+**Açılıştan önce eşdeğerlik denetimi (emor-yedek).** Servisler başlamadan
+veritabanının bağlanma yetkileri imzalı manifestle eşdeğer mi, DEĞİŞTİRMEDEN
+denetlenir (§4.9'dan sonra `migrate` ya da elle bir işlem yetkileri
+değiştirmiş olabilir):
+
+```bash
+servis php artisan yedek:manifest-dogrula /var/lib/emor-yedek/yedekler/<ad>.dump --yetkileri-denetle=erp
+# yalnız "YETKILER_ESDEGER: …" yazarsa devam; "eşdeğer DEĞİL" yazarsa §4.9'daki
+# --yetkileri-uygula adımını yineleyin, denetimi tekrarlayın
+```
 
 1. nginx sitesi, php8.5-fpm, `emor-queue` systemd servisi, `/etc/cron.d/emor`
    zamanlayıcısı (`deploy.sh` ve sunucu notları).
@@ -392,6 +440,8 @@ silinir; asılları §2'deki yerlerinde kalır.
 - [ ] Ayarlar → SQL bağlantıları "Sına" başarılı (APP_KEY doğru: şifreler okunuyor).
 - [ ] Veritabanı: kodlama / sıralama manifestle aynı, sahibi `erp`:
       `select pg_encoding_to_char(encoding), datcollate, pg_get_userbyid(datdba) from pg_database where datname = 'erp';`
+- [ ] Bağlanma yetkileri manifestle eşdeğer: §4.11'deki `--yetkileri-denetle=erp`
+      `YETKILER_ESDEGER` yazdı.
 - [ ] Sahibi `erp` olmayan tablo yok:
       `select count(*) from pg_tables where schemaname = 'public' and tableowner <> 'erp';` → 0
 - [ ] Birkaç tablonun satır sayısı manifestteki `satir_sayilari` ile aynı.
@@ -439,6 +489,33 @@ Manifestler ve olay günlüğü imza anahtarıyla imzalıdır. Anahtar kaybolurs
 - Bu yüzden imza anahtarı yedeklerden ayrı saklanır (§2).
 
 ## 8. Deneme kaydı
+
+**2026-11-21 — bağlanma yetkileri, lokal prova (Claude, BY-031-R2).** TEMİZ
+MAKİNE DEĞİL: WSL Ubuntu 24.04, PostgreSQL 16.15, `C.UTF-8`; servis hesabı ve
+`servis` kalıbı yok (aynı yollar ve rol ortam değişkenleriyle verildi);
+geçici roller `b1k_app` (sahip), `b1k_svc` (CREATEDB, `b1k_app` üyesi),
+`b1k_diger`, `b1k_yabanci`; geçici veritabanları ve `/tmp` klasörleri sonunda
+silindi; `erp` / `erp_test*` kullanılmadı.
+
+1. "Eski sunucu": `b1k_eski` (`REVOKE ALL … FROM PUBLIC; GRANT CONNECT … TO
+   b1k_diger`; datacl `{b1k_app=CTc/b1k_app,b1k_diger=c/b1k_app}`), `migrate`,
+   `yedek:imza-anahtari`, gerçek `yedek:al` → imzalı manifest bu ACL'yi taşıdı.
+2. "Yeni sunucu" (§4.8): dump + manifest yedek klasörüne; `yedek:manifest-dogrula`
+   `DOGRULANDI` ve "Bağlanma yetkileri (datacl)" satırı.
+3. §4.9: `createdb` + `pg_restore --no-owner --role` → datacl boş (varsayılan),
+   `b1k_yabanci` yeni veritabanına BAĞLANABİLDİ (bulgunun kendisi);
+   `--yetkileri-denetle` "eşdeğer DEĞİL", çıkış 1. `--yetkileri-uygula`
+   `YETKILER_UYGULANDI`; datacl kaynakla aynı.
+4. §4.10 `yedek:tara`: 1 imzalı. §4.11 `--yetkileri-denetle` `YETKILER_ESDEGER`;
+   `b1k_diger` bağlanıyor, `b1k_yabanci` "permission denied for database";
+   `migrations` satır sayısı kaynakla aynı (55).
+5. İmzası bozulmuş manifestle `--yetkileri-uygula`: `GERI_YUKLEME_IMZA_GECERSIZ`,
+   veritabanının yetkilerine dokunulmadı.
+
+Denenmeyenler: paket indirme ve şifre çözme (BY-024 provası ve
+`KurtarmaPaketiTest`), servis hesabıyla çalıştırma, PostgreSQL 18 /
+`en_US.UTF-8`. Otomatik test: `YedekManifestDogrulaPostgresTest`
+(`YEDEKLEME_GERCEK_PG=1`), `YedekManifestDogrulaTest`.
 
 **2026-11-21 — sıra değişti (BY-024-R1, R2; BY-031-R1), uygulanmadı.**
 Kurtarma paketi sürümlü oldu (`-tamam.json` işaretçisi), SQL'den önce

@@ -7,6 +7,7 @@ namespace App\Services\Yedekleme\Hedefler;
 use App\Models\YedekHedefi;
 use App\Services\Yedekleme\AtomikDosya;
 use App\Services\Yedekleme\HedefTuru;
+use App\Services\Yedekleme\SureButcesi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use GuzzleHttp\Psr7\LazyOpenStream;
 use Illuminate\Http\Client\ConnectionException;
@@ -119,7 +120,8 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
      * İzin kodunu kalıcı yenileme anahtarıyla değiştirir. Kod tek kullanımlık
      * olduğu için istek yeniden denenmez. Kullanıcı izin ekranında Drive
      * kutusunu kaldırdıysa (`drive.file` verilmediyse) bağlantı kurulmaz.
-     * E-posta `about.user`'dan okunur; okunamazsa null (bağlantı yine kurulur).
+     * E-posta `about.user`'dan okunur; okunamazsa null — kopyası olan hedefte
+     * çağıran hesabı doğrulanmamış sayar ve bağlantıyı değiştirmez (BY-021-R2).
      *
      * @return array{yenileme_anahtari: string, eposta: string|null}
      *
@@ -564,13 +566,15 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
     /**
      * Bağlantı ve toplam süre sınırı her istekte (D1). Yeniden deneme yalnız
      * bağlantı hatası, 5xx ve 429'da; 4xx kalıcıdır (D8). Yönlendirme izlenmez.
+     * Sınamada (etkin süre bütçesi) sınırlar ortak son zamana kısalır, deneme
+     * ve önündeki bekleme sığmıyorsa yapılmaz (BY-016-R4).
      */
     private static function istemciKur(YedeklemeYapilandirmasi $yapilandirma, bool $dosyaTasir, bool $yenidenDene): PendingRequest
     {
         $kopyaSuresi = $yapilandirma->sureSiniri('kopya');
-        $istemci = Http::connectTimeout($yapilandirma->sureSiniri('baglanti'))
-            ->timeout($dosyaTasir ? $kopyaSuresi : min(self::KISA_ISTEK_SURESI, $kopyaSuresi))
-            ->withoutRedirecting();
+        $baglanti = $yapilandirma->sureSiniri('baglanti');
+        $zamanAsimi = $dosyaTasir ? $kopyaSuresi : min(self::KISA_ISTEK_SURESI, $kopyaSuresi);
+        $istemci = Http::connectTimeout($baglanti)->timeout($zamanAsimi)->withoutRedirecting();
 
         if (! $yenidenDene) {
             return $istemci;
@@ -579,11 +583,25 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
         return $istemci->retry(
             self::YENIDEN_DENEME_MS,
             0,
-            fn (?Throwable $hata): bool => $hata instanceof ConnectionException
+            fn (?Throwable $hata, PendingRequest $istek): bool => ($hata instanceof ConnectionException
                 || ($hata instanceof RequestException
-                    && ($hata->response->serverError() || $hata->response->status() === 429)),
+                    && ($hata->response->serverError() || $hata->response->status() === 429)))
+                && self::denemeyiSinirla($istek, $baglanti, $zamanAsimi),
             throw: false,
         );
+    }
+
+    /** Sonraki deneme etkin süre bütçesine sığıyorsa süre sınırlarını kalan süreye kısaltır */
+    private static function denemeyiSinirla(PendingRequest $istek, int $baglanti, int $zamanAsimi): bool
+    {
+        $sinir = SureButcesi::denemeSiniri($zamanAsimi, max(self::YENIDEN_DENEME_MS));
+        if ($sinir === null) {
+            return false;
+        }
+
+        $istek->connectTimeout(min($baglanti, $sinir))->timeout($sinir);
+
+        return true;
     }
 
     /**

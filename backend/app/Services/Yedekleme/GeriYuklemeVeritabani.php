@@ -418,6 +418,37 @@ final class GeriYuklemeVeritabani
     }
 
     /**
+     * Veritabanının bağlanma yetkileri verilen ACL'ye eşdeğer mi — hiçbir şeyi
+     * DEĞİŞTİRMEDEN, yetkileriUygula()'nın sonundaki ölçütle: (rol, yetki,
+     * devredilebilir) kümesi, veren karşılaştırılmaz; `null` = varsayılan
+     * yetkiler. Elle kurtarmada açılıştan önceki denetim (kurtarma.md;
+     * BY-031-R2). ACL değeri psql değişkeni + current_setting ile girer:
+     * sabit olarak verilseydi kullanılmayan CASE dalı da planlamada çözülürdü.
+     *
+     * @throws GeriYuklemeHatasi VERITABANI_YETKILERI (veritabanı yok, okunamadı ya da ACL çözülemedi)
+     */
+    public function yetkilerEsdegerMi(string $ad, ?string $acl): bool
+    {
+        $this->yetkiAdiOlmali($ad);
+
+        $satirlar = $this->csvSatirlari($this->psql(self::YONETIM_VERITABANI, <<<'SQL'
+            SELECT set_config('erp_yedek.acl', :'acl', false), set_config('erp_yedek.varsayilan', :'varsayilan', false) \g /dev/null
+            SELECT (SELECT array_agg(x ORDER BY x) FROM (SELECT a.grantee::text || ':' || a.privilege_type || ':' || a.is_grantable::text AS x
+                      FROM aclexplode(coalesce(d.datacl, acldefault('d', d.datdba))) a) s)
+                   IS NOT DISTINCT FROM
+                   (SELECT array_agg(x ORDER BY x) FROM (SELECT a.grantee::text || ':' || a.privilege_type || ':' || a.is_grantable::text AS x
+                      FROM aclexplode(CASE WHEN current_setting('erp_yedek.varsayilan') = '1' THEN acldefault('d', d.datdba) ELSE current_setting('erp_yedek.acl')::aclitem[] END) a) s)
+              FROM pg_database d WHERE d.datname = :'ad';
+            SQL, ['ad' => $ad, 'acl' => $acl ?? '', 'varsayilan' => $acl === null ? '1' : '0'], GeriYuklemeHatasi::VERITABANI_YETKILERI, csv: true));
+
+        if (count($satirlar) !== 1 || count($satirlar[0]) !== 1 || ! in_array($satirlar[0][0], ['t', 'f'], true)) {
+            throw new GeriYuklemeHatasi(GeriYuklemeHatasi::VERITABANI_YETKILERI, "{$ad} veritabanının bağlanma yetkileri okunamadı.");
+        }
+
+        return $satirlar[0][0] === 't';
+    }
+
+    /**
      * Yazıcı bariyeri (README §6.4 2–3. adım arası; BY-028-R1): canlıya
      * bağlanma yetkisi yalnız servis rolünde kalır (PUBLIC'ten ve diğer
      * rollerden CONNECT geri alınır — tek DO bloğu, ya hepsi ya hiçbiri), sonra
@@ -495,6 +526,10 @@ final class GeriYuklemeVeritabani
      * değiştirmez: uygulama rolü (PgAraclari::baglanti) yalnız bu sürede
      * okunmamalı — çağıran yalnız yedek almayı sarar.
      *
+     * Tanım bütünüyle SOMUT tanımla değiştirilir (`url` yok): yalnız kullanıcı
+     * ve parola değişseydi Laravel bağlantıyı açarken DB_URL'deki uygulama
+     * rolünü ve parolasını onların üstüne yazardı (BY-028-R4).
+     *
      * @template T
      *
      * @param  Closure(): T  $is
@@ -506,7 +541,7 @@ final class GeriYuklemeVeritabani
         $onceki = config($anahtar);
         $oncekiOrtam = getenv('PGPASSFILE');
 
-        config(["{$anahtar}.username" => $servisRolu, "{$anahtar}.password" => null]);
+        config([$anahtar => $this->pg->servisRoluTanimi($servisRolu)]);
         putenv('PGPASSFILE='.$parolaDosyasi);
 
         try {

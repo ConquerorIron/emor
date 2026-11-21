@@ -17,6 +17,7 @@ use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use App\Services\Yedekleme\HedefTuru;
 use App\Services\Yedekleme\Istekler\Istek;
+use App\Services\Yedekleme\Istekler\IstekReddi;
 use App\Services\Yedekleme\Istekler\SilIsleyicisi;
 use App\Services\Yedekleme\KopyaDurumu;
 use App\Services\Yedekleme\OlayGunlugu;
@@ -104,7 +105,6 @@ final class DizinKurucuTest extends TestCase
 
     public function test_imzasiz_dosya_guvenilmeyen_olarak_listelenir_geri_yuklenemez(): void
     {
-        mkdir(config('yedekleme.klasor'), 0750, true);
         file_put_contents(config('yedekleme.klasor').'/erp_predeploy_2026-08-05_101010.dump', 'PGDMP-eski');
 
         $sonuc = $this->tara();
@@ -249,10 +249,18 @@ final class DizinKurucuTest extends TestCase
                 }
                 chmod($klasor, 0300);
             }],
+            // BY-011-R3: disk ayrıldı; bağlama noktası alttaki boş, okunabilir, işaretsiz klasör
+            'diski ayrılmış boş bağlama noktası' => [function (self $test, string $klasor): void {
+                rename($klasor, $klasor.'-disk');
+                mkdir($klasor, 0750);
+            }],
         ];
     }
 
-    /** BY-011-R1: okunabilen ama gerçekten boş klasör olağan taramadır — kayıt "dosya yok" olur. */
+    /**
+     * BY-011-R1, R3: okunabilen, depo işareti duran ama gerçekten boş klasör
+     * olağan taramadır — kayıt "dosya yok" olur.
+     */
     public function test_erisilebilen_bos_klasorde_kayit_dosya_yok_olur(): void
     {
         $yedek = $this->gercekYedek();
@@ -318,6 +326,41 @@ final class DizinKurucuTest extends TestCase
         $kurulan = Yedek::query()->where('kimlik', $yedek->kimlik)->sole();
         $this->assertSame(YedekDurumu::Silindi, $kurulan->durum);
         $this->assertSame(KopyaDurumu::Silindi, YedekKopyasi::query()->where('yedek_id', $kurulan->id)->sole()->durum);
+    }
+
+    /** BY-011-R3 / G1: yedek diski bağlı değilken elle silme hiçbir kopyaya ve kataloğa dokunmaz. */
+    public function test_yedek_diski_bagli_degilken_elle_silme_reddedilir_kopyalar_ve_katalog_aynen_kalir(): void
+    {
+        $yedek = $this->gercekYedek();
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Uzak', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'k']]);
+        $kopya = app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        $uzak = BellekHedefi::$dosyalar;
+        $klasor = config('yedekleme.klasor');
+        // Disk ayrıldı: bağlama noktası alttaki boş, okunabilir, işaretsiz klasör
+        rename($klasor, $klasor.'-disk');
+        mkdir($klasor, 0750);
+
+        try {
+            $istek = new Istek((string) Str::uuid(), 'sil', ['yedek_kimligi' => $yedek->kimlik], null, CarbonImmutable::now(), 0);
+            try {
+                app(SilIsleyicisi::class)->isle($istek, $this->kilitAl());
+                $this->fail('Depo doğrulanmadan silme reddedilmeliydi');
+            } catch (IstekReddi $red) {
+                $this->assertSame('YEDEK_SILME_DEPO_DOGRULANAMADI', $red->kod);
+            } finally {
+                $this->tutulanKilit?->birak();
+            }
+            $this->assertSame([], array_values(array_diff(scandir($klasor), ['.', '..'])), 'Bağlama noktasına hiçbir şey yazılmaz');
+        } finally {
+            array_map('unlink', glob($klasor.'/{,.}[!.]*', GLOB_BRACE) ?: []);
+            rmdir($klasor);
+            rename($klasor.'-disk', $klasor);
+        }
+
+        $yedek->refresh();
+        $this->assertSame([YedekDurumu::Tamam, null], [$yedek->durum, $yedek->yerel_silinme_zamani]);
+        $this->assertSame(KopyaDurumu::Tamam, $kopya->refresh()->durum);
+        $this->assertSame($uzak, BellekHedefi::$dosyalar);
     }
 
     private function planYedegi(YedekHedefi $hedef, YedekPlani $plan): Yedek
