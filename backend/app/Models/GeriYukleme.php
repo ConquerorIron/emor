@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Services\Yedekleme\GeriYuklemeAdimi;
 use App\Services\Yedekleme\GeriYuklemeDurumu;
 use App\Services\Yedekleme\GeriYuklemeTuru;
+use App\Services\Yedekleme\UstuneGeriYuklemeAdimi;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -35,6 +37,45 @@ final class GeriYukleme extends Model
 
     /** Yalnız uygulama kodu doldurur (istekten toplu atama yok) */
     protected $guarded = ['id'];
+
+    /**
+     * Adımı geçmişe ekler ve kaydeder. Sıra önemlidir: "veritabanı açılıyor"
+     * komuttan ÖNCE yazılır; süreç o anda ölürse temizlik yarım veritabanını
+     * bu kayıttan bulur (KopyaVeritabanlari). Üstüne geri yüklemede adımlar
+     * kendi enum'undandır (BY-028).
+     *
+     * @param  'basladi'|'tamam'|'basarisiz'  $durum
+     */
+    public function adimEkle(GeriYuklemeAdimi|UstuneGeriYuklemeAdimi $adim, string $durum): void
+    {
+        $this->adimlar = [...($this->adimlar ?? []), ['adim' => $adim->value, 'durum' => $durum, 'zaman' => CarbonImmutable::now('UTC')->toIso8601String()]];
+        $this->save();
+    }
+
+    /** Adımın son yazılan durumu; hiç yazılmadıysa null. */
+    public function adimDurumu(GeriYuklemeAdimi $adim): ?string
+    {
+        $son = null;
+        foreach ($this->adimlar ?? [] as $kayit) {
+            if (is_array($kayit) && ($kayit['adim'] ?? null) === $adim->value && is_string($kayit['durum'] ?? null)) {
+                $son = $kayit['durum'];
+            }
+        }
+
+        return $son;
+    }
+
+    /**
+     * Veritabanı açılmış (ya da açılırken süreç ölmüş) ve henüz silinmemiş
+     * olabilir mi. "Hedef var" reddinde açılma adımı hiç yazılmaz: başkasının
+     * veritabanı bu yüzden temizliğe girmez.
+     */
+    public function veritabaniKalmisOlabilirMi(): bool
+    {
+        return in_array($this->adimDurumu(GeriYuklemeAdimi::Veritabani), ['basladi', 'tamam'], true)
+            && $this->adimDurumu(GeriYuklemeAdimi::Silme) !== 'tamam'
+            && $this->veritabani_silinme_zamani === null;
+    }
 
     /**
      * @return BelongsTo<Yedek, $this>

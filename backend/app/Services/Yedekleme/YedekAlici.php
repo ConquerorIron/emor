@@ -27,6 +27,9 @@ use Throwable;
  * 5. İmzalı manifest yazılır, geçici dosya asıl adına taşınır, klasör diske
  *    zorlanır; dizin kaydı `tamam`.
  *
+ * 6. Sınama geri yüklemesi açıksa (`sinama_geri_yukleme`) yedek geçici
+ *    veritabanına geri yüklenip karşılaştırılır (GeriYukleyici::sina, BY-026).
+ *
  * Hata yolunda geçici dosya silinir, kayıt `basarisiz` olur, sonuç denetim
  * kaydına yazılır; yarım dosya listede hiç görünmez. Kopyalama, planlar ve
  * temizlik bu sınıfın işi değildir (BY-008…BY-010).
@@ -43,6 +46,7 @@ final class YedekAlici
         private readonly YedekBildirimcisi $bildirimci,
         private readonly YasamSinyali $sinyal,
         private readonly AyarKopyasi $ayarKopyasi,
+        private readonly GeriYukleyici $geriYukleyici,
     ) {}
 
     /**
@@ -225,6 +229,17 @@ final class YedekAlici
                 $kod === YedekAlmaHatasi::DISK_DOLU ? 'disk_esigi' : 'yedek_basarisiz',
                 [__('yedekleme.mail.yedek_basarisiz').": {$dosyaAdi}", "{$kod}: {$mesaj}"],
             );
+        }
+
+        // 2. düzey doğrulama (README §4.4; BY-026): her başarılı yedekten sonra
+        // sınama geri yüklemesi. Sonucu yedeği bozmaz; geri yükleme öncesi
+        // yedekte yapılmaz (bakım modunda, geri yüklemenin içinde alınır).
+        if (! $geriYuklemeIcinde && $yedek->durum === YedekDurumu::Tamam && $this->yapilandirma->sinamaGeriYuklemesi()) {
+            try {
+                $this->geriYukleyici->sina($kilit, $yedek, $kullaniciId);
+            } catch (Throwable $hata) {
+                report($hata);
+            }
         }
 
         return $yedek->refresh();

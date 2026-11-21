@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Yedek hedefi: yedeğin kopyalanacağı yer (README §4.6). Sır olmayan bağlantı
@@ -59,6 +60,16 @@ final class YedekHedefi extends Model
     public function kopyalar(): HasMany
     {
         return $this->hasMany(YedekKopyasi::class, 'yedek_hedefi_id');
+    }
+
+    /**
+     * Ekrandaki "son kopya durumu" (BY-016)
+     *
+     * @return HasOne<YedekKopyasi, $this>
+     */
+    public function sonKopya(): HasOne
+    {
+        return $this->hasOne(YedekKopyasi::class, 'yedek_hedefi_id')->latestOfMany('id');
     }
 
     /**

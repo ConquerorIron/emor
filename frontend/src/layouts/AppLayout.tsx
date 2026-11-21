@@ -11,7 +11,7 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { aktifOrtamGetir } from '@/features/ayarlar/sqlApi'
 import { useAuth } from '@/hooks/useAuth'
 
-import { NAV_GRUPLARI, type NavOgesi } from './navGruplari'
+import { gorunurGruplar, NAV_GRUPLARI } from './navGruplari'
 import { NavIkon } from './navIkonlari'
 
 const DARALTMA_ANAHTARI = 'erp.sidebarDar'
@@ -38,13 +38,8 @@ export function AppLayout() {
   })
   const aktifOrtam = aktifOrtamSorgusu.data ?? null
 
-  // Kullanıcının göremediği öğeler ve hiç öğesi kalmayan gruplar çizilmez
-  const gorunurMu = (oge: NavOgesi): boolean =>
-    oge.izin === undefined || (user?.izinler.includes(oge.izin) ?? false)
-  const gorunurGruplar = NAV_GRUPLARI.map((grup) => ({
-    ...grup,
-    ogeler: grup.ogeler.filter(gorunurMu),
-  })).filter((grup) => grup.ogeler.length > 0)
+  // Kullanıcının göremediği öğeler (izin / kapalı modül) ve boş kalan gruplar çizilmez
+  const menuGruplari = gorunurGruplar(NAV_GRUPLARI, user)
 
   const darDegistir = () => {
     setDar((onceki) => {
@@ -108,7 +103,7 @@ export function AppLayout() {
         </div>
 
         <nav className={`flex-1 space-y-1 overflow-y-auto py-4 ${dar ? 'px-2' : 'px-3'}`}>
-          {gorunurGruplar.map((grup, indeks) => (
+          {menuGruplari.map((grup, indeks) => (
             <div key={grup.baslikAnahtari ?? indeks} className={indeks === 0 ? '' : 'pt-4'}>
               {grup.baslikAnahtari && !dar ? (
                 <p className="px-3 pb-1 text-xs font-semibold tracking-wide text-slate-400 uppercase dark:text-slate-500">

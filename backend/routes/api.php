@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\ErpFirmaController;
 use App\Http\Controllers\Api\V1\ErpKesintiKontroluController;
 use App\Http\Controllers\Api\V1\ErpProjeController;
 use App\Http\Controllers\Api\V1\FirmaController;
+use App\Http\Controllers\Api\V1\GeriYuklemeController;
 use App\Http\Controllers\Api\V1\GiderYansitmaFaturalariController;
 use App\Http\Controllers\Api\V1\IsgCezaKesintisiController;
 use App\Http\Controllers\Api\V1\IsgCezaYuklemeController;
@@ -49,10 +50,17 @@ use App\Http\Controllers\Api\V1\TumFaturalarController;
 use App\Http\Controllers\Api\V1\TumKesintilerController;
 use App\Http\Controllers\Api\V1\TutanakKesintisiController;
 use App\Http\Controllers\Api\V1\TutanakYuklemeController;
+use App\Http\Controllers\Api\V1\UstuneGeriYuklemeController;
+use App\Http\Controllers\Api\V1\YedekAyariController;
+use App\Http\Controllers\Api\V1\YedekController;
+use App\Http\Controllers\Api\V1\YedekHedefiController;
+use App\Http\Controllers\Api\V1\YedekIslemKaydiController;
+use App\Http\Controllers\Api\V1\YedekPlaniController;
 use App\Http\Controllers\Api\V1\YemekKesintisiController;
 use App\Http\Controllers\Api\V1\YemekYuklemeController;
 use App\Models\AlarmKurali;
 use Illuminate\Support\Facades\Route;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 Route::prefix('v1')->group(function (): void {
     Route::post('/auth/login', [AuthController::class, 'login'])
@@ -62,6 +70,17 @@ Route::prefix('v1')->group(function (): void {
     Route::post('/auth/logout', [AuthController::class, 'logout'])
         ->middleware('auth:sanctum')
         ->name('auth.logout');
+
+    // Üstüne geri yüklemenin ilerlemesi ve kararı (BY-030; README §7.2). OTURUMSUZ:
+    // bakım modundan muaf (bootstrap/app.php), oturum / veritabanı ara katmanı yok
+    // (Sanctum'un oturum katmanı çıkarılır); yetki işleme özel erişim anahtarı
+    // (X-Erisim-Anahtari). Yolu değiştirirken bakım modu istisnasını da değiştirin.
+    Route::middleware('yedekleme')->withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
+        ->prefix('/yedekleme/ustune-geri-yukleme')->name('yedekleme.ustune-geri-yukleme.')->group(function (): void {
+            Route::get('/{islem}/durum', [UstuneGeriYuklemeController::class, 'durum'])->whereUuid('islem')->name('durum');
+            Route::post('/{islem}/onayla', [UstuneGeriYuklemeController::class, 'onayla'])->whereUuid('islem')->name('onayla');
+            Route::post('/{islem}/geri-don', [UstuneGeriYuklemeController::class, 'geriDon'])->whereUuid('islem')->name('geri-don');
+        });
 
     Route::middleware(['auth:sanctum', 'aktif'])->group(function (): void {
         Route::get('/auth/me', [AuthController::class, 'me'])->name('auth.me');
@@ -911,6 +930,85 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/ayarlar/mail/test', [MailAyarController::class, 'testGonder'])
                 ->middleware('throttle:mail-test')
                 ->name('ayarlar.mail.test');
+        });
+
+        // Ayarlar → Yedekleme (docs/yedekleme; BY-014…018). Modül kapalıyken
+        // (YEDEKLEME_AKTIF) bütün uçlar 409 YEDEKLEME_KAPALI. Değiştiren işlemler
+        // istek klasörüne bırakılır, işi çalıştırıcı yapar (202 + istek kimliği).
+        Route::middleware('yedekleme')->prefix('/ayarlar')->name('ayarlar.')->group(function (): void {
+            Route::middleware('can:yedekler.goruntule')->group(function (): void {
+                Route::get('/yedekler', [YedekController::class, 'index'])->name('yedekler');
+                Route::get('/yedekler/ozet', [YedekController::class, 'ozet'])->name('yedekler.ozet');
+                Route::get('/yedekler/istekler/{kimlik}', [YedekController::class, 'istek'])
+                    ->whereUuid('kimlik')->name('yedekler.istek');
+                Route::get('/yedek-islem-kayitlari', [YedekIslemKaydiController::class, 'index'])->name('yedek-islem-kayitlari');
+                Route::get('/geri-yuklemeler', [GeriYuklemeController::class, 'index'])->name('geri-yuklemeler');
+            });
+            // Farklı adla geri yükleme (BY-027): canlıya dokunmaz, kopya açar
+            Route::middleware(['can:geri_yukleme.kopya', 'throttle:yedek-istek'])->group(function (): void {
+                Route::post('/yedekler/{kimlik}/kopya-geri-yukle', [GeriYuklemeController::class, 'kopyaGeriYukle'])
+                    ->whereUuid('kimlik')->name('yedekler.kopya-geri-yukle');
+                Route::delete('/geri-yuklemeler/{kimlik}/kopya', [GeriYuklemeController::class, 'kopyaSil'])
+                    ->whereUuid('kimlik')->name('geri-yuklemeler.kopya-sil');
+            });
+            // Üstüne geri yükleme (BY-030): izinle verilmez, yalnız sistem yöneticisi
+            Route::post('/yedekler/{kimlik}/ustune-geri-yukle', [UstuneGeriYuklemeController::class, 'baslat'])
+                ->middleware(['can:sistem-yonetimi', 'throttle:yedek-istek'])
+                ->whereUuid('kimlik')->name('yedekler.ustune-geri-yukle');
+            Route::middleware(['can:yedekler.al', 'throttle:yedek-istek'])->group(function (): void {
+                Route::post('/yedekler', [YedekController::class, 'store'])->name('yedekler.store');
+                Route::post('/yedekler/tara', [YedekController::class, 'tara'])->name('yedekler.tara');
+                Route::post('/yedekler/{kimlik}/dogrula', [YedekController::class, 'dogrula'])
+                    ->whereUuid('kimlik')->name('yedekler.dogrula');
+                Route::put('/yedekler/{kimlik}/aciklama', [YedekController::class, 'aciklama'])
+                    ->whereUuid('kimlik')->name('yedekler.aciklama');
+            });
+            Route::middleware(['can:yedekler.sil', 'throttle:yedek-istek'])->group(function (): void {
+                Route::post('/yedekler/{kimlik}/sabit', [YedekController::class, 'sabitle'])
+                    ->whereUuid('kimlik')->name('yedekler.sabitle');
+                Route::delete('/yedekler/{kimlik}/sabit', [YedekController::class, 'sabitCoz'])
+                    ->whereUuid('kimlik')->name('yedekler.sabit-coz');
+                Route::delete('/yedekler/{kimlik}', [YedekController::class, 'destroy'])
+                    ->whereUuid('kimlik')->name('yedekler.destroy');
+            });
+
+            // Hedefler, planlar ve ayarlar: "Yedek Planları ve Hedefleri" izinleri
+            Route::middleware('can:yedek_planlari.goruntule')->group(function (): void {
+                Route::get('/yedek-hedefleri', [YedekHedefiController::class, 'index'])->name('yedek-hedefleri');
+                Route::get('/yedek-hedefleri/turler', [YedekHedefiController::class, 'turler'])->name('yedek-hedefleri.turler');
+                Route::get('/yedek-planlari', [YedekPlaniController::class, 'index'])->name('yedek-planlari');
+                Route::post('/yedek-planlari/onizleme', [YedekPlaniController::class, 'onizleme'])->name('yedek-planlari.onizleme');
+                Route::get('/yedek-ayarlari', [YedekAyariController::class, 'show'])->name('yedek-ayarlari');
+            });
+            Route::middleware('can:yedek_planlari.guncelle')->group(function (): void {
+                Route::post('/yedek-hedefleri', [YedekHedefiController::class, 'store'])->name('yedek-hedefleri.store');
+                Route::put('/yedek-hedefleri/{hedef}', [YedekHedefiController::class, 'update'])
+                    ->whereNumber('hedef')->name('yedek-hedefleri.update');
+                Route::delete('/yedek-hedefleri/{hedef}', [YedekHedefiController::class, 'destroy'])
+                    ->whereNumber('hedef')->name('yedek-hedefleri.destroy');
+                Route::post('/yedek-hedefleri/sina', [YedekHedefiController::class, 'sina'])
+                    ->middleware('throttle:yedek-hedef-sina')->name('yedek-hedefleri.sina');
+                Route::post('/yedek-hedefleri/{hedef}/sunucu-anahtari-sifirla', [YedekHedefiController::class, 'sunucuAnahtariniSifirla'])
+                    ->whereNumber('hedef')->name('yedek-hedefleri.sunucu-anahtari-sifirla');
+                Route::post('/yedek-hedefleri/{hedef}/google/baglan', [YedekHedefiController::class, 'googleBaglan'])
+                    ->whereNumber('hedef')->name('yedek-hedefleri.google.baglan');
+                Route::post('/yedek-hedefleri/google/donus', [YedekHedefiController::class, 'googleDonus'])
+                    ->middleware('throttle:yedek-hedef-sina')->name('yedek-hedefleri.google.donus');
+                Route::post('/yedek-hedefleri/{hedef}/google/kes', [YedekHedefiController::class, 'googleKes'])
+                    ->whereNumber('hedef')->name('yedek-hedefleri.google.kes');
+
+                Route::post('/yedek-planlari', [YedekPlaniController::class, 'store'])->name('yedek-planlari.store');
+                Route::put('/yedek-planlari/{plan}', [YedekPlaniController::class, 'update'])
+                    ->whereNumber('plan')->name('yedek-planlari.update');
+                Route::delete('/yedek-planlari/{plan}', [YedekPlaniController::class, 'destroy'])
+                    ->whereNumber('plan')->name('yedek-planlari.destroy');
+                Route::post('/yedek-planlari/{plan}/calistir', [YedekPlaniController::class, 'calistir'])
+                    ->whereNumber('plan')->middleware('throttle:yedek-istek')->name('yedek-planlari.calistir');
+
+                Route::put('/yedek-ayarlari', [YedekAyariController::class, 'update'])->name('yedek-ayarlari.update');
+                Route::put('/yedek-ayarlari/sifreleme-anahtari', [YedekAyariController::class, 'anahtarYukle'])->name('yedek-ayarlari.anahtar');
+                Route::delete('/yedek-ayarlari/sifreleme-anahtari', [YedekAyariController::class, 'anahtarKaldir'])->name('yedek-ayarlari.anahtar-kaldir');
+            });
         });
     });
 });

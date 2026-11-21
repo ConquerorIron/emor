@@ -1,0 +1,309 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services\Yedekleme\Istekler;
+
+use App\Models\User;
+use App\Services\Yedekleme\IslemDurumuBozuk;
+use App\Services\Yedekleme\IslemSonucu;
+use App\Services\Yedekleme\IstekKutusu;
+use App\Services\Yedekleme\KopyaVeritabanlari;
+use App\Services\Yedekleme\UstuneGeriYukleyici;
+use App\Services\Yedekleme\YedekAlmaHatasi;
+use App\Services\Yedekleme\YedekDenetimi;
+use App\Services\Yedekleme\YedekKaynagi;
+use App\Services\Yedekleme\YedekKilidi;
+use App\Services\Yedekleme\YedeklemeYapilandirmasi;
+use Illuminate\Support\Facades\Log;
+use Throwable;
+
+/**
+ * Çalıştırıcının bir turu (`yedek:calistir`; README §5.2, BY-025):
+ *
+ * 1. Çalıştırıcı kilidi (`<durum klasörü>/calistirici`): aynı anda tek
+ *    çalıştırıcı. Alınamazsa tur atlanır. Bu kilit tutulurken `isleniyor/`'da
+ *    duran istek, işlerken ölmüş bir sürecindir: `ISTEK_YARIDA_KALDI`.
+ * 2. Eski sonuçlar silinir.
+ * 3. Bekleyen istekler eskiden yeniye: üstlen (tek adımlık taşıma) → doğrula
+ *    (IstekKutusu::oku; isteğe güvenilmez) → işleyici → yetki (veritabanından,
+ *    şimdi) → yedekleme kilidi (en çok `kilit_bekleme` sn) → açık üstüne geri
+ *    yükleme yok → işle → sonucu yaz. Reddedilen istek `basarisiz` sonuç
+ *    (makine okunur kod) alır ve denetim kaydına yazılır.
+ * 4. Süresi dolan geri yükleme kopyaları ve yarıda kalmış geri yüklemelerin
+ *    artıkları silinir (kilit boşsa; doluysa bir sonraki tur).
+ *
+ * İsteklerden önce, yarıda kalmış bir üstüne geri yükleme (süreç öldü)
+ * sürdürülür ya da geri sarılır (UstuneGeriYukleyici::yaridaKalaniIsle;
+ * README §6.4). Kalıcı hatada her 2 saniyede denenmesin diye en çok
+ * TEMIZLIK_ARALIGI_SN'de bir (D8); servis başlarken hemen.
+ *
+ * Yetki eşlemesi her işleyicinin izin()'indedir. Kullanıcısız istek yalnız
+ * yayın öncesi yedektir (`deploy.sh`'ın uygulama kullanıcısı yok); kullanıcılı
+ * istek o kaynağı kullanamaz. Onay ve geri dönüşün yetkisi erişim
+ * anahtarıdır (AnahtarlaYetkilendirilir): kullanıcı tablosuna bakılmaz.
+ */
+final class IstekCalistiricisi
+{
+    /** Bir turda en çok bu kadar istek; kalanlar sonraki turda */
+    public const TUR_BASINA_EN_COK = 20;
+
+    /** Sonuç dosyaları bu kadar gün saklanır (ekran yoklaması için yeter) */
+    public const SONUC_SAKLAMA_GUN = 7;
+
+    /** Açık üstüne geri yükleme varken de işlenen türler: onu bitiren işlemler (BY-029) */
+    private const ACIK_GERI_YUKLEMEDE = ['onayla', 'geri_don'];
+
+    /**
+     * Kopya temizliği aynı süreçte en çok bu aralıkla (sn) denenir: silme
+     * kalıcı bir nedenle (parola, yetki) başarısızsa servis döngüsü her 2
+     * saniyede PostgreSQL'e giriş denemesin (D8).
+     */
+    private const TEMIZLIK_ARALIGI_SN = 600;
+
+    private ?int $sonTemizlik = null;
+
+    private ?int $sonSurdurme = null;
+
+    public function __construct(
+        private readonly YedeklemeYapilandirmasi $yapilandirma,
+        private readonly IstekKutusu $kutu,
+        private readonly IsleyiciKatalogu $katalog,
+        private readonly YedekDenetimi $denetim,
+        private readonly KopyaVeritabanlari $kopyalar,
+        private readonly UstuneGeriYukleyici $ustune,
+    ) {}
+
+    /**
+     * @return int İşlenen istek sayısı; başka çalıştırıcı çalışıyorsa 0
+     */
+    public function tur(): int
+    {
+        $calistiriciKilidi = new YedekKilidi($this->yapilandirma->durumKlasoru().'/calistirici', $this->yapilandirma->kaliciKok());
+        if (! $calistiriciKilidi->al()) {
+            return 0;
+        }
+
+        try {
+            foreach ($this->kutu->isleniyorlar() as $yol) {
+                $this->sonuclandir($yol, IstekSonucu::basarisiz('ISTEK_YARIDA_KALDI', 'Çalıştırıcı bu isteği işlerken durdu; sonucu bilinmiyor. Durumu listeden denetleyip yeniden isteyin.'), null, []);
+            }
+
+            $this->yaridaKalanGeriYuklemeyiSurdur();
+            $this->kutu->eskiSonuclariSil(self::SONUC_SAKLAMA_GUN);
+
+            $sayi = 0;
+            foreach ($this->kutu->bekleyenler() as $yol) {
+                if ($sayi >= self::TUR_BASINA_EN_COK) {
+                    break;
+                }
+
+                $ustlenilen = $this->kutu->talepEt($yol);
+                if ($ustlenilen !== null) {
+                    $this->isle($ustlenilen);
+                    $sayi++;
+                }
+            }
+
+            $this->kopyalariTemizle();
+
+            return $sayi;
+        } finally {
+            $calistiriciKilidi->birak();
+        }
+    }
+
+    private function isle(string $yol): void
+    {
+        $kullaniciId = null;
+        $baglam = [];
+        $sonucBaglami = [];
+
+        try {
+            $istek = $this->kutu->oku($yol);
+            // Denetim kaydı için: istekte YAZAN kullanıcı (doğrulanmamış olabilir)
+            $baglam = ['tur' => $istek->tur, 'istekteki_kullanici' => $istek->kullaniciId];
+            $sonucBaglami = $this->sonucBaglami($istek);
+            $isleyici = $this->katalog->bul($istek->tur)
+                ?? throw new IstekReddi('ISTEK_ISLEYICISI_YOK', 'Bu istek türü henüz çalıştırıcıda yok.');
+            $kullaniciId = $this->yetkiDenetle($istek, $isleyici);
+            $sonuc = $this->kilitleIsle($istek, $isleyici);
+        } catch (IstekReddi $red) {
+            $sonuc = IstekSonucu::basarisiz($red->kod, $red->getMessage());
+        } catch (Throwable $hata) {
+            report($hata);
+            // Beklenmeyen hatanın iletisi veri taşıyabilir: yalnız sınıf adı (D2)
+            $sonuc = IstekSonucu::basarisiz('ISTEK_BEKLENMEYEN_HATA', $hata::class);
+        }
+
+        $this->sonuclandir($yol, $sonuc->baglamla($sonucBaglami), $kullaniciId, $baglam);
+    }
+
+    /**
+     * Üstüne geri yüklemenin istekleri sonuçta işlemlerini gösterir: bakım
+     * modundaki ilerleme ucu, oturum olmadan, reddedilen isteği de erişim
+     * anahtarıyla eşleyebilsin (BY-030). Anahtarın kendisi sonuca girmez;
+     * özeti 256 bitlik rastgele değerin SHA-256'sıdır.
+     *
+     * @return array<string, string>
+     */
+    private function sonucBaglami(Istek $istek): array
+    {
+        return match ($istek->tur) {
+            'ustune_geri_yukle' => ['islem_kimligi' => $istek->kimlik, 'erisim_anahtari_ozeti' => (string) $istek->metin('erisim_anahtari_ozeti')],
+            'onayla', 'geri_don' => ['islem_kimligi' => (string) $istek->metin('islem_kimligi')],
+            default => [],
+        };
+    }
+
+    /**
+     * Yarıda kalmış üstüne geri yüklemeyi sürdürür / geri sarar. Monoton
+     * saatle aralıklı (D1, D8); hatası turu durdurmaz.
+     */
+    private function yaridaKalanGeriYuklemeyiSurdur(): void
+    {
+        $simdi = hrtime(true);
+        if ($this->sonSurdurme !== null && $simdi - $this->sonSurdurme < self::TEMIZLIK_ARALIGI_SN * 1_000_000_000) {
+            return;
+        }
+        $this->sonSurdurme = $simdi;
+
+        try {
+            $this->ustune->yaridaKalaniIsle();
+        } catch (Throwable $hata) {
+            report($hata);
+            Log::channel('yedekleme')->error('Yarıda kalan üstüne geri yükleme sürdürülemedi', ['hata' => $hata::class]);
+        }
+    }
+
+    /**
+     * @return int|null Doğrulanmış kullanıcı (sistem isteğinde null)
+     *
+     * @throws IstekReddi
+     */
+    private function yetkiDenetle(Istek $istek, IstekIsleyicisi $isleyici): ?int
+    {
+        // Yetki erişim anahtarıdır; işleyici işlem durumundan doğrular. Veritabanı
+        // (kullanıcı tablosu yedeğin anında ya da erişilemez) burada sorulmaz.
+        if ($isleyici instanceof AnahtarlaYetkilendirilir) {
+            return null;
+        }
+
+        $yayinIstegi = $istek->tur === 'yedek_al' && $istek->metin('kaynak') === YedekKaynagi::YayinOncesi->value;
+
+        if ($istek->kullaniciId === null) {
+            if (! $yayinIstegi) {
+                throw new IstekReddi('ISTEK_KULLANICI_YOK', 'İstekte kullanıcı yok; kullanıcısız istek yalnız yayın öncesi yedek olabilir.');
+            }
+
+            return null;
+        }
+
+        if ($yayinIstegi) {
+            throw new IstekReddi('ISTEK_YETKI_YOK', 'Yayın öncesi yedeği yalnız yayın betiği ister.');
+        }
+
+        $kullanici = User::query()->find($istek->kullaniciId);
+        if ($kullanici === null || ! $kullanici->aktif_mi) {
+            throw new IstekReddi('ISTEK_YETKI_YOK', 'İsteği yapan kullanıcı yok ya da pasif.');
+        }
+
+        $izin = $isleyici->izin();
+        $yetkili = $izin === null
+            ? $kullanici->sistem_yoneticisi === true
+            : in_array($izin->value, $kullanici->izinler(), true);
+
+        if (! $yetkili) {
+            throw new IstekReddi('ISTEK_YETKI_YOK', 'Kullanıcının bu işlem için yetkisi yok.');
+        }
+
+        return $kullanici->id;
+    }
+
+    /**
+     * @throws IstekReddi
+     */
+    private function kilitleIsle(Istek $istek, IstekIsleyicisi $isleyici): IstekSonucu
+    {
+        $durum = $this->yapilandirma->islemDurumu();
+        $kilit = $durum->kilit();
+
+        if (! $kilit->bekleyerekAl((float) $this->yapilandirma->sureSiniri('kilit_bekleme'))) {
+            throw new IstekReddi(YedekAlmaHatasi::KILIT_MESGUL, 'Başka bir yedekleme / geri yükleme / yayın işlemi sürüyor; istek işlenmedi.');
+        }
+
+        try {
+            try {
+                $acik = $durum->acikGeriYuklemeVarMi();
+            } catch (IslemDurumuBozuk) {
+                throw new IstekReddi('YEDEK_ISLEM_DURUMU_OKUNAMADI', 'İşlem durumu okunamadı; istek işlenmedi.');
+            }
+
+            if ($acik && ! in_array($istek->tur, self::ACIK_GERI_YUKLEMEDE, true)) {
+                throw new IstekReddi(YedekAlmaHatasi::ACIK_GERI_YUKLEME, 'Açık bir üstüne geri yükleme var; istek işlenmedi.');
+            }
+
+            return $isleyici->isle($istek, $kilit);
+        } finally {
+            $kilit->birak();
+        }
+    }
+
+    /**
+     * Sonucu yazar, reddi denetim kaydına geçirir, üstlenilen dosyayı siler.
+     * Sonuç yazılamazsa dosya `isleniyor/`'da kalır; sonraki tur onu
+     * "yarıda kaldı" diye yeniden sonuçlandırmayı dener.
+     *
+     * @param  int|null  $kullaniciId  Yetkisi doğrulanmış kullanıcı (denetim kaydının sahibi)
+     * @param  array{tur?: string, istekteki_kullanici?: int|null}  $baglam
+     */
+    private function sonuclandir(string $yol, IstekSonucu $sonuc, ?int $kullaniciId, array $baglam): void
+    {
+        $kimlik = basename($yol, '.json');
+
+        if ($sonuc->durum === IstekSonucu::BASARISIZ) {
+            $this->denetim->kaydet('istek', IslemSonucu::Basarisiz, kullaniciId: $kullaniciId, ayrinti: [
+                'istek' => $kimlik, ...$baglam, 'kod' => $sonuc->kod,
+            ], hata: $sonuc->mesaj);
+        }
+
+        try {
+            $this->kutu->sonucYaz($kimlik, $sonuc->durum, $sonuc->kod, $sonuc->mesaj, $sonuc->ek);
+            $this->kutu->sil($yol);
+        } catch (Throwable $hata) {
+            Log::channel('yedekleme')->error('İstek sonucu yazılamadı', ['istek' => $kimlik, 'hata' => $hata::class]);
+        }
+    }
+
+    private function kopyalariTemizle(): void
+    {
+        // Monoton saat (D1): sistem saati ayarlansa da aralık kaymaz
+        $simdi = hrtime(true);
+        if ($this->sonTemizlik !== null && $simdi - $this->sonTemizlik < self::TEMIZLIK_ARALIGI_SN * 1_000_000_000) {
+            return;
+        }
+        $this->sonTemizlik = $simdi;
+
+        try {
+            if (! $this->kopyalar->temizlenecekVarMi()) {
+                return;
+            }
+
+            $durum = $this->yapilandirma->islemDurumu();
+            $kilit = $durum->kilit();
+            if (! $kilit->al()) {
+                return;
+            }
+
+            try {
+                if (! $durum->acikGeriYuklemeVarMi()) {
+                    $this->kopyalar->temizle($kilit);
+                }
+            } finally {
+                $kilit->birak();
+            }
+        } catch (Throwable $hata) {
+            Log::channel('yedekleme')->error('Geri yükleme kopyaları temizlenemedi', ['hata' => $hata::class]);
+        }
+    }
+}

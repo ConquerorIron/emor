@@ -149,25 +149,25 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 | BY-011 | Klasör tarama, dizini yeniden kurma | 1 | BY-006, BY-008 | REVIEW_BEKLIYOR |
 | BY-012 | Bildirimler ve yaşam sinyali | 1 | BY-009 | REVIEW_BEKLIYOR |
 | BY-013 | `deploy.sh` entegrasyonu, eski yedeklerin içeri alınması | 1 | BY-007, BY-011 | REVIEW_BEKLIYOR |
-| BY-014 | API: Yedekler | 2 | BY-010, BY-011 | YAPILACAK |
-| BY-015 | Ekran: Yedekler | 2 | BY-014 | YAPILACAK |
-| BY-016 | API + Ekran: Yedek Hedefleri | 2 | BY-008, BY-015 | YAPILACAK |
-| BY-017 | API + Ekran: Yedek Planları | 2 | BY-010, BY-016 | YAPILACAK |
-| BY-018 | Ekran: İşlem Günlüğü ve Yedekleme Ayarları | 2 | BY-012, BY-015 | YAPILACAK |
-| BY-019 | Şifreleme (sunucu dışı kopyalar) | 3 | BY-008 | YAPILACAK |
-| BY-020 | Hedef: FTP ve FTPS | 3 | BY-016, BY-019 | YAPILACAK |
-| BY-021 | Hedef: Google Drive | 3 | BY-016, BY-019 | YAPILACAK |
-| BY-022 | Hedef: SFTP | 3 | BY-020 | YAPILACAK |
-| BY-023 | Hedef: Ağ paylaşımı (NAS) ve S3 | 3 | BY-020 | YAPILACAK |
-| BY-024 | Kurtarma paketi ve kurulum dokümanı | 3 | BY-019 | YAPILACAK |
-| BY-025 | Çalıştırıcı servis ve istek klasörü (servis hesabı) | 4 | BY-003, BY-013 | YAPILACAK |
-| BY-026 | Geri yükleme çekirdeği: farklı ada + sınama geri yüklemesi | 4 | BY-025 | YAPILACAK |
-| BY-027 | Ekran: Geri Yüklemeler (kopya) | 4 | BY-026, BY-015 | YAPILACAK |
-| BY-028 | Üstüne geri yükleme çekirdeği | 4 | BY-026 | YAPILACAK |
-| BY-029 | "Onay bekleniyor" korumaları ve acil durum komutu | 4 | BY-028 | YAPILACAK |
-| BY-030 | Ekran: Üstüne geri yükleme | 4 | BY-029, BY-027 | YAPILACAK |
-| BY-031 | Arıza senaryoları, tatbikat, işletim dokümanı | 4 | BY-030 | YAPILACAK |
-| BY-032 | Dosya yedeği (`storage/app`) | 5 | BY-010 | YAPILACAK |
+| BY-014 | API: Yedekler | 2 | BY-010, BY-011 | REVIEW_BEKLIYOR |
+| BY-015 | Ekran: Yedekler | 2 | BY-014 | REVIEW_BEKLIYOR |
+| BY-016 | API + Ekran: Yedek Hedefleri | 2 | BY-008, BY-015 | REVIEW_BEKLIYOR |
+| BY-017 | API + Ekran: Yedek Planları | 2 | BY-010, BY-016 | REVIEW_BEKLIYOR |
+| BY-018 | Ekran: İşlem Günlüğü ve Yedekleme Ayarları | 2 | BY-012, BY-015 | REVIEW_BEKLIYOR |
+| BY-019 | Şifreleme (sunucu dışı kopyalar) | 3 | BY-008 | REVIEW_BEKLIYOR |
+| BY-020 | Hedef: FTP ve FTPS | 3 | BY-016, BY-019 | REVIEW_BEKLIYOR |
+| BY-021 | Hedef: Google Drive | 3 | BY-016, BY-019 | REVIEW_BEKLIYOR |
+| BY-022 | Hedef: SFTP | 3 | BY-020 | REVIEW_BEKLIYOR |
+| BY-023 | Hedef: Ağ paylaşımı (NAS) ve S3 | 3 | BY-020 | REVIEW_BEKLIYOR |
+| BY-024 | Kurtarma paketi ve kurulum dokümanı | 3 | BY-019 | REVIEW_BEKLIYOR |
+| BY-025 | Çalıştırıcı servis ve istek klasörü (servis hesabı) | 4 | BY-003, BY-013 | REVIEW_BEKLIYOR |
+| BY-026 | Geri yükleme çekirdeği: farklı ada + sınama geri yüklemesi | 4 | BY-025 | REVIEW_BEKLIYOR |
+| BY-027 | Ekran: Geri Yüklemeler (kopya) | 4 | BY-026, BY-015 | REVIEW_BEKLIYOR |
+| BY-028 | Üstüne geri yükleme çekirdeği | 4 | BY-026 | REVIEW_BEKLIYOR |
+| BY-029 | "Onay bekleniyor" korumaları ve acil durum komutu | 4 | BY-028 | REVIEW_BEKLIYOR |
+| BY-030 | Ekran: Üstüne geri yükleme | 4 | BY-029, BY-027 | REVIEW_BEKLIYOR |
+| BY-031 | Arıza senaryoları, tatbikat, işletim dokümanı | 4 | BY-030 | REVIEW_BEKLIYOR |
+| BY-032 | Dosya yedeği (`storage/app`) | 5 | BY-010 | BEKLIYOR |
 
 **Kilometre taşları**
 
@@ -2660,7 +2660,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-014 — API: Yedekler
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-010, BY-011
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-010, BY-011
 - **Tasarım:** README §4.9, §4.10 (1), §5.2 (istek yalnız kaydedilir), §8
 - **Kapsam:** `v1/yedekler` uçları: liste (süzgeç, sıralama, sayfalama), özet
   şeridi verisi, elle yedek isteği, doğrulama isteği, sabitle / çöz, not, sil,
@@ -2668,17 +2668,39 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   yoklanabilir. Her işlem denetim kaydına. Hız sınırları.
 - **Kapsam dışı:** Tarayıcıya indirme (README §13 karar 6 kapanana kadar).
 - **Kabul ölçütleri:**
-  - [ ] Her uç için: izinsiz 403, girişsiz 401, geçersiz girdi 422 (`kod` alanıyla).
-  - [ ] Sabitlenmiş yedek silinemiyor (409); kullanımdaki yedek silinemiyor.
-  - [ ] Elle yedek isteği web isteğinin içinde `pg_dump` çalıştırmıyor (test).
-  - [ ] Yanıtlarda dosya yolu, parola, anahtar yok.
-  - [ ] Her değiştiren işlem denetim kaydı ve dosya günlüğüne yazılıyor.
+  - [x] Her uç için: izinsiz 403, girişsiz 401, geçersiz girdi 422 (`kod` alanıyla).
+  - [x] Sabitlenmiş yedek silinemiyor (409); kullanımdaki yedek silinemiyor.
+  - [x] Elle yedek isteği web isteğinin içinde `pg_dump` çalıştırmıyor (test).
+  - [x] Yanıtlarda dosya yolu, parola, anahtar yok.
+  - [x] Her değiştiren işlem denetim kaydı ve dosya günlüğüne yazılıyor.
 - **Canlı:** Evet (kapalı).
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit
+    - Uçlar `/api/v1/ayarlar/yedekler…` (`YedekController`, `YedekResource`):
+      liste (süzgeç kaynak / doğrulama / sabit / güvenilmeyen / silinenler,
+      sıralama, sayfalama), özet şeridi (`YedekOzeti`), istek durumu yoklama,
+      "Şimdi Yedek Al", "Klasörü Tara", doğrula, açıklama, sabitle / çöz, sil.
+    - Değiştiren her işlem `YedekIstekServisi` ile istek klasörüne bırakılır
+      (202 + `istek_kimligi`); işi çalıştırıcı yapar (BY-025). Bırakma denetim
+      kaydına ve `yedekleme` günlük kanalına yazılır (`istek`, tür, kimlik);
+      işin sonucunu çalıştırıcı ayrıca yazar.
+    - Ön koşul tutmayan istek bırakılmadan 409: `YEDEK_SABIT`,
+      `YEDEK_KULLANIMDA` (`KullanimDenetimi`), `YEDEK_SILINMIS`,
+      `YEDEK_DOGRULANAMAZ` (imzasız / tamamlanmamış). Çalıştırıcı aynı denetimi
+      yeniden yapar (istek dosyasına güvenmez).
+    - Yanıtta dosya YOLU, serbest hata metni, uzak kimlik yok: yalnız dosya adı
+      ve makine okunur `hata_kodu`; istek sonucundan yalnız izinli alanlar
+      (`mesaj` dönmez).
+    - Modül kapalıyken bütün yedekleme uçları 409 `YEDEKLEME_KAPALI`
+      (`YedeklemeAcik` ara katmanı); menü `user.yedekleme_aktif` ile gizlenir.
+    - Hız sınırı `yedek-istek` (10/dk, kullanıcı başına).
+    - Testler: `YedekApiTest` (19; her uç için 401 / 403 veri sağlayıcıyla,
+      422 `kod`, 409'lar, "pg_dump çalışmıyor" `Process::assertNothingRan`,
+      yol / hata metni sızmıyor, denetim kaydı).
 
 ### BY-015 — Ekran: Yedekler
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-014
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-014
 - **Tasarım:** README §4.10 (1), §4.8 (özet şeridi), §4.4
 - **Kapsam:** Ayarlar grubunda "Yedekler" sayfası (`pages/Yedekler`, ortak
   parçalar `features/yedekleme`): özet şeridi (üç ayrı zaman, sıradaki yedek,
@@ -2686,63 +2708,160 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   not), satır işlemleri, "Şimdi Yedek Al", "Klasörü Tara", çalışan işlemin
   durumunu yoklama. Menü, rota, izin; `YEDEKLEME_AKTIF` kapalıyken menüde yok.
 - **Kabul ölçütleri:**
-  - [ ] İzne göre düğmeler: yalnız görüntüleme izniyle işlem düğmeleri yok.
-  - [ ] Silme ve sabit çözme onay ister; toplu seçimde varsayılan seçim yok.
-  - [ ] İşlem sürerken düğmeler kapalı, bitince liste yenileniyor.
-  - [ ] "Güvenilmeyen" yedek belirgin işaretli; geri yükleme seçeneği yok.
+  - [x] İzne göre düğmeler: yalnız görüntüleme izniyle işlem düğmeleri yok.
+  - [x] Silme ve sabit çözme onay ister; toplu seçimde varsayılan seçim yok.
+  - [x] İşlem sürerken düğmeler kapalı, bitince liste yenileniyor.
+  - [x] "Güvenilmeyen" yedek belirgin işaretli; geri yükleme seçeneği yok.
   - [ ] Açık ve koyu temada, dar ekranda kullanılabilir.
 - **Canlı:** Evet (kapalı).
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit
+    - `pages/Yedekler` (özet şeridi: son yerel / uzak / sınama zamanları ayrı,
+      sıradaki, toplam boyut, boş alan; süzgeçli / sıralı / sayfalı liste;
+      Doğrula, Not, Sabitle / Sabitlemeyi kaldır, Sil; Şimdi Yedek Al, Klasörü
+      Tara). `features/yedekleme`: API, yoklama kancası `useIstekTakibi` (2 sn;
+      sayfa başına sessionStorage'da sürdürülür, try/catch) + `IstekSeridi`,
+      `YedeklemeAlani` (modül kapalıyken menü ve rota yok). Saatler İstanbul.
+    - İzne göre düğmeler: yalnız görüntülemede işlem yok — `YedeklerPage.test`
+      "yalnız görüntüleme izninde işlem düğmesi yoktur"; menü / rota
+      `navGruplari.test`, `YedeklemeAlani.test`.
+    - Silme ve sabit çözme onaylı; toplu seçim yok — "silme onay ister…",
+      "sabitleme onaysız, sabitlemeyi kaldırma onayla yapılır".
+    - İş sürerken düğmeler kapalı, bitince liste ve özet tazelenir; sayfadan
+      dönünce yoklama sürer; liste yenilenirken satır işlemleri kapalı (F1:
+      `isFetching || isPaused || isPlaceholderData`).
+    - "Güvenilmeyen" belirgin; geri yükleme yalnız `geri_yuklenebilir`
+      satırda (BY-027).
+    - Ortak sayfa boyutu tercihi 200 / "Hepsi" ise uca 100 gider (uç 10–100).
+    - Kontroller: typecheck, lint (0 hata), vitest 58 dosya / 370 test, build.
+      T5: 9 koruma kaldırılınca ilgili testler kırmızı.
+    - Doğrulanamayan: açık / koyu tema ve dar ekran (ölçüt 5) elle / görsel
+      denenmedi — işaretlenmedi; gerçek backend'e karşı tarayıcıda denenmedi.
 
 ### BY-016 — API + Ekran: Yedek Hedefleri
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-008, BY-015
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-008, BY-015
 - **Tasarım:** README §4.6, §4.10 (4)
 - **Kapsam:** Hedef tanımı ekleme / düzenleme / silme, tür seçimi (bu görevde
   yalnız "Yerel disk"; diğer türler kendi görevlerinde eklenir), "Bağlantıyı
   Sına", kalan alan, son kopya durumu. Mevcut bağlantı tanımı ekranlarının
   (SQL / entegratör) kalıbı izlenir.
 - **Kabul ölçütleri:**
-  - [ ] Parola kaydedildikten sonra hiçbir yanıtta dönmüyor; düzenlemede boş bırakılırsa değişmiyor.
-  - [ ] Bir planın kullandığı hedef silinemiyor (409, anlaşılır mesaj).
-  - [ ] "Sına" sonucu adım adım gösteriliyor (bağlan, yaz, oku, sil).
-  - [ ] Tür listesi bağlayıcılardan geliyor; yeni tür eklemek ekranda kod değişikliği gerektirmiyor.
+  - [x] Parola kaydedildikten sonra hiçbir yanıtta dönmüyor; düzenlemede boş bırakılırsa değişmiyor.
+  - [x] Bir planın kullandığı hedef silinemiyor (409, anlaşılır mesaj).
+  - [x] "Sına" sonucu adım adım gösteriliyor (bağlan, yaz, oku, sil).
+  - [x] Tür listesi bağlayıcılardan geliyor; yeni tür eklemek ekranda kod değişikliği gerektirmiyor.
 - **Canlı:** Evet (kapalı).
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit
+    - API (`YedekHedefiController`, `YedekHedefiResource`): liste (son kopya
+      durumu, plan sayısı), `turler` (bağlayıcıların form tanımı:
+      `HedefKatalogu::tanimlar()`), ekle / düzenle / sil, "Bağlantıyı Sına",
+      SFTP sunucu anahtarını sıfırla, Google bağlan / dönüş / kes (BY-021).
+    - Form tanımdan doğrulanır; tanımda olmayan alan 422; tür değiştirilemez.
+      Sırlar (`gizli` alanlar) yalnız yazılır, hiçbir yanıtta dönmez
+      (`gizli_kayitli` bayrağı); düzenlemede boş = değişmez. Adresi belirleyen
+      alan (sunucu, port, kullanıcı, uç nokta, bölge, kova, erişim anahtarı)
+      değişirken sır boş bırakılırsa 422: kayıtlı parola yeni adrese
+      gönderilmez (K8, SQL bağlantısındaki kural). Bağlayıcının yazdığı
+      alanlar (SFTP sunucu anahtarı, Drive klasör kimliği) korunur.
+    - Planda kullanılan ya da kopyası olan hedef silinmez: 409
+      `HEDEF_KULLANILIYOR` + plan / kopya sayısı.
+    - "Sına" web isteğinde ama aktarım süresi 30 sn ile sınırlı (D9), hız
+      sınırı 5/dk; adım adım sonuç (bağlan, yaz, oku, doğrula, sil; atlanan
+      adım `null`), kalan alan. Kayıtlı hedef değiştirilmeden sınanırsa SFTP
+      sunucu anahtarı ona yazılır; form değiştiyse kaydedilmemiş kopyası sınanır.
+    - Ekran `pages/YedekHedefleri`: form tamamen tür tanımından çizilir (yeni
+      tür ekranda kod istemez — test "ekranın bilmediği yeni bir tür yalnız
+      tanımdan çizilir ve kaydedilir"); düz FTP uyarısı; sır alanları dolu
+      gelmez; Google bağlantı durumu ve "yeniden bağlanın"; `GoogleDonusPage`
+      (StrictMode'da tek istek).
+    - Testler: `YedekHedefiApiTest` (9), `YedekHedefleriPage.test`,
+      `GoogleDonusPage.test`.
+    - Doğrulanamayan: açık / koyu tema, dar ekran (elle).
 
 ### BY-017 — API + Ekran: Yedek Planları
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-010, BY-016
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-010, BY-016
 - **Tasarım:** README §4.2, §4.3, §4.10 (2)
 - **Kapsam:** Plan listesi ve formu: ad, sıklık, saat, etkin, hedefler ve hedef
   başına saklama kuralı. Kaydetmeden önce "sıradaki çalışmalar" ve "bu kuralla
   silinecekler" önizlemesi. Son çalışmanın sonucu. "Şimdi çalıştır".
 - **Kabul ölçütleri:**
-  - [ ] Kullanıcının örneği kurulabiliyor: her gün yerel, 3 günde bir ikinci hedef, haftalık üçüncü hedef.
-  - [ ] Hedefsiz plan kaydedilemiyor; saklama kuralı boş olamıyor.
-  - [ ] Önizleme, kaydedildikten sonra zamanlayıcının hesapladığıyla aynı (test).
-  - [ ] Çakışan planlar ve ayın 29–31'i formda uyarıyla gösteriliyor.
-  - [ ] Plan pasife alınınca zamanlayıcı onu atlıyor; geçmişi duruyor.
-  - [ ] **Kullanıcı kararı F6 (§5):** kopyası olan bir hedef plandan
+  - [x] Kullanıcının örneği kurulabiliyor: her gün yerel, 3 günde bir ikinci hedef, haftalık üçüncü hedef.
+  - [x] Hedefsiz plan kaydedilemiyor; saklama kuralı boş olamıyor.
+  - [x] Önizleme, kaydedildikten sonra zamanlayıcının hesapladığıyla aynı (test).
+  - [x] Çakışan planlar ve ayın 29–31'i formda uyarıyla gösteriliyor.
+  - [x] Plan pasife alınınca zamanlayıcı onu atlıyor; geçmişi duruyor.
+  - [x] **Kullanıcı kararı F6 (§5):** kopyası olan bir hedef plandan
     çıkarılırken saklama kuralı kaybolmuyor: veritabanı reddeder (BY-004-R8,
     bileşik anahtar); uç anlaşılır 409 döner ve ekran nedenini açıklıyor
     (bu plana bağlı kopya sayısı, önce saklamayla temizlenmesi gerektiği) (test).
 - **Canlı:** Evet (kapalı).
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit
+    - API (`YedekPlaniController`): liste (hedef + saklama + bu plana bağlı
+      kopya sayısı, son / sıradaki çalışma, ay sonu uyarısı), ekle / düzenle /
+      sil, önizleme, "Şimdi çalıştır" (istek `plan_calistir`).
+    - Doğrulama: en az bir hedef; her hedefte "son N" ya da "N gün"den en az
+      biri; saat `SS:DD`; sıklık türüne göre yalnız anlamlı alanlar saklanır;
+      tanım hiç çalışmıyorsa (saat penceresi) 422.
+    - Önizleme değişikliği bir işlem içinde UYGULAR, `PlanTakvimi` ve
+      `SaklamaPolitikasi::hesapla()`'yı çalıştırır, sonra geri alır: kayıttan
+      sonraki hesapla aynı (test). Döner: sıradaki 5 çalışma, ay sonu uyarısı,
+      aynı dakikaya düşen etkin planlar, bu planın bağlarından silinecekler.
+    - F6: bu plana bağlı kopyası olan hedef çıkarılırken 409
+      `PLAN_HEDEFI_KOPYALI` + hedef başına kopya sayısı (veritabanı da
+      reddeder — bileşik anahtar); kopyası olan plan silinmez (409
+      `PLAN_KOPYALI`, pasife alma önerilir). Pasif planın sıradaki çalışması
+      gösterilmez, geçmişi durur; zamanlayıcının atlaması `YedekZamanlaTest`.
+    - Ekran `pages/YedekPlanlari`: 5 sıklık türü, gün seçici, hedef satırları,
+      "Önizle" (form değişince düşer), 29–31 uyarısı formda anında, çakışan
+      planlar, F6 / PLAN_KOPYALI açıklamaları, Şimdi Çalıştır.
+    - Testler: `YedekPlaniApiTest` (8: kullanıcının örneği — her gün yerel,
+      3 günde bir ikinci, haftalık üçüncü hedef; hedefsiz / kuralsız red;
+      önizleme = kayıt; silinecekler = saklama; çakışma + ay sonu; F6; pasif;
+      çalıştır), `YedekPlanlariPage.test`.
+    - Doğrulanamayan: açık / koyu tema, dar ekran (elle).
 
 ### BY-018 — Ekran: İşlem Günlüğü ve Yedekleme Ayarları
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-012, BY-015
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-012, BY-015
 - **Tasarım:** README §4.9, §4.10 (5), §4.3, §4.8
 - **Kapsam:** Denetim kaydı listesi (süzgeç: tarih, kişi, işlem, sonuç). Ayarlar:
   zamanlanmamış yedeklerin süreleri, hedef başına en az sayı, disk eşiği,
   bildirim alıcıları, yaşam sinyali adresleri.
 - **Kabul ölçütleri:**
-  - [ ] Günlük salt okunur; ekrandan silinemiyor / değiştirilemiyor.
-  - [ ] Ayar değişikliği denetim kaydına ve ayar dosya kopyasına yazılıyor.
-  - [ ] En az sayı 1'in altına indirilemiyor.
+  - [x] Günlük salt okunur; ekrandan silinemiyor / değiştirilemiyor.
+  - [x] Ayar değişikliği denetim kaydına ve ayar dosya kopyasına yazılıyor.
+  - [x] En az sayı 1'in altına indirilemiyor.
 - **Canlı:** Evet. Bu görevden sonra kullanıcı `YEDEKLEME_AKTIF`'i canlıda açabilir.
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit
+    - API: `GET /ayarlar/yedek-islem-kayitlari` (tarih — İstanbul günü —,
+      kişi, işlem, sonuç süzgeci; sayfalı); yazma ucu yok (405), model de
+      güncelleme / silmeyi reddeder. `GET|PUT /ayarlar/yedek-ayarlari`
+      (saklama süreleri, en az sayı ≥ 1, disk eşiği, bildirim alıcıları,
+      https yaşam sinyali adresleri), `PUT|DELETE …/sifreleme-anahtari`
+      (BY-019: özel anahtar içeren metin 422 `YEDEK_ANAHTAR_OZEL`).
+    - Her değişiklik denetim kaydına eski → yeni farkla ve ayar dosya
+      kopyasına yazılır. Servis kipinde web süreci kopyayı yazamaz (durum
+      klasörü ve imza anahtarı servisin): çalıştırıcı her turda (en çok
+      dakikada bir) `AyarKopyasi::guncelDegilseYaz()` çağırır — parmak izi
+      (SMTP parolası yerine APP_KEY'li HMAC) değişmişse yazar. Böylece mail
+      ayarı ekranındaki değişiklik de kopyaya geçer. Kopyaya şifreleme
+      anahtarının parmak izi de girer.
+    - Ekranlar: `pages/YedekIslemGunlugu` (açılışta son 30 gün — F2; bilinen
+      işlem adları çevrilir, bilinmeyen olduğu gibi), `pages/YedeklemeAyarlari`
+      (kayıt sürerken alanlar salt okunur — F3; parmak izi dörderli; anahtar
+      kaldırma onaylı).
+    - Testler: `YedekAyariApiTest` (5: fark + dosya kopyası; servis kipinde
+      çalıştırıcı yazar, değişmeyince yazmaz; en az sayı / https / e-posta
+      reddi; özel anahtar reddi; günlük salt okunur + süzgeç),
+      `YedekIslemGunluguPage.test`, `YedeklemeAyarlariPage.test`.
+    - Not: README'ye göre bu görevden sonra kullanıcı `YEDEKLEME_AKTIF`'i
+      canlıda açabilir — kullanıcı talimatı olmadan açılmadı.
+    - Doğrulanamayan: açık / koyu tema, dar ekran (elle).
 
 ---
 
@@ -2750,7 +2869,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-019 — Şifreleme (sunucu dışı kopyalar)
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-008
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-008
 - **Tasarım:** README §4.7, §4.6 (şifreli kopyanın özeti)
 - **Ön koşul:** README §13 karar 4 (özel anahtar kimde, nerede).
 - **Kapsam:** Yerel disk dışındaki hedeflere giden kopya açık anahtarla
@@ -2758,16 +2877,51 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   olay günlüğüne. Geri yükleme için şifre çözme adımı (özel anahtar o anda
   sağlanır). Açık anahtarın yüklenmesi / parmak izinin ekranda gösterilmesi.
 - **Kabul ölçütleri:**
-  - [ ] Açık anahtar tanımlı değilken uzak hedefe kopya **gitmez** (hata; sessizce şifresiz göndermez).
-  - [ ] Sunucuda özel anahtar aranmıyor / saklanmıyor.
-  - [ ] Yanlış anahtarla çözme anlaşılır hata veriyor; yarım dosya bırakmıyor (test).
-  - [ ] Şifreli kopyanın özeti kayıtlı; uzak dosya bununla doğrulanabiliyor.
+  - [x] Açık anahtar tanımlı değilken uzak hedefe kopya **gitmez** (hata; sessizce şifresiz göndermez).
+  - [x] Sunucuda özel anahtar aranmıyor / saklanmıyor.
+  - [x] Yanlış anahtarla çözme anlaşılır hata veriyor; yarım dosya bırakmıyor (test).
+  - [x] Şifreli kopyanın özeti kayıtlı; uzak dosya bununla doğrulanabiliyor.
 - **Canlı:** Evet (kapalı / hedef yokken etkisiz).
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit
+    - `KopyaSifreleyici` gpg ile: `sifrele` her işlemde 0700 geçici
+      GNUPGHOME'da açık anahtarı içe alır, içe alınan parmak izini kayıtlıyla
+      karşılaştırır, `--trust-model always --recipient <parmak izi>
+      --compress-algo none` ile geçici ada yazıp taşır (D3); anahtar yok /
+      uyuşmuyor / süresi dolmuş / gpg hatası → `HedefHatasi(YAPILANDIRMA)`,
+      yeniden denenmez (D8). Ajan ve soket klasörü `gpgconf --kill all` /
+      `--remove-socketdir` ile kapatılır, klasör hata yolunda da silinir.
+    - `acikAnahtarBilgisi(metin)`: ASCII zırhlı TEK açık anahtar; özel anahtar
+      bloğu ya da açık başlığa gömülü özel anahtar paketi (gpg listesinde
+      `sec/ssb`) → `YEDEK_ANAHTAR_OZEL`; iki anahtar, bozuk blok, iptal,
+      şifreleme alt anahtarı yok → `YEDEK_ANAHTAR_GECERSIZ`; süresi dolmuş →
+      `YEDEK_ANAHTAR_SURESI_DOLMUS`. Model (`YedekAyari::saving`) özel anahtar
+      bloğunu her yoldan reddeder (K3). Yükleme / kaldırma ucu BY-018'de
+      (`PUT|DELETE /ayarlar/yedek-ayarlari/sifreleme-anahtari`, denetim kaydı).
+    - `coz(sifreli, hedef, ozelAnahtarYolu, parolaDosyasi)` + `yedek:sifre-coz`
+      komutu: özel anahtar o anda dosya olarak verilir, yalnız geçici
+      anahtarlığa alınır; parola yalnız `--passphrase-file` (D2). Neden gpg
+      durum satırlarından (`NO_SECKEY`, `NEED_PASSPHRASE`,
+      `ERROR pkdecrypt_failed` alt 16 bit 11): `YEDEK_SIFRE_COZULEMEDI`,
+      `YEDEK_ANAHTAR_PAROLASI_HATALI`, `YEDEK_OZEL_ANAHTAR_OKUNAMADI`; ham
+      stderr mesaja girmez. Başarısızlıkta hedefe dokunulmaz, yarım çıktı silinir.
+    - Migration: `yedek_ayarlari`'na `sifreleme_acik_anahtari`,
+      `sifreleme_parmak_izi`, `sifreleme_anahtar_kullanicisi`,
+      `sifreleme_anahtar_bitisi`. Config: `gpgconf`, `tar`, `sure_siniri.sifreleme`.
+    - Testler `KopyaSifreleyiciTest` (19; gerçek gpg 2.4.4, atılacak
+      ed25519/cv25519 anahtarlar; gpg yoksa atlanır — T11). T5: sec/ssb
+      denetimi, geçici çıktı silme, anahtarsız şifresiz gönderim, model engeli
+      ve parola kodu kaldırılınca ilgili testler kırmızı görüldü.
+    - Notlar: gpg zaman aşımı da `YAPILANDIRMA` sayılıp yeniden denenmez
+      (geçici olabilir; tartışmaya açık). GnuPG 2.4 anahtarları OCB kipinde
+      şifreler: çözmek için GnuPG 2.3+ gerekir (kurtarma.md). Süreç SIGKILL
+      ile ölürse `coz`'un geçici anahtarlığı /tmp'de kalabilir.
+    - Doğrulanamayan: §13 karar 4 (özel anahtar kimde) kullanıcıdan; gerçek
+      uzak hedef; PostgreSQL 18; canlıya alınmadı.
 
 ### BY-020 — Hedef: FTP ve FTPS
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-016, BY-019
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-016, BY-019
 - **Tasarım:** README §4.6 (tablo)
 - **Ön koşul:** Bağımlılık onayı (FTP için Laravel dosya sistemi sürücüsü paketi);
   denemek için bir FTP sunucusu.
@@ -2776,15 +2930,39 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   seçilince ekranda uyarı.
 - **Kabul ölçütleri:**
   - [ ] "Sına" yaz – oku – doğrula – sil döngüsünü gerçek sunucuda geçiyor (günlükte not).
-  - [ ] Bağlantı koparsa kopya `basarisiz`, yeniden denemede tamamlanıyor; hedefte yarım dosya kalmıyor.
-  - [ ] Düz FTP uyarısı görünüyor; FTPS'te sertifika hatası sessizce yok sayılmıyor.
-  - [ ] Zaman aşımı tanımlı; asılı kalan bağlantı kilidi sonsuza dek tutmuyor.
+  - [x] Bağlantı koparsa kopya `basarisiz`, yeniden denemede tamamlanıyor; hedefte yarım dosya kalmıyor.
+  - [x] Düz FTP uyarısı görünüyor; FTPS'te sertifika hatası sessizce yok sayılmıyor.
+  - [x] Zaman aşımı tanımlı; asılı kalan bağlantı kilidi sonsuza dek tutmuyor.
 - **Canlı:** Evet.
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit (bağlayıcı d280a00'da)
+    - Bağımlılık eklenmedi (kullanıcı kararı "Toplu yazım"): `FtpBaglayicisi`
+      PHP curl ile; FTPS `CURLUSESSL_ALL`, eş ve ad doğrulaması açık, en az
+      TLS 1.2; her işlem yeni bağlantı, bağlantı + toplam süre sınırı
+      (aktarımda `sure_siniri.kopya`, diğerlerinde `baglanti × 3`; D9).
+    - Yükleme geçici ada, sonra yeniden adlandırma: kopma ya da yeniden
+      adlandırma reddinde son adda dosya kalmaz, geçici dosya silinir;
+      kopmadan sonra yeniden deneme tamamlanır.
+    - Düz FTP: tanımda `uyari = yedekleme.hedef.uyari.duz_ftp` (formda
+      gösterilir); FTPS'te öz imzalı sertifika `SERTIFIKA` (kullanıcı adı /
+      parola GÖNDERİLMEDEN), AUTH TLS desteklemeyen sunucu `YAPILANDIRMA`
+      (düz FTP'ye düşülmez).
+    - Kimlik / sertifika reddinden sonra temizlik için ikinci bağlantı
+      açılmaz (D8: tek başarısız giriş).
+    - Girdi doğrulaması bağlantıdan önce: `kotu.com\.izinli.com.tr`,
+      `-oProxyCommand`, `..`, NUL, satır sonlu kullanıcı / parola → `YAPILANDIRMA` (G15).
+    - Testler: `FtpBaglayicisiTest` (29) — ayrı PHP sürecinde çalışan yerel
+      sahte FTP sunucusuna (`tests/Yedekleme/SahteFtpSunucusu.php`) GERÇEK curl
+      çağrıları: pasif / etkin kip, yükleme ortasında kopma ve asılma,
+      yeniden adlandırma reddi, öz imzalı TLS, TLS'siz sunucu. Kilit testleri
+      kusur geri konunca kırmızı (T5).
+    - Doğrulanamayan: gerçek FTP / FTPS sunucusunda "Sına" (ölçüt 1 —
+      işaretlenmedi); başarılı FTPS aktarımı (test CA'sına güven ayarı yok).
+      Örtük FTPS (990) ve IPv6 desteklenmiyor; uzak klasör kendiliğinden açılmaz.
 
 ### BY-021 — Hedef: Google Drive
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-016, BY-019
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-016, BY-019
 - **Tasarım:** README §4.6 (Google Drive bağlantısı), §7.10
 - **Ön koşul:** Bağımlılık onayı; kullanıcının Google tarafında uygulama kaydı
   açması (kişisel Gmail → "herkese açık" + "yayında"); README §13 karar 3 ve 16
@@ -2793,45 +2971,117 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   yalnız uygulamanın oluşturduğu dosyalara erişim yetkisi, klasör, kota
   gösterimi, "Bağlantıyı kes", izin kaldırıldığında "yeniden bağlanın" durumu.
 - **Kabul ölçütleri:**
-  - [ ] İstenen yetki en dar olan; hesabın diğer dosyaları listelenemiyor.
-  - [ ] Yenileme anahtarı hiçbir yanıtta ve günlükte görünmüyor.
-  - [ ] İzin Google tarafından kaldırılınca kopya `basarisiz`, hedef "yeniden bağlanın" (test: sahte yanıt).
-  - [ ] Bağlantı akışında sahte istek koruması var (durum değeri doğrulanıyor).
-  - [ ] Kota dolu yanıtı anlaşılır hata olarak gösteriliyor.
+  - [x] İstenen yetki en dar olan; hesabın diğer dosyaları listelenemiyor.
+  - [x] Yenileme anahtarı hiçbir yanıtta ve günlükte görünmüyor.
+  - [x] İzin Google tarafından kaldırılınca kopya `basarisiz`, hedef "yeniden bağlanın" (test: sahte yanıt).
+  - [x] Bağlantı akışında sahte istek koruması var (durum değeri doğrulanıyor).
+  - [x] Kota dolu yanıtı anlaşılır hata olarak gösteriliyor.
   - [ ] Gerçek bir hesapla uçtan uca denendi; 8 gün sonra hâlâ çalıştığı kontrol edilecek (günlükte tarihli not).
 - **Canlı:** Evet.
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit (bağlayıcı d280a00'da)
+    - Bağımlılık eklenmedi: `GoogleDriveBaglayicisi` Laravel HTTP istemcisiyle
+      (OAuth 2 + Drive v3, sürdürülebilir yükleme oturumu). Kapsam yalnız
+      `drive.file` (uygulamanın açtığı dosyalar): hesabın diğer dosyaları
+      görünmez; liste yalnız kendi klasöründeki yedek dosyaları.
+    - Bağlantı akışı (BY-016 uçları): `POST …/{id}/google/baglan` → yetki
+      adresi; durum değeri (48 karakter rastgele) önbellekte özetiyle,
+      kullanıcı + hedefle 10 dk saklanır. Google tarayıcıyı
+      `<APP_URL>/ayarlar/yedek-hedefleri/google-donus`'e döndürür; ekran kod
+      ve durumu `POST …/google/donus`'e iletir. Durum bir kez kullanılır,
+      başka kullanıcınınki / süresi geçmiş / sahte olan 422
+      `GOOGLE_DURUM_GECERSIZ` ve Google'a istek gitmez. Başarıda yenileme
+      anahtarı `gizli_bilgiler`'e (şifreli), hesap e-postası `baglanti`'ya;
+      "yeniden bağlan" durumu temizlenir. "Bağlantıyı kes" anahtarı siler.
+    - İzin Google tarafında kaldırılınca (invalid_grant / 401) kopya
+      `basarisiz`, hedef `baglanti.durum = yeniden_baglan`, yeniden denenmez
+      (D8); bu arada yeniden bağlanmış hedef eski anahtarın reddiyle
+      işaretlenmez. Kota dolu → `KOTA` (dosya gönderilmez, yeniden denenmez).
+    - Yenileme / erişim anahtarı ve istemci sırrı hiçbir API yanıtında ve
+      hata mesajında yok (testler); denetim kaydına hata mesajı değil yalnız
+      kod yazılır.
+    - Testler: `GoogleDriveBaglayicisiTest` (20), `YedekHedefiApiTest::test_google_baglanti_akisi_…`.
+    - Ön koşul (kullanıcı): Google Cloud'da OAuth istemcisi (dönüş adresi
+      yukarıdaki), `.env` `YEDEKLEME_GOOGLE_ISTEMCI_KIMLIGI` /
+      `YEDEKLEME_GOOGLE_ISTEMCI_SIRRI`; kişisel hesapta uygulama "yayında"
+      olmalı (test kipinde yenileme anahtarı 7 günde düşer); README §13
+      karar 3 / 16 (yurt dışı bulut, KVKK).
+    - Doğrulanamayan: gerçek hesapla uçtan uca ve "8 gün sonra hâlâ
+      çalışıyor" ölçütü (işaretlenmedi).
 
 ### BY-022 — Hedef: SFTP
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-020
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-020
 - **Tasarım:** README §4.6
 - **Ön koşul:** Bağımlılık onayı; kullanıcı bu hedefi istiyorsa (istemiyorsa `IPTAL`).
 - **Kapsam:** SFTP bağlayıcısı; parola ya da anahtarla kimlik doğrulama; sunucu
   parmak izinin ilk bağlantıda kaydedilip sonrakilerde doğrulanması.
 - **Kabul ölçütleri:**
-  - [ ] Sunucu parmak izi değişince bağlantı reddediliyor (uyarıyla).
+  - [x] Sunucu parmak izi değişince bağlantı reddediliyor (uyarıyla).
   - [ ] BY-020'deki sınama ve hata ölçütleri bu tür için de geçiyor.
 - **Canlı:** Evet.
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit (bağlayıcı d280a00'da)
+    - `SftpBaglayicisi`: OpenSSH `sftp -b <toplu dosya>` ve `ssh-keyscan`,
+      `Process` ile argüman dizisi (kabuk yok). Parola komut satırında ya da
+      ortamda DEĞİL: 0600 dosyadan, 0700 `SSH_ASKPASS` betiğiyle; özel anahtar
+      0600 dosya + `-i`; geçici klasör 0700, hata yolunda da silinir (D2).
+    - Sunucu anahtarı yalnız `baglan()`'da ("Bağlantıyı Sına") kaydedilir
+      (anahtar + SHA256 parmak izi + `sunucu_anahtari_icin` = sunucu:port);
+      diğer işlemler kayıtlı anahtar yoksa `YAPILANDIRMA` ("önce Bağlantıyı
+      Sına") — gece kopyası görülmemiş anahtarı kendiliğinden kabul etmez.
+      Sunucu / port değişince eski anahtar kullanılmaz (G13).
+    - Anahtar değişince `SUNUCU_PARMAK_IZI` (mesajda kayıtlı parmak izi),
+      kayıt değişmez, `ssh-keyscan` yeniden çalışmaz. Ekranda "parmak izini
+      sıfırla" ucu (BY-016: `POST …/sunucu-anahtari-sifirla`).
+    - Hatalar: yanlış parola `KIMLIK`, erişilemeyen `ERISILEMEDI`; olmayan
+      dosyayı silmek hata değil; olmayanı okumak `OKUNAMADI`, yerel dosya
+      kalmaz. Boş alan `df`'ten.
+    - Testler: `SftpBaglayicisiTest` (28; `Process::fake` + toplu dosyayı
+      yerel klasöre uygulayan sahte `sftp`, çağrı anındaki ortam / izin /
+      süre kaydıyla). `-o BatchMode=no`'nun sftp'nin kendi `-obatchmode
+      yes`'inden önce geldiği gerçek `sftp` ikilisiyle denendi.
+    - Doğrulanamayan: gerçek sshd ile parola / anahtar girişi; OpenSSH dışı
+      sunucularda var olan dosyanın üstüne yeniden adlandırma. SFTP hata
+      sınıflaması OpenSSH'nin İngilizce mesajlarına dayanıyor.
 
 ### BY-023 — Hedef: Ağ paylaşımı (NAS) ve S3
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-020
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-020
 - **Tasarım:** README §4.6
 - **Ön koşul:** Kullanıcı bu hedefleri istiyorsa; NAS için ağdaki paylaşımın
   sunucuya bağlanması (`admin` + `sudo`); S3 için bağımlılık onayı.
 - **Kapsam:** NAS (sunucuya bağlanmış klasör; "bağlı mı" denetimi) ve S3 uyumlu
   bağlayıcı (silinmeye karşı koruma destekleniyorsa bilgi olarak gösterilir).
 - **Kabul ölçütleri:**
-  - [ ] NAS bağlı değilken yedek yerel diske yazılıp "kopyalandı" sayılmıyor.
-  - [ ] S3'te uygulamanın silme yetkisi yoksa temizlik bunu hata saymıyor, bilgi olarak yazıyor.
+  - [x] NAS bağlı değilken yedek yerel diske yazılıp "kopyalandı" sayılmıyor.
+  - [x] S3'te uygulamanın silme yetkisi yoksa temizlik bunu hata saymıyor, bilgi olarak yazıyor.
 - **Canlı:** Evet.
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit (bağlayıcılar d280a00'da)
+    - `NasBaglayicisi`: sunucuya bağlanmış klasör; her işlemden önce "bağlı mı"
+      denetimi (bağlantı noktası `/proc/self/mountinfo`'da var mı, klasör
+      bağlantıları çözülmüş yolla onun altında ve aynı aygıtta mı; değilse
+      `BAGLI_DEGIL`). Yazımdan sonra dosyanın paylaşımın aygıtında durduğu
+      yeniden denetlenir: arada paylaşım düşerse kopya sayılmaz. Yazım geçici
+      ad + parça parça + eşitleme + taşıma. Asılı paylaşıma PHP'de süre sınırı
+      konamadığından paylaşım `soft` + `timeo` ile bağlanmalı (kurtarma.md).
+    - `S3Baglayicisi`: Laravel HTTP istemcisiyle SigV4 (bağımlılık yok); yol /
+      sanal konak stili, bölge, uç nokta; yalnız geçici hatalarda yeniden
+      deneme; liste süzgeci. Silme `AccessDenied` dönerse `SILME_YETKISI_YOK`.
+    - Saklama, `SILME_YETKISI_YOK`'u hata saymaz: kopya `silindi` (kod
+      kayıtlı), sonuçta `bilgi` satırı, denetimde başarılı + `bilgi`
+      ("hedefin kendi saklama kuralı temizler"); hedef atlanmaz.
+    - Testler: `NasBaglayicisiTest` (3), `S3BaglayicisiTest` (13),
+      `SaklamaPolitikasiTest::test_silme_yetkisi_olmayan_hedefte_temizlik_hata_saymaz_bilgi_yazar`
+      (dal kaldırılınca kırmızı — T5).
+    - Doğrulanamayan: gerçek NAS paylaşımı ve gerçek S3 kovası (kullanıcı bu
+      hedefleri henüz istemedi; ön koşul). Silinmeye karşı koruma (nesne
+      kilidi) bilgisi ekranda ayrıca gösterilmiyor; temizlik sonucu bilgi olarak yazıyor.
 
 ### BY-024 — Kurtarma paketi ve kurulum dokümanı
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-019
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-019
 - **Tasarım:** README §9 (kurtarma paketi), §7.5
 - **Ön koşul:** README §13 karar 5 ve 13.
 - **Kapsam:** `docs/yedekleme/kurtarma.md`: boş bir sunucuda sıfırdan ayağa
@@ -2839,11 +3089,49 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   değil); PostgreSQL rolleri ve eklentileri; araç sürümleri. Olay günlüğü,
   denetim günlüğü ve ayar kopyasının sunucu dışına gitmesi (kod).
 - **Kabul ölçütleri:**
-  - [ ] Dokümanda hiçbir gizli değer yok; yalnız "nerede, kimde".
-  - [ ] Adımlar lokalde boş bir veritabanıyla bir kez baştan sona uygulandı (günlükte not).
-  - [ ] Günlükler ve ayar kopyası uzak hedefte görünüyor.
+  - [x] Dokümanda hiçbir gizli değer yok; yalnız "nerede, kimde".
+  - [x] Adımlar lokalde boş bir veritabanıyla bir kez baştan sona uygulandı (günlükte not).
+  - [x] Günlükler ve ayar kopyası uzak hedefte görünüyor.
 - **Canlı:** Evet.
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit
+    - `KurtarmaPaketi`: başarılı her sunucu dışı kopyadan sonra o hedefe
+      yedeklerle aynı açık anahtarla şifreli, sabit adlı dört dosya:
+      `emor-kurtarma-olaylar.jsonl.gpg`, `-ayarlar.json.gpg`,
+      `-denetim.log.gpg` (yedekleme kanalının bütün günleri, eskiden yeniye)
+      ve `-manifestler.tar.gpg` (yedek klasöründeki imzalı manifestler: uzak
+      hedefe yalnız dump gittiği için boş sunucuda özet, kodlama ve "güvenilir"
+      sayılma bunlarla — görev metnindeki üç dosyanın ötesinde). Günlükler
+      paylaşılan kilitle anlık kopyalanır (bayt sayısıyla, G16); her dosya
+      geri okunup özeti denetlenir.
+    - Adlar `erp_` ile başlamaz: bağlayıcıların `listele()`'sine, dizine ve
+      saklamaya girmez (test: yerel disk bağlayıcısı). Adla üstüne yazmayan
+      hedefte (Drive) önceki dosya durum klasöründeki imzalı
+      `kurtarma-kimlikleri.json`'dan bulunup silinir; kayıt bozuksa silinmez.
+    - Hata kopyayı başarısız saymaz: istisna dışarı taşmaz, denetim kaydına
+      `kurtarma_paketi` (başarısız) yazılır. `YedekKopyalayici`'de tek çağrı.
+    - `docs/yedekleme/kurtarma.md`: uzak dosyalar, sırların listesi (nerede /
+      kimde; değer yok; §13 karar 4, 5, 13 açık), araç sürümleri, PostgreSQL
+      rolleri, boş sunucuda adımlar (indir → `yedek:sifre-coz` → özetler →
+      manifestten createdb → pg_restore --no-owner --role=erp --exit-on-error
+      --single-transaction → imza anahtarı → migrate → yedek:tara), son
+      kontroller, imza anahtarı kaybı, NAS'ın `soft,timeo` bağlanması, deneme kaydı.
+    - Lokal prova (WSL, PostgreSQL 16.15, GnuPG 2.4.4; geçici veritabanları
+      `erp_kurtarma_ajan_*` ve geçici klasörler, sonunda silindi; yerel `erp`
+      yalnız okundu): `yedek:al` → açık anahtar ayara → NAS hedefine
+      (`/dev/shm` bağlantı noktası) kopya `tamam`, kurtarma paketi 4 dosya.
+      Boş "yeni sunucu"da beş dosya `yedek:sifre-coz` ile çözüldü; şifreli özet
+      olay günlüğündeki `sifreli_sha256` ile, dump özeti manifestle aynı;
+      manifestteki kodlamayla createdb + pg_restore; imza anahtarsız tarama
+      "0 imzalı, 1 güvenilmeyen", anahtarla "1 imzalı"; satır sayıları ve
+      sahip `erp` tutarlı. Farklar: createdb yerel `postgres` ile (emor_yedek
+      yok), PG 16, C.UTF-8; paket kurulumu, servisler, SSL denenmedi.
+    - Testler `KurtarmaPaketiTest` (4). T5: kanca, hatanın yutulması, önceki
+      kimliğin silinmesi ve kimlik kaydının imza denetimi kaldırılınca ilgili
+      testler kırmızı görüldü.
+    - Doğrulanamayan: gerçek NAS / SFTP / S3 / Drive hedefi; canlıda
+      (PostgreSQL 18, en_US.UTF-8) prova; §13 karar 5 / 13 (kurtarma paketinin
+      yeri) kullanıcıdan; canlıya alınmadı.
 
 ---
 
@@ -2851,7 +3139,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-025 — Çalıştırıcı servis ve istek klasörü (servis hesabı)
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-003, BY-013
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-003, BY-013
 - **Tasarım:** README §5.2 (servis hesabı, imza anahtarı, isteğe güvenmeme), §5.5, §9
 - **Ön koşul:** BY-003 kurulum betiği `PASSED` ve kullanıcı talimatıyla sunucuda
   çalıştırıldı (`admin` + `sudo`). Çalıştırılmadıysa `BEKLIYOR`. Çalıştırmadan
@@ -2863,15 +3151,63 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   anahtarının servis hesabına taşınması; web sürecinin yedek klasörünü yalnız okuması.
 - **Kabul ölçütleri:**
   - [ ] Web süreci yedek klasörüne yazamıyor, imza anahtarını okuyamıyor (canlıda denendi).
-  - [ ] Yetkisiz kullanıcı adına yazılmış istek dosyası çalıştırıcıda reddediliyor (test).
-  - [ ] Bozuk / kötü niyetli istek dosyası (yol kaçışı, beklenmeyen alan) reddediliyor (test).
+  - [x] Yetkisiz kullanıcı adına yazılmış istek dosyası çalıştırıcıda reddediliyor (test).
+  - [x] Bozuk / kötü niyetli istek dosyası (yol kaçışı, beklenmeyen alan) reddediliyor (test).
   - [ ] Geçiş: eski (uygulama kullanıcısıyla alınmış) yedekler listede kalıyor.
 - **Canlı:** Evet (BY-003 betiğinin çalıştırılmasıyla birlikte; kullanıcı talimatıyla).
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit
+    - Ön koşul notu: BY-003 betiği sunucuda henüz ÇALIŞTIRILMADI (kullanıcı
+      talimatı yok). Kod yazıldı ve lokal testlerden geçti; canlıdaki
+      ölçütler işaretlenmedi. Toplu yazım kararıyla `BEKLIYOR` yerine incelemeye.
+    - `yedek:calistir {--tek-tur} {--en-cok-tur=1800}`: servis döngüsü (turlar
+      arası 2 sn; SIGTERM / SIGINT'te o anki iş bitince çıkar; tur sınırında
+      çıkar, systemd yeniden başlatır). Modül kapalıyken istek işlenmez, döngü
+      boşta bekler. Geçiş döneminde zamanlayıcı dakikada bir `--tek-tur`
+      (modül açık ve `calistirici` servis değilken). Her turda (en çok
+      dakikada bir) ayar dosya kopyası tazelenir (BY-018).
+    - İstek klasörü: `bekleyen/` → `isleniyor/` (tek adımlık rename; iki
+      çalıştırıcı aynı isteği alamaz) → `sonuc/`. `durum()` yeni `calisiyor`
+      durumu. Tek çalıştırıcı kilidi; kilit tutulurken `isleniyor/`'da kalan
+      istek `ISTEK_YARIDA_KALDI`; 7 günden eski sonuçlar silinir; 24 saatten
+      eski istek `ISTEK_SURESI_DOLDU`.
+    - İsteğe güvenilmez (D5, G10, G11, G15): taşındıktan sonra lstat ile tek
+      bağlantılı düz dosya, ≤ 16 KiB, JSON, üst alanlar birebir, sürüm,
+      kimlik = dosya adı, tür izin listesinde, parametre anahtarları birebir ve
+      her değerin türü / biçimi (`IstekKutusu::TURLER` tür taşır; YAZAN da aynı
+      denetimden geçer). Yetki işlem anında veritabanından (aktif kullanıcı +
+      izin; izin yoksa sistem yöneticisi). Kullanıcısız istek yalnız yayın
+      öncesi yedek. Red = `basarisiz` + makine okunur kod + denetim kaydı.
+    - Eşleme: yedek_al / dogrula / tara / aciklama → `yedekler.al`; sabitle /
+      sabit_coz / sil → `yedekler.sil`; plan_calistir →
+      `yedek_planlari.guncelle`; kopya_geri_yukle / kopya_sil →
+      `geri_yukleme.kopya`; ustune_geri_yukle / onayla / geri_don → sistem
+      yöneticisi (işleyiciler BY-028/029).
+    - İşleyiciler ayrı sınıflar (`Istekler/*Isleyicisi`, `IsleyiciKatalogu`).
+      Her istek yedekleme kilidini alır (`kilit_bekleme`, sonra
+      `YEDEK_KILIT_MESGUL`); açık üstüne geri yüklemede `YEDEK_ACIK_GERI_YUKLEME`.
+    - Kurulum betiği (`scripts/sunucu-yedekleme-kurulumu.sh`): `istekler/`
+      artık 2750 (web ve yayın yalnız geçer) — yazılabilir kalsaydı web
+      süreci `sonuc/`'u bağlantıyla değiştirip çalıştırıcının yazımını
+      yönlendirebilirdi (D5). Alt klasörler: `bekleyen/` 2770 (yayına ACL
+      rwx), `isleniyor/` 2750, `sonuc/` 2750 (yayına ACL r-x) — servis kipinde
+      `deploy.sh` isteği bırakıp sonucu okuyabilsin. Servis tanımına
+      `TimeoutStopSec=4000` (geri yükleme 3600 sn sürebilir; systemd'nin 90
+      sn'lik varsayılanı işi öldürürdü). Betik testi lokal WSL'de (deneme
+      adlarıyla) 188/188.
+    - Testler: `YedekCalistiriciTest` (59; 23 bozuk istek, 10 izin eşlemesi).
+      T5: yetki, fazla parametre, bağlantı denetimi ve rename kaldırılınca
+      ilgili testler kırmızı.
+    - Not (K10): `SilIsleyicisi`'nin kopya başına silmesi `SaklamaPolitikasi`
+      ile benzer; ortak parça sonraki işte çıkarılmalı.
+    - Doğrulanamayan: web sürecinin yedek klasörüne yazamaması / imza
+      anahtarını okuyamaması ve eski yedeklerin listede kalması (canlıda,
+      servis hesabına geçişte). Servis kipinde yollar paylaşılan `.env`'den
+      (`YEDEKLEME_KLASORU`, `YEDEKLEME_DURUM_KLASORU`, …) — isletim.md.
 
 ### BY-026 — Geri yükleme çekirdeği: farklı ada + sınama geri yüklemesi
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-025
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-025
 - **Tasarım:** README §4.5-A, §6.3, §4.4 (2. düzey), §5.3 (veritabanı özellikleri)
 - **Kapsam:** Hedef ad üretimi ve denetimi (serbest metin yok); veritabanının
   manifestteki kodlama / sıralama / ayarlarla oluşturulması; `pg_restore
@@ -2880,32 +3216,100 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   silinmesi. Sınama geri yüklemesi: her yedekten sonra geçici veritabanına
   yükle, karşılaştır, sil; sonucu olay günlüğüne ve yaşam sinyaline.
 - **Kabul ölçütleri:**
-  - [ ] Hedef ad kalıp dışıysa ya da mevcut bir veritabanıysa işlem başlamıyor (test).
-  - [ ] İmzası geçersiz yedek geri yüklenemiyor (test).
-  - [ ] Geri yükleme hatasında geçici veritabanı kalmıyor (test).
-  - [ ] Lokal PostgreSQL'de: geri yüklenen veritabanında uygulama rolü okuyup yazabiliyor; sıralama ve saat dilimi kaynakla aynı.
-  - [ ] Sayım uyuşmazlığı yedeği "doğrulama başarısız" yapıyor ve bildirim üretiyor.
+  - [x] Hedef ad kalıp dışıysa ya da mevcut bir veritabanıysa işlem başlamıyor (test).
+  - [x] İmzası geçersiz yedek geri yüklenemiyor (test).
+  - [x] Geri yükleme hatasında geçici veritabanı kalmıyor (test).
+  - [x] Lokal PostgreSQL'de: geri yüklenen veritabanında uygulama rolü okuyup yazabiliyor; sıralama ve saat dilimi kaynakla aynı.
+  - [x] Sayım uyuşmazlığı yedeği "doğrulama başarısız" yapıyor ve bildirim üretiyor.
 - **Canlı:** Evet.
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit
+    - `GeriYukleyici::kopyaya` / `sina`: kilit + açık üstüne geri yükleme yok;
+      yalnız imzalı tamam yedek; imza dizindeki bayraktan değil manifest
+      dosyasından yeniden doğrulanır; yerel dosyanın boyutu ve SHA-256'sı
+      manifestle aynı olmalı, yoksa şifresiz kopyadan geçici klasöre inip aynı
+      denetim; yalnız şifreli kopya → `GERI_YUKLEME_OZEL_ANAHTAR_GEREKLI`
+      (komut satırı yolu: kurtarma.md).
+    - Ad: `erp_geri_<YYYYAAGG>_<SSddss>[_<[a-z0-9]{1,16}>]`, sınama
+      `erp_sinama_<…>_<6 hex>` (`VeritabaniAdi`); varsa dokunulmaz (`HEDEF_VAR`).
+    - `CREATE DATABASE … OWNER <uygulama rolü> TEMPLATE template0 ENCODING /
+      LC_COLLATE / LC_CTYPE` manifestten, `ALTER DATABASE … SET` ayarları;
+      değerler psql değişkeni (`--set`, `:"ad"` / `:'deger'`), elle tırnaklama
+      yok (G3); liste ayarları reddedilir. `pg_restore --exit-on-error
+      --single-transaction --no-owner --role=<uygulama rolü>`; satır sayıları,
+      migration listesi ve tablo sahibi karşılaştırılır (`ice_alindi`'de
+      atlanır, kaynak kodlaması kullanılır).
+    - Hata → yarım veritabanı `DROP DATABASE IF EXISTS … WITH (FORCE)`, geçici
+      dosya kalmaz; pg_restore iletisinin yalnız ilk satırı (D2). Silme yalnız
+      kalıptaki adlarda (K3). `geri_yuklemeler`: adımlar ("açılıyor" komuttan
+      önce yazılır), `veritabani_silinme_zamani` = silindiği an (otomatik
+      silinme `bitti + kopya_bekleme_gun`, `silinecegiZaman`; README §4.5-A'ya
+      yazıldı); işlem durumu dosyası, denetim, bildirim.
+    - Sınama: her başarılı yedekten sonra (`sinama_geri_yukleme` açıksa,
+      `YedekAlici` içinde, kopyalardan önce — "doğrulanmış en yeni" koruması
+      görsün) ve `dogrula` isteğinde; her durumda silinir. Geçti →
+      `sinama_gecti` + olay + yaşam sinyali; yedekten kaynaklanan hata →
+      `basarisiz` + olay + `dogrulama_basarisiz` bildirimi; bağlantı / yetki
+      hatası yedeği "başarısız" yapmaz. Önceki sınama artıkları silinir.
+    - Süresi dolan kopyalar ve yarıda kalan geri yüklemeler (`YARIDA_KALDI`)
+      çalıştırıcı turunda temizlenir (aynı süreçte en çok 10 dk'da bir — D8).
+    - Testler: `GeriYukleyiciTest` (24). T5: imza, yarım veritabanı silme,
+      karşılaştırma, hedef varlığı, ad denetimi ve sınama kancası
+      kaldırılınca ilgili testler kırmızı.
+    - Lokal PostgreSQL 16.15 (geçici roller / veritabanları, sonunda silindi;
+      erp ve erp_test'e dokunulmadı): kaynak `C`, `TimeZone=America/New_York`
+      (sunucu `C.UTF-8` / `Europe/Istanbul`) → kopya `C/C`,
+      `America/New_York`; veritabanı ve tablo sahibi uygulama rolü; uygulama
+      rolü okudu, yazdı, tablo açıp sildi; `sessions` 0 satır; sınama geçti,
+      artık kalmadı; `kopya_sil` sildi.
+    - Doğrulanamayan: canlıda (18.6, `en_US.UTF-8`, servis hesabıyla) geri yükleme.
 
 ### BY-027 — Ekran: Geri Yüklemeler (kopya)
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-026, BY-015
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-026, BY-015
 - **Tasarım:** README §4.5-A, §4.10 (3)
 - **Ön koşul:** README §13 karar 10 ve 17.
 - **Kapsam:** Yedekler listesinden "farklı adla geri yükle"; Geri Yüklemeler
   sayfası: işlemler ve durumları, bekleyen kopyalar (ad, boyut, yaş), silme,
   otomatik silme tarihi ve uyarısı.
 - **Kabul ölçütleri:**
-  - [ ] İzin `geri_yukleme.kopya` olmadan düğme yok, uç 403.
-  - [ ] Kopya silme onay ister; `erp` ve kalıp dışı adlar ekrandan silinemez (test).
-  - [ ] Otomatik silme süresi dolmadan uyarı gösteriliyor.
+  - [x] İzin `geri_yukleme.kopya` olmadan düğme yok, uç 403.
+  - [x] Kopya silme onay ister; `erp` ve kalıp dışı adlar ekrandan silinemez (test).
+  - [x] Otomatik silme süresi dolmadan uyarı gösteriliyor.
 - **Canlı:** Evet.
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit
+    - Ön koşul notu: README §13 karar 10 (kopyaların bekleme süresi) ve 17
+      (inceleyecek kişiler) kullanıcıdan gelmedi: süre `kopya_bekleme_gun`
+      (varsayılan 7, `.env`), inceleme rolü BY-003'teki `emor_inceleme`.
+    - API (`GeriYuklemeController`): `GET /ayarlar/geri-yuklemeler`
+      (`yedekler.goruntule`; geçmiş + bekleyen kopya bayrağı, otomatik silinme
+      anı `KopyaVeritabanlari::silinecegiZaman`, PostgreSQL'de
+      `pg_database_size`), `POST /ayarlar/yedekler/{kimlik}/kopya-geri-yukle
+      {ek}` ve `DELETE /ayarlar/geri-yuklemeler/{kimlik}/kopya`
+      (`geri_yukleme.kopya`; istek klasörüne). Kopya silme yalnız kaydı olan,
+      tamamlanmış, silinmemiş ve `erp_geri_*` kalıbındaki veritabanında; `erp`,
+      `erp_onceki_*` ve kalıp dışı 409 `GERI_YUKLEME_KOPYA_YOK` (çalıştırıcı da
+      yeniden denetler). İmzasız yedek 409.
+    - Ekran: Yedekler satırında "Farklı adla geri yükle" (yalnız
+      `geri_yuklenebilir` satır + `geri_yukleme.kopya`; ek `[a-z0-9]{1,16}`
+      istemcide de doğrulanır, ad önizlemesi; canlıya dokunmadığı ve otomatik
+      silineceği yazılı); `/ayarlar/geri-yuklemeler`: bekleyen kopyalar (ad,
+      boyut, yaş, otomatik silinme tarihi, 24 saatten az kalınca uyarı rozeti,
+      onaylı silme) ve geçmiş (çevrilmiş durum / hata kodu, açılır adımlar;
+      üstüne kayıtları salt okunur); çalışan geri yükleme varken liste 5 sn'de
+      bir tazelenir, tazelenirken silme kapalı (F1).
+    - Testler: `GeriYuklemeApiTest` (7: izin 403, ek kalıbı, imzasız red,
+      `erp` / `erp_onceki_*` / kalıp dışı silinemez, silme isteği + otomatik
+      silinme tarihi), `YedeklerPage.test` (+3), `GeriYuklemelerPage.test`.
+      Ekran T5: 6 koruma kaldırılınca ilgili testler kırmızı.
+    - Not: pencere bekleme süresini "varsayılan 7 gün" diye yazar (süre API'de
+      yok; kopyanın tam tarihi Geri Yüklemeler ekranında).
+    - Doğrulanamayan: açık / koyu tema, dar ekran (elle).
 
 ### BY-028 — Üstüne geri yükleme çekirdeği
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-026
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-026
 - **Tasarım:** README §6.4 (1–8. adım, hata kuralı, yarıda kalan işlem), §7.1, §7.4
 - **Kapsam:** §6.4'ün durum makinesi: ön denetimler; bakım modu ve servislerin
   durdurulması; geri yükleme öncesi yedek (bakım modundan sonra); yeni
@@ -2915,26 +3319,91 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   durum dosyasına; yarıda kalan işlemi sürdürme / geri sarma.
 - **Kapsam dışı:** Onay adımı ve servis korumaları (BY-029), ekran (BY-030).
 - **Kabul ölçütleri:**
-  - [ ] Her adımda hata üreten ayrı test: 7. adımdan önceki hatada `erp` değişmemiş ve servisler açık; 7. adımdan sonraki hatada bakım modu korunuyor.
-  - [ ] Migration adımı canlı `erp`'ye tek sorgu göndermiyor (test: bağlantı izleme).
-  - [ ] Yedekte olup kodda bulunmayan migration varsa işlem başlamıyor (test).
-  - [ ] Süreç her adımda öldürülüp devam ettirildiğinde sonuç tutarlı (lokal PostgreSQL'de denendi, günlükte tablo).
-  - [ ] Durum dosyasındaki `adim` değerleri serbest metin değil, tek yerde
+  - [x] Her adımda hata üreten ayrı test: 7. adımdan önceki hatada `erp` değişmemiş ve servisler açık; 7. adımdan sonraki hatada bakım modu korunuyor.
+  - [x] Migration adımı canlı `erp`'ye tek sorgu göndermiyor (test: bağlantı izleme).
+  - [x] Yedekte olup kodda bulunmayan migration varsa işlem başlamıyor (test).
+  - [x] Süreç her adımda öldürülüp devam ettirildiğinde sonuç tutarlı (lokal PostgreSQL'de denendi, günlükte tablo).
+  - [x] Durum dosyasındaki `adim` değerleri serbest metin değil, tek yerde
     tanımlı sabit / enum; karar veren her kod (devam, geri sarma, onay) onları
     kullanıyor (Fable F17). Kurtarma bağlamı (yedek kimliği, hedef / önceki
     veritabanı, isteyen) ilk yazımda dolduruluyor; yer değiştirmeden sonra
     `geri_yuklemeler` satırı bu dosyadan yeniden yazılıyor (test).
-  - [ ] Eski veritabanı `erp_onceki_*` adıyla duruyor ve bağlantıya kapalı.
-  - [ ] Servis bakım modu dosyasını (`storage/framework/down`, web'in
+  - [x] Eski veritabanı `erp_onceki_*` adıyla duruyor ve bağlantıya kapalı.
+  - [x] Servis bakım modu dosyasını (`storage/framework/down`, web'in
     yazabildiği klasör) bağlantı izlemeden yazıyor: yol bağlantıysa durur;
     test: web kullanıcısının koyduğu bağlantıyla servisin dosyası değişmiyor
     (D5, BY-003-R6 kapsam notu).
 - **Canlı:** Hayır — BY-029 ve BY-031 `PASSED` olana kadar canlıda kullanılmaz.
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit
+    - Kapsam: `UstuneGeriYukleyici` (README §6.4 1–9 durum makinesi); adımlar
+      tek enum (`UstuneGeriYuklemeAdimi`; devam / geri sarma / onay kararları
+      enum yöntemlerinden); `BakimModu` (yalnız `storage/framework/down`
+      JSON'u, bağlantı izlemez, yalnız kendi dosyasını kaldırır; `artisan
+      down` çağrılmaz — web'in her istekte yüklediği `maintenance.php`'yi de
+      yazardı, D7); `KuyrukServisi` (`YEDEKLEME_KUYRUK_SERVISI`, `sudo -n
+      systemctl stop|start`; servis ortamı kurulum betiğinden, sudoers ile
+      aynı adlar); `YeniVeritabanindaMigration` (ayrı süreç, geçici
+      `APP_CONFIG_CACHE` ile bütün pgsql bağlantıları yeni veritabanında,
+      önbellek / oturum `array`, kuyruk `sync`); `GeriYuklemeVeritabani`'na
+      bağlantıya kapatma / koparma / tek işlemde ad değiştirme. Yarıda kalan
+      işlem çalıştırıcı turunda sürdürülür / geri sarılır (en çok 10 dk'da
+      bir — D8). README §6.4'e "Uygulamada verilen kararlar" eklendi.
+    - Her adımda hata testi: `test_yer_degistirmeden_once_hata_canliyi_korur_ve_servisleri_acar`
+      (kuyruk, öncesi yedek, veritabanı, pg_restore, karşılaştırma, migration,
+      bağlantı kapatma, yer değiştirme: canlı aynen, hedef silindi, bakım
+      kalktı, kuyruk başladı); `test_yer_degistirmeden_sonra_hata_bakim_modunu_korur_karar_yoneticinin`;
+      `test_on_denetim_reddinde_hicbir_sey_degismez` (4 durum).
+    - Migration canlıya sorgu göndermiyor: `test_migration_ayri_surecte_yalniz_yeni_veritabanini_gorur`,
+      `test_migration_yapilandirmasi_gercek_cocuk_surece_yeni_veritabani_olarak_ulasir`;
+      lokal PG: migration boyunca canlı `ALLOW_CONNECTIONS false` iken migration başarılı.
+    - Yedekte olup kodda olmayan migration: `test_yedekte_olup_kodda_olmayan_migration_varsa_baslamaz`;
+      içe alınmış yedek üstüne yüklenmez: `test_ice_alinmis_yedek_ustune_yuklenmez`.
+    - Öldür / sürdür — lokal PostgreSQL 16.15, geçici roller (`ajan_ustune_app`,
+      `ajan_ustune_svc`) ve "canlı" yerine `erp_ajan_ustune_<rnd>`; `kill -9`
+      durum dosyasındaki adıma bakılarak, sonra `yedek:calistir --tek-tur`;
+      sonunda hepsi silindi, yerel `erp` / `erp_test` ve uygulamanın down
+      dosyasına dokunulmadı:
+        | Öldürülen an | Sürdürmeden sonra |
+        |---|---|
+        | bakim_modu … baglanti_kapatma (7 adım) | basarisiz (YARIDA_KALDI), hedef silindi, bakım kalktı, canlı aynen |
+        | yer_degistirme (ad değişikliğinden önce; canlı kapalı) | canlı yeniden açık, geri sarıldı |
+        | yer_degistirme (ad değişikliğinden sonra) | onay_bekliyor (8. adımdan devam), bakım sürüyor |
+        | geri_donuluyor (geri ad değişikliğinden sonra) | geri_donuldu, kopya `erp_geri_*` kapalı, silinmedi |
+        | onaylaniyor (kuyruk başlarken) | onaylandi |
+        | kilit başkasındayken `yedek:acil geri-don` | çıkış 1, 138 ms, durum değişmedi |
+      Otomatik: `test_yer_degistirmeden_once_olen_islem_geri_sarilir` (7 adım),
+      `test_yer_degistirmede_olen_islem_adlara_gore_karar_verir`,
+      `test_adlar_tutarsizsa_hicbir_sey_yapilmaz_yoneticiye_birakilir`,
+      `test_dizin_kurmada_olen_islem_devam_eder_onaya_gelir`.
+    - Enum + bağlam + geçmiş: `test_ilk_yazim_kurtarma_baglamini_tasir_ve_adimlar_enumdan`,
+      `test_adimlar_sirayla_yurur_canli_yer_degistirir_ve_onay_bekler`
+      (`geri_yuklemeler` satırı dosyadan yeniden yazılıyor, `oncesi_yedek_id`
+      bağlı). `erp_onceki_*` duruyor ve bağlantıya kapalı (test + lokal PG).
+    - Bakım modu dosyası bağlantı izlemeden: `test_bakim_modu_dosyasi_baglantiysa_yazilmaz_hedef_dosya_degismez`
+      (D5), `test_bakim_modu_laravelin_okudugu_dosya_ve_baskasinin_dosyasi_kaldirilmaz`.
+    - PostgreSQL `erp_test`'te de 65 test (3 dosya) geçti. İlk denemede
+      yalnız PG'de 4 hata: yer değiştirmede BÜTÜN pgsql bağlantıları
+      bırakılıyordu (testi saran işlem kopuyordu; üretimde de yanlıştı) →
+      yalnız canlı ada bağlı bağlantılar (`canliBaglantilariniBirak`); 8. adım
+      hata kancası PG'de bağımlı tabloyu düşüremiyordu → `rol_izinleri`, kanca
+      hatası artık testi düşürüyor (T6, T7, yeni T14). Gerçek PG öldür /
+      sürdür denemesi düzeltmeden sonra yeniden yapıldı: sonuç aynı.
+    - Testler: `UstuneGeriYukleyiciTest` (38). T5: P3 sırası, şema denetimi,
+      migration yapılandırması, geri sarmada canlıyı açma, bağlantı denetimi
+      kaldırılınca ilgili testler kırmızı.
+    - Kalan risk / kapsam dışı: bakım modundan önce başlamış zamanlanmış komut
+      6. adıma kadar canlıya yazabilir (yazım yalnız `erp_onceki_*`'de kalır);
+      `erp_onceki_*`'in 7 gün sonra silinmesi ve geri dönüşten kalan
+      `erp_geri_*`'nin temizliği yok (elle — isletim.md); disk denetimi
+      sezgisel (canlı boyutu + 2 × dump).
+    - Doğrulanamayan: canlı (PG 18.6; ad değiştirme ve koparma yalnız 16'da),
+      gerçek servis hesabı ve www-data / emor-yedek izinleriyle `down` yazımı,
+      sudoers ile emor-queue stop / start.
 
 ### BY-029 — "Onay bekleniyor" korumaları ve acil durum komutu
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-028
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-028
 - **Tasarım:** README §6.4 (9–11. adım, yeniden başlatmaya dayanıklılık), §7.6, §4.8
 - **Kapsam:** "Onay bekleniyor" durumu; kuyruk işçisi ve zamanlayıcının
   başlarken durum dosyasına bakıp açık geri yükleme varsa çalışmayı reddetmesi;
@@ -2943,22 +3412,62 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   bilgilerin hesabı (aktif ERP ortamı, senkron durumu, ayar farkı, kullanıcı /
   rol farkı, kaybolacak yükleme sayısı); bildirimlerin doğrudan gönderilmesi.
 - **Kabul ölçütleri:**
-  - [ ] Durum "onay bekleniyor" iken kuyruk işçisi ve zamanlayıcı iş çalıştırmıyor (test).
-  - [ ] Aynı durumda `deploy.sh` ve planlı yedek başlamıyor.
-  - [ ] Onaydan önce hiçbir alarm maili / senkron çalışmıyor (test).
-  - [ ] "Geri dön" sonrası `erp` eski veritabanı; geri yüklenen kopya silinmemiş, adı belirli.
-  - [ ] Acil durum komutu, web ve veritabanı erişilemezken çalışıyor.
-  - [ ] Acil durum komutu durumu yazmadan önce yedek kilidini alıyor
+  - [x] Durum "onay bekleniyor" iken kuyruk işçisi ve zamanlayıcı iş çalıştırmıyor (test).
+  - [x] Aynı durumda `deploy.sh` ve planlı yedek başlamıyor.
+  - [x] Onaydan önce hiçbir alarm maili / senkron çalışmıyor (test).
+  - [x] "Geri dön" sonrası `erp` eski veritabanı; geri yüklenen kopya silinmemiş, adı belirli.
+  - [x] Acil durum komutu, web ve veritabanı erişilemezken çalışıyor.
+  - [x] Acil durum komutu durumu yazmadan önce yedek kilidini alıyor
     (`IslemDurumu::yaz` kilitsiz yazmayı reddeder — tek yazar, Fable F16);
     çalıştırıcı kilidi tutuyorsa komut beklemeden anlaşılır mesajla duruyor.
-  - [ ] Erişim anahtarı süresi (`erisim_anahtari_bitis`) dolunca ilerleme ve
+  - [x] Erişim anahtarı süresi (`erisim_anahtari_bitis`) dolunca ilerleme ve
     onay ucu anahtarı reddediyor; komut satırı yolu açık kalıyor (test).
 - **Canlı:** Hayır — BY-031'e kadar.
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit
+    - Kapsam: `AcikGeriYuklemeKorumasi` (kuyruk işçisi: `Queue::looping`;
+      zamanlayıcı: `schedule:run` başlarken her göreve `skip`; durum
+      okunamazsa da çalışmaz; modül kapalıyken etkisiz), onay / geri dön
+      (`UstuneGeriYukleyici::onayla` / `geriDon`; `OnaylaIsleyicisi` /
+      `GeriDonIsleyicisi`; yetki erişim anahtarıyla — çalıştırıcı anahtarın
+      özetini durum dosyasından doğrular, isteyen kullanıcının işlemi
+      başlatanla aynı olduğunu denetler, kullanıcı tablosuna bakmaz: o tablo
+      yedeğin anındadır), `OnayBilgisi` (aktif ERP ortamı, entegratörler /
+      senkron, alarm kuralları, ayar / kullanıcı / rol farkı, kaybolacak
+      yükleme sayısı; "önceki" yanı yer değiştirmeden hemen önce canlıdan
+      alınır, ikisi de dosyada), `yedek:acil durum|onayla|geri-don`,
+      bildirimler doğrudan ve ayar dosya kopyasından. Açık geri yüklemede
+      çalıştırıcı ayar kopyasını tazelemez (eski ayarlarla ezilmesin).
+    - Kuyruk ve zamanlayıcı iş çalıştırmıyor: `test_acik_geri_yuklemede_zamanlayici_hicbir_gorevi_baslatmaz_e_fatura_ve_alarm_dahil`,
+      `test_acik_geri_yuklemede_kuyruk_iscisi_is_almaz` (onaydan sonra iş alınıyor).
+    - deploy.sh ve planlı yedek başlamıyor: `YedekYayinOncesiTest::test_acik_ustune_geri_yukleme_varken_yayin_baslamaz`,
+      `test_acik_geri_yuklemede_planli_yedek_baslamaz`.
+    - Onaydan önce alarm maili / senkron yok: zamanlayıcı testi
+      `efatura:senkron` ve `efatura:alarmlar` dahil bütün görevleri, kuyruk
+      testi kuyruktaki işleri kapsıyor.
+    - Geri dön: `test_geri_don_eski_veritabanini_canli_yapar_geri_yukleneni_silmeden_adlandirir` + lokal PG.
+    - Acil durum komutu web ve veritabanı erişilemezken: `test_acil_durum_komutu_veritabani_erisilemezken_onaylar`;
+      geri-don yalnız psql ile (lokal PG).
+    - Komut önce kilidi alıyor, beklemiyor: `test_acil_durum_komutu_kilit_baskasindayken_beklemeden_durur`
+      + lokal PG (138 ms, çıkış 1, durum değişmedi).
+    - Anahtar süresi (8 saat): `test_calistirici_onay_isteginin_anahtarini_islem_durumundan_dogrular`
+      (yanlış / süresi dolmuş / başka işlem / başka kullanıcı),
+      `UstuneGeriYuklemeApiTest` süre testi; komut satırı açık:
+      `test_acil_durum_komutu_anahtarin_suresi_dolsa_da_geri_doner`.
+    - Ek: `test_calistirici_ustune_geri_yuklemeyi_onayda_birakir_onay_istegini_sonraki_turda_isler`
+      (işleyici 9. adımda döner — tek çalıştırıcı kilidi yüzünden; açık
+      işlemde başka istek reddediliyor), `test_onay_bilgisi_ortam_kullanici_rol_ayar_ve_kaybolacak_yukleme_farkini_verir`,
+      `YedekAyariApiTest::test_acik_ustune_geri_yuklemede_calistirici_ayar_kopyasini_ezmez`.
+    - Testler: `UstuneGeriYuklemeOnayTest` (15). T5: zamanlayıcı / kuyruk
+      koruması, anahtar süresi, isteyen denetimi kaldırılınca testler kırmızı.
+    - Not: `queue:work --once` ve `schedule:test` korunmuyor (sunucu daemon
+      kullanıyor).
+    - Doğrulanamayan: "onay bekleniyor"da sunucu yeniden başlatma (BY-031,
+      canlı), gerçek mail gönderimi, sunucudaki emor-queue servisi.
 
 ### BY-030 — Ekran: Üstüne geri yükleme
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-029, BY-027
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-029, BY-027
 - **Tasarım:** README §4.5-B, §7.2, §6.4 (9–10. adım)
 - **Ön koşul:** README §13 karar 8.
 - **Kapsam:** Yalnız sistem yöneticisine görünen "üstüne geri yükle"; onay
@@ -2966,30 +3475,84 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   modundan muaf ilerleme ucu; işleme özel, süreli erişim anahtarı; adım adım
   ilerleme; onay ekranı (BY-029'un hesapladığı bilgiler) ve "Onayla" / "Geri dön".
 - **Kabul ölçütleri:**
-  - [ ] Sistem yöneticisi olmayan kullanıcı için düğme yok, uç 403.
-  - [ ] İlerleme ucu erişim anahtarı olmadan 401/403; süresi dolan anahtar reddediliyor (test).
-  - [ ] İlerleme ucu veritabanı erişilemezken yanıt veriyor (test).
-  - [ ] Erişim anahtarı yalnız o işlemi okuyabiliyor; başka hiçbir uca yetki vermiyor.
-  - [ ] Tarayıcı kapanıp yeniden açılınca işlem kaybolmuyor (acil durum yolu ekranda anlatılıyor).
-  - [ ] Onay penceresinde yedeğin tarihi ve kaybolacak dönem açıkça yazıyor.
+  - [x] Sistem yöneticisi olmayan kullanıcı için düğme yok, uç 403.
+  - [x] İlerleme ucu erişim anahtarı olmadan 401/403; süresi dolan anahtar reddediliyor (test).
+  - [x] İlerleme ucu veritabanı erişilemezken yanıt veriyor (test).
+  - [x] Erişim anahtarı yalnız o işlemi okuyabiliyor; başka hiçbir uca yetki vermiyor.
+  - [x] Tarayıcı kapanıp yeniden açılınca işlem kaybolmuyor (acil durum yolu ekranda anlatılıyor).
+  - [x] Onay penceresinde yedeğin tarihi ve kaybolacak dönem açıkça yazıyor.
 - **Canlı:** Hayır — BY-031'e kadar.
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit
+    - Ön koşul notu: README §13 karar 8 (üstüne geri yüklemeyi kimler yapar,
+      ikinci onay) kullanıcıdan gelmedi: README'deki "yalnız sistem
+      yöneticisi" uygulandı, ikinci kişi onayı yok.
+    - API: `POST /api/v1/ayarlar/yedekler/{kimlik}/ustune-geri-yukle
+      {onay_metni}` (yalnız sistem yöneticisi; onay metni = canlı veritabanı
+      adı — `GET /ayarlar/yedekler/ozet` `canli_veritabani` ile verir; anahtar
+      yalnız bu yanıtta, dosyada özeti; 8 saat). Oturumsuz ve bakım modundan
+      muaf `GET /api/v1/yedekleme/ustune-geri-yukleme/{islem}/durum`, `POST
+      …/onayla`, `POST …/geri-don` (`X-Erisim-Anahtari`; Sanctum oturum katmanı
+      yok, veritabanına dokunmaz; `bootstrap/app.php`
+      `preventRequestsDuringMaintenance` istisnası). Anahtarla yetkili uçlarda
+      hız sınırı bilerek yok: sınırlayıcı veritabanındaki önbelleğe dayanırdı
+      (anahtar 256 bit, sabit süreli karşılaştırma; README §6.4).
+    - Ekran: Yedekler satırında yalnız sistem yöneticisine ve
+      `geri_yuklenebilir && !ice_alindi` yedekte "Üstüne geri yükle"; onay
+      penceresi (yedeğin tarihi, kaybolacak dönem, adım özeti, canlı adı aynen
+      yazılmadan düğme kapalı). Oturum / menü korumasının DIŞINDAKİ ilerleme
+      sayfası `/ayarlar/geri-yuklemeler/ustune/:islemKimligi`: yalnız
+      tarayıcıda saklanan işleme özel anahtarla, çerezsiz `fetch` (401 oturum
+      düşmesi sayılmaz), 2 sn yoklama, 12 adım, onay bilgisi + onaylı "Onayla"
+      / "Geri dön", bitince anahtar silinir, acil durum komutu her zaman
+      ekranda. Geri Yüklemeler'de anahtarı bu tarayıcıda olan kayıt ilerlemeye bağlanır.
+    - Testler: `UstuneGeriYuklemeApiTest` (12: sistem yöneticisi değil 403;
+      anahtarsız 401 / yanlış 403 / süresi dolan 403; bakım modunda ve
+      veritabanı erişilemezken yanıt; anahtar yalnız kendi işlemi; onay metni
+      422; başlatılamayan durumlar 409; anahtarın yalnız özeti dosyada),
+      `UstuneGeriYuklemePage.test`, `ustuneGeriYuklemeApi.test`, `YedeklerPage.test`
+      (+2), `GeriYuklemelerPage.test` (+1). Ekran T5: 8 koruma kaldırılınca
+      testler kırmızı; backend T5: bakım modu istisnası ve oturum katmanı.
+    - Not: anahtar en çok 8 saat localStorage'da (tarayıcı kapanınca devam
+      için; tek kayıt, okunurken biçim denetimi, bitince silinir) — aynı
+      kökende bir XSS süresince okuyabilir; bilinçli ödünleşim.
+    - Doğrulanamayan: açık / koyu tema, dar ekran; gerçek bakım modunda nginx
+      üzerinden uçtan uca (BY-031 canlı provası).
 
 ### BY-031 — Arıza senaryoları, tatbikat, işletim dokümanı
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-030
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-030
 - **Tasarım:** README §10
 - **Kapsam:** README §10'daki arıza senaryolarının her biri (otomatik test ya da
   yazılı elle deneme); `docs/yedekleme/isletim.md`: geri yükleme adım listesi,
   acil durum yolu, sık hatalar; canlıda **kopya** ile prova; ardından kullanıcı
   onayıyla canlıda ilk tatbikat.
 - **Kabul ölçütleri:**
-  - [ ] Her senaryo için sonuç tablosu: denendi / sonuç / mevcut veri korundu mu / uygulama yanlışlıkla açıldı mı.
+  - [x] Her senaryo için sonuç tablosu: denendi / sonuç / mevcut veri korundu mu / uygulama yanlışlıkla açıldı mı.
   - [ ] Sunucu dışındaki şifreli kopyadan geri yükleme bir kez baştan sona yapıldı.
   - [ ] "Onay bekleniyor" durumunda sunucu yeniden başlatma denendi.
   - [ ] İşletim dokümanını izleyen biri (Codex) adımları eksiksiz buluyor.
 - **Canlı:** Evet — bu görev `PASSED` olunca üstüne geri yükleme canlıda kullanılabilir.
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → REVIEW_BEKLIYOR · başlığı `feat(yedekleme): BY-014..032 ekranlar, sunucu disi hedefler, calistirici, geri yukleme` olan commit
+    - `docs/yedekleme/isletim.md`: kipler (`dogrudan` / `servis`) ve servis
+      kipindeki `.env` anahtarları; servis hesabıyla elle komut kalıbı
+      (servis tanımının ortamıyla — D7); modülü açma sırası; günlük işletim
+      ve komut listesi; farklı adla geri yükleme adımları; üstüne geri
+      yükleme adım listesi, onay / geri dön, sonrasında elle temizlik
+      (`erp_onceki_*`, geri dönüşten kalan `erp_geri_*`); acil durum yolu
+      (`yedek:acil`, kilit davranışı, yeniden başlatma); sık hatalar tablosu
+      (kod → anlam → ne yapılır); README §10 arıza senaryolarının sonuç
+      tablosu (nasıl sınandı / sonuç / veri korundu / yanlışlıkla açılmadı);
+      tatbikat adımları ve kayıt tablosu.
+    - Senaryo tablosu otomatik testlere ve lokal PostgreSQL denemelerine
+      (BY-024, BY-026, BY-028 günlükleri) dayanır.
+    - Kabul: [x] her senaryo için sonuç tablosu (lokal / otomatik). Canlıya
+      bağlı üç ölçüt İŞARETLENMEDİ: sunucu dışındaki şifreli kopyadan canlıda
+      baştan sona geri yükleme (lokalde `/dev/shm` NAS'ıyla yapıldı),
+      "onay bekleniyor"da gerçek sunucu yeniden başlatma, canlıda kopya
+      provası ve ilk tatbikat — hepsi kullanıcı talimatı ve servis kurulumu
+      (BY-003) ister. "Codex adımları eksiksiz buluyor" ölçütü bu incelemenin konusu.
 
 ---
 
@@ -2997,14 +3560,23 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-032 — Dosya yedeği (`storage/app`)
 
-- **Durum:** YAPILACAK · **Bağımlı:** BY-010
+- **Durum:** BEKLIYOR · **Bağımlı:** BY-010
 - **Tasarım:** README §1 (kapsam), §7.9
 - **Ön koşul:** Uygulamada dosya saklayan bir özellik gelmesi; o zamana kadar bekler.
 - **Kapsam:** Dosyaların veritabanı yedeğiyle birlikte ve tutarlı alınması;
   tasarımı o gün README'ye yazılır.
 - **Kabul ölçütleri:** Görev başlarken yazılır.
 - **Canlı:** —
-- **İnceleme günlüğü:** —
+- **İnceleme günlüğü:**
+  - 2026-11-21 Claude → BEKLIYOR
+    - Ön koşul ("uygulamada dosya saklayan bir özellik gelmesi") karşılanmadı:
+      uygulama kodunda `storage/app`'e kalıcı dosya yazan bir özellik yok
+      (`grep -rn "Storage::\|->store(\|storeAs(\|storage_path(" app` →
+      yalnız yedekleme modülünün kendi yolları); README §2'deki ölçümde de
+      `storage/app` fiilen boş (24 KB).
+    - Kapsam "tasarımı o gün README'ye yazılır" ve kabul ölçütleri "görev
+      başlarken yazılır" olduğu için bugün kod yazılmadı (K1: çağıranı olmayan
+      kod yazılmaz). Dosya saklayan ilk özellik geldiğinde görev açılır.
 
 ---
 

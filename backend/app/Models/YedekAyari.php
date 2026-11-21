@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
+use LogicException;
 
 /**
  * Yedekleme ayarları — tek satır (MailAyari kalıbı): zamanlanmamış yedeklerin
@@ -27,6 +29,10 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $sinyal_yerel_adresi Yaşam sinyali: yerel yedek (README §4.8)
  * @property string|null $sinyal_uzak_adresi Yaşam sinyali: sunucu dışı kopya
  * @property string|null $sinyal_sinama_adresi Yaşam sinyali: sınama geri yüklemesi
+ * @property string|null $sifreleme_acik_anahtari Sunucu dışı kopyaların açık anahtarı, ASCII zırhlı (README §4.7; özel anahtar burada DEĞİL)
+ * @property string|null $sifreleme_parmak_izi Açık anahtarın parmak izi (büyük harf onaltılık)
+ * @property string|null $sifreleme_anahtar_kullanicisi Anahtarın kullanıcı kimliği (bilgi)
+ * @property CarbonImmutable|null $sifreleme_anahtar_bitisi Anahtarın son geçerlilik anı; süresizse null
  */
 final class YedekAyari extends Model
 {
@@ -58,6 +64,10 @@ final class YedekAyari extends Model
         'sinyal_yerel_adresi',
         'sinyal_uzak_adresi',
         'sinyal_sinama_adresi',
+        'sifreleme_acik_anahtari',
+        'sifreleme_parmak_izi',
+        'sifreleme_anahtar_kullanicisi',
+        'sifreleme_anahtar_bitisi',
     ];
 
     /**
@@ -67,6 +77,20 @@ final class YedekAyari extends Model
     public static function guncel(): self
     {
         return self::query()->where('anahtar', self::ANAHTAR)->first() ?? new self;
+    }
+
+    /**
+     * Özel anahtar veritabanına (ve dolayısıyla yedeklere) hiçbir yoldan
+     * yazılmaz (README §4.7, K3). Asıl doğrulama yüklemede
+     * (KopyaSifreleyici::acikAnahtarBilgisi); bu, onu atlayan yazıma karşı son engel.
+     */
+    protected static function booted(): void
+    {
+        self::saving(function (self $ayar): void {
+            if (is_string($ayar->sifreleme_acik_anahtari) && preg_match('/BEGIN PGP (?:PRIVATE|SECRET) KEY/i', $ayar->sifreleme_acik_anahtari) === 1) {
+                throw new LogicException('Yedek ayarlarına özel anahtar yazılamaz; yalnız açık anahtar saklanır.');
+            }
+        });
     }
 
     /**
@@ -82,6 +106,7 @@ final class YedekAyari extends Model
             'enaz_adet' => 'integer',
             'enaz_bos_alan_yuzde' => 'integer',
             'bildirim_alicilari' => 'array',
+            'sifreleme_anahtar_bitisi' => 'immutable_datetime',
         ];
     }
 }

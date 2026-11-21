@@ -78,8 +78,22 @@ return [
 
     // Şifreleme ve uzak hedef araçları (BY-019, BY-022)
     'gpg' => env('YEDEKLEME_GPG') ?: '/usr/bin/gpg',
+    // Geçici anahtarlığın ajanını kapatmak için (gpgconf --kill all)
+    'gpgconf' => env('YEDEKLEME_GPGCONF') ?: '/usr/bin/gpgconf',
+    // Kurtarma paketindeki manifest arşivi (BY-024; operatör `tar -xf` ile açar)
+    'tar' => env('YEDEKLEME_TAR') ?: '/usr/bin/tar',
     'sftp' => env('YEDEKLEME_SFTP') ?: '/usr/bin/sftp',
     'ssh_keyscan' => env('YEDEKLEME_SSH_KEYSCAN') ?: '/usr/bin/ssh-keyscan',
+
+    // Üstüne geri yüklemede durdurulup onayla / geri dönüşle başlatılan kuyruk
+    // servisi (README §6.4 2. ve 10. adım). Servis hesabı yalnız bu servisin
+    // stop / start / is-active komutlarını şifresiz çalıştırabilir (kurulum
+    // betiği bölüm 7, sudoers). Boşsa servis yönetilmez: kuyruk işçisi bakım
+    // modunda ve açık geri yüklemede zaten iş almaz (BY-029), ama o anda
+    // çalışan iş bitmeden geri yükleme öncesi yedek alınabilir.
+    'kuyruk_servisi' => env('YEDEKLEME_KUYRUK_SERVISI') ?: null,
+    'sudo' => env('YEDEKLEME_SUDO') ?: '/usr/bin/sudo',
+    'systemctl' => env('YEDEKLEME_SYSTEMCTL') ?: '/usr/bin/systemctl',
 
     // Google Drive hedefi (BY-021): Google tarafındaki uygulama kaydının
     // istemci kimliği ve gizli anahtarı. Boşsa "Google ile bağlan" kapalı.
@@ -119,6 +133,9 @@ return [
         'geri_yukleme' => env('YEDEKLEME_GERI_YUKLEME_SURESI') ?: 3600,
         // Uzak hedefe tek kopya (yükleme + geri okuma)
         'kopya' => env('YEDEKLEME_KOPYA_SURESI') ?: 900,
+        // gpg ile bir dosyanın şifrelenmesi / çözülmesi (BY-019). Anahtar
+        // okuma ve içe alma kısa işlerdir; onların sınırı KopyaSifreleyici'de sabit.
+        'sifreleme' => env('YEDEKLEME_SIFRELEME_SURESI') ?: 1800,
         // Veritabanına bağlanma
         'baglanti' => 10,
         // Başka işlem kilidi tutuyorsa en çok bu kadar beklenir, sonra vazgeçilir

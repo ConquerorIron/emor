@@ -69,8 +69,11 @@ final class PgAraclari
 
     /**
      * @param  list<string>  $komut  [araç adı, ...argümanlar]; araç adı yapılandırmadan mutlak yola çevrilir
+     * @param  string|null  $girdi  Standart girdi (psql `--file=-`). psql değişkenleri (`:'ad'`, `:"ad"`)
+     *                              yalnız girdide yerine konur, `--command` metninde konmaz; değerler böylece
+     *                              SQL'e psql'in kendi tırnaklamasıyla girer (G3)
      */
-    public function calistir(array $komut, int $sure): ProcessResult
+    public function calistir(array $komut, int $sure, ?string $girdi = null): ProcessResult
     {
         if ($this->parola === null) {
             throw new RuntimeException('PostgreSQL araçları parolaylaCalis() içinde çalıştırılmalı.');
@@ -90,6 +93,7 @@ final class PgAraclari
 
         return Process::timeout($sure)
             ->env($ortam)
+            ->input($girdi)
             ->run([$this->yapilandirma->arac((string) $arac), ...$komut]);
     }
 

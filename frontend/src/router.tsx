@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { IzinAlani } from '@/components/IzinAlani'
 import { KorumaliAlan } from '@/components/KorumaliAlan'
 import { UygulamaHatasi } from '@/components/UygulamaHatasi'
+import { YedeklemeAlani } from '@/features/yedekleme/YedeklemeAlani'
 import { AuthLayout } from '@/layouts/AuthLayout'
 import { DashboardPage } from '@/pages/Dashboard/DashboardPage'
 import { LoginPage } from '@/pages/Login/LoginPage'
@@ -20,6 +21,17 @@ export const router = createBrowserRouter([
     element: <AuthLayout />,
     errorElement: <UygulamaHatasi />,
     children: [{ index: true, element: <LoginPage /> }],
+  },
+  {
+    // Üstüne geri yüklemenin ilerlemesi (BY-030): oturum ve menü korumasının
+    // DIŞINDA — işlem sırasında bakım modu var, veritabanı yer değiştirir,
+    // oturumlar düşer; tek yetki tarayıcıda saklanan işleme özel anahtardır
+    path: '/ayarlar/geri-yuklemeler/ustune/:islemKimligi',
+    errorElement: <UygulamaHatasi />,
+    lazy: async () => ({
+      Component: (await import('@/pages/UstuneGeriYukleme/UstuneGeriYuklemePage'))
+        .UstuneGeriYuklemePage,
+    }),
   },
   {
     path: '/',
@@ -400,6 +412,72 @@ export const router = createBrowserRouter([
             lazy: async () => ({
               Component: (await import('@/pages/MailAyarlari/MailAyarlariPage')).MailAyarlariPage,
             }),
+          },
+        ],
+      },
+      {
+        // Yedekleme (BY-015…018): modül sunucuda kapalıyken hiçbir ekranı açılmaz
+        element: <YedeklemeAlani />,
+        children: [
+          {
+            element: <IzinAlani izin="yedekler.goruntule" />,
+            children: [
+              {
+                path: 'ayarlar/yedekler',
+                lazy: async () => ({
+                  Component: (await import('@/pages/Yedekler/YedeklerPage')).YedeklerPage,
+                }),
+              },
+              {
+                // Farklı adla geri yüklemeler ve bekleyen kopyalar (BY-027)
+                path: 'ayarlar/geri-yuklemeler',
+                lazy: async () => ({
+                  Component: (await import('@/pages/GeriYuklemeler/GeriYuklemelerPage'))
+                    .GeriYuklemelerPage,
+                }),
+              },
+              {
+                path: 'ayarlar/yedek-islem-gunlugu',
+                lazy: async () => ({
+                  Component: (await import('@/pages/YedekIslemGunlugu/YedekIslemGunluguPage'))
+                    .YedekIslemGunluguPage,
+                }),
+              },
+            ],
+          },
+          {
+            element: <IzinAlani izin="yedek_planlari.goruntule" />,
+            children: [
+              {
+                path: 'ayarlar/yedek-planlari',
+                lazy: async () => ({
+                  Component: (await import('@/pages/YedekPlanlari/YedekPlanlariPage'))
+                    .YedekPlanlariPage,
+                }),
+              },
+              {
+                path: 'ayarlar/yedek-hedefleri',
+                lazy: async () => ({
+                  Component: (await import('@/pages/YedekHedefleri/YedekHedefleriPage'))
+                    .YedekHedefleriPage,
+                }),
+              },
+              {
+                // Google'ın tarayıcıyı döndürdüğü adres (BY-021)
+                path: 'ayarlar/yedek-hedefleri/google-donus',
+                lazy: async () => ({
+                  Component: (await import('@/pages/YedekHedefleri/GoogleDonusPage'))
+                    .GoogleDonusPage,
+                }),
+              },
+              {
+                path: 'ayarlar/yedekleme-ayarlari',
+                lazy: async () => ({
+                  Component: (await import('@/pages/YedeklemeAyarlari/YedeklemeAyarlariPage'))
+                    .YedeklemeAyarlariPage,
+                }),
+              },
+            ],
           },
         ],
       },

@@ -182,6 +182,14 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   (`fstat`) eşitliği. Kopyalayan kodu ayrı bir dosya sistemine (`/dev/shm`)
   yazarak sına; aynı diskte geçmesi kanıt değildir.
   *(BY-008 `AtomikDosya::kopyala`; NAS bağlayıcısını yazan ajan yakaladı.)*
+- **G17 — Zamanı yazmadan önce saat dilimini değiştirme; anı koru.** Laravel
+  zaman damgasını uygulamanın saat dilimiyle (UTC) metne çevirir, nesnenin
+  kendi dilimine bakmaz: İstanbul'a çevrilmiş bir an veritabanına 3 saat kayık
+  yazılır. Dış kaynaktan okunan zamanı (dosya adı, yanıt) kaynağın diliminde
+  ayrıştır, uygulamaya o anı ver; gösterim dönüşümünü ekranda yap. Testte
+  kaydedilip geri okunan anı UTC ile karşılaştır.
+  *(BY-013 `yedek:eski-yedekleri-al`: addan okunan UTC zaman İstanbul'a
+  çevrilip kaydedilince 13:10 oldu.)*
 
 ## 2. Ön yüz
 
@@ -236,6 +244,10 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   üretilen rol adı) PostgreSQL'de düşer — şema/veri değişikliklerinde
   `DB_CONNECTION=pgsql DB_DATABASE=erp_test` ile de çalıştır.
   *(PRT-10: 64 karakteri aşan test rol adı yalnız PostgreSQL'de kırıldı.)*
+  PostgreSQL `jsonb` anahtar sırasını da korumaz (anahtarları kendi sırasına
+  dizer): JSON kolondan okunan diziyi `assertSame` ile değil sırasız
+  (`assertEquals`) karşılaştır.
+  *(BY-021 Google Drive testi yalnız PostgreSQL'de kırıldı.)*
 - **T7 — Testin varsayımını da doğrula.** "Kütüphane bu girdiyi reddeder"
   diye yazmadan önce gerçekten reddettiğini dene.
   *(BY-001: kapanmayan tırnak ayrıştırıcıda hata sanıldı, oysa kabul ediliyordu.)*
@@ -278,6 +290,15 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   Uygulamanın ele aldığı her hata dalına bir test (laravel-best-practices
   http-client: *test timeouts, connection failures, and error responses*).
   *(Fable incelemesi PRT-F13: Protel istemcisinde bu üçü de sınanmıyordu.)*
+
+- **T14 — Hata üreten test kancasının kendisinin çalıştığını doğrula.**
+  Kancanın hatası (ör. `Schema::drop` PostgreSQL'de bağımlı tablo yüzünden
+  reddedilir) sınanan koda sızarsa kod onu başka bir hata sanar, test yanlış
+  gerekçeyle geçer ya da düşer. Kancanın istisnasını yakalayıp sakla, testte
+  `assertNull($kancaHatasi)` ile kurgunun gerçekten kurulduğunu sına.
+  *(BY-028: 8. adım hata kancası yalnız PostgreSQL'de çalışmıyordu.)*
+  Aynı işte: bağlantı bırakma (`DB::purge`) yalnız etkilenen veritabanına
+  bağlı bağlantılara uygulanır; hepsini bırakmak testi saran işlemi de koparır.
 
 ## 4. Betikler ve dış komutlar
 
@@ -429,6 +450,14 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   yoksa yeni sunucuda `composer install` uyarmaz, kod ilk çağrıda ölür.
   (Bağımlılık değişikliğidir: kullanıcı onayı.)
   *(Fable incelemesi PRT-F12: `bcadd` / `bccomp`.)*
+
+- **A5 — Windows araçları `\\wsl$` üzerinden yazdığı dosyanın çalıştırma
+  iznini düşürür.** Düzenleme aracıyla değiştirilen `deploy.sh` 644 oldu,
+  `git add -A` mod değişikliğini commit'e kattı; sunucu çekseydi `./deploy.sh`
+  çalışmazdı. Betik düzenledikten sonra WSL'de `chmod +x` yap; commit'ten önce
+  `git diff --cached --summary | grep 'mode change'` bak. `publish.sh` artık
+  izni kalkan dosya varken commit atmaz.
+  *(d280a00: deploy.sh 100755 → 100644; sonraki commit'te düzeltildi.)*
 
 ## 7. Kod kalitesi ve skill kuralları
 

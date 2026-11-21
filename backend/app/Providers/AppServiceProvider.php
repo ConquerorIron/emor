@@ -19,6 +19,7 @@ use App\Services\Kesinti\ErpProjeKaynagi;
 use App\Services\Kesinti\ErpProjeSorgusu;
 use App\Services\Rapor\ErpRaporKaynagi;
 use App\Services\Rapor\ErpRaporSorgusu;
+use App\Services\Yedekleme\AcikGeriYuklemeKorumasi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use App\Services\Yedekleme\KaynakVeritabani;
 use App\Services\Yedekleme\PostgresKaynakVeritabani;
@@ -161,6 +162,19 @@ class AppServiceProvider extends ServiceProvider
             ],
             $user->izinler(),
         ) !== []);
+
+        // Yedekleme istekleri (yedek al, doğrula, sil…): her biri çalıştırıcıya iş bırakır
+        RateLimiter::for('yedek-istek', function (Request $request): Limit {
+            return Limit::perMinute(10)->by($request->user()?->id ?? $request->ip());
+        });
+
+        // Açık üstüne geri yüklemede kuyruk ve zamanlayıcı iş çalıştırmaz (BY-029)
+        AcikGeriYuklemeKorumasi::kaydet($this->app);
+
+        // Yedek hedefi sınama: web isteğinden dış sunucuya bağlanır (D9)
+        RateLimiter::for('yedek-hedef-sina', function (Request $request): Limit {
+            return Limit::perMinute(5)->by($request->user()?->id ?? $request->ip());
+        });
 
         // Kesinti icmali içe aktarımı: önizleme + kayıt, Excel okuma pahalı
         RateLimiter::for('kesinti-ice-aktarim', function (Request $request): Limit {

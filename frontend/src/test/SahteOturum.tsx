@@ -10,10 +10,12 @@ import { AuthContext } from '@/providers/auth-context'
 export function SahteOturum({
   izinler,
   sistemYoneticisi = false,
+  yedeklemeAktif = false,
   children,
 }: {
   izinler: string[]
   sistemYoneticisi?: boolean
+  yedeklemeAktif?: boolean
   children: ReactNode
 }) {
   const user: Kullanici = {
@@ -24,6 +26,7 @@ export function SahteOturum({
     kaynak: 'erp',
     sistem_yoneticisi: sistemYoneticisi,
     izinler,
+    yedekleme_aktif: yedeklemeAktif,
   }
 
   return (

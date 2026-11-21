@@ -23,11 +23,17 @@ final class BellekHedefi implements HedefBaglayicisi
 
     public static ?string $hataAdimi = null;
 
+    /** Hata adımında fırlatılacak kod (boşsa adımın olağan kodu) */
+    public static ?string $hataKodu = null;
+
     public static bool $bozukOku = false;
 
     public static bool $sunucuDisi = false;
 
     public static int $yazmaSayisi = 0;
+
+    /** Google Drive gibi: her yazım aynı adla da olsa yeni kimlikli dosya açar (üstüne yazmaz) */
+    public static bool $herYazimdaYeniKimlik = false;
 
     public function __construct(public readonly YedekHedefi $hedef) {}
 
@@ -35,9 +41,11 @@ final class BellekHedefi implements HedefBaglayicisi
     {
         self::$dosyalar = [];
         self::$hataAdimi = null;
+        self::$hataKodu = null;
         self::$bozukOku = false;
         self::$sunucuDisi = false;
         self::$yazmaSayisi = 0;
+        self::$herYazimdaYeniKimlik = false;
     }
 
     public static function tanim(HedefTuru $tur): HedefTuruTanimi
@@ -54,7 +62,7 @@ final class BellekHedefi implements HedefBaglayicisi
     {
         $this->hata('yaz', HedefHatasi::YAZILAMADI);
         self::$yazmaSayisi++;
-        $kimlik = $this->hedef->id.'/'.$ad;
+        $kimlik = $this->hedef->id.'/'.$ad.(self::$herYazimdaYeniKimlik ? '#'.self::$yazmaSayisi : '');
         self::$dosyalar[$kimlik] = (string) file_get_contents($yerelYol);
 
         return $kimlik;
@@ -90,7 +98,7 @@ final class BellekHedefi implements HedefBaglayicisi
     private function hata(string $adim, string $kod): void
     {
         if (self::$hataAdimi === $adim) {
-            throw new HedefHatasi($kod, "sahte {$adim} hatası");
+            throw new HedefHatasi(self::$hataKodu ?? $kod, "sahte {$adim} hatası");
         }
     }
 }

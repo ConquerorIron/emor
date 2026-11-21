@@ -288,7 +288,14 @@ fi
 #      klasör     izin  servis       web (grup)   yayın (admin, ACL)
 #      (kök)      0750  geçer        geçer        yalnız geçer (--x)   sahibi root
 #      yedekler/  2750  okur, yazar  okur         erişmez
-#      istekler/  2770  okur, siler  yazar        yazar (rwx)
+#      istekler/  2750  okur, yazar  geçer        yalnız geçer (--x)
+#        bekleyen/  2770  okur, taşır  yazar      yazar (rwx)   (yeni istekler)
+#        isleniyor/ 2750  okur, yazar  okur       erişmez       (çalıştırıcının aldıkları)
+#        sonuc/     2750  okur, yazar  okur       okur (r-x)    (deploy.sh sonucu bekler)
+#      istekler/'in kendisi web'e ve yayına yazılabilir DEĞİL: yazılabilseydi
+#      `sonuc/` bağlantıyla değiştirilip çalıştırıcının yazımı başka yere
+#      yönlendirilebilirdi (D5). Web yalnız bekleyen/'e yazar; oradaki dosya
+#      çalıştırıcıda tek bağlantılı düz dosya olarak denetlenir (BY-025).
 #      durum/     2750  okur, yazar  okur         okur (r-x; yeni dosyalara da)
 #      gunluk/    2750  okur, yazar  okur         erişmez   (olay / denetim günlüğü, ayar kopyası)
 #      gizli/     0700  okur         erişmez      erişmez   (parola dosyası, imza anahtarı)
@@ -393,7 +400,10 @@ if (( KULLANICI_VAR )); then
   klasor "$YEDEK_KOKU" 0750 root
   if [[ -d "$YEDEK_KOKU" ]]; then acl_denetle "$YEDEK_KOKU" 0750 "--x" "" root; fi
   klasor "$YEDEK_KOKU/yedekler" 2750
-  klasor "$YEDEK_KOKU/istekler" 2770
+  klasor "$YEDEK_KOKU/istekler" 2750
+  klasor "$YEDEK_KOKU/istekler/bekleyen" 2770
+  klasor "$YEDEK_KOKU/istekler/isleniyor" 2750
+  klasor "$YEDEK_KOKU/istekler/sonuc" 2750
   klasor "$YEDEK_KOKU/durum" 2750
   klasor "$YEDEK_KOKU/gunluk" 2750
   klasor "$YEDEK_KOKU/gizli" 0700
@@ -403,7 +413,11 @@ else
 fi
 if [[ -d "$YEDEK_KOKU/durum" ]]; then
   acl_denetle "$YEDEK_KOKU/yedekler" 2750 ""
-  acl_denetle "$YEDEK_KOKU/istekler" 2770 "rwx"
+  acl_denetle "$YEDEK_KOKU/istekler" 2750 "--x"
+  # Alt klasörler sonradan eklendi (BY-025): önceki kurulumda yoksa yukarıda "eksik" bildirildi
+  if [[ -d "$YEDEK_KOKU/istekler/bekleyen" ]]; then acl_denetle "$YEDEK_KOKU/istekler/bekleyen" 2770 "rwx"; fi
+  if [[ -d "$YEDEK_KOKU/istekler/isleniyor" ]]; then acl_denetle "$YEDEK_KOKU/istekler/isleniyor" 2750 ""; fi
+  if [[ -d "$YEDEK_KOKU/istekler/sonuc" ]]; then acl_denetle "$YEDEK_KOKU/istekler/sonuc" 2750 "r-x"; fi
   # Varsayılan ACL: durum/ içinde sonradan açılan dosyaları da yayın kullanıcısı
   # okur. Varsayılan ACL olan klasörde umask uygulanmaz; izinler bu girdilerden gelir.
   acl_denetle "$YEDEK_KOKU/durum" 2750 "r-x" varsayilan
@@ -676,8 +690,14 @@ fi
 #    yazan kod bağlantı izlememelidir (BY-028 kabul ölçütü).
 #    Çalıştırdığı komut BY-025'te yazılır: tanım şimdi KURULUR ama
 #    etkinleştirilmez, başlatılmaz (komut adı değişirse betik tanımı günceller).
+#    Durdurulunca çalıştırıcı o anki işi bitirip çıkar (SIGTERM); geri yükleme
+#    `sure_siniri.geri_yukleme` (3600 sn) sürebilir. systemd'nin 90 sn'lik
+#    varsayılanı işi yarıda öldürürdü: TimeoutStopSec bu sınırın üstündedir.
 # ---------------------------------------------------------------------------
 baslik "6. Servis tanımı"
+# Servis ortamındaki systemctl yolu ve kuyruk servisi (BY-028) sudoers kuralıyla
+# (bölüm 7) birebir aynı olmalı: ikisi de buradan gelir.
+SYSTEMCTL="$(command -v systemctl || echo /usr/bin/systemctl)"
 SERVIS_ICERIGI="[Unit]
 Description=emor yedekleme calistiricisi (docs/yedekleme)
 After=network.target postgresql.service
@@ -696,9 +716,12 @@ Environment=APP_ROUTES_CACHE=$YEDEK_KOKU/onbellek/routes.php
 Environment=APP_EVENTS_CACHE=$YEDEK_KOKU/onbellek/events.php
 Environment=VIEW_COMPILED_PATH=$YEDEK_KOKU/onbellek/views
 Environment=LOG_KLASORU=$YEDEK_KOKU/gunluk
+Environment=YEDEKLEME_KUYRUK_SERVISI=$KUYRUK_SERVISI
+Environment=YEDEKLEME_SYSTEMCTL=$SYSTEMCTL
 ExecStart=/usr/bin/php $UYGULAMA_KOKU/backend/artisan yedek:calistir
 Restart=always
 RestartSec=5
+TimeoutStopSec=4000
 
 [Install]
 WantedBy=multi-user.target"
@@ -738,7 +761,6 @@ fi
 #    geri yüklemeyi durum dosyasından görür (BY-029).
 # ---------------------------------------------------------------------------
 baslik "7. Dar sudo kuralı"
-SYSTEMCTL="$(command -v systemctl || echo /usr/bin/systemctl)"
 SUDOERS_ICERIGI="# emor yedekleme (scripts/sunucu-yedekleme-kurulumu.sh) - yalniz kuyruk servisi
 $YEDEK_KULLANICI ALL=(root) NOPASSWD: $SYSTEMCTL stop $KUYRUK_SERVISI, $SYSTEMCTL start $KUYRUK_SERVISI, $SYSTEMCTL is-active $KUYRUK_SERVISI"
 neden="$(sistem_dosyasi_durumu "$SUDOERS_DOSYASI" "$SUDOERS_ICERIGI" 440)"

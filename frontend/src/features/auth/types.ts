@@ -16,4 +16,9 @@ export interface Kullanici {
    * koruması ve salt okunur ekranlar içindir; asıl denetim backend'dedir.
    */
   izinler: string[]
+  /**
+   * Yedekleme modülü sunucuda açık mı (YEDEKLEME_AKTIF; BY-015). Kapalıyken
+   * menü ve rotalar gizlenir; uçlar da 409 YEDEKLEME_KAPALI döner.
+   */
+  yedekleme_aktif: boolean
 }

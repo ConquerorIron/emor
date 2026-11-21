@@ -133,6 +133,7 @@ function ciz(izinler: string[], kapsam: 'izibiz' | 'tum' = 'izibiz') {
     kaynak: 'erp',
     sistem_yoneticisi: false,
     izinler,
+    yedekleme_aktif: false,
   }
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 

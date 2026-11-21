@@ -128,7 +128,8 @@ final class GoogleDriveBaglayicisiTest extends TestCase
         $hata = $this->hataBekle(fn () => $this->baglayici($hedef)->baglan());
 
         $this->assertSame(HedefHatasi::YENIDEN_BAGLAN, $hata->kod);
-        $this->assertSame(['klasor_adi' => 'eMOR Yedekleri', 'klasor_kimligi' => 'klasor123', 'durum' => 'yeniden_baglan'], $hedef->fresh()->baglanti);
+        // JSONB anahtar sırasını korumaz (PostgreSQL): sırasız karşılaştırılır (T6)
+        $this->assertEquals(['klasor_adi' => 'eMOR Yedekleri', 'klasor_kimligi' => 'klasor123', 'durum' => 'yeniden_baglan'], $hedef->fresh()->baglanti);
         Http::assertSentCount(1);
     }
 
@@ -277,7 +278,7 @@ final class GoogleDriveBaglayicisiTest extends TestCase
 
         $this->baglayici($hedef)->baglan();
 
-        $this->assertSame(['klasor_adi' => "Ali'nin Yedekleri", 'klasor_kimligi' => 'yeniKlasor'], $hedef->fresh()->baglanti);
+        $this->assertEquals(['klasor_adi' => "Ali'nin Yedekleri", 'klasor_kimligi' => 'yeniKlasor'], $hedef->fresh()->baglanti);
         Http::assertSent(fn (Request $istek): bool => $istek->method() === 'GET'
             && ($istek->data()['q'] ?? null) === "mimeType = 'application/vnd.google-apps.folder' and name = 'Ali\\'nin Yedekleri' and trashed = false");
         Http::assertSent(fn (Request $istek): bool => $istek->method() === 'POST'

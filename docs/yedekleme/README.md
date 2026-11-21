@@ -186,7 +186,10 @@ sınama geri yüklemesi geçti / başarısız.
 - Hedef ad serbest metin **değildir**; sistem üretir (`erp_geri_<tarih>_<saat>`)
   ya da sıkı bir kalıba uyan ek alır. Mevcut bir veritabanının adı verilemez.
 - Geri yüklenen kopyalar ekranda listelenir, boyutu görünür, silinebilir;
-  öneri: 7 gün sonra otomatik silinir (uyarıyla).
+  öneri: 7 gün sonra otomatik silinir (uyarıyla). Otomatik silinme anı
+  `bitti + kopya_bekleme_gun`'dür; `geri_yuklemeler.veritabani_silinme_zamani`
+  veritabanının gerçekten silindiği andır (BY-026). Çalıştırıcı yalnız kendi
+  kalıbındaki ve `geri_yuklemeler`'de kaydı olan kopyayı siler.
 - Kopya **yalnız incelenir**: uygulama ona bağlanıp iş yapmaz, zamanlanmış
   görevler ona karşı çalışmaz (kopyada canlı bağlantı tanımları ve alarm
   kuralları vardır — §7.6).
@@ -549,6 +552,17 @@ sahibi servis hesabı. Servis hesabı alt klasörleri silemez, yerine bağlantı
 koyamaz: root'un çalıştırdığı kurulum betiği onları izleyip yönetilen alanın
 dışındaki bir dosyaya dokunamaz (BY-003-R5, sunucu-kurulumu.md §2).
 
+**İstek klasörünün alt düzeni (BY-025):** `bekleyen/` (web ve yayın
+kullanıcısı yazar), `isleniyor/` (çalıştırıcının üstlendiği istek; tek adımlık
+taşımayla alınır, iki çalıştırıcı aynı isteği alamaz) ve `sonuc/` (çalıştırıcı
+yazar, ekran yoklar). `isleniyor/` ve `sonuc/` yalnız servis hesabına yazılabilir
+(web okur): istek taşındıktan sonra denetlenir, web süreci onu bağlantıyla
+değiştiremez; sonuç da web sürecince uydurulamaz. Yayın kullanıcısı `bekleyen/`'e
+yazabilmeli ve `sonuc/`'u okuyabilmeli (kurulum betiği). Çalıştırıcı isteğe
+güvenmez: düz dosya, boyut, şema (anahtarlar birebir, değerlerin türü ve
+biçimi), 24 saatten eski olmama ve kullanıcının yetkisi (veritabanından, işlem
+anında) denetlenir; reddedilen istek makine okunur kodla `basarisiz` sonuç alır.
+
 `deploy.sh` `pg_dump`'ı kendisi çalıştırmaz; yayın öncesi yedeği çalıştırıcıdan
 ister ve bitmesini bekler. Böylece yayın öncesi yedekler de imzalı, manifestli
 ve aynı kilit altında alınır.
@@ -670,6 +684,44 @@ gibi ele alınır (önce yedek, onay, aynı akış).
 Yer değiştirme yöntemi seçildi, çünkü canlı veritabanının içine doğrudan
 geri yükleme (`pg_restore --clean`) yarıda kalırsa ortada ne eski ne yeni,
 bozuk bir veritabanı bırakır.
+
+**Uygulamada verilen kararlar (BY-028…030):**
+
+- Adımlar tek enum'dadır (`UstuneGeriYuklemeAdimi`); her adım işi yapılmadan
+  önce durum dosyasına yazılır. İşlemin kimliği, ekranın bıraktığı isteğin
+  kimliğidir. Çalıştırıcı işleyicisi 9. adımda döner (tek çalıştırıcı kilidi:
+  dönmezse onay isteği işlenemezdi); yarıda kalan işlemi her turun başında
+  (en çok 10 dakikada bir) sürdürür ya da geri sarar. 7. adımdan sonraki
+  hatayla durmuş işlem kendiliğinden sürdürülmez: karar yöneticinindir.
+- Bakım modu: servis yalnız `storage/framework/down` JSON dosyasını
+  (Laravel'in biçimi + işlem kimliği) yazar; `artisan down` çağrılmaz, çünkü
+  o komut web'in her istekte yüklediği `maintenance.php`'yi de yazar (D7).
+  Yol ya da klasörü bağlantıysa yazılmaz; yalnız kendi dosyasını kaldırır.
+  Uygulama zaten bakım modundaysa işlem başlamaz.
+- Kuyruk servisi `YEDEKLEME_KUYRUK_SERVISI` tanımlıysa `sudo -n systemctl
+  stop|start` ile yönetilir (kurulum betiğinin dar sudo kuralı); başlatma
+  hatası uygulamanın açılmasını engellemez, bildirilir. Ayrıca işçi ve
+  zamanlayıcı açık işlemi durum dosyasından görür ve iş çalıştırmaz
+  (`AcikGeriYuklemeKorumasi`; modül kapalıyken etkisiz).
+- 5. adımdaki migration süreci yapılandırmayı bu sürecin yapılandırmasından
+  üretilmiş geçici bir önbellek dosyasından okur (`APP_CONFIG_CACHE`): canlıyı
+  gösteren her bağlantı yeni veritabanını gösterir; önbellek / oturum / kuyruk
+  veritabanına dayanmaz. Dosya parola taşıdığı için 0700 geçici klasörde
+  durur, her durumda silinir.
+- 9. adımdaki karşılaştırmanın "önceki" yanı, `erp_onceki_*` açılarak değil,
+  6. adımdan hemen önce canlıdan alınır (o anda bakım modu, kuyruk ve
+  zamanlayıcı durmuş, geri yükleme öncesi yedek alınmış: veri aynıdır). Böylece
+  bağlantıya kapalı eski veritabanı hiç açılmaz. İki yan da durum klasöründe
+  dosyadadır; ilerleme ucu veritabanına dayanmadan okur.
+- Erişim anahtarı 8 saat geçerlidir. İlerleme, onay ve geri dön uçları
+  oturumsuzdur (yer değiştirmeyle oturumlar düşer); tek yetki anahtardır.
+  Onay / geri dön isteğinin anahtarını çalıştırıcı işlem durumundaki özetle
+  doğrular (kullanıcı tablosuna bakmaz: o tablo yedeğin anındadır).
+- "Geri dön"de geri yüklenen veritabanı kendi `erp_geri_*` adına döner,
+  silinmez ve bağlantıya kapalı kalır.
+- Disk ön denetimi: yedek klasörünün diskinde canlı veritabanının boyutu +
+  iki yedek dosyası kadar boş yer aranır. PostgreSQL veri klasörünün diski
+  uygulamaca ölçülemez (yetki yok); yetmezse 4. adımda düşülür ve geri sarılır.
 
 ## 7. Dikkat edilecekler (bu projeye özgü tuzaklar)
 

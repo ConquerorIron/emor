@@ -37,12 +37,69 @@ final class AyarKopyasi
 
     public function yaz(): void
     {
-        $ayar = YedekAyari::guncel();
         $mail = MailAyari::query()->where('anahtar', MailAyari::ANAHTAR)->first();
-
+        $icerik = $this->icerik($mail);
         $veri = [
             'surum' => self::SURUM,
             'zaman' => CarbonImmutable::now('UTC')->toIso8601String(),
+            'parmak_izi' => $this->parmakIzi($icerik, $mail),
+            ...$icerik,
+        ];
+
+        $yol = $this->yapilandirma->ayarKopyasiYolu();
+        $klasor = dirname($yol);
+        if (! is_dir($klasor)) {
+            KaliciKlasor::ac($klasor, $this->yapilandirma->kaliciKok());
+        }
+
+        AtomikDosya::yaz($yol, json_encode(['ayarlar' => $veri, 'imza' => $this->imza->imzala(json_decode(json_encode($veri, JSON_THROW_ON_ERROR), true))], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)."\n");
+    }
+
+    /**
+     * Kopya veritabanındaki ayarlardan farklıysa (ya da yoksa / bozuksa) yazar.
+     * Çalıştırıcı her turda çağırır: ayar ekranları web sürecinde değişir,
+     * servis kipinde web süreci kopyayı yazamaz (README §5.5); mail ayarı
+     * ekranı da kopyayı bilmez.
+     *
+     * @return bool Yazıldı mı
+     */
+    public function guncelDegilseYaz(): bool
+    {
+        $mail = MailAyari::query()->where('anahtar', MailAyari::ANAHTAR)->first();
+
+        if (($this->oku()['parmak_izi'] ?? null) === $this->parmakIzi($this->icerik($mail), $mail)) {
+            return false;
+        }
+
+        $this->yaz();
+
+        return true;
+    }
+
+    /**
+     * Şifreli parola her yazımda farklı çıktığından parmak izine parolanın
+     * kendisi değil APP_KEY'li HMAC'i girer.
+     *
+     * @param  array<string, mixed>  $icerik
+     */
+    private function parmakIzi(array $icerik, ?MailAyari $mail): string
+    {
+        $icerik['mail'] = $icerik['mail'] === null ? null : [
+            ...array_diff_key($icerik['mail'], ['sifre_sifreli' => true]),
+            'sifre' => $mail?->sifre === null ? null : hash_hmac('sha256', $mail->sifre, (string) config('app.key')),
+        ];
+
+        return hash('sha256', KanonikJson::kodla(json_decode(json_encode($icerik, JSON_THROW_ON_ERROR), true)));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function icerik(?MailAyari $mail): array
+    {
+        $ayar = YedekAyari::guncel();
+
+        return [
             'mail' => $mail === null ? null : [
                 'sunucu' => $mail->sunucu,
                 'port' => $mail->port,
@@ -57,6 +114,8 @@ final class AyarKopyasi
                 'yayin_oncesi_son_adet', 'yayin_oncesi_gun', 'elle_gun', 'geri_yukleme_oncesi_gun',
                 'enaz_adet', 'enaz_bos_alan_yuzde', 'bildirim_alicilari',
                 'sinyal_yerel_adresi', 'sinyal_uzak_adresi', 'sinyal_sinama_adresi',
+                // Hangi açık anahtarla şifrelendiği (kurtarmada hangi özel anahtarın gerektiği)
+                'sifreleme_parmak_izi',
             ]),
             'planlar' => YedekPlani::query()->with('hedefler:id')->orderBy('id')->get()->map(fn (YedekPlani $p): array => [
                 'id' => $p->id, 'ad' => $p->ad, 'aktif' => $p->aktif, 'siklik_turu' => $p->siklik_turu->value,
@@ -69,14 +128,6 @@ final class AyarKopyasi
                 'id' => $h->id, 'ad' => $h->ad, 'tur' => $h->tur->value, 'aktif' => $h->aktif, 'baglanti' => $h->baglanti,
             ])->all(),
         ];
-
-        $yol = $this->yapilandirma->ayarKopyasiYolu();
-        $klasor = dirname($yol);
-        if (! is_dir($klasor)) {
-            KaliciKlasor::ac($klasor, $this->yapilandirma->kaliciKok());
-        }
-
-        AtomikDosya::yaz($yol, json_encode(['ayarlar' => $veri, 'imza' => $this->imza->imzala(json_decode(json_encode($veri, JSON_THROW_ON_ERROR), true))], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)."\n");
     }
 
     /**

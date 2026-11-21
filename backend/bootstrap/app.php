@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\AktifKullanici;
+use App\Http\Middleware\YedeklemeAcik;
 use App\Services\Entegrator\EntegratorHatasi;
 use App\Services\ErpOkumaHatasi;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -30,7 +31,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->statefulApi();
 
         // Pasife alınan kullanıcının oturumu her istekte denetlenir (EFAT-18)
-        $middleware->alias(['aktif' => AktifKullanici::class]);
+        $middleware->alias(['aktif' => AktifKullanici::class, 'yedekleme' => YedeklemeAcik::class]);
+
+        // Bakım modundan muaf TEK adres: üstüne geri yüklemenin ilerleme / onay
+        // uçları (README §7.2; BY-030 — routes/api.php'deki yolla aynı kalmalı)
+        $middleware->preventRequestsDuringMaintenance(except: ['api/v1/yedekleme/ustune-geri-yukleme/*']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

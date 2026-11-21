@@ -22,7 +22,9 @@ use Throwable;
  *   zaten tamamsa yeniden yüklenmez, yalnız plan bağı eklenir.
  * - Yazılan dosya hedeften geri okunup özeti karşılaştırılır; tutmazsa kopya
  *   başarısızdır. Başarısız kopya en çok `kopya_deneme` kez denenir.
- * - Sunucu dışı hedefe kopya şifrelenmeden GİTMEZ (README §4.7; şifreleme BY-019).
+ * - Sunucu dışı hedefe kopya şifrelenmeden GİTMEZ (README §4.7; KopyaSifreleyici).
+ *   Başarılı sunucu dışı kopyadan sonra kurtarma dosyaları da o hedefe gider
+ *   (KurtarmaPaketi; BY-024); onların hatası kopyayı başarısız saymaz.
  * - Bir hedefin hatası istisna olarak dışarı taşmaz: kopya `basarisiz`
  *   olur, diğer hedefler ve yedeğin kendisi etkilenmez.
  * - Sonuç olay günlüğüne ve denetim kaydına yazılır.
@@ -37,6 +39,7 @@ final class YedekKopyalayici
         private readonly KopyaSifreleyici $sifreleyici,
         private readonly YedekBildirimcisi $bildirimci,
         private readonly YasamSinyali $sinyal,
+        private readonly KurtarmaPaketi $kurtarma,
     ) {}
 
     /**
@@ -81,6 +84,8 @@ final class YedekKopyalayici
                 ]);
                 if ($sifreli) {
                     $this->sinyal->gonder(YasamSinyali::UZAK);
+                    // Hata dışarı taşmaz; kopyayı başarısız saymaz (BY-024)
+                    $this->kurtarma->gonder($hedef, $yedek->id, $kullaniciId);
                 }
 
                 return $kopya;

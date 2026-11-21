@@ -7,9 +7,11 @@ namespace Tests\Feature;
 use App\Models\Yedek;
 use App\Models\YedekAyari;
 use App\Models\YedekHedefi;
+use App\Models\YedekIslemKaydi;
 use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
 use App\Services\Yedekleme\DogrulamaDurumu;
+use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use App\Services\Yedekleme\HedefTuru;
 use App\Services\Yedekleme\KopyaDurumu;
@@ -231,6 +233,28 @@ final class SaklamaPolitikasiTest extends TestCase
         $this->assertSame([$uzak->id], $sonuc['atlanan_hedefler']);
         $this->assertFileDoesNotExist($this->yedekKoku.'/disk2/'.$eski->dosya_adi);
         $this->assertSame(KopyaDurumu::Tamam, YedekKopyasi::query()->where(['yedek_id' => $eski->id, 'yedek_hedefi_id' => $uzak->id])->sole()->durum);
+    }
+
+    /** BY-023: S3 nesne kilidi gibi silme yetkisi verilmeyen hedefte temizlik hata saymaz, bilgi yazar. */
+    public function test_silme_yetkisi_olmayan_hedefte_temizlik_hata_saymaz_bilgi_yazar(): void
+    {
+        $uzak = $this->bellekHedefi('Kilitli S3');
+        $plan = $this->plan($uzak, 1);
+        $eski = $this->yedek(5, YedekKaynagi::Plan);
+        $yeni = $this->yedek(1, YedekKaynagi::Plan);
+        $this->kopya($eski, $uzak, [$plan]);
+        $this->kopya($yeni, $uzak, [$plan]);
+        BellekHedefi::$hataAdimi = 'sil';
+        BellekHedefi::$hataKodu = HedefHatasi::SILME_YETKISI_YOK;
+
+        $sonuc = app(SaklamaPolitikasi::class)->uygula();
+
+        $this->assertSame([], $sonuc['atlanan_hedefler']);
+        $this->assertCount(1, $sonuc['bilgi']);
+        $this->assertStringContainsString('silme yetkisi yok', $sonuc['bilgi'][0]);
+        $kopya = YedekKopyasi::query()->where(['yedek_id' => $eski->id, 'yedek_hedefi_id' => $uzak->id])->sole();
+        $this->assertSame([KopyaDurumu::Silindi, HedefHatasi::SILME_YETKISI_YOK], [$kopya->durum, $kopya->hata_kodu]);
+        $this->assertSame(0, YedekIslemKaydi::query()->where('sonuc', 'basarisiz')->count());
     }
 
     /** F6: bir planın kuralı yalnız kendi bağını kaldırır; diğer plan tutuyorken dosya silinmez. */

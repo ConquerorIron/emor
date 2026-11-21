@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -62,6 +63,15 @@ Schedule::command('yedek:zamanla')
     ->everyMinute()
     ->evenInMaintenanceMode()
     ->withoutOverlapping(120);
+
+// Ekranın istekleri (BY-025). Servis hesabı kurulduysa (`calistirici=servis`)
+// istekleri emor-yedek.service işler; geçiş döneminde zamanlayıcı dakikada
+// bir tek tur çalıştırır. Modül kapalıyken zamanlanmaz (komut da çıkar).
+Schedule::command('yedek:calistir --tek-tur')
+    ->everyMinute()
+    ->evenInMaintenanceMode()
+    ->withoutOverlapping(120)
+    ->when(fn (): bool => app(YedeklemeYapilandirmasi::class)->aktif() && ! app(YedeklemeYapilandirmasi::class)->servisCalistiricisi());
 
 // Temizlik her yedekten sonra da çalışır; günlük çalışma elle alınan ve
 // yayın öncesi yedeklerin sürelerini işletir (README §4.3)

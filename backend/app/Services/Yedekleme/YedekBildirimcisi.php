@@ -39,9 +39,10 @@ final class YedekBildirimcisi
      * @param  string  $tur  yedekleme.mail.* anahtarı (yedek_basarisiz, kopya_basarisiz …)
      * @param  list<string>  $satirlar  Sır taşımayan açıklama satırları
      * @param  string|null  $anahtar  Yineleme anahtarı (varsayılan: tür)
+     * @param  bool  $ayarDosyasindan  Ayar önce dosya kopyasından: üstüne geri yüklemeden sonra veritabanındaki ayar eskidir (README §4.8; BY-029)
      * @return bool Mail gönderildi mi
      */
-    public function bildir(string $tur, array $satirlar, ?string $anahtar = null): bool
+    public function bildir(string $tur, array $satirlar, ?string $anahtar = null, bool $ayarDosyasindan = false): bool
     {
         $anahtar ??= $tur;
 
@@ -50,7 +51,7 @@ final class YedekBildirimcisi
                 return false;
             }
 
-            [$ayar, $alicilar] = $this->ayarVeAlicilar();
+            [$ayar, $alicilar] = $ayarDosyasindan ? $this->dosyadakiAyarVeAlicilar() : $this->ayarVeAlicilar();
             if ($ayar === null || $alicilar === []) {
                 Log::channel('yedekleme')->warning('Yedekleme bildirimi gönderilemedi: mail ayarı ya da alıcı yok', ['tur' => $tur]);
 
@@ -99,6 +100,23 @@ final class YedekBildirimcisi
         $alicilar = array_values(array_filter((array) $alicilar, fn (mixed $a): bool => is_string($a) && filter_var($a, FILTER_VALIDATE_EMAIL) !== false));
 
         return [$ayar, $alicilar];
+    }
+
+    /**
+     * Dosya kopyasındaki ayar; kopya yoksa veritabanındaki.
+     *
+     * @return array{0: MailAyari|null, 1: list<string>}
+     */
+    private function dosyadakiAyarVeAlicilar(): array
+    {
+        $ayar = $this->ayarKopyasi->mailAyari();
+        $alicilar = $this->ayarKopyasi->oku()['yedek_ayarlari']['bildirim_alicilari'] ?? null;
+
+        if ($ayar === null || ! is_array($alicilar)) {
+            return $this->ayarVeAlicilar();
+        }
+
+        return [$ayar, array_values(array_filter($alicilar, fn (mixed $a): bool => is_string($a) && filter_var($a, FILTER_VALIDATE_EMAIL) !== false))];
     }
 
     private function yakindaGonderildi(string $anahtar): bool

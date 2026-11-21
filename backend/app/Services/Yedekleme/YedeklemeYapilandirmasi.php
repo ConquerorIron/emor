@@ -114,6 +114,27 @@ final class YedeklemeYapilandirmasi
         return config('yedekleme.calistirici') === 'servis';
     }
 
+    /**
+     * Üstüne geri yüklemede durdurulan kuyruk servisi (systemd birim adı);
+     * boşsa yönetilmez.
+     *
+     * @throws YapilandirmaHatasi Ad systemd birim adı biçiminde değil
+     */
+    public function kuyrukServisi(): ?string
+    {
+        $ad = config('yedekleme.kuyruk_servisi');
+
+        if ($ad === null || $ad === '') {
+            return null;
+        }
+
+        if (! is_string($ad) || preg_match('/^[A-Za-z0-9][A-Za-z0-9@._-]{0,63}$/D', $ad) !== 1) {
+            throw new YapilandirmaHatasi('yedekleme.kuyruk_servisi geçerli bir systemd servis adı değil.');
+        }
+
+        return $ad;
+    }
+
     public function sinamaGeriYuklemesi(): bool
     {
         return config('yedekleme.sinama_geri_yukleme') === true;

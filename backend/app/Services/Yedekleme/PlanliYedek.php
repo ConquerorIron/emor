@@ -21,8 +21,9 @@ use Throwable;
  * yerel disk (yedek klasörünün kendisi) yoksa, uzak kopyalar doğrulanınca
  * yerel dosya silinir.
  *
- * Kilit çağıranda. Kopyadan sonra saklama ve (açıksa) sınama geri yüklemesi
- * çalışır (BY-010, BY-026).
+ * Kilit çağıranda. Kopyadan sonra saklama çalışır (BY-010). Sınama geri
+ * yüklemesi (açıksa) yedeğin hemen ardından, kopyadan önce YedekAlici'nin
+ * içinde çalışır (BY-026): saklamanın "doğrulanmış en yeni" koruması onu görür.
  */
 final class PlanliYedek
 {

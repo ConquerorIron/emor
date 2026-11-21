@@ -33,6 +33,7 @@ export EMOR_VT_INCELEME_ROLU=emor_inceleme_deneme
 export EMOR_ESKI_PGPASS=$D/eski_pgpass
 export EMOR_SYSTEMD_DIZINI=$D/systemd
 export EMOR_SUDOERS_DOSYASI=$D/sudoers-emor-yedek
+export EMOR_KUYRUK_SERVISI=emor-queue-deneme
 K=$EMOR_YEDEK_KOKU
 GECTI=0; KALDI=0
 ok()  { echo "  ✓ $*"; GECTI=$((GECTI+1)); }
@@ -98,7 +99,10 @@ bekle "servis erp üyeliğiyle veritabanı açıp silebiliyor" runuser -u emor-y
 # web (www-data)
 bekle "web yedekleri listeler"     runuser -u www-data -- ls $K/yedekler
 bekle "web yedeklere yazamaz"      bash -c "! runuser -u www-data -- touch $K/yedekler/x 2>/dev/null"
-bekle "web istek bırakır"          runuser -u www-data -- touch $K/istekler/web.istek
+bekle "web istek bırakır"          runuser -u www-data -- touch $K/istekler/bekleyen/web.istek
+bekle "web istekler kökünü değiştiremez (D5)" bash -c "! runuser -u www-data -- mkdir $K/istekler/x 2>/dev/null"
+bekle "web sonuç yazamaz"          bash -c "! runuser -u www-data -- touch $K/istekler/sonuc/x 2>/dev/null"
+bekle "web sonuç okur"             runuser -u www-data -- ls $K/istekler/sonuc
 bekle "web gizli'ye giremez"       bash -c "! runuser -u www-data -- ls $K/gizli 2>/dev/null"
 bekle "web kilidi alır"            runuser -u www-data -- flock -n $K/durum/kilit true
 bekle "web durum'a yazamaz"        bash -c "! runuser -u www-data -- touch $K/durum/x 2>/dev/null"
@@ -108,19 +112,26 @@ bekle "yayın yedeklere giremez"    bash -c "! runuser -u $Y -- ls $K/yedekler 2
 bekle "yayın günlüklere giremez"   bash -c "! runuser -u $Y -- ls $K/gunluk 2>/dev/null"
 bekle "yayın gizli'ye giremez"     bash -c "! runuser -u $Y -- ls $K/gizli 2>/dev/null"
 bekle "yayın kökü listeleyemez"    bash -c "! runuser -u $Y -- ls $K 2>/dev/null"
-bekle "yayın istek bırakır"        runuser -u $Y -- touch $K/istekler/yayin.istek
+bekle "yayın istek bırakır"        runuser -u $Y -- touch $K/istekler/bekleyen/yayin.istek
+bekle "yayın sonuçları okur"       runuser -u $Y -- ls $K/istekler/sonuc
+bekle "yayın sonuç yazamaz"        bash -c "! runuser -u $Y -- touch $K/istekler/sonuc/x 2>/dev/null"
+bekle "yayın işlenenlere giremez"  bash -c "! runuser -u $Y -- ls $K/istekler/isleniyor 2>/dev/null"
+bekle "yayın istekler kökünü listeleyemez" bash -c "! runuser -u $Y -- ls $K/istekler 2>/dev/null"
 bekle "yayın kilidi alır"          runuser -u $Y -- flock -n $K/durum/kilit true
 bekle "yayın durum'a yazamaz"      bash -c "! runuser -u $Y -- touch $K/durum/x 2>/dev/null"
 runuser -u emor-yedek-deneme -- bash -c "umask 0027; echo '{}' > $K/durum/islem.json"
 bekle "yayın, servisin sonradan açtığı durum dosyasını okur" runuser -u $Y -- cat $K/durum/islem.json
 bekle "web, servisin durum dosyasını okur" runuser -u www-data -- cat $K/durum/islem.json
 bekle "durum dosyası başkalarına kapalı" bash -c "[[ \$(stat -c '%a' $K/durum/islem.json) == 640 ]]"
-bekle "servis yayın isteğini okur"  runuser -u emor-yedek-deneme -- cat $K/istekler/yayin.istek
-bekle "servis istekleri siler"      runuser -u emor-yedek-deneme -- rm $K/istekler/yayin.istek $K/istekler/web.istek
+bekle "servis yayın isteğini okur"  runuser -u emor-yedek-deneme -- cat $K/istekler/bekleyen/yayin.istek
+bekle "servis isteği işleniyor/e taşır" runuser -u emor-yedek-deneme -- mv $K/istekler/bekleyen/yayin.istek $K/istekler/isleniyor/yayin.istek
+bekle "servis istekleri siler"      runuser -u emor-yedek-deneme -- rm $K/istekler/isleniyor/yayin.istek $K/istekler/bekleyen/web.istek
 rm -f $K/durum/islem.json
 bekle "sudoers visudo'dan geçer"    visudo -cf "$EMOR_SUDOERS_DOSYASI"
 bekle "sudoers root:root 440"       bash -c "[[ \$(stat -c '%U:%G %a' $EMOR_SUDOERS_DOSYASI) == 'root:root 440' ]]"
 bekle "servis tanımı yazıldı"       grep -q "^User=emor-yedek-deneme$" "$EMOR_SYSTEMD_DIZINI/emor-yedek.service"
+bekle "servis uzun geri yüklemeyi bekler"  grep -qx "TimeoutStopSec=4000" "$EMOR_SYSTEMD_DIZINI/emor-yedek.service"
+bekle "servis kuyruk servisini sudoers ile aynı adla yönetir" bash -c "grep -qx \"Environment=YEDEKLEME_KUYRUK_SERVISI=$EMOR_KUYRUK_SERVISI\" \"$EMOR_SYSTEMD_DIZINI/emor-yedek.service\" && grep -q \"systemctl stop $EMOR_KUYRUK_SERVISI\" \"$EMOR_SUDOERS_DOSYASI\""
 bekle "kullanıcı giriş yapamaz"     bash -c "[[ \$(getent passwd emor-yedek-deneme | cut -d: -f7) == /usr/sbin/nologin ]]"
 bekle "yayın gruba alınmadı"        bash -c "! id -nG $Y | tr ' ' '\n' | grep -qx emor-yedek-deneme"
 bekle "inceleme rolü NOLOGIN"       bash -c "[[ \$(runuser -u postgres -- psql -X -A -t -c \"select rolcanlogin from pg_roles where rolname='emor_inceleme_deneme'\") == f ]]"
@@ -150,10 +161,10 @@ bekle "bütün günlük kanalları servisin gunluk/ klasöründe" bash -c "! gre
 echo "== F. Bozulan durumlar: denetim yakalar, kurulum düzeltir"
 chmod 755 $K/yedekler; chmod 644 $K/gizli/pgpass; chmod 2750 $K; chown emor-yedek-deneme $K
 psqlp "revoke erp from emor_yedek_deneme" >/dev/null; psqlp "grant erp to emor_yedek_deneme with inherit false, set true, admin true" >/dev/null
-setfacl -x u:$Y $K/istekler
+setfacl -x u:$Y $K/istekler/bekleyen
 rm -f "$EMOR_SYSTEMD_DIZINI/emor-yedek.service"; echo bozuk > "$EMOR_SUDOERS_DOSYASI"
 calistir "bozuk durumda denetim eksik" 1 --denetle
-for ifade in "kok: .*2750 →" "yedekler: .*755 →" "pgpass: .* 600" "üyelik seçenekleri (f t t)" "istekler ACL farklı — eksik: user:$Y:rwx" "emor-yedek.service" "sudoers-emor-yedek yok ya da farklı"; do
+for ifade in "kok: .*2750 →" "yedekler: .*755 →" "pgpass: .* 600" "üyelik seçenekleri (f t t)" "bekleyen ACL farklı — eksik: user:$Y:rwx" "emor-yedek.service" "sudoers-emor-yedek yok ya da farklı"; do
   bekle "denetim yakaladı: $ifade" grep -q -- "$ifade" "$D/son.txt"
 done
 calistir "kurulum düzeltir" 0
@@ -184,9 +195,9 @@ bekle "yayın artık yedekleri listeleyemez" bash -c "! runuser -u $Y -- ls $K/y
 bekle "web hâlâ yedekleri listeler"         runuser -u www-data -- ls $K/yedekler
 bekle "web pgpass'ı okuyamaz"               bash -c "! getfacl -cp $K/gizli/pgpass | grep -q www-data"
 bekle "günlük klasöründe varsayılan ACL yok" bash -c "! getfacl -cp $K/gunluk | grep -q '^default:'"
-bekle "yayın hâlâ istek bırakır"            runuser -u $Y -- touch $K/istekler/yayin.istek
+bekle "yayın hâlâ istek bırakır"            runuser -u $Y -- touch $K/istekler/bekleyen/yayin.istek
 bekle "yayın hâlâ kilidi alır"              runuser -u $Y -- flock -n $K/durum/kilit true
-rm -f $K/istekler/yayin.istek
+rm -f $K/istekler/bekleyen/yayin.istek
 bekle "servis dosyası root:root 644"        bash -c "[[ \$(stat -c '%U:%G %a' $SERVIS_DOSYASI) == 'root:root 644' ]]"
 bekle "inceleme rolü yönetici değil"        bash -c "[[ \$(rolde emor_inceleme_deneme rolsuper) == f ]]"
 bekle "yedek rolü çoğaltma yetkisiz"        bash -c "[[ \$(rolde emor_yedek_deneme rolreplication) == f ]]"

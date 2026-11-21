@@ -41,7 +41,12 @@ final class KullanimDenetimi
             return null;
         }
 
-        if ($kayit !== null && $kayit->yedekKimligi !== null && ! in_array($kayit->adim, self::BITMIS_ADIMLAR, true)) {
+        // Üstüne geri yüklemenin bitişi kendi enum'undan (Fable F17); bilinmeyen adım "bitmedi" sayılır
+        $bitti = $kayit !== null && $kayit->tur === IslemTuru::GeriYuklemeUstune
+            ? UstuneGeriYuklemeAdimi::tryFrom($kayit->adim)?->bittiMi() === true
+            : in_array($kayit?->adim, self::BITMIS_ADIMLAR, true);
+
+        if ($kayit !== null && $kayit->yedekKimligi !== null && ! $bitti) {
             $id = Yedek::query()->where('kimlik', $kayit->yedekKimligi)->value('id');
             if ($id !== null) {
                 $kume[(int) $id] = true;

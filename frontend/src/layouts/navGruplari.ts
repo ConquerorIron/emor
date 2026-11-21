@@ -1,3 +1,5 @@
+import type { Kullanici } from '@/features/auth/types'
+
 /** Sidebar menüsü — rol formundaki izin grupları da buradan türer (Roller/izinKurallari) */
 export interface NavOgesi {
   to: string
@@ -6,6 +8,8 @@ export interface NavOgesi {
   end?: boolean
   /** Yalnız bu izne (ekranın görüntüleme izni) sahip kullanıcılara görünür */
   izin?: string
+  /** Sunucuda açılıp kapanan modül: kapalıyken öğe izinden bağımsız gizlenir */
+  modul?: 'yedekleme'
 }
 
 export interface NavGrubu {
@@ -130,6 +134,53 @@ export const NAV_GRUPLARI: NavGrubu[] = [
       { to: '/ayarlar/kullanicilar', ad: 'kullanicilar', izin: 'kullanicilar.goruntule' },
       { to: '/ayarlar/roller', ad: 'roller', izin: 'roller.goruntule' },
       { to: '/ayarlar/ekran-tasarimi', ad: 'ekranTasarimi', izin: 'ekran_tasarimi.goruntule' },
+      // Yedekleme (BY-015…018): yalnız modül sunucuda açıkken (YEDEKLEME_AKTIF)
+      { to: '/ayarlar/yedekler', ad: 'yedekler', izin: 'yedekler.goruntule', modul: 'yedekleme' },
+      {
+        to: '/ayarlar/geri-yuklemeler',
+        ad: 'geriYuklemeler',
+        izin: 'yedekler.goruntule',
+        modul: 'yedekleme',
+      },
+      {
+        to: '/ayarlar/yedek-planlari',
+        ad: 'yedekPlanlari',
+        izin: 'yedek_planlari.goruntule',
+        modul: 'yedekleme',
+      },
+      {
+        to: '/ayarlar/yedek-hedefleri',
+        ad: 'yedekHedefleri',
+        izin: 'yedek_planlari.goruntule',
+        modul: 'yedekleme',
+      },
+      {
+        to: '/ayarlar/yedek-islem-gunlugu',
+        ad: 'yedekIslemGunlugu',
+        izin: 'yedekler.goruntule',
+        modul: 'yedekleme',
+      },
+      {
+        to: '/ayarlar/yedekleme-ayarlari',
+        ad: 'yedeklemeAyarlari',
+        izin: 'yedek_planlari.goruntule',
+        modul: 'yedekleme',
+      },
     ],
   },
 ]
+
+/** Kullanıcının görebildiği öğeler; hiç öğesi kalmayan grup çizilmez */
+export function gorunurGruplar(gruplar: NavGrubu[], user: Kullanici | null): NavGrubu[] {
+  const modulAcik = (oge: NavOgesi): boolean =>
+    oge.modul === undefined || (oge.modul === 'yedekleme' && user?.yedekleme_aktif === true)
+  const izinli = (oge: NavOgesi): boolean =>
+    oge.izin === undefined || (user?.izinler.includes(oge.izin) ?? false)
+
+  return gruplar
+    .map((grup) => ({
+      ...grup,
+      ogeler: grup.ogeler.filter((oge) => modulAcik(oge) && izinli(oge)),
+    }))
+    .filter((grup) => grup.ogeler.length > 0)
+}

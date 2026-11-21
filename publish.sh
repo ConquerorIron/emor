@@ -108,6 +108,17 @@ fi
 
 echo "==> Commit + Push"
 git add -A
+# Windows araçları \\wsl$ üzerinden yazdığı dosyanın çalıştırma iznini
+# düşürür; `deploy.sh` izinsiz giderse sunucuda `./deploy.sh` çalışmaz
+# (d280a00). İzni kaldırılan dosya varsa commit atılmaz (Dikkat_Edilecekler A5).
+IZIN_KAYBI="$(git diff --cached --summary | grep 'mode change 100755 => 100644' || true)"
+if [[ -n "$IZIN_KAYBI" ]]; then
+  git reset -q
+  echo "HATA: Şu dosyaların çalıştırma izni kalkıyor (commit atılmadı):"
+  echo "$IZIN_KAYBI"
+  echo "Düzeltmek için: chmod +x <dosya>  (bilerek kaldırılıyorsa: git update-index --chmod=-x <dosya> ve elle commit)"
+  exit 1
+fi
 git commit -m "$MESSAGE"
 git push -u origin "$BRANCH"
 

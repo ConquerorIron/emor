@@ -16,6 +16,7 @@ function ciz(izinler: string[]) {
     kaynak: 'erp',
     sistem_yoneticisi: false,
     izinler,
+    yedekleme_aktif: false,
   }
 
   render(

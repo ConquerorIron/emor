@@ -67,6 +67,23 @@ export const queryKeys = {
     erpProjeleri: ['kesinti', 'erpProjeleri'],
     erpFirmalari: ['kesinti', 'erpFirmalari'],
   },
+  // Yedekleme (BY-015…018): bir isteğin bitişi ['yedekleme'] altındakileri tazeler
+  yedekleme: {
+    hepsi: ['yedekleme'],
+    yedekListeleri: ['yedekleme', 'yedekler'],
+    yedekler: (parametreler: Record<string, unknown>) =>
+      ['yedekleme', 'yedekler', parametreler] as const,
+    ozet: ['yedekleme', 'ozet'],
+    /** İstek durumu her yoklamada taze okunur; tazeleme anahtarlarının dışında */
+    istek: (kimlik: string) => ['yedeklemeIstegi', kimlik] as const,
+    hedefler: ['yedekleme', 'hedefler'],
+    hedefTurleri: ['yedekleme', 'hedefTurleri'],
+    planlar: ['yedekleme', 'planlar'],
+    geriYuklemeler: ['yedekleme', 'geriYuklemeler'],
+    islemKayitlari: (parametreler: Record<string, unknown>) =>
+      ['yedekleme', 'islemKayitlari', parametreler] as const,
+    ayarlar: ['yedekleme', 'ayarlar'],
+  },
   // ERP raporlarının parametre seçenekleri (raporun kendisi "Raporu Çalıştır"la, mutation)
   raporlar: {
     secenekler: (rapor: string) => ['raporlar', rapor, 'secenekler'] as const,

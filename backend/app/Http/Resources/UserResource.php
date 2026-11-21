@@ -29,6 +29,8 @@ final class UserResource extends JsonResource
             // Rollerden gelen izinler (sistem yöneticisinde tüm katalog) —
             // frontend menü ve rota korumasında kullanır; asıl denetim backend'de
             'izinler' => $this->izinler(),
+            // Yedekleme menüsü yalnız modül açıkken görünür (YEDEKLEME_AKTIF; BY-015)
+            'yedekleme_aktif' => config('yedekleme.aktif') === true,
         ];
     }
 }
