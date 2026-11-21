@@ -132,6 +132,12 @@ sunucu yöneticisi yetkisi ister ve bu dokümanın kapsamı dışındadır.
   - Son başarılı yedek — hiçbir koşulda.
   - "Sabitlenmiş" yedekler (kullanıcı elle işaretler, ör. yıl sonu).
   - Doğrulaması geçmiş en yeni yedek.
+  - "Son başarılı" ve "doğrulaması geçmiş en yeni", bugün kullanılabilen
+    yedekler arasından seçilir: yerel arşivi ya da `tamam` kopyası olan (F7:
+    yerel dosyası silinmiş, uzak kopyalı yedek dahil). Yalnız yeri
+    doğrulanamayan (`konum_belirsiz`) kopyası kalan yedek listede `tamam`
+    görünür ve "son deneme başarılı" sayılır (temkin), ama korumayı daha eski
+    kullanılabilir yedekten almaz (BY-028 beşinci tur notu).
   - O anda kopyalanan, doğrulanan ya da geri yüklenen yedek (işlem bitene kadar).
 - Temizlik her yedekten sonra ve günde bir kez çalışır; neyi neden sildiği
   kaydedilir.
@@ -141,6 +147,9 @@ sunucu yöneticisi yetkisi ister ve bu dokümanın kapsamı dışındadır.
     Yayın öncesi yedeklerde de "son 20 ya da 30 gün" aynı okunur.
   - Gruplar: her hedef ayrı; ayrıca "yedek klasörü" (hiçbir hedefin
     kopyası olmayan yerel dosyalar). En az sayı her grupta ayrı uygulanır.
+    Bir grubun en az sayısı ve yerel dosyanın korumaları (ör. "uzak kopya
+    doğrulanmadı") yalnız o grubu süzer; uzak hedeflerin kararları grupların
+    işlenme sırasına bağlı değildir (BY-010-R6).
   - Temkin: en son yedek denemesi başarısızsa ya da işlem durumu dosyası
     okunamıyorsa hiçbir şey silinmez.
   - Yerel dosya silinirken yalnız `.dump` gider; **imzalı manifest
@@ -173,7 +182,18 @@ sunucu yöneticisi yetkisi ister ve bu dokümanın kapsamı dışındadır.
     kurtarmaya hazır olmadan silinmez (`kurtarma_paketi_eksik`). Dayanak bu
     temizlikten SONRA kalan kopyalardır: aynı turda silinecek hazır kopya
     sayılmaz; yedek bir hedefte saklanmaya devam ediyorsa kalanlardan biri
-    hazır olmalı. Yerel dosya planda ana klasör hedefi olarak yazılmışsa o
+    hazır olmalı. Yeri doğrulanamayan (`konum_belirsiz`) kopya da kalan
+    kopyadır (dosya bir yerde durabilir; `yedegiTutanlar`) ama dayanak
+    değildir: yalnız o kalırsa yerel dosya kalır (G21). Saklama grupları ve en
+    az sayı yine yalnız `tamam` kopyalardan kurulur.
+    Hiçbir uzak kopya kalmıyorsa yedek her hedeften silinmiştir,
+    saklama kararı geçerlidir ve yerel dosya da silinir. Önizleme bütün uzak
+    silmelerin başarılı olacağını varsayar; uygulamada uzak silmeler ÖNCE
+    yapılır, yerel dosya silinmeden hemen önce fiilen kalan kopyalar
+    veritabanından yeniden okunur ve aynı eşik uygulanır: kısmi silme
+    hatasında geride hazır olmayan kopya kalırsa yerel dosya korunur (denetim
+    kaydı `basarisiz`, kod `kurtarma_paketi_eksik`; BY-010-R5). Yerel dosya
+    planda ana klasör hedefi olarak yazılmışsa o
     hedefin kuralı da bu eşiğe tabidir (BY-010-R4); ekranda
     kopyanın yanında "kurtarma paketi bekleniyor" yazar, özetteki "son sunucu
     dışı kopya" yalnız hazır kopyaları sayar (uzak yaşam sinyaliyle aynı ölçüt).
@@ -338,6 +358,13 @@ yönetici komutuyla içeri alınır (YDK-09). Tarayıcıdan yedek yükleme yok
   indirebilmeli. Erişim yetmez: paylaşılmış klasör başka hesaptan da görünür
   (BY-021-R4). Kanıtlanamazsa eski bağlantı aynen kalır; klasörün sahibi
   hesapla yeniden denenir ya da yeni hedef eklenip kopyalar elle uzlaştırılır.
+  "Kopyası olan" dosyası durabilen kopyayı da kapsar: yeri doğrulanamayan
+  (`konum_belirsiz`, ör. yükseltmede izsiz kalan eski) kopya konum kilidini
+  tutmaz ama hesap değişikliğini engeller ve sahiplik kanıtında sorulur;
+  yalnız konum izi yeni hesabı gösteren kopya engellemez (o hesaba dönmek
+  kopyanın yerini düzeltir). Kanıt kayıttan önce kilit altında yeniden
+  eşlenir: sorulan klasör ve kopya o an hâlâ kayıtlı klasör ve en son kopya
+  olmalı (BY-021-R5).
 - Yedekler gece kimse giriş yapmadan gideceği için uygulama, Google'dan kalıcı
   bir yenileme anahtarı alır ve şifreli saklar. Kullanıcının parolası uygulamaya
   hiç gelmez.
@@ -609,6 +636,10 @@ onu kopya saymaz, hedefin konum kilidini tutmaz. Dosyası bir yerde
 durabileceği için yedeği ise `silindi` yaptırmaz (F7; BY-028-R7): yerel
 dosyası olmayan yedek varsayılan listede kopyanın uyarısıyla kalır, elle
 silmede "kopya silinemedi" sonucu döner ve "tamamen silindi" olayı yazılmaz.
+Hedefin bugünkü tanımı yedek klasörünün kendisi (ana klasör) olsa da böyledir:
+"ana klasör hedefinin kopyası yerel dosyanın kendisidir" eşitliği yalnız yeri
+doğrulanmış (`tamam`) kopyaya uygulanır; iz uyuşmayan kopya başka bir yerde
+(ör. ikinci disk) durabilir (G21; BY-028-R8).
 Örnek: eski yedeğin anında
 kopyasız olan hedef sonra yer değiştirip yeni yerde kopya almışsa, eski
 veritabanı geri yüklenince hedef eski yerindedir; yeni yerdeki kopya ona

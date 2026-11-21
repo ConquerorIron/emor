@@ -34,7 +34,9 @@ use Throwable;
  *   olur: geri yükleme, silme ve saklamada kopya sayılmaz
  *   (HedefKonumu::konumdaMi; BY-028-R5), ama dosyası bir yerde durabileceği
  *   için yedeği `silindi` yaptırmaz; yedek listede uyarısıyla görünür
- *   (KopyaDurumu::yedegiTutanlar; BY-028-R7).
+ *   (KopyaDurumu::yedegiTutanlar; BY-028-R7). Hedefin bugünkü tanımı ana
+ *   klasör olsa da: yeri doğrulanmamış kopyanın yerini o tanım göstermez
+ *   (yedegiTutarMi; BY-028-R8).
  * - Tek bir bozuk dosya taramayı durdurmaz.
  * - Yedek klasörü yoksa ya da okunamıyorsa (bağlanmamış disk, izin) tarama
  *   dizine DOKUNMADAN hata verir: "erişemiyorum" boş klasör sayılıp kayıtlar
@@ -44,7 +46,8 @@ use Throwable;
  * - Kilidi tutan çağıran kilidi verirse ölen süreçten kalan `calisiyor`
  *   yedek kayıtları önce sonuçlanır (SahipsizYedekler; BY-007-R1).
  * - Ana klasör hedefi YerelDiskBaglayicisi::anaKlasorHedefiMi ile tanınır
- *   (kopyalama ve saklamayla aynı ölçüt; BY-008-R1).
+ *   (kopyalama ve saklamayla aynı ölçüt; BY-008-R1); bu eşitlik yalnız yeri
+ *   doğrulanmış (`tamam`) kopyaya uygulanır (BY-028-R8).
  */
 final class DizinKurucu
 {
@@ -231,7 +234,7 @@ final class DizinKurucu
                 $kopya->planlar()->sync(array_fill_keys(array_map('intval', $gecerli), ['yedek_hedefi_id' => $hedef->id]));
 
                 // Yeri doğrulanamayan kopya da yedeği tutar: dosya bir yerde durabilir (BY-028-R7)
-                $uzakKopyaVar = $uzakKopyaVar || (in_array($kopyaDurumu->value, KopyaDurumu::yedegiTutanlar(), true) && ! $this->anaKlasorHedefiMi($hedef));
+                $uzakKopyaVar = $uzakKopyaVar || $this->yedegiTutarMi($kopyaDurumu, $hedef);
             }
 
             if ($durum->silinme !== null || (! $dumpVar && ! $uzakKopyaVar)) {
@@ -269,10 +272,23 @@ final class DizinKurucu
         return $yeni;
     }
 
-    /** Yedek klasörünün kendisi olan yerel hedef: kopyası yerel dosyanın aynısıdır */
-    private function anaKlasorHedefiMi(YedekHedefi $hedef): bool
+    /**
+     * Kopya, yerel dosyası gitmiş yedeği katalogda (`silindi` olmadan) tutar mı
+     * — iki tarama yolunun TEK ölçütü (manifesttenKur, dosyasiYok). Küme
+     * KopyaDurumu::yedegiTutanlar'dır (BY-028-R7); "ana klasör hedefinin
+     * kopyası yerel dosyanın kendisidir" eşitliği yalnız yeri DOĞRULANMIŞ
+     * (`tamam`) kopyaya uygulanır. `konum_belirsiz` kopyada iz uyuşmadığı için
+     * hedefin BUGÜNKÜ tanımı kopyanın yerini göstermez: tanım ana klasör olsa
+     * da kopya başka bir yerde (ör. ikinci disk) durabilir (G21; BY-028-R8).
+     * Geri yükleme ve silme kaynağı yine sayılmaz (onlar yalnız `tamam`'a bakar).
+     */
+    private function yedegiTutarMi(KopyaDurumu $durum, YedekHedefi $hedef): bool
     {
-        return YerelDiskBaglayicisi::anaKlasorHedefiMi($hedef, $this->yapilandirma);
+        if (! in_array($durum->value, KopyaDurumu::yedegiTutanlar(), true)) {
+            return false;
+        }
+
+        return $durum !== KopyaDurumu::Tamam || ! YerelDiskBaglayicisi::anaKlasorHedefiMi($hedef, $this->yapilandirma);
     }
 
     private function adindanKaynak(string $ad): YedekKaynagi
@@ -292,7 +308,7 @@ final class DizinKurucu
         $yedek->yerel_silinme_zamani ??= CarbonImmutable::now();
 
         $baskaKopya = YedekKopyasi::query()->with('hedef')->where('yedek_id', $yedek->id)->whereIn('durum', KopyaDurumu::yedegiTutanlar())->get()
-            ->contains(fn (YedekKopyasi $k): bool => $k->hedef !== null && ! $this->anaKlasorHedefiMi($k->hedef));
+            ->contains(fn (YedekKopyasi $k): bool => $k->hedef !== null && $this->yedegiTutarMi($k->durum, $k->hedef));
         if (! $baskaKopya) {
             $yedek->durum = YedekDurumu::Silindi;
             $yedek->silinme_zamani ??= CarbonImmutable::now();

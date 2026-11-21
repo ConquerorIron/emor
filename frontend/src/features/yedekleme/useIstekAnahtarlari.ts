@@ -15,8 +15,8 @@ const DEPO_ONEKI = 'erp.yedekleme.istekAnahtarlari'
 
 /**
  * v2: kayıtta eylemin ham hali yerine özeti durur (BY-014-R4). v1 kayıtları
- * eylemin sıralanmış JSON'unu — yedek açıklaması gibi serbest metni — düz
- * taşıyordu; açılışta silinir.
+ * (`{imza, anahtar, zaman}`; imza = kanonikJson(eylem)) yedek açıklaması gibi
+ * serbest metni düz taşıyordu; açılışta v2'ye taşınıp silinir (eskiSurumuTasi).
  */
 const depoAnahtari = (kapsam: string) => `${DEPO_ONEKI}.v2.${kapsam}`
 const ESKI_SURUM_ONEKI = `${DEPO_ONEKI}.v1.`
@@ -57,13 +57,32 @@ function kanonikJson(eylem: unknown): string {
  * ile aynı koşul.
  */
 async function ozetle(eylem: unknown): Promise<string> {
-  const bayt = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(kanonikJson(eylem)))
+  return metninOzeti(kanonikJson(eylem))
+}
+
+async function metninOzeti(metin: string): Promise<string> {
+  const bayt = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(metin))
 
   return Array.from(new Uint8Array(bayt), (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-const gecerliMi = (kayit: BekleyenAnahtar | undefined, simdi: number): kayit is BekleyenAnahtar =>
+const gecerliMi = <T extends { zaman: number }>(kayit: T | undefined, simdi: number): kayit is T =>
   kayit !== undefined && kayit.zaman <= simdi && simdi - kayit.zaman < ANAHTAR_OMRU_MS
+
+/** v1 kaydı (taşınmak için okunur): `imza` eylemin kanonik JSON'u, yani ham metin */
+interface EskiBekleyenAnahtar {
+  imza: string
+  anahtar: string
+  zaman: number
+}
+
+const eskiBicimliMi = (oge: unknown): oge is EskiBekleyenAnahtar =>
+  typeof oge === 'object' &&
+  oge !== null &&
+  typeof (oge as EskiBekleyenAnahtar).imza === 'string' &&
+  typeof (oge as EskiBekleyenAnahtar).anahtar === 'string' &&
+  UUID.test((oge as EskiBekleyenAnahtar).anahtar) &&
+  typeof (oge as EskiBekleyenAnahtar).zaman === 'number'
 
 const bicimliMi = (oge: unknown): oge is BekleyenAnahtar =>
   typeof oge === 'object' &&
@@ -118,17 +137,63 @@ function oku(kapsam: string, simdi: number): BekleyenAnahtar[] {
   }
 }
 
-/** Eski sürüm kayıtları (hangi kapsamda olursa olsun) depodan silinir */
-function eskiSurumuTemizle(): void {
+/**
+ * Eski sürüm (v1) kayıtlarını, hangi kapsamda olursa olsun, v2'ye taşır
+ * (BY-014-R5). v1 sürümünde kabul edilip yanıtı kaybolan isteğin anahtarı hâlâ
+ * geçerli olabilir; yeni sürümde aynı eylem yeni anahtar alırsa ikinci iş
+ * açılır. Süresi geçmemiş, biçimli kaydın yalnız imzasının özeti (v2 ile AYNI
+ * kanonik metin → aynı özet), UUID'si ve zamanı aynı kapsamın v2 deposuna
+ * yazılır; v2'de aynı özetli kayıt varsa o (daha yeni deneme) kalır. Ham v1
+ * girdisi her durumda — süresi geçmiş, biçimsiz, özet ya da yazım başarısız —
+ * silinir: düz metin depoda kalmaz. Hiçbir zaman reddetmez.
+ */
+async function eskiSurumuTasi(): Promise<void> {
+  const simdi = Date.now()
+  const eskiler: { ad: string; kapsam: string; ham: string | null }[] = []
   try {
-    for (let i = localStorage.length - 1; i >= 0; i--) {
+    for (let i = 0; i < localStorage.length; i++) {
       const ad = localStorage.key(i)
       if (ad?.startsWith(ESKI_SURUM_ONEKI)) {
-        localStorage.removeItem(ad)
+        eskiler.push({
+          ad,
+          kapsam: ad.slice(ESKI_SURUM_ONEKI.length),
+          ham: localStorage.getItem(ad),
+        })
       }
     }
   } catch {
-    // depo kapalı
+    return // depo kapalı
+  }
+
+  for (const { ad, kapsam, ham } of eskiler) {
+    try {
+      const deger: unknown = ham === null ? [] : JSON.parse(ham)
+      const tasinacak = (Array.isArray(deger) ? deger : []).filter(
+        (oge): oge is EskiBekleyenAnahtar => eskiBicimliMi(oge) && gecerliMi(oge, simdi),
+      )
+      if (tasinacak.length > 0) {
+        const yeniler = await Promise.all(
+          tasinacak.map(async ({ imza, anahtar, zaman }): Promise<BekleyenAnahtar> => ({
+            ozet: await metninOzeti(imza),
+            anahtar,
+            zaman,
+          })),
+        )
+        const mevcut = oku(kapsam, Date.now())
+        yaz(kapsam, [
+          ...mevcut,
+          ...yeniler.filter((yeni) => !mevcut.some((kayit) => kayit.ozet === yeni.ozet)),
+        ])
+      }
+    } catch {
+      // biçimsiz JSON ya da özet alınamadı: taşınmaz
+    } finally {
+      try {
+        localStorage.removeItem(ad)
+      } catch {
+        // depo kapalı
+      }
+    }
   }
 }
 
@@ -144,26 +209,31 @@ function eskiSurumuTemizle(): void {
  * (BY-014-R3, BY-030-R4). Depoya yalnız eylemin SHA-256 özeti, UUID anahtar
  * ve zaman girer; eylemin parametreleri (yedek açıklaması gibi serbest metin),
  * erişim anahtarı ya da kanıt girmez (BY-014-R4). Açılışta eski sürüm
- * kayıtları ve bu kapsamın süresi geçmiş kayıtları silinir. Depo erişilemezse
- * bellekte (özetle) çalışır.
+ * kayıtlarının geçerli olanları v2'ye taşınır, hepsi silinir (BY-014-R5); bu
+ * kapsamın süresi geçmiş kayıtları silinir. Depo erişilemezse bellekte
+ * (özetle) çalışır.
  *
- * Özet eşzamansızdır: `hazirla` beklenir, anahtar depoya istek gönderilmeden
- * ÖNCE yazılır. Çift tıklama kilidinin (F5) yerine geçmez; onunla birlikte
- * kullanılır.
+ * Özet eşzamansızdır: `hazirla` beklenir; açılıştaki taşıma bitmeden anahtar
+ * aranmaz, anahtar depoya istek gönderilmeden ÖNCE yazılır. Çift tıklama
+ * kilidinin (F5) yerine geçmez; onunla birlikte kullanılır.
  *
  * @param kapsam Anahtarların sahibi (ör. `kullanici.7`, `ustune.<işlem kimliği>`)
  */
 export function useIstekAnahtarlari(kapsam: string) {
   const bellek = useRef(new Map<string, BekleyenAnahtar>())
+  const acilis = useRef<Promise<void> | null>(null)
 
   useEffect(() => {
-    eskiSurumuTemizle()
-    oku(kapsam, Date.now())
+    acilis.current = eskiSurumuTasi().then(() => {
+      oku(kapsam, Date.now())
+    })
   }, [kapsam])
 
   return {
     /** Eylemin bekleyen anahtarı; yoksa yenisi — depoya yazıldıktan sonra döner */
     async hazirla(eylem: unknown): Promise<BekleyenIstek> {
+      // v1'den taşınan geçerli anahtar aranmadan yeni anahtar üretilmesin
+      await acilis.current
       const ozet = await ozetle(eylem)
       const simdi = Date.now()
       const kayitlar = oku(kapsam, simdi)

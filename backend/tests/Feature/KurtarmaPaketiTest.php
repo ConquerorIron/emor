@@ -507,14 +507,16 @@ final class KurtarmaPaketiTest extends TestCase
 
     /**
      * Yalnız uzak şifreli dump'ı kalan yedeğin yerel manifesti kaybolur ya da bozulursa yeni paketler onu doğrulayamaz.
+     * Kopya ilk paketten sonra `$durum`'a geçer (ör. konum izi tutmadığı için konum_belirsiz).
      *
      * @return array{0: YedekHedefi, 1: Yedek, 2: YedekKopyasi, 3: array{surum: string, dosyalar: list<array{ad: string, sha256: string, boyut: int}>}}
      */
-    private function yalnizUzaktaKalanYedekIkiYeniPaketle(\Closure $kaybet): array
+    private function yalnizUzaktaKalanYedekIkiYeniPaketle(\Closure $kaybet, KopyaDurumu $durum = KopyaDurumu::Tamam): array
     {
         $hedef = $this->bellekHedefi();
         $yedek = $this->yedek();
         $kopya = app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        $kopya->update(['durum' => $durum]);
         [$ilk] = $this->isaretciler($hedef);
         $klasor = config('yedekleme.klasor');
         unlink($klasor.'/'.$yedek->dosya_adi);
@@ -555,13 +557,45 @@ final class KurtarmaPaketiTest extends TestCase
     }
 
     /**
-     * BY-024-R6: koruma, kopya saklama kapsamındayken (`tamam`) sürer. Kopya
-     * silinince korunan eski sürüm sonraki dönüşümde normal silinir, hazır
-     * işareti geri alınır.
+     * BY-024-R8 (D4, G21 "kullanılamaz ile yok ayrı kümelerdir"): konumu
+     * belirsiz kopyanın dosyası hedefte durabilir. Son doğrulanmış manifestini
+     * taşıyan sürüm dönüşümde silinmez, iki yeni paketten sonra da eski dump +
+     * manifest uzak hedeften SQL öncesi doğrulanır; ama kopya kullanılamaz
+     * olduğu için kurtarmaya hazır gösterilmez (hazırlık yalnız `tamam`).
      */
-    public function test_saklanan_kopya_silinince_korunan_eski_surum_sonraki_donusumde_silinir(): void
+    public function test_konumu_belirsiz_kopyanin_son_dogrulanmis_manifesti_iki_yeni_paketten_sonra_uzakta_dogrulanir_kopya_hazir_gorunmez(): void
     {
-        [$hedef, , $kopya, $ilk] = $this->yalnizUzaktaKalanYedekIkiYeniPaketle(fn (self $test, string $yol): bool => unlink($yol));
+        [$hedef, $yedek, $kopya, $ilk] = $this->yalnizUzaktaKalanYedekIkiYeniPaketle(fn (self $test, string $yol): bool => unlink($yol), KopyaDurumu::KonumBelirsiz);
+
+        $isaretciler = $this->isaretciler($hedef);
+        $this->assertCount(3, $isaretciler);
+        $this->assertSame($ilk, $isaretciler[0]);
+        $this->assertFalse($kopya->refresh()->kurtarma_hazir);
+        $this->assertSame([$ilk['surum']], YedekIslemKaydi::query()->where('islem', 'kurtarma_paketi')->latest('id')->first()->ayrinti['korunan_eski_surum']);
+
+        $this->uzaktakiSetleDogrula($hedef, $ilk, $yedek, (string) $kopya->uzak_kimlik);
+    }
+
+    /**
+     * @return array<string, array{KopyaDurumu}>
+     */
+    public static function yedegiTutanKopyaDurumlari(): array
+    {
+        return [
+            'tamam' => [KopyaDurumu::Tamam],
+            'konumu belirsiz' => [KopyaDurumu::KonumBelirsiz],
+        ];
+    }
+
+    /**
+     * BY-024-R6, BY-024-R8: koruma, kopyanın dosyası hedefte durdukça ya da
+     * durabildikçe (`tamam`, `konum_belirsiz`) sürer. Kopya silinince korunan
+     * eski sürüm sonraki dönüşümde normal silinir, hazır işareti geri alınır.
+     */
+    #[DataProvider('yedegiTutanKopyaDurumlari')]
+    public function test_saklanan_kopya_silinince_korunan_eski_surum_sonraki_donusumde_silinir(KopyaDurumu $durum): void
+    {
+        [$hedef, , $kopya, $ilk] = $this->yalnizUzaktaKalanYedekIkiYeniPaketle(fn (self $test, string $yol): bool => unlink($yol), $durum);
         $korunduMu = in_array($ilk['surum'], array_column($this->isaretciler($hedef), 'surum'), true);
         $kopya->update(['durum' => KopyaDurumu::Silindi, 'silinme_zamani' => now()]);
 

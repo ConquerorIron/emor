@@ -255,6 +255,16 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   "silindi" kararını ona bağla; testte "kullanılamaz ama var" kayıtla listede
   görünürlüğü ve yazılan silme olayını sına.
   *(Codex BY-028-R7: konumu belirsiz son kopya yedeği listeden düşürüyordu.)*
+  Kümeyi tek yerde tanımlamak yetmez: "nesne fiziksel olarak var mı" sorusuna
+  dayanan **her** kararı say — yalnız `silindi` değil, dayanağı silme (paket
+  dönüşümü), son kopyayı silme, hesabı / konumu değiştirme. Denetim:
+  `where('durum', …Tamam` geçen her yeri grep'le, her biri için "kullanım
+  kararı mı, varlık kararı mı" yaz. Kümenin üstüne uygulanan ikincil eşitlik
+  de ("ana klasör kopyası = yerel dosya") yalnız konumu DOĞRULANMIŞ üyeye
+  uygulanır. Yeni durum değerini migration getiriyorsa testi eski şemayla
+  kurup gerçek ileri migration'ı çalıştırarak yaz.
+  *(Codex BY-024-R8, BY-028-R8, BY-021-R5: konumu belirsiz kopya paket
+  korumasının, ana klasör taramasının ve Drive hesap kanıtının dışında kaldı.)*
 
 ## 2. Ön yüz
 
@@ -413,10 +423,14 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   *(PRT-02: Protel'in 500 gövdesindeki `Headers` alanında token vardı.)*
   **Tarayıcı deposu da bir günlüktür:** `localStorage`'a yazılan eşleştirme
   anahtarı ham parametre (serbest metin) değil özet olsun. Depo adını
-  sürümlerken eski sürümün kayıtlarını açılışta sil; süresi geçen kaydı
+  sürümlerken eski sürümün hâlâ geçerli kaydının gereken alanlarını hassas
+  olmayan biçimde (özet + kimlik + zaman) yeni sürüme taşı, ham kaydı her
+  durumda sil — körce silmek bekleyen isteğin kimliğini kaybettirir; testte
+  geçerli eski kayıtla yükselt ve kimliğin korunduğunu sına. Süresi geçen kaydı
   yalnız yazımda değil okumada da fiziksel olarak kaldır. Testte yanıtı
   kaybolan isteğin ardından depodaki hiçbir değerde düz metin olmadığını sına.
-  *(Codex BY-014-R4: yedek açıklaması depoda düz duruyordu.)*
+  *(Codex BY-014-R4: yedek açıklaması depoda düz duruyordu. BY-014-R5: v1
+  kayıtları silinince yanıtı kaybolan isteğin anahtarı da gitti.)*
 - **D3 — Önce geçici ada yaz, doğrula, sonra taşı.** Yarım çıktı hiçbir zaman
   bitmiş gibi görünmemeli; hata ve sinyal yolunda geçici dosya silinmeli.
   Elektrik kesintisine dayanması gereken dosyada: geçici dosyayı `fsync`,
@@ -545,6 +559,15 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   *(Codex BY-010-R4: yerel dosya aynı turda silinen hazır kopyaya dayanıyordu.
   BY-024-R6: yaş kuralı uzak dump'ın son manifestini sildi. BY-024-R7:
   kurtarılamayan kopya yaşam sinyali gönderiyordu.)*
+  **Önizleme "her adım başarılı" varsayar; uygulama varsayamaz.** Bir silme
+  başka silmelerin sonucuna dayanıyorsa önce onları uygula, sonra fiilen
+  kalan durumu kaynaktan (veritabanı) yeniden oku ve aynı eşiği uygula;
+  testte ortadaki adımın hatasını her dayanak türü için ayrı sına. Döngüde
+  yalnız o yinelemeye ait koruma (grup başına en az adet, yerel koruma) ortak
+  duruma yazılmasın; yazılırsa sonuç işlenme sırasına bağlanır — testte aynı
+  veriyi iki farklı kimlik sırasıyla kur.
+  *(Codex BY-010-R5: bir uzak silme düşünce yerel dosya yine silindi.
+  BY-010-R6: yerel koruma sonraki grupların kararına sızıyordu.)*
 - **D5 — Root, başkasının değiştirebildiği yolda bağlantı izleyerek işlem
   yapmasın.** `chown`, `chmod`, `setfacl`, `cp`, `>` hedefteki sembolik
   bağlantıyı izler; yolu yazabilen hesap root'u yönetilen alanın dışına

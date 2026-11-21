@@ -14,6 +14,7 @@ use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
 use App\Services\Yedekleme\DizinKurucu;
 use App\Services\Yedekleme\GeriYuklemeDurumu;
+use App\Services\Yedekleme\GeriYuklemeHatasi;
 use App\Services\Yedekleme\GeriYuklemeKaynaklari;
 use App\Services\Yedekleme\GeriYuklemeTuru;
 use App\Services\Yedekleme\HedefKonumu;
@@ -567,6 +568,114 @@ final class DizinKurucuTest extends TestCase
 
         $this->assertSame(YedekDurumu::Tamam, $yedek->refresh()->durum);
         $this->assertSame(KopyaDurumu::KonumBelirsiz, YedekKopyasi::query()->where('yedek_hedefi_id', $tasinan->id)->sole()->durum);
+    }
+
+    /**
+     * BY-028-R8 (G21): yerel dosyası silinmiş yedeğin ikinci diske alınmış
+     * kopyası, hedefin ana klasöre dönmüş tanımıyla manifestten yeniden
+     * kurulur. İz uyuşmadığı için bugünkü tanım kopyanın yerini göstermez:
+     * "ana klasör hedefinin kopyası yerel dosyanın kendisidir" sayılmaz, yedek
+     * `silindi` olmaz, varsayılan listede konum uyarısıyla görünür, geri
+     * yükleme kaynağı yoktur. Hedef ikinci diske dönünce aynı yedek o kopyadan
+     * geri yüklenebilir.
+     */
+    public function test_ana_klasore_donen_yerel_hedefin_konumu_belirsiz_kopyasi_manifestten_kurulunca_yedegi_listede_tutar_konum_eslesince_kaynak_olur(): void
+    {
+        $yedek = $this->gercekYedek();
+        [$hedef, $ikinciDisk] = $this->ikinciDiskHedefi();
+        app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        app(YerelDosyaSilici::class)->sil($yedek->refresh());
+        // Eski veritabanı geri yüklendi: hedef o anda yedek klasörünün kendisiydi
+        $hedef->update(['baglanti' => ['klasor' => '']]);
+        $this->dizinleriBosalt();
+
+        $this->tara();
+
+        $satir = $this->yedekListesi();
+        $this->assertSame([$yedek->kimlik, 'tamam', false, false], [$satir['kimlik'], $satir['durum'], $satir['yerel_dosya_var'], $satir['webden_geri_yuklenebilir']]);
+        $this->assertSame([['hedef_ad' => 'Disk 2', 'durum' => 'konum_belirsiz', 'hata_kodu' => HedefKonumu::DOGRULANAMADI]], $this->kopyaOzetleri($satir));
+        $this->assertFileExists($ikinciDisk.'/'.$yedek->dosya_adi);
+
+        $hedef->update(['baglanti' => ['klasor' => $ikinciDisk]]);
+        $this->tara();
+
+        $satir = $this->yedekListesi();
+        $this->assertSame([$yedek->kimlik, 'tamam', true], [$satir['kimlik'], $satir['durum'], $satir['webden_geri_yuklenebilir']]);
+        $this->assertSame([['hedef_ad' => 'Disk 2', 'durum' => 'tamam', 'hata_kodu' => null]], $this->kopyaOzetleri($satir));
+        $kurulan = Yedek::query()->where('kimlik', $yedek->kimlik)->sole();
+        $kaynaklar = GeriYuklemeKaynaklari::sec(false, $kurulan->kopyalar);
+        $this->assertSame([$hedef->id], array_map(fn (YedekKopyasi $k): int => $k->yedek_hedefi_id, $kaynaklar->uzaklar));
+    }
+
+    /**
+     * BY-028-R8 / G1: dosyası ve manifesti klasörden kaybolan yedeğin ikinci
+     * diskteki kopyasının yeri, hedef ana klasöre dönmüşken doğrulanamaz;
+     * manifestsiz `dosyasiYok` yolu da onu "yerel dosyanın kendisi" saymaz:
+     * yedek `silindi` olmaz, listede konum uyarısıyla görünür, geri yükleme
+     * kaynağı yoktur.
+     */
+    public function test_ana_klasore_donen_yerel_hedefin_konumu_belirsiz_kopyasi_dosyasi_ve_manifesti_kaybolan_yedegi_listede_tutar(): void
+    {
+        $yedek = $this->gercekYedek();
+        [$hedef] = $this->ikinciDiskHedefi();
+        app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        $hedef->update(['baglanti' => ['klasor' => '']]);
+        $this->tara();
+        $dump = config('yedekleme.klasor').'/'.$yedek->dosya_adi;
+        unlink($dump);
+        unlink(ManifestDeposu::jsonYolu($dump));
+
+        $sonuc = $this->tara();
+
+        $this->assertSame(1, $sonuc['dosyasi_yok']);
+        $satir = $this->yedekListesi();
+        $this->assertSame([$yedek->kimlik, 'tamam', false, false], [$satir['kimlik'], $satir['durum'], $satir['yerel_dosya_var'], $satir['webden_geri_yuklenebilir']]);
+        $this->assertSame([['hedef_ad' => 'Disk 2', 'durum' => 'konum_belirsiz', 'hata_kodu' => HedefKonumu::DOGRULANAMADI]], $this->kopyaOzetleri($satir));
+        $this->assertSame(GeriYuklemeHatasi::YEDEK_DOSYASI_YOK, GeriYuklemeKaynaklari::engel($yedek->refresh()->load('kopyalar')));
+    }
+
+    /**
+     * BY-028-R8: ana klasör eşitliği yeri doğrulanmış kopyada sürer. Hedef
+     * yedek klasörünün kendisiyken alınan kopya yerel dosyanın aynısıdır:
+     * dosya gidince yedeği tutmaz, yedek `silindi` olur.
+     */
+    public function test_ana_klasor_hedefinin_yeri_dogrulanmis_kopyasi_yerel_dosya_gidince_yedegi_tutmaz(): void
+    {
+        $yedek = $this->gercekYedek();
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Ana', 'tur' => HedefTuru::Yerel, 'baglanti' => ['klasor' => '']]);
+        app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        unlink(config('yedekleme.klasor').'/'.$yedek->dosya_adi);
+        $this->dizinleriBosalt();
+
+        $this->tara();
+
+        $kurulan = Yedek::query()->where('kimlik', $yedek->kimlik)->sole();
+        $this->assertSame(KopyaDurumu::Tamam, YedekKopyasi::query()->where('yedek_id', $kurulan->id)->sole()->durum);
+        $this->assertSame(YedekDurumu::Silindi, $kurulan->durum);
+    }
+
+    /**
+     * Yedek klasöründen ayrı bir "ikinci disk" yerel hedefi
+     *
+     * @return array{0: YedekHedefi, 1: string}
+     */
+    private function ikinciDiskHedefi(): array
+    {
+        $klasor = $this->yedekKoku.'/disk2';
+        mkdir($klasor, 0750);
+
+        return [YedekHedefi::factory()->create(['ad' => 'Disk 2', 'tur' => HedefTuru::Yerel, 'baglanti' => ['klasor' => $klasor]]), $klasor];
+    }
+
+    /**
+     * Listedeki kopyaların rozetin dayandığı alanları
+     *
+     * @param  array<string, mixed>  $satir
+     * @return list<array{hedef_ad: mixed, durum: mixed, hata_kodu: mixed}>
+     */
+    private function kopyaOzetleri(array $satir): array
+    {
+        return array_map(fn (array $k): array => ['hedef_ad' => $k['hedef_ad'], 'durum' => $k['durum'], 'hata_kodu' => $k['hata_kodu']], $satir['kopyalar']);
     }
 
     /**

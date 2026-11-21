@@ -47,9 +47,10 @@ use Illuminate\Validation\ValidationException;
  *   (e-posta) okunmadan kaydedilmez: 422 `GOOGLE_HESAP_OKUNAMADI`, yeniden
  *   denenebilir (BY-021-R3). Kopyalı Google Drive hedefi ancak aynı hesap
  *   doğrulanınca yeniden bağlanır — kayıtlı e-postayla ya da (hesabı
- *   kayıtlı olmayan eski hedefte) yeni bağlantının kayıtlı klasöre
- *   erişmesiyle; doğrulanamazsa eski bağlantı aynen kalır: 409
- *   `GOOGLE_HESAP_DOGRULANAMADI` (BY-021-R2, R3).
+ *   kayıtlı olmayan eski hedefte) yeni bağlantının kayıtlı klasörün ve en
+ *   son kopyanın sahibi olmasıyla; doğrulanamazsa eski bağlantı aynen kalır:
+ *   409 `GOOGLE_HESAP_DOGRULANAMADI` (BY-021-R2, R3, R4). "Kopyalı" burada
+ *   dosyası durabilen kopyayı da kapsar (`konum_belirsiz`; BY-021-R5).
  * - "Sına" web isteğinde çalışır; bütün adımlar tek toplam süre bütçesini
  *   paylaşır (`HedefSinayici`, D9).
  */
@@ -250,18 +251,15 @@ final class YedekHedefiController extends Controller
         }
 
         // Hesabı kayıtlı olmayan eski hedefte yeni bağlantının kayıtlı klasörün
-        // ve en son kayıtlı kopyanın sahibi olduğu sorulur (BY-021-R3, R4).
-        // Uzak kimlikli kopya yoksa (henüz aktarılıyor) klasörün sahipliği yeter.
+        // ve dosyası hedefte duran (ya da durabilecek) en son kopyanın sahibi
+        // olduğu sorulur (BY-021-R3, R4, R5). Uzak kimlikli böyle kopya yoksa
+        // (henüz aktarılıyor) klasörün sahipliği yeter.
         $kayitliKlasor = ($hedef->baglanti['eposta'] ?? null) === null ? ($hedef->baglanti['klasor_kimligi'] ?? null) : null;
         $kayitliKlasor = is_string($kayitliKlasor) ? $kayitliKlasor : null;
-        $kayitliKopya = $kayitliKlasor === null ? null : $hedef->kopyalar()
-            ->where('durum', KopyaDurumu::Tamam->value)
-            ->whereNotNull('uzak_kimlik')
-            ->orderByDesc('id')
-            ->value('uzak_kimlik');
+        $kayitliKopya = $kayitliKlasor === null ? null : self::sonFizikselKopya($hedef);
 
         try {
-            $sonuc = GoogleDriveBaglayicisi::kodDegistir($veri['kod'], self::googleDonusAdresi(), $kayitliKlasor, is_string($kayitliKopya) ? $kayitliKopya : null);
+            $sonuc = GoogleDriveBaglayicisi::kodDegistir($veri['kod'], self::googleDonusAdresi(), $kayitliKlasor, $kayitliKopya);
         } catch (HedefHatasi $hata) {
             $this->denetle('hedef_google_baglan', $request, $hedef, [], $hata->kod);
 
@@ -271,18 +269,20 @@ final class YedekHedefiController extends Controller
             return response()->json(['kod' => $hata->kod, 'mesaj' => __($mesaj)], 422);
         }
 
-        $red = DB::transaction(function () use ($hedef, $sonuc): ?string {
+        $red = DB::transaction(function () use ($hedef, $sonuc, $kayitliKopya): ?string {
             $hedef = YedekHedefi::query()->whereKey($hedef->getKey())->lockForUpdate()->firstOrFail();
             $oncekiHesap = $hedef->baglanti['eposta'] ?? null;
-            // Kayıtlı hesap bilinmiyorsa: yeni bağlantı kayıtlı klasörün (kilit altındaki değer) ve
-            // kayıtlı kopyanın sahibiyse aynı hesaptır; yalnız erişim yetmez (paylaşılmış klasör — BY-021-R4)
+            // Kayıtlı hesap bilinmiyorsa: yeni bağlantı kayıtlı klasörün ve kayıtlı kopyanın sahibiyse
+            // aynı hesaptır; yalnız erişim yetmez (paylaşılmış klasör — BY-021-R4). Kanıt kilit altında
+            // yeniden eşlenir: klasör ve en son fiziksel kopya, sahipliği sorulanlarla aynı olmalı (BY-021-R5)
             $klasorKaniti = $oncekiHesap === null && $sonuc['dogrulanan_klasor'] !== null
-                && $sonuc['dogrulanan_klasor'] === ($hedef->baglanti['klasor_kimligi'] ?? null);
+                && $sonuc['dogrulanan_klasor'] === ($hedef->baglanti['klasor_kimligi'] ?? null)
+                && self::sonFizikselKopya($hedef) === $kayitliKopya;
             $ayniHesap = ($oncekiHesap !== null && $oncekiHesap === $sonuc['eposta']) || $klasorKaniti;
 
-            // Kopyalı hedefte dosya kimlikleri bağlı hesaptadır: hesabın aynı olduğu
-            // DOĞRULANMADIKÇA (kayıtlı hesap bilinmiyor, klasör kanıtı yok) eski bağlantı aynen kalır
-            if (! $ayniHesap && $this->konum->kilitliAlanlar($hedef) !== []) {
+            // Dosya kimlikleri bağlı hesaptadır: hesabın aynı olduğu DOĞRULANMADIKÇA
+            // (kayıtlı hesap bilinmiyor, kanıt yok) kopyası duran hedefte eski bağlantı aynen kalır
+            if (! $ayniHesap && ($this->konum->kilitliAlanlar($hedef) !== [] || $this->geridekiKopyaVarMi($hedef, $sonuc['eposta']))) {
                 return $oncekiHesap === null ? 'GOOGLE_HESAP_DOGRULANAMADI' : 'HEDEF_KONUMU_DEGISMEZ';
             }
 
@@ -335,6 +335,42 @@ final class YedekHedefiController extends Controller
     public static function googleDurumKilidi(string $durum): string
     {
         return self::googleDurumAnahtari($durum).':kilit';
+    }
+
+    /**
+     * Dosyası hedefte duran ya da durabilecek (KopyaDurumu::yedegiTutanlar)
+     * en son uzak kimlikli kopya (BY-021-R5): yükseltmede izsiz eski `tamam`
+     * kopya `konum_belirsiz` olur, dosyası yine bağlı hesaptadır; hesap
+     * kanıtında o da sorulur.
+     */
+    private static function sonFizikselKopya(YedekHedefi $hedef): ?string
+    {
+        $kimlik = $hedef->kopyalar()
+            ->whereIn('durum', KopyaDurumu::yedegiTutanlar())
+            ->whereNotNull('uzak_kimlik')
+            ->orderByDesc('id')
+            ->value('uzak_kimlik');
+
+        return is_string($kimlik) ? $kimlik : null;
+    }
+
+    /**
+     * Hesap değişince dosyası eski hesapta kalacak kopya var mı (BY-021-R5,
+     * G21). Konum kilidi (HedefKonumu) yalnız `tamam` / `kopyalaniyor`'a
+     * bakar; `konum_belirsiz` kopyanın dosyası da durabilir. Konum izi yeni
+     * hesabın konumunu gösteren kopya geride kalmaz (o hesaba dönmek kopyanın
+     * konumunu düzeltir); izsiz kopya doğrulanamaz, geride sayılır.
+     */
+    private function geridekiKopyaVarMi(YedekHedefi $hedef, string $yeniHesap): bool
+    {
+        $aday = clone $hedef;
+        $aday->baglanti = [...($hedef->baglanti ?? []), 'eposta' => $yeniHesap];
+
+        return $hedef->kopyalar()
+            ->whereIn('durum', KopyaDurumu::yedegiTutanlar())
+            ->distinct()
+            ->pluck('konum_izi')
+            ->contains(fn (?string $iz): bool => ! $this->konum->konumdaMi($aday, $iz));
     }
 
     /**

@@ -11,14 +11,17 @@ use App\Models\YedekHedefi;
 use App\Models\YedekIslemKaydi;
 use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
+use App\Services\Yedekleme\HedefKonumu;
 use App\Services\Yedekleme\Hedefler\GoogleDriveBaglayicisi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use App\Services\Yedekleme\Hedefler\S3Baglayicisi;
 use App\Services\Yedekleme\HedefTuru;
 use App\Services\Yedekleme\KopyaDurumu;
+use Illuminate\Database\Migrations\Migration;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Sleep;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -558,5 +561,147 @@ final class YedekHedefiApiTest extends TestCase
         $hedef->refresh();
         $this->assertEquals(['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'eposta' => 'yedek@ornek.test'], $hedef->baglanti);
         $this->assertSame('yenileme-GIZLI', $hedef->gizli_bilgiler['yenileme_anahtari']);
+    }
+
+    /**
+     * Yükseltilmiş kurulumdaki eski kopya: eski şemada (konum izi yok) `tamam`
+     * kayıt, gerçek ileri migration onu `konum_belirsiz` yapar (BY-028-R5).
+     */
+    private function yukseltilmisEskiKopya(YedekHedefi $hedef): YedekKopyasi
+    {
+        /** @var Migration $migration */
+        $migration = require database_path('migrations/2026_11_21_112737_add_konum_izi_to_yedek_kopyalari_table.php');
+        $yedekId = Yedek::factory()->create()->id;
+        $migration->down();
+        DB::table('yedek_kopyalari')->insert(['yedek_id' => $yedekId, 'yedek_hedefi_id' => $hedef->id, 'durum' => 'tamam', 'uzak_kimlik' => 'drive-dosya-1', 'created_at' => now(), 'updated_at' => now()]);
+
+        $migration->up();
+
+        $kopya = YedekKopyasi::query()->where('yedek_hedefi_id', $hedef->id)->sole();
+        $this->assertSame([KopyaDurumu::KonumBelirsiz, null], [$kopya->durum, $kopya->konum_izi]);
+
+        return $kopya;
+    }
+
+    /**
+     * @return iterable<string, array{0: array<string, mixed>, 1: array<string, mixed>|int|null}>
+     */
+    public static function yukseltilenKopyadaKanitlanamayanSahiplikler(): iterable
+    {
+        // [kayıtlı klasörün yeni bağlantıyla sorgusu, yükseltilen kopyanın sorgusu]
+        yield 'klasör başka hesabın' => [['ownedByMe' => false] + self::SAHIP_OLUNAN_KLASOR, null];
+        yield 'klasörün sahibi, yükseltilen kopya başka hesabın' => [self::SAHIP_OLUNAN_KLASOR, ['ownedByMe' => false] + self::SAHIP_OLUNAN_KOPYA];
+        yield 'klasörün sahibi, yükseltilen kopyaya erişilemiyor' => [self::SAHIP_OLUNAN_KLASOR, 404];
+    }
+
+    /**
+     * BY-021-R5: yükseltmede `konum_belirsiz` olan eski kopyanın dosyası bağlı
+     * hesapta durur; konum kilidini tutmasa da hesap değişikliği kararında
+     * korunur. Kimliksiz eski hedefte klasörün ve o kopyanın sahipliği
+     * kanıtlanamazsa eski bağlantı (anahtar, klasör, durum) aynen kalır.
+     *
+     * @param  array<string, mixed>  $klasor
+     * @param  array<string, mixed>|int|null  $kopya
+     */
+    #[DataProvider('yukseltilenKopyadaKanitlanamayanSahiplikler')]
+    public function test_yukseltmede_konum_belirsiz_olan_eski_kopyali_kimliksiz_drive_hedefi_sahiplik_kanitlanamazsa_409_eski_baglanti_degismez(array $klasor, array|int|null $kopya): void
+    {
+        $this->googleYanitlari(200, $klasor, $kopya);
+        $baglanti = ['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'durum' => 'yeniden_baglan'];
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Drive', 'tur' => HedefTuru::GoogleDrive, 'baglanti' => $baglanti, 'gizli_bilgiler' => ['yenileme_anahtari' => 'eski-anahtar']]);
+        $eskiKopya = $this->yukseltilmisEskiKopya($hedef);
+
+        $this->postJson(self::K.'/google/donus', ['kod' => 'yetki-kodu', 'durum' => $this->googleDurumu($hedef)])
+            ->assertStatus(409)->assertJsonPath('kod', 'GOOGLE_HESAP_DOGRULANAMADI');
+
+        $hedef->refresh();
+        $this->assertEquals($baglanti, $hedef->baglanti);
+        $this->assertSame(['yenileme_anahtari' => 'eski-anahtar'], $hedef->gizli_bilgiler);
+        $this->assertSame(KopyaDurumu::KonumBelirsiz, $eskiKopya->refresh()->durum);
+    }
+
+    /** BY-021-R5: yükseltilen kopyanın ve klasörün sahibi olan hesap kabul edilir; kopyanın sahipliği yeni anahtarla sorulur */
+    public function test_yukseltmede_konum_belirsiz_olan_eski_kopyali_kimliksiz_drive_hedefi_klasorun_ve_kopyanin_sahibi_hesapla_baglanir(): void
+    {
+        $this->googleYanitlari(200, self::SAHIP_OLUNAN_KLASOR, self::SAHIP_OLUNAN_KOPYA);
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Drive', 'tur' => HedefTuru::GoogleDrive, 'baglanti' => ['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'durum' => 'yeniden_baglan'], 'gizli_bilgiler' => ['yenileme_anahtari' => 'eski-anahtar']]);
+        $this->yukseltilmisEskiKopya($hedef);
+
+        $this->postJson(self::K.'/google/donus', ['kod' => 'yetki-kodu', 'durum' => $this->googleDurumu($hedef)])->assertOk();
+
+        $hedef->refresh();
+        $this->assertEquals(['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'eposta' => 'yedek@ornek.test'], $hedef->baglanti);
+        $this->assertSame(['yenileme_anahtari' => 'yeni-anahtar'], $hedef->gizli_bilgiler);
+        Http::assertSent(fn (Request $istek): bool => str_starts_with($istek->url(), 'https://www.googleapis.com/drive/v3/files/drive-dosya-1?') && $istek->hasHeader('Authorization', 'Bearer ya29.erisim'));
+    }
+
+    /**
+     * BY-021-R5: kanıt kayıttan önce kilit altında yeniden eşlenir. Sahiplik
+     * sorulurken hedefe daha yeni bir fiziksel kopya eklendiyse sorulan kopya
+     * artık en son kopya değildir: kanıt geçersiz, eski bağlantı aynen kalır.
+     */
+    public function test_sahiplik_sorulurken_hedefe_yeni_kopya_eklenirse_kanit_gecersiz_409_eski_baglanti_degismez(): void
+    {
+        Sleep::fake();
+        config(['yedekleme.google.istemci_kimligi' => 'istemci-1.apps.googleusercontent.com', 'yedekleme.google.istemci_sirri' => 'GOCSPX-sir', 'app.url' => 'https://erp.ornek.test']);
+        $baglanti = ['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'durum' => 'yeniden_baglan'];
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Drive', 'tur' => HedefTuru::GoogleDrive, 'baglanti' => $baglanti, 'gizli_bilgiler' => ['yenileme_anahtari' => 'eski-anahtar']]);
+        YedekKopyasi::query()->create(['yedek_id' => Yedek::factory()->create()->id, 'yedek_hedefi_id' => $hedef->id, 'durum' => KopyaDurumu::KonumBelirsiz, 'uzak_kimlik' => 'drive-dosya-1', 'sifreli' => true]);
+        $yeniYedekId = Yedek::factory()->create()->id;
+        Http::preventStrayRequests();
+        Http::fake(function (Request $istek) use ($hedef, $yeniYedekId) {
+            return match (true) {
+                $istek->url() === 'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'ya29.erisim', 'refresh_token' => 'yeni-anahtar', 'expires_in' => 3599, 'scope' => GoogleDriveBaglayicisi::KAPSAM, 'token_type' => 'Bearer']),
+                str_starts_with($istek->url(), 'https://www.googleapis.com/drive/v3/about?') => Http::response(['user' => ['emailAddress' => 'yedek@ornek.test']]),
+                str_starts_with($istek->url(), 'https://www.googleapis.com/drive/v3/files/klasor-1?') => Http::response(self::SAHIP_OLUNAN_KLASOR),
+                // Kopyanın sahipliği sorulurken dizin taraması daha yeni bir kopya ekliyor
+                str_starts_with($istek->url(), 'https://www.googleapis.com/drive/v3/files/drive-dosya-1?') => tap(Http::response(self::SAHIP_OLUNAN_KOPYA), fn () => YedekKopyasi::query()->create(['yedek_id' => $yeniYedekId, 'yedek_hedefi_id' => $hedef->id, 'durum' => KopyaDurumu::KonumBelirsiz, 'uzak_kimlik' => 'drive-dosya-2', 'sifreli' => true])),
+                default => Http::response('', 500),
+            };
+        });
+
+        $this->postJson(self::K.'/google/donus', ['kod' => 'yetki-kodu', 'durum' => $this->googleDurumu($hedef)])
+            ->assertStatus(409)->assertJsonPath('kod', 'GOOGLE_HESAP_DOGRULANAMADI');
+
+        $hedef->refresh();
+        $this->assertEquals($baglanti, $hedef->baglanti);
+        $this->assertSame(['yenileme_anahtari' => 'eski-anahtar'], $hedef->gizli_bilgiler);
+    }
+
+    /**
+     * BY-021-R5 (G1): hesabı kayıtlı hedefte de yükseltilen eski kopya hesap
+     * değişikliğini engeller; dosyası kayıtlı hesapta kalırdı.
+     */
+    public function test_yukseltmede_konum_belirsiz_olan_eski_kopyali_drive_hedefi_baska_google_hesabiyla_yeniden_baglanamaz_409(): void
+    {
+        $this->googleSahtesi('baska@ornek.test');
+        $baglanti = ['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'eposta' => 'yedek@ornek.test', 'durum' => 'yeniden_baglan'];
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Drive', 'tur' => HedefTuru::GoogleDrive, 'baglanti' => $baglanti, 'gizli_bilgiler' => ['yenileme_anahtari' => 'eski-anahtar']]);
+        $this->yukseltilmisEskiKopya($hedef);
+
+        $this->postJson(self::K.'/google/donus', ['kod' => 'yetki-kodu', 'durum' => $this->googleDurumu($hedef)])
+            ->assertStatus(409)->assertJsonPath('kod', 'HEDEF_KONUMU_DEGISMEZ')->assertJsonPath('alanlar', ['eposta']);
+
+        $hedef->refresh();
+        $this->assertEquals($baglanti, $hedef->baglanti);
+        $this->assertSame(['yenileme_anahtari' => 'eski-anahtar'], $hedef->gizli_bilgiler);
+    }
+
+    /**
+     * BY-021-R5: konum izi yeni hesabı gösteren `konum_belirsiz` kopya geride
+     * kalmaz — o hesaba dönmek kopyanın konumunu düzeltir (konum düzeltme yolu
+     * açık kalır); klasör yeni hesapta yeniden aranır.
+     */
+    public function test_konum_izi_yeni_hesabi_gosteren_konum_belirsiz_kopya_hesap_degisikligini_engellemez(): void
+    {
+        $this->googleSahtesi('baska@ornek.test');
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Drive', 'tur' => HedefTuru::GoogleDrive, 'baglanti' => ['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'eposta' => 'yedek@ornek.test']]);
+        $eskiYer = clone $hedef;
+        $eskiYer->baglanti = [...$hedef->baglanti, 'eposta' => 'baska@ornek.test'];
+        YedekKopyasi::query()->create(['yedek_id' => Yedek::factory()->create()->id, 'yedek_hedefi_id' => $hedef->id, 'durum' => KopyaDurumu::KonumBelirsiz, 'uzak_kimlik' => 'drive-dosya-1', 'sifreli' => true, 'konum_izi' => app(HedefKonumu::class)->iz($eskiYer)]);
+
+        $this->postJson(self::K.'/google/donus', ['kod' => 'yetki-kodu', 'durum' => $this->googleDurumu($hedef)])->assertOk();
+
+        $this->assertEquals(['klasor_adi' => 'eMOR', 'eposta' => 'baska@ornek.test'], $hedef->refresh()->baglanti);
     }
 }

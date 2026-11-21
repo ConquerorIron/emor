@@ -49,13 +49,15 @@ use Throwable;
  *    (yeni + bir önceki) kalır. Silmede önce işaretçi, sonra bileşenler;
  *    işaretçi silinemezse sürümün hiçbir bileşenine dokunulmaz (BY-024-R4):
  *    hedefte "tamam" görünen bir set hiçbir an eksik kalmaz.
- *    İstisna (BY-024-R6; D4): bu hedefte saklanan (`tamam`) bir kopyanın
- *    yedeğini doğrulanmış olarak taşıyan EN YENİ sürüm kalacaklardan değilse
- *    (yerel manifest kayboldu / bozuldu, yeni paketler o yedeği artık
+ *    İstisna (BY-024-R6, BY-024-R8; D4): bu hedefte dosyası duran ya da
+ *    durabilecek (`tamam`, `konum_belirsiz`: KopyaDurumu::yedegiTutanlar) bir
+ *    kopyanın yedeğini doğrulanmış olarak taşıyan EN YENİ sürüm kalacaklardan
+ *    değilse (yerel manifest kayboldu / bozuldu, yeni paketler o yedeği artık
  *    doğrulayamıyor) yaşına bakılmadan korunur: o uzak dump'ın tek kurtarma
  *    dayanağıdır. Koruma, yeni bir sürüm o yedeği yeniden doğrulayınca ya da
- *    kopya saklamadan çıkınca (silindi / tamam değil) kalkar; korunan sürüm
+ *    kopya saklamadan çıkınca (silindi, başarısız) kalkar; korunan sürüm
  *    denetim kaydında (`korunan_eski_surum`) ve günlükte uyarı olarak görünür.
+ *    Konumu belirsiz kopyanın dayanağı korunur ama kopya hazır sayılmaz (5).
  * 5. Kurtarmaya hazırlık hedefte KALAN tamam sürümlerden yeniden hesaplanır
  *    (`kurtarma_hazir`; BY-010-R2, BY-024-R3, BY-024-R5; D4): kopya, yedeğin
  *    kimliği ve katalogdaki SHA-256'sı kayıttaki tamam sürümlerden birinin
@@ -270,8 +272,9 @@ final class KurtarmaPaketi
 
     /**
      * Tamamlanan sürümden sonra: yarım kalmış sürümler ve son SAKLANAN_SURUM
-     * tamam sürümden eskiler silinir; saklanan bir kopyanın son kurtarma
-     * dayanağı olan eski sürüm silinmez (BY-024-R6, korunacakDayanaklar).
+     * tamam sürümden eskiler silinir; hedefte duran ya da durabilecek bir
+     * kopyanın son kurtarma dayanağı olan eski sürüm silinmez (BY-024-R6,
+     * BY-024-R8, korunacakDayanaklar).
      * Bir sürümün silinememesi diğerlerini durdurmaz; silinemeyen kayıtta kalır.
      *
      * @return array{silinemeyen: int, korunan: list<string>} Silinemeyen sürüm sayısı; dayanak olduğu için korunan sürümler
@@ -298,7 +301,7 @@ final class KurtarmaPaketi
 
         $korunanSurumler = array_map(fn (int $sira): string => $surumler[$sira]['surum'], array_keys($korunan));
         if ($korunanSurumler !== []) {
-            Log::channel('yedekleme')->warning('Kurtarma paketi: saklanan uzak kopyaların tek doğrulanmış manifestini taşıyan eski sürüm silinmedi; yedek klasöründeki manifestlerini denetleyin', [
+            Log::channel('yedekleme')->warning('Kurtarma paketi: hedefte duran ya da durabilecek (tamam / konumu belirsiz) uzak kopyaların tek doğrulanmış manifestini taşıyan eski sürüm silinmedi; yedek klasöründeki manifestlerini denetleyin', [
                 'kod' => 'KURTARMA_ESKI_SURUM_KORUNDU',
                 'hedef_id' => $hedef->id,
                 'surumler' => $korunanSurumler,
@@ -311,12 +314,19 @@ final class KurtarmaPaketi
 
     /**
      * Kalacaklar dışında tutulması gereken sürümler (BY-024-R6; D4): bu
-     * hedefte saklanan (`tamam`) her kopya için, yedeğinin kimliğini ve
+     * hedefte dosyası duran ya da durabilecek (KopyaDurumu::yedegiTutanlar:
+     * `tamam`, `konum_belirsiz`) her kopya için, yedeğinin kimliğini ve
      * katalogdaki SHA-256'sını doğrulanmış listesinde taşıyan EN YENİ tamam
      * sürüm. O sürüm kalacaklardan biriyse yenisi zaten dayanaktır (bir şey
      * korunmaz); değilse kalacakların hiçbiri o yedeği doğrulamıyordur ve
-     * sürüm uzak dump'ın son kurtarma dayanağıdır. Ölçüt hazirligiGuncelle'ninkiyle
-     * aynıdır: korunan sürüm kayıtta tamam kaldığı için kopya hazır kalır.
+     * sürüm uzak dump'ın son kurtarma dayanağıdır. Eşleşme ölçütü
+     * hazirligiGuncelle'ninkiyle aynıdır: korunan sürüm kayıtta tamam kaldığı
+     * için `tamam` kopya hazır kalır.
+     *
+     * Kopya kümesi hazırlıktan GENİŞTİR (BY-024-R8; G21 "kullanılamaz ile yok
+     * ayrı kümelerdir"): konumu belirsiz kopya kullanılamaz (hazır sayılmaz,
+     * uzak yaşam sinyali getirmez) ama dosyası hedefte durabilir; dayanağını
+     * silmek o şifreli dump'ı hedef doğrulandığında açılamaz bırakırdı.
      *
      * @param  list<array{surum: string, tamam: bool, kimlikler: list<string>, isaretci: string|null, yedekler: array<string, string>|null}>  $surumler
      * @param  list<int>  $kalacak
@@ -327,7 +337,7 @@ final class KurtarmaPaketi
         $korunan = [];
         YedekKopyasi::query()
             ->where('yedek_hedefi_id', $hedef->id)
-            ->where('durum', KopyaDurumu::Tamam->value)
+            ->whereIn('durum', KopyaDurumu::yedegiTutanlar())
             ->with('yedek:id,kimlik,sha256')
             ->get(['id', 'yedek_id'])
             ->each(function (YedekKopyasi $k) use ($surumler, $kalacak, &$korunan): void {
@@ -435,6 +445,8 @@ final class KurtarmaPaketi
      * (BY-010-R2, BY-024-R5; D4). Kopya hazırdır ⇔ `tamam` ve yedeğin kimliği
      * ile katalogdaki SHA-256'sı o listelerden birinde aynen var. Yalnız
      * değişen kopyalar güncellenir; dayanağı kalmayan işaret geri alınır.
+     * Konumu belirsiz kopya dayanağı korunsa da (korunacakDayanaklar) hazır
+     * DEĞİLDİR: kullanılamaz, işareti varsa geri alınır (BY-024-R8).
      *
      * @throws RuntimeException|ImzaAnahtariYok|JsonException
      */

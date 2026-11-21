@@ -401,6 +401,299 @@ final class SaklamaPolitikasiTest extends TestCase
         }
     }
 
+    /** @return array<string, array{bool, string|null, bool}> anaKlasorHedefi, silinemeyenHedef (A hazır / B hazır değil), yerelDosyaKalir */
+    public static function kismiUzakSilmeKurgulari(): array
+    {
+        return [
+            'yedek klasörü yolu, hazır olmayan hedefte silme hatası' => [false, 'B', true],
+            'yedek klasörü yolu, hazır hedefte silme hatası' => [false, 'A', false],
+            'yedek klasörü yolu, tüm hedeflerde başarı' => [false, null, false],
+            'ana klasör hedefi yolu, hazır olmayan hedefte silme hatası' => [true, 'B', true],
+            'ana klasör hedefi yolu, hazır hedefte silme hatası' => [true, 'A', false],
+            'ana klasör hedefi yolu, tüm hedeflerde başarı' => [true, null, false],
+        ];
+    }
+
+    /**
+     * BY-010-R5 (D4, F7): kurallar eski yedeğin iki uzak kopyasını da siliyor
+     * (A hazır, B hazır değil). Yerel dosya uzak silmelerin GERÇEK sonucuna
+     * göre silinir: B'nin silmesi düşerse geride hazır olmayan tek kopya
+     * kalır, yerel dosya kalır; A'nınki düşerse hazır A kalır, yerel silinir;
+     * hepsi silinirse saklama kararı geçerlidir (yedek her yerden gider).
+     */
+    #[DataProvider('kismiUzakSilmeKurgulari')]
+    public function test_yerel_dosya_uzak_silmelerden_sonra_fiilen_kalan_kopyalara_gore_silinir(bool $anaKlasorHedefi, ?string $silinemeyen, bool $yerelDosyaKalir): void
+    {
+        $a = $this->bellekHedefi('A');
+        $b = $this->bellekHedefi('B');
+        $plan = $this->plan($a, 1);
+        $plan->hedefler()->attach($b, ['sakla_son_adet' => 1, 'sakla_gun' => null]);
+        $ana = $anaKlasorHedefi ? $this->anaYerelHedef() : null;
+        if ($ana !== null) {
+            $plan->hedefler()->attach($ana, ['sakla_son_adet' => 1, 'sakla_gun' => null]);
+        }
+        $eski = $this->yedek(5, YedekKaynagi::Plan);
+        $yeni = $this->yedek(1, YedekKaynagi::Plan);
+        $eskiKopyalar = [];
+        if ($ana !== null) {
+            $eskiKopyalar['ana'] = $this->kopya($eski, $ana, [$plan]);
+        }
+        $eskiKopyalar['A'] = $this->kopya($eski, $a, [$plan]);
+        $eskiKopyalar['A']->update(['kurtarma_hazir' => true]);
+        $eskiKopyalar['B'] = $this->kopya($eski, $b, [$plan]);
+        foreach ([$a, $b, $ana] as $hedef) {
+            if ($hedef !== null) {
+                $this->kopya($yeni, $hedef, [$plan])->update(['kurtarma_hazir' => true]);
+            }
+        }
+        if ($silinemeyen !== null) {
+            $kopya = $eskiKopyalar[$silinemeyen];
+            unset(BellekHedefi::$dosyalar[$kopya->uzak_kimlik]);
+            $kopya->update(['uzak_kimlik' => $kopya->uzak_kimlik.'.silinemez']);
+            BellekHedefi::$dosyalar[$kopya->uzak_kimlik] = 'dump';
+            BellekHedefi::$silinemeyenAdSonu = '.silinemez';
+        }
+        $this->assertContains(
+            SilmeKarari::DOSYA.':'.$eski->id.':'.($ana?->id ?? 'klasor').':-',
+            array_map(fn (SilmeKarari $k): string => $k->anahtar(), app(SaklamaPolitikasi::class)->hesapla()['silinecek']),
+            'Önizleme yerel dosyayı silinecek gösterir (bütün uzak silmeler başarılı varsayımı)',
+        );
+
+        $sonuc = app(SaklamaPolitikasi::class)->uygula();
+
+        foreach (['A' => $a, 'B' => $b] as $ad => $hedef) {
+            $kopya = $eskiKopyalar[$ad]->refresh();
+            $kaldi = $silinemeyen === $ad;
+            $this->assertSame($kaldi ? KopyaDurumu::Tamam : KopyaDurumu::Silindi, $kopya->durum, "{$ad} kopyası");
+            $this->assertSame($kaldi, isset(BellekHedefi::$dosyalar[$kopya->uzak_kimlik]), "{$ad} hedefindeki dosya");
+        }
+        $this->assertSame($silinemeyen === null ? [] : [($silinemeyen === 'A' ? $a : $b)->id], $sonuc['atlanan_hedefler']);
+
+        $yol = config('yedekleme.klasor').'/'.$eski->dosya_adi;
+        $eski->refresh();
+        $this->assertFileExists(ManifestDeposu::jsonYolu($yol));
+        $korumaKaydi = YedekIslemKaydi::query()->where(['islem' => 'saklama_sil', 'yedek_id' => $eski->id, 'sonuc' => 'basarisiz'])
+            ->get()->filter(fn (YedekIslemKaydi $k): bool => ($k->ayrinti['kod'] ?? null) === 'kurtarma_paketi_eksik');
+        if ($yerelDosyaKalir) {
+            $this->assertFileExists($yol);
+            $this->assertSame([YedekDurumu::Tamam, null], [$eski->durum, $eski->yerel_silinme_zamani]);
+            $this->assertCount(1, $korumaKaydi);
+            $this->assertSame($ana?->id, $korumaKaydi->sole()->ayrinti['hedef_id']);
+            $this->assertCount(1, array_filter($sonuc['bilgi'], fn (string $b): bool => str_contains($b, $eski->dosya_adi)));
+            if ($ana !== null) {
+                $this->assertSame(KopyaDurumu::Tamam, $eskiKopyalar['ana']->refresh()->durum);
+            }
+        } else {
+            $this->assertFileDoesNotExist($yol);
+            $this->assertNotNull($eski->yerel_silinme_zamani);
+            $this->assertCount(0, $korumaKaydi);
+            // Hazır A kopyası kaldıysa yedek durur; hiçbir kopya kalmadıysa saklama yedeği bitirir (F7)
+            $this->assertSame($silinemeyen === null ? YedekDurumu::Silindi : YedekDurumu::Tamam, $eski->durum);
+            if ($ana !== null) {
+                $this->assertSame(KopyaDurumu::Silindi, $eskiKopyalar['ana']->refresh()->durum);
+            }
+        }
+        $this->assertSame($silinemeyen === null ? 0 : 1, YedekIslemKaydi::query()->where(['islem' => 'saklama_sil', 'yedek_id' => $eski->id, 'sonuc' => 'basarisiz'])
+            ->get()->filter(fn (YedekIslemKaydi $k): bool => ($k->ayrinti['kod'] ?? null) === HedefHatasi::SILINEMEDI)->count());
+    }
+
+    /**
+     * BY-010-R5: kurallar yedeğin bütün uzak kopyalarını siliyorsa ve silmeler
+     * gerçekten başarılıysa saklama kararı geçerlidir — silinen kopyalar hazır
+     * olmasa da yerel dosya da gider (önceki ölçüt onu korur, sonraki turda
+     * uzak kopyasız kalan dosya hiçbir kuralla silinemezdi).
+     */
+    public function test_butun_uzak_kopyalari_gercekten_silinen_yedegin_yerel_dosyasi_hazirliktan_bagimsiz_silinir(): void
+    {
+        $a = $this->bellekHedefi('A');
+        $b = $this->bellekHedefi('B');
+        $plan = $this->plan($a, 1);
+        $plan->hedefler()->attach($b, ['sakla_son_adet' => 1, 'sakla_gun' => null]);
+        $eski = $this->yedek(5, YedekKaynagi::Plan);
+        $yeni = $this->yedek(1, YedekKaynagi::Plan);
+        $this->kopya($eski, $a, [$plan]);
+        $this->kopya($eski, $b, [$plan]);
+        $this->kopya($yeni, $a, [$plan])->update(['kurtarma_hazir' => true]);
+        $this->kopya($yeni, $b, [$plan])->update(['kurtarma_hazir' => true]);
+
+        app(SaklamaPolitikasi::class)->uygula();
+
+        $this->assertSame(0, YedekKopyasi::query()->where('yedek_id', $eski->id)->where('durum', KopyaDurumu::Tamam->value)->count());
+        $this->assertFileDoesNotExist(config('yedekleme.klasor').'/'.$eski->dosya_adi);
+        $this->assertSame(YedekDurumu::Silindi, $eski->refresh()->durum);
+    }
+
+    /** @return array<string, array{bool, bool}> anaKlasorHedefi, hazirTamamKopyaKalir */
+    public static function konumuBelirsizKalanKopyaKurgulari(): array
+    {
+        return [
+            'yedek klasörü yolu, yalnız konumu belirsiz kopya kalır' => [false, false],
+            'yedek klasörü yolu, konumu belirsiz + hazır tamam kopya kalır' => [false, true],
+            'ana klasör hedefi yolu, yalnız konumu belirsiz kopya kalır' => [true, false],
+            'ana klasör hedefi yolu, konumu belirsiz + hazır tamam kopya kalır' => [true, true],
+        ];
+    }
+
+    /**
+     * BY-010-R5 / G21 (kullanılamaz ≠ yok): A hedefi eski yedeğin hazır kopyasını
+     * siler; yeri doğrulanamayan kopya kalan kopyadır ama kurtarma dayanağı
+     * değildir. Yalnız o kalırsa yerel dosya kalır; yanında hazır tamam kopya
+     * (B) kalırsa yerel dosya silinir.
+     */
+    #[DataProvider('konumuBelirsizKalanKopyaKurgulari')]
+    public function test_yalniz_konumu_belirsiz_kopya_kalan_yedegin_yerel_dosyasi_silinmez(bool $anaKlasorHedefi, bool $hazirTamamKopyaKalir): void
+    {
+        $a = $this->bellekHedefi('A');
+        $plan = $this->plan($a, 1);
+        $b = $hazirTamamKopyaKalir ? $this->bellekHedefi('B') : null;
+        if ($b !== null) {
+            $plan->hedefler()->attach($b, ['sakla_son_adet' => 2, 'sakla_gun' => null]);
+        }
+        $ana = $anaKlasorHedefi ? $this->anaYerelHedef() : null;
+        if ($ana !== null) {
+            $plan->hedefler()->attach($ana, ['sakla_son_adet' => 1, 'sakla_gun' => null]);
+        }
+        $eski = $this->yedek(5, YedekKaynagi::Plan);
+        $yeni = $this->yedek(1, YedekKaynagi::Plan);
+        foreach ([$eski, $yeni] as $y) {
+            foreach ([$a, $b, $ana] as $hedef) {
+                if ($hedef !== null) {
+                    $this->kopya($y, $hedef, [$plan])->update(['kurtarma_hazir' => true]);
+                }
+            }
+        }
+        $belirsiz = $this->kopya($eski, $this->bellekHedefi('Konumu belirsiz'), durum: KopyaDurumu::KonumBelirsiz);
+        $onizleme = app(SaklamaPolitikasi::class)->hesapla();
+
+        app(SaklamaPolitikasi::class)->uygula();
+
+        $this->assertSame(KopyaDurumu::Silindi, YedekKopyasi::query()->where(['yedek_id' => $eski->id, 'yedek_hedefi_id' => $a->id])->sole()->durum);
+        $this->assertSame(KopyaDurumu::KonumBelirsiz, $belirsiz->refresh()->durum);
+        $yol = config('yedekleme.klasor').'/'.$eski->dosya_adi;
+        $eski->refresh();
+        $this->assertSame(YedekDurumu::Tamam, $eski->durum);
+        if ($hazirTamamKopyaKalir) {
+            $this->assertFileDoesNotExist($yol);
+            $this->assertNotNull($eski->yerel_silinme_zamani);
+        } else {
+            $this->assertFileExists($yol);
+            $this->assertNull($eski->yerel_silinme_zamani);
+            $this->assertContains('kurtarma_paketi_eksik', $onizleme['korunan'][$eski->id]);
+            if ($ana !== null) {
+                $this->assertSame(KopyaDurumu::Tamam, YedekKopyasi::query()->where(['yedek_id' => $eski->id, 'yedek_hedefi_id' => $ana->id])->sole()->durum);
+            }
+        }
+    }
+
+    /** @return array<string, array{bool}> */
+    public static function anaHedefSiralari(): array
+    {
+        return ['ana klasör hedefi önce işlenir' => [true], 'ana klasör hedefi sonra işlenir' => [false]];
+    }
+
+    /**
+     * BY-010-R6: yerel dosyanın korumaları (uzak kopyası başarısız →
+     * `uzak_kopya_dogrulanmadi`) ve ana klasör grubunun en az sayısı uzak
+     * hedeflerin kararına sızmaz; uzak kararlar grupların işlenme sırasına
+     * (hedef / kopya kimliği) bağlı değildir.
+     */
+    #[DataProvider('anaHedefSiralari')]
+    public function test_yerel_korumalar_uzak_hedef_kararlarini_islenme_sirasina_gore_degistirmez(bool $anaOnce): void
+    {
+        $ana = $anaOnce ? $this->anaYerelHedef() : null;
+        $uzak = $this->bellekHedefi('Uzak');
+        $ana ??= $this->anaYerelHedef();
+        $plan = $this->plan($anaOnce ? $ana : $uzak, 1);
+        $plan->hedefler()->attach($anaOnce ? $uzak : $ana, ['sakla_son_adet' => 1, 'sakla_gun' => null]);
+        $eski = $this->yedek(5, YedekKaynagi::Plan);
+        $yeni = $this->yedek(1, YedekKaynagi::Plan);
+        foreach ($anaOnce ? [$ana, $uzak] : [$uzak, $ana] as $hedef) {
+            foreach ([$eski, $yeni] as $y) {
+                $this->kopya($y, $hedef, [$plan])->update(['kurtarma_hazir' => true]);
+            }
+        }
+        $this->kopya($eski, $this->bellekHedefi('Başarısız'), durum: KopyaDurumu::Basarisiz);
+        $this->assertSame($anaOnce, $ana->id < $uzak->id);
+
+        $hesap = app(SaklamaPolitikasi::class)->hesapla();
+
+        $uzakKararlari = array_values(array_map(fn (SilmeKarari $k): string => $k->anahtar(), array_filter($hesap['silinecek'], fn (SilmeKarari $k): bool => $k->hedefId === $uzak->id)));
+        $this->assertEqualsCanonicalizing([
+            SilmeKarari::BAG.':'.$eski->id.':'.$uzak->id.':'.$plan->id,
+            SilmeKarari::DOSYA.':'.$eski->id.':'.$uzak->id.':-',
+        ], $uzakKararlari);
+        $this->assertSame([], array_values(array_filter($hesap['silinecek'], fn (SilmeKarari $k): bool => $k->tur === SilmeKarari::DOSYA && $k->hedefId === $ana->id)));
+        $this->assertContains('uzak_kopya_dogrulanmadi', $hesap['korunan'][$eski->id]);
+    }
+
+    /** @return array<string, array{KopyaDurumu, bool}> yeniYedeginKopyasi, yeniYedekKorunur */
+    public static function sonBasariliKurgulari(): array
+    {
+        return [
+            'yerel arşivi yok, yalnız konumu belirsiz kopyası var' => [KopyaDurumu::KonumBelirsiz, false],
+            'F7: yerel arşivi silinmiş, tamam uzak kopyası var' => [KopyaDurumu::Tamam, true],
+        ];
+    }
+
+    /**
+     * BY-028 beşinci tur notu: "son başarılı" koruması bugün kullanılabilen en
+     * yeni yedeğe verilir (yerel arşivi ya da tamam kopyası olan). Yalnız
+     * konumu belirsiz kopyası kalan yedek geçmişte başarılıdır (durum `tamam`,
+     * temkin yok) ama korumayı almaz: daha eski kullanılabilir yedek korunur.
+     * F7 yedeği (yerel silinmiş, tamam uzak kopyalı) korumayı alır.
+     */
+    #[DataProvider('sonBasariliKurgulari')]
+    public function test_son_basarili_korumasi_kullanilabilir_kopyasi_olan_en_yeni_yedege_verilir(KopyaDurumu $kopyaDurumu, bool $yeniKorunur): void
+    {
+        $this->yedek(10, ek: ['sabit' => true]);
+        $eski = $this->yedek(5);
+        $yeni = $this->yedek(1, YedekKaynagi::Plan);
+        unlink(config('yedekleme.klasor').'/'.$yeni->dosya_adi);
+        $yeni->update(['yerel_silinme_zamani' => CarbonImmutable::now()]);
+        $yeniKopya = $this->kopya($yeni, $this->bellekHedefi('Uzak'), durum: $kopyaDurumu);
+
+        $hesap = app(SaklamaPolitikasi::class)->hesapla();
+        app(SaklamaPolitikasi::class)->uygula();
+
+        $this->assertNull($hesap['temkin']);
+        $this->assertSame(YedekDurumu::Tamam, $yeni->refresh()->durum);
+        $this->assertSame($kopyaDurumu, $yeniKopya->refresh()->durum);
+        $eskiYol = config('yedekleme.klasor').'/'.$eski->dosya_adi;
+        if ($yeniKorunur) {
+            $this->assertContains('son_basarili', $hesap['korunan'][$yeni->id]);
+            $this->assertNotContains('son_basarili', $hesap['korunan'][$eski->id] ?? []);
+            $this->assertFileDoesNotExist($eskiYol);
+        } else {
+            $this->assertNotContains('son_basarili', $hesap['korunan'][$yeni->id] ?? []);
+            $this->assertContains('son_basarili', $hesap['korunan'][$eski->id]);
+            $this->assertFileExists($eskiYol);
+            $this->assertSame(YedekDurumu::Tamam, $eski->refresh()->durum);
+        }
+    }
+
+    /**
+     * G1 (aynı kalıp): "doğrulanmış en yeni" koruması da kullanılabilir kopyası
+     * olmayan (yalnız konumu belirsiz kopyalı) yedeğe verilmez; sınaması geçmiş
+     * daha eski kullanılabilir yedek korunur.
+     */
+    public function test_dogrulanmis_en_yeni_korumasi_kullanilabilir_kopyasi_olmayan_yedege_verilmez(): void
+    {
+        $this->yedek(10, ek: ['sabit' => true]);
+        $dogrulanmis = $this->yedek(5, ek: ['dogrulama_durumu' => DogrulamaDurumu::SinamaGecti]);
+        $this->yedek(2);
+        $belirsiz = $this->yedek(1, YedekKaynagi::Plan, ['dogrulama_durumu' => DogrulamaDurumu::SinamaGecti]);
+        unlink(config('yedekleme.klasor').'/'.$belirsiz->dosya_adi);
+        $belirsiz->update(['yerel_silinme_zamani' => CarbonImmutable::now()]);
+        $this->kopya($belirsiz, $this->bellekHedefi('Uzak'), durum: KopyaDurumu::KonumBelirsiz);
+
+        $hesap = app(SaklamaPolitikasi::class)->hesapla();
+        app(SaklamaPolitikasi::class)->uygula();
+
+        $this->assertContains('dogrulanmis_en_yeni', $hesap['korunan'][$dogrulanmis->id]);
+        $this->assertNotContains('dogrulanmis_en_yeni', $hesap['korunan'][$belirsiz->id] ?? []);
+        $this->assertFileExists(config('yedekleme.klasor').'/'.$dogrulanmis->dosya_adi);
+    }
+
     /** F7: uzak kopyası doğrulanmamış (başarısız) yedeğin yerel dosyası silinmez. */
     public function test_uzak_kopyasi_basarisiz_yedegin_yerel_dosyasi_silinmez(): void
     {

@@ -36,8 +36,11 @@ use Throwable;
  *    `erp_onceki_*` silinmişse.
  * 3. Koruma (asla silinmez): son başarılı yedek; sabitlenmiş; sınama geri
  *    yüklemesi geçmiş en yeni; kullanımdaki (kopyalanan / işlem dosyasındaki).
+ *    "Son başarılı" ve "doğrulanmış en yeni", yerel arşivi ya da tamam kopyası
+ *    olan (kullanılabilir) yedekler arasından seçilir.
  * 4. En az sayı: her grupta en az `enaz_adet` başarılı kopya kalır (en
- *    eskiler önce silinir).
+ *    eskiler önce silinir). Grubun en az sayısı ve yerel dosya korumaları
+ *    yalnız o grubu süzer (BY-010-R6).
  * 5. Temkin: en son yedek denemesi başarısızsa HİÇBİR ŞEY silinmez — yeni
  *    başarılı yedek gelmedikçe eldekiler tutulur. İşlem durumu dosyası
  *    okunamıyorsa da (kullanımdakiler bilinmiyor) silinmez.
@@ -48,10 +51,13 @@ use Throwable;
  *    BY-010-R2): şifreli kopyanın aktarımı doğrulanmış ama o hedefe yedeğin
  *    manifestini taşıyan kurtarma paketi gitmemişse yerel arşiv kalır
  *    (`kurtarma_paketi_eksik`). Dayanak bu temizlikten SONRA kalan kopyalardır;
- *    aynı turda silinecek hazır kopya sayılmaz (BY-010-R4). Aynı eşik, yerel
- *    dosya planda ana klasör hedefi olarak yazıldığında o hedefin kuralına da
- *    uygulanır (kurtarmaDayanagiYok). PlanliYedek her yedekten sonra burayı
- *    çalıştırır.
+ *    aynı turda silinecek hazır kopya sayılmaz (BY-010-R4). Konumu belirsiz
+ *    kopya kalan kopyadır ama dayanak değildir: yalnız o kalırsa yerel dosya
+ *    kalır (G21). Hiç uzak kopya kalmıyorsa saklama kararı geçerlidir. uygula() uzak silmeleri önce yapar,
+ *    yerel dosyayı silmeden önce kalan kopyaları veritabanından yeniden okuyup
+ *    aynı eşiği uygular (BY-010-R5). Aynı eşik, yerel dosya planda ana klasör
+ *    hedefi olarak yazıldığında o hedefin kuralına da uygulanır
+ *    (kurtarmaDayanagiYok). PlanliYedek her yedekten sonra burayı çalıştırır.
  */
 final class SaklamaPolitikasi
 {
@@ -96,9 +102,15 @@ final class SaklamaPolitikasi
             ->with('planlar:id')
             ->get();
 
-        // Koruma kuralları (genel)
-        $sonBasarili = $yedekler->sortByDesc(fn (Yedek $y) => $y->alinma_zamani?->getTimestamp() ?? 0)->first();
-        $dogrulanmis = $yedekler->filter(fn (Yedek $y): bool => $y->dogrulama_durumu === DogrulamaDurumu::SinamaGecti)
+        // Koruma kuralları (genel). "Son başarılı" ve "doğrulanmış en yeni" bugün
+        // KULLANILABİLEN yedeğe verilir: yerel arşivi ya da tamam kopyası olan
+        // (F7: yerel silinmiş, uzak kopyalı yedek dahil). Yalnız yeri doğrulanamayan
+        // kopyası kalan yedek geçmişte başarılıdır (durum `tamam`, temkin onu
+        // sayar) ama korumayı daha eski kullanılabilir yedekten almaz (BY-028 notu)
+        $kopyasiOlan = array_fill_keys($kopyalar->pluck('yedek_id')->map(fn ($id): int => (int) $id)->all(), true);
+        $kullanilabilir = $yedekler->filter(fn (Yedek $y): bool => $y->yerel_silinme_zamani === null || isset($kopyasiOlan[$y->id]));
+        $sonBasarili = $kullanilabilir->sortByDesc(fn (Yedek $y) => $y->alinma_zamani?->getTimestamp() ?? 0)->first();
+        $dogrulanmis = $kullanilabilir->filter(fn (Yedek $y): bool => $y->dogrulama_durumu === DogrulamaDurumu::SinamaGecti)
             ->sortByDesc(fn (Yedek $y) => $y->alinma_zamani?->getTimestamp() ?? 0)->first();
         foreach ($yedekler as $yedek) {
             $nedenler = array_keys(array_filter([
@@ -125,6 +137,7 @@ final class SaklamaPolitikasi
         foreach (array_keys($dogrulanmamisUzak) as $id) {
             $yerelKorunan[$id][] = 'uzak_kopya_dogrulanmadi';
         }
+        $rapor = $korunan;
 
         // 1. Plan kuralı → bağ kararları
         $kalanBag = $kopyalar->mapWithKeys(fn (YedekKopyasi $k) => [$k->id => $k->planlar->pluck('id')->all()])->all();
@@ -175,28 +188,45 @@ final class SaklamaPolitikasi
                     $adaylar[] = new SilmeKarari(SilmeKarari::DOSYA, $yedek->id, (int) $hedefId, $kopya->id, null, $neden);
                 }
             }
+            // Her grup korumaların KENDİ kopyasıyla süzülür (BY-010-R6): yerel
+            // dosyanın korumaları (`uzak_kopya_dogrulanmadi`) ve bir grubun en az
+            // sayısı başka grubun kararına sızmaz; sonuç grupların işlenme
+            // sırasına bağlı değildir. Nedenler yalnız rapora birleşir.
+            $grupKorunan = isset($anaHedefler[$hedefId]) ? $yerelKorunan : $korunan;
+            $secilen = $this->suz($adaylar, $grup->count(), $yedekler, $grupKorunan, $ayar->enaz_adet);
+            $rapor = $this->birlestir($rapor, $grupKorunan);
             if (isset($anaHedefler[$hedefId])) {
-                array_push($anaKlasorKararlari, ...$this->suz($adaylar, $grup->count(), $yedekler, $yerelKorunan, $ayar->enaz_adet));
-                $korunan = $this->birlestir($korunan, $yerelKorunan);
+                array_push($anaKlasorKararlari, ...$secilen);
             } else {
-                array_push($kararlar, ...$this->suz($adaylar, $grup->count(), $yedekler, $korunan, $ayar->enaz_adet));
+                array_push($kararlar, ...$secilen);
             }
         }
 
         // Yerel dosya kararları uzak kopya kararlarından SONRA (BY-010-R4): dayanak,
-        // bu turda silinecek kopyalar çıkarıldıktan sonra kalanlardır
+        // bu turda silinecek kopyalar çıkarıldıktan sonra kalanlardır (önizleme
+        // bütün uzak silmelerin başarılı olacağını varsayar; uygula() kalanları
+        // silmelerden sonra veritabanından yeniden okur — BY-010-R5)
         $silinecekKopyalar = [];
         foreach ($kararlar as $karar) {
             if ($karar->tur === SilmeKarari::DOSYA && $karar->kopyaId !== null) {
                 $silinecekKopyalar[$karar->kopyaId] = true;
             }
         }
+        // Yeri doğrulanamayan kopya saklamada silinmez, dayanak da değildir ama
+        // "kalan kopya"dır (G21: kullanılamaz ≠ yok): yalnız o kalırsa yerel dosya kalır
+        $belirsizKopyalar = YedekKopyasi::query()
+            ->where('durum', KopyaDurumu::KonumBelirsiz->value)
+            ->whereIn('yedek_id', $yedekler->keys())
+            ->get()->groupBy('yedek_id');
+        $kalanUzak = fn (int $yedekId): Collection => ($uzakKopyalar->get($yedekId) ?? collect())
+            ->reject(fn (YedekKopyasi $k): bool => isset($silinecekKopyalar[$k->id]))
+            ->concat($belirsizKopyalar->get($yedekId) ?? [])->values();
 
         // Ana klasör hedefinin kopyası yerel dosyanın kendisidir: kendi kuralı
         // silmek istese de plan yedeğine aynı yerel dosya eşiği uygulanır
         foreach ($anaKlasorKararlari as $karar) {
-            if ($yedekler[$karar->yedekId]->kaynak === YedekKaynagi::Plan && $this->kurtarmaDayanagiYok($karar->yedekId, $uzakKopyalar, $silinecekKopyalar)) {
-                $yerelKorunan[$karar->yedekId][] = 'kurtarma_paketi_eksik';
+            if ($yedekler[$karar->yedekId]->kaynak === YedekKaynagi::Plan && $this->kurtarmaDayanagiYok($kalanUzak($karar->yedekId))) {
+                $rapor = $this->birlestir($rapor, [$karar->yedekId => ['kurtarma_paketi_eksik']]);
 
                 continue;
             }
@@ -216,14 +246,15 @@ final class SaklamaPolitikasi
         // şifreli dump'ın imzalı manifesti hiçbir pakette bulunmaz. Bu turda
         // silinecek kopya dayanak değildir (BY-010-R4; kurtarmaDayanagiYok).
         $adaylar = [];
+        $klasorKorunan = $yerelKorunan;
         $zamanlanmamis = $klasorGrubu->filter(fn (Yedek $y): bool => $y->kaynak !== YedekKaynagi::Plan)->values();
         foreach ($klasorGrubu as $yedek) {
             if ($yedek->kaynak === YedekKaynagi::Plan) {
                 $uzakVar = $uzakKopyalar->has($yedek->id);
-                if ($this->kurtarmaDayanagiYok($yedek->id, $uzakKopyalar, $silinecekKopyalar)) {
-                    $yerelKorunan[$yedek->id][] = 'kurtarma_paketi_eksik';
+                if ($this->kurtarmaDayanagiYok($kalanUzak($yedek->id))) {
+                    $klasorKorunan[$yedek->id][] = 'kurtarma_paketi_eksik';
                 }
-                $engel = array_intersect($yerelKorunan[$yedek->id] ?? [], self::YEREL_AKTARIM_KORUMALARI);
+                $engel = array_intersect($klasorKorunan[$yedek->id] ?? [], self::YEREL_AKTARIM_KORUMALARI);
                 if ($uzakVar && $engel === []) {
                     $kararlar[] = new SilmeKarari(SilmeKarari::DOSYA, $yedek->id, null, null, null, SilmeKarari::NEDEN_UZAK_KOPYA_VAR);
                 }
@@ -236,35 +267,47 @@ final class SaklamaPolitikasi
                 $adaylar[] = new SilmeKarari(SilmeKarari::DOSYA, $yedek->id, null, null, null, $neden);
             }
         }
-        array_push($kararlar, ...$this->suz($adaylar, $zamanlanmamis->count(), $yedekler, $yerelKorunan, $ayar->enaz_adet));
-        $korunan = $this->birlestir($korunan, $yerelKorunan);
+        array_push($kararlar, ...$this->suz($adaylar, $zamanlanmamis->count(), $yedekler, $klasorKorunan, $ayar->enaz_adet));
+        $rapor = $this->birlestir($rapor, $klasorKorunan);
 
-        return ['silinecek' => $kararlar, 'korunan' => $korunan, 'temkin' => null];
+        return ['silinecek' => $kararlar, 'korunan' => $rapor, 'temkin' => null];
     }
 
     /**
      * Plan yedeğinin yerel dosyasını silmenin TEK eşiği (yedek klasörü grubu ve
-     * ana klasör hedefinin kopyası aynı yerden; BY-010-R2, BY-010-R4): dayanak
-     * bu turun kararları uygulandıktan sonra KALAN uzak kopyalardır; aynı turda
-     * silinecek kopya dayanak değildir. Yedek bir hedefte saklanmaya devam
-     * ediyorsa kalanlardan en az biri kurtarmaya hazır olmalı. Hiçbir uzak kopya
-     * kalmıyorsa (bütün kurallar yedeği siliyor) önceki ölçüt geçerli: silinecek
-     * kopyalardan biri hazır olmalı — uzak silme düşerse geride hazır olmayan
-     * tek kopya kalmasın. Uzak kopyası olmayan yedekte eşik yoktur.
+     * ana klasör hedefinin kopyası; önizleme ve uygulama aynı yerden; BY-010-R2,
+     * R4, R5). Ölçüt yedeği tutan KALAN uzak kopyalardır
+     * (KopyaDurumu::yedegiTutanlar: tamam + konum_belirsiz): yedek bir uzak
+     * hedefte durmaya devam ediyorsa (kalan boş değil) en az biri kurtarmaya
+     * hazır olmalı — yeri doğrulanamayan kopya hiçbir zaman hazır değildir,
+     * yalnız o kalırsa yerel dosya kalır (G21). Hiçbir uzak kopya kalmıyorsa yedek her hedeften silinmiştir;
+     * saklama kararı geçerlidir, yerel dosya da gider. Kalanı önizleme bu turun
+     * kararlarından (bütün uzak silmeler başarılı varsayımıyla), uygulama ise
+     * uzak silmeler uygulandıktan sonra veritabanından yeniden okuyarak verir
+     * (kalanUzakKopyalar): kısmi silme hatasında geride hazır olmayan kopya
+     * kalırsa yerel dosya korunur.
      *
-     * @param  Collection<int, Collection<int, YedekKopyasi>>  $uzakKopyalar  yedek_id → tamam uzak kopyalar
-     * @param  array<int, true>  $silinecekKopyalar  bu turda dosyası silinecek kopyalar
+     * @param  Collection<int, YedekKopyasi>  $kalan  yedeğin kalan (tamam ya da konumu belirsiz) uzak kopyaları
      */
-    private function kurtarmaDayanagiYok(int $yedekId, Collection $uzakKopyalar, array $silinecekKopyalar): bool
+    private function kurtarmaDayanagiYok(Collection $kalan): bool
     {
-        $uzak = $uzakKopyalar->get($yedekId);
-        if ($uzak === null) {
-            return false;
-        }
+        return $kalan->isNotEmpty() && ! $kalan->contains(fn (YedekKopyasi $k): bool => $k->kurtarmayaHazirMi());
+    }
 
-        $kalan = $uzak->reject(fn (YedekKopyasi $k): bool => isset($silinecekKopyalar[$k->id]));
+    /**
+     * Yedeği şu an veritabanında tutan uzak kopyalar (yedegiTutanlar) —
+     * hesapla()'daki kalan kümesiyle aynı ölçüt. Yedek klasörünün kendisi olan
+     * hedefin `tamam` kopyası yerel dosyanın kendisidir, sayılmaz; konumu
+     * belirsiz kopya bugünkü tanım ana klasör olsa da sayılır (yeri o değil).
+     *
+     * @return Collection<int, YedekKopyasi>
+     */
+    private function kalanUzakKopyalar(int $yedekId): Collection
+    {
+        $kopyalar = YedekKopyasi::query()->where('yedek_id', $yedekId)->whereIn('durum', KopyaDurumu::yedegiTutanlar())->get();
+        $ana = $this->anaKlasorHedefleri($kopyalar->pluck('yedek_hedefi_id')->map(fn ($id): int => (int) $id)->unique()->values()->all());
 
-        return ! ($kalan->isEmpty() ? $uzak : $kalan)->contains(fn (YedekKopyasi $k): bool => $k->kurtarmayaHazirMi());
+        return $kopyalar->reject(fn (YedekKopyasi $k): bool => $k->durum === KopyaDurumu::Tamam && isset($ana[$k->yedek_hedefi_id]))->values();
     }
 
     /**
@@ -284,6 +327,9 @@ final class SaklamaPolitikasi
     /**
      * Hesaplanan kararları uygular. Erişilemeyen hedef atlanır, diğerleri
      * sürer. Her silme denetim kaydına ve olay günlüğüne nedeniyle yazılır.
+     * Uzak silmeler önce uygulanır; plan yedeğinin yerel dosyası, ardından
+     * fiilen kalan uzak kopyalardan hiçbiri kurtarmaya hazır değilse silinmez
+     * (denetim kaydı `basarisiz`, kod `kurtarma_paketi_eksik`; `bilgi` satırı).
      *
      * @return array{bag: int, dosya: int, atlanan_hedefler: list<int>, bilgi: list<string>, kararlar: list<SilmeKarari>}
      */
@@ -324,6 +370,11 @@ final class SaklamaPolitikasi
             $hedefGruplari[$karar->hedefId ?? 0][] = $karar;
         }
 
+        // Uzak hedeflerin silmeleri ÖNCE, yerel dosyaya dokunanlar (yedek klasörü
+        // ve yedek klasörünün kendisi olan hedef) SONRA (BY-010-R5): yerel silme
+        // kararı uzak silmelerin gerçek sonucuna göre yeniden denetlenir
+        $uzakGruplar = [];
+        $yerelGruplar = [];
         foreach ($hedefGruplari as $hedefId => $grup) {
             $hedef = $hedefId === 0 ? null : YedekHedefi::query()->find($hedefId);
             $baglayici = null;
@@ -338,9 +389,27 @@ final class SaklamaPolitikasi
                 continue;
             }
 
+            if ($hedefId === 0 || ($baglayici instanceof YerelDiskBaglayicisi && $baglayici->anaKlasorMu())) {
+                $yerelGruplar[] = [$hedefId, $grup, $baglayici, true];
+            } else {
+                $uzakGruplar[] = [$hedefId, $grup, $baglayici, false];
+            }
+        }
+
+        foreach ([...$uzakGruplar, ...$yerelGruplar] as [$hedefId, $grup, $baglayici, $yerelDosya]) {
             foreach ($grup as $karar) {
                 $yedek = Yedek::query()->find($karar->yedekId);
                 if ($yedek === null) {
+                    continue;
+                }
+
+                // Önizlemenin varsaydığı uzak silmeler düşmüş olabilir: kalan kopyalar
+                // veritabanından yeniden okunur, aynı eşik uygulanır (D4)
+                if ($yerelDosya && $yedek->kaynak === YedekKaynagi::Plan && $this->kurtarmaDayanagiYok($this->kalanUzakKopyalar($yedek->id))) {
+                    $sonuc['bilgi'][] = "{$yedek->dosya_adi}: yerel dosya korundu; uzak silme tamamlanamadı ve kalan kopya kurtarmaya hazır değil";
+                    $this->denetim->kaydet('saklama_sil', IslemSonucu::Basarisiz, $yedek->id, $kullaniciId, null, [...$karar->diziye(), 'kod' => 'kurtarma_paketi_eksik'],
+                        'Kalan uzak kopyaların hiçbiri kurtarmaya hazır değil; yerel dosya silinmedi');
+
                     continue;
                 }
 

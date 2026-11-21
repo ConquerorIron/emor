@@ -44,14 +44,17 @@ hazırsa (aşağıda) gider (BY-024-R7).
   kullanılmaz (sonraki başarılı gönderim siler).
 - Hedefte son **iki** tamam sürüm durur: yenisinin bir dosyası bozuk çıkarsa
   bir öncekiyle kurtarılır.
-- İstisna (BY-024-R6): hedefte saklanan bir yedeğin geçerli manifestini
+- İstisna (BY-024-R6, BY-024-R8): hedefte saklanan ya da konumu belirsiz
+  (dosyası hedefte durabilir) bir kopyanın yedeğinin geçerli manifestini
   taşıyan en yeni sürüm bu ikisinden değilse (yedek klasöründeki manifest
   kayboldu ya da bozuldu, yeni paketler o yedeği doğrulayamıyor) o eski sürüm
   de **silinmez**; o yedeğin tek kurtarma dayanağıdır. İşlem Günlüğü'nde
   `kurtarma_paketi` kaydının `korunan_eski_surum` alanında ve denetim
   günlüğünde `KURTARMA_ESKI_SURUM_KORUNDU` uyarısıyla görünür. Yeni bir sürüm
   o yedeği yeniden doğrulayınca ya da yedeğin o hedefteki kopyası silinince
-  eski sürüm olağan dönüşümle silinir.
+  eski sürüm olağan dönüşümle silinir. Konumu belirsiz kopyanın dayanağı
+  korunur ama kopya kurtarmaya hazır **sayılmaz** (hedef kopyanın yerine
+  dönüp kopya yeniden `tamam` olana kadar).
 - Gönderim yarıda kalırsa önceki tamam sürüm ve işaretçisi değişmez; yedeğin
   kopyası "tamam" (aktarım doğrulandı) ama **kurtarmaya hazır değil**
   sayılır: o yedeğin imzalı manifesti henüz o hedefteki hiçbir pakette
