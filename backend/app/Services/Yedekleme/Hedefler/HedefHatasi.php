@@ -41,6 +41,13 @@ final class HedefHatasi extends RuntimeException
     /** Hedefteki dosya yedeğin yerel dosyasının kendisi: bağımsız kopya sayılmaz (BY-008-R1) */
     public const ANA_DOSYA = 'HEDEF_ANA_DOSYA';
 
+    /**
+     * Hedefin klasörü başka bir hedefinkiyle aynı fiziksel yer: aynı dosya iki
+     * bağımsız kopya sayılmaz (HedefKonumu::ayniDepoMu; BY-010-R7). Hedef
+     * kaydında 409, kopyada ve saklamada kalıcı hata (yeniden denenmez).
+     */
+    public const AYNI_DEPO = 'HEDEF_AYNI_DEPO';
+
     public function __construct(public readonly string $kod, string $mesaj)
     {
         parent::__construct($mesaj);

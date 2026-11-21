@@ -111,6 +111,29 @@ final class YedekKopyalayiciTest extends TestCase
         $this->assertSame('basarisiz', $kopyalar['id:'.$bellek->id]['durum']);
     }
 
+    /**
+     * BY-010-R7: eskiden kalmış ikinci hedef aynı klasörü noktalı yazımla
+     * gösteriyor. İkinci "kopya" ilk hedefin dosyasının üstüne yazılır ve
+     * bağımsız kopya sanılırdı: kalıcı hata, yeniden denenmez, ilk kopyaya dokunulmaz.
+     */
+    public function test_ayni_klasoru_gosteren_ikinci_hedefe_kopya_yazilmaz_ilk_kopya_korunur(): void
+    {
+        $yedek = $this->yedek();
+        $ilk = $this->yerelHedef();
+        $ikinci = YedekHedefi::factory()->create(['ad' => 'Aynı disk', 'baglanti' => ['klasor' => $ilk->baglanti['klasor'].'/.']]);
+        $ilkKopya = $this->kopyalayici()->kopyala($yedek, $ilk);
+        $dosya = $ilk->baglanti['klasor'].'/'.$yedek->dosya_adi;
+        $dugum = fileinode($dosya);
+
+        $ikinciKopya = $this->kopyalayici()->kopyala($yedek, $ikinci);
+
+        $this->assertSame([KopyaDurumu::Basarisiz, HedefHatasi::AYNI_DEPO, 1], [$ikinciKopya->durum, $ikinciKopya->hata_kodu, $ikinciKopya->deneme]);
+        $this->assertSame(KopyaDurumu::Tamam, $ilkKopya->refresh()->durum);
+        clearstatcache();
+        $this->assertSame($dugum, fileinode($dosya));
+        $this->assertSame('PGDMP-yedek-icerigi', file_get_contents($dosya));
+    }
+
     public function test_hedeften_okunan_kopyanin_ozeti_tutmazsa_kopya_basarisiz(): void
     {
         $yedek = $this->yedek();

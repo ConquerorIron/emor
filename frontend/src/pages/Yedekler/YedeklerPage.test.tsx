@@ -550,6 +550,39 @@ describe('YedeklerPage', () => {
     )
   })
 
+  it('hedefi tanımsız kopyalar olaydaki adlarıyla ve "konumu doğrulanamadı" uyarısıyla ayrı ayrı görünür (BY-028-R9)', async () => {
+    const tanimsiz = {
+      ...UZAKTA.kopyalar[0],
+      hedef_id: null,
+      hedef_tur: null,
+      durum: 'konum_belirsiz' as const,
+      hata_kodu: 'KOPYA_HEDEFI_TANIMSIZ',
+    }
+    const yedek: Yedek = {
+      ...UZAKTA,
+      webden_geri_yuklenebilir: false,
+      geri_yukleme_engeli: 'GERI_YUKLEME_YEDEK_DOSYASI_YOK',
+      kopyalar: [
+        { ...tanimsiz, hedef_ad: 'Eski NAS' },
+        { ...tanimsiz, hedef_ad: 'Eski FTP' },
+      ],
+    }
+    api.liste.mockResolvedValue(liste([yedek]))
+    const konsolHatasi = vi.spyOn(console, 'error').mockImplementation(() => {})
+    ciz()
+
+    const s = await satir(yedek.dosya_adi)
+    expect(s).toHaveTextContent('Eski NAS')
+    expect(s).toHaveTextContent('Eski FTP')
+    const rozetler = within(s).getAllByText('Konumu doğrulanamadı')
+    expect(rozetler).toHaveLength(2)
+    for (const rozet of rozetler) {
+      expect(rozet).toHaveAttribute('title', expect.stringContaining('hedefin tanımı yok'))
+    }
+    expect(konsolHatasi.mock.calls.flat().join(' ')).not.toContain('same key')
+    konsolHatasi.mockRestore()
+  })
+
   it('"Farklı adla geri yükle" yalnız geri_yukleme.kopya izniyle ve geri yüklenebilir satırda vardır', async () => {
     ciz(['yedekler.goruntule', 'yedekler.al', 'yedekler.sil'])
     await satir(YEDEK.dosya_adi)

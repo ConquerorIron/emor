@@ -23,7 +23,8 @@ export const DOGRULAMA_DURUMLARI: DogrulamaDurumu[] = [
 ]
 
 export interface YedekKopyasi {
-  hedef_id: number
+  /** null: hedefi tanımsız kopya (`konum_belirsiz`, KOPYA_HEDEFI_TANIMSIZ); ad olaydan gelir (BY-028-R9) */
+  hedef_id: number | null
   hedef_ad: string | null
   hedef_tur: string | null
   durum: KopyaDurumu

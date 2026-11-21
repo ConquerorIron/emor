@@ -30,6 +30,8 @@ use Throwable;
  *   taşıyan paket doğrulanınca KURTARMAYA HAZIR olur (`kurtarma_hazir`;
  *   BY-010-R2): saklama yerel arşivi buna göre siler. Uzak yaşam sinyali
  *   yalnız paket tamamlanınca VE kopya kurtarmaya hazırsa gider (BY-024-R7).
+ * - Aynı fiziksel depoyu gösteren başka bir hedefte kopyası duran yedek bu
+ *   hedefe yazılmaz: kopya `basarisiz`, kod `HEDEF_AYNI_DEPO` (BY-010-R7).
  * - Bir hedefin hatası istisna olarak dışarı taşmaz: kopya `basarisiz`
  *   olur, diğer hedefler ve yedeğin kendisi etkilenmez.
  * - Sonuç olay günlüğüne ve denetim kaydına yazılır.
@@ -113,7 +115,7 @@ final class YedekKopyalayici
 
                 // Yapılandırma / şifreleme anahtarı eksikliği yeniden denemeyle düzelmez (D8).
                 // gpg süre aşımı (SifrelemeHatasi, gecici) kalıcı sayılmaz: sınırlı denenir (BY-019-R1).
-                if ($hata instanceof HedefHatasi && in_array($hata->kod, [HedefHatasi::YAPILANDIRMA, HedefHatasi::KIMLIK, HedefHatasi::YENIDEN_BAGLAN, HedefHatasi::SUNUCU_PARMAK_IZI, HedefHatasi::SERTIFIKA, HedefHatasi::BAGLI_DEGIL, HedefHatasi::KOTA], true)) {
+                if ($hata instanceof HedefHatasi && in_array($hata->kod, [HedefHatasi::YAPILANDIRMA, HedefHatasi::KIMLIK, HedefHatasi::YENIDEN_BAGLAN, HedefHatasi::SUNUCU_PARMAK_IZI, HedefHatasi::SERTIFIKA, HedefHatasi::BAGLI_DEGIL, HedefHatasi::KOTA, HedefHatasi::AYNI_DEPO], true)) {
                     break;
                 }
 
@@ -150,6 +152,7 @@ final class YedekKopyalayici
     {
         $konumIzi = $this->konum->iz($hedef)
             ?? throw new HedefHatasi(HedefHatasi::YAPILANDIRMA, 'Hedefin konumu belirlenemiyor (bağlı hesap bilinmiyor); hedefi yeniden bağlayın. Kopyalanmadı.');
+        $this->ayniDepoyaYazma($yedek, $hedef);
         $kaynak = $this->yapilandirma->klasor().'/'.$yedek->dosya_adi;
 
         if (! is_file($kaynak)) {
@@ -193,6 +196,29 @@ final class YedekKopyalayici
                 @unlink($dosya);
             }
             @rmdir($calisma);
+        }
+    }
+
+    /**
+     * Aynı fiziksel depoya yazan başka bir hedefte bu yedeğin kopyası duruyorsa
+     * (ya da yazılıyorsa) ikinci kopya yazılmaz (BY-010-R7): aynı dosyanın
+     * üstüne yazılır ve iki bağımsız kopya sanılırdı. Kalıcı hatadır; hedef
+     * tanımı düzeltilene kadar yeniden denenmez. Yeni çakışan hedef API'de
+     * reddedilir, bu eskiden kalmış (ya da geri yüklenmiş) tanımlar içindir.
+     *
+     * @throws HedefHatasi
+     */
+    private function ayniDepoyaYazma(Yedek $yedek, YedekHedefi $hedef): void
+    {
+        $ortak = YedekKopyasi::query()->with('hedef')
+            ->where('yedek_id', $yedek->id)
+            ->where('yedek_hedefi_id', '!=', $hedef->id)
+            ->whereIn('durum', [...KopyaDurumu::yedegiTutanlar(), KopyaDurumu::Kopyalaniyor->value])
+            ->get()
+            ->first(fn (YedekKopyasi $k): bool => $k->hedef !== null && $this->konum->ayniDepoMu($hedef, $k->hedef));
+
+        if ($ortak !== null) {
+            throw new HedefHatasi(HedefHatasi::AYNI_DEPO, "Hedefin klasörü \"{$ortak->hedef->ad}\" hedefininkiyle aynı yer ve yedeğin kopyası orada; ikinci kopya sayılmaz, yazılmadı.");
         }
     }
 

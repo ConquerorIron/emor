@@ -116,6 +116,7 @@ return [
     'yedek_imza_anahtari_yok' => 'Yedekleme imza anahtarı bulunamadı ya da okunamıyor; ayarlar kaydedilmedi. Sunucu kurulumunu denetleyin (docs/yedekleme/sunucu-kurulumu.md).',
     'istek_anahtari_gecersiz' => 'İsteğin yeniden deneme anahtarı (Idempotency-Key) geçerli bir UUID değil.',
     'yedek_hedefi_konumu_degismez' => 'Bu hedefte kopyalar var; kopyaların durduğu yeri belirleyen alanlar (:alanlar) değiştirilemez. Başka bir yer için yeni bir hedef ekleyin. Parola / anahtar yenilenebilir.',
+    'yedek_hedefi_ayni_depo' => 'Bu klasör, şu hedefin klasörüyle aynı fiziksel yer: :hedefler (yazımı farklı da olsa; klasörü boş Yerel disk hedefi yedek klasörünün kendisidir). Aynı yer iki hedef olarak tanımlanamaz — bir hedef birden çok planda kullanılabilir.',
     'yedek_hedefi_google_degil' => 'Bu işlem yalnız Google Drive hedeflerinde yapılır.',
     'yedek_google_yapilandirilmadi' => 'Google bağlantısı için sunucuda istemci kimliği ve sırrı tanımlı değil (YEDEKLEME_GOOGLE_*).',
     'yedek_google_durum_gecersiz' => 'Google bağlantısı doğrulanamadı (süresi geçmiş ya da başka bir oturumdan). "Google ile bağlan"ı yeniden deneyin.',

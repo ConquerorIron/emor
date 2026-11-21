@@ -21,6 +21,11 @@ namespace App\Services\Yedekleme;
  * kurtarma paketinde son doğrulanmış manifestinin sürümünü korur (BY-024-R8);
  * Google Drive hedefinin hesabı doğrulanmadan değişmez (kopya eski hesapta
  * kalır; BY-021-R5) — hepsi yedegiTutanlar.
+ *
+ * Hedefi tanımsız kopya (BY-028-R9) da bu durumdadır: olaydaki hedef
+ * veritabanında yok, kayıt hedefsiz (`yedek_hedefi_id` boş) tutulur; hedefe
+ * dayanan hiçbir karar (paket, hesap, konum kilidi) onu görmez, varlık
+ * kararları (yedeğin `silindi` olmaması, saklamada kalan kopya) sayar.
  */
 enum KopyaDurumu: string
 {

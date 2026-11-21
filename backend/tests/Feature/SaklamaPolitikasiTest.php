@@ -15,6 +15,7 @@ use App\Services\Yedekleme\DogrulamaDurumu;
 use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use App\Services\Yedekleme\HedefTuru;
+use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\KopyaDurumu;
 use App\Services\Yedekleme\ManifestDeposu;
 use App\Services\Yedekleme\SaklamaPolitikasi;
@@ -181,6 +182,91 @@ final class SaklamaPolitikasiTest extends TestCase
         $this->assertSame(KopyaDurumu::Tamam, YedekKopyasi::query()->where(['yedek_id' => $eski->id, 'yedek_hedefi_id' => $hedef2->id])->sole()->durum);
         $this->assertArrayHasKey($hedef2->id.'/'.$eski->dosya_adi, BellekHedefi::$dosyalar);
         $this->assertArrayNotHasKey($hedef1->id.'/'.$eski->dosya_adi, BellekHedefi::$dosyalar);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function ayniKlasorunIkinciYazimi(): array
+    {
+        return [
+            'aynı yazım, farklı ad' => [''],
+            'noktalı yazım' => ['/.'],
+            'üst klasörden dönen yazım' => ['/../disk2'],
+            'sembolik bağlantı' => ['bag'],
+        ];
+    }
+
+    /**
+     * BY-010-R7: eskiden kalmış iki hedef ana yedek klasörü DIŞINDAKİ aynı
+     * dizini gösteriyor (API artık reddediyor). Kısa kurallı hedefin ortak
+     * dosyayı silmesi uzun kurallı hedefin kopyasını `tamam` bırakır, yerel
+     * dosya da ona dayanılarak silinirdi: bütün fiziksel kopyalar giderdi.
+     */
+    #[DataProvider('ayniKlasorunIkinciYazimi')]
+    public function test_ayni_klasoru_gosteren_iki_hedefte_saklama_ortak_dosyayi_silmez_gorunur_hata_yazar(string $ikinciYazim): void
+    {
+        $disk = $this->yedekKoku.'/disk2';
+        mkdir($disk);
+        if ($ikinciYazim === 'bag') {
+            symlink($disk, $this->yedekKoku.'/bag');
+        }
+        $uzunHedef = YedekHedefi::factory()->create(['ad' => 'Disk uzun', 'baglanti' => ['klasor' => $disk]]);
+        $kisaHedef = YedekHedefi::factory()->create(['ad' => 'Disk kısa', 'baglanti' => ['klasor' => $ikinciYazim === 'bag' ? $this->yedekKoku.'/bag' : $disk.$ikinciYazim]]);
+        $uzun = $this->plan($uzunHedef, 10);
+        $kisa = $this->plan($kisaHedef, 1);
+        $eski = $this->yedek(5, YedekKaynagi::Plan);
+        $yeni = $this->yedek(1, YedekKaynagi::Plan);
+        foreach ([$eski, $yeni] as $y) {
+            file_put_contents($disk.'/'.$y->dosya_adi, 'dump');
+            $this->kopya($y, $uzunHedef, [$uzun]);
+            $this->kopya($y, $kisaHedef, [$kisa]);
+        }
+        // Yalnız kısa kurallı hedefte kopyası olan dosya ortak değildir: kuralıyla silinir
+        $tekHedefli = $this->yedek(7, YedekKaynagi::Plan);
+        file_put_contents($disk.'/'.$tekHedefli->dosya_adi, 'dump');
+        $this->kopya($tekHedefli, $kisaHedef, [$kisa]);
+
+        $onizleme = app(SaklamaPolitikasi::class)->hesapla();
+        $sonuc = app(SaklamaPolitikasi::class)->uygula();
+
+        $this->assertFileExists($disk.'/'.$eski->dosya_adi);
+        $this->assertFileExists($disk.'/'.$yeni->dosya_adi);
+        $this->assertContains('ayni_depo', $onizleme['korunan'][$eski->id] ?? []);
+        $this->assertSame([KopyaDurumu::Tamam, KopyaDurumu::Tamam], YedekKopyasi::query()->where('yedek_id', $eski->id)->orderBy('yedek_hedefi_id')->get()->map(fn (YedekKopyasi $k) => $k->durum)->all());
+        $this->assertSame(YedekDurumu::Tamam, $eski->refresh()->durum);
+        $kayit = YedekIslemKaydi::query()->where(['islem' => 'saklama_sil', 'yedek_id' => $eski->id, 'sonuc' => IslemSonucu::Basarisiz])->sole();
+        $this->assertSame([HedefHatasi::AYNI_DEPO, $kisaHedef->id, [$uzunHedef->id]],
+            [$kayit->ayrinti['kod'], $kayit->ayrinti['hedef_id'], $kayit->ayrinti['ayni_depo_hedefleri']]);
+        $this->assertCount(1, $sonuc['bilgi']);
+        $this->assertFileDoesNotExist($disk.'/'.$tekHedefli->dosya_adi);
+        $this->assertSame(KopyaDurumu::Silindi, YedekKopyasi::query()->where('yedek_id', $tekHedefli->id)->sole()->durum);
+    }
+
+    /**
+     * BY-010-R7: yedek klasörünü gösteren iki ana hedef (klasörü boş ve
+     * noktalı yazımı). Kopyaları yerel dosyanın kendisidir: kısa kural yerel
+     * dosyayı silince diğer ana hedefin kopyası yok olan dosyayı `tamam` tutardı.
+     */
+    public function test_yedek_klasorunu_gosteren_iki_ana_hedefte_saklama_yerel_dosyayi_silmez(): void
+    {
+        $uzunHedef = $this->anaYerelHedef();
+        $kisaHedef = YedekHedefi::factory()->create(['ad' => 'Ana noktalı', 'baglanti' => ['klasor' => config('yedekleme.klasor').'/.']]);
+        $uzun = $this->plan($uzunHedef, 10);
+        $kisa = $this->plan($kisaHedef, 1);
+        $eski = $this->yedek(5, YedekKaynagi::Plan);
+        $yeni = $this->yedek(1, YedekKaynagi::Plan);
+        foreach ([$eski, $yeni] as $y) {
+            $this->kopya($y, $uzunHedef, [$uzun]);
+            $this->kopya($y, $kisaHedef, [$kisa]);
+        }
+
+        app(SaklamaPolitikasi::class)->uygula();
+
+        $this->assertFileExists(config('yedekleme.klasor').'/'.$eski->dosya_adi);
+        $this->assertNull($eski->refresh()->yerel_silinme_zamani);
+        $this->assertSame([KopyaDurumu::Tamam, KopyaDurumu::Tamam], YedekKopyasi::query()->where('yedek_id', $eski->id)->orderBy('yedek_hedefi_id')->get()->map(fn (YedekKopyasi $k) => $k->durum)->all());
+        $this->assertSame(HedefHatasi::AYNI_DEPO, YedekIslemKaydi::query()->where(['islem' => 'saklama_sil', 'yedek_id' => $eski->id, 'sonuc' => IslemSonucu::Basarisiz])->sole()->ayrinti['kod']);
     }
 
     public function test_son_yedekler_basarisizsa_hicbir_basarili_yedek_silinmez(): void

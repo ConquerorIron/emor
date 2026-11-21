@@ -15,7 +15,9 @@ use RuntimeException;
  * bırakılırsa hedef yedek klasörünün KENDİSİDİR (kopya yapılmaz; yedeğin
  * orada kalması bu hedefin kopyasıdır — README §4.2: planın hedeflerinde
  * yerel disk yoksa yerel dosya kopyalardan sonra silinir). Başka bir klasör
- * verilirse (ör. ikinci disk) dosya oraya atomik kopyalanır.
+ * verilirse (ör. ikinci disk) dosya oraya atomik kopyalanır. Bir klasör
+ * (yazımı ne olursa olsun) tek hedefin deposudur: aynı yeri gösteren ikinci
+ * hedef kaydedilmez (HedefKonumu::ayniDepoMu; BY-010-R7).
  */
 final class YerelDiskBaglayicisi implements HedefBaglayicisi
 {
@@ -53,9 +55,11 @@ final class YerelDiskBaglayicisi implements HedefBaglayicisi
      * İki yol aynı dosya sistemi nesnesini mi gösteriyor: ikisi de okunabiliyorsa
      * aygıt + düğüm numarası (realpath'in yakaladıklarına ek olarak sabit
      * bağlantı ve bind mount); biri yoksa ya da erişilemiyorsa sadeleştirilmiş
-     * yazım (`.`, `..`, yinelenen ve sondaki `/`).
+     * yazım (`.`, `..`, yinelenen ve sondaki `/`). Aynı yerin TEK ölçütü (G19):
+     * ana klasör, ana dosya ve iki dosya sistemi hedefinin aynı depo olup
+     * olmadığı (HedefKonumu::ayniDepoMu; BY-010-R7) bunu kullanır.
      */
-    private static function ayniKonumMu(string $a, string $b): bool
+    public static function ayniKonumMu(string $a, string $b): bool
     {
         clearstatcache(true, $a);
         clearstatcache(true, $b);
@@ -167,7 +171,8 @@ final class YerelDiskBaglayicisi implements HedefBaglayicisi
         return self::hedefKlasoru($this->hedef, $this->yapilandirma);
     }
 
-    private static function hedefKlasoru(YedekHedefi $hedef, YedeklemeYapilandirmasi $yapilandirma): string
+    /** Hedefin yazdığı klasör: boşsa yedek klasörünün kendisi */
+    public static function hedefKlasoru(YedekHedefi $hedef, YedeklemeYapilandirmasi $yapilandirma): string
     {
         $klasor = $hedef->baglanti['klasor'] ?? null;
 

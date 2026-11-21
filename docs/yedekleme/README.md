@@ -219,6 +219,16 @@ sunucu yöneticisi yetkisi ister ve bu dokümanın kapsamı dışındadır.
   - Yedek klasörünün kendisi olan yerel hedef yazımına göre değil gerçek
     konumuna (aygıt + düğüm) göre tanınır; başka bir hedefte yerel dosyanın
     kendisi bağımsız kopya sayılmaz (`HEDEF_ANA_DOSYA`; BY-008-R1).
+  - **Hedefler fiziksel depoyla bağımsızdır, kayıt kimliğiyle değil
+    (BY-010-R7).** Aynı klasörü gösteren iki dosya sistemi hedefinde (§4.6)
+    aynı yedeğin kopyaları AYNI dosyadır. Eskiden kalmış (ya da üstüne geri
+    yüklemeyle geri gelmiş) böyle tanımlarda saklama, kuralın silmek
+    istediği ortak dosyayı silmez: önizlemede koruma nedeni `ayni_depo`,
+    uygulamada her turda denetim kaydı `saklama_sil` / `basarisiz`, kod
+    `HEDEF_AYNI_DEPO` (+ diğer hedefler) ve `bilgi` satırı. Yalnız tek
+    hedefte kopyası olan dosya o hedefin kuralıyla silinir. Çözüm: fazla
+    hedefi planlardan çıkarıp pasife almak (konumu değişmeyen güncelleme
+    serbesttir).
   - Hedef "silme yetkisi yok" derse (değiştirilemez saklama) kopya bizden
     çıkmış sayılır (`silindi`, kod `HEDEF_SILME_YETKISI_YOK`); eski kopyayı
     hedefin kendi kuralı temizler. Bu hata sayılmaz, bilgi olarak yazılır.
@@ -329,6 +339,24 @@ yönetici komutuyla içeri alınır (YDK-09). Tarayıcıdan yedek yükleme yok
   (bağımlılık eklemek ayrıca onaylanır).
 - Hedef tanımı Ayarlar'daki diğer bağlantı tanımlarının kalıbını izler; şifre
   şifreli saklanır, "Bağlantıyı Sına" düğmesi olur.
+- **Bir fiziksel depo, tek hedef (BY-010-R7).** Dosya sistemi hedeflerinde
+  (Yerel disk, NAS) aynı klasörü gösteren ikinci hedef kaydedilmez: 409
+  `HEDEF_AYNI_DEPO`. Karşılaştırma yazıma değil gerçek konuma göredir
+  (`/x`, `/x/.`, `/x/../x`, sembolik bağlantı, bind mount; klasör henüz yoksa
+  sadeleştirilmiş yazım) ve ana klasörü tanıyan ölçütün aynısıdır
+  (G19); klasörü boş ikinci Yerel hedef ikinci ana klasör hedefidir, o da
+  reddedilir. Yerel ↔ NAS aynı klasör de çakışmadır; alt klasör ayrı
+  depodur. Aynı yeri birden çok plan kullanacaksa tek hedef birden çok plana
+  eklenir (F6). Ekleme ve konumu değişen güncelleme tek kilit altında
+  denetlenir (eşzamanlı iki kayıt aynı klasörü ikinci kez tanımlayamaz);
+  konumu değişmeyen güncelleme (ad, aktiflik, parola) eski çakışan hedefte
+  de serbesttir. Eskiden kalmış çakışan hedefte kopyalayıcı, yedeğin
+  kopyası diğer hedefte duruyorsa ikinci kopyayı yazmaz (`basarisiz`, kod
+  `HEDEF_AYNI_DEPO`, yeniden denenmez); saklama ortak dosyayı silmez (§4.3).
+  Uzak türler (FTP/FTPS, SFTP, S3, Google Drive) bu denetimin dışındadır:
+  aynı yer beyan edilen alanlardan kanıtlanamaz (alan adı / IP takma adı,
+  FTP ↔ FTPS, kullanıcının chroot'u, uç nokta takma adı); Google Drive'da
+  her kopya kendi kimliğiyle ayrı dosyadır.
 - Kopyalama yedekten sonra ayrı adımdır; başarısız olursa yedek yine geçerlidir,
   kopya yeniden denenir ve uyarı üretilir.
 - Listede her yedek için "sunucu dışı kopya: var / yok / başarısız" görünür.
@@ -646,6 +674,24 @@ veritabanı geri yüklenince hedef eski yerindedir; yeni yerdeki kopya ona
 bağlanmaz. Hedef kopyanın yerine döndürülünce sonraki taramada kopya yeniden
 `tamam` olur. Konumu bilinemeyen hedefe (hesabı okunmamış Google bağlantısı)
 kopya gönderilmez.
+
+**Hedefin tanımı yoksa kopya yine görünür (BY-028-R9).** Geri yüklenen eski
+veritabanında, yedekten sonra eklenmiş bir hedefin tanımı bulunmaz; olay
+günlüğü o hedefteki kopyayı (uzak kimliği ve konum iziyle) yine anar. Dizin
+kurulurken olaydaki tamam kopyanın hedefi önce olaydaki kimlik / adla aranır;
+bulunamazsa ya da bulunan hedefin izi uyuşmazsa izi aynı olan hedef aranır
+(aynı yer yeni kayıtla — başka kimlik ve adla — eklenmiş olabilir). Kopyanın
+yeri yalnız iz eşitliğiyle belirlenir; günlükten hedef kimliği ya da konumu
+tahmin edilmez, tarama hiçbir dosya işlemi yapmaz. Hiçbir hedef eşleşmezse
+kopya atlanmaz: hedefsiz, "konumu doğrulanamadı" kayıt olarak tutulur (hata
+kodu `KOPYA_HEDEFI_TANIMSIZ`, ekranda olaydaki hedef adıyla). Diğer konumu
+belirsiz kopyalar gibi yedeği `silindi` yaptırmaz ve saklamada "kalan kopya"
+sayılır, ama geri yükleme, silme, saklama ve kurtarma hazırlığının kaynağı
+olmaz; hedefe dayanan kararlar (kurtarma paketi, hesap değişikliği, konum
+kilidi) onu görmez. Kullanıcı kopyanın yerini gösteren hedefi yeniden
+eklediğinde sonraki taramada kopya o hedefe `tamam` bağlanır ve hedefsiz kayıt
+kalkar; olaydaki kimlik başka bir yere verilmiş bir hedefte bulunursa kopya
+önce ona `konum_belirsiz` bağlanır, aynı yer eklenince oradan taşınır.
 
 **Ayarlar da geri döner.** Planlar, saklama kuralları ve hedef tanımları
 veritabanında durduğu için üstüne geri yüklemede eski hâllerine döner. Her

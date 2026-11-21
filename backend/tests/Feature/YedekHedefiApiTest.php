@@ -205,6 +205,87 @@ final class YedekHedefiApiTest extends TestCase
     }
 
     /**
+     * Kayıtlı hedefin türü ve bağlantısı ile yeni yerel hedefin klasörü; null = klasör boş (yedek klasörünün kendisi).
+     *
+     * @return iterable<string, array{0: HedefTuru, 1: array<string, string|null>, 2: string|null}>
+     */
+    public static function ayniDepoyuGosterenHedefler(): iterable
+    {
+        yield 'aynı klasör, farklı ad' => [HedefTuru::Yerel, ['klasor' => '{kok}/disk2'], '{kok}/disk2'];
+        yield 'noktalı yazım' => [HedefTuru::Yerel, ['klasor' => '{kok}/disk2'], '{kok}/disk2/.'];
+        yield 'henüz olmayan klasörün noktalı yazımı' => [HedefTuru::Yerel, ['klasor' => '{kok}/yok'], '{kok}/yok/.'];
+        yield 'sembolik bağlantı' => [HedefTuru::Yerel, ['klasor' => '{kok}/disk2'], '{kok}/bag'];
+        yield 'ikinci ana klasör hedefi' => [HedefTuru::Yerel, ['klasor' => null], null];
+        yield 'ana klasörün başka yazımı' => [HedefTuru::Yerel, ['klasor' => null], '{kok}/yedekler/../yedekler'];
+        yield 'NAS hedefinin klasörü' => [HedefTuru::Nas, ['baglanti_noktasi' => '{kok}', 'klasor' => '{kok}/disk2'], '{kok}/disk2'];
+    }
+
+    /**
+     * BY-010-R7: aynı fiziksel depoyu gösteren ikinci hedef kaydedilmez; iki
+     * hedefte aynı ad aynı dosyadır.
+     *
+     * @param  array<string, string|null>  $kayitliBaglanti
+     */
+    #[DataProvider('ayniDepoyuGosterenHedefler')]
+    public function test_ayni_fiziksel_depoyu_gosteren_ikinci_hedef_409_kaydedilmez(HedefTuru $kayitliTur, array $kayitliBaglanti, ?string $yeniKlasor): void
+    {
+        mkdir($this->yedekKoku.'/disk2');
+        symlink($this->yedekKoku.'/disk2', $this->yedekKoku.'/bag');
+        $yol = fn (?string $y): ?string => $y === null ? null : str_replace('{kok}', $this->yedekKoku, $y);
+        YedekHedefi::factory()->create(['ad' => 'Disk 2', 'tur' => $kayitliTur, 'baglanti' => array_map($yol, $kayitliBaglanti)]);
+
+        $this->postJson(self::K, ['ad' => 'Disk 2 (yine)', 'tur' => 'yerel', 'alanlar' => ['klasor' => $yol($yeniKlasor)]])
+            ->assertStatus(409)
+            ->assertJsonPath('kod', 'HEDEF_AYNI_DEPO')
+            ->assertJsonPath('hedefler', ['Disk 2'])
+            ->assertJsonPath('mesaj', __('hata.yedek_hedefi_ayni_depo', ['hedefler' => 'Disk 2']));
+
+        $this->assertSame(1, YedekHedefi::query()->count());
+    }
+
+    /** BY-010-R7: alt klasör ayrı depodur; konumu değişen güncelleme de denetlenir, konumu değişmeyen eski çakışan hedef pasife alınabilir */
+    public function test_alt_klasor_ayri_hedef_olur_konumu_baska_hedefin_deposuna_cevrilemez_eski_cakisan_hedef_pasife_alinir(): void
+    {
+        $disk = $this->yedekKoku.'/disk2';
+        mkdir($disk);
+        $govde = fn (string $ad, string $klasor, bool $aktif = true): array => ['ad' => $ad, 'tur' => 'yerel', 'aktif' => $aktif, 'alanlar' => ['klasor' => $klasor]];
+        $this->postJson(self::K, $govde('Disk 2', $disk))->assertCreated();
+        $alt = $this->postJson(self::K, $govde('Alt klasör', $disk.'/alt'))->assertCreated()->json('data.id');
+
+        $this->putJson(self::K.'/'.$alt, $govde('Alt klasör', $disk.'/alt/..'))->assertStatus(409)->assertJsonPath('kod', 'HEDEF_AYNI_DEPO');
+        $this->assertSame($disk.'/alt', YedekHedefi::query()->findOrFail($alt)->baglanti['klasor']);
+
+        // Eskiden kalmış çakışan tanım: konumu değişmeden adı ve aktifliği değişir (çözüm yolu)
+        $eski = YedekHedefi::factory()->create(['ad' => 'Eski çakışan', 'baglanti' => ['klasor' => $disk.'/.']]);
+        $this->putJson(self::K.'/'.$eski->id, $govde('Eski çakışan (kullanmayın)', $disk.'/.', aktif: false))->assertOk();
+        $this->assertSame(['Eski çakışan (kullanmayın)', false], [$eski->refresh()->ad, $eski->aktif]);
+    }
+
+    /**
+     * BY-010-R7, G18: denetim ile kayıt tek adım. Başka bir istek kilidi
+     * tutarken aynı klasörü kaydediyorsa bu istek onu bekler ve görür.
+     */
+    public function test_eszamanli_kayitta_ayni_klasoru_ikinci_kez_tanimlayan_istek_bekler_ve_409_alir(): void
+    {
+        $disk = $this->yedekKoku.'/disk2';
+        mkdir($disk);
+        $kilit = Cache::lock(YedekHedefiController::DEPO_KILIDI, 10);
+        $this->assertTrue($kilit->get());
+        Sleep::fake();
+        Sleep::whenFakingSleep(function () use ($kilit, $disk): void {
+            if (! YedekHedefi::query()->exists()) {
+                YedekHedefi::factory()->create(['ad' => 'Önce gelen', 'baglanti' => ['klasor' => $disk]]);
+                $kilit->release();
+            }
+        });
+
+        $this->postJson(self::K, ['ad' => 'Sonra gelen', 'tur' => 'yerel', 'alanlar' => ['klasor' => $disk]])
+            ->assertStatus(409)->assertJsonPath('hedefler', ['Önce gelen']);
+
+        $this->assertSame(['Önce gelen'], YedekHedefi::query()->pluck('ad')->all());
+    }
+
+    /**
      * @return iterable<string, array{0: int, 1: string, 2: string}>
      */
     public static function nesneKilidiYanitlari(): iterable

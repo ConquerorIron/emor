@@ -7,7 +7,9 @@ namespace App\Services\Yedekleme;
 use App\Models\YedekHedefi;
 use App\Services\Yedekleme\Hedefler\HedefAlani;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
+use App\Services\Yedekleme\Hedefler\YerelDiskBaglayicisi;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Hedefin fiziksel konumu (BY-016-R1, R3): kopya kayıtları hedef kimliğine
@@ -51,6 +53,10 @@ use Illuminate\Database\Eloquent\Builder;
  * sabit tutar; iz, kilidin göremediği yolu kapatır: veritabanı geri
  * yüklenince hedef eski yerine döner, olay günlüğü sonraki yerdeki kopyaları
  * da taşır.
+ *
+ * İki hedefin aynı fiziksel depoya yazıp yazmadığı ayrı sorudur (ayniDepoMu;
+ * BY-010-R7): iz yazımı karşılaştırır, depo sorusu dosya sistemi hedeflerinde
+ * gerçek konumu.
  */
 final class HedefKonumu
 {
@@ -89,7 +95,70 @@ final class HedefKonumu
     /** Yeri hedefin bugünkü konumu olarak doğrulanamayan kopyanın hata kodu (KopyaDurumu::KonumBelirsiz) */
     public const DOGRULANAMADI = 'KOPYA_KONUMU_DOGRULANAMADI';
 
-    public function __construct(private readonly HedefKatalogu $katalog) {}
+    /** Olaydaki hedefi veritabanında tanımlı olmayan kopyanın hata kodu (hedefsiz `konum_belirsiz`; BY-028-R9) */
+    public const HEDEFI_TANIMSIZ = 'KOPYA_HEDEFI_TANIMSIZ';
+
+    public function __construct(
+        private readonly HedefKatalogu $katalog,
+        private readonly YedeklemeYapilandirmasi $yapilandirma,
+    ) {}
+
+    /**
+     * İki hedef aynı fiziksel depoya mı yazıyor (BY-010-R7). Öyleyse bir
+     * dosya adı iki hedefte AYNI dosyadır: birinin saklama kuralı dosyayı
+     * silince diğerinin kopyası `tamam` görünür, yerel dosya ona dayanılarak
+     * silinir. Bu yüzden böyle ikinci hedef kaydedilmez, eskiden kalmışsa
+     * ortak dosyaya kopya yazılmaz ve saklama onu silmez.
+     *
+     * Ölçüt yalnız bu sunucuda gerçek konumu sınanabilen dosya sistemi
+     * hedefleri (Yerel, NAS) içindir: klasörleri yazıma değil gerçek konuma
+     * göre karşılaştırılır (YerelDiskBaglayicisi::ayniKonumMu — G19 tek ölçüt;
+     * `/x`, `/x/.`, `/x/../x`, sembolik bağlantı, bind mount; klasörü boş
+     * Yerel hedef yedek klasörünün kendisidir). Uzak türler kapsam dışı:
+     * aynı yer beyan edilen alanlardan kanıtlanamaz (alan adı / IP takma adı,
+     * FTP ↔ FTPS, kullanıcının chroot'u, S3 uç nokta takma adı); Google
+     * Drive'da her kopya kendi kimliğiyle ayrı dosyadır.
+     */
+    public function ayniDepoMu(YedekHedefi $a, YedekHedefi $b): bool
+    {
+        $klasorA = $this->dosyaSistemiKlasoru($a);
+        $klasorB = $this->dosyaSistemiKlasoru($b);
+
+        return $klasorA !== null && $klasorB !== null && YerelDiskBaglayicisi::ayniKonumMu($klasorA, $klasorB);
+    }
+
+    /**
+     * Kayıtlı hedeflerden (pasifler dahil: kopyaları durur, yeniden açılabilir)
+     * bu hedefle aynı depoya yazanlar; hedefin kendisi hariç.
+     *
+     * @return Collection<int, YedekHedefi>
+     */
+    public function ayniDepodakiler(YedekHedefi $hedef): Collection
+    {
+        if ($this->dosyaSistemiKlasoru($hedef) === null) {
+            return new Collection;
+        }
+
+        return YedekHedefi::query()
+            ->whereIn('tur', [HedefTuru::Yerel->value, HedefTuru::Nas->value])
+            ->when($hedef->exists, fn (Builder $q) => $q->whereKeyNot($hedef->getKey()))
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (YedekHedefi $diger): bool => $this->ayniDepoMu($hedef, $diger))
+            ->values();
+    }
+
+    /** Dosya sistemi hedefinin yazdığı klasör (bağlayıcıların okuduğu alan); diğer türlerde null */
+    private function dosyaSistemiKlasoru(YedekHedefi $hedef): ?string
+    {
+        $klasor = $hedef->baglanti['klasor'] ?? null;
+
+        return match ($hedef->tur) {
+            HedefTuru::Yerel => YerelDiskBaglayicisi::hedefKlasoru($hedef, $this->yapilandirma),
+            HedefTuru::Nas => is_string($klasor) && $klasor !== '' ? $klasor : null,
+            default => null,
+        };
+    }
 
     /**
      * Hedefin bugünkü fiziksel konumunun değişmez kimliği (BY-028-R5): tür +

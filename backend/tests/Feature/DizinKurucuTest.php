@@ -655,6 +655,120 @@ final class DizinKurucuTest extends TestCase
     }
 
     /**
+     * BY-028-R9 (F7, G21): hedef yedekten sonra eklenmişti; geri yüklenen
+     * eski veritabanında tanımı yok, yerel dosya da yok, yalnız uzak kopya
+     * kalmış. İmzalı olaydaki kopya atlanmaz: yedek varsayılan listede
+     * hedefsiz, "konumu doğrulanamadı" kopyasının uyarısıyla görünür, geri
+     * yükleme kaynağı yoktur, dosyaya dokunulmaz. Kullanıcı aynı yeri yeni
+     * kayıtla (başka ad, başka kimlik) ekleyince sonraki tarama aynı yedeği
+     * izle o hedefe bağlar ve kopyadan geri yüklenebilir olur.
+     */
+    public function test_tanimi_olmayan_hedefteki_kopya_yedegi_listede_tutar_ayni_yer_yeni_kayitla_eklenince_ona_baglanir(): void
+    {
+        $yedek = $this->gercekYedek();
+        [$hedef, $ikinciDisk] = $this->ikinciDiskHedefi();
+        app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        app(YerelDosyaSilici::class)->sil($yedek->refresh());
+        $this->dizinleriBosalt();
+        $hedef->delete();
+
+        $sonuc = $this->tara();
+        $this->tara();
+
+        $this->assertSame(1, $sonuc['bulunamayan_hedef']);
+        $satir = $this->yedekListesi();
+        $this->assertSame([$yedek->kimlik, 'tamam', false, false], [$satir['kimlik'], $satir['durum'], $satir['yerel_dosya_var'], $satir['webden_geri_yuklenebilir']]);
+        $this->assertSame([['hedef_ad' => 'Disk 2', 'durum' => 'konum_belirsiz', 'hata_kodu' => HedefKonumu::HEDEFI_TANIMSIZ]], $this->kopyaOzetleri($satir));
+        $this->assertNull($satir['kopyalar'][0]['hedef_id']);
+        $this->assertFileExists($ikinciDisk.'/'.$yedek->dosya_adi);
+
+        $yeni = YedekHedefi::factory()->create(['ad' => 'Disk 2 (yeniden)', 'tur' => HedefTuru::Yerel, 'baglanti' => ['klasor' => $ikinciDisk.'/']]);
+        $this->assertNotSame($hedef->id, $yeni->id);
+        $this->tara();
+
+        $satir = $this->yedekListesi();
+        $this->assertSame([$yedek->kimlik, 'tamam', true], [$satir['kimlik'], $satir['durum'], $satir['webden_geri_yuklenebilir']]);
+        $this->assertSame([['hedef_ad' => 'Disk 2 (yeniden)', 'durum' => 'tamam', 'hata_kodu' => null]], $this->kopyaOzetleri($satir));
+        $kurulan = Yedek::query()->where('kimlik', $yedek->kimlik)->sole();
+        $kaynaklar = GeriYuklemeKaynaklari::sec(false, $kurulan->kopyalar);
+        $this->assertSame([$yeni->id], array_map(fn (YedekKopyasi $k): int => (int) $k->yedek_hedefi_id, $kaynaklar->uzaklar));
+    }
+
+    /**
+     * BY-028-R9 / G21: geri yüklenen veritabanında hedefin eski kimliği başka
+     * bir yere verilmiş. Kimlikle bulunan hedefin izi uyuşmaz: kopya ona
+     * `konum_belirsiz` bağlanır (BY-028-R5). Aynı yer yeni kayıtla eklenince
+     * kopya izle o hedefe `tamam` bağlanır, eski kimlikteki izdüşümü kalkar.
+     */
+    public function test_eski_kimligi_baska_yere_verilen_hedefte_kopya_belirsiz_kalir_ayni_yer_eklenince_ona_baglanir(): void
+    {
+        $yedek = $this->gercekYedek();
+        [$hedef, $ikinciDisk] = $this->ikinciDiskHedefi();
+        app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        app(YerelDosyaSilici::class)->sil($yedek->refresh());
+        YedekKopyasi::query()->where('yedek_id', $yedek->id)->delete();
+        $hedef->delete();
+        $baska = YedekHedefi::factory()->create(['id' => $hedef->id, 'ad' => 'Bulut', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'k']]);
+
+        $this->tara();
+
+        $kopya = YedekKopyasi::query()->where('yedek_id', $yedek->id)->sole();
+        $this->assertSame([$baska->id, KopyaDurumu::KonumBelirsiz, HedefKonumu::DOGRULANAMADI], [$kopya->yedek_hedefi_id, $kopya->durum, $kopya->hata_kodu]);
+
+        $yeni = YedekHedefi::factory()->create(['ad' => 'Disk 2 (yeniden)', 'tur' => HedefTuru::Yerel, 'baglanti' => ['klasor' => $ikinciDisk]]);
+        $this->tara();
+
+        $kopya = YedekKopyasi::query()->where('yedek_id', $yedek->id)->sole();
+        $this->assertSame([$yeni->id, KopyaDurumu::Tamam, null], [$kopya->yedek_hedefi_id, $kopya->durum, $kopya->hata_kodu]);
+    }
+
+    /**
+     * BY-028-R9 / G1: hedefi tanımsız kopyası kalan yedek elle silinince yerel
+     * dosya gider; kopya silinmez (yeri bilinmiyor), sonuçta adıyla görünür,
+     * yedek `silindi` olmaz, "tamamen silindi" olayı yazılmaz.
+     */
+    public function test_hedefi_tanimsiz_kopyasi_kalan_yedek_elle_silinince_silindi_olmaz_kopya_sonucta_gorunur(): void
+    {
+        $yedek = $this->gercekYedek();
+        [$hedef, $ikinciDisk] = $this->ikinciDiskHedefi();
+        app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        YedekKopyasi::query()->where('yedek_id', $yedek->id)->delete();
+        $hedef->delete();
+        $this->tara();
+
+        $istek = new Istek((string) Str::uuid(), 'sil', ['yedek_kimligi' => $yedek->kimlik], null, CarbonImmutable::now(), 0);
+        $sonuc = app(SilIsleyicisi::class)->isle($istek, $this->kilitAl());
+        $this->tutulanKilit?->birak();
+
+        $this->assertSame(['YEDEK_KOPYA_SILINEMEDI', 'tamam'], [$sonuc->kod, $sonuc->ek['yedek_durumu']]);
+        $this->assertStringContainsString('Disk 2: '.HedefKonumu::HEDEFI_TANIMSIZ, (string) $sonuc->mesaj);
+        $this->assertFileDoesNotExist(config('yedekleme.klasor').'/'.$yedek->dosya_adi);
+        $this->assertFileExists($ikinciDisk.'/'.$yedek->dosya_adi);
+        $turler = array_map(fn (YedekOlayi $o): OlayTuru => $o->tur, array_values(array_filter(app(OlayGunlugu::class)->oku()['olaylar'], fn (YedekOlayi $o): bool => $o->yedekKimligi === $yedek->kimlik)));
+        $this->assertNotContains(OlayTuru::Silindi, $turler);
+    }
+
+    /** BY-028-R9 / G1: dosyası ve manifesti kaybolan yedek, hedefi tanımsız kopyası durdukça `dosyasiYok` yolunda da `silindi` olmaz. */
+    public function test_dosyasi_ve_manifesti_kaybolan_yedek_hedefi_tanimsiz_kopyasiyla_silindi_olmaz(): void
+    {
+        $yedek = $this->gercekYedek();
+        [$hedef] = $this->ikinciDiskHedefi();
+        app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        YedekKopyasi::query()->where('yedek_id', $yedek->id)->delete();
+        $hedef->delete();
+        $this->tara();
+        $dump = config('yedekleme.klasor').'/'.$yedek->dosya_adi;
+        unlink($dump);
+        unlink(ManifestDeposu::jsonYolu($dump));
+
+        $sonuc = $this->tara();
+
+        $this->assertSame(1, $sonuc['dosyasi_yok']);
+        $this->assertSame(YedekDurumu::Tamam, $yedek->refresh()->durum);
+        $this->assertSame(HedefKonumu::HEDEFI_TANIMSIZ, YedekKopyasi::query()->where('yedek_id', $yedek->id)->sole()->hata_kodu);
+    }
+
+    /**
      * Yedek klasöründen ayrı bir "ikinci disk" yerel hedefi
      *
      * @return array{0: YedekHedefi, 1: string}

@@ -19,6 +19,7 @@ use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\KanonikJson;
 use App\Services\Yedekleme\KopyaDurumu;
 use App\Services\Yedekleme\YedekDenetimi;
+use Closure;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,6 +52,9 @@ use Illuminate\Validation\ValidationException;
  *   son kopyanın sahibi olmasıyla; doğrulanamazsa eski bağlantı aynen kalır:
  *   409 `GOOGLE_HESAP_DOGRULANAMADI` (BY-021-R2, R3, R4). "Kopyalı" burada
  *   dosyası durabilen kopyayı da kapsar (`konum_belirsiz`; BY-021-R5).
+ * - Aynı fiziksel depoyu (yazımı farklı da olsa aynı klasör, klasörü boş
+ *   ikinci Yerel hedef = ikinci ana klasör hedefi) gösteren ikinci hedef
+ *   kaydedilmez: 409 `HEDEF_AYNI_DEPO` (HedefKonumu::ayniDepoMu; BY-010-R7).
  * - "Sına" web isteğinde çalışır; bütün adımlar tek toplam süre bütçesini
  *   paylaşır (`HedefSinayici`, D9).
  */
@@ -58,6 +62,9 @@ final class YedekHedefiController extends Controller
 {
     /** Google bağlantı akışının durum değeri bu süre geçerlidir (sn) */
     private const GOOGLE_DURUM_SURESI = 600;
+
+    /** Aynı depo denetimi + kayıt kilidi (depoKilidiAltinda) */
+    public const DEPO_KILIDI = 'yedek-hedefi-depo';
 
     public function __construct(
         private readonly HedefKatalogu $katalog,
@@ -82,13 +89,19 @@ final class YedekHedefiController extends Controller
     {
         [$tanim, $acik, $gizli] = $this->dogrula($request, null);
 
-        $hedef = YedekHedefi::query()->create([
-            'ad' => $request->string('ad')->trim()->value(),
-            'tur' => $tanim->tur,
-            'aktif' => $request->boolean('aktif', true),
-            'baglanti' => $acik,
-            'gizli_bilgiler' => $gizli === [] ? null : $gizli,
-        ]);
+        $hedef = $this->depoKilidiAltinda(function () use ($request, $tanim, $acik, $gizli): YedekHedefi {
+            $hedef = new YedekHedefi([
+                'ad' => $request->string('ad')->trim()->value(),
+                'tur' => $tanim->tur,
+                'aktif' => $request->boolean('aktif', true),
+                'baglanti' => $acik,
+                'gizli_bilgiler' => $gizli === [] ? null : $gizli,
+            ]);
+            $this->ayniDepoyuReddet($hedef);
+            $hedef->save();
+
+            return $hedef;
+        });
         $this->denetle('hedef_ekle', $request, $hedef);
 
         return (new YedekHedefiResource($hedef->loadCount('planlar')))->response()->setStatusCode(201);
@@ -98,23 +111,31 @@ final class YedekHedefiController extends Controller
      * Konum denetimi ile kayıt, hedef satırının kilidi altında tek işlemdir:
      * kopyalayıcı kopyayı aynı kilit altında "kopyalanıyor" yapar (BY-016-R3).
      * Denetim sırasında kopya başlayamaz; başlamışsa güncelleme onu görür.
+     * Konumu değişen hedef başka bir hedefin deposunu gösteremez (409
+     * `HEDEF_AYNI_DEPO`); konumu değişmeyen kayıt (ad, aktiflik, sır) eskiden
+     * kalmış çakışan hedefte de serbesttir — pasife alınabilsin (BY-010-R7).
      */
     public function update(Request $request, YedekHedefi $hedef): YedekHedefiResource
     {
-        $hedef = DB::transaction(function () use ($request, $hedef): YedekHedefi {
+        $hedef = $this->depoKilidiAltinda(fn (): YedekHedefi => DB::transaction(function () use ($request, $hedef): YedekHedefi {
             $hedef = YedekHedefi::query()->whereKey($hedef->getKey())->lockForUpdate()->firstOrFail();
             [, $acik, $gizli] = $this->dogrula($request, $hedef, konumKilidi: true);
+            $oncekiIz = $this->konum->iz($hedef);
 
             $hedef->fill([
                 'ad' => $request->string('ad')->trim()->value(),
                 'aktif' => $request->boolean('aktif', true),
                 'baglanti' => $acik,
                 'gizli_bilgiler' => $gizli === [] ? null : $gizli,
-            ])->save();
+            ]);
+            if ($this->konum->iz($hedef) !== $oncekiIz) {
+                $this->ayniDepoyuReddet($hedef);
+            }
+            $hedef->save();
             $this->denetle('hedef_guncelle', $request, $hedef, ['sir_degisti' => $request->collect('alanlar')->only($this->gizliAdlar($hedef->tur))->filter(fn ($d) => $d !== null && $d !== '')->keys()->all()]);
 
             return $hedef;
-        });
+        }));
 
         return new YedekHedefiResource($hedef->load('sonKopya')->loadCount('planlar'));
     }
@@ -371,6 +392,39 @@ final class YedekHedefiController extends Controller
             ->distinct()
             ->pluck('konum_izi')
             ->contains(fn (?string $iz): bool => ! $this->konum->konumdaMi($aday, $iz));
+    }
+
+    /**
+     * Hedef eklemede ve güncellemede aynı depo denetimi ile kayıt tek adımdır
+     * (G18): eşzamanlı iki istek aynı klasörü denetimden geçirip ikisi de
+     * kaydedemez. Kilit testte de tutulur.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $is
+     * @return T
+     */
+    private function depoKilidiAltinda(Closure $is): mixed
+    {
+        return Cache::lock(self::DEPO_KILIDI, 10)->block(10, $is);
+    }
+
+    /**
+     * Aynı fiziksel depoyu gösteren ikinci hedef kaydedilmez (409; BY-010-R7):
+     * iki hedefte aynı ad aynı dosyadır, bir hedefin saklaması diğerinin
+     * kopyasını silerdi. Bir hedef birden çok planda kullanılabilir (F6).
+     */
+    private function ayniDepoyuReddet(YedekHedefi $aday): void
+    {
+        $adlar = $this->konum->ayniDepodakiler($aday)->pluck('ad')->all();
+
+        if ($adlar !== []) {
+            throw new HttpResponseException(response()->json([
+                'kod' => HedefHatasi::AYNI_DEPO,
+                'mesaj' => __('hata.yedek_hedefi_ayni_depo', ['hedefler' => implode(', ', $adlar)]),
+                'hedefler' => $adlar,
+            ], 409));
+        }
     }
 
     /**

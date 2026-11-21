@@ -96,10 +96,11 @@ final class SilIsleyicisi implements IstekIsleyicisi
         }
 
         // Yeri doğrulanamayan kopya silinmez — hedefin bugünkü yerindeki başka bir dosyaya
-        // dokunulabilirdi — ve silinmiş de sayılmaz: sonuçta görünür (BY-028-R5)
+        // dokunulabilirdi — ve silinmiş de sayılmaz: sonuçta görünür (BY-028-R5). Hedefi
+        // tanımsız kopya da böyledir; adı olaydan, kodu kendi kaydından (BY-028-R9)
         YedekKopyasi::query()->with('hedef')->where('yedek_id', $yedek->id)->where('durum', KopyaDurumu::KonumBelirsiz->value)->orderBy('id')->get()
             ->each(function (YedekKopyasi $kopya) use (&$hatalar): void {
-                $hatalar[] = $kopya->hedef->ad.': '.HedefKonumu::DOGRULANAMADI;
+                $hatalar[] = ($kopya->hedefAdi() ?? '?').': '.($kopya->hata_kodu ?? HedefKonumu::DOGRULANAMADI);
             });
 
         // F7: başka bir yerde doğrulanmış kopya kaldıysa durum `silindi` olmaz

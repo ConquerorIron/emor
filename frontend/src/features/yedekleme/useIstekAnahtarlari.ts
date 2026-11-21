@@ -141,59 +141,85 @@ function oku(kapsam: string, simdi: number): BekleyenAnahtar[] {
  * Eski sürüm (v1) kayıtlarını, hangi kapsamda olursa olsun, v2'ye taşır
  * (BY-014-R5). v1 sürümünde kabul edilip yanıtı kaybolan isteğin anahtarı hâlâ
  * geçerli olabilir; yeni sürümde aynı eylem yeni anahtar alırsa ikinci iş
- * açılır. Süresi geçmemiş, biçimli kaydın yalnız imzasının özeti (v2 ile AYNI
- * kanonik metin → aynı özet), UUID'si ve zamanı aynı kapsamın v2 deposuna
- * yazılır; v2'de aynı özetli kayıt varsa o (daha yeni deneme) kalır. Ham v1
- * girdisi her durumda — süresi geçmiş, biçimsiz, özet ya da yazım başarısız —
- * silinir: düz metin depoda kalmaz. Hiçbir zaman reddetmez.
+ * açılır. Hiçbir zaman reddetmez; girdi başına eskiKaydiTasi.
  */
 async function eskiSurumuTasi(): Promise<void> {
-  const simdi = Date.now()
-  const eskiler: { ad: string; kapsam: string; ham: string | null }[] = []
+  const adlar: string[] = []
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const ad = localStorage.key(i)
       if (ad?.startsWith(ESKI_SURUM_ONEKI)) {
-        eskiler.push({
-          ad,
-          kapsam: ad.slice(ESKI_SURUM_ONEKI.length),
-          ham: localStorage.getItem(ad),
-        })
+        adlar.push(ad)
       }
     }
   } catch {
     return // depo kapalı
   }
 
-  for (const { ad, kapsam, ham } of eskiler) {
-    try {
-      const deger: unknown = ham === null ? [] : JSON.parse(ham)
-      const tasinacak = (Array.isArray(deger) ? deger : []).filter(
-        (oge): oge is EskiBekleyenAnahtar => eskiBicimliMi(oge) && gecerliMi(oge, simdi),
-      )
-      if (tasinacak.length > 0) {
-        const yeniler = await Promise.all(
-          tasinacak.map(async ({ imza, anahtar, zaman }): Promise<BekleyenAnahtar> => ({
-            ozet: await metninOzeti(imza),
-            anahtar,
-            zaman,
-          })),
-        )
-        const mevcut = oku(kapsam, Date.now())
-        yaz(kapsam, [
-          ...mevcut,
-          ...yeniler.filter((yeni) => !mevcut.some((kayit) => kayit.ozet === yeni.ozet)),
-        ])
-      }
-    } catch {
-      // biçimsiz JSON ya da özet alınamadı: taşınmaz
-    } finally {
-      try {
-        localStorage.removeItem(ad)
-      } catch {
-        // depo kapalı
-      }
+  for (const ad of adlar) {
+    await eskiKaydiTasi(ad)
+  }
+}
+
+function eskiKaydiSil(ad: string): void {
+  try {
+    localStorage.removeItem(ad)
+  } catch {
+    // depo kapalı
+  }
+}
+
+/**
+ * Tek v1 girdisini taşır. Süresi geçmemiş, biçimli kaydın yalnız imzasının
+ * özeti (v2 ile AYNI kanonik metin → aynı özet), UUID'si ve zamanı aynı
+ * kapsamın v2 deposuna yazılır; v2'de aynı özetli kayıt varsa o (daha yeni
+ * deneme) kalır. Ham v1 girdisi her durumda — süresi geçmiş, biçimsiz, özet ya
+ * da yazım başarısız — silinir: düz metin depoda kalmaz.
+ *
+ * Özet eşzamansızdır; beklerken başka bir örnek (aynı sayfada başka bileşen ya
+ * da başka sekme) aynı girdiyi taşımış, taşınan anahtarla istek kabul edilip
+ * v2'den silinmiş olabilir (BY-014-R6). Bu yüzden v2'ye yazım, kaynağın hâlâ
+ * okunan HAM metinle aynı olduğu doğrulanarak ve v1 silinerek, aradaki
+ * beklemesiz tek eşzamanlı adımda yapılır: girdi artık yoksa (taşınmış)
+ * eski kopyadan yeniden yazılmaz; değişmişse güncel hali baştan taşınır.
+ */
+async function eskiKaydiTasi(ad: string): Promise<void> {
+  const kapsam = ad.slice(ESKI_SURUM_ONEKI.length)
+  try {
+    const ham = localStorage.getItem(ad)
+    if (ham === null) {
+      return // başka bir örnek taşıdı
     }
+    const deger: unknown = JSON.parse(ham)
+    const simdi = Date.now()
+    const tasinacak = (Array.isArray(deger) ? deger : []).filter(
+      (oge): oge is EskiBekleyenAnahtar => eskiBicimliMi(oge) && gecerliMi(oge, simdi),
+    )
+    if (tasinacak.length === 0) {
+      eskiKaydiSil(ad)
+
+      return
+    }
+    const yeniler = await Promise.all(
+      tasinacak.map(async ({ imza, anahtar, zaman }): Promise<BekleyenAnahtar> => ({
+        ozet: await metninOzeti(imza),
+        anahtar,
+        zaman,
+      })),
+    )
+    // Buradan sona kadar await yok: denetim, yazım ve silme bölünmez
+    if (localStorage.getItem(ad) !== ham) {
+      return eskiKaydiTasi(ad)
+    }
+    const mevcut = oku(kapsam, Date.now())
+    yaz(kapsam, [
+      ...mevcut,
+      ...yeniler.filter((yeni) => !mevcut.some((kayit) => kayit.ozet === yeni.ozet)),
+    ])
+    eskiKaydiSil(ad)
+  } catch {
+    // biçimsiz JSON ya da özet alınamadı: taşınmaz
+    eskiKaydiSil(ad)
   }
 }
 

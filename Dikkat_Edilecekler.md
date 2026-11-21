@@ -218,12 +218,24 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   eylemden türetir, "var mı" bakışı ile yazım aynı kilit altındadır.
   *(Codex BY-030-R2: 64'lük liste süresi dolmamış kanıtı unutuyordu.
   BY-014-R2, BY-030-R3: yeniden deneme ikinci iş bırakabiliyordu.)*
+  Eşzamansız bir adımdan (Web Crypto, fetch) SONRA depoya yazan taşıma,
+  beklemeden önce aldığı anlık kopyadan yazmasın: yazımdan hemen önce, aynı
+  eşzamanlı blokta kaynağı yeniden oku, aynıysa yaz + kaynağı sil. Yoksa başka
+  örneğin işlediği (kabul edilip silinen) kaydı geri getirir. Testte ilk
+  eşzamansız adımı kontrollü bir Promise ile geciktir, iki örnek aynı depoda.
+  *(Codex BY-014-R6: iki sayfanın v1→v2 taşıması.)*
 - **G19 — Aynı fiziksel nesneyi tanıyan ölçüt tek yardımcıda ve gerçek konuma
   göre olsun.** Yol metniyle karşılaştıran bir kod ile `realpath` / aygıt +
   düğüm ile karşılaştıran kardeşi birlikte yaşarsa (sondaki `/`, `..`,
   sembolik bağlantı) aynı dosya "bağımsız kopya" sayılır ve tek arşiv silinir.
   Testte aynı klasörün üç yazımını dene.
   *(Codex BY-008-R1.)*
+  Bağımsızlık varsayan karar ("iki kopya", "kalan kopya") kayıt kimliğine değil
+  bu ölçüte dayansın: aynı depoyu iki kayıtla tanımlamaya izin veren tanım
+  kopya sayısını şişirir, silme kararı son kopyayı götürür. Tanımı kayıtta
+  reddet; eskiden kalan çakışmada ortak nesneyi silme, görünür hata yaz.
+  Testte aynı yeri farklı ad ve yazımla iki kez tanımla.
+  *(Codex BY-010-R7: aynı klasörü gösteren iki yerel hedef.)*
 - **G20 — Kimlik, konum ve sır kararında PHP `==` / `!=` kullanma.** Sayı
   görünümlü iki metni sayı olarak karşılaştırır: `"001" == "1"`, `"1e1" ==
   "10"`. Alan tipine uygun normalleştir (port → tam sayı, boş port →
@@ -265,6 +277,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   kurup gerçek ileri migration'ı çalıştırarak yaz.
   *(Codex BY-024-R8, BY-028-R8, BY-021-R5: konumu belirsiz kopya paket
   korumasının, ana klasör taramasının ve Drive hesap kanıtının dışında kaldı.)*
+  **Eşlenemeyen dayanak "yok" değildir.** Dış kaydın bağlandığı tanım
+  bulunamayınca kaydı atlama ya da sayaca indirme: kullanıma kapalı ama
+  görünür tut, eşleşmeyi yalnız değişmez kimlikle (iz) yeniden kur. Geri
+  yüklenen veritabanında sıra eski değerinden devam eder; eski kimlik başka
+  kayda verilebilir — kimlik eşitliği aynı nesnenin kanıtı değildir.
+  *(Codex BY-028-R9: hedefi geri yüklenen veritabanında olmayan kopya.)*
 
 ## 2. Ön yüz
 
@@ -693,6 +711,11 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   kararı kanıtla verilir ve yazılır: canlıda `migrations` tablosu / sunucu
   commit'i, yerel ve test veritabanlarının durumu.
   *(BY-004-R7 yanıtı: migration canlıya gitmemişti, yerinde değiştirildi.)*
+  SQLite'ta `->change()` tabloyu yeniden kurar; migration işlemi içinde
+  `PRAGMA foreign_keys=OFF` etkisizdir, eski tablo düşerken CASCADE'li çocuk
+  satırlar sessizce silinir (PostgreSQL'de görünmez). Çocukları koru;
+  yükseltme testinde çocuk tablonun satırlarını da karşılaştır.
+  *(BY-028-R9 migration'ı: `yedek_kopya_planlari` bağları.)*
 - **K7 — Entegrasyon testi paylaşılan yönetici ayarına dayanmasın.**
   Sunucu davranışı için test oturumuna veya geçici örneğe özgü ayar kullan.
   Kurulum ve temizlik aynı ayarı değiştirebiliyorsa kesinti ve tekrar

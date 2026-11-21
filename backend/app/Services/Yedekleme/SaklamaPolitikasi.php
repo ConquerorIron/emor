@@ -58,6 +58,11 @@ use Throwable;
  *    aynı eşiği uygular (BY-010-R5). Aynı eşik, yerel dosya planda ana klasör
  *    hedefi olarak yazıldığında o hedefin kuralına da uygulanır
  *    (kurtarmaDayanagiYok). PlanliYedek her yedekten sonra burayı çalıştırır.
+ * 7. Hedefler kayıt kimliğiyle değil fiziksel depoyla bağımsızdır (BY-010-R7):
+ *    aynı klasörü gösteren iki hedefte aynı yedeğin kopyaları AYNI dosyadır.
+ *    Eskiden kalmış böyle tanımlarda kuralın silmek istediği ortak dosya
+ *    silinmez (koruma nedeni `ayni_depo`, uygulamada `HEDEF_AYNI_DEPO`
+ *    denetim kaydı); yalnız tek hedefte kopyası olan dosya kuralla silinir.
  */
 final class SaklamaPolitikasi
 {
@@ -73,10 +78,15 @@ final class SaklamaPolitikasi
         private readonly YedekDenetimi $denetim,
         private readonly YedekBildirimcisi $bildirimci,
         private readonly YedekDeposu $depo,
+        private readonly HedefKonumu $konum,
     ) {}
 
     /**
-     * @return array{silinecek: list<SilmeKarari>, korunan: array<int, list<string>>, temkin: string|null}
+     * `engellenen`: kuralların silmek istediği ama aynı dosyayı başka bir
+     * hedefin kopyası da tuttuğu için silinmeyen kopyalar ve o hedefler
+     * (BY-010-R7; uygula() denetim kaydına `HEDEF_AYNI_DEPO` yazar).
+     *
+     * @return array{silinecek: list<SilmeKarari>, korunan: array<int, list<string>>, temkin: string|null, engellenen: list<array{karar: SilmeKarari, hedefler: list<int>}>}
      */
     public function hesapla(?CarbonImmutable $simdi = null): array
     {
@@ -86,12 +96,12 @@ final class SaklamaPolitikasi
 
         $kullanimda = $this->kullanim->kullanimdakiler();
         if ($kullanimda === null) {
-            return ['silinecek' => [], 'korunan' => [], 'temkin' => 'durum_bilinmiyor'];
+            return ['silinecek' => [], 'korunan' => [], 'temkin' => 'durum_bilinmiyor', 'engellenen' => []];
         }
 
         $sonDeneme = Yedek::query()->whereIn('durum', [YedekDurumu::Tamam->value, YedekDurumu::Basarisiz->value])->orderByDesc('id')->first();
         if ($sonDeneme !== null && $sonDeneme->durum === YedekDurumu::Basarisiz) {
-            return ['silinecek' => [], 'korunan' => [], 'temkin' => 'son_yedek_basarisiz'];
+            return ['silinecek' => [], 'korunan' => [], 'temkin' => 'son_yedek_basarisiz', 'engellenen' => []];
         }
 
         /** @var Collection<int, Yedek> $yedekler */
@@ -125,6 +135,8 @@ final class SaklamaPolitikasi
         }
 
         $anaHedefler = $this->anaKlasorHedefleri($kopyalar->pluck('yedek_hedefi_id')->unique()->all());
+        $ayniDepo = $this->ayniDepodakiKopyalar($yedekler->keys()->all());
+        $engellenen = [];
         $kararlar = [];
 
         // F7: uzak kopyası doğrulanmamış (başarısız / bekleyen / yarıda kalmış)
@@ -195,6 +207,16 @@ final class SaklamaPolitikasi
             $grupKorunan = isset($anaHedefler[$hedefId]) ? $yerelKorunan : $korunan;
             $secilen = $this->suz($adaylar, $grup->count(), $yedekler, $grupKorunan, $ayar->enaz_adet);
             $rapor = $this->birlestir($rapor, $grupKorunan);
+            // Aynı dosyayı başka bir hedefin kopyası da tutuyor (BY-010-R7): silinmez,
+            // uygula() görünür hata yazar
+            foreach ($secilen as $sira => $karar) {
+                if (isset($ayniDepo[$karar->kopyaId])) {
+                    $engellenen[] = ['karar' => $karar, 'hedefler' => $ayniDepo[$karar->kopyaId]];
+                    $rapor = $this->birlestir($rapor, [$karar->yedekId => ['ayni_depo']]);
+                    unset($secilen[$sira]);
+                }
+            }
+            $secilen = array_values($secilen);
             if (isset($anaHedefler[$hedefId])) {
                 array_push($anaKlasorKararlari, ...$secilen);
             } else {
@@ -270,7 +292,47 @@ final class SaklamaPolitikasi
         array_push($kararlar, ...$this->suz($adaylar, $zamanlanmamis->count(), $yedekler, $klasorKorunan, $ayar->enaz_adet));
         $rapor = $this->birlestir($rapor, $klasorKorunan);
 
-        return ['silinecek' => $kararlar, 'korunan' => $rapor, 'temkin' => null];
+        return ['silinecek' => $kararlar, 'korunan' => $rapor, 'temkin' => null, 'engellenen' => $engellenen];
+    }
+
+    /**
+     * Aynı fiziksel depoya yazan başka bir hedefte de kopyası duran kopyalar
+     * (BY-010-R7): kopya kimliği → o hedefler. Böyle iki kaydın dosyası aynı
+     * dosyadır; biri silinirse diğeri `tamam` kalır ve yerel dosya ona
+     * dayanılarak silinirdi. Eskiden kalmış çakışan hedeflerde saklama bu
+     * kopyaları silmez (D4); hedef API'si yeni çakışmayı reddeder, kopyalayıcı
+     * ikinci kopyayı yazmaz. Ölçüt HedefKonumu::ayniDepoMu; diğer hedefteki
+     * kopya dosyası durabilen her kopyadır (yedegiTutanlar, G21).
+     *
+     * @param  list<int>  $yedekIdleri
+     * @return array<int, list<int>>
+     */
+    private function ayniDepodakiKopyalar(array $yedekIdleri): array
+    {
+        $ayniMi = [];
+        $sonuc = [];
+        $gruplar = YedekKopyasi::query()->with('hedef')
+            ->whereIn('yedek_id', $yedekIdleri)
+            ->whereIn('durum', KopyaDurumu::yedegiTutanlar())
+            ->get()
+            ->groupBy('yedek_id');
+
+        foreach ($gruplar as $grup) {
+            foreach ($grup as $kopya) {
+                foreach ($grup as $diger) {
+                    if ($kopya->id === $diger->id || $kopya->hedef === null || $diger->hedef === null) {
+                        continue;
+                    }
+                    $cift = min($kopya->yedek_hedefi_id, $diger->yedek_hedefi_id).'-'.max($kopya->yedek_hedefi_id, $diger->yedek_hedefi_id);
+                    $ayniMi[$cift] ??= $this->konum->ayniDepoMu($kopya->hedef, $diger->hedef);
+                    if ($ayniMi[$cift]) {
+                        $sonuc[$kopya->id][] = (int) $diger->yedek_hedefi_id;
+                    }
+                }
+            }
+        }
+
+        return $sonuc;
     }
 
     /**
@@ -330,6 +392,8 @@ final class SaklamaPolitikasi
      * Uzak silmeler önce uygulanır; plan yedeğinin yerel dosyası, ardından
      * fiilen kalan uzak kopyalardan hiçbiri kurtarmaya hazır değilse silinmez
      * (denetim kaydı `basarisiz`, kod `kurtarma_paketi_eksik`; `bilgi` satırı).
+     * Aynı depodaki ortak dosya (hesapla()'nın `engellenen`i) silinmez: denetim
+     * kaydı `basarisiz`, kod `HEDEF_AYNI_DEPO`; `bilgi` satırı (BY-010-R7).
      *
      * @return array{bag: int, dosya: int, atlanan_hedefler: list<int>, bilgi: list<string>, kararlar: list<SilmeKarari>}
      */
@@ -348,6 +412,14 @@ final class SaklamaPolitikasi
 
         $hesap = $this->hesapla();
         $sonuc = ['bag' => 0, 'dosya' => 0, 'atlanan_hedefler' => [], 'bilgi' => [], 'kararlar' => []];
+
+        // Aynı fiziksel depoyu gösteren hedeflerin ortak dosyası silinmez; her turda görünür hata (BY-010-R7)
+        foreach ($hesap['engellenen'] as ['karar' => $karar, 'hedefler' => $hedefler]) {
+            $ad = Yedek::query()->whereKey($karar->yedekId)->value('dosya_adi');
+            $sonuc['bilgi'][] = "hedef {$karar->hedefId}: {$ad} silinmedi; hedefin klasörü başka bir hedefinkiyle (".implode(', ', $hedefler).') aynı yer, dosya ortak';
+            $this->denetim->kaydet('saklama_sil', IslemSonucu::Basarisiz, $karar->yedekId, $kullaniciId, null, [...$karar->diziye(), 'kod' => HedefHatasi::AYNI_DEPO, 'ayni_depo_hedefleri' => $hedefler],
+                'Hedefin klasörü başka bir hedefinkiyle aynı fiziksel yer; dosya iki hedefin ortak kopyası olduğu için silinmedi. Hedef tanımlarını düzeltin.');
+        }
 
         foreach ($hesap['silinecek'] as $karar) {
             if ($karar->tur !== SilmeKarari::BAG) {

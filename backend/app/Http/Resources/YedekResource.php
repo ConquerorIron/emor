@@ -48,8 +48,9 @@ final class YedekResource extends JsonResource
             'hata_kodu' => $this->hata_kodu,
             'yerel_dosya_var' => $this->yerel_silinme_zamani === null && $this->durum->value !== 'silindi',
             'kopyalar' => $this->whenLoaded('kopyalar', fn () => $this->kopyalar->map(fn (YedekKopyasi $k): array => [
+                // Boş: hedefi tanımsız kopya (`konum_belirsiz`, ad olaydan; BY-028-R9)
                 'hedef_id' => $k->yedek_hedefi_id,
-                'hedef_ad' => $k->hedef?->ad,
+                'hedef_ad' => $k->hedefAdi(),
                 'hedef_tur' => $k->hedef?->tur->value,
                 'durum' => $k->durum->value,
                 'sifreli' => $k->sifreli,

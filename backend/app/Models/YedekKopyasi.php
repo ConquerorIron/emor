@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use LogicException;
 
 /**
  * Bir yedeğin bir hedefteki TEK fiziksel kopyası (README §4.3, §4.6). Aynı
@@ -18,9 +19,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * kuralıyla yalnız kendi bağını kaldırır, dosya hiçbir bağ kalmayınca
  * silinir (BY-010). Bir hedefteki silme diğer hedefleri etkilemez.
  *
+ * Hedefi tanımsız kopya (BY-028-R9): olay günlüğündeki kopyanın hedefi
+ * veritabanında yoksa (geri yüklenen eski veritabanı, yedekten sonra eklenmiş
+ * hedef) kopya `yedek_hedefi_id` boş, `konum_belirsiz` kayıt olarak tutulur;
+ * olaydaki hedef anahtarını ve adını taşır. Yalnız varlık kararlarında
+ * (yedeği katalogda tutar) sayılır, hiçbir işlemin kaynağı olmaz. Başka bir
+ * durumda olamaz (aşağıda booted; PostgreSQL'de CHECK).
+ *
  * @property int $id
  * @property int $yedek_id
- * @property int $yedek_hedefi_id
+ * @property int|null $yedek_hedefi_id Boş = hedefi tanımsız kopya (yalnız konum_belirsiz)
+ * @property string|null $olay_hedef_anahtari Hedefi tanımsız kopyada olaydaki hedef anahtarı (GuncelDurum::hedefAnahtari)
+ * @property string|null $olay_hedef_ad Hedefi tanımsız kopyada olaydaki hedef adı (gösterim)
  * @property KopyaDurumu $durum
  * @property string|null $uzak_kimlik
  * @property bool $sifreli
@@ -89,6 +99,25 @@ final class YedekKopyasi extends Model
     public function kurtarmayaHazirMi(): bool
     {
         return $this->durum === KopyaDurumu::Tamam && (! $this->sifreli || $this->kurtarma_hazir === true);
+    }
+
+    /** Ekranda ve sonuç mesajında gösterilen hedef adı; hedefi tanımsız kopyada olaydaki ad (BY-028-R9) */
+    public function hedefAdi(): ?string
+    {
+        return $this->hedef?->ad ?? $this->olay_hedef_ad;
+    }
+
+    /**
+     * Hedefi tanımsız kopya kullanılamaz kalır (K3): `konum_belirsiz`
+     * dışındaki her durum bir hedefe dayanır (kopyalama, silme, geri yükleme).
+     */
+    protected static function booted(): void
+    {
+        self::saving(function (self $kopya): void {
+            if ($kopya->yedek_hedefi_id === null && ($kopya->durum !== KopyaDurumu::KonumBelirsiz || $kopya->olay_hedef_anahtari === null)) {
+                throw new LogicException('Hedefi tanımsız kopya yalnız "konumu doğrulanamadı" olarak, olaydaki hedef anahtarıyla tutulur (BY-028-R9).');
+            }
+        });
     }
 
     /**

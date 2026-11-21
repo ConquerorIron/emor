@@ -18,7 +18,8 @@ class YedekHedefiFactory extends Factory
     protected $model = YedekHedefi::class;
 
     /**
-     * Varsayılan: sırrı olmayan yerel disk hedefi.
+     * Varsayılan: sırrı olmayan yerel disk hedefi. Her hedefin kendi klasörü
+     * var: aynı klasörü gösteren iki hedef geçersiz bir kurgudur (BY-010-R7).
      *
      * @return array<string, mixed>
      */
@@ -28,7 +29,7 @@ class YedekHedefiFactory extends Factory
             'ad' => 'Yerel disk '.fake()->unique()->numberBetween(1, 99999),
             'tur' => HedefTuru::Yerel,
             'aktif' => true,
-            'baglanti' => ['klasor' => '/tmp/yedek-deneme'],
+            'baglanti' => ['klasor' => '/tmp/yedek-deneme-'.fake()->unique()->numberBetween(1, 99999)],
             'gizli_bilgiler' => null,
         ];
     }

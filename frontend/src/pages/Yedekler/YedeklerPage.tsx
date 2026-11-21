@@ -357,8 +357,12 @@ export function YedeklerPage() {
             <span className="text-slate-400">—</span>
           ) : (
             <ul className="space-y-1">
-              {yedek.kopyalar.map((kopya) => (
-                <li key={kopya.hedef_id} className="flex flex-wrap items-center gap-1.5">
+              {yedek.kopyalar.map((kopya, sira) => (
+                // Hedefi tanımsız kopyaların hedef_id'si boştur (BY-028-R9)
+                <li
+                  key={kopya.hedef_id ?? `tanimsiz-${sira}`}
+                  className="flex flex-wrap items-center gap-1.5"
+                >
                   <span className="text-xs font-semibold">{kopya.hedef_ad ?? '—'}</span>
                   <Rozet
                     renk={KOPYA_RENGI[kopya.durum]}

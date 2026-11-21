@@ -26,7 +26,8 @@ use Throwable;
  * - İmzası tutmayan ya da manifestsiz `.dump` "güvenilmeyen" kayıttır
  *   (`imzali` false): listede görünür, geri yüklenemez.
  * - Diskte olmayan kayıt silinmez: `yerel_silinme_zamani` dolar; başka bir
- *   yerde kopyası (`tamam` ya da `konum_belirsiz`) yoksa durumu `silindi` olur.
+ *   yerde kopyası (`tamam` ya da `konum_belirsiz`, hedefi tanımsız olanlar
+ *   dahil) yoksa durumu `silindi` olur.
  * - Yerel dosyası silinmiş ama manifesti duran yedek, olay günlüğündeki uzak
  *   kopyalarıyla bulunur (F7).
  * - Olaydaki tamam kopya hedefe ancak konum izi hedefin bugünkü iziyle
@@ -37,6 +38,13 @@ use Throwable;
  *   (KopyaDurumu::yedegiTutanlar; BY-028-R7). Hedefin bugünkü tanımı ana
  *   klasör olsa da: yeri doğrulanmamış kopyanın yerini o tanım göstermez
  *   (yedegiTutarMi; BY-028-R8).
+ * - Olaydaki tamam kopyanın hedefi kimlik / adla bulunamazsa ya da bulunan
+ *   hedefin izi uyuşmazsa, izi aynı olan hedef aranır (yeniden eklenmiş aynı
+ *   yer; izdekiHedef). Hiçbiri yoksa kopya atlanmaz: hedefsiz `konum_belirsiz`
+ *   kayıt olur (`KOPYA_HEDEFI_TANIMSIZ`), yedeği tutar, hiçbir işlemin kaynağı
+ *   olmaz; konumu aynı hedef eklenince sonraki taramada ona bağlanır
+ *   (BY-028-R9). Hedef kimliği / konumu günlükten tahmin edilip dosya işlemi
+ *   yapılmaz: tarama yalnız katalog yazar.
  * - Tek bir bozuk dosya taramayı durdurmaz.
  * - Yedek klasörü yoksa ya da okunamıyorsa (bağlanmamış disk, izin) tarama
  *   dizine DOKUNMADAN hata verir: "erişemiyorum" boş klasör sayılıp kayıtlar
@@ -197,18 +205,33 @@ final class DizinKurucu
             $yedek->save();
 
             $uzakKopyaVar = false;
-            foreach ($durum->kopyalar as $k) {
-                $hedef = ($k['hedef_id'] !== null ? YedekHedefi::query()->find($k['hedef_id']) : null)
+            $hedefsizler = [];
+            $baskaHedefeBaglanan = [];
+            $yazilan = [];
+            foreach ($durum->kopyalar as $anahtar => $k) {
+                $kopyaDurumu = KopyaDurumu::from($k['durum']);
+                $bilinen = ($k['hedef_id'] !== null ? YedekHedefi::query()->find($k['hedef_id']) : null)
                     ?? ($k['hedef_ad'] !== null ? YedekHedefi::query()->where('ad', $k['hedef_ad'])->first() : null);
+                $hedef = $kopyaDurumu === KopyaDurumu::Tamam ? $this->izdekiHedef($k['konum_izi'], $bilinen) : $bilinen;
 
                 if ($hedef === null) {
                     $sayac['bulunamayan_hedef']++;
+                    // Dosyası duran kopya hedefi tanımsız da olsa katalogda kalır (BY-028-R9)
+                    if ($kopyaDurumu === KopyaDurumu::Tamam) {
+                        $this->hedefsizKopyaYaz($yedek, (string) $anahtar, $k);
+                        $hedefsizler[] = (string) $anahtar;
+                        $uzakKopyaVar = true;
+                    }
 
                     continue;
                 }
 
+                if ($bilinen !== null && $bilinen->id !== $hedef->id) {
+                    $baskaHedefeBaglanan[$bilinen->id] = true;
+                }
+                $yazilan[$hedef->id] = true;
+
                 $kopya = YedekKopyasi::query()->firstOrNew(['yedek_id' => $yedek->id, 'yedek_hedefi_id' => $hedef->id]);
-                $kopyaDurumu = KopyaDurumu::from($k['durum']);
                 // Tamam kopya hedefe ancak olaydaki konum izi hedefin BUGÜNKÜ iziyle aynıysa bağlanır:
                 // geri yüklenen veritabanında hedef eski yerinde olabilir (BY-028-R5). İzsiz eski olay da doğrulanamaz.
                 if ($kopyaDurumu === KopyaDurumu::Tamam && ! $this->konum->konumdaMi($hedef, $k['konum_izi'])) {
@@ -235,6 +258,16 @@ final class DizinKurucu
 
                 // Yeri doğrulanamayan kopya da yedeği tutar: dosya bir yerde durabilir (BY-028-R7)
                 $uzakKopyaVar = $uzakKopyaVar || $this->yedegiTutarMi($kopyaDurumu, $hedef);
+            }
+
+            // Hedefsiz kayıtlar olaylardan türer: olayı artık bir hedefe bağlanan ya da dosyası kalmayan kalkar.
+            // Olay iziyle başka bir hedefe bağlanan kopyanın kimlik / adla bulunan hedefteki eski "konumu
+            // belirsiz" izdüşümü de kalkar (o hedefe bu taramada bağlanan başka olay yoksa; sıra bağımsız)
+            YedekKopyasi::query()->where('yedek_id', $yedek->id)->whereNull('yedek_hedefi_id')->whereNotIn('olay_hedef_anahtari', $hedefsizler)->delete();
+            $eskiIzdusumler = array_keys(array_diff_key($baskaHedefeBaglanan, $yazilan));
+            if ($eskiIzdusumler !== []) {
+                YedekKopyasi::query()->where('yedek_id', $yedek->id)->whereIn('yedek_hedefi_id', $eskiIzdusumler)
+                    ->where('durum', KopyaDurumu::KonumBelirsiz->value)->delete();
             }
 
             if ($durum->silinme !== null || (! $dumpVar && ! $uzakKopyaVar)) {
@@ -282,13 +315,59 @@ final class DizinKurucu
      * da kopya başka bir yerde (ör. ikinci disk) durabilir (G21; BY-028-R8).
      * Geri yükleme ve silme kaynağı yine sayılmaz (onlar yalnız `tamam`'a bakar).
      */
-    private function yedegiTutarMi(KopyaDurumu $durum, YedekHedefi $hedef): bool
+    private function yedegiTutarMi(KopyaDurumu $durum, ?YedekHedefi $hedef): bool
     {
         if (! in_array($durum->value, KopyaDurumu::yedegiTutanlar(), true)) {
             return false;
         }
 
-        return $durum !== KopyaDurumu::Tamam || ! YerelDiskBaglayicisi::anaKlasorHedefiMi($hedef, $this->yapilandirma);
+        // Hedefi tanımsız kopya hep `konum_belirsiz`dir (YedekKopyasi::booted): yedeği tutar (BY-028-R9)
+        return $durum !== KopyaDurumu::Tamam || $hedef === null || ! YerelDiskBaglayicisi::anaKlasorHedefiMi($hedef, $this->yapilandirma);
+    }
+
+    /**
+     * Olaydaki tamam kopyanın bağlanacağı hedef (BY-028-R9). Kopyanın yeri
+     * YALNIZ konum izinin eşitliğiyle bulunur (G21; tahmin yok): kimlik / adla
+     * bulunan hedefin bugünkü izi olaydakiyle aynıysa o; değilse izi aynı olan
+     * hedef (ör. geri yüklenen veritabanına yeni kayıtla — başka kimlik ve adla —
+     * yeniden eklenmiş aynı yer; aynı yerin birden çok tanımı varsa en küçük
+     * kimlik). İzle hedef bulunamazsa kimlik / adla bulunan hedef (kopya ona
+     * `konum_belirsiz` bağlanır; BY-028-R5) ya da null (hedefi tanımsız kopya).
+     * İzsiz olay yalnız kimlik / adla eşlenir.
+     */
+    private function izdekiHedef(?string $iz, ?YedekHedefi $bilinen): ?YedekHedefi
+    {
+        if ($iz === null || ($bilinen !== null && $this->konum->konumdaMi($bilinen, $iz))) {
+            return $bilinen;
+        }
+
+        return YedekHedefi::query()->orderBy('id')->get()
+            ->first(fn (YedekHedefi $h): bool => $this->konum->konumdaMi($h, $iz)) ?? $bilinen;
+    }
+
+    /**
+     * Hedefi veritabanında olmayan tamam kopya olayı (BY-028-R9): kopya
+     * hedefsiz, `konum_belirsiz` kayıt olarak katalogda kalır — fiziksel
+     * kopyanın kimliği ve konum izi kaybolmaz, yedek `silindi` olmaz, ekranda
+     * uyarıyla görünür. Hiçbir işlemin kaynağı değildir (hepsi `tamam`'a ve bir
+     * hedefe dayanır); konumu aynı hedef eklenince sonraki taramada izle
+     * bağlanır (izdekiHedef) ve bu kayıt kalkar.
+     *
+     * @param  array{hedef_id: int|null, hedef_ad: string|null, durum: string, uzak_kimlik: string|null, sifreli: bool, sifreli_sha256: string|null, konum_izi: string|null, plan_idleri: list<int>, silindi: bool, hata_kodu: string|null}  $k
+     */
+    private function hedefsizKopyaYaz(Yedek $yedek, string $anahtar, array $k): void
+    {
+        $kopya = YedekKopyasi::query()->whereNull('yedek_hedefi_id')->firstOrNew(['yedek_id' => $yedek->id, 'olay_hedef_anahtari' => $anahtar]);
+        $kopya->fill([
+            'durum' => KopyaDurumu::KonumBelirsiz,
+            'hata_kodu' => HedefKonumu::HEDEFI_TANIMSIZ,
+            'olay_hedef_ad' => $k['hedef_ad'],
+            'uzak_kimlik' => $k['uzak_kimlik'],
+            'sifreli' => $k['sifreli'],
+            'sifreli_sha256' => $k['sifreli_sha256'],
+            'konum_izi' => $k['konum_izi'],
+            'deneme' => $kopya->deneme ?? 0,
+        ])->save();
     }
 
     private function adindanKaynak(string $ad): YedekKaynagi
@@ -308,7 +387,7 @@ final class DizinKurucu
         $yedek->yerel_silinme_zamani ??= CarbonImmutable::now();
 
         $baskaKopya = YedekKopyasi::query()->with('hedef')->where('yedek_id', $yedek->id)->whereIn('durum', KopyaDurumu::yedegiTutanlar())->get()
-            ->contains(fn (YedekKopyasi $k): bool => $k->hedef !== null && $this->yedegiTutarMi($k->durum, $k->hedef));
+            ->contains(fn (YedekKopyasi $k): bool => $this->yedegiTutarMi($k->durum, $k->hedef));
         if (! $baskaKopya) {
             $yedek->durum = YedekDurumu::Silindi;
             $yedek->silinme_zamani ??= CarbonImmutable::now();
