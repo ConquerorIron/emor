@@ -47,7 +47,11 @@ use Throwable;
  *    uzak kopya KURTARMAYA HAZIR olmalı (YedekKopyasi::kurtarmayaHazirMi;
  *    BY-010-R2): şifreli kopyanın aktarımı doğrulanmış ama o hedefe yedeğin
  *    manifestini taşıyan kurtarma paketi gitmemişse yerel arşiv kalır
- *    (`kurtarma_paketi_eksik`). PlanliYedek her yedekten sonra burayı çalıştırır.
+ *    (`kurtarma_paketi_eksik`). Dayanak bu temizlikten SONRA kalan kopyalardır;
+ *    aynı turda silinecek hazır kopya sayılmaz (BY-010-R4). Aynı eşik, yerel
+ *    dosya planda ana klasör hedefi olarak yazıldığında o hedefin kuralına da
+ *    uygulanır (kurtarmaDayanagiYok). PlanliYedek her yedekten sonra burayı
+ *    çalıştırır.
  */
 final class SaklamaPolitikasi
 {
@@ -156,8 +160,9 @@ final class SaklamaPolitikasi
         $gruplar = $kopyalar->groupBy('yedek_hedefi_id')->map(fn (Collection $g) => $g->values());
         $anaKopyasiOlanlar = $kopyalar->filter(fn (YedekKopyasi $k): bool => isset($anaHedefler[$k->yedek_hedefi_id]))->pluck('yedek_id')->all();
         $klasorGrubu = $yedekler->filter(fn (Yedek $y): bool => $y->yerel_silinme_zamani === null && ! in_array($y->id, $anaKopyasiOlanlar, true))->values();
-        $uzakKopyasiOlanlar = $kopyalar->filter(fn (YedekKopyasi $k): bool => ! isset($anaHedefler[$k->yedek_hedefi_id]))->pluck('yedek_id')->unique()->all();
-        $hazirUzakKopyasiOlanlar = $kopyalar->filter(fn (YedekKopyasi $k): bool => ! isset($anaHedefler[$k->yedek_hedefi_id]) && $k->kurtarmayaHazirMi())->pluck('yedek_id')->unique()->all();
+        /** @var Collection<int, Collection<int, YedekKopyasi>> $uzakKopyalar yedek_id → tamam uzak kopyalar */
+        $uzakKopyalar = $kopyalar->reject(fn (YedekKopyasi $k): bool => isset($anaHedefler[$k->yedek_hedefi_id]))->groupBy('yedek_id');
+        $anaKlasorKararlari = [];
 
         foreach ($gruplar as $hedefId => $grup) {
             $adaylar = [];
@@ -171,11 +176,31 @@ final class SaklamaPolitikasi
                 }
             }
             if (isset($anaHedefler[$hedefId])) {
-                array_push($kararlar, ...$this->suz($adaylar, $grup->count(), $yedekler, $yerelKorunan, $ayar->enaz_adet));
+                array_push($anaKlasorKararlari, ...$this->suz($adaylar, $grup->count(), $yedekler, $yerelKorunan, $ayar->enaz_adet));
                 $korunan = $this->birlestir($korunan, $yerelKorunan);
             } else {
                 array_push($kararlar, ...$this->suz($adaylar, $grup->count(), $yedekler, $korunan, $ayar->enaz_adet));
             }
+        }
+
+        // Yerel dosya kararları uzak kopya kararlarından SONRA (BY-010-R4): dayanak,
+        // bu turda silinecek kopyalar çıkarıldıktan sonra kalanlardır
+        $silinecekKopyalar = [];
+        foreach ($kararlar as $karar) {
+            if ($karar->tur === SilmeKarari::DOSYA && $karar->kopyaId !== null) {
+                $silinecekKopyalar[$karar->kopyaId] = true;
+            }
+        }
+
+        // Ana klasör hedefinin kopyası yerel dosyanın kendisidir: kendi kuralı
+        // silmek istese de plan yedeğine aynı yerel dosya eşiği uygulanır
+        foreach ($anaKlasorKararlari as $karar) {
+            if ($yedekler[$karar->yedekId]->kaynak === YedekKaynagi::Plan && $this->kurtarmaDayanagiYok($karar->yedekId, $uzakKopyalar, $silinecekKopyalar)) {
+                $yerelKorunan[$karar->yedekId][] = 'kurtarma_paketi_eksik';
+
+                continue;
+            }
+            $kararlar[] = $karar;
         }
 
         // Yedek klasörü grubu. Plan yedeğinin yerel dosyası (planlarında ana
@@ -188,13 +213,14 @@ final class SaklamaPolitikasi
         // uzak hedefte durduğu için bu korumalar onun grubunda uygulanır,
         // aktarım kaynağı olan yerel dosyayı tutmaz. Uzak kopyalardan en az
         // biri kurtarmaya hazır olmalı (BY-010-R2): yoksa sunucu kaybında yeni
-        // şifreli dump'ın imzalı manifesti hiçbir pakette bulunmaz.
+        // şifreli dump'ın imzalı manifesti hiçbir pakette bulunmaz. Bu turda
+        // silinecek kopya dayanak değildir (BY-010-R4; kurtarmaDayanagiYok).
         $adaylar = [];
         $zamanlanmamis = $klasorGrubu->filter(fn (Yedek $y): bool => $y->kaynak !== YedekKaynagi::Plan)->values();
         foreach ($klasorGrubu as $yedek) {
             if ($yedek->kaynak === YedekKaynagi::Plan) {
-                $uzakVar = in_array($yedek->id, $uzakKopyasiOlanlar, true);
-                if ($uzakVar && ! in_array($yedek->id, $hazirUzakKopyasiOlanlar, true)) {
+                $uzakVar = $uzakKopyalar->has($yedek->id);
+                if ($this->kurtarmaDayanagiYok($yedek->id, $uzakKopyalar, $silinecekKopyalar)) {
                     $yerelKorunan[$yedek->id][] = 'kurtarma_paketi_eksik';
                 }
                 $engel = array_intersect($yerelKorunan[$yedek->id] ?? [], self::YEREL_AKTARIM_KORUMALARI);
@@ -214,6 +240,31 @@ final class SaklamaPolitikasi
         $korunan = $this->birlestir($korunan, $yerelKorunan);
 
         return ['silinecek' => $kararlar, 'korunan' => $korunan, 'temkin' => null];
+    }
+
+    /**
+     * Plan yedeğinin yerel dosyasını silmenin TEK eşiği (yedek klasörü grubu ve
+     * ana klasör hedefinin kopyası aynı yerden; BY-010-R2, BY-010-R4): dayanak
+     * bu turun kararları uygulandıktan sonra KALAN uzak kopyalardır; aynı turda
+     * silinecek kopya dayanak değildir. Yedek bir hedefte saklanmaya devam
+     * ediyorsa kalanlardan en az biri kurtarmaya hazır olmalı. Hiçbir uzak kopya
+     * kalmıyorsa (bütün kurallar yedeği siliyor) önceki ölçüt geçerli: silinecek
+     * kopyalardan biri hazır olmalı — uzak silme düşerse geride hazır olmayan
+     * tek kopya kalmasın. Uzak kopyası olmayan yedekte eşik yoktur.
+     *
+     * @param  Collection<int, Collection<int, YedekKopyasi>>  $uzakKopyalar  yedek_id → tamam uzak kopyalar
+     * @param  array<int, true>  $silinecekKopyalar  bu turda dosyası silinecek kopyalar
+     */
+    private function kurtarmaDayanagiYok(int $yedekId, Collection $uzakKopyalar, array $silinecekKopyalar): bool
+    {
+        $uzak = $uzakKopyalar->get($yedekId);
+        if ($uzak === null) {
+            return false;
+        }
+
+        $kalan = $uzak->reject(fn (YedekKopyasi $k): bool => isset($silinecekKopyalar[$k->id]));
+
+        return ! ($kalan->isEmpty() ? $uzak : $kalan)->contains(fn (YedekKopyasi $k): bool => $k->kurtarmayaHazirMi());
     }
 
     /**

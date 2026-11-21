@@ -18,10 +18,13 @@ use App\Services\Yedekleme\YedekAlmaHatasi;
 use App\Services\Yedekleme\YedekDeposu;
 use App\Services\Yedekleme\YedekDurumu;
 use App\Services\Yedekleme\YedekKaynagi;
+use App\Services\Yedekleme\YedekKilidi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
+use App\Services\Yedekleme\YedekManifesti;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 use Tests\Yedekleme\YedeklemeOrtami;
@@ -286,6 +289,40 @@ final class YedekAliciTest extends TestCase
     }
 
     /**
+     * BY-011-R5: tamamlanmış yedek YOKKEN ilk yedek dump'ı ve imzalı manifesti
+     * yayımlayıp `calisiyor`da kaldıysa katalog "ilk kurulum" sayılmaz: disk
+     * ayrılınca boş bağlama noktasına işaret yazılmaz, kayıt kapanmaz; disk
+     * geri gelince sonraki yedek onu manifestiyle tamamlar.
+     */
+    public function test_ilk_yedek_yarida_kalmisken_disk_ayrilirsa_bos_baglama_noktasina_isaret_yazilmaz_disk_gelince_tamamlanir(): void
+    {
+        $this->sahtePgAraclari();
+        $kilit = $this->kilitAl();
+        $olen = app(YedekAlici::class)->al($kilit, YedekKaynagi::Elle);
+        $olen->update(['durum' => YedekDurumu::Calisiyor, 'imzali' => false, 'dogrulama_durumu' => DogrulamaDurumu::Dogrulanmadi, 'boyut' => null, 'sha256' => null, 'bitti' => null]);
+        $klasor = config('yedekleme.klasor');
+        $dump = $klasor.'/'.$olen->dosya_adi;
+        $ozet = hash_file('sha256', $dump);
+        rename($klasor, $klasor.'-disk');
+        mkdir($klasor, 0750);
+
+        $diskYokken = app(YedekAlici::class)->al($kilit, YedekKaynagi::Elle);
+        $baglamaNoktasi = scandir($klasor);
+        $olenDiskYokken = $olen->fresh();
+        rmdir($klasor);
+        rename($klasor.'-disk', $klasor);
+        app(YedekAlici::class)->al($kilit, YedekKaynagi::Elle);
+
+        $this->assertSame([YedekDurumu::Basarisiz, YedekAlmaHatasi::DEPO], [$diskYokken->durum, $diskYokken->hata_kodu]);
+        $this->assertSame(['.', '..'], $baglamaNoktasi);
+        $this->assertSame([YedekDurumu::Calisiyor, null, null], [$olenDiskYokken->durum, $olenDiskYokken->hata_kodu, $olenDiskYokken->bitti]);
+        $olen->refresh();
+        $this->assertSame([YedekDurumu::Tamam, null], [$olen->durum, $olen->hata_kodu]);
+        $this->assertTrue($olen->imzali);
+        $this->assertSame($ozet, $olen->sha256);
+    }
+
+    /**
      * @return array<string, array{\Closure(string): void}>
      */
     public static function dogrulanamayanDepolar(): array
@@ -298,6 +335,20 @@ final class YedekAliciTest extends TestCase
             }],
             'biçimi tanınmayan işaret' => [function (string $klasor): void {
                 file_put_contents($klasor.'/'.YedekDeposu::ISARET, "baska bir sey\n");
+            }],
+            // BY-011-R5: işaretsiz klasörde katalogdaki yedeğin adını taşıyan dosya kanıt değildir
+            'işaretsiz klasörde imzasız manifest' => [function (string $klasor): void {
+                rename($klasor, $klasor.'-disk');
+                mkdir($klasor, 0750);
+                file_put_contents(ManifestDeposu::jsonYolu($klasor.'/'.Yedek::query()->sole()->dosya_adi), '{}');
+            }],
+            'işaretsiz klasörde kimliği tutmayan imzalı manifest' => [function (string $klasor): void {
+                $yedek = Yedek::query()->sole();
+                $manifestler = app(ManifestDeposu::class);
+                $veri = $manifestler->oku(ManifestDeposu::jsonYolu($klasor.'/'.$yedek->dosya_adi))->manifest->diziye();
+                rename($klasor, $klasor.'-disk');
+                mkdir($klasor, 0750);
+                $manifestler->yaz(YedekManifesti::diziden([...$veri, 'kimlik' => (string) Str::uuid()]), $klasor);
             }],
         ];
     }
@@ -328,38 +379,44 @@ final class YedekAliciTest extends TestCase
     }
 
     /**
-     * @return array<string, array{\Closure(self, string): void}>
+     * @return array<string, array{\Closure(YedekKilidi): void}>
      */
     public static function isaretsizDepolar(): array
     {
         return [
             // İlk kurulum / geçiş kipi: katalog boş, kaybedilecek kayıt yok
-            'katalog boş' => [function (self $test, string $klasor): void {}],
-            // İşaretten önce kurulmuş depo: katalogdaki yedeğin manifesti burada
-            'katalogdaki yedeğin manifesti klasörde' => [function (self $test, string $klasor): void {
-                $eski = Yedek::factory()->create();
-                file_put_contents(ManifestDeposu::jsonYolu($klasor.'/'.$eski->dosya_adi), '{}');
+            'katalog boş' => [function (YedekKilidi $kilit): void {}],
+            // İşaretten önce kurulmuş depo: katalogdaki yedeğin imzalı manifesti burada (BY-011-R5: kimliği tutan)
+            'katalogdaki yedeğin imzalı manifesti klasörde' => [function (YedekKilidi $kilit): void {
+                app(YedekAlici::class)->al($kilit, YedekKaynagi::Elle);
+            }],
+            // İşareti silinmiş doğru disk, ilk yedek yarıda kalmış: kanıt durumdan bağımsız
+            'yarıda kalmış ilk yedeğin imzalı manifesti klasörde' => [function (YedekKilidi $kilit): void {
+                app(YedekAlici::class)->al($kilit, YedekKaynagi::Elle)->update(['durum' => YedekDurumu::Calisiyor, 'imzali' => false, 'bitti' => null]);
             }],
         ];
     }
 
     /**
      * BY-011-R3: işaretsiz klasör, depo olduğu anlaşılınca (katalog boş ya da
-     * katalogdaki bir yedek orada) işaretlenir ve yedek alınır.
+     * katalogdaki bir yedeğin imzalı manifesti orada) işaretlenir ve yedek alınır;
+     * yarıda kalmış kayıt da manifestiyle tamamlanır.
      *
-     * @param  \Closure(self, string): void  $kur
+     * @param  \Closure(YedekKilidi): void  $kur
      */
     #[DataProvider('isaretsizDepolar')]
     public function test_isaretsiz_klasor_depo_oldugu_anlasilinca_isaretlenir_yedek_alinir(\Closure $kur): void
     {
         $this->sahtePgAraclari();
+        $kilit = $this->kilitAl();
         $klasor = config('yedekleme.klasor');
+        $kur($kilit);
         unlink($klasor.'/'.YedekDeposu::ISARET);
-        $kur($this, $klasor);
 
-        $yedek = $this->al();
+        $yedek = app(YedekAlici::class)->al($kilit, YedekKaynagi::Elle);
 
         $this->assertSame(YedekDurumu::Tamam, $yedek->durum);
+        $this->assertSame([], Yedek::query()->where('durum', '!=', YedekDurumu::Tamam->value)->pluck('dosya_adi')->all());
         $this->assertMatchesRegularExpression('/^emor-yedek-deposu [0-9a-f-]{36}\n$/D', (string) file_get_contents($klasor.'/'.YedekDeposu::ISARET));
     }
 }

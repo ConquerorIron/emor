@@ -128,16 +128,21 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
      * kopya alır, sonra aynı hesapla bile yenilenemezdi (BY-021-R3).
      *
      * `$klasorKimligi` verilirse (hesabı kayıtlı olmayan eski hedef) yeni
-     * bağlantının o klasöre erişip erişemediği de sorulur: `drive.file`
-     * yetkisiyle uygulamanın açtığı klasör yalnız o hesaptan görünür, erişim
-     * aynı hesabın kanıtıdır. Doğrulanamazsa (yok, başka tür, hata)
+     * bağlantının o klasörün SAHİBİ olup olmadığı sorulur. Erişim kanıt
+     * değildir: Drive'da paylaşılmış klasör başka hesaptan da okunur
+     * (BY-021-R4). Kanıt: klasör türünde, çöpte değil, `ownedByMe` (kişisel
+     * Drive; paylaşılan drive'da alan yoktur → kanıt yok), dosya eklenebilir
+     * ve listelenebilir. `$kopyaKimligi` (hedefteki kayıtlı bir kopya)
+     * verilirse o dosyanın da sahibi olmalı, çöpte olmamalı ve indirilebilmeli
+     * — yeni bağlantının eski yedekleri okuyabildiği. Herhangi biri
+     * tutmazsa ya da sorulamazsa (404, 5xx, bağlantı hatası)
      * `dogrulanan_klasor` null döner.
      *
      * @return array{yenileme_anahtari: string, eposta: string, dogrulanan_klasor: string|null}
      *
      * @throws HedefHatasi
      */
-    public static function kodDegistir(string $kod, string $donusAdresi, ?string $klasorKimligi = null): array
+    public static function kodDegistir(string $kod, string $donusAdresi, ?string $klasorKimligi = null, ?string $kopyaKimligi = null): array
     {
         [$istemciKimligi, $istemciSirri] = self::istemciBilgileri();
 
@@ -174,7 +179,8 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
         return [
             'yenileme_anahtari' => $yenileme,
             'eposta' => $eposta,
-            'dogrulanan_klasor' => $klasorKimligi !== null && self::klasoreErisilebilir($erisim, $klasorKimligi) ? $klasorKimligi : null,
+            'dogrulanan_klasor' => $klasorKimligi !== null && self::klasorunSahibi($erisim, $klasorKimligi)
+                && ($kopyaKimligi === null || self::kopyaninSahibi($erisim, $kopyaKimligi)) ? $klasorKimligi : null,
         ];
     }
 
@@ -651,22 +657,51 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
         return is_string($eposta) && filter_var($eposta, FILTER_VALIDATE_EMAIL) !== false ? $eposta : null;
     }
 
-    /** Erişim anahtarının hesabında bu kimlikli klasör var mı; her hata "doğrulanamadı" (false). */
-    private static function klasoreErisilebilir(string $erisim, string $kimlik): bool
+    /** Erişim anahtarının hesabı bu klasörün sahibi mi ve klasör kullanılabilir mi; her hata "doğrulanamadı" (false). */
+    private static function klasorunSahibi(string $erisim, string $kimlik): bool
+    {
+        $bilgi = self::dosyaBilgisi($erisim, $kimlik, 'id,mimeType,trashed,ownedByMe,capabilities(canAddChildren,canListChildren)');
+
+        return $bilgi !== null
+            && ($bilgi['mimeType'] ?? null) === self::KLASOR_TURU
+            && ($bilgi['capabilities']['canAddChildren'] ?? null) === true
+            && ($bilgi['capabilities']['canListChildren'] ?? null) === true;
+    }
+
+    /** Erişim anahtarının hesabı bu kopyanın sahibi mi ve onu indirebiliyor mu; her hata "doğrulanamadı" (false). */
+    private static function kopyaninSahibi(string $erisim, string $kimlik): bool
+    {
+        $bilgi = self::dosyaBilgisi($erisim, $kimlik, 'id,trashed,ownedByMe,capabilities(canDownload)');
+
+        return $bilgi !== null && ($bilgi['capabilities']['canDownload'] ?? null) === true;
+    }
+
+    /**
+     * `files.get` yanıtı — yalnız kimlik aynıysa, dosya çöpte değilse
+     * (`trashed` açıkça false) ve hesap sahibiyse (`ownedByMe` açıkça true);
+     * aksi ya da her hata null.
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function dosyaBilgisi(string $erisim, string $kimlik, string $alanlar): ?array
     {
         if (preg_match(self::KIMLIK, $kimlik) !== 1) {
-            return false;
+            return null;
         }
 
         try {
             $yanit = self::istemciKur(app(YedeklemeYapilandirmasi::class), false, true)
                 ->withToken($erisim)
-                ->get(self::API.'/files/'.$kimlik, ['fields' => 'id,mimeType']);
+                ->get(self::API.'/files/'.$kimlik, ['fields' => $alanlar]);
         } catch (ConnectionException) {
-            return false;
+            return null;
         }
 
-        return $yanit->successful() && $yanit->json('id') === $kimlik && $yanit->json('mimeType') === self::KLASOR_TURU;
+        $bilgi = $yanit->successful() ? $yanit->json() : null;
+
+        return is_array($bilgi) && ($bilgi['id'] ?? null) === $kimlik && ($bilgi['trashed'] ?? null) === false && ($bilgi['ownedByMe'] ?? null) === true
+            ? $bilgi
+            : null;
     }
 
     /**

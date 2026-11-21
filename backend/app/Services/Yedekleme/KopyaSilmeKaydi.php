@@ -18,8 +18,8 @@ use Carbon\CarbonImmutable;
  * - `hataKodu` doluysa kopya fiziksel olarak silinmemiş, bizden çıkmış
  *   sayılmıştır (ör. `HEDEF_SILME_YETKISI_YOK`: hedefin kendi saklama kuralı
  *   temizler — BY-023-R1). Kod olayda da durur; yeniden kurulan kopya onu taşır.
- * - Yerel dosyası da gitmiş ve başka tamamlanmış kopyası kalmamış yedek
- *   `silindi` olur (F7).
+ * - Yerel dosyası da gitmiş ve başka tamamlanmış ya da yeri doğrulanamayan
+ *   (`konum_belirsiz`) kopyası kalmamış yedek `silindi` olur (F7; BY-028-R7).
  */
 final class KopyaSilmeKaydi
 {
@@ -36,7 +36,7 @@ final class KopyaSilmeKaydi
         ], fn (mixed $deger): bool => $deger !== null)));
         $kopya->update(['durum' => KopyaDurumu::Silindi, 'hata_kodu' => $hataKodu, 'silinme_zamani' => CarbonImmutable::now()]);
 
-        $kalan = YedekKopyasi::query()->where('yedek_id', $yedek->id)->where('durum', KopyaDurumu::Tamam->value)->exists();
+        $kalan = YedekKopyasi::query()->where('yedek_id', $yedek->id)->whereIn('durum', KopyaDurumu::yedegiTutanlar())->exists();
         if (! $kalan && $yedek->yerel_silinme_zamani !== null && $yedek->durum !== YedekDurumu::Silindi) {
             $this->olaylar->ekle(YedekOlayi::simdi($yedek->kimlik, OlayTuru::Silindi));
             $yedek->update(['durum' => YedekDurumu::Silindi, 'silinme_zamani' => CarbonImmutable::now()]);

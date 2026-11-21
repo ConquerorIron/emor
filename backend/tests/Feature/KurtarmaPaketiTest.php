@@ -8,6 +8,7 @@ use App\Models\Yedek;
 use App\Models\YedekAyari;
 use App\Models\YedekHedefi;
 use App\Models\YedekIslemKaydi;
+use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
 use App\Services\Yedekleme\AyarKopyasi;
 use App\Services\Yedekleme\Hedefler\HedefHatasi;
@@ -96,6 +97,14 @@ final class KurtarmaPaketiTest extends TestCase
             YedekManifestiTest::manifest(kimlik: $kimlik ?? $yedek->kimlik, sha256: $sha256 ?? (string) $yedek->sha256, boyut: (int) $yedek->boyut, dosyaAdi: $yedek->dosya_adi),
             config('yedekleme.klasor'),
         );
+    }
+
+    /** İmzalı manifestin içeriğini imzadan sonra değiştirir (imza artık tutmaz) */
+    private function manifestImzasiniBoz(string $yol): void
+    {
+        $veri = json_decode((string) file_get_contents($yol), true, 32, JSON_THROW_ON_ERROR);
+        $veri['manifest']['aciklama'] = 'imzadan sonra değişti';
+        file_put_contents($yol, json_encode($veri, JSON_THROW_ON_ERROR));
     }
 
     private function manifestAdi(Yedek $yedek): string
@@ -361,14 +370,25 @@ final class KurtarmaPaketiTest extends TestCase
         $this->assertNotNull($yedek->refresh()->yerel_silinme_zamani);
         $this->assertNotNull(app(YedekOzeti::class)->hesapla()['son_uzak']);
 
-        // Boş sunucudaki gibi: yalnız uzaktakilerle (işaretçi → manifest arşivi + şifreli dump)
         [$isaretci] = $this->isaretciler($hedef);
+        $this->uzaktakiSetleDogrula($hedef, $isaretci, $yedek, (string) $kopya->uzak_kimlik);
+    }
+
+    /**
+     * Boş sunucudaki gibi, yalnız uzaktakilerle: işaretçideki sürümün manifest
+     * arşivi açılır, şifreli dump çözülür, SQL'den önce `yedek:manifest-dogrula`
+     * imzayı ve özeti doğrular.
+     *
+     * @param  array{surum: string, dosyalar: list<array{ad: string, sha256: string, boyut: int}>}  $isaretci
+     */
+    private function uzaktakiSetleDogrula(YedekHedefi $hedef, array $isaretci, Yedek $yedek, string $uzakDumpKimligi): void
+    {
         $acik = $this->paketiAc($hedef, $isaretci);
-        $kurtarma = $this->yedekKoku.'/kurtarma';
+        $kurtarma = $this->yedekKoku.'/kurtarma-'.bin2hex(random_bytes(3));
         mkdir($kurtarma.'/m', 0700, true);
         file_put_contents($kurtarma.'/manifestler.tar', $acik[KurtarmaPaketi::MANIFESTLER]);
         (new Process(['/usr/bin/tar', '-xf', $kurtarma.'/manifestler.tar', '-C', $kurtarma.'/m']))->mustRun();
-        file_put_contents($kurtarma.'/'.$yedek->dosya_adi, $this->coz(BellekHedefi::$dosyalar[(string) $kopya->uzak_kimlik]));
+        file_put_contents($kurtarma.'/'.$yedek->dosya_adi, $this->coz(BellekHedefi::$dosyalar[$uzakDumpKimligi]));
 
         $this->artisan('yedek:manifest-dogrula', ['dump' => $kurtarma.'/'.$yedek->dosya_adi, '--manifest' => ManifestDeposu::jsonYolu($kurtarma.'/m/'.$yedek->dosya_adi)])
             ->expectsOutputToContain('DOGRULANDI')
@@ -425,10 +445,7 @@ final class KurtarmaPaketiTest extends TestCase
     {
         return [
             'imzası bozuk (içerik imzadan sonra değişmiş)' => [function (self $test, Yedek $yedek): void {
-                $yol = $test->manifestYaz($yedek);
-                $veri = json_decode((string) file_get_contents($yol), true, 32, JSON_THROW_ON_ERROR);
-                $veri['manifest']['aciklama'] = 'imzadan sonra değişti';
-                file_put_contents($yol, json_encode($veri, JSON_THROW_ON_ERROR));
+                $test->manifestImzasiniBoz($test->manifestYaz($yedek));
             }],
             'doğru imzalı ama başka yedeğin manifesti (aynı adla)' => [function (self $test, Yedek $yedek): void {
                 $baska = Yedek::factory()->create();
@@ -478,29 +495,140 @@ final class KurtarmaPaketiTest extends TestCase
     }
 
     /**
-     * BY-024-R5: hazırlığın dayanağı hedefte kalan tamam sürümlerdir. Yedeğin
-     * doğrulanmış manifestini taşıyan sürüm durdukça kopya hazır kalır; son
-     * böyle sürüm dönüşümle (son iki tamam sürüm) silinince işaret geri alınır.
+     * @return array<string, array{\Closure(self, string): void}>
      */
-    public function test_dogrulanmis_manifesti_tasiyan_son_surum_donusumle_kalkinca_hazir_isareti_geri_alinir(): void
+    public static function kaybolanYerelManifestler(): array
+    {
+        return [
+            'yerel manifest silinmiş' => [fn (self $test, string $yol): bool => unlink($yol)],
+            'yerel manifestin imzası bozulmuş' => [fn (self $test, string $yol) => $test->manifestImzasiniBoz($yol)],
+        ];
+    }
+
+    /**
+     * Yalnız uzak şifreli dump'ı kalan yedeğin yerel manifesti kaybolur ya da bozulursa yeni paketler onu doğrulayamaz.
+     *
+     * @return array{0: YedekHedefi, 1: Yedek, 2: YedekKopyasi, 3: array{surum: string, dosyalar: list<array{ad: string, sha256: string, boyut: int}>}}
+     */
+    private function yalnizUzaktaKalanYedekIkiYeniPaketle(\Closure $kaybet): array
     {
         $hedef = $this->bellekHedefi();
         $yedek = $this->yedek();
         $kopya = app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
-        $ilkHazir = $kopya->refresh()->kurtarma_hazir;
-        unlink(ManifestDeposu::jsonYolu(config('yedekleme.klasor').'/'.$yedek->dosya_adi));
+        [$ilk] = $this->isaretciler($hedef);
+        $klasor = config('yedekleme.klasor');
+        unlink($klasor.'/'.$yedek->dosya_adi);
+        $kaybet($this, ManifestDeposu::jsonYolu($klasor.'/'.$yedek->dosya_adi));
         $paket = app(KurtarmaPaketi::class);
 
-        $this->travel(1)->seconds();
-        $this->assertTrue($paket->gonder($hedef));
-        $ikincidenSonraHazir = $kopya->refresh()->kurtarma_hazir;
-        $this->travel(1)->seconds();
-        $this->assertTrue($paket->gonder($hedef));
+        for ($i = 0; $i < 2; $i++) {
+            $this->travel(1)->seconds();
+            $this->assertTrue($paket->gonder($hedef));
+        }
 
-        $this->assertTrue($ilkHazir);
-        $this->assertTrue($ikincidenSonraHazir);
-        $this->assertFalse($kopya->refresh()->kurtarma_hazir);
+        return [$hedef, $yedek, $kopya, $ilk];
+    }
+
+    /**
+     * BY-024-R6 (D4): saklanan uzak kopyanın son doğrulanmış manifestini
+     * taşıyan sürüm, dönüşümde (son iki tamam sürüm) yaşı yüzünden silinmez;
+     * paketin üçüncü gönderiminden sonra da eski dump + manifest uzak hedeften
+     * SQL öncesi doğrulanır, kopya kurtarmaya hazır kalır ve korunan sürüm
+     * denetim kaydında görünür.
+     *
+     * @param  \Closure(self, string): void  $kaybet
+     */
+    #[DataProvider('kaybolanYerelManifestler')]
+    public function test_yalniz_uzakta_kalan_yedegin_son_dogrulanmis_manifesti_iki_yeni_paketten_sonra_uzakta_dogrulanir(\Closure $kaybet): void
+    {
+        [$hedef, $yedek, $kopya, $ilk] = $this->yalnizUzaktaKalanYedekIkiYeniPaketle($kaybet);
+
+        $isaretciler = $this->isaretciler($hedef);
+        $this->assertCount(3, $isaretciler);
+        $this->assertSame($ilk, $isaretciler[0]);
+        $this->assertTrue($kopya->refresh()->kurtarma_hazir);
+        $kayit = YedekIslemKaydi::query()->where('islem', 'kurtarma_paketi')->latest('id')->first();
+        $this->assertSame(IslemSonucu::Basarili, $kayit->sonuc);
+        $this->assertSame([$ilk['surum']], $kayit->ayrinti['korunan_eski_surum']);
+
+        $this->uzaktakiSetleDogrula($hedef, $ilk, $yedek, (string) $kopya->uzak_kimlik);
+    }
+
+    /**
+     * BY-024-R6: koruma, kopya saklama kapsamındayken (`tamam`) sürer. Kopya
+     * silinince korunan eski sürüm sonraki dönüşümde normal silinir, hazır
+     * işareti geri alınır.
+     */
+    public function test_saklanan_kopya_silinince_korunan_eski_surum_sonraki_donusumde_silinir(): void
+    {
+        [$hedef, , $kopya, $ilk] = $this->yalnizUzaktaKalanYedekIkiYeniPaketle(fn (self $test, string $yol): bool => unlink($yol));
+        $korunduMu = in_array($ilk['surum'], array_column($this->isaretciler($hedef), 'surum'), true);
+        $kopya->update(['durum' => KopyaDurumu::Silindi, 'silinme_zamani' => now()]);
+
+        $this->travel(1)->seconds();
+        $this->assertTrue(app(KurtarmaPaketi::class)->gonder($hedef));
+
+        $this->assertTrue($korunduMu);
+        $this->assertNotContains($ilk['surum'], array_column($this->isaretciler($hedef), 'surum'));
         $this->assertCount(2, $this->isaretciler($hedef));
+        $this->assertFalse($kopya->refresh()->kurtarma_hazir);
+        $this->assertSame([], YedekIslemKaydi::query()->where('islem', 'kurtarma_paketi')->latest('id')->first()->ayrinti['korunan_eski_surum']);
+    }
+
+    /**
+     * BY-024-R6: koruma yeni bir doğrulanmış dayanak oluşana kadar sürer.
+     * Manifest yedek klasörüne geri konunca sonraki sürüm yedeği yeniden
+     * doğrular; korunan eski sürüm silinir, kopya yeni dayanakla hazır kalır.
+     */
+    public function test_yeni_surum_yedegi_yeniden_dogrulayinca_korunan_eski_surum_silinir(): void
+    {
+        [$hedef, $yedek, $kopya, $ilk] = $this->yalnizUzaktaKalanYedekIkiYeniPaketle(fn (self $test, string $yol): bool => unlink($yol));
+        $korunduMu = in_array($ilk['surum'], array_column($this->isaretciler($hedef), 'surum'), true);
+        $this->manifestYaz($yedek);
+
+        $this->travel(1)->seconds();
+        $this->assertTrue(app(KurtarmaPaketi::class)->gonder($hedef));
+
+        $this->assertTrue($korunduMu);
+        $isaretciler = $this->isaretciler($hedef);
+        $this->assertNotContains($ilk['surum'], array_column($isaretciler, 'surum'));
+        $this->assertCount(2, $isaretciler);
+        $this->assertTrue($kopya->refresh()->kurtarma_hazir);
+        $this->assertSame([], YedekIslemKaydi::query()->where('islem', 'kurtarma_paketi')->latest('id')->first()->ayrinti['korunan_eski_surum']);
+    }
+
+    /**
+     * BY-024-R7 (D4): paket başarılı olsa da kopyanın kendi yedeğinin
+     * doğrulanmış manifesti hedefte yoksa kopya kurtarılamaz: uzak yaşam
+     * sinyali gitmez, paketin denetim kaydı nedenini gösterir. Geçerli
+     * kurtarma dayanağıyla sinyal gider.
+     */
+    public function test_imzasi_gecersiz_manifestle_tasinan_kopya_uzak_yasam_sinyali_gondermez_gecerli_dayanakla_gonderir(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['https://izleyici.example.invalid/uzak' => Http::response()]);
+        YedekAyari::guncel()->update(['sinyal_uzak_adresi' => 'https://izleyici.example.invalid/uzak']);
+        $hedef = $this->bellekHedefi();
+        $gecersiz = $this->yedek('PGDMP-gecersiz-imzali');
+        $this->manifestImzasiniBoz(ManifestDeposu::jsonYolu(config('yedekleme.klasor').'/'.$gecersiz->dosya_adi));
+
+        $kopya = app(YedekKopyalayici::class)->kopyala($gecersiz, $hedef);
+
+        $this->assertSame(KopyaDurumu::Tamam, $kopya->durum);
+        $this->assertNotNull(BellekHedefi::$dosyalar[(string) $kopya->uzak_kimlik] ?? null);
+        $this->assertCount(1, $this->isaretciler($hedef));
+        $this->assertFalse($kopya->refresh()->kurtarma_hazir);
+        Http::assertNothingSent();
+        $kayit = YedekIslemKaydi::query()->where('islem', 'kurtarma_paketi')->latest('id')->first();
+        $this->assertSame(IslemSonucu::Basarili, $kayit->sonuc);
+        $this->assertFalse($kayit->ayrinti['yedek_manifesti_dogrulandi']);
+
+        $this->travel(1)->seconds();
+        $gecerli = app(YedekKopyalayici::class)->kopyala($this->yedek('PGDMP-gecerli'), $hedef);
+
+        $this->assertTrue($gecerli->refresh()->kurtarma_hazir);
+        $this->assertTrue(YedekIslemKaydi::query()->where('islem', 'kurtarma_paketi')->latest('id')->first()->ayrinti['yedek_manifesti_dogrulandi']);
+        Http::assertSentCount(1);
     }
 
     /**

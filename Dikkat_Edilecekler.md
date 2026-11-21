@@ -242,6 +242,19 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   kaydı somut kanıtla (klasöre erişim) uzlaştır.
   *(Codex BY-028-R5: yeni konumdaki kopya eski adrese `tamam` bağlanıyordu.
   BY-021-R3: hesabı okunamayan ilk Drive bağlantısı yenilenemiyordu.)*
+  **Erişim kanıtı sahiplik kanıtı değildir:** paylaşılmış klasör başka hesaba
+  da 200 döner. "Aynı hesap / aynı sahip" kararında sahiplik alanını açıkça
+  iste (`ownedByMe === true`, yazma / okuma yetenekleri, kayıtlı bir nesneye
+  erişim); alan gelmezse kanıt yok say, eski bağlantıyı koru. Testte sahibi
+  olmadığı hâlde 200 dönen hesabı sına.
+  *(Codex BY-021-R4.)*
+  **"Kullanılamaz" ile "yok" ayrı kümelerdir.** Doğrulanamayan durum
+  (`konum_belirsiz`) kullanım kararlarında (geri yükleme, silme, saklama) yok
+  sayılır; ama bir kaydı `silindi` / kayıp yapan kararda nesne fiziksel olarak
+  durabilir. İki kümeyi ayrı ve tek yerde tanımla (`yedegiTutanlar()`), her
+  "silindi" kararını ona bağla; testte "kullanılamaz ama var" kayıtla listede
+  görünürlüğü ve yazılan silme olayını sına.
+  *(Codex BY-028-R7: konumu belirsiz son kopya yedeği listeden düşürüyordu.)*
 
 ## 2. Ön yüz
 
@@ -398,6 +411,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   durumu ve doğrulanmış kısa bir kod (`/^[A-Za-z]{1,40}$/`) al. Testte yansıtılan
   token'ın istisna metninde ve bağlamında olmadığını sına.
   *(PRT-02: Protel'in 500 gövdesindeki `Headers` alanında token vardı.)*
+  **Tarayıcı deposu da bir günlüktür:** `localStorage`'a yazılan eşleştirme
+  anahtarı ham parametre (serbest metin) değil özet olsun. Depo adını
+  sürümlerken eski sürümün kayıtlarını açılışta sil; süresi geçen kaydı
+  yalnız yazımda değil okumada da fiziksel olarak kaldır. Testte yanıtı
+  kaybolan isteğin ardından depodaki hiçbir değerde düz metin olmadığını sına.
+  *(Codex BY-014-R4: yedek açıklaması depoda düz duruyordu.)*
 - **D3 — Önce geçici ada yaz, doğrula, sonra taşı.** Yarım çıktı hiçbir zaman
   bitmiş gibi görünmemeli; hata ve sinyal yolunda geçici dosya silinmeli.
   Elektrik kesintisine dayanması gereken dosyada: geçici dosyayı `fsync`,
@@ -463,6 +482,13 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   klasörü taşıyıp yerine boş dizin koy ve "hiçbir şey yazılmadı"yı da sına.
   *(Codex BY-011-R3; G1: saklama ve elle silme yedeği "silindi" yapıyor,
   olay günlüğünü boş bağlama noktasına yazıyordu.)*
+  İşareti kendiliğinden açan "ilk kurulum" ölçütü durumdan bağımsız olsun:
+  `calisiyor` ya da `basarisiz` kayıt da dosyasını yayımlamış olabilir;
+  katalogda HİÇ kayıt yoksa ilk kurulumdur. Kayıt varken işaret yalnız somut
+  kanıtla (imzası geçerli, kimliği kayıtla aynı manifest) yeniden açılır; adı
+  tutan dosya kanıt değildir. Testte tamamlanmış yedek OLMADAN yarıda kalan
+  ilk yedekle aynı disk ayırma senaryosunu koş.
+  *(Codex BY-011-R5.)*
 - **D7 — Ayrı hesap, daha az güvenilen hesabın yazabildiği kodu çalıştırmasın.**
   Bir işi "ele geçirilse bile X'e ulaşamasın" diye ayrı hesaba veriyorsan, o
   hesabın çalıştırdığı / yüklediği her dosyayı say: PHP önbellekleri
@@ -508,6 +534,17 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   özet), ad eşleşmesine değil; dayandığı şey sonradan kalkınca (sürüm
   dönüşümü, temizlik) bayrak kalanlardan yeniden hesaplanır.
   *(Codex BY-024-R5 / BY-010-R3: aynı adlı bozuk manifest "hazır" sayılıyordu.)*
+  **Aynı turun kararları birbirine dayanak olmasın:** bir silme kararı başka
+  bir kopyanın varlığına dayanıyorsa o kopyanın AYNI turda silinmeyeceğini,
+  yani kararlar uygulandıktan sonraki durumu denetle; önce dayanakların
+  kararını ver, sonra onlara dayanan silmeyi. Aynı nesneyi silen her yol aynı
+  yardımcıyı kullansın. Dönüşüm de ("en yeni N kalsın") silmeden önce eski
+  setin saklanan bir nesnenin TEK doğrulanabilir dayanağı olup olmadığına
+  baksın; öyleyse yaşına bakmadan korusun ve uyarsın. Başarı sinyali "iş
+  bitti"ye değil, işin o nesne için ürettiği güncel duruma bağlansın.
+  *(Codex BY-010-R4: yerel dosya aynı turda silinen hazır kopyaya dayanıyordu.
+  BY-024-R6: yaş kuralı uzak dump'ın son manifestini sildi. BY-024-R7:
+  kurtarılamayan kopya yaşam sinyali gönderiyordu.)*
 - **D5 — Root, başkasının değiştirebildiği yolda bağlantı izleyerek işlem
   yapmasın.** `chown`, `chmod`, `setfacl`, `cp`, `>` hedefteki sembolik
   bağlantıyı izler; yolu yazabilen hesap root'u yönetilen alanın dışına

@@ -17,10 +17,12 @@ use RuntimeException;
  *
  * - Yalnız `.dump` silinir; imzalı manifest (`.json`) yerinde KALIR: dizin
  *   yeniden kurulurken uzak kopyası olan yedek manifestinden bulunur (BY-011).
- * - Başka bir hedefte doğrulanmış (`tamam`) kopya varsa yedek `silindi`
- *   olmaz, `yerel_silinme_zamani` dolar. Hiçbir kopya kalmıyorsa `silindi`.
- *   Yedek klasörünün kendisi olan yerel hedefin kopyası aynı dosyadır;
- *   çağıran onu önce `silindi` yapar (KopyaSilmeKaydi).
+ * - Başka bir hedefte doğrulanmış (`tamam`) ya da yeri doğrulanamayan
+ *   (`konum_belirsiz`: dosya bir yerde durabilir) kopya varsa yedek `silindi`
+ *   olmaz ve "tamamen silindi" olayı yazılmaz, yalnız `yerel_silinme_zamani`
+ *   dolar (BY-028-R7). Hiçbir kopya kalmıyorsa `silindi`. Yedek klasörünün
+ *   kendisi olan yerel hedefin kopyası aynı dosyadır; çağıran onu önce
+ *   `silindi` yapar (KopyaSilmeKaydi).
  */
 final class YerelDosyaSilici
 {
@@ -31,9 +33,9 @@ final class YerelDosyaSilici
 
     public function sil(Yedek $yedek): void
     {
-        $uzakTamam = YedekKopyasi::query()
+        $uzakKopyaKaldi = YedekKopyasi::query()
             ->where('yedek_id', $yedek->id)
-            ->where('durum', KopyaDurumu::Tamam->value)
+            ->whereIn('durum', KopyaDurumu::yedegiTutanlar())
             ->whereNotNull('uzak_kimlik')
             ->exists();
 
@@ -46,7 +48,7 @@ final class YerelDosyaSilici
         $this->olaylar->ekle(YedekOlayi::simdi($yedek->kimlik, OlayTuru::YerelSilindi));
         $yedek->update(['yerel_silinme_zamani' => $yedek->yerel_silinme_zamani ?? $simdi]);
 
-        if (! $uzakTamam) {
+        if (! $uzakKopyaKaldi) {
             $this->olaylar->ekle(YedekOlayi::simdi($yedek->kimlik, OlayTuru::Silindi));
             $yedek->update(['durum' => YedekDurumu::Silindi, 'silinme_zamani' => $simdi]);
         }

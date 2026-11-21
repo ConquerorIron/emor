@@ -143,15 +143,16 @@ export function UstuneGeriYuklemePage() {
   const kararEylemi = (secim: 'onayla' | 'geri-don') =>
     secim === 'onayla' ? { secim, ayarSecimleri } : { secim }
   const karar = useMutation({
-    mutationFn: (secim: 'onayla' | 'geri-don') => {
-      const istekAnahtari = istekAnahtarlari.anahtar(kararEylemi(secim))
+    mutationFn: async (secim: 'onayla' | 'geri-don') => {
+      const bekleyen = await istekAnahtarlari.hazirla(kararEylemi(secim))
+      const sonuc = await (secim === 'onayla'
+        ? ustuneKararVer(islemKimligi, anahtar ?? '', bekleyen.anahtar, secim, ayarSecimleri)
+        : ustuneKararVer(islemKimligi, anahtar ?? '', bekleyen.anahtar, secim))
+      bekleyen.kabulEdildi()
 
-      return secim === 'onayla'
-        ? ustuneKararVer(islemKimligi, anahtar ?? '', istekAnahtari, secim, ayarSecimleri)
-        : ustuneKararVer(islemKimligi, anahtar ?? '', istekAnahtari, secim)
+      return sonuc
     },
-    onSuccess: (sonuc, secim) => {
-      istekAnahtarlari.kabulEdildi(kararEylemi(secim))
+    onSuccess: (sonuc) => {
       if (kayit !== null) {
         const yeni = { ...kayit, karar_istegi: sonuc.istek_kimligi }
         ustuneIslemiKaydet(yeni)

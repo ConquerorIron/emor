@@ -271,7 +271,7 @@ describe('UstuneGeriYuklemePage', () => {
         within(await screen.findByRole('dialog')).getByRole('button', { name: 'Onayla' }),
       )
     }
-    const bekleyenDepo = `erp.yedekleme.istekAnahtarlari.v1.ustune.${ISLEM}`
+    const bekleyenDepo = `erp.yedekleme.istekAnahtarlari.v2.ustune.${ISLEM}`
 
     ciz()
     await sec([
@@ -280,10 +280,10 @@ describe('UstuneGeriYuklemePage', () => {
     ])
     await waitFor(() => expect(api.karar).toHaveBeenCalledTimes(1))
     const ilk = api.karar.mock.calls[0][2] as string
-    // Bekleyen kayıtta yalnız imza, UUID anahtar ve zaman; erişim anahtarı yok
+    // Bekleyen kayıtta yalnız eylem özeti, UUID anahtar ve zaman; erişim anahtarı yok
     const bekleyen = JSON.parse(localStorage.getItem(bekleyenDepo) ?? '[]') as object[]
     expect(bekleyen.map((kayit) => Object.keys(kayit).sort())).toEqual([
-      ['anahtar', 'imza', 'zaman'],
+      ['anahtar', 'ozet', 'zaman'],
     ])
     expect(localStorage.getItem(bekleyenDepo)).not.toContain(ANAHTAR)
 

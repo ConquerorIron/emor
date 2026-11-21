@@ -28,7 +28,9 @@ use Throwable;
  * hiçbir yerde kopyası kalmayınca `silindi` olur (YerelDosyaSilici), kayıt
  * ve imzalı manifest kalır. Kopya silme sonucunu saklamayla aynı adım yazar
  * (KopyaSilmeKaydi; BY-025-R3). Yeri doğrulanamayan (`konum_belirsiz`)
- * kopya silinmez, sonuçta "silinemedi" olarak listelenir (BY-028-R5).
+ * kopya silinmez, sonuçta "silinemedi" olarak listelenir (BY-028-R5); yedek
+ * de `silindi` olmaz, "tamamen silindi" olayı yazılmaz — yalnız yerel dosya
+ * gider, yedek listede kopyanın uyarısıyla kalır (BY-028-R7).
  */
 final class SilIsleyicisi implements IstekIsleyicisi
 {

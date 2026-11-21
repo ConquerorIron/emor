@@ -17,6 +17,7 @@ use App\Services\Yedekleme\Hedefler\HedefTuruTanimi;
 use App\Services\Yedekleme\HedefTuru;
 use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\KanonikJson;
+use App\Services\Yedekleme\KopyaDurumu;
 use App\Services\Yedekleme\YedekDenetimi;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
@@ -248,11 +249,19 @@ final class YedekHedefiController extends Controller
             $kilit->release();
         }
 
-        // Hesabı kayıtlı olmayan eski hedefte kayıtlı klasör yeni bağlantıyla da sorulur (BY-021-R3)
+        // Hesabı kayıtlı olmayan eski hedefte yeni bağlantının kayıtlı klasörün
+        // ve en son kayıtlı kopyanın sahibi olduğu sorulur (BY-021-R3, R4).
+        // Uzak kimlikli kopya yoksa (henüz aktarılıyor) klasörün sahipliği yeter.
         $kayitliKlasor = ($hedef->baglanti['eposta'] ?? null) === null ? ($hedef->baglanti['klasor_kimligi'] ?? null) : null;
+        $kayitliKlasor = is_string($kayitliKlasor) ? $kayitliKlasor : null;
+        $kayitliKopya = $kayitliKlasor === null ? null : $hedef->kopyalar()
+            ->where('durum', KopyaDurumu::Tamam->value)
+            ->whereNotNull('uzak_kimlik')
+            ->orderByDesc('id')
+            ->value('uzak_kimlik');
 
         try {
-            $sonuc = GoogleDriveBaglayicisi::kodDegistir($veri['kod'], self::googleDonusAdresi(), is_string($kayitliKlasor) ? $kayitliKlasor : null);
+            $sonuc = GoogleDriveBaglayicisi::kodDegistir($veri['kod'], self::googleDonusAdresi(), $kayitliKlasor, is_string($kayitliKopya) ? $kayitliKopya : null);
         } catch (HedefHatasi $hata) {
             $this->denetle('hedef_google_baglan', $request, $hedef, [], $hata->kod);
 
@@ -265,7 +274,8 @@ final class YedekHedefiController extends Controller
         $red = DB::transaction(function () use ($hedef, $sonuc): ?string {
             $hedef = YedekHedefi::query()->whereKey($hedef->getKey())->lockForUpdate()->firstOrFail();
             $oncekiHesap = $hedef->baglanti['eposta'] ?? null;
-            // Kayıtlı hesap bilinmiyorsa: yeni bağlantı kayıtlı klasöre (kilit altındaki değer) erişebildiyse aynı hesaptır
+            // Kayıtlı hesap bilinmiyorsa: yeni bağlantı kayıtlı klasörün (kilit altındaki değer) ve
+            // kayıtlı kopyanın sahibiyse aynı hesaptır; yalnız erişim yetmez (paylaşılmış klasör — BY-021-R4)
             $klasorKaniti = $oncekiHesap === null && $sonuc['dogrulanan_klasor'] !== null
                 && $sonuc['dogrulanan_klasor'] === ($hedef->baglanti['klasor_kimligi'] ?? null);
             $ayniHesap = ($oncekiHesap !== null && $oncekiHesap === $sonuc['eposta']) || $klasorKaniti;

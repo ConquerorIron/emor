@@ -35,14 +35,23 @@ anahtarla** şifrelidir:
 (`20261121T101500Z-1a2b3c`): adlar ada göre sıralanınca zamana göre sıralanır.
 Her gönderim yeni adlarla yazar, hiçbir dosyanın üstüne yazmaz. Bileşenlerin
 hepsi yazılıp hedeften geri okunarak doğrulandıktan **sonra** o sürümün
-`-tamam.json` işaretçisi yazılır; ancak ondan sonra eski sürümler silinir ve
-uzak yaşam sinyali gider.
+`-tamam.json` işaretçisi yazılır; ancak ondan sonra eski sürümler silinir.
+Uzak yaşam sinyali, paket tamamlandıktan sonra ve yalnız yeni kopya kurtarmaya
+hazırsa (aşağıda) gider (BY-024-R7).
 
 - **Yetkili paket:** `-tamam.json` işaretçisi olan EN YENİ sürüm. İşaretçisi
   olmayan `emor-kurtarma-<sürüm>-…` dosyaları yarım kalmış bir gönderimdir;
   kullanılmaz (sonraki başarılı gönderim siler).
 - Hedefte son **iki** tamam sürüm durur: yenisinin bir dosyası bozuk çıkarsa
   bir öncekiyle kurtarılır.
+- İstisna (BY-024-R6): hedefte saklanan bir yedeğin geçerli manifestini
+  taşıyan en yeni sürüm bu ikisinden değilse (yedek klasöründeki manifest
+  kayboldu ya da bozuldu, yeni paketler o yedeği doğrulayamıyor) o eski sürüm
+  de **silinmez**; o yedeğin tek kurtarma dayanağıdır. İşlem Günlüğü'nde
+  `kurtarma_paketi` kaydının `korunan_eski_surum` alanında ve denetim
+  günlüğünde `KURTARMA_ESKI_SURUM_KORUNDU` uyarısıyla görünür. Yeni bir sürüm
+  o yedeği yeniden doğrulayınca ya da yedeğin o hedefteki kopyası silinince
+  eski sürüm olağan dönüşümle silinir.
 - Gönderim yarıda kalırsa önceki tamam sürüm ve işaretçisi değişmez; yedeğin
   kopyası "tamam" (aktarım doğrulandı) ama **kurtarmaya hazır değil**
   sayılır: o yedeğin imzalı manifesti henüz o hedefteki hiçbir pakette
@@ -53,8 +62,10 @@ uzak yaşam sinyali gider.
   taşıdığı için o hedefe giden bir sonraki başarılı paket, eksik kalan
   kopyaları da kurtarmaya hazır yapar (BY-010-R2, BY-024-R3). Hazır sayılmak
   için arşivdeki manifestin imzası geçerli, kimliği o yedeğin ve özeti
-  yedeğinkiyle aynı olmalı; o manifesti taşıyan son tamam sürüm hedeften
-  silinince kopya yeniden "hazır değil" olur (BY-024-R5).
+  yedeğinkiyle aynı olmalı (BY-024-R5). Paket başarılı olsa da kopyalanan
+  yedeğin manifesti geçersizse kopya hazır olmaz, uzak yaşam sinyali gitmez;
+  `kurtarma_paketi` kaydında `yedek_manifesti_dogrulandi: false` görünür
+  (BY-024-R7).
 - Eski sürüm silinirken işaretçi silinemezse (ör. kovada yalnız işaretçiye
   silme izni yok) sürümün hiçbir dosyasına dokunulmaz: hedefte "tamam"
   görünen her set eksiksizdir (BY-024-R4).
@@ -246,6 +257,10 @@ install -d -m 0700 ~/kurtarma-indirilen
 1. En yeni `emor-kurtarma-<sürüm>-tamam.json` (adlar ada göre sıralanınca
    sonuncusu, §1) ve içinde `dosyalar` altında adı geçen dosyalar.
 2. Geri yüklenecek `erp_….dump.gpg` (genellikle en yenisi).
+
+Geri yüklenecek yedeğin manifesti en yeni sürümün `manifestler.tar`'ında
+yoksa ya da §4.8 onu reddederse daha eski bir `-tamam.json` sürümünü de
+indirin: o yedeğin geçerli manifestini taşıyan eski sürüm hedefte korunur (§1).
 
 Paket dosyalarının indirmede bozulmadığını işaretçiyle denetleyin:
 

@@ -607,7 +607,7 @@
     "HEDEF_ANA_DOSYA": "Hedefteki dosya yedeğin kendisi (aynı konum); ayrı bir kopya sayılmaz. Hedefe başka bir klasör verin.",
     "HEDEF_YAPILANDIRMA_HATASI": "Hedef tanımı eksik ya da sunucu bu hedef için yapılandırılmamış.",
     "GOOGLE_DURUM_GECERSIZ": "Google bağlantı isteği geçersiz ya da süresi dolmuş. \"Google ile bağlan\"a yeniden basın.",
-    "GOOGLE_HESAP_DOGRULANAMADI": "Bu hedefte kopyalar var ve bağlanan Google hesabının kayıtlı hesapla aynı olduğu doğrulanamadı; eski bağlantı korundu. Yeniden deneyin; başka bir hesap için yeni bir hedef ekleyin.",
+    "GOOGLE_HESAP_DOGRULANAMADI": "Bu hedefte kopyalar var ve bağlanan Google hesabının kayıtlı hesapla aynı olduğu doğrulanamadı (hesap, yedek klasörünün ve kayıtlı kopyanın sahibi olmalı); eski bağlantı korundu. Klasörün sahibi olan hesapla yeniden deneyin; olmuyorsa yeni bir hedef ekleyin ve bu hedefin kopyalarını elle uzlaştırın.",
     "GOOGLE_HESAP_OKUNAMADI": "Bağlanan Google hesabının kimliği (e-posta) okunamadı; bağlantı kaydedilmedi. \"Google ile bağlan\"ı yeniden deneyin.",
     "KOPYA_KONUMU_DOGRULANAMADI": "Bu kopya hedefin bugünkü yerinden farklı (ya da bilinmeyen) bir yerde yapılmış; hedefe bağlanmadı, geri yükleme ve silmede kullanılmaz. Hedefi kopyanın yerine göre düzeltin ya da yeni bir hedef ekleyin.",
     "PLAN_KOPYALI": "Bu planın {{kopya}} kopyası olduğu için silinemez. Planı pasife alabilirsiniz (geçmişi korunur).",

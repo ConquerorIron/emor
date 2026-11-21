@@ -26,12 +26,15 @@ use Throwable;
  * - İmzası tutmayan ya da manifestsiz `.dump` "güvenilmeyen" kayıttır
  *   (`imzali` false): listede görünür, geri yüklenemez.
  * - Diskte olmayan kayıt silinmez: `yerel_silinme_zamani` dolar; başka bir
- *   yerde kopyası yoksa durumu `silindi` olur.
+ *   yerde kopyası (`tamam` ya da `konum_belirsiz`) yoksa durumu `silindi` olur.
  * - Yerel dosyası silinmiş ama manifesti duran yedek, olay günlüğündeki uzak
  *   kopyalarıyla bulunur (F7).
  * - Olaydaki tamam kopya hedefe ancak konum izi hedefin bugünkü iziyle
  *   aynıysa `tamam` bağlanır; değilse (ya da iz yoksa) `konum_belirsiz`
- *   olur ve hiçbir yerde kopya sayılmaz (HedefKonumu::konumdaMi; BY-028-R5).
+ *   olur: geri yükleme, silme ve saklamada kopya sayılmaz
+ *   (HedefKonumu::konumdaMi; BY-028-R5), ama dosyası bir yerde durabileceği
+ *   için yedeği `silindi` yaptırmaz; yedek listede uyarısıyla görünür
+ *   (KopyaDurumu::yedegiTutanlar; BY-028-R7).
  * - Tek bir bozuk dosya taramayı durdurmaz.
  * - Yedek klasörü yoksa ya da okunamıyorsa (bağlanmamış disk, izin) tarama
  *   dizine DOKUNMADAN hata verir: "erişemiyorum" boş klasör sayılıp kayıtlar
@@ -227,7 +230,8 @@ final class DizinKurucu
                 $gecerli = DB::table('yedek_plan_hedefleri')->where('yedek_hedefi_id', $hedef->id)->whereIn('yedek_plani_id', $k['plan_idleri'])->pluck('yedek_plani_id')->all();
                 $kopya->planlar()->sync(array_fill_keys(array_map('intval', $gecerli), ['yedek_hedefi_id' => $hedef->id]));
 
-                $uzakKopyaVar = $uzakKopyaVar || ($kopyaDurumu === KopyaDurumu::Tamam && ! $this->anaKlasorHedefiMi($hedef));
+                // Yeri doğrulanamayan kopya da yedeği tutar: dosya bir yerde durabilir (BY-028-R7)
+                $uzakKopyaVar = $uzakKopyaVar || (in_array($kopyaDurumu->value, KopyaDurumu::yedegiTutanlar(), true) && ! $this->anaKlasorHedefiMi($hedef));
             }
 
             if ($durum->silinme !== null || (! $dumpVar && ! $uzakKopyaVar)) {
@@ -287,7 +291,7 @@ final class DizinKurucu
     {
         $yedek->yerel_silinme_zamani ??= CarbonImmutable::now();
 
-        $baskaKopya = YedekKopyasi::query()->with('hedef')->where('yedek_id', $yedek->id)->where('durum', KopyaDurumu::Tamam->value)->get()
+        $baskaKopya = YedekKopyasi::query()->with('hedef')->where('yedek_id', $yedek->id)->whereIn('durum', KopyaDurumu::yedegiTutanlar())->get()
             ->contains(fn (YedekKopyasi $k): bool => $k->hedef !== null && ! $this->anaKlasorHedefiMi($k->hedef));
         if (! $baskaKopya) {
             $yedek->durum = YedekDurumu::Silindi;

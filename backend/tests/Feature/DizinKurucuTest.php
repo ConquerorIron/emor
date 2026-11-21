@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\GeriYukleme;
+use App\Models\Rol;
+use App\Models\User;
 use App\Models\Yedek;
 use App\Models\YedekAyari;
 use App\Models\YedekHedefi;
@@ -22,6 +24,8 @@ use App\Services\Yedekleme\Istekler\Istek;
 use App\Services\Yedekleme\Istekler\IstekReddi;
 use App\Services\Yedekleme\Istekler\SilIsleyicisi;
 use App\Services\Yedekleme\KopyaDurumu;
+use App\Services\Yedekleme\KopyaSilmeKaydi;
+use App\Services\Yedekleme\ManifestDeposu;
 use App\Services\Yedekleme\OlayGunlugu;
 use App\Services\Yedekleme\OlayTuru;
 use App\Services\Yedekleme\SahipsizYedekler;
@@ -461,6 +465,127 @@ final class DizinKurucuTest extends TestCase
 
         $kopya = YedekKopyasi::query()->whereHas('yedek', fn ($q) => $q->where('kimlik', $yedek->kimlik))->sole();
         $this->assertSame([KopyaDurumu::KonumBelirsiz, null], [$kopya->durum, $kopya->konum_izi]);
+    }
+
+    /**
+     * BY-028-R7 (F7): yerel dosyası silinmiş yedeğin tek uzak kopyasının yeri
+     * doğrulanamazsa yedek `silindi` olmaz: varsayılan listede kopyanın konum
+     * uyarısıyla görünür, geri yükleme kaynağı yoktur. Hedef kopyanın yerine
+     * dönünce aynı yedek kopyasından geri yüklenebilir.
+     */
+    public function test_yerel_dosyasi_olmayan_yedegin_konumu_belirsiz_kopyasi_yedegi_listede_tutar_konum_dogrulaninca_kullanilir(): void
+    {
+        $yedek = $this->gercekYedek();
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Uzak', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'yeni-kova']]);
+        app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        app(YerelDosyaSilici::class)->sil($yedek->refresh());
+        // Eski veritabanı geri yüklendi: hedef eski yerinde
+        $hedef->update(['baglanti' => ['kova' => 'eski-kova']]);
+        $this->dizinleriBosalt();
+
+        $this->tara();
+
+        $satir = $this->yedekListesi();
+        $this->assertSame([$yedek->kimlik, 'tamam', false, false], [$satir['kimlik'], $satir['durum'], $satir['yerel_dosya_var'], $satir['webden_geri_yuklenebilir']]);
+        $this->assertSame([['hedef_ad' => 'Uzak', 'durum' => 'konum_belirsiz', 'hata_kodu' => HedefKonumu::DOGRULANAMADI]], array_map(fn (array $k): array => array_intersect_key($k, array_flip(['hedef_ad', 'durum', 'hata_kodu'])), $satir['kopyalar']));
+
+        $hedef->update(['baglanti' => ['kova' => 'yeni-kova']]);
+        $this->tara();
+
+        $satir = $this->yedekListesi();
+        $this->assertSame([$yedek->kimlik, 'tamam', true, 'tamam'], [$satir['kimlik'], $satir['durum'], $satir['webden_geri_yuklenebilir'], $satir['kopyalar'][0]['durum']]);
+    }
+
+    /**
+     * BY-028-R7: yeri doğrulanamayan kopyası kalan yedek elle silinince yerel
+     * dosya gider ama yedek `silindi` olmaz ve "tamamen silindi" olayı yazılmaz:
+     * sonuç kısmi (kopya silinemedi). Konum doğrulanınca aynı yedek kullanılabilir.
+     */
+    public function test_konumu_belirsiz_kopyasi_kalan_yedek_elle_silinince_silindi_olmaz_tam_silme_olayi_yazilmaz(): void
+    {
+        $yedek = $this->gercekYedek();
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Uzak', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'yeni-kova']]);
+        app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        $uzak = BellekHedefi::$dosyalar;
+        $hedef->update(['baglanti' => ['kova' => 'eski-kova']]);
+        $this->tara();
+
+        $istek = new Istek((string) Str::uuid(), 'sil', ['yedek_kimligi' => $yedek->kimlik], null, CarbonImmutable::now(), 0);
+        $sonuc = app(SilIsleyicisi::class)->isle($istek, $this->kilitAl());
+        $this->tutulanKilit?->birak();
+
+        $yedek->refresh();
+        $this->assertSame(['YEDEK_KOPYA_SILINEMEDI', 'tamam'], [$sonuc->kod, $sonuc->ek['yedek_durumu']]);
+        $this->assertSame(YedekDurumu::Tamam, $yedek->durum);
+        $this->assertNotNull($yedek->yerel_silinme_zamani);
+        $this->assertFileDoesNotExist(config('yedekleme.klasor').'/'.$yedek->dosya_adi);
+        $turler = array_map(fn (YedekOlayi $o): OlayTuru => $o->tur, array_values(array_filter(app(OlayGunlugu::class)->oku()['olaylar'], fn (YedekOlayi $o): bool => $o->yedekKimligi === $yedek->kimlik)));
+        $this->assertContains(OlayTuru::YerelSilindi, $turler);
+        $this->assertNotContains(OlayTuru::Silindi, $turler);
+        $this->assertSame($uzak, BellekHedefi::$dosyalar);
+
+        $hedef->update(['baglanti' => ['kova' => 'yeni-kova']]);
+        $this->tara();
+
+        $yedek->refresh();
+        $this->assertSame([YedekDurumu::Tamam, KopyaDurumu::Tamam], [$yedek->durum, YedekKopyasi::query()->where('yedek_id', $yedek->id)->sole()->durum]);
+        $this->assertNull(GeriYuklemeKaynaklari::engel($yedek->load('kopyalar')));
+    }
+
+    /** BY-028-R7 / G1: dosyası ve manifesti klasörden kaybolan yedek, yeri doğrulanamayan kopyası durdukça `silindi` olmaz. */
+    public function test_dosyasi_ve_manifesti_kaybolan_yedek_konumu_belirsiz_kopyasiyla_silindi_olmaz(): void
+    {
+        $yedek = $this->gercekYedek();
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Uzak', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'yeni-kova']]);
+        app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        $hedef->update(['baglanti' => ['kova' => 'eski-kova']]);
+        $this->tara();
+        $dump = config('yedekleme.klasor').'/'.$yedek->dosya_adi;
+        unlink($dump);
+        unlink(ManifestDeposu::jsonYolu($dump));
+
+        $this->tara();
+
+        $yedek->refresh();
+        $this->assertSame(YedekDurumu::Tamam, $yedek->durum);
+        $this->assertNotNull($yedek->yerel_silinme_zamani);
+    }
+
+    /** BY-028-R7 / G1: yerel dosyası olmayan yedeğin son `tamam` kopyası silinince yeri doğrulanamayan kopya yedeği `silindi` yaptırmaz. */
+    public function test_son_tamam_kopya_silinince_konumu_belirsiz_kopya_yedegi_silindi_yaptirmaz(): void
+    {
+        $yedek = $this->gercekYedek();
+        $silinecek = YedekHedefi::factory()->create(['ad' => 'A', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'a']]);
+        $tasinan = YedekHedefi::factory()->create(['ad' => 'B', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'b-yeni']]);
+        $kopya = app(YedekKopyalayici::class)->kopyala($yedek, $silinecek);
+        app(YedekKopyalayici::class)->kopyala($yedek, $tasinan);
+        app(YerelDosyaSilici::class)->sil($yedek->refresh());
+        $tasinan->update(['baglanti' => ['kova' => 'b-eski']]);
+        $this->tara();
+
+        app(KopyaSilmeKaydi::class)->kaydet($kopya->refresh());
+
+        $this->assertSame(YedekDurumu::Tamam, $yedek->refresh()->durum);
+        $this->assertSame(KopyaDurumu::KonumBelirsiz, YedekKopyasi::query()->where('yedek_hedefi_id', $tasinan->id)->sole()->durum);
+    }
+
+    /**
+     * Yedekler listesinin varsayılan süzgeçle tek satırı (ekranın gördüğü)
+     *
+     * @return array<string, mixed>
+     */
+    private function yedekListesi(): array
+    {
+        config(['yedekleme.aktif' => true]);
+        $rol = Rol::query()->create(['ad' => 'Yedek görüntüle '.random_int(1, 99999)]);
+        DB::table('rol_izinleri')->insert(['rol_id' => $rol->id, 'izin' => 'yedekler.goruntule']);
+        $kullanici = User::factory()->create();
+        $kullanici->roller()->attach($rol);
+
+        $veri = $this->actingAs($kullanici)->getJson('/api/v1/ayarlar/yedekler')->assertOk()->json('data');
+        $this->assertCount(1, $veri);
+
+        return $veri[0];
     }
 
     private function planYedegi(YedekHedefi $hedef, YedekPlani $plan): Yedek

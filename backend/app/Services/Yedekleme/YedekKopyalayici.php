@@ -25,10 +25,11 @@ use Throwable;
  *   başarısızdır. Başarısız kopya en çok `kopya_deneme` kez denenir.
  * - Sunucu dışı hedefe kopya şifrelenmeden GİTMEZ (README §4.7; KopyaSifreleyici).
  *   Başarılı sunucu dışı kopyadan sonra kurtarma paketi de o hedefe gider
- *   (KurtarmaPaketi; BY-024); onun hatası kopyayı başarısız saymaz ama uzak
- *   yaşam sinyali yalnız paket tamamlanınca gönderilir. Kopya `tamam` olur
- *   (aktarım doğrulandı) ama ancak paket doğrulanınca KURTARMAYA HAZIR olur
- *   (`kurtarma_hazir`; BY-010-R2): saklama yerel arşivi buna göre siler.
+ *   (KurtarmaPaketi; BY-024); onun hatası kopyayı başarısız saymaz. Kopya
+ *   `tamam` olur (aktarım doğrulandı) ama ancak yedeğin geçerli manifestini
+ *   taşıyan paket doğrulanınca KURTARMAYA HAZIR olur (`kurtarma_hazir`;
+ *   BY-010-R2): saklama yerel arşivi buna göre siler. Uzak yaşam sinyali
+ *   yalnız paket tamamlanınca VE kopya kurtarmaya hazırsa gider (BY-024-R7).
  * - Bir hedefin hatası istisna olarak dışarı taşmaz: kopya `basarisiz`
  *   olur, diğer hedefler ve yedeğin kendisi etkilenmez.
  * - Sonuç olay günlüğüne ve denetim kaydına yazılır.
@@ -98,9 +99,11 @@ final class YedekKopyalayici
                     'hedef' => $hedef->ad, 'deneme' => $deneme, 'sifreli' => $sifreli,
                 ]);
                 // Kurtarma paketinin hatası dışarı taşmaz, kopyayı başarısız saymaz (BY-024).
-                // Uzak yaşam sinyali yalnız paket de tamamlanıp doğrulanınca gider: boş
-                // sunucuda kurtarma, yedekle birlikte paketin manifestlerini ister (BY-024-R1).
-                if ($sifreli && $this->kurtarma->gonder($hedef, $yedek->id, $kullaniciId)) {
+                // Uzak yaşam sinyali yalnız paket tamamlanıp doğrulandıktan sonra (BY-024-R1)
+                // ve BU kopya paketin güncellediği hazırlıkla kurtarılabiliyorsa gider: başarılı
+                // paket, yedeğin manifesti geçersizse onu doğrulamaz (BY-024-R7; nedeni paketin
+                // denetim kaydında `yedek_manifesti_dogrulandi`, ekranda "kurtarma paketi bekleniyor").
+                if ($sifreli && $this->kurtarma->gonder($hedef, $yedek->id, $kullaniciId) && $kopya->refresh()->kurtarma_hazir) {
                     $this->sinyal->gonder(YasamSinyali::UZAK);
                 }
 

@@ -405,7 +405,7 @@ describe('YedeklerPage', () => {
         within(await screen.findByRole('dialog')).getByRole('button', { name: 'Yedek Al' }),
       )
     }
-    const bekleyenDepo = 'erp.yedekleme.istekAnahtarlari.v1.kullanici.1'
+    const bekleyenDepo = 'erp.yedekleme.istekAnahtarlari.v2.kullanici.1'
 
     ciz()
     await yedekAl()
@@ -428,12 +428,64 @@ describe('YedeklerPage', () => {
     expect(api.yedekAl.mock.calls[2][1]).not.toBe(ilk)
   })
 
+  it('açıklamalı işin yanıtı kaybolunca depoda açıklama metni değil eylemin SHA-256 özeti durur; yenilemeden sonra anahtar aynı kalır (BY-014-R4)', async () => {
+    const aciklama = 'Yil sonu kapanisi oncesi GIZLI-NOT-42'
+    api.yedekAl.mockRejectedValue(new Error('Network Error'))
+    const yedekAl = async () => {
+      await satir(YEDEK.dosya_adi)
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Şimdi Yedek Al' })).toBeEnabled(),
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Şimdi Yedek Al' }))
+      const dialog = await screen.findByRole('dialog')
+      fireEvent.change(within(dialog).getByLabelText('Not (isteğe bağlı)'), {
+        target: { value: aciklama },
+      })
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Yedek Al' }))
+    }
+    const depodakiDegerler = () =>
+      Array.from({ length: localStorage.length }, (_, i) =>
+        localStorage.getItem(localStorage.key(i) ?? ''),
+      ).join('\n')
+
+    ciz()
+    await yedekAl()
+    await waitFor(() => expect(api.yedekAl).toHaveBeenCalledTimes(1))
+    expect(api.yedekAl.mock.calls[0][0]).toBe(aciklama)
+    const ilk = api.yedekAl.mock.calls[0][1] as string
+
+    expect(depodakiDegerler()).not.toContain('GIZLI-NOT-42')
+    expect(
+      JSON.parse(localStorage.getItem('erp.yedekleme.istekAnahtarlari.v2.kullanici.1') ?? '[]'),
+    ).toEqual([
+      {
+        // SHA-256('{"aciklama":"Yil sonu kapanisi oncesi GIZLI-NOT-42","tur":"yedek_al"}') — sha256sum ile
+        ozet: '65dfa33d9941bf0b75d6a64ef877160809acb6f5115f78ce7a49c99e84c22d88',
+        anahtar: ilk,
+        zaman: expect.any(Number),
+      },
+    ])
+
+    // Sayfa yenilendi: aynı açıklamayla aynı iş aynı anahtarı taşır
+    cleanup()
+    ciz()
+    await yedekAl()
+    await waitFor(() => expect(api.yedekAl).toHaveBeenCalledTimes(2))
+    expect(api.yedekAl.mock.calls[1][1]).toBe(ilk)
+    expect(depodakiDegerler()).not.toContain('GIZLI-NOT-42')
+  })
+
   it('süresi geçmiş bekleyen anahtar kullanılmaz; depo erişilemezse anahtar bellekte yaşar (BY-014-R3)', async () => {
     const eski = '33333333-3333-4333-8333-333333333333'
     localStorage.setItem(
-      'erp.yedekleme.istekAnahtarlari.v1.kullanici.1',
+      'erp.yedekleme.istekAnahtarlari.v2.kullanici.1',
       JSON.stringify([
-        { imza: '{"tur":"tara"}', anahtar: eski, zaman: Date.now() - 16 * 60 * 1000 },
+        // ozet: SHA-256('{"tur":"tara"}') — sha256sum ile hesaplandı
+        {
+          ozet: '0cb83e4560026319f10e3ae06cd2704efdf2d3b37ed3c14477f1c04d428cb94d',
+          anahtar: eski,
+          zaman: Date.now() - 16 * 60 * 1000,
+        },
       ]),
     )
     api.tara.mockRejectedValue(new Error('Network Error'))

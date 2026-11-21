@@ -22,12 +22,18 @@ use Illuminate\Support\Str;
  *
  * İşaret yoksa (hazirla) — katalog değişmeden ve dosya yazılmadan ÖNCE:
  *
- * - Katalogda tamamlanmış yedek yoksa işaret açılır: ilk kurulum, geçiş kipi
- *   ya da tablolar boşaltılıp yeniden kurma; tarama yalnız ekler, kaybedilecek
- *   kayıt yoktur.
- * - Katalogdaki tamamlanmış bir yedeğin manifesti ya da dump'ı klasördeyse
- *   klasör depodur (işaretten önce kurulmuş depo): işaret açılır.
- * - Aksi hâlde (katalogda yedek var, hiçbiri burada değil: boş bağlama
+ * - Katalogda HİÇ yedek kaydı yoksa işaret açılır: ilk kurulum, geçiş kipi ya
+ *   da tablolar boşaltılıp yeniden kurma; tarama yalnız ekler, kaybedilecek
+ *   kayıt yoktur. Ölçüt durumdan bağımsızdır (BY-011-R5): ilk yedek dump'ı ve
+ *   manifesti yayımlayıp `calisiyor`da kalmış olabilir; `basarisiz` kayıt da
+ *   taşımadan sonraki bir hatada (klasör eşitleme) dosyasını bırakmış
+ *   olabilir. "Bu kayıt klasöre hiç yazmadı" kanıtlanamadığı için her kayıt
+ *   sayılır; yanlış ret güvenli yöndür (kurulum betiği işareti açar).
+ *   YedekAlici bu denetimi kendi kaydını açmadan önce yapar.
+ * - Katalogdaki bir kaydın İMZALI manifesti bu klasördeyse ve kimliği ile
+ *   dosya adı kayıtla aynıysa klasör depodur (işaretten önce kurulmuş ya da
+ *   işareti silinmiş depo): işaret açılır. Adı tutan dosya kanıt değildir.
+ * - Aksi hâlde (kayıt var, hiçbirinin manifesti burada değil: boş bağlama
  *   noktası, yanlış klasör) hata; çağıran hiçbir şeye dokunmaz.
  *
  * Ana disk bağlanmadan önce kurulum çalıştırılırsa işaret bağlama noktasının
@@ -42,7 +48,10 @@ final class YedekDeposu
 
     private const BICIM = '/^emor-yedek-deposu [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\n?\z/D';
 
-    public function __construct(private readonly YedeklemeYapilandirmasi $yapilandirma) {}
+    public function __construct(
+        private readonly YedeklemeYapilandirmasi $yapilandirma,
+        private readonly ManifestDeposu $manifestler,
+    ) {}
 
     /**
      * Klasör bu sistemin deposu mu; yukarıdaki kurallarla gerekirse işareti açar.
@@ -67,23 +76,24 @@ final class YedekDeposu
             return;
         }
 
-        if (! $this->katalogBosMu() && ! $this->katalogdakiBirYedekBurada($klasor)) {
-            throw new DepoIsaretiYok("Yedek klasöründe depo işareti yok ve katalogdaki yedeklerin hiçbiri bu klasörde değil ({$klasor}): yedek diski bağlı olmayabilir. Disk bağlıysa ve klasör doğruysa kurulum betiğini çalıştırın (sunucu-kurulumu.md). Bu yüzden dizin değiştirilmedi, klasöre yazılmadı.");
+        if (Yedek::query()->exists() && ! $this->katalogdakiBirYedekBurada($klasor)) {
+            throw new DepoIsaretiYok("Yedek klasöründe depo işareti yok ve katalogdaki yedeklerin hiçbirinin imzalı manifesti bu klasörde değil ({$klasor}): yedek diski bağlı olmayabilir. Disk bağlıysa ve klasör doğruysa kurulum betiğini çalıştırın (sunucu-kurulumu.md). Bu yüzden dizin değiştirilmedi, klasöre yazılmadı.");
         }
 
         AtomikDosya::yaz($isaret, self::ON_EK.Str::uuid()->toString()."\n");
     }
 
-    private function katalogBosMu(): bool
-    {
-        return ! Yedek::query()->where('durum', YedekDurumu::Tamam->value)->exists();
-    }
-
+    /** Somut kanıt: katalogdaki bir kaydın imzası geçerli, kimliği ve dosya adı kayıtla aynı manifesti burada (durumdan bağımsız) */
     private function katalogdakiBirYedekBurada(string $klasor): bool
     {
-        foreach (Yedek::query()->where('durum', YedekDurumu::Tamam->value)->select(['id', 'dosya_adi'])->lazyById(200) as $yedek) {
+        foreach (Yedek::query()->select(['id', 'kimlik', 'dosya_adi'])->lazyById(200) as $yedek) {
             $ad = $yedek->dosya_adi;
-            if (basename($ad) === $ad && (is_file($klasor.'/'.$ad) || is_file(ManifestDeposu::jsonYolu($klasor.'/'.$ad)))) {
+            if (basename($ad) !== $ad) {
+                continue;
+            }
+
+            $sonuc = $this->manifestler->oku(ManifestDeposu::jsonYolu($klasor.'/'.$ad));
+            if ($sonuc->guvenilirMi() && $sonuc->manifest->kimlik === $yedek->kimlik && $sonuc->manifest->dosyaAdi === $ad) {
                 return true;
             }
         }

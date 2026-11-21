@@ -83,6 +83,8 @@ final class YedekAlici
         // Sonuçlandırma önce depoyu doğrular (BY-011-R4): doğrulanamazsa eski
         // kayda dokunulmaz, bu yedek aşağıda o hatayla başarısız olur (kayıt,
         // denetim, bildirim — depo denetimi önceden de yedeğin hata yolundaydı).
+        // Bu yedeğin kaydı aşağıda, denetimden SONRA açılır: ilk yedekte boş
+        // katalog işareti açtırır, kendi kaydı bunu engellemez (BY-011-R5).
         $klasor = $this->klasoruHazirla();
         $oncekiHata = null;
         try {

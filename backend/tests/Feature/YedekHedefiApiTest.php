@@ -364,23 +364,37 @@ final class YedekHedefiApiTest extends TestCase
         $this->assertNull($hedef->gizli_bilgiler);
     }
 
+    /** Yeni hesabın sahibi olduğu, çöpte olmayan, dosya eklenip listelenebilen kayıtlı klasör (BY-021-R4) */
+    private const SAHIP_OLUNAN_KLASOR = ['id' => 'klasor-1', 'mimeType' => 'application/vnd.google-apps.folder', 'trashed' => false, 'ownedByMe' => true, 'capabilities' => ['canAddChildren' => true, 'canListChildren' => true]];
+
+    /** Yeni hesabın sahibi olduğu, indirilebilen kayıtlı kopya (BY-021-R4) */
+    private const SAHIP_OLUNAN_KOPYA = ['id' => 'drive-dosya-1', 'trashed' => false, 'ownedByMe' => true, 'capabilities' => ['canDownload' => true]];
+
     /**
-     * Sağlayıcı sahteleri: hesap bilgisi (`about`) ve kayıtlı klasörün yeni
-     * bağlantıyla sorgusu; null verilen uç sahtelenmez (istek giderse test düşer).
+     * Sağlayıcı sahteleri: hesap bilgisi (`about`), kayıtlı klasörün ve kayıtlı
+     * kopyanın yeni bağlantıyla sorgusu. Dizi = 200 gövdesi, sayı = boş gövdeli
+     * durum, 'baglanti' = bağlantı hatası; null verilen uç sahtelenmez (istek
+     * giderse test düşer).
+     *
+     * @param  array<string, mixed>|int|string|null  $klasor
+     * @param  array<string, mixed>|int|string|null  $kopya
      */
-    private function googleYanitlari(int $hesapDurumu, ?int $klasorDurumu = null): void
+    private function googleYanitlari(int $hesapDurumu, array|int|string|null $klasor = null, array|int|string|null $kopya = null): void
     {
         Sleep::fake();
         config(['yedekleme.google.istemci_kimligi' => 'istemci-1.apps.googleusercontent.com', 'yedekleme.google.istemci_sirri' => 'GOCSPX-sir', 'app.url' => 'https://erp.ornek.test']);
+        $yanit = fn (array|int|string|null $tanim) => match (true) {
+            $tanim === null => null,
+            $tanim === 'baglanti' => Http::failedConnection(),
+            is_array($tanim) => Http::response($tanim),
+            default => Http::response('', (int) $tanim),
+        };
         Http::preventStrayRequests();
         Http::fake(array_filter([
             'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'ya29.erisim', 'refresh_token' => 'yeni-anahtar', 'expires_in' => 3599, 'scope' => GoogleDriveBaglayicisi::KAPSAM, 'token_type' => 'Bearer']),
             'https://www.googleapis.com/drive/v3/about?fields=*' => $hesapDurumu === 200 ? Http::response(['user' => ['emailAddress' => 'yedek@ornek.test']]) : Http::response('', $hesapDurumu),
-            'https://www.googleapis.com/drive/v3/files/klasor-1?*' => match ($klasorDurumu) {
-                null => null,
-                200 => Http::response(['id' => 'klasor-1', 'mimeType' => 'application/vnd.google-apps.folder']),
-                default => Http::response('', $klasorDurumu),
-            },
+            'https://www.googleapis.com/drive/v3/files/klasor-1?*' => $yanit($klasor),
+            'https://www.googleapis.com/drive/v3/files/drive-dosya-1?*' => $yanit($kopya),
         ]));
     }
 
@@ -449,13 +463,14 @@ final class YedekHedefiApiTest extends TestCase
     }
 
     /**
-     * BY-021-R3: hesabı kayıtlı olmayan (eski) kopyalı hedef, yeni bağlantı
-     * kayıtlı klasöre erişebiliyor ve klasör aynıysa aynı hesap sayılır: hesap
-     * e-postası doldurulur, klasör (ve içindeki kopyalar) korunur.
+     * BY-021-R3, R4: hesabı kayıtlı olmayan (eski) kopyalı hedefte yeni hesap
+     * kayıtlı klasörün sahibiyse (çöpte değil, dosya eklenip listelenebiliyor)
+     * ve en son kayıtlı kopyanın da sahibiyse (indirilebiliyor) aynı hesap
+     * sayılır: hesap e-postası doldurulur, klasör (ve içindeki kopyalar) korunur.
      */
-    public function test_kimliksiz_eski_kopyali_drive_hedefi_kayitli_klasore_erisen_hesapla_yeniden_baglanir_klasor_korunur(): void
+    public function test_kimliksiz_eski_kopyali_drive_hedefi_kayitli_klasorun_ve_kopyanin_sahibi_hesapla_yeniden_baglanir_klasor_korunur(): void
     {
-        $this->googleYanitlari(200, 200);
+        $this->googleYanitlari(200, self::SAHIP_OLUNAN_KLASOR, self::SAHIP_OLUNAN_KOPYA);
         $hedef = YedekHedefi::factory()->create(['ad' => 'Drive', 'tur' => HedefTuru::GoogleDrive, 'baglanti' => ['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'durum' => 'yeniden_baglan'], 'gizli_bilgiler' => ['yenileme_anahtari' => 'eski-anahtar']]);
         YedekKopyasi::query()->create(['yedek_id' => Yedek::factory()->create()->id, 'yedek_hedefi_id' => $hedef->id, 'durum' => KopyaDurumu::Tamam, 'uzak_kimlik' => 'drive-dosya-1', 'sifreli' => true]);
 
@@ -464,7 +479,71 @@ final class YedekHedefiApiTest extends TestCase
         $hedef->refresh();
         $this->assertEquals(['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'eposta' => 'yedek@ornek.test'], $hedef->baglanti);
         $this->assertSame(['yenileme_anahtari' => 'yeni-anahtar'], $hedef->gizli_bilgiler);
-        Http::assertSent(fn (Request $istek): bool => str_starts_with($istek->url(), 'https://www.googleapis.com/drive/v3/files/klasor-1?') && $istek->hasHeader('Authorization', 'Bearer ya29.erisim'));
+        foreach (['klasor-1', 'drive-dosya-1'] as $kimlik) {
+            Http::assertSent(fn (Request $istek): bool => str_starts_with($istek->url(), "https://www.googleapis.com/drive/v3/files/{$kimlik}?") && $istek->hasHeader('Authorization', 'Bearer ya29.erisim'));
+        }
+    }
+
+    /**
+     * @return iterable<string, array{0: array<string, mixed>|int|string, 1: array<string, mixed>|int|string|null}>
+     */
+    public static function sahipligiKanitlanamayanBaglantilar(): iterable
+    {
+        // [kayıtlı klasörün yeni bağlantıyla sorgusu, kayıtlı kopyanın sorgusu]
+        yield 'klasör paylaşılmış, başka hesabın (200, ownedByMe false)' => [['ownedByMe' => false] + self::SAHIP_OLUNAN_KLASOR, self::SAHIP_OLUNAN_KOPYA];
+        yield 'klasörün sahiplik bilgisi yok (paylaşılan drive)' => [array_diff_key(self::SAHIP_OLUNAN_KLASOR, ['ownedByMe' => true]), self::SAHIP_OLUNAN_KOPYA];
+        yield 'klasör çöpte' => [['trashed' => true] + self::SAHIP_OLUNAN_KLASOR, self::SAHIP_OLUNAN_KOPYA];
+        yield 'klasöre dosya eklenemiyor' => [['capabilities' => ['canAddChildren' => false, 'canListChildren' => true]] + self::SAHIP_OLUNAN_KLASOR, self::SAHIP_OLUNAN_KOPYA];
+        yield 'klasör listelenemiyor' => [['capabilities' => ['canAddChildren' => true, 'canListChildren' => false]] + self::SAHIP_OLUNAN_KLASOR, self::SAHIP_OLUNAN_KOPYA];
+        yield 'klasör sorgusunda bağlantı hatası' => ['baglanti', null];
+        yield 'kayıtlı kopyaya erişilemiyor' => [self::SAHIP_OLUNAN_KLASOR, 404];
+        yield 'kayıtlı kopya başka hesabın' => [self::SAHIP_OLUNAN_KLASOR, ['ownedByMe' => false] + self::SAHIP_OLUNAN_KOPYA];
+        yield 'kayıtlı kopya indirilemiyor' => [self::SAHIP_OLUNAN_KLASOR, ['capabilities' => ['canDownload' => false]] + self::SAHIP_OLUNAN_KOPYA];
+        yield 'kayıtlı kopya çöpte' => [self::SAHIP_OLUNAN_KLASOR, ['trashed' => true] + self::SAHIP_OLUNAN_KOPYA];
+        yield 'kayıtlı kopya sorgusunda bağlantı hatası' => [self::SAHIP_OLUNAN_KLASOR, 'baglanti'];
+    }
+
+    /**
+     * BY-021-R4: Drive'da erişim sahiplik değildir — paylaşılmış klasör başka
+     * hesaptan da 200 döner. Kimliksiz eski hedefte klasörün sahipliği,
+     * kullanılabilirliği ve kayıtlı kopyaya erişim kanıtlanamazsa eski bağlantı
+     * (anahtar, klasör, durum) aynen kalır; elle uzlaştırma istenir.
+     *
+     * @param  array<string, mixed>|int|string  $klasor
+     * @param  array<string, mixed>|int|string|null  $kopya
+     */
+    #[DataProvider('sahipligiKanitlanamayanBaglantilar')]
+    public function test_kimliksiz_eski_drive_hedefinde_klasor_sahipligi_ya_da_kayitli_kopya_kanitlanamazsa_eski_baglanti_degismez(array|int|string $klasor, array|int|string|null $kopya): void
+    {
+        $this->googleYanitlari(200, $klasor, $kopya);
+        $baglanti = ['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'durum' => 'yeniden_baglan'];
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Drive', 'tur' => HedefTuru::GoogleDrive, 'baglanti' => $baglanti, 'gizli_bilgiler' => ['yenileme_anahtari' => 'eski-anahtar']]);
+        YedekKopyasi::query()->create(['yedek_id' => Yedek::factory()->create()->id, 'yedek_hedefi_id' => $hedef->id, 'durum' => KopyaDurumu::Tamam, 'uzak_kimlik' => 'drive-dosya-1', 'sifreli' => true]);
+
+        $this->postJson(self::K.'/google/donus', ['kod' => 'yetki-kodu', 'durum' => $this->googleDurumu($hedef)])
+            ->assertStatus(409)->assertJsonPath('kod', 'GOOGLE_HESAP_DOGRULANAMADI');
+
+        $hedef->refresh();
+        $this->assertEquals($baglanti, $hedef->baglanti);
+        $this->assertSame(['yenileme_anahtari' => 'eski-anahtar'], $hedef->gizli_bilgiler);
+        $this->assertSame('GOOGLE_HESAP_DOGRULANAMADI', YedekIslemKaydi::query()->where('islem', 'hedef_google_baglan')->sole()->hata_mesaji);
+    }
+
+    /**
+     * BY-021-R4: kopyası henüz aktarılıyor (uzak kimliği yok) olan kimliksiz
+     * eski hedefte sorulacak kayıtlı kopya yoktur; klasörün sahipliği yeter.
+     */
+    public function test_kimliksiz_eski_drive_hedefinde_uzak_kimlikli_kopya_yoksa_klasor_sahipligiyle_baglanir(): void
+    {
+        $this->googleYanitlari(200, self::SAHIP_OLUNAN_KLASOR);
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Drive', 'tur' => HedefTuru::GoogleDrive, 'baglanti' => ['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'durum' => 'yeniden_baglan'], 'gizli_bilgiler' => ['yenileme_anahtari' => 'eski-anahtar']]);
+        YedekKopyasi::query()->create(['yedek_id' => Yedek::factory()->create()->id, 'yedek_hedefi_id' => $hedef->id, 'durum' => KopyaDurumu::Kopyalaniyor, 'uzak_kimlik' => null, 'sifreli' => true]);
+
+        $this->postJson(self::K.'/google/donus', ['kod' => 'yetki-kodu', 'durum' => $this->googleDurumu($hedef)])->assertOk();
+
+        $hedef->refresh();
+        $this->assertEquals(['klasor_adi' => 'eMOR', 'klasor_kimligi' => 'klasor-1', 'eposta' => 'yedek@ornek.test'], $hedef->baglanti);
+        $this->assertSame(['yenileme_anahtari' => 'yeni-anahtar'], $hedef->gizli_bilgiler);
     }
 
     /** BY-021-R2: aynı hesap yeniden bağlanınca klasör (ve içindeki kopyalar) aynen kullanılır */

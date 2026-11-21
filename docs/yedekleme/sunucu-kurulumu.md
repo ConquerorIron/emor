@@ -61,9 +61,10 @@ disk ayrılınca bağlama noktası boş ve okunabilir kalır; işaret diskin
 kendisinde durduğu için o zaman görünmez. Uygulama işaretsiz klasörü depo
 saymaz: `yedek:tara` dizine dokunmadan durur, yedek alma bağlama noktasına
 (kök diske) yazmaz (`YEDEK_DEPO_ISARETI_YOK`). İşaretsiz klasörü uygulama
-yalnız şu durumda kendisi işaretler: katalogda tamamlanmış yedek yoksa (ilk
-kurulum) ya da katalogdaki bir yedeğin manifesti / dump'ı o klasördeyse
-(işaretten önce kurulmuş depo).
+yalnız şu durumda kendisi işaretler: katalogda hiç yedek kaydı yoksa (ilk
+kurulum; yarıda kalmış ilk yedek de kayıttır) ya da katalogdaki bir kaydın
+imzalı, kimliği tutan manifesti o klasördeyse (işaretten önce kurulmuş ya da
+işareti silinmiş depo).
 
 - Var olan işarete betik dokunmaz (kimliği değişmez); biçimi tanınmıyorsa
   denetim "eksik" yazar, kurulum elle bakılmasını ister. Bağlantı ya da sabit

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Yedekleme;
 
+use App\Models\Yedek;
 use App\Models\YedekHedefi;
 use App\Models\YedekKopyasi;
 use App\Services\Yedekleme\Hedefler\HedefBaglayicisi;
@@ -12,6 +13,7 @@ use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 use JsonException;
@@ -47,12 +49,20 @@ use Throwable;
  *    (yeni + bir önceki) kalır. Silmede önce işaretçi, sonra bileşenler;
  *    işaretçi silinemezse sürümün hiçbir bileşenine dokunulmaz (BY-024-R4):
  *    hedefte "tamam" görünen bir set hiçbir an eksik kalmaz.
+ *    İstisna (BY-024-R6; D4): bu hedefte saklanan (`tamam`) bir kopyanın
+ *    yedeğini doğrulanmış olarak taşıyan EN YENİ sürüm kalacaklardan değilse
+ *    (yerel manifest kayboldu / bozuldu, yeni paketler o yedeği artık
+ *    doğrulayamıyor) yaşına bakılmadan korunur: o uzak dump'ın tek kurtarma
+ *    dayanağıdır. Koruma, yeni bir sürüm o yedeği yeniden doğrulayınca ya da
+ *    kopya saklamadan çıkınca (silindi / tamam değil) kalkar; korunan sürüm
+ *    denetim kaydında (`korunan_eski_surum`) ve günlükte uyarı olarak görünür.
  * 5. Kurtarmaya hazırlık hedefte KALAN tamam sürümlerden yeniden hesaplanır
  *    (`kurtarma_hazir`; BY-010-R2, BY-024-R3, BY-024-R5; D4): kopya, yedeğin
  *    kimliği ve katalogdaki SHA-256'sı kayıttaki tamam sürümlerden birinin
- *    DOĞRULANMIŞ manifest listesinde varsa hazırdır, yoksa değildir — eski
- *    sürüm dönüşümle kalkınca dayanağı giden işaret geri alınır. Saklama,
- *    hazır uzak kopyası olmayan yedeğin yerel arşivini silmez.
+ *    DOĞRULANMIŞ manifest listesinde varsa hazırdır, yoksa değildir —
+ *    dayanağı kalmayan (listesiz eski biçim, saklamadan çıkan kopya) işaret
+ *    geri alınır. Saklama, hazır uzak kopyası olmayan yedeğin yerel arşivini
+ *    silmez.
  *
  * Manifest arşivi yedek klasöründeki manifestlerin ANLIK KOPYASINDAN kurulur;
  * her kopya arşive girmeden önce taramayla aynı okuyucuyla (ManifestDeposu::oku:
@@ -75,8 +85,11 @@ use Throwable;
  *
  * Buradaki hata yedeğin kopyasını başarısız SAYMAZ: istisna dışarı taşmaz,
  * denetim kaydına (dosya + veritabanı) yazılır; sonuç `gonder()`'ün dönüş
- * değeridir (uzak yaşam sinyali buna bağlı — YedekKopyalayici). Kopya yine
- * de kurtarmaya hazır OLMAZ; yerel arşivi saklama tutar (5. adım).
+ * değeridir. Kopya yine de kurtarmaya hazır OLMAZ; yerel arşivi saklama
+ * tutar (5. adım). Başarılı paket de kopyayı tek başına hazır yapmaz: uzak
+ * yaşam sinyali ayrıca kopyanın güncellenmiş `kurtarma_hazir`'ına bakar
+ * (YedekKopyalayici; BY-024-R7). Kopyalanan yedeğin manifesti bu pakette
+ * doğrulandı mı, denetim ayrıntısında `yedek_manifesti_dogrulandi`.
  */
 final class KurtarmaPaketi
 {
@@ -130,7 +143,8 @@ final class KurtarmaPaketi
         $yazilan = [];
         $isaretci = null;
         $tamamlandi = false;
-        $temizlenemeyen = 0;
+        $temizlik = ['silinemeyen' => 0, 'korunan' => []];
+        $yedekDogrulandi = null;
         $hataMesaji = null;
 
         try {
@@ -157,6 +171,10 @@ final class KurtarmaPaketi
 
             // Sürüm kayda yarım olarak girer; imza anahtarı yoksa hedefe hiçbir şey gitmeden durur
             $dogrulanmis = $manifestler['yedekler'];
+            if ($yedekId !== null) {
+                $yedek = Yedek::query()->find($yedekId, ['id', 'kimlik', 'sha256']);
+                $yedekDogrulandi = $yedek?->sha256 !== null && ($dogrulanmis[$yedek->kimlik] ?? null) === $yedek->sha256;
+            }
             $this->surumuKaydet($hedef, $surum, $yazilan, null, false, $dogrulanmis);
 
             // 2. Bileşenler: yaz → kayda ekle → geri oku → özeti denetle
@@ -186,8 +204,8 @@ final class KurtarmaPaketi
             $this->surumuKaydet($hedef, $surum, $yazilan, $isaretci, true, $dogrulanmis);
             $tamamlandi = true;
 
-            // 4. Eski sürümler: yenisi doğrulandıktan sonra
-            $temizlenemeyen = $this->eskileriSil($baglayici, $hedef);
+            // 4. Eski sürümler: yenisi doğrulandıktan sonra; saklanan kopyanın son dayanağı korunur
+            $temizlik = $this->eskileriSil($baglayici, $hedef);
 
             // 5. Hazırlık, hedefte kalan tamam sürümlerin doğrulanmış manifestlerinden
             $this->hazirligiGuncelle($hedef);
@@ -214,7 +232,11 @@ final class KurtarmaPaketi
                 $yedekId,
                 $kullaniciId,
                 $this->sureMs($baslangic),
-                ['hedef' => $hedef->ad, 'surum' => $surum, 'gonderilen' => $gonderilen, 'atlanan' => $atlanan, 'silinemeyen_eski_surum' => $temizlenemeyen],
+                [
+                    'hedef' => $hedef->ad, 'surum' => $surum, 'gonderilen' => $gonderilen, 'atlanan' => $atlanan,
+                    'silinemeyen_eski_surum' => $temizlik['silinemeyen'], 'korunan_eski_surum' => $temizlik['korunan'],
+                    ...($yedekDogrulandi === null ? [] : ['yedek_manifesti_dogrulandi' => $yedekDogrulandi]),
+                ],
                 $hataMesaji,
             );
         } catch (Throwable) {
@@ -248,20 +270,22 @@ final class KurtarmaPaketi
 
     /**
      * Tamamlanan sürümden sonra: yarım kalmış sürümler ve son SAKLANAN_SURUM
-     * tamam sürümden eskiler silinir. Bir sürümün silinememesi diğerlerini
-     * durdurmaz; silinemeyen kayıtta kalır.
+     * tamam sürümden eskiler silinir; saklanan bir kopyanın son kurtarma
+     * dayanağı olan eski sürüm silinmez (BY-024-R6, korunacakDayanaklar).
+     * Bir sürümün silinememesi diğerlerini durdurmaz; silinemeyen kayıtta kalır.
      *
-     * @return int Silinemeyen sürüm sayısı
+     * @return array{silinemeyen: int, korunan: list<string>} Silinemeyen sürüm sayısı; dayanak olduğu için korunan sürümler
      */
-    private function eskileriSil(HedefBaglayicisi $baglayici, YedekHedefi $hedef): int
+    private function eskileriSil(HedefBaglayicisi $baglayici, YedekHedefi $hedef): array
     {
         $surumler = $this->kayitlar()[(string) $hedef->id] ?? [];
         $tamamlar = array_keys(array_filter($surumler, fn (array $s): bool => $s['tamam']));
         $kalacak = array_slice($tamamlar, -self::SAKLANAN_SURUM);
+        $korunan = $this->korunacakDayanaklar($hedef, $surumler, $kalacak);
         $silinemeyen = 0;
 
         foreach (array_keys($surumler) as $sira) {
-            if (in_array($sira, $kalacak, true)) {
+            if (in_array($sira, $kalacak, true) || isset($korunan[$sira])) {
                 continue;
             }
 
@@ -272,7 +296,60 @@ final class KurtarmaPaketi
             }
         }
 
-        return $silinemeyen;
+        $korunanSurumler = array_map(fn (int $sira): string => $surumler[$sira]['surum'], array_keys($korunan));
+        if ($korunanSurumler !== []) {
+            Log::channel('yedekleme')->warning('Kurtarma paketi: saklanan uzak kopyaların tek doğrulanmış manifestini taşıyan eski sürüm silinmedi; yedek klasöründeki manifestlerini denetleyin', [
+                'kod' => 'KURTARMA_ESKI_SURUM_KORUNDU',
+                'hedef_id' => $hedef->id,
+                'surumler' => $korunanSurumler,
+                'yedekler' => array_merge(...array_values($korunan)),
+            ]);
+        }
+
+        return ['silinemeyen' => $silinemeyen, 'korunan' => $korunanSurumler];
+    }
+
+    /**
+     * Kalacaklar dışında tutulması gereken sürümler (BY-024-R6; D4): bu
+     * hedefte saklanan (`tamam`) her kopya için, yedeğinin kimliğini ve
+     * katalogdaki SHA-256'sını doğrulanmış listesinde taşıyan EN YENİ tamam
+     * sürüm. O sürüm kalacaklardan biriyse yenisi zaten dayanaktır (bir şey
+     * korunmaz); değilse kalacakların hiçbiri o yedeği doğrulamıyordur ve
+     * sürüm uzak dump'ın son kurtarma dayanağıdır. Ölçüt hazirligiGuncelle'ninkiyle
+     * aynıdır: korunan sürüm kayıtta tamam kaldığı için kopya hazır kalır.
+     *
+     * @param  list<array{surum: string, tamam: bool, kimlikler: list<string>, isaretci: string|null, yedekler: array<string, string>|null}>  $surumler
+     * @param  list<int>  $kalacak
+     * @return array<int, list<string>> Sürümün sırası => tek dayanağı olduğu yedek kimlikleri
+     */
+    private function korunacakDayanaklar(YedekHedefi $hedef, array $surumler, array $kalacak): array
+    {
+        $korunan = [];
+        YedekKopyasi::query()
+            ->where('yedek_hedefi_id', $hedef->id)
+            ->where('durum', KopyaDurumu::Tamam->value)
+            ->with('yedek:id,kimlik,sha256')
+            ->get(['id', 'yedek_id'])
+            ->each(function (YedekKopyasi $k) use ($surumler, $kalacak, &$korunan): void {
+                $kimlik = $k->yedek?->kimlik;
+                $ozet = $k->yedek?->sha256;
+                if ($kimlik === null || $ozet === null) {
+                    return;
+                }
+
+                $dayanak = null;
+                foreach ($surumler as $sira => $s) {
+                    if ($s['tamam'] && ($s['yedekler'][$kimlik] ?? null) === $ozet) {
+                        $dayanak = $sira;
+                    }
+                }
+
+                if ($dayanak !== null && ! in_array($dayanak, $kalacak, true)) {
+                    $korunan[$dayanak][] = $kimlik;
+                }
+            });
+
+        return $korunan;
     }
 
     /**

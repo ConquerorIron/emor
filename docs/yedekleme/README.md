@@ -170,7 +170,11 @@ sunucu yöneticisi yetkisi ister ve bu dokümanın kapsamı dışındadır.
     Şifresiz kopya yalnız sunucu içi yerel disk hedefidir; kurtarma paketi ona
     gitmez, ekrandaki geri yükleme yedek klasöründe kalan manifestle yapılır:
     `tamam` olması yeter. Planlı yedeğin yerel dosyası, en az bir uzak kopyası
-    kurtarmaya hazır olmadan silinmez (`kurtarma_paketi_eksik`); ekranda
+    kurtarmaya hazır olmadan silinmez (`kurtarma_paketi_eksik`). Dayanak bu
+    temizlikten SONRA kalan kopyalardır: aynı turda silinecek hazır kopya
+    sayılmaz; yedek bir hedefte saklanmaya devam ediyorsa kalanlardan biri
+    hazır olmalı. Yerel dosya planda ana klasör hedefi olarak yazılmışsa o
+    hedefin kuralı da bu eşiğe tabidir (BY-010-R4); ekranda
     kopyanın yanında "kurtarma paketi bekleniyor" yazar, özetteki "son sunucu
     dışı kopya" yalnız hazır kopyaları sayar (uzak yaşam sinyaliyle aynı ölçüt).
     Bu koruma aktarım için silinen yerel dosyayadır; zamanlanmamış yedeğin
@@ -186,9 +190,11 @@ sunucu yöneticisi yetkisi ister ve bu dokümanın kapsamı dışındadır.
     süreçten kalan `calisiyor` kayıt da depo doğrulanmadan "yarıda kaldı"
     yapılmaz, disk geri gelince diskteki imzalı manifestiyle tamamlanır
     (BY-011-R4). İşaretsiz
-    klasörü uygulama yalnız katalogda tamamlanmış yedek yoksa (ilk kurulum,
-    tablolar boşaltılıp yeniden kurma) ya da katalogdaki bir yedeğin manifesti
-    / dump'ı oradaysa (işaretten önce kurulmuş depo) kendisi işaretler.
+    klasörü uygulama yalnız katalogda HİÇ yedek kaydı yoksa (ilk kurulum,
+    tablolar boşaltılıp yeniden kurma; durumdan bağımsız: yarıda kalmış ilk
+    yedek de sayılır — BY-011-R5) ya da katalogdaki bir kaydın imzası geçerli,
+    kimliği ve dosya adı kayıtla aynı manifesti oradaysa (işaretten önce
+    kurulmuş ya da işareti silinmiş depo) kendisi işaretler.
     Ayrıntı ve disk bağlama sırası: sunucu-kurulumu.md §2 "Depo işareti".
   - Yedek klasörünün kendisi olan yerel hedef yazımına göre değil gerçek
     konumuna (aygıt + düğüm) göre tanınır; başka bir hedefte yerel dosyanın
@@ -326,8 +332,12 @@ yönetici komutuyla içeri alınır (YDK-09). Tarayıcıdan yedek yükleme yok
   adresi ve bağlanma tarihi görünür; "Bağlantıyı kes" ile kaldırılır. Hesabın
   e-postası okunamazsa bağlantı kaydedilmez, yeniden denenir (BY-021-R3).
   Kopyası olan hedef ancak aynı hesapla yeniden bağlanır; hesabı kayıtlı
-  olmayan eski hedefte aynılık, yeni bağlantının kayıtlı yedek klasörüne
-  erişebilmesiyle kanıtlanır.
+  olmayan eski hedefte aynılık sahiplikle kanıtlanır: yeni hesap kayıtlı yedek
+  klasörünün sahibi olmalı (kişisel Drive; çöpte değil, dosya eklenip
+  listelenebiliyor) ve en son kayıtlı kopyanın da sahibi olup onu
+  indirebilmeli. Erişim yetmez: paylaşılmış klasör başka hesaptan da görünür
+  (BY-021-R4). Kanıtlanamazsa eski bağlantı aynen kalır; klasörün sahibi
+  hesapla yeniden denenir ya da yeni hedef eklenip kopyalar elle uzlaştırılır.
 - Yedekler gece kimse giriş yapmadan gideceği için uygulama, Google'dan kalıcı
   bir yenileme anahtarı alır ve şifreli saklar. Kullanıcının parolası uygulamaya
   hiç gelmez.
@@ -595,7 +605,11 @@ hâlinin SHA-256'sı (`HedefKonumu::iz`; sır içermez). Dizin kurulurken olayda
 iz hedefin bugünkü iziyle uyuşmayan — ya da izi olmayan eski — kopya hedefe
 `tamam` bağlanmaz, **"konumu doğrulanamadı"** (`konum_belirsiz`) olur: ekranda
 uyarıyla görünür, geri yükleme kaynağı, silme, saklama ve kurtarma hazırlığı
-onu kopya saymaz, hedefin konum kilidini tutmaz. Örnek: eski yedeğin anında
+onu kopya saymaz, hedefin konum kilidini tutmaz. Dosyası bir yerde
+durabileceği için yedeği ise `silindi` yaptırmaz (F7; BY-028-R7): yerel
+dosyası olmayan yedek varsayılan listede kopyanın uyarısıyla kalır, elle
+silmede "kopya silinemedi" sonucu döner ve "tamamen silindi" olayı yazılmaz.
+Örnek: eski yedeğin anında
 kopyasız olan hedef sonra yer değiştirip yeni yerde kopya almışsa, eski
 veritabanı geri yüklenince hedef eski yerindedir; yeni yerdeki kopya ona
 bağlanmaz. Hedef kopyanın yerine döndürülünce sonraki taramada kopya yeniden
