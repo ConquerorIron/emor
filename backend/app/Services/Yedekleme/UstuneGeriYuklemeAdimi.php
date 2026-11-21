@@ -11,7 +11,7 @@ namespace App\Services\Yedekleme;
  * bakar. Her adım, işi yapılmadan ÖNCE dosyaya yazılır; süreç ölürse dosya
  * "hangi adımın içinde kalındığını" gösterir.
  *
- * Sıra (ileri akış): on_denetim → bakim_modu → oncesi_yedek → veritabani →
+ * Sıra (ileri akış): on_denetim → bakim_modu → yazici_bariyeri → oncesi_yedek → veritabani →
  * pg_restore → migration → dogrulama → baglanti_kapatma → yer_degistirme →
  * dizin_kurma → ayar_uzlastirma → onay_bekliyor → (onaylaniyor → onaylandi |
  * geri_donuluyor → geri_donuldu). Yer değiştirmeden önceki bir hatada:
@@ -21,6 +21,7 @@ enum UstuneGeriYuklemeAdimi: string
 {
     case OnDenetim = 'on_denetim';
     case BakimModu = 'bakim_modu';
+    case YaziciBariyeri = 'yazici_bariyeri';
     case OncesiYedek = 'oncesi_yedek';
     case Veritabani = 'veritabani';
     case PgRestore = 'pg_restore';
@@ -40,7 +41,7 @@ enum UstuneGeriYuklemeAdimi: string
 
     /** Ekranın adım listesi: ileri akışın sırası (README §6.4 1–9) */
     public const ILERI_AKIS = [
-        self::OnDenetim, self::BakimModu, self::OncesiYedek, self::Veritabani, self::PgRestore,
+        self::OnDenetim, self::BakimModu, self::YaziciBariyeri, self::OncesiYedek, self::Veritabani, self::PgRestore,
         self::Migration, self::Dogrulama, self::BaglantiKapatma, self::YerDegistirme,
         self::DizinKurma, self::AyarUzlastirma, self::OnayBekliyor,
     ];
@@ -54,7 +55,7 @@ enum UstuneGeriYuklemeAdimi: string
     public function yerDegistirmedenOnceMi(): bool
     {
         return in_array($this, [
-            self::OnDenetim, self::BakimModu, self::OncesiYedek, self::Veritabani, self::PgRestore,
+            self::OnDenetim, self::BakimModu, self::YaziciBariyeri, self::OncesiYedek, self::Veritabani, self::PgRestore,
             self::Migration, self::Dogrulama, self::BaglantiKapatma, self::GeriSariliyor,
         ], true);
     }

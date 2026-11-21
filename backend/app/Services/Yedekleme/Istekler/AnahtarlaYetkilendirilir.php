@@ -6,7 +6,7 @@ namespace App\Services\Yedekleme\Istekler;
 
 /**
  * İşaret: bu işleyicinin isteğinde yetki kullanıcı tablosundan denetlenmez;
- * işleyici, üstüne geri yüklemenin erişim anahtarını işlem durumundan
+ * işleyici, üstüne geri yüklemenin erişim anahtarından üretilen karar kanıtını işlem durumundan
  * doğrular (ErisimAnahtariylaYetkili; README §7.2, BY-029). Çalıştırıcı
  * (IstekCalistiricisi::yetkiDenetle) bu türlerde veritabanına bakmaz.
  */

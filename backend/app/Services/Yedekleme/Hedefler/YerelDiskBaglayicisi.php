@@ -34,7 +34,57 @@ final class YerelDiskBaglayicisi implements HedefBaglayicisi
     /** Hedef, yedek klasörünün kendisi mi (kopya yok). */
     public function anaKlasorMu(): bool
     {
-        return $this->klasor() === $this->yapilandirma->klasor();
+        return self::anaKlasorHedefiMi($this->hedef, $this->yapilandirma);
+    }
+
+    /**
+     * Hedef yedek klasörünün kendisi mi — ana klasörün TEK ölçütü: kopyalama,
+     * saklama, elle silme ve dizin taraması bunu kullanır (BY-008-R1). Klasör
+     * boşsa ana klasördür; verilmişse yazımına değil gerçek konumuna bakılır:
+     * sondaki `/`, `..`, sembolik bağlantı ya da bind mount aynı klasördür.
+     */
+    public static function anaKlasorHedefiMi(YedekHedefi $hedef, YedeklemeYapilandirmasi $yapilandirma): bool
+    {
+        return $hedef->tur === HedefTuru::Yerel
+            && self::ayniKonumMu(self::hedefKlasoru($hedef, $yapilandirma), $yapilandirma->klasor());
+    }
+
+    /**
+     * İki yol aynı dosya sistemi nesnesini mi gösteriyor: ikisi de okunabiliyorsa
+     * aygıt + düğüm numarası (realpath'in yakaladıklarına ek olarak sabit
+     * bağlantı ve bind mount); biri yoksa ya da erişilemiyorsa sadeleştirilmiş
+     * yazım (`.`, `..`, yinelenen ve sondaki `/`).
+     */
+    private static function ayniKonumMu(string $a, string $b): bool
+    {
+        clearstatcache(true, $a);
+        clearstatcache(true, $b);
+        $sa = @stat($a);
+        $sb = @stat($b);
+
+        if ($sa !== false && $sb !== false) {
+            return $sa['dev'] === $sb['dev'] && $sa['ino'] === $sb['ino'];
+        }
+
+        return self::sadelestir($a) === self::sadelestir($b);
+    }
+
+    private static function sadelestir(string $yol): string
+    {
+        $parcalar = [];
+        foreach (explode('/', $yol) as $parca) {
+            if ($parca === '' || $parca === '.') {
+                continue;
+            }
+            if ($parca === '..') {
+                array_pop($parcalar);
+
+                continue;
+            }
+            $parcalar[] = $parca;
+        }
+
+        return '/'.implode('/', $parcalar);
     }
 
     public function baglan(): void
@@ -51,8 +101,14 @@ final class YerelDiskBaglayicisi implements HedefBaglayicisi
         $this->adDenetle($ad);
         $hedef = $this->klasor().'/'.$ad;
 
-        if (realpath($yerelYol) === realpath($hedef) && realpath($hedef) !== false) {
-            return $ad;
+        // Ana klasör hedefinde kopya yapılmaz; başka bir hedefte aynı dosya
+        // (sembolik / sabit bağlantı) bağımsız kopya diye kabul edilmez (D4)
+        if (is_file($hedef) && self::ayniKonumMu($yerelYol, $hedef)) {
+            if ($this->anaKlasorMu()) {
+                return $ad;
+            }
+
+            throw new HedefHatasi(HedefHatasi::ANA_DOSYA, "Hedefteki dosya yedeğin yerel dosyasının kendisi; bağımsız kopya sayılmaz: {$ad}");
         }
 
         try {
@@ -69,7 +125,7 @@ final class YerelDiskBaglayicisi implements HedefBaglayicisi
         $this->adDenetle($uzakKimlik);
         $kaynak = $this->klasor().'/'.$uzakKimlik;
 
-        if (realpath($kaynak) !== false && realpath($kaynak) === realpath($yerelYol)) {
+        if (is_file($kaynak) && is_file($yerelYol) && self::ayniKonumMu($kaynak, $yerelYol)) {
             return;
         }
 
@@ -108,9 +164,14 @@ final class YerelDiskBaglayicisi implements HedefBaglayicisi
 
     private function klasor(): string
     {
-        $klasor = $this->hedef->baglanti['klasor'] ?? null;
+        return self::hedefKlasoru($this->hedef, $this->yapilandirma);
+    }
 
-        return is_string($klasor) && $klasor !== '' ? rtrim($klasor, '/') : $this->yapilandirma->klasor();
+    private static function hedefKlasoru(YedekHedefi $hedef, YedeklemeYapilandirmasi $yapilandirma): string
+    {
+        $klasor = $hedef->baglanti['klasor'] ?? null;
+
+        return is_string($klasor) && $klasor !== '' ? rtrim($klasor, '/') : $yapilandirma->klasor();
     }
 
     /** Yalnız düz dosya adı: hedef klasörünün dışına çıkılamaz */

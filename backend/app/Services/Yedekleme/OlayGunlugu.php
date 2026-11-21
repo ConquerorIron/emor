@@ -15,6 +15,9 @@ use RuntimeException;
  *
  * Ekleme `flock` altında, tek `fwrite` ve `fsync` ile yapılır: eşzamanlı iki
  * yazar satırları karıştırmaz, eklenen satır elektrik kesintisinde kaybolmaz.
+ * Önceki bir yazım satır ortasında kesildiyse (dosya `\n` ile bitmiyorsa) yeni
+ * satırdan önce satır sonu eklenir: yarım parça kendi satırında kalır ve
+ * okumada bozuk satır olarak atlanır, yeni olay ona bitişip kaybolmaz (D3).
  * Okumada imzası tutmayan ya da bozuk satır atlanır ve sayılır; günlüğün geri
  * kalanı okunur. Sınıf satır silmez / değiştirmez (salt eklemeli, K3).
  */
@@ -46,7 +49,8 @@ final class OlayGunlugu
 
         $yol = $this->yol();
         $yeni = ! file_exists($yol);
-        $tutamac = @fopen($yol, 'ab');
+        // a+: yazım hep sona gider, son bayt okunabilir (yarım satır denetimi)
+        $tutamac = @fopen($yol, 'a+b');
 
         if ($tutamac === false) {
             throw new RuntimeException("Olay günlüğü açılamadı: {$yol}");
@@ -57,8 +61,12 @@ final class OlayGunlugu
                 @chmod($yol, 0640);
             }
 
-            $yazildi = flock($tutamac, LOCK_EX)
-                && fwrite($tutamac, $satir) === strlen($satir)
+            if (! flock($tutamac, LOCK_EX)) {
+                throw new RuntimeException("Olay günlüğü kilitlenemedi: {$yol}");
+            }
+
+            $satir = $this->yarimSatiriAyir($tutamac).$satir;
+            $yazildi = fwrite($tutamac, $satir) === strlen($satir)
                 && fflush($tutamac)
                 && fsync($tutamac);
 
@@ -124,12 +132,45 @@ final class OlayGunlugu
      */
     public function durumlar(): array
     {
+        return self::durumlaraAyir($this->oku()['olaylar']);
+    }
+
+    /**
+     * Okunmuş olaylardan yedek başına güncel durum: günlüğü bir kez okuyan
+     * çağıran (dizin taraması) imza zincirini ikinci kez doğrulamaz.
+     *
+     * @param  list<YedekOlayi>  $olaylar
+     * @return array<string, GuncelDurum>
+     */
+    public static function durumlaraAyir(array $olaylar): array
+    {
         $gruplar = [];
-        foreach ($this->oku()['olaylar'] as $olay) {
+        foreach ($olaylar as $olay) {
             $gruplar[$olay->yedekKimligi][] = $olay;
         }
 
         return array_map(GuncelDurum::hesapla(...), $gruplar);
+    }
+
+    /**
+     * Kilit altında: dosya satır sonuyla bitmiyorsa (önceki yazım kesildi)
+     * yeni satırın önüne eklenecek "\n"; yarım parça ayrı satırda kalır.
+     *
+     * @param  resource  $tutamac  a+ kipinde, kilitli
+     */
+    private function yarimSatiriAyir($tutamac): string
+    {
+        $boyut = fstat($tutamac)['size'] ?? 0;
+
+        if ($boyut === 0) {
+            return '';
+        }
+
+        if (fseek($tutamac, $boyut - 1) !== 0 || ($son = fread($tutamac, 1)) === false) {
+            throw new RuntimeException("Olay günlüğünün sonu okunamadı: {$this->yol()}");
+        }
+
+        return $son === "\n" ? '' : "\n";
     }
 
     private function satiriCoz(string $satir): ?YedekOlayi

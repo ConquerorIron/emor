@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Services\Yedekleme\AyarKopyasi;
+use App\Services\Yedekleme\AyarSecimi;
 use App\Services\Yedekleme\GeriYuklemeHatasi;
 use App\Services\Yedekleme\IslemDurumuBozuk;
 use App\Services\Yedekleme\IslemTuru;
@@ -31,6 +33,7 @@ use Illuminate\Console\Command;
  */
 #[Signature('yedek:acil
     {islem : durum | onayla | geri-don}
+    {--ayar=* : Onayda farkı olan her ayar grubu için seçim: grup=guncel|geri_yuklenen (ör. --ayar=mail=guncel)}
     {--force : Onay sorusunu sorma}')]
 #[Description('Üstüne geri yüklemenin acil durum yolu: durum, onay, geri dönüş (web ve veritabanı erişilemezken de)')]
 final class YedekAcil extends Command
@@ -65,6 +68,18 @@ final class YedekAcil extends Command
             return self::SUCCESS;
         }
 
+        // Ayar seçimleri (BY-028-R2): varsayılan yok; farkı olan grupta seçim eksikse onay reddedilir
+        $secimler = [];
+        foreach ((array) $this->option('ayar') as $secenek) {
+            [$grup, $secim] = array_pad(explode('=', (string) $secenek, 2), 2, '');
+            $secimler[$grup] = $secim;
+        }
+        if (! AyarSecimi::gecerliMi($secimler)) {
+            $this->error('--ayar yalnız grup=guncel|geri_yuklenen olabilir; gruplar: '.implode(', ', AyarKopyasi::GRUPLAR).'.');
+
+            return self::INVALID;
+        }
+
         $soru = $islem === 'onayla'
             ? 'Geri yüklenen veritabanı onaylanacak ve uygulama AÇILACAK. Devam edilsin mi?'
             : 'Eski veritabanına geri dönülecek (geri yüklenen kopya silinmez) ve uygulama açılacak. Devam edilsin mi?';
@@ -83,7 +98,7 @@ final class YedekAcil extends Command
 
         try {
             $sonuc = $islem === 'onayla'
-                ? $ustune->onayla($kilit, $kayit->kimlik)
+                ? $ustune->onayla($kilit, $kayit->kimlik, $secimler)
                 : $ustune->geriDon($kilit, $kayit->kimlik);
         } catch (GeriYuklemeHatasi $hata) {
             $this->error("{$hata->kod}: {$hata->getMessage()}");
@@ -124,6 +139,10 @@ final class YedekAcil extends Command
             $this->line('Aktif ERP ortamı: '.($bilgi['aktif_erp_ortami']['onceki'] ?? '?').' → '.($bilgi['aktif_erp_ortami']['geri_yuklenen'] ?? '-'));
             $this->line('Kaybolacak kesinti yüklemesi: '.($bilgi['kaybolacak_yukleme_sayisi'] ?? '?'));
             $this->line('Ayar farkı: '.count($bilgi['ayar_farklari']).', kullanıcı farkı: '.count($bilgi['kullanici_farklari']).', rol farkı: '.count($bilgi['rol_farklari']));
+            $farkli = array_column(array_filter((array) ($bilgi['ayar_gruplari'] ?? []), fn (mixed $g): bool => is_array($g) && ($g['farkli'] ?? false) === true), 'grup');
+            if ($farkli !== []) {
+                $this->line('Onayda seçim isteyen ayar grupları (--ayar=grup=guncel|geri_yuklenen): '.implode(', ', $farkli));
+            }
         }
     }
 }

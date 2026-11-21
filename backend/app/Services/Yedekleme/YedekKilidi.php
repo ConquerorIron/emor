@@ -4,18 +4,20 @@ declare(strict_types=1);
 
 namespace App\Services\Yedekleme;
 
+use Illuminate\Support\Sleep;
 use InvalidArgumentException;
 use RuntimeException;
 
 /**
- * Yedek / geri yükleme / yayın kilidi (BY-005, README §5.2): işletim sistemi
- * dosya kilidi (flock). Veritabanına ve önbelleğe DAYANMAZ — ikisi de geri
- * yüklenen veritabanının içinde. Kilit, onu tutan süreç bitince (öldürülse de)
- * çekirdek tarafından bırakılır.
+ * Yedek / geri yükleme kilidi ve yayın kilidi (BY-005, BY-013-R1, README §5.2):
+ * işletim sistemi dosya kilidi (flock). Veritabanına ve önbelleğe DAYANMAZ —
+ * ikisi de geri yüklenen veritabanının içinde. Kilit, onu tutan süreç bitince
+ * (öldürülse de) çekirdek tarafından bırakılır.
  *
- * Aynı kilidi `deploy.sh` da `flock` komutuyla alır (BY-013). Sunucuda kilit
- * dosyası önceden açılır ve yayın kullanıcısı ona yalnız okuma iznine sahiptir
- * (BY-003): dosya bu yüzden salt okunur açılır — flock için yazma izni gerekmez.
+ * Yayın kilidini (YedeklemeYapilandirmasi::yayinKilidi) `deploy.sh` da `flock`
+ * komutuyla alır. Sunucuda kilit dosyaları önceden açılır ve yayın kullanıcısı
+ * onlara yalnız okuma iznine sahiptir (BY-003): dosya bu yüzden salt okunur
+ * açılır — flock için yazma izni gerekmez.
  *
  * "Meşgul" ile hata ayrıdır: yalnız başka sürecin tuttuğu kilit false döner.
  * Kilit dosyası açılamıyorsa (yanlış izin) ya da flock başka nedenle
@@ -127,7 +129,9 @@ final class YedekKilidi
                 return false;
             }
 
-            usleep(min(self::BEKLEME_ARALIGI_US, intdiv($kalanNs, 1000) + 1));
+            // Sleep (Laravel): testler bekleme sırasında olan şeyi (yetkinin
+            // alınması — BY-025-R2) sahte uykuyla kurabilir; gerçekte usleep
+            Sleep::usleep(min(self::BEKLEME_ARALIGI_US, intdiv($kalanNs, 1000) + 1));
         }
     }
 

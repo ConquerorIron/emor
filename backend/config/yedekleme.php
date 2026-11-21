@@ -56,6 +56,15 @@ return [
     // işi kendisi yapar. Tanınmayan değer `dogrudan`.
     'calistirici' => env('YEDEKLEME_CALISTIRICI') === 'servis' ? 'servis' : 'dogrudan',
 
+    // İstek dosyasının SAHİBİ (çekirdeğin verdiği uid) ile göndereni doğrulama
+    // (BY-025-R1): kullanıcılı istekler yalnız web kullanıcısının, kullanıcısız
+    // yayın öncesi yedek yalnız yayın kullanıcısının dosyasıysa işlenir. Servis
+    // kipinde kurulum betiği servis tanımına yazar (Environment). Web tanımsızsa
+    // çalıştırıcının kendi kullanıcısı (geçiş kipi); yayın tanımsızsa yayın
+    // isteği kabul edilmez. Değeri YedeklemeYapilandirmasi doğrular (G9).
+    'web_uid' => env('YEDEKLEME_WEB_UID') ?: null,
+    'yayin_uid' => env('YEDEKLEME_YAYIN_UID') ?: null,
+
     // Ayar kopyası ve denetim günlüğünün dosyası (README §5.3, §4.9): geri
     // yüklemeyle eskimeyen kayıt. Sunucu düzeninde /var/lib/emor-yedek/durum altında.
     'ayar_kopyasi' => env('YEDEKLEME_AYAR_KOPYASI') ?: storage_path('app/yedek-durum/ayarlar.json'),

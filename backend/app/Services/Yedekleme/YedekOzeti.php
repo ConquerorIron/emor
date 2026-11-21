@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Yedekleme;
 
 use App\Models\Yedek;
+use App\Models\YedekIslemKaydi;
 use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
 use Carbon\CarbonImmutable;
@@ -15,6 +16,11 @@ use Carbon\CarbonImmutable;
  * zamanı, son doğrulanmış sunucu dışı kopyanın veri zamanı, son başarılı
  * sınama geri yüklemesinin zamanı. Asıl sessizlik alarmı uygulama dışındadır
  * (yaşam sinyali); bu yalnız ekrandaki göstergedir.
+ *
+ * Sınama zamanı sınamanın başarılı denetim kaydından gelir, yedek satırının
+ * değişme zamanından değil (not / sabitleme yeni sınama gibi görünmesin;
+ * BY-012-R1). Uzak kopyada README §4.8 "veri zamanı"nı ister: eski bir yedeğin
+ * bugün aktarılması sunucu dışındaki verinin tazeliğini değiştirmez.
  */
 final class YedekOzeti
 {
@@ -31,7 +37,12 @@ final class YedekOzeti
             ->where('yedek_kopyalari.durum', KopyaDurumu::Tamam->value)
             ->where('yedek_kopyalari.sifreli', true)
             ->max('yedekler.alinma_zamani');
-        $sonSinama = Yedek::query()->where('dogrulama_durumu', DogrulamaDurumu::SinamaGecti->value)->max('updated_at');
+        // Sınamanın KENDİ kaydından (denetim kaydı); yedek satırının updated_at'i
+        // not / sabitleme ile de ilerler (BY-012-R1)
+        $sonSinama = YedekIslemKaydi::query()
+            ->where('islem', 'sinama_geri_yukleme')
+            ->where('sonuc', IslemSonucu::Basarili->value)
+            ->max('created_at');
         $siradaki = YedekPlani::query()->where('aktif', true)->min('sonraki_calisma');
 
         $klasor = $this->yapilandirma->klasor();

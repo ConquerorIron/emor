@@ -12,6 +12,7 @@ use App\Services\Yedekleme\IslemKaydi;
 use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\IslemTuru;
 use App\Services\Yedekleme\ManifestDeposu;
+use App\Services\Yedekleme\SahipsizYedekler;
 use App\Services\Yedekleme\YedekAlici;
 use App\Services\Yedekleme\YedekAlmaHatasi;
 use App\Services\Yedekleme\YedekDurumu;
@@ -211,5 +212,43 @@ final class YedekAliciTest extends TestCase
 
         $this->expectException(YedekAlmaHatasi::class);
         app(YedekAlici::class)->al($kilit, YedekKaynagi::Elle);
+    }
+
+    /** BY-007-R1: dump sırasında ölen süreçten kalan `calisiyor` kaydı kilidi yeni alan sonuçlandırır. */
+    public function test_dump_sirasinda_olen_surecin_kaydi_sonraki_yedekte_yarida_kaldi_olur_gecici_dosya_silinir(): void
+    {
+        $this->sahtePgAraclari();
+        mkdir(config('yedekleme.klasor'), 0750, true);
+        $olen = Yedek::factory()->create(['durum' => YedekDurumu::Calisiyor, 'dosya_adi' => 'erp_elle_2026-11-21_101010+0300.dump', 'imzali' => false]);
+        $gecici = config('yedekleme.klasor').'/.erp_elle_2026-11-21_101010+0300.dump.a1b2c3d4e5f6.tmp';
+        file_put_contents($gecici, 'PGDMP-yarim');
+
+        $yeni = $this->al();
+
+        $olen->refresh();
+        $this->assertSame([YedekDurumu::Basarisiz, SahipsizYedekler::YARIDA_KALDI], [$olen->durum, $olen->hata_kodu]);
+        $this->assertNotNull($olen->bitti);
+        $this->assertFileDoesNotExist($gecici);
+        $this->assertSame(YedekDurumu::Tamam, $yeni->durum);
+    }
+
+    /** BY-007-R1: dosya asıl adına taşındıktan hemen sonra ölen sürecin yedeği doğrulanmış dosya + imzalı manifestle tamamlanır. */
+    public function test_dosya_tasindiktan_sonra_olen_surecin_yedegi_imzali_manifestle_tamamlanir(): void
+    {
+        $this->sahtePgAraclari();
+        $kilit = $this->kilitAl();
+        $olen = app(YedekAlici::class)->al($kilit, YedekKaynagi::Elle);
+        // Süreç rename'den sonra, kayıt güncellenmeden öldü
+        $olen->update(['durum' => YedekDurumu::Calisiyor, 'imzali' => false, 'dogrulama_durumu' => DogrulamaDurumu::Dogrulanmadi, 'boyut' => null, 'sha256' => null, 'bitti' => null]);
+        $dump = config('yedekleme.klasor').'/'.$olen->dosya_adi;
+
+        app(YedekAlici::class)->al($kilit, YedekKaynagi::Elle);
+
+        $olen->refresh();
+        $this->assertSame(YedekDurumu::Tamam, $olen->durum);
+        $this->assertTrue($olen->imzali);
+        $this->assertSame(DogrulamaDurumu::OzetTamam, $olen->dogrulama_durumu);
+        $this->assertSame(hash_file('sha256', $dump), $olen->sha256);
+        $this->assertFileExists(ManifestDeposu::jsonYolu($dump));
     }
 }

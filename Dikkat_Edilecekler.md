@@ -190,6 +190,21 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   kaydedilip geri okunan anı UTC ile karşılaştır.
   *(BY-013 `yedek:eski-yedekleri-al`: addan okunan UTC zaman İstanbul'a
   çevrilip kaydedilince 13:10 oldu.)*
+- **G18 — Denetle-ve-yap tek atomik adım olsun.** Denetim ile eylem arasında
+  kilit beklemesi ya da eşzamanlı istek varsa son denetim kilit altında, eylemden
+  hemen önce tekrarlanır (beklerken yetkisi alınan kullanıcı). "Oku-sil"
+  (`Cache::pull` iki ayrı işlemdir) tek kullanımlık değeri iki isteğe
+  tüketebilir: `Cache::lock` altında önce eşleşmeyi denetle, eşleşmezse
+  TÜKETME, eşleşirse bir kez tüket. Testte bekleme anını `Sleep` sahtesiyle ya
+  da kilidi testin kendisi tutarak kur.
+  *(Codex BY-025-R2: yetki kilitten önce denetleniyordu. BY-021-R1: Google
+  dönüş durumu.)*
+- **G19 — Aynı fiziksel nesneyi tanıyan ölçüt tek yardımcıda ve gerçek konuma
+  göre olsun.** Yol metniyle karşılaştıran bir kod ile `realpath` / aygıt +
+  düğüm ile karşılaştıran kardeşi birlikte yaşarsa (sondaki `/`, `..`,
+  sembolik bağlantı) aynı dosya "bağımsız kopya" sayılır ve tek arşiv silinir.
+  Testte aynı klasörün üç yazımını dene.
+  *(Codex BY-008-R1.)*
 
 ## 2. Ön yüz
 
@@ -225,6 +240,13 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   haliyle) sakla, hedefin o değerdeki olayını yut. Testte kaynak yankıdan önce
   ilerlesin ve hedefin aralığı kısa olsun.
   *(DataTable üst kaydırma çubuğu: sağa kayarken tablo geri çekilip titriyordu.)*
+
+- **F5 — İş başlatan düğmeyi bekleme durumuyla da kilitle; `isPending` tek
+  başına yetmez.** İstek kimliği dönene kadar düğme açık kalırsa aynı iş iki kez
+  bırakılır; TanStack'in bekleme durumu da bir sonraki çizimde gelir, iki hızlı
+  tıklamayı kaçırır. Eşzamanlı `useRef` bayrağı + `isPending`; testte yanıtı
+  geciktir, art arda iki `fireEvent.click` → tek istek.
+  *(Codex BY-015-R1.)*
 
 ## 3. Testler
 
@@ -299,6 +321,11 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   *(BY-028: 8. adım hata kancası yalnız PostgreSQL'de çalışmıyordu.)*
   Aynı işte: bağlantı bırakma (`DB::purge`) yalnız etkilenen veritabanına
   bağlı bağlantılara uygulanır; hepsini bırakmak testi saran işlemi de koparır.
+- **T15 — Yeniden başlatmayı taklit eden test bellekteki durumu sıfırlasın.**
+  `Artisan::call` aynı komut nesnesini yeniden kullanır; komut özelliğinde
+  tutulan durum (son çalışma zamanı) "süreç yeniden başladı" testini yanlış
+  yeşil yapar. `app(Kernel::class)->setArtisan(null)` ile yeni nesne kur.
+  *(Codex BY-009-R1 düzeltmesinin ilk testi bu yüzden yanlış yeşildi.)*
 
 ## 4. Betikler ve dış komutlar
 
@@ -337,6 +364,14 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   verebilir. Zinciri kurulumun kalıcı kıldığı bir kökte durdur, kökü
   kurulum eşitlesin. Genel kural: bir düzeltme, izin sözleşmesinde olmayan
   yeni bir izin istememeli. Düzeltmeyi o sözleşmenin en dar izinleriyle sına.
+  **Çok parçalı yayında (paket, dosya seti) sabit adları tek tek değiştirme:**
+  yeni sürümü yaz, bütün parçalar doğrulanınca tamamlandı işaretçisini yaz;
+  eskiyi silmek ve başarı sinyali (yaşam sinyali, bildirim) işaretçiden SONRA.
+  Geri alınamaz bir isteği denetim kaydıyla birlikte yayınlıyorsan önce kaydı
+  yaz, en son yayınla; yayınlama düşerse aynı kimlikle izleyen kayıt ekle.
+  Testte ortadaki parçayı düşür: önceki set aynen, sinyal gitmemiş olmalı.
+  *(Codex BY-024-R1: kurtarma paketi. BY-014-R1: istek yayınlandıktan sonra
+  denetim kaydı düşünce iş çalışıyor, istemci 500 görüp tekrar deniyordu.)*
   *(BY-005-R3: taşıma sonrası klasör eşitlenmiyordu. BY-005-R9: ilk eşitleme
   başarısız olunca yeniden deneme üst klasörü atlayıp başarı dönüyordu.
   BY-005-R11: R9 düzeltmesi köke kadar eşitleyince yalnız geçilebilir üst
@@ -356,6 +391,10 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   durmalı: kök yoksa ya da okunamıyorsa sonuç "bilinmiyor"dur, kökün üstü
   okunabiliyor diye "yok" denmez.
   *(BY-005-R12: kurulmamış kalıcı kökte "açık geri yükleme yok" dönüyordu.)*
+  Aynı tuzağın liste biçimi: `is_dir($k) ? scandir($k) : []` erişilemeyen
+  klasörü BOŞ liste yapar; buna dayanan eşitleme (katalogdan silme) geçici bir
+  disk arızasında kayıtları düşürür. Erişilemeyen kaynakta değişiklikten önce dur.
+  *(Codex BY-011-R1.)*
 - **D7 — Ayrı hesap, daha az güvenilen hesabın yazabildiği kodu çalıştırmasın.**
   Bir işi "ele geçirilse bile X'e ulaşamasın" diye ayrı hesaba veriyorsan, o
   hesabın çalıştırdığı / yüklediği her dosyayı say: PHP önbellekleri
@@ -374,6 +413,13 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   zorunlu dosyayı (bakım modu) yazan kod bağlantı izlemesin. Sunucudaki gerçek
   izinlere bakarak doğrula; testte uygulamayı servisin ortamıyla açıp
   `get_included_files()`'ı ve çalışma zamanındaki günlük yollarını denetle.
+  Bir işi ayrı hesaba taşırken onu tetikleyen HER giriş noktasını say:
+  zamanlayıcı, kuyruk, yayın betiği, elle komut — biri eski hesapla çalışmaya
+  devam ederse iş yetkisizlikten sessizce düşer. Ortak yazılabilir klasördeki
+  isteğin göndericisini dosyanın İÇERİĞİ değil çekirdeğin verdiği sahibi (uid)
+  belirler; içerikteki bir alana istisna tanımak taklit edilebilir.
+  *(Codex BY-009-R1: servis kipinde planlı yedek web hesabıyla çalışıyordu.
+  BY-025-R1: kullanıcısız yayın isteği yalnız JSON alanına dayanıyordu.)*
   *(Fable incelemesi F1, F2: servis hesabı web grubuna alınmış, tanımı
   `UMask=0027` ile uygulamanın `storage/` ve `bootstrap/cache`'ini kullanacaktı.
   Önerilen `LARAVEL_STORAGE_PATH` bakım modunu bozacağı için uygulanmadı.
@@ -420,6 +466,13 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
 - **P2 — Bir işlem, değiştirdiği şeye dayanmasın.** Geri yüklenen
   veritabanında duran kilit, kuyruk, oturum, mail ayarı işlem sırasında kaybolur.
   "Bu adım çalışırken neye ihtiyaç duyuyor ve o şey o anda yerinde mi" diye sor.
+  Erişimi daraltan bir koruma (bağlantı yetkisini geri alan bariyer) kuruyorsan
+  işin kendi AÇACAĞI yeni bağlantıları da say: hangi rolle açılacaklarını
+  belirle, korumanın altında gerçek bağlantıyla sına. Paylaşılan bir durumu
+  (bakım modu) yalnız onu açan kapatsın; başta açıksa dokunma.
+  *(Codex BY-028-R1: öncesi yedeğin anlık görüntü bağlantısı uygulama rolüyle
+  açılıyordu, bariyer altında açılamazdı. BY-013-R1: yayın, geri yüklemenin
+  bakım modunu `artisan up` ile kaldırabiliyordu.)*
 - **P3 — Adımların sırasını "arada ne olur" sorusuyla denetle.** İki adım
   arasında girilen kayıt, kopan bağlantı, yeniden başlayan sunucu.
   *(Geri yükleme öncesi yedek bakım modundan önce alınıyordu.)*

@@ -41,13 +41,21 @@ use Throwable;
  * 5. Temkin: en son yedek denemesi başarısızsa HİÇBİR ŞEY silinmez — yeni
  *    başarılı yedek gelmedikçe eldekiler tutulur. İşlem durumu dosyası
  *    okunamıyorsa da (kullanımdakiler bilinmiyor) silinmez.
+ * 6. Planlı yedeğin yerel dosyası (planlarında yedek klasörü hedefi yoksa)
+ *    otomatik olarak YALNIZ burada silinir: bütün zorunlu hedefler doğrulanmış
+ *    olmalı, sabit / kullanımdaki yedeğin dosyası kalır (BY-010-R1).
+ *    PlanliYedek her yedekten sonra burayı çalıştırır.
  */
 final class SaklamaPolitikasi
 {
+    /** Plan yedeğinin yerel (aktarım) dosyasını tutan korumalar — bkz. hesapla() */
+    private const YEREL_AKTARIM_KORUMALARI = ['sabit', 'kullanimda', 'uzak_kopya_dogrulanmadi'];
+
     public function __construct(
         private readonly HedefKatalogu $katalog,
         private readonly KullanimDenetimi $kullanim,
         private readonly YerelDosyaSilici $yerelSilici,
+        private readonly KopyaSilmeKaydi $silmeKaydi,
         private readonly OlayGunlugu $olaylar,
         private readonly YedekDenetimi $denetim,
         private readonly YedekBildirimcisi $bildirimci,
@@ -99,10 +107,10 @@ final class SaklamaPolitikasi
         $anaHedefler = $this->anaKlasorHedefleri($kopyalar->pluck('yedek_hedefi_id')->unique()->all());
         $kararlar = [];
 
-        // F7: uzak kopyası doğrulanmamış (başarısız / bekleyen) yedeğin yerel
-        // dosyası silinmez — yeniden denemenin kaynağıdır
+        // F7: uzak kopyası doğrulanmamış (başarısız / bekleyen / yarıda kalmış)
+        // yedeğin yerel dosyası silinmez — yeniden denemenin kaynağıdır
         $dogrulanmamisUzak = array_fill_keys(YedekKopyasi::query()
-            ->whereIn('durum', [KopyaDurumu::Basarisiz->value, KopyaDurumu::Bekliyor->value])
+            ->whereIn('durum', [KopyaDurumu::Basarisiz->value, KopyaDurumu::Bekliyor->value, KopyaDurumu::Kopyalaniyor->value])
             ->whereIn('yedek_id', $yedekler->keys())
             ->pluck('yedek_id')->map(fn ($id) => (int) $id)->all(), true);
         $yerelKorunan = $korunan;
@@ -165,16 +173,33 @@ final class SaklamaPolitikasi
             }
         }
 
+        // Yedek klasörü grubu. Plan yedeğinin yerel dosyası (planlarında ana
+        // klasör hedefi yok; README §4.2) yalnız burada silinir (BY-010-R1):
+        // en az bir uzak kopya doğrulanmış ve zorunlu hedeflerin hiçbiri
+        // bekliyor / kopyalanıyor / başarısız değilse (`uzak_kopya_dogrulanmadi`;
+        // PlanliYedek kopyalamadan önce her hedefe `bekliyor` kaydı açar).
+        // Sabit ve kullanımdaki yedeğin dosyası da kalır. "Son başarılı",
+        // "doğrulanmış en yeni" ve en az sayı yedeğin KENDİSİNİ korur: yedek
+        // uzak hedefte durduğu için bu korumalar onun grubunda uygulanır,
+        // aktarım kaynağı olan yerel dosyayı tutmaz.
         $adaylar = [];
+        $zamanlanmamis = $klasorGrubu->filter(fn (Yedek $y): bool => $y->kaynak !== YedekKaynagi::Plan)->values();
         foreach ($klasorGrubu as $yedek) {
-            $neden = $yedek->kaynak === YedekKaynagi::Plan
-                ? (in_array($yedek->id, $uzakKopyasiOlanlar, true) ? SilmeKarari::NEDEN_UZAK_KOPYA_VAR : null)
-                : $this->zamanlanmamisNedeni($yedek, $klasorGrubu, $ayar, $simdi);
+            if ($yedek->kaynak === YedekKaynagi::Plan) {
+                $engel = array_intersect($yerelKorunan[$yedek->id] ?? [], self::YEREL_AKTARIM_KORUMALARI);
+                if (in_array($yedek->id, $uzakKopyasiOlanlar, true) && $engel === []) {
+                    $kararlar[] = new SilmeKarari(SilmeKarari::DOSYA, $yedek->id, null, null, null, SilmeKarari::NEDEN_UZAK_KOPYA_VAR);
+                }
+
+                continue;
+            }
+
+            $neden = $this->zamanlanmamisNedeni($yedek, $zamanlanmamis, $ayar, $simdi);
             if ($neden !== null) {
                 $adaylar[] = new SilmeKarari(SilmeKarari::DOSYA, $yedek->id, null, null, null, $neden);
             }
         }
-        array_push($kararlar, ...$this->suz($adaylar, $klasorGrubu->count(), $yedekler, $yerelKorunan, $ayar->enaz_adet));
+        array_push($kararlar, ...$this->suz($adaylar, $zamanlanmamis->count(), $yedekler, $yerelKorunan, $ayar->enaz_adet));
         $korunan = $this->birlestir($korunan, $yerelKorunan);
 
         return ['silinecek' => $kararlar, 'korunan' => $korunan, 'temkin' => null];
@@ -253,10 +278,9 @@ final class SaklamaPolitikasi
                     $this->denetim->kaydet('saklama_sil', IslemSonucu::Basarili, $yedek->id, $kullaniciId, null, $karar->diziye());
                 } catch (HedefHatasi $hata) {
                     if ($hata->kod === HedefHatasi::SILME_YETKISI_YOK && $karar->kopyaId !== null) {
-                        // Değiştirilemez saklama: uygulamanın silme yetkisi yok, hedefin kendi kuralı temizler (README §4.6)
-                        YedekKopyasi::query()->whereKey($karar->kopyaId)->update([
-                            'durum' => KopyaDurumu::Silindi->value, 'hata_kodu' => $hata->kod, 'silinme_zamani' => CarbonImmutable::now(),
-                        ]);
+                        // Değiştirilemez saklama: uygulamanın silme yetkisi yok, hedefin kendi kuralı
+                        // temizler (README §4.6). Mantıksal silme de imzalı olaya yazılır (BY-023-R1)
+                        $this->silmeKaydi->kaydet(YedekKopyasi::query()->with('hedef')->findOrFail($karar->kopyaId), $hata->kod);
                         $sonuc['bilgi'][] = "hedef {$hedefId}: silme yetkisi yok ({$yedek->dosya_adi}); hedefin kendi saklama kuralı temizler";
                         $this->denetim->kaydet('saklama_sil', IslemSonucu::Basarili, $yedek->id, $kullaniciId, null, [...$karar->diziye(), 'bilgi' => $hata->kod]);
 
@@ -282,37 +306,23 @@ final class SaklamaPolitikasi
     private function dosyaSil(Yedek $yedek, SilmeKarari $karar, mixed $baglayici): void
     {
         if ($karar->hedefId === null) {
-            $this->yerelSilici->sil($yedek, uzakKopyaSart: $yedek->kaynak === YedekKaynagi::Plan);
+            $this->yerelSilici->sil($yedek);
 
             return;
         }
 
         $kopya = YedekKopyasi::query()->with('hedef')->findOrFail($karar->kopyaId);
 
+        // Yedek klasörünün kendisi olan hedefin kopyası yerel dosyanın kendisidir
         if ($baglayici instanceof YerelDiskBaglayicisi && $baglayici->anaKlasorMu()) {
-            $this->kopyaSilindi($kopya);
-            $this->yerelSilici->sil($yedek, uzakKopyaSart: false, haricHedefId: $karar->hedefId);
+            $this->silmeKaydi->kaydet($kopya);
+            $this->yerelSilici->sil($yedek->refresh());
 
             return;
         }
 
         $baglayici->sil((string) $kopya->uzak_kimlik);
-        $this->kopyaSilindi($kopya);
-
-        $kalan = YedekKopyasi::query()->where('yedek_id', $yedek->id)->where('durum', KopyaDurumu::Tamam->value)->exists();
-        $yerelVar = $yedek->yerel_silinme_zamani === null;
-        if (! $kalan && ! $yerelVar) {
-            $yedek->update(['durum' => YedekDurumu::Silindi, 'silinme_zamani' => CarbonImmutable::now()]);
-            $this->olaylar->ekle(YedekOlayi::simdi($yedek->kimlik, OlayTuru::Silindi));
-        }
-    }
-
-    private function kopyaSilindi(YedekKopyasi $kopya): void
-    {
-        $kopya->update(['durum' => KopyaDurumu::Silindi, 'silinme_zamani' => CarbonImmutable::now()]);
-        $this->olaylar->ekle(YedekOlayi::simdi($kopya->yedek->kimlik, OlayTuru::KopyaSilindi, [
-            'hedef_id' => $kopya->yedek_hedefi_id, 'hedef_ad' => $kopya->hedef->ad,
-        ]));
+        $this->silmeKaydi->kaydet($kopya);
     }
 
     /** Bağ kalktığında kopyanın güncel plan listesi olay günlüğüne (dizin yeniden kurulurken bağ geri gelmesin). */

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Services\Yedekleme\YapilandirmaHatasi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -108,6 +109,32 @@ final class YedeklemeYapilandirmasiTest extends TestCase
         // Ham değer tüketen sınıfta doğrulanır ve tam sayıya çevrilir (BY-007, G9)
         config(['yedekleme.sure_siniri.yedek' => $yapilandirma['sure_siniri']['yedek']]);
         $this->assertSame(900, app(YedeklemeYapilandirmasi::class)->sureSiniri('yedek'));
+    }
+
+    public function test_istek_gondereni_uid_ayari_bos_gecerli_ve_gecersiz_degerde(): void
+    {
+        $yapilandirma = app(YedeklemeYapilandirmasi::class);
+        $surec = stat('/proc/self')['uid'];
+
+        // Boş: web = bu süreç (geçiş kipi), yayın tanımsız (yayın isteği kabul edilmez)
+        config(['yedekleme.web_uid' => null, 'yedekleme.yayin_uid' => null]);
+        $this->assertSame($surec, $yapilandirma->webUid());
+        $this->assertNull($yapilandirma->yayinUid());
+
+        config(['yedekleme.web_uid' => '33', 'yedekleme.yayin_uid' => '1000']);
+        $this->assertSame(33, $yapilandirma->webUid());
+        $this->assertSame(1000, $yapilandirma->yayinUid());
+
+        // Geçersiz değer sessizce dönüştürülmez (G9); yayın = web istisnayı taklit ettirirdi
+        foreach ([['web_uid', 'abc'], ['web_uid', '-1'], ['yayin_uid', '1.5'], ['yayin_uid', '33']] as [$anahtar, $deger]) {
+            config(['yedekleme.web_uid' => '33', 'yedekleme.yayin_uid' => '1000', "yedekleme.{$anahtar}" => $deger]);
+            try {
+                $anahtar === 'web_uid' ? $yapilandirma->webUid() : $yapilandirma->yayinUid();
+                $this->fail("{$anahtar}={$deger} kabul edildi");
+            } catch (YapilandirmaHatasi) {
+                // beklenen
+            }
+        }
     }
 
     /**

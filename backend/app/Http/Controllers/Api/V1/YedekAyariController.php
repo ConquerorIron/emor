@@ -11,16 +11,22 @@ use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\KopyaSifreleyici;
 use App\Services\Yedekleme\SifrelemeHatasi;
 use App\Services\Yedekleme\YedekDenetimi;
+use App\Services\Yedekleme\YedekImzasi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
+use Closure;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
+use Throwable;
 
 /**
  * Ayarlar → Yedekleme Ayarları (BY-018; README §4.3, §4.8, §4.7). Tek satır.
  * Her değişiklik denetim kaydına (eski → yeni değerler) ve ayar dosya
  * kopyasına yazılır (`AyarKopyasi`: veritabanı geri yüklenince ayarlar
- * kaybolmasın; çalıştırıcı mail ayarını oradan da okur).
+ * kaybolmasın; çalıştırıcı mail ayarını oradan da okur). Doğrudan kipte
+ * kopya yazılamazsa veritabanı değişikliği de geri alınır (kaydet()).
  *
  * Şifreleme açık anahtarı ayrı uçla yüklenir; özel anahtar içeren metin
  * reddedilir (sunucu özel anahtar saklamaz — BY-019).
@@ -37,6 +43,7 @@ final class YedekAyariController extends Controller
         private readonly YedekDenetimi $denetim,
         private readonly AyarKopyasi $ayarKopyasi,
         private readonly YedeklemeYapilandirmasi $yapilandirma,
+        private readonly YedekImzasi $imza,
     ) {}
 
     public function show(): JsonResponse
@@ -62,12 +69,12 @@ final class YedekAyariController extends Controller
             'sinyal_sinama_adresi' => $sinyal,
         ]);
 
-        $ayar = YedekAyari::guncel();
-        $once = Arr::only($ayar->attributesToArray(), self::ALANLAR);
-        $ayar->fill(Arr::only($veri, self::ALANLAR))->save();
-        $sonra = Arr::only($ayar->refresh()->attributesToArray(), self::ALANLAR);
+        $ayar = $this->kaydet($request, 'ayar_guncelle', function (YedekAyari $ayar) use ($veri): array {
+            $once = Arr::only($ayar->attributesToArray(), self::ALANLAR);
+            $ayar->fill(Arr::only($veri, self::ALANLAR))->save();
 
-        $this->kaydet($request, 'ayar_guncelle', $this->fark($once, $sonra));
+            return $this->fark($once, Arr::only($ayar->refresh()->attributesToArray(), self::ALANLAR));
+        });
 
         return response()->json(['data' => $this->diziye($ayar)]);
     }
@@ -84,15 +91,17 @@ final class YedekAyariController extends Controller
             return response()->json(['kod' => $hata->kod, 'mesaj' => $hata->getMessage(), 'hatalar' => ['acik_anahtar' => [$hata->getMessage()]]], 422);
         }
 
-        $ayar = YedekAyari::guncel();
-        $onceki = $ayar->sifreleme_parmak_izi;
-        $ayar->fill([
-            'sifreleme_acik_anahtari' => trim($veri['acik_anahtar']),
-            'sifreleme_parmak_izi' => $bilgi['parmak_izi'],
-            'sifreleme_anahtar_kullanicisi' => $bilgi['kullanici'],
-            'sifreleme_anahtar_bitisi' => $bilgi['bitis'],
-        ])->save();
-        $this->kaydet($request, 'sifreleme_anahtari_yukle', ['onceki_parmak_izi' => $onceki, 'parmak_izi' => $bilgi['parmak_izi']]);
+        $ayar = $this->kaydet($request, 'sifreleme_anahtari_yukle', function (YedekAyari $ayar) use ($veri, $bilgi): array {
+            $onceki = $ayar->sifreleme_parmak_izi;
+            $ayar->fill([
+                'sifreleme_acik_anahtari' => trim($veri['acik_anahtar']),
+                'sifreleme_parmak_izi' => $bilgi['parmak_izi'],
+                'sifreleme_anahtar_kullanicisi' => $bilgi['kullanici'],
+                'sifreleme_anahtar_bitisi' => $bilgi['bitis'],
+            ])->save();
+
+            return ['onceki_parmak_izi' => $onceki, 'parmak_izi' => $bilgi['parmak_izi']];
+        });
 
         return response()->json(['data' => $this->diziye($ayar)]);
     }
@@ -100,25 +109,72 @@ final class YedekAyariController extends Controller
     /** Anahtarı kaldır: sunucu dışı kopyalar şifrelenemez, gönderilmez (sessizce şifresiz gitmez) */
     public function anahtarKaldir(Request $request): JsonResponse
     {
-        $ayar = YedekAyari::guncel();
-        $onceki = $ayar->sifreleme_parmak_izi;
-        $ayar->fill(['sifreleme_acik_anahtari' => null, 'sifreleme_parmak_izi' => null, 'sifreleme_anahtar_kullanicisi' => null, 'sifreleme_anahtar_bitisi' => null])->save();
-        $this->kaydet($request, 'sifreleme_anahtari_kaldir', ['onceki_parmak_izi' => $onceki]);
+        $ayar = $this->kaydet($request, 'sifreleme_anahtari_kaldir', function (YedekAyari $ayar): array {
+            $onceki = $ayar->sifreleme_parmak_izi;
+            $ayar->fill(['sifreleme_acik_anahtari' => null, 'sifreleme_parmak_izi' => null, 'sifreleme_anahtar_kullanicisi' => null, 'sifreleme_anahtar_bitisi' => null])->save();
+
+            return ['onceki_parmak_izi' => $onceki];
+        });
 
         return response()->json(['data' => $this->diziye($ayar)]);
     }
 
     /**
-     * @param  array<string, mixed>  $ayrinti
+     * Değişikliği uygular: veritabanı, denetim kaydı ve (doğrudan kipte) ayar
+     * dosya kopyası birlikte; biri olmazsa hiçbiri olmaz (BY-018-R1, D3).
+     *
+     * - Ön koşul (imza anahtarı) YAZMADAN önce denetlenir: yoksa 409, hiçbir
+     *   şey değişmez.
+     * - Veritabanı yazımı + kopya yazımı tek işlemde: kopya yazılamazsa işlem
+     *   geri alınır. Kopya atomik yazılır (geçici ad + taşıma): önceki kopya
+     *   baytlarıyla kalır. Hata istemciye döner; denetime `basarisiz` eklenir.
+     * - Servis kipinde web süreci durum klasörüne yazamaz ve imza anahtarını
+     *   okuyamaz (README §5.5): kopyayı çalıştırıcı her turda tazeler.
+     *
+     * @param  Closure(YedekAyari): array<string, mixed>  $degistir  Değişikliği yapar, denetim ayrıntısını döner
      */
-    private function kaydet(Request $request, string $islem, array $ayrinti): void
+    private function kaydet(Request $request, string $islem, Closure $degistir): YedekAyari
     {
-        $this->denetim->kaydet($islem, IslemSonucu::Basarili, null, (int) $request->user()->id, null, $ayrinti);
+        $dogrudan = ! $this->yapilandirma->servisCalistiricisi();
+        $kullaniciId = (int) $request->user()->id;
 
-        // Servis kipinde web süreci durum klasörüne yazamaz ve imza anahtarını
-        // okuyamaz (README §5.5): kopyayı çalıştırıcı her turda tazeler.
-        if (! $this->yapilandirma->servisCalistiricisi()) {
-            $this->ayarKopyasi->yaz();
+        if ($dogrudan && ! $this->imza->anahtarVarMi()) {
+            throw new HttpResponseException(response()->json(['kod' => 'YEDEK_IMZA_ANAHTARI_YOK', 'mesaj' => __('hata.yedek_imza_anahtari_yok')], 409));
+        }
+
+        $kopyaHatasi = null;
+
+        try {
+            return DB::transaction(function () use ($islem, $degistir, $dogrudan, $kullaniciId, &$kopyaHatasi): YedekAyari {
+                $ayar = YedekAyari::guncel();
+                $this->denetim->kaydet($islem, IslemSonucu::Basarili, null, $kullaniciId, null, $degistir($ayar));
+
+                // Son adım: geri alınamayan tek yazım (dosya) en sonda
+                if ($dogrudan) {
+                    try {
+                        $this->ayarKopyasi->yaz();
+                    } catch (Throwable $hata) {
+                        $kopyaHatasi = $hata;
+
+                        throw $hata;
+                    }
+                }
+
+                return $ayar;
+            });
+        } catch (Throwable $hata) {
+            if ($kopyaHatasi === null) {
+                throw $hata;
+            }
+
+            try {
+                $this->denetim->kaydet($islem, IslemSonucu::Basarisiz, null, $kullaniciId, null, ['kod' => 'AYAR_KOPYASI_YAZILAMADI'], $hata::class);
+            } catch (Throwable) {
+                // En iyi çaba: asıl hata aşağıda raporlanır
+            }
+            report($hata);
+
+            throw new HttpResponseException(response()->json(['kod' => 'YEDEK_AYAR_KOPYASI_YAZILAMADI', 'mesaj' => __('hata.yedek_ayar_kopyasi_yazilamadi')], 500));
         }
     }
 

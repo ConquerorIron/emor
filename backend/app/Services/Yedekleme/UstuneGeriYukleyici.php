@@ -28,18 +28,28 @@ use Throwable;
  *    adların boşluğu, uygulama bakım modunda değil.
  * 2. Bakım modu (BakimModu), kuyruk servisi durur (KuyrukServisi);
  *    zamanlayıcı ve işçi açık işlemi dosyadan da görür (AcikGeriYuklemeKorumasi).
- * 3. Geri yükleme öncesi yedek — bakım modundan SONRA (P3).
- * 4. `erp_geri_*`'ye manifestteki özelliklerle geri yükle, manifestle karşılaştır.
+ *    Yazıcı bariyeri (BY-028-R1): canlının özgün bağlanma yetkileri durum
+ *    dosyasına yazılır, CONNECT yalnız servis rolüne bırakılır, bu süreç
+ *    dışındaki oturumlar sonlandırılır ve bitmeleri beklenir. Başlamış web
+ *    isteği / zamanlanmış komut artık öncesi yedekten sonra yazamaz.
+ * 3. Geri yükleme öncesi yedek — bakım modundan ve bariyerden SONRA (P3);
+ *    anlık görüntü bağlantısı servis rolüyle, manifesti ÖZGÜN yetkileri taşır.
+ * 4. `erp_geri_*`'ye manifestteki özelliklerle (bağlanma yetkileri dahil —
+ *    BY-026-R1) geri yükle, manifestle karşılaştır.
  * 5. Migration ayrı süreçte, yalnız yeni veritabanında; sağlık denetimi.
- *    Önceki tarafın onay özeti (OnayBilgisi) bu noktada alınır.
+ *    Ayarların dosya kopyası tazelenir; önceki tarafın onay özeti
+ *    (OnayBilgisi) bu noktada alınır.
  * 6. Canlıyı yeni bağlantılara kapat, mevcutları kopar.
  * 7. Adları tek işlemde değiştir (canlı → `erp_onceki_*`, yeni → canlı).
- * 8. Dizini klasörden kur; geçmiş kaydını dosyadan yeniden yaz; ayar /
+ * 8. `erp_onceki_*`'e özgün yetkiler geri konur (bağlantıya kapalı kalır);
+ *    dizini klasörden kur; geçmiş kaydını dosyadan yeniden yaz; ayar /
  *    kullanıcı / rol farkını hesapla.
  * 9. "Onay bekliyor": bakım modu sürer. İşleyici burada DÖNER (tek
  *    çalıştırıcı kilidi: dönmezse onay isteği hiç işlenemezdi).
- * 10. Onay: kuyruk başlar, bakım modundan çıkılır. Geri dön: adlar eski
- *     hâline (geri yüklenen kopya `erp_geri_*` adıyla, silinmeden), açılır.
+ * 10. Onay: farkı olan her ayar grubu için yöneticinin seçimi zorunlu;
+ *     `guncel` seçilenler veritabanına yazılır (AyarSecimi), kuyruk başlar,
+ *     bakım modundan çıkılır. Geri dön: adlar eski hâline (geri yüklenen
+ *     kopya `erp_geri_*` adıyla, silinmeden), canlıya özgün yetkiler, açılır.
  *
  * Hata kuralı: 7. adımdan önceki hatada canlı yerindedir — yeni veritabanı
  * silinir, servisler açılır (geri sarma). 7. adımdan sonra hiçbir hata yolu
@@ -65,6 +75,8 @@ final class UstuneGeriYukleyici
         private readonly ManifestDeposu $manifestler,
         private readonly YedekDenetimi $denetim,
         private readonly YedekBildirimcisi $bildirimci,
+        private readonly AyarKopyasi $ayarKopyasi,
+        private readonly AyarSecimi $ayarSecimi,
     ) {}
 
     /**
@@ -207,15 +219,21 @@ final class UstuneGeriYukleyici
     }
 
     /**
-     * Yöneticinin onayı (README §6.4 10. adım): kuyruk başlar, bakım
-     * modundan çıkılır, işlem kapanır, bildirim doğrudan gider. Veritabanına
-     * yazılanlar (geçmiş, denetim) en iyi çabadır: veritabanına erişilemese
-     * de onay tamamlanır (`yedek:acil` — BY-029).
+     * Yöneticinin onayı (README §6.4 10. adım, §5.3): farkı olan her ayar
+     * grubu için seçim zorunludur (varsayılan yok); seçim durum dosyasına
+     * yazılır, `guncel` seçilen gruplar sistem açılmadan geri yüklenen
+     * veritabanına yazılır (yazılamazsa onay durur, uygulama kapalı kalır,
+     * karar yine yöneticinin). Sonra kuyruk başlar, bakım modundan çıkılır,
+     * işlem kapanır, bildirim doğrudan gider. Veritabanına yazılanlar (geçmiş,
+     * denetim) en iyi çabadır: veritabanına erişilemese de "geri yüklenen"
+     * seçimleriyle onay tamamlanır (`yedek:acil` — BY-029).
+     *
+     * @param  array<string, string>  $ayarSecimleri  grup => guncel | geri_yuklenen (AyarSecimi)
      *
      * @throws LogicException Kilit tutulmuyor
-     * @throws GeriYuklemeHatasi ISLEM_DURUMU_UYGUN_DEGIL: kimlik tutmuyor ya da yer değiştirme yapılmamış
+     * @throws GeriYuklemeHatasi ISLEM_DURUMU_UYGUN_DEGIL: kimlik tutmuyor ya da yer değiştirme yapılmamış; AYAR_SECIMI_EKSIK: farkı olan grupta seçim yok (hiçbir şey değişmedi)
      */
-    public function onayla(YedekKilidi $kilit, string $islemKimligi): IslemKaydi
+    public function onayla(YedekKilidi $kilit, string $islemKimligi, array $ayarSecimleri = []): IslemKaydi
     {
         $this->kilitDenetle($kilit);
         [$kayit, $adim] = $this->kararVerilecekIslem($islemKimligi);
@@ -224,7 +242,59 @@ final class UstuneGeriYukleyici
             throw new GeriYuklemeHatasi(GeriYuklemeHatasi::ISLEM_DURUMU_UYGUN_DEGIL, 'Onay yalnız yer değiştirmeden sonra verilir (şu anki adım: '.$adim->value.').');
         }
 
+        // Onay başlamışsa (kuyruk / bakım adımında durmuş) seçim zaten uygulanmıştır
+        if ($adim !== UstuneGeriYuklemeAdimi::Onaylaniyor) {
+            $eksik = array_values(array_diff($this->secimGerekenGruplar($kayit->kimlik), array_keys($ayarSecimleri)));
+            if (! AyarSecimi::gecerliMi($ayarSecimleri) || $eksik !== []) {
+                throw new GeriYuklemeHatasi(GeriYuklemeHatasi::AYAR_SECIMI_EKSIK, 'Farkı olan her ayar grubu için "güncel" ya da "geri yüklenen" seçilmeli (eksik: '.(implode(', ', $eksik) ?: 'geçersiz seçim').'); onay verilmedi.');
+            }
+
+            $kayit = $this->yaz($kilit, $kayit, $adim, true, $kayit->hata, ayarSecimleri: $ayarSecimleri);
+
+            try {
+                $uyarilar = $this->ayarSecimi->uygula($ayarSecimleri);
+            } catch (Throwable $hata) {
+                $bilgi = $this->hataBilgisi($hata, GeriYuklemeHatasi::AYAR_SECIMI_UYGULANAMADI);
+                $kayit = $this->yaz($kilit, $kayit, $adim, true, $bilgi);
+                $this->denetle('geri_yukle_ustune_ayar_secimi', IslemSonucu::Basarisiz, $kayit, ['kod' => $bilgi['kod'], 'ayar_secimleri' => $ayarSecimleri], $bilgi['mesaj']);
+                $this->bildir('geri_yukleme_basarisiz', $kayit, ["Onay tamamlanamadı: {$bilgi['kod']}: {$bilgi['mesaj']}", 'Uygulama bakım modunda; seçimi değiştirip yeniden onaylayın ya da geri dönün.'], ':ayar');
+
+                return $kayit;
+            }
+
+            $this->denetle('geri_yukle_ustune_ayar_secimi', IslemSonucu::Basarili, $kayit, ['ayar_secimleri' => $ayarSecimleri, 'uyarilar' => $uyarilar]);
+            if ($uyarilar !== []) {
+                $this->bildir('geri_yukleme_onay', $kayit, $uyarilar, ':ayar');
+            }
+        }
+
         return $this->onaylaTamamla($kilit, $kayit);
+    }
+
+    /**
+     * Onay / geri dönüş kararının kanıtını tüketir (BY-030-R1): nonce işlem
+     * durumuna yazılır; aynı kanıt ikinci kez kullanılamaz. Süresi geçmiş
+     * nonce'lar düşer (onların kanıtı zaten reddedilir).
+     *
+     * @throws LogicException Kilit tutulmuyor
+     * @throws GeriYuklemeHatasi KARAR_KANITI_KULLANILDI; işlem bu kimlikle açık değil
+     */
+    public function kanitTuket(YedekKilidi $kilit, string $islemKimligi, string $nonce, int $sonGecerlilik): void
+    {
+        $this->kilitDenetle($kilit);
+        [$kayit, $adim] = $this->kararVerilecekIslem($islemKimligi);
+
+        $simdi = CarbonImmutable::now()->getTimestamp();
+        $kanitlar = array_filter($kayit->kullanilanKanitlar, fn (int $son): bool => $son >= $simdi);
+        if (isset($kanitlar[$nonce])) {
+            throw new GeriYuklemeHatasi(GeriYuklemeHatasi::KARAR_KANITI_KULLANILDI, 'Bu karar daha önce işlendi; yeniden uygulanmadı.');
+        }
+
+        $kanitlar[$nonce] = $sonGecerlilik;
+        asort($kanitlar);
+        $kanitlar = array_slice($kanitlar, -IslemKaydi::EN_COK_KANIT, null, true);
+
+        $this->yaz($kilit, $kayit, $adim, $kayit->acik, $kayit->hata, kullanilanKanitlar: $kanitlar);
     }
 
     /**
@@ -268,9 +338,23 @@ final class UstuneGeriYukleyici
             $this->bakim->gir($kayit->kimlik);
             $this->kuyruk->durdur();
 
-            // Bakım modundan SONRA: arada girilen kayıt bu yedekte olur (P3)
+            // Yazıcı bariyeri (BY-028-R1). Özgün yetkiler bariyerden ÖNCE durum
+            // dosyasına: süreç ölürse geri sarma / geri dönüş onları geri koyar
+            $adim(UstuneGeriYuklemeAdimi::YaziciBariyeri);
+            $ozgun = $this->pgIle(fn () => $this->vt->yetkileriOku($this->canli()));
+            $kayit = $this->yaz($kilit, $kayit, UstuneGeriYuklemeAdimi::YaziciBariyeri, true, bariyer: ['baglanma_yetkileri' => $ozgun]);
+            $haric = $this->kendiCanliOturumlari();
+            $this->pgIle(fn () => $this->vt->bariyerKur($this->canli(), $this->servisRolu(), $haric));
+
+            // Bakım modundan ve bariyerden SONRA: kabul edilmiş her yazı bu yedekte (P3).
+            // Anlık görüntü bağlantısı servis rolüyle (CONNECT yalnız onda); manifest
+            // daraltılmış değil ÖZGÜN yetkileri taşır — o yedekten geri dönüş doğru açılsın
             $adim(UstuneGeriYuklemeAdimi::OncesiYedek);
-            $oncesi = $this->yedekAlici->al($kilit, YedekKaynagi::GeriYuklemeOncesi, 'Üstüne geri yükleme öncesi', $kayit->isteyenKullaniciId, [], $kayit->kimlik);
+            $oncesi = $this->vt->servisRoluyle(
+                $this->servisRolu(),
+                (string) $this->yapilandirma->parolaDosyasi(),
+                fn (): Yedek => $this->yedekAlici->al($kilit, YedekKaynagi::GeriYuklemeOncesi, 'Üstüne geri yükleme öncesi', $kayit->isteyenKullaniciId, [], $kayit->kimlik, ['baglanma_yetkileri' => $ozgun]),
+            );
             if ($oncesi->durum !== YedekDurumu::Tamam) {
                 throw new GeriYuklemeHatasi(GeriYuklemeHatasi::ONCESI_YEDEK, 'Geri yükleme öncesi yedek alınamadı ('.($oncesi->hata_kodu ?? 'bilinmiyor').'); canlıya dokunulmadı.');
             }
@@ -285,6 +369,10 @@ final class UstuneGeriYukleyici
                 }
                 $this->vt->olustur($hedef, $ozellikler);
                 $this->vt->ayarla($hedef, $ayarlar);
+                // Yedeğin bağlanma yetkileri (BY-026-R1): ad değişince yeni canlının yetkileri olur
+                if ($ozellikler['baglanma_yetkileri'] !== null) {
+                    $this->vt->yetkileriUygula($hedef, $ozellikler['baglanma_yetkileri']);
+                }
             });
 
             $adim(UstuneGeriYuklemeAdimi::PgRestore);
@@ -300,6 +388,9 @@ final class UstuneGeriYukleyici
             $adim(UstuneGeriYuklemeAdimi::Dogrulama);
             $this->pgIle(fn () => $this->saglikDenetle($hedef));
 
+            // "Güncel" ayar seçiminin kaynağı (README §5.3): dosya kopyası donmuş canlıdan
+            // tazelenir; yazılamazsa yer değiştirmeden önce durulur
+            $this->ayarKopyasi->guncelDegilseYaz();
             // Onay ekranının "önceki" yanı: bağlantılar kesilmeden önce, donmuş canlıdan
             $this->onayBilgisi->oncekiYaz($kayit->kimlik, $this->onayBilgisi->ozet());
 
@@ -334,8 +425,10 @@ final class UstuneGeriYukleyici
         try {
             if ($baslangic === UstuneGeriYuklemeAdimi::DizinKurma) {
                 $kayit = $this->yaz($kilit, $kayit, UstuneGeriYuklemeAdimi::DizinKurma, true);
+                // Eski veritabanına bariyerden önceki yetkileri (bağlantıya kapalı kalır)
+                $this->pgIle(fn () => $this->ozgunYetkileriGeriKoy($kayit, (string) $kayit->oncekiVeritabani));
                 // Geri yüklenen veritabanındaki dizin yedeğin anındadır (§7.3)
-                $this->dizin->tara();
+                $this->dizin->tara($kilit);
             }
 
             $kayit = $this->yaz($kilit, $kayit, UstuneGeriYuklemeAdimi::AyarUzlastirma, true);
@@ -384,6 +477,8 @@ final class UstuneGeriYukleyici
                     $this->vt->dusur($hedef);
                     $silindi = true;
                 }
+                // Yazıcı bariyeri kurulduysa özgün yetkiler aynen geri (BY-028-R1)
+                $this->ozgunYetkileriGeriKoy($kayit, $canli);
                 $this->vt->baglantiyaAc($canli);
             });
             $this->kuyruguBaslat($kayit);
@@ -440,8 +535,9 @@ final class UstuneGeriYukleyici
     private function onaylaTamamla(YedekKilidi $kilit, IslemKaydi $kayit): IslemKaydi
     {
         $kayit = $this->yaz($kilit, $kayit, UstuneGeriYuklemeAdimi::Onaylaniyor, true);
-        // 8. adım hatayla durmuş olabilir: dizin en iyi çabayla yeniden kurulur
-        $this->sessiz(fn () => $this->dizin->tara());
+        // 8. adım hatayla durmuş olabilir: eski veritabanının yetkileri ve dizin en iyi çabayla
+        $this->sessiz(fn () => $this->pgIle(fn () => $this->ozgunYetkileriGeriKoy($kayit, (string) $kayit->oncekiVeritabani)));
+        $this->sessiz(fn () => $this->dizin->tara($kilit));
         $this->sessiz(fn () => $this->gecmisiYenidenYaz($kayit, GeriYuklemeDurumu::Tamam));
 
         try {
@@ -458,7 +554,7 @@ final class UstuneGeriYukleyici
         }
 
         $kayit = $this->yaz($kilit, $kayit, UstuneGeriYuklemeAdimi::Onaylandi, false);
-        $this->denetle('geri_yukle_ustune_onay', IslemSonucu::Basarili, $kayit);
+        $this->denetle('geri_yukle_ustune_onay', IslemSonucu::Basarili, $kayit, ['ayar_secimleri' => $kayit->ayarSecimleri]);
         $this->bildir('geri_yukleme_bitti', $kayit, ["{$this->canli()} geri yüklendi ve onaylandı; uygulama açıldı. Eski veritabanı {$kayit->oncekiVeritabani} adıyla (bağlantıya kapalı) bekliyor."]);
 
         return $kayit;
@@ -485,8 +581,11 @@ final class UstuneGeriYukleyici
                 });
             }
 
-            // Eski veritabanı `erp_onceki_*` iken bağlantıya kapalıydı
-            $this->pgIle(fn () => $this->vt->baglantiyaAc($canli));
+            // Eski veritabanı `erp_onceki_*` iken bağlantıya kapalıydı; özgün yetkileri geri
+            $this->pgIle(function () use ($kayit, $canli): void {
+                $this->ozgunYetkileriGeriKoy($kayit, $canli);
+                $this->vt->baglantiyaAc($canli);
+            });
         } catch (Throwable $hata) {
             $this->canliBaglantilariniBirak();
             $bilgi = $this->hataBilgisi($hata, GeriYuklemeHatasi::YER_DEGISTIRILEMEDI);
@@ -497,7 +596,7 @@ final class UstuneGeriYukleyici
         }
 
         $this->canliBaglantilariniBirak();
-        $this->sessiz(fn () => $this->dizin->tara());
+        $this->sessiz(fn () => $this->dizin->tara($kilit));
         $this->sessiz(fn () => $this->gecmisiYenidenYaz($kayit, GeriYuklemeDurumu::GeriAlindi));
 
         try {
@@ -529,6 +628,12 @@ final class UstuneGeriYukleyici
     {
         if (! $this->yapilandirma->servisCalistiricisi()) {
             throw new GeriYuklemeHatasi(GeriYuklemeHatasi::SERVIS_GEREKLI, 'Üstüne geri yükleme servis hesabının çalıştırıcısı olmadan yapılmaz (README §5.2).');
+        }
+
+        // Yazıcı bariyeri CONNECT'i servis rolüne bırakır: aynı rol olursa bariyer olmaz (BY-028-R1)
+        $rol = $this->yapilandirma->rol();
+        if ($rol === null || $rol === $this->pg->baglanti()->uygulamaRolu || $this->yapilandirma->parolaDosyasi() === null) {
+            throw new GeriYuklemeHatasi(GeriYuklemeHatasi::SERVIS_ROLU_GEREKLI, 'Üstüne geri yükleme, uygulama rolünden ayrı bir servis rolü (YEDEKLEME_ROL) ve onun parola dosyası (YEDEKLEME_PAROLA_DOSYASI) olmadan yapılmaz: yazıcı bariyeri canlıya bağlanmayı yalnız servis rolüne bırakır.');
         }
 
         if (! hash_equals($this->canli(), $onayMetni)) {
@@ -803,9 +908,74 @@ final class UstuneGeriYukleyici
     }
 
     /**
-     * @param  array{kod: string, mesaj: string}|null  $hata
+     * Onayda seçim zorunlu gruplar: 8. adımda hesaplanıp yöneticiye gösterilen
+     * farklar (onay bilgisi dosyası). O yoksa şimdi hesaplanır; o da
+     * yapılamazsa (veritabanı erişilemez) her grup seçim ister.
+     *
+     * @return list<string>
      */
-    private function yaz(YedekKilidi $kilit, IslemKaydi $kayit, UstuneGeriYuklemeAdimi $adim, bool $acik, ?array $hata = null): IslemKaydi
+    private function secimGerekenGruplar(string $islemKimligi): array
+    {
+        $farkli = fn (array $gruplar): array => array_values(array_map(
+            fn (array $g): string => (string) $g['grup'],
+            array_filter($gruplar, fn (mixed $g): bool => is_array($g) && in_array($g['grup'] ?? null, AyarKopyasi::GRUPLAR, true) && ($g['farkli'] ?? true) !== false),
+        ));
+
+        $bilgi = $this->onayBilgisi->bilgiOku($islemKimligi);
+        if (is_array($bilgi['ayar_gruplari'] ?? null)) {
+            return $farkli($bilgi['ayar_gruplari']);
+        }
+
+        try {
+            return $farkli($this->ayarSecimi->karsilastir()['gruplar']);
+        } catch (Throwable $hata) {
+            report($hata);
+
+            return AyarKopyasi::GRUPLAR;
+        }
+    }
+
+    /**
+     * Yazıcı bariyerinden önceki yetkiler (durum dosyasında). Bariyer hiç
+     * kurulmadıysa (kaydı yok) dokunulmaz. pgIle() içinde çağrılır.
+     */
+    private function ozgunYetkileriGeriKoy(IslemKaydi $kayit, string $ad): void
+    {
+        if ($kayit->bariyer !== null) {
+            $this->vt->yetkileriUygula($ad, $kayit->bariyer['baglanma_yetkileri']);
+        }
+    }
+
+    /**
+     * Bu sürecin canlıdaki açık oturumları: bariyer onları sonlandırmaz
+     * (ör. geçmiş kaydını yazan varsayılan bağlantı).
+     *
+     * @return list<int>
+     */
+    private function kendiCanliOturumlari(): array
+    {
+        $pidler = [];
+        foreach (DB::getConnections() as $baglanti) {
+            if ($baglanti->getDriverName() === 'pgsql' && $baglanti->getDatabaseName() === $this->canli()) {
+                $pidler[] = (int) $baglanti->selectOne('SELECT pg_backend_pid() AS pid')->pid;
+            }
+        }
+
+        return $pidler;
+    }
+
+    private function servisRolu(): string
+    {
+        return (string) $this->yapilandirma->rol();
+    }
+
+    /**
+     * @param  array{kod: string, mesaj: string}|null  $hata
+     * @param  array{baglanma_yetkileri: string|null}|null  $bariyer  Verilmezse önceki kayıttaki
+     * @param  array<string, string>|null  $ayarSecimleri  Verilmezse önceki kayıttaki
+     * @param  array<string, int>|null  $kullanilanKanitlar  Verilmezse önceki kayıttaki
+     */
+    private function yaz(YedekKilidi $kilit, IslemKaydi $kayit, UstuneGeriYuklemeAdimi $adim, bool $acik, ?array $hata = null, ?array $bariyer = null, ?array $ayarSecimleri = null, ?array $kullanilanKanitlar = null): IslemKaydi
     {
         $yeni = new IslemKaydi(
             kimlik: $kayit->kimlik,
@@ -821,6 +991,9 @@ final class UstuneGeriYukleyici
             hedefVeritabani: $kayit->hedefVeritabani,
             oncekiVeritabani: $kayit->oncekiVeritabani,
             isteyenKullaniciId: $kayit->isteyenKullaniciId,
+            bariyer: $bariyer ?? $kayit->bariyer,
+            ayarSecimleri: $ayarSecimleri ?? $kayit->ayarSecimleri,
+            kullanilanKanitlar: $kullanilanKanitlar ?? $kayit->kullanilanKanitlar,
         );
         $this->yapilandirma->islemDurumu()->yaz($yeni, $kilit);
 
@@ -869,6 +1042,7 @@ final class UstuneGeriYukleyici
     {
         return match (UstuneGeriYuklemeAdimi::tryFrom($kayit->adim)) {
             UstuneGeriYuklemeAdimi::BakimModu => GeriYuklemeHatasi::BAKIM_MODU,
+            UstuneGeriYuklemeAdimi::YaziciBariyeri => GeriYuklemeHatasi::YAZICI_BARIYERI,
             UstuneGeriYuklemeAdimi::OncesiYedek => GeriYuklemeHatasi::ONCESI_YEDEK,
             UstuneGeriYuklemeAdimi::Veritabani => GeriYuklemeHatasi::VERITABANI_OLUSTURULAMADI,
             UstuneGeriYuklemeAdimi::PgRestore => GeriYuklemeHatasi::PG_RESTORE,

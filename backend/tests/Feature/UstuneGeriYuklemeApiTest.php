@@ -137,7 +137,7 @@ final class UstuneGeriYuklemeApiTest extends TestCase
         $this->getJson($uc, ['X-Erisim-Anahtari' => $anahtar])->assertOk()
             ->assertJsonPath('data.durum', 'calisiyor')
             ->assertJsonPath('data.adim', 'pg_restore')
-            ->assertJsonPath('data.adimlar.4', ['adim' => 'pg_restore', 'durum' => 'suruyor']);
+            ->assertJsonPath('data.adimlar.5', ['adim' => 'pg_restore', 'durum' => 'suruyor']);
 
         $this->travelTo(CarbonImmutable::now()->addHours(9));
         $this->getJson($uc, ['X-Erisim-Anahtari' => $anahtar])->assertForbidden()->assertJsonPath('kod', GeriYuklemeHatasi::ERISIM_ANAHTARI_SURESI_DOLDU);
@@ -178,13 +178,44 @@ final class UstuneGeriYuklemeApiTest extends TestCase
                 ->assertJsonPath('data.onay_bilgisi.aktif_erp_ortami.geri_yuklenen', 'test');
 
             $istek = $this->postJson(self::ISLEM.$kayit->kimlik.'/onayla', [], $basliklar)->assertAccepted()->json('data.istek_kimligi');
-            $okunan = app(IstekKutusu::class)->oku(config('yedekleme.istek_klasoru').'/bekleyen/'.$istek.'.json');
+            $yol = config('yedekleme.istek_klasoru').'/bekleyen/'.$istek.'.json';
+            $okunan = app(IstekKutusu::class)->oku($yol);
             $this->assertSame('onayla', $okunan->tur);
-            $this->assertSame(['islem_kimligi' => $kayit->kimlik, 'erisim_anahtari' => $anahtar], $okunan->parametreler);
+            $this->assertSame($kayit->kimlik, $okunan->parametreler['islem_kimligi']);
             $this->assertSame(1, $okunan->kullaniciId);
+            // Anahtar değil, işlem durumundaki özetle doğrulanan kısa ömürlü kanıt (BY-030-R1)
+            $this->assertStringNotContainsString($anahtar, (string) file_get_contents($yol));
+            $p = $okunan->parametreler;
+            $this->assertSame(ErisimAnahtari::GECERLI, ErisimAnahtari::kanitDenetle((string) $p['kanit'], $kayit->erisimAnahtariOzeti, $kayit->erisimAnahtariBitis, $kayit->kimlik, 'onayla', (int) $p['son_gecerlilik'], (string) $p['nonce'], ''));
+            $this->assertLessThanOrEqual(CarbonImmutable::now()->getTimestamp() + ErisimAnahtari::KANIT_OMRU_SN, $p['son_gecerlilik']);
 
             $this->getJson(self::ISLEM.$kayit->kimlik.'/durum?istek='.$istek, $basliklar)->assertOk()->assertJsonPath('data.istek.durum', 'kuyrukta');
         });
+    }
+
+    /**
+     * BY-028-R2: onay bilgisinde farkı olan ayar grubu için seçim zorunlu;
+     * seçim kanıta bağlanıp isteğe yazılır.
+     */
+    public function test_farkli_ayar_grubu_secilmeden_onay_istegi_422_secimle_kanita_baglanir(): void
+    {
+        $anahtar = ErisimAnahtari::uret();
+        $kayit = $this->durumYaz(UstuneGeriYuklemeAdimi::OnayBekliyor, true, anahtar: $anahtar);
+        app(OnayBilgisi::class)->bilgiYaz($kayit->kimlik, ['ayar_gruplari' => [['grup' => 'mail', 'farkli' => true], ['grup' => 'planlar', 'farkli' => false]]]);
+        $uc = self::ISLEM.$kayit->kimlik.'/onayla';
+        $baslik = ['X-Erisim-Anahtari' => $anahtar];
+
+        $this->postJson($uc, [], $baslik)->assertUnprocessable()->assertJsonPath('kod', GeriYuklemeHatasi::AYAR_SECIMI_EKSIK);
+        $this->postJson($uc, ['ayar_secimleri' => ['planlar' => 'guncel']], $baslik)->assertUnprocessable()->assertJsonPath('kod', GeriYuklemeHatasi::AYAR_SECIMI_EKSIK);
+        $this->postJson($uc, ['ayar_secimleri' => ['mail' => 'varsayilan']], $baslik)->assertUnprocessable()->assertJsonPath('kod', 'DOGRULAMA');
+        $this->assertSame([], app(IstekKutusu::class)->bekleyenler());
+
+        $istek = $this->postJson($uc, ['ayar_secimleri' => ['mail' => 'guncel', 'planlar' => 'geri_yuklenen']], $baslik)->assertAccepted()->json('data.istek_kimligi');
+        $p = app(IstekKutusu::class)->oku(config('yedekleme.istek_klasoru').'/bekleyen/'.$istek.'.json')->parametreler;
+        $this->assertSame('mail=guncel,planlar=geri_yuklenen', $p['ayar_secimleri']);
+        // Kanıt seçimlere bağlı: başka seçimle doğrulanmaz
+        $this->assertSame(ErisimAnahtari::GECERLI, ErisimAnahtari::kanitDenetle((string) $p['kanit'], $kayit->erisimAnahtariOzeti, $kayit->erisimAnahtariBitis, $kayit->kimlik, 'onayla', (int) $p['son_gecerlilik'], (string) $p['nonce'], 'mail=guncel,planlar=geri_yuklenen'));
+        $this->assertSame(ErisimAnahtari::GECERSIZ, ErisimAnahtari::kanitDenetle((string) $p['kanit'], $kayit->erisimAnahtariOzeti, $kayit->erisimAnahtariBitis, $kayit->kimlik, 'onayla', (int) $p['son_gecerlilik'], (string) $p['nonce'], 'mail=geri_yuklenen,planlar=geri_yuklenen'));
     }
 
     public function test_yer_degistirmeden_once_onay_istegi_409(): void

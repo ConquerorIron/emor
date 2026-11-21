@@ -52,7 +52,7 @@ final class YedekEskiYedekleriAlTest extends TestCase
     public function test_okunabilen_predeploy_yedekleri_ice_alindi_isaretli_imzali_manifestle_alinir_bozuk_atlanir(): void
     {
         $this->artisan('yedek:eski-yedekleri-al', ['--klasor' => $this->eski])
-            ->expectsOutputToContain('İçeri alınan 2, zaten olan 0, okunamayan 1.')
+            ->expectsOutputToContain('İçeri alınan 2, zaten olan 0, okunamayan 1, çakışan 0.')
             ->assertSuccessful();
 
         $yedekler = Yedek::query()->orderBy('alinma_zamani')->get();
@@ -78,7 +78,7 @@ final class YedekEskiYedekleriAlTest extends TestCase
         $this->artisan('yedek:eski-yedekleri-al', ['--klasor' => $this->eski])->assertSuccessful();
 
         $this->artisan('yedek:eski-yedekleri-al', ['--klasor' => $this->eski])
-            ->expectsOutputToContain('İçeri alınan 0, zaten olan 2, okunamayan 1.')
+            ->expectsOutputToContain('İçeri alınan 0, zaten olan 2, okunamayan 1, çakışan 0.')
             ->assertSuccessful();
 
         $this->assertSame(2, Yedek::query()->count());
@@ -93,6 +93,26 @@ final class YedekEskiYedekleriAlTest extends TestCase
         $silinecek = array_map(fn (SilmeKarari $k): int => $k->yedekId, app(SaklamaPolitikasi::class)->hesapla()['silinecek']);
 
         $this->assertSame([$eskisi->id], array_values(array_unique($silinecek)));
+    }
+
+    /** BY-013-R2 (D4): aynı adla farklı içerikli ikinci arşiv içerideki yedeğin dosyasına ve manifestine dokunmaz. */
+    public function test_ayni_adli_farkli_arsiv_icerideki_yedege_dokunmaz_cakisma_olarak_basarisiz_cikar(): void
+    {
+        $this->artisan('yedek:eski-yedekleri-al', ['--klasor' => $this->eski])->assertSuccessful();
+        $dump = config('yedekleme.klasor').'/erp_predeploy_2026-11-01_101010.dump';
+        $onceDump = file_get_contents($dump);
+        $onceManifest = file_get_contents(ManifestDeposu::jsonYolu($dump));
+        $ikinci = $this->yedekKoku.'/eski-2';
+        mkdir($ikinci, 0750);
+        file_put_contents($ikinci.'/erp_predeploy_2026-11-01_101010.dump', 'PGDMP-baska-icerik');
+
+        $this->artisan('yedek:eski-yedekleri-al', ['--klasor' => $ikinci])
+            ->expectsOutputToContain('İçeri alınan 0, zaten olan 0, okunamayan 0, çakışan 1.')
+            ->assertFailed();
+
+        $this->assertSame($onceDump, file_get_contents($dump));
+        $this->assertSame($onceManifest, file_get_contents(ManifestDeposu::jsonYolu($dump)));
+        $this->assertSame(2, Yedek::query()->count());
     }
 
     public function test_dizin_yeniden_kurulunca_ice_alindi_isareti_manifestten_gelir(): void

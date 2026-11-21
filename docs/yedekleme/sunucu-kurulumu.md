@@ -46,6 +46,7 @@ Web kullanıcısı (`www-data`) `emor-yedek` grubuna alınır; yayın kullanıc�
 | `istekler/` | 2770 | okur, siler | yazar | yazar |
 | `durum/` — işlem durumu | 2750 | okur, yazar | okur | okur (sonradan açılan dosyalar dahil: varsayılan ACL) |
 | `durum/kilit` | 0640 | alır | alır | alır (salt okunur açıp `flock`) |
+| `durum/yayin.kilit` — yayın kilidi (BY-013-R1) | 0640 | alır | alır | alır (`deploy.sh` yayın boyunca tutar) |
 | `gunluk/` — denetim günlüğü, ayar kopyası | 2750 | okur, yazar | okur | erişmez |
 | `gizli/` — `pgpass`, `imza.anahtar` | 0700 / 0600 | okur | erişmez | erişmez |
 | `onbellek/` — servisin Laravel önbellekleri | 0700 | okur, yazar | erişmez | erişmez |
@@ -70,6 +71,14 @@ dahil) servisin `gunluk/` klasörüne yönlendirir. `storage/logs`'taki bir dosy
 web süreci bağlantıyla değiştirip servisin yazımını servisin kendi dosyalarına
 yönlendirebilirdi (BY-003-R6). Bakım modu dosyası ortak kalır; onu yazan kod
 bağlantı izlememelidir (BY-028).
+
+**İstek göndereni dosyanın sahibiyle doğrulanır (BY-025-R1).** Servis tanımı
+web ve yayın kullanıcısının uid'lerini taşır (`YEDEKLEME_WEB_UID`,
+`YEDEKLEME_YAYIN_UID`; betiğin `EMOR_WEB_KULLANICI` / `EMOR_YAYIN_KULLANICI`
+adlarından, sudoers'taki gibi tek kaynak). İkisi aynı uid ise betik durur.
+Kullanıcı yeniden açılıp uid'si değişirse denetim "içeriği farklı" der,
+kurulum tanımı günceller. Planlı yedek ve günlük temizlik de bu serviste yürür
+(BY-009-R1); servis etkinleşmeden modül servis kipine alınmaz.
 
 **Bağlantı denetimi temiz ortamda.** Servisin parola dosyasıyla bağlanıp
 bağlanamadığı `env -i` ile sınanır: kabuktan devralınan `PGPASSWORD` dosyanın

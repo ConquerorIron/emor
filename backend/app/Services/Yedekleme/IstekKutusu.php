@@ -30,8 +30,9 @@ use Throwable;
  * hesabı). Çalıştırıcı isteğe GÜVENMEZ (oku()): düz dosya, boyut, JSON,
  * sürüm, kimlik = dosya adı, tür izin listesinden, parametre anahtarları
  * şemayla BİREBİR ve her değerin türü / biçimi (G15). Yazan da aynı
- * denetimden geçer (G10). Kullanıcının yetkisi çalıştırıcıda veritabanından
- * yeniden doğrulanır (IstekCalistiricisi).
+ * denetimden geçer (G10). Göndereni dosyanın çekirdekteki sahibi (uid)
+ * belirler, kullanıcının yetkisi çalıştırıcıda veritabanından yeniden
+ * doğrulanır (IstekCalistiricisi; BY-025-R1).
  */
 final class IstekKutusu
 {
@@ -54,10 +55,12 @@ final class IstekKutusu
         'kopya_geri_yukle' => ['yedek_kimligi' => 'uuid', 'ek' => 'ad_eki'],
         'kopya_sil' => ['veritabani' => 'kopya_veritabani'],
         'ustune_geri_yukle' => ['yedek_kimligi' => 'uuid', 'onay_metni' => 'onay_metni', 'erisim_anahtari_ozeti' => 'sha256'],
-        // Yetki erişim anahtarıdır (README §7.2; BY-029): çalıştırıcı anahtarı
-        // işlem durumundaki özetle doğrular; dosya işlenince silinir
-        'onayla' => ['islem_kimligi' => 'uuid', 'erisim_anahtari' => 'erisim_anahtari'],
-        'geri_don' => ['islem_kimligi' => 'uuid', 'erisim_anahtari' => 'erisim_anahtari'],
+        // Yetki erişim anahtarıdır (README §7.2; BY-029), ama anahtar dosyaya
+        // YAZILMAZ: web ucu anahtarı doğrulayıp kısa ömürlü, tek kullanımlık,
+        // karara bağlı kanıt yazar; çalıştırıcı kanıtı işlem durumundaki özetle
+        // doğrular (ErisimAnahtari::kanit, BY-030-R1)
+        'onayla' => ['islem_kimligi' => 'uuid', 'son_gecerlilik' => 'unix_zaman', 'nonce' => 'nonce', 'ayar_secimleri' => 'ayar_secimleri', 'kanit' => 'sha256'],
+        'geri_don' => ['islem_kimligi' => 'uuid', 'son_gecerlilik' => 'unix_zaman', 'nonce' => 'nonce', 'kanit' => 'sha256'],
     ];
 
     /** İstek dosyasının en büyük boyutu (bayt); en uzun geçerli istek ~2 KB */
@@ -79,17 +82,19 @@ final class IstekKutusu
 
     /**
      * @param  array<string, mixed>  $parametreler  Anahtarlar şemayla birebir
+     * @param  string|null  $kimlik  Önceden üretilmiş kimlik (denetim kaydı yayından önce yazılır — YedekIstekServisi); boşsa üretilir
      * @return string İsteğin kimliği (yoklama için)
      *
      * @throws InvalidArgumentException Tür ya da parametreler şemaya uymuyor (çalıştırıcı da reddederdi)
      */
-    public function yaz(string $tur, array $parametreler, ?int $kullaniciId): string
+    public function yaz(string $tur, array $parametreler, ?int $kullaniciId, ?string $kimlik = null): string
     {
         if (! isset(self::TURLER[$tur]) || ! self::parametrelerGecerliMi($tur, $parametreler) || ($kullaniciId !== null && $kullaniciId < 1)) {
             throw new InvalidArgumentException("Geçersiz yedekleme isteği: {$tur}");
         }
 
-        $kimlik = (string) Str::uuid();
+        $kimlik ??= (string) Str::uuid();
+        $this->kimlikDenetle($kimlik);
         $klasor = $this->klasor('bekleyen', 0770);
         $icerik = json_encode([
             'surum' => self::SURUM,
@@ -100,7 +105,10 @@ final class IstekKutusu
             'zaman' => CarbonImmutable::now('UTC')->format(self::ZAMAN_BICIMI),
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        AtomikDosya::yaz($klasor.'/'.$kimlik.'.json', $icerik, 0660);
+        // 0640: çalıştırıcı grup olarak okur; aynı gruptaki başka hesap (web)
+        // yayın kullanıcısının dosyasının içeriğini değiştiremez — gönderen
+        // dosyanın sahibiyle doğrulanır (BY-025-R1)
+        AtomikDosya::yaz($klasor.'/'.$kimlik.'.json', $icerik, 0640);
 
         return $kimlik;
     }
@@ -147,7 +155,7 @@ final class IstekKutusu
     {
         $kimlik = basename($yol, '.json');
         $this->kimlikDenetle($kimlik);
-        $icerik = $this->guvenliOku($yol);
+        [$icerik, $sahipUid] = $this->guvenliOku($yol);
 
         try {
             $veri = json_decode($icerik, true, 4, JSON_THROW_ON_ERROR);
@@ -185,7 +193,7 @@ final class IstekKutusu
         }
 
         /** @var array<string, string|int|null> $parametreler */
-        return new Istek($kimlik, $tur, $parametreler, $kullanici, $zaman);
+        return new Istek($kimlik, $tur, $parametreler, $kullanici, $zaman, $sahipUid);
     }
 
     /**
@@ -318,6 +326,18 @@ final class IstekKutusu
         return true;
     }
 
+    /** AyarSecimi::metne() biçiminde mi (tek biçimli metin) */
+    private static function ayarSecimiMi(string $girdi): bool
+    {
+        try {
+            AyarSecimi::metindenDiziye($girdi);
+
+            return true;
+        } catch (InvalidArgumentException) {
+            return false;
+        }
+    }
+
     private static function degerGecerliMi(string $deger, mixed $girdi): bool
     {
         return match ($deger) {
@@ -329,18 +349,24 @@ final class IstekKutusu
             'kopya_veritabani' => is_string($girdi) && VeritabaniAdi::kopyaMi($girdi),
             'onay_metni' => is_string($girdi) && mb_check_encoding($girdi, 'UTF-8') && mb_strlen($girdi) >= 1 && mb_strlen($girdi) <= 128,
             'sha256' => is_string($girdi) && preg_match('/^[0-9a-f]{64}$/D', $girdi) === 1,
-            'erisim_anahtari' => ErisimAnahtari::bicimliMi($girdi),
+            'unix_zaman' => is_int($girdi) && $girdi >= 1,
+            'nonce' => is_string($girdi) && preg_match('/^[0-9a-f]{32}$/D', $girdi) === 1,
+            'ayar_secimleri' => is_string($girdi) && self::ayarSecimiMi($girdi),
             default => false,
         };
     }
 
     /**
      * Yalnız tek bağlantılı düz dosya: sembolik / sabit bağlantı, klasör,
-     * FIFO okunmaz (D5). Boyut, okunan bayt sayısıyla da sınırlanır.
+     * FIFO okunmaz (D5). Boyut, okunan bayt sayısıyla da sınırlanır. Sahip,
+     * okunan (açılmış) dosyanın çekirdekteki sahibidir: istek içeriğinden
+     * bağımsız gönderen kanıtı (BY-025-R1; `isleniyor/`'a yalnız çalıştırıcı yazar).
+     *
+     * @return array{0: string, 1: int} İçerik ve sahibin uid'si
      *
      * @throws IstekReddi
      */
-    private function guvenliOku(string $yol): string
+    private function guvenliOku(string $yol): array
     {
         clearstatcache(true, $yol);
         $bilgi = @lstat($yol);
@@ -373,7 +399,7 @@ final class IstekKutusu
             throw new IstekReddi('ISTEK_DOSYASI_GECERSIZ', 'İstek dosyası izin verilenden büyük.');
         }
 
-        return $icerik;
+        return [$icerik, $acilan['uid']];
     }
 
     /**

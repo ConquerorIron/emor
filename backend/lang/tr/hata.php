@@ -105,6 +105,7 @@ return [
     'yedekleme_kapali' => 'Yedekleme modülü kapalı (sunucu ayarı YEDEKLEME_AKTIF).',
     'yedek_istegi_yok' => 'Yedekleme isteği bulunamadı (süresi geçmiş olabilir).',
     'yedek_dogrulanamaz' => 'Bu yedek doğrulanamaz: yalnız bu sistemin imzaladığı, tamamlanmış yedekler doğrulanır.',
+    'yedek_dogrulama_kaynagi_yok' => 'Bu yedeğin ekrandan doğrulanabilecek bir dosyası yok (yalnız şifreli sunucu dışı kopyası kaldıysa özel anahtar gerekir — docs/yedekleme/kurtarma.md).',
     'yedek_silinmis' => 'Bu yedek silinmiş.',
     'yedek_sabit' => 'Sabitlenmiş yedek silinemez. Önce sabitlemeyi kaldırın.',
     'yedek_kullanimda' => 'Bu yedek şu an kullanımda (kopyalanıyor ya da geri yükleniyor); bitince tekrar deneyin.',
@@ -112,6 +113,9 @@ return [
     'yedek_hedefi_tur_degismez' => 'Hedefin türü değiştirilemez; yeni bir hedef ekleyin.',
     'yedek_hedefi_bilinmeyen_alan' => 'Bu hedef türünde olmayan alan: :alanlar',
     'yedek_hedefi_sir_yeniden' => 'Bağlantı bilgisi değiştiği için parolayı / anahtarı yeniden girin (kayıtlı parola yeni adrese gönderilmez).',
+    'yedek_imza_anahtari_yok' => 'Yedekleme imza anahtarı bulunamadı ya da okunamıyor; ayarlar kaydedilmedi. Sunucu kurulumunu denetleyin (docs/yedekleme/sunucu-kurulumu.md).',
+    'yedek_ayar_kopyasi_yazilamadi' => 'Ayarların dosya kopyası yazılamadı; değişiklik geri alındı, ayarlar değişmedi. Durum klasörünün izinlerini denetleyin.',
+    'yedek_hedefi_konumu_degismez' => 'Bu hedefte kopyalar var; kopyaların durduğu yeri belirleyen alanlar (:alanlar) değiştirilemez. Başka bir yer için yeni bir hedef ekleyin. Parola / anahtar yenilenebilir.',
     'yedek_hedefi_google_degil' => 'Bu işlem yalnız Google Drive hedeflerinde yapılır.',
     'yedek_google_yapilandirilmadi' => 'Google bağlantısı için sunucuda istemci kimliği ve sırrı tanımlı değil (YEDEKLEME_GOOGLE_*).',
     'yedek_google_durum_gecersiz' => 'Google bağlantısı doğrulanamadı (süresi geçmiş ya da başka bir oturumdan). "Google ile bağlan"ı yeniden deneyin.',
@@ -132,4 +136,5 @@ return [
     'geri_yukleme_erisim_anahtari_gecersiz' => 'Erişim anahtarı geçersiz ya da bu işlemin değil.',
     'geri_yukleme_erisim_anahtari_suresi_doldu' => 'Erişim anahtarının süresi doldu. Onay ve geri dönüş sunucudan yapılabilir: php artisan yedek:acil durum | onayla | geri-don',
     'geri_yukleme_islem_durumu_uygun_degil' => 'İşlem bu adımda onaylanamaz ya da geri alınamaz.',
+    'geri_yukleme_ayar_secimi_eksik' => 'Farkı olan her ayar grubu için "güncel" ya da "geri yüklenen" seçilmeli.',
 ];

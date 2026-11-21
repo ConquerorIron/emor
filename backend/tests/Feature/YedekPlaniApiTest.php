@@ -17,6 +17,7 @@ use App\Services\Yedekleme\SilmeKarari;
 use App\Services\Yedekleme\YedekKaynagi;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 use Tests\Yedekleme\YedeklemeOrtami;
 
@@ -164,6 +165,85 @@ final class YedekPlaniApiTest extends TestCase
         $yanit = $this->putJson(self::K.'/'.$plan->id, [...$this->govde('Gece', 'gunluk', '02:00', [], [['hedef_id' => $hedef->id, 'sakla_son_adet' => 3]]), 'aktif' => false])->assertOk();
 
         $yanit->assertJsonPath('data.aktif', false)->assertJsonPath('data.sonraki_calisma', null)->assertJsonPath('data.son_calisma', '2026-11-20T23:00:00+00:00');
+    }
+
+    /**
+     * Son çalışması `$sonCalisma`'da biten plan (UTC, bugün).
+     *
+     * @param  list<YedekHedefi>  $hedefler
+     */
+    private function calismisPlan(string $ad, array $hedefler, string $sonCalisma): YedekPlani
+    {
+        $plan = YedekPlani::factory()->create(['ad' => $ad, 'son_calisma' => CarbonImmutable::parse('2026-11-21 '.$sonCalisma, 'UTC')]);
+        $plan->hedefler()->attach(array_fill_keys(array_map(fn (YedekHedefi $h): int => $h->id, $hedefler), ['sakla_son_adet' => 3]));
+
+        return $plan;
+    }
+
+    /**
+     * @param  array<string, mixed>  $ozellik
+     */
+    private function planYedegi(string $acilis, array $ozellik = []): Yedek
+    {
+        return Yedek::factory()->plan()->create(['created_at' => CarbonImmutable::parse('2026-11-21 '.$acilis, 'UTC'), ...$ozellik]);
+    }
+
+    public function test_son_calismanin_sonucu_basarili_yedek_hatali_ve_hedef_hatali_ayri_doner(): void
+    {
+        [$yerel, $ikinci] = [YedekHedefi::factory()->create(['ad' => 'Yerel']), YedekHedefi::factory()->create(['ad' => 'İkinci'])];
+        $this->calismisPlan('A Başarılı', [$yerel], '06:00');
+        $this->calismisPlan('B Dump hatalı', [$yerel], '07:00');
+        $this->calismisPlan('C Hedef hatalı', [$yerel, $ikinci], '08:00');
+        $this->calismisPlan('D Hiç çalışmadı', [$yerel], '05:00')->forceFill(['son_calisma' => null])->save();
+
+        $a = $this->planYedegi('05:59');
+        YedekKopyasi::query()->create(['yedek_id' => $a->id, 'yedek_hedefi_id' => $yerel->id, 'durum' => KopyaDurumu::Tamam]);
+        $this->planYedegi('06:59', ['durum' => 'basarisiz', 'hata_kodu' => 'PG_DUMP', 'alinma_zamani' => null]);
+        $c = $this->planYedegi('07:59');
+        YedekKopyasi::query()->create(['yedek_id' => $c->id, 'yedek_hedefi_id' => $yerel->id, 'durum' => KopyaDurumu::Tamam]);
+        YedekKopyasi::query()->create(['yedek_id' => $c->id, 'yedek_hedefi_id' => $ikinci->id, 'durum' => KopyaDurumu::Basarisiz, 'hata_kodu' => 'HEDEF_ERISILEMEDI']);
+        // Plan dışı ve son çalışmadan sonra açılan yedekler sonucu etkilemez
+        Yedek::factory()->create(['created_at' => CarbonImmutable::parse('2026-11-21 07:30', 'UTC'), 'durum' => 'basarisiz']);
+        $this->planYedegi('08:30', ['durum' => 'basarisiz', 'hata_kodu' => 'DISK_DOLU']);
+
+        $sonuclar = collect($this->getJson(self::K)->assertOk()->json('data'))->pluck('son_sonuc', 'ad')->all();
+
+        $this->assertSame([
+            'A Başarılı' => ['durum' => 'basarili', 'hata_kodu' => null, 'basarisiz_hedefler' => []],
+            'B Dump hatalı' => ['durum' => 'yedek_basarisiz', 'hata_kodu' => 'PG_DUMP', 'basarisiz_hedefler' => []],
+            'C Hedef hatalı' => ['durum' => 'hedef_basarisiz', 'hata_kodu' => null, 'basarisiz_hedefler' => [['hedef_id' => $ikinci->id, 'ad' => 'İkinci', 'hata_kodu' => 'HEDEF_ERISILEMEDI']]],
+            'D Hiç çalışmadı' => null,
+        ], $sonuclar);
+    }
+
+    public function test_plan_listesi_sorgu_sayisi_plan_sayisindan_bagimsizdir_degerler_degismez(): void
+    {
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Yerel']);
+        $ilk = $this->calismisPlan('Plan 1', [$hedef], '06:00');
+        $yedek = $this->planYedegi('05:59');
+        YedekKopyasi::query()->create(['yedek_id' => $yedek->id, 'yedek_hedefi_id' => $hedef->id, 'durum' => KopyaDurumu::Tamam])
+            ->planlar()->attach($ilk->id, ['yedek_hedefi_id' => $hedef->id]);
+        $sorguSayisi = function (): array {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $veri = $this->getJson(self::K)->assertOk()->json('data');
+            DB::disableQueryLog();
+
+            return [count(DB::getQueryLog()), $veri];
+        };
+        [$tekPlanda] = $sorguSayisi();
+
+        foreach (['Plan 2' => ['06:50', '06:55'], 'Plan 3' => ['07:00', '07:05'], 'Plan 4' => ['07:10', '07:15']] as $ad => [$acilis, $bitis]) {
+            $plan = $this->calismisPlan($ad, [$hedef, YedekHedefi::factory()->create()], $bitis);
+            $kopya = YedekKopyasi::query()->create(['yedek_id' => $this->planYedegi($acilis)->id, 'yedek_hedefi_id' => $hedef->id, 'durum' => KopyaDurumu::Tamam]);
+            $kopya->planlar()->attach($plan->id, ['yedek_hedefi_id' => $hedef->id]);
+        }
+        [$dortPlanda, $veri] = $sorguSayisi();
+
+        $this->assertSame($tekPlanda, $dortPlanda);
+        $this->assertSame([1, 1, 1, 1], array_map(fn (array $p): int => collect($p['hedefler'])->firstWhere('hedef_id', $hedef->id)['kopya_sayisi'], $veri));
+        $this->assertSame([0, 0, 0], array_map(fn (array $p): int => collect($p['hedefler'])->firstWhere('hedef_id', '!=', $hedef->id)['kopya_sayisi'], array_slice($veri, 1)));
+        $this->assertSame(array_fill(0, 4, 'basarili'), array_map(fn (array $p): string => $p['son_sonuc']['durum'], $veri));
     }
 
     public function test_simdi_calistir_istek_birakir(): void

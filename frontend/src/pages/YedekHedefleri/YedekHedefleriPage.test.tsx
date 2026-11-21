@@ -137,6 +137,7 @@ const FTP_HEDEFI: Hedef = {
   },
   gizli_kayitli: { sifre: true },
   plan_sayisi: 2,
+  konum_kilitli_alanlar: [],
   son_kopya: { durum: 'tamam', zaman: '2026-11-20T23:05:00+00:00', hata_kodu: null },
 }
 
@@ -149,6 +150,7 @@ const GOOGLE_HEDEFI: Hedef = {
   baglanti: { klasor_adi: 'eMOR', durum: 'yeniden_baglan', eposta: 'yedek@ornek.test' },
   gizli_kayitli: {},
   plan_sayisi: 1,
+  konum_kilitli_alanlar: [],
   son_kopya: { durum: 'basarisiz', zaman: null, hata_kodu: 'HEDEF_YENIDEN_BAGLAN' },
 }
 
@@ -252,6 +254,7 @@ describe('YedekHedefleriPage', () => {
         { adim: 'oku', basarili: null, kod: null, mesaj: null },
       ],
       kalan_alan: null,
+      silinme_korumasi: null,
       kaydedildi: true,
       sunucu_parmak_izi: null,
     })
@@ -275,6 +278,63 @@ describe('YedekHedefleriPage', () => {
     expect(sonuc).toHaveTextContent('Bağlan: geçti')
     expect(sonuc).toHaveTextContent('Yaz: Hedefe yazılamadı (izin ya da klasör).')
     expect(sonuc).toHaveTextContent('Oku: atlandı')
+  })
+
+  it('kopyası olan hedefte konum alanları salt okunur ve nedeni yazılı; parola yenilenerek kaydedilir (BY-016-R1)', async () => {
+    api.hedefler.mockResolvedValue([
+      { ...FTP_HEDEFI, konum_kilitli_alanlar: ['sunucu', 'klasor', 'kullanici_adi'] },
+    ])
+    api.kaydet.mockResolvedValue(FTP_HEDEFI)
+    ciz()
+    const dialog = await duzenle('Ofis FTP')
+
+    expect(within(dialog).getByRole('note')).toHaveTextContent(
+      'kopyaların durduğu yeri belirleyen alanlar kilitli',
+    )
+    for (const etiket of ['Sunucu *', 'Kullanıcı adı *', 'Klasör']) {
+      expect(within(dialog).getByLabelText(etiket)).toHaveAttribute('readonly')
+    }
+    expect(within(dialog).getByLabelText('Port')).not.toHaveAttribute('readonly')
+    expect(within(dialog).getByLabelText('Parola')).not.toHaveAttribute('readonly')
+
+    fireEvent.change(within(dialog).getByLabelText('Parola'), { target: { value: 'Yeni-Parola' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+
+    await waitFor(() =>
+      expect(api.kaydet).toHaveBeenCalledWith(3, {
+        ad: 'Ofis FTP',
+        aktif: true,
+        alanlar: {
+          sunucu: 'ftp.ornek.test',
+          port: 21,
+          kullanici_adi: 'yedek',
+          sifre: 'Yeni-Parola',
+          klasor: '/yedek',
+          pasif: true,
+        },
+      }),
+    )
+  })
+
+  it.each([
+    ['etkin', 'Silinmeye karşı koruma (nesne kilidi): etkin'],
+    ['devre_disi', 'Silinmeye karşı koruma (nesne kilidi): devre dışı'],
+    ['sorgulanamadi', 'Silinmeye karşı koruma sorgulanamadı'],
+  ] as const)('S3 sınaması silinme korumasını gösterir: %s (BY-023-R2)', async (koruma, metin) => {
+    api.sina.mockResolvedValue({
+      basarili: true,
+      adimlar: [{ adim: 'baglan', basarili: true, kod: null, mesaj: null }],
+      kalan_alan: null,
+      silinme_korumasi: koruma,
+      kaydedildi: true,
+      sunucu_parmak_izi: null,
+    })
+    ciz()
+    const dialog = await duzenle('Ofis FTP')
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Bağlantıyı Sına' }))
+
+    expect(await within(dialog).findByRole('status')).toHaveTextContent(metin)
   })
 
   it('sunucu sır alanını reddedince mesajı o alanın altında gösterir', async () => {

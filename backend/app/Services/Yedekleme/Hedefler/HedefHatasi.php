@@ -38,6 +38,9 @@ final class HedefHatasi extends RuntimeException
 
     public const YAPILANDIRMA = 'HEDEF_YAPILANDIRMA_HATASI';
 
+    /** Hedefteki dosya yedeğin yerel dosyasının kendisi: bağımsız kopya sayılmaz (BY-008-R1) */
+    public const ANA_DOSYA = 'HEDEF_ANA_DOSYA';
+
     public function __construct(public readonly string $kod, string $mesaj)
     {
         parent::__construct($mesaj);

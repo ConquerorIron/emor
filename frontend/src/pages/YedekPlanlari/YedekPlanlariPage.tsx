@@ -14,13 +14,46 @@ import { SaltOkunurUyarisi } from '@/components/SaltOkunurUyarisi'
 import { hataGovdesi, istanbulZamani } from '@/features/yedekleme/bicim'
 import { hedefleriGetir } from '@/features/yedekleme/hedefApi'
 import { IstekSeridi } from '@/features/yedekleme/IstekSeridi'
-import { Rozet } from '@/features/yedekleme/Rozet'
+import { Rozet, type RozetRengi } from '@/features/yedekleme/Rozet'
 import { useIstekTakibi } from '@/features/yedekleme/useIstekTakibi'
 import { useIzin } from '@/hooks/useIzin'
 
-import { planCalistir, planlariGetir, planSil, type Plan } from './planApi'
+import { planCalistir, planlariGetir, planSil, type Plan, type PlanSonucu } from './planApi'
 import { PlanFormu } from './PlanFormu'
 import { saklamaOzeti, siklikOzeti } from './planBicimi'
+
+const SONUC_RENGI: Record<PlanSonucu['durum'], RozetRengi> = {
+  basarili: 'yesil',
+  yedek_basarisiz: 'kirmizi',
+  hedef_basarisiz: 'sari',
+}
+
+/** Son çalışmanın sonucu: başarılı / yedek alınamadı (kodla) / kopyası düşen hedefler */
+function SonSonuc({ sonuc }: { sonuc: PlanSonucu }) {
+  const { t } = useTranslation()
+  const hataMetni = (kod: string | null) => (kod ? t(`hata.${kod}`, { defaultValue: kod }) : null)
+
+  return (
+    <div className="space-y-1">
+      <Rozet renk={SONUC_RENGI[sonuc.durum]}>{t(`yedekleme.plan.sonuc.${sonuc.durum}`)}</Rozet>
+      {sonuc.durum === 'yedek_basarisiz' && sonuc.hata_kodu ? (
+        <p className="max-w-xs text-xs text-red-600 dark:text-red-400">
+          {hataMetni(sonuc.hata_kodu)}
+        </p>
+      ) : null}
+      {sonuc.basarisiz_hedefler.length > 0 ? (
+        <ul className="max-w-xs text-xs text-amber-700 dark:text-amber-300">
+          {sonuc.basarisiz_hedefler.map((hedef) => (
+            <li key={hedef.hedef_id}>
+              <span className="font-semibold">{hedef.ad}</span>
+              {hedef.hata_kodu ? `: ${hataMetni(hedef.hata_kodu)}` : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  )
+}
 
 export function YedekPlanlariPage() {
   const { t } = useTranslation()
@@ -104,7 +137,10 @@ export function YedekPlanlariPage() {
       anahtar: 'son_calisma',
       baslik: t('yedekleme.plan.sonCalisma'),
       render: (plan) => (
-        <span className="whitespace-nowrap tabular-nums">{istanbulZamani(plan.son_calisma)}</span>
+        <div className="space-y-1">
+          <p className="whitespace-nowrap tabular-nums">{istanbulZamani(plan.son_calisma)}</p>
+          {plan.son_sonuc ? <SonSonuc sonuc={plan.son_sonuc} /> : null}
+        </div>
       ),
     },
     {

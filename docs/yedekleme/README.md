@@ -149,6 +149,15 @@ sunucu yöneticisi yetkisi ister ve bu dokümanın kapsamı dışındadır.
     olan yedek bu ikisinden bulunur (kullanıcı kararı F7).
   - Uzak kopyası başarısız ya da beklemede olan yedeğin yerel dosyası
     silinmez: yeniden denemenin kaynağıdır.
+  - Planlı yedeğin yerel dosyası (§4.2: planlarında yerel disk yok) yalnız
+    saklamada silinir (BY-010-R1): planın bütün hedeflerine kopya kaydı
+    kopyalamadan önce açılır ve hepsi doğrulanmış olmalıdır; sabit ve
+    kullanımdaki yedeğin dosyası kalır. "Son başarılı", "doğrulanmış en
+    yeni" ve en az sayı yedeğin kendisini korur; yedek uzak hedefte durduğu
+    için onun grubunda uygulanır.
+  - Yedek klasörünün kendisi olan yerel hedef yazımına göre değil gerçek
+    konumuna (aygıt + düğüm) göre tanınır; başka bir hedefte yerel dosyanın
+    kendisi bağımsız kopya sayılmaz (`HEDEF_ANA_DOSYA`; BY-008-R1).
   - Hedef "silme yetkisi yok" derse (değiştirilemez saklama) kopya bizden
     çıkmış sayılır (`silindi`, kod `HEDEF_SILME_YETKISI_YOK`); eski kopyayı
     hedefin kendi kuralı temizler. Bu hata sayılmaz, bilgi olarak yazılır.
@@ -423,8 +432,8 @@ Ayarlar ekranları ──► API (yalnız istek kaydeder, işlemi başlatmaz)
 - **Kilit ve işlem durumu veritabanına dayanmaz.** Önbellek de veritabanında
   olduğu için uygulamanın olağan kilidi geri yükleme sırasında kaybolur. Tek
   sunuculu yapıda işletim sistemi düzeyinde dosya kilidi ve dosyada tutulan
-  işlem durumu kullanılır. **`deploy.sh` da aynı kilidi alır:** yayın ile
-  yedek / geri yükleme aynı anda çalışmaz.
+  işlem durumu kullanılır. **`deploy.sh` yayın kilidini alır:** yayın ile
+  üstüne geri yükleme aynı anda çalışmaz (uygulamadaki karar aşağıda).
 - **Yedeği de geri yüklemeyi de web süreci değil, ayrı bir servis hesabı yapar.**
   Web sürecinin veritabanı kullanıcısına veritabanı oluşturma (`CREATEDB`)
   yetkisi verilmez. Çalıştırıcı kendi işletim sistemi kullanıcısı ve
@@ -436,6 +445,25 @@ Ayarlar ekranları ──► API (yalnız istek kaydeder, işlemi başlatmaz)
   imzalayabilir ve yerel yedekleri silebilirdi; imza hiçbir şey kanıtlamazdı.
 - **Çalıştırıcı isteğe güvenmez.** İstek dosyasını web süreci yazar; çalıştırıcı
   isteği yapanın yetkisini ve (geri yüklemede) onayını kendisi yeniden doğrular.
+  *Uygulamada verilen karar (BY-025-R1, R2):* göndereni, isteğin içeriğinden
+  bağımsız olarak dosyanın çekirdekteki **sahibi** (uid) belirler: kullanıcılı
+  istekler yalnız web kullanıcısının, kullanıcısız yayın öncesi yedek yalnız
+  yayın kullanıcısının dosyasıysa işlenir (uid'ler servis tanımında, kurulum
+  betiği yazar); tanınmayan sahip reddedilir ve denetim kaydına yazılır.
+  İstekteki kullanıcı kimliği **web'in iddiasıdır**; yetkisi işlem anında
+  veritabanından, son kez yedekleme kilidi altında işleyiciden hemen önce
+  denetlenir. Tehdit modeli: ele geçirilmiş web hesabı başka bir kullanıcı adına
+  istek yazabilir — ama veritabanına zaten yazabildiği için (kullanıcı ve rol
+  tabloları dahil) sınır budur; artık yayın istisnasını taklit edemez.
+- **Yayın kilidi (BY-013-R1, BY-029-R1).** `deploy.sh`, modül açıksa bakım
+  modu / kod çekme / migration'dan önce ayrı bir yayın kilidini
+  (`<durum klasörü>/yayin.kilit`, `flock`) alır ve betik bitene kadar tutar;
+  kilit altında açık geri yüklemeyi iki yolda da (yedekli ve `--no-backup`)
+  denetler, açık işlem varsa hiçbir şeye dokunmadan çıkar. Üstüne geri
+  yükleme ilk durumunu yazmadan önce kilidi beklemeden almayı dener; yayın
+  sürüyorsa başlamaz (`GERI_YUKLEME_YAYIN_SURUYOR`). Kilit, yedek işlem
+  kilidinden ayrıdır: yayın öncesi yedek servisten istenirken ikisi birbirini
+  beklemez. Yayın yalnız kendi açtığı bakım modunu kapatır.
 - **Geçiş dönemi:** servis hesabının Linux tarafı kurulana kadar (BY-025) ilk aşamalarda
   yedeği uygulama kullanıcısı alır. Bu dönemde imza yalnız "bizim ürettiğimiz
   dosya" ile "dışarıdan gelen dosya"yı ayırır; ele geçirilmiş bir web sürecine
@@ -460,7 +488,9 @@ Ayarlar ekranları ──► API (yalnız istek kaydeder, işlemi başlatmaz)
   (`PGPASSFILE`, izin 0600).
 - **Zamanlama mevcut kalıbı izler:** e-Fatura senkronundaki gibi tek komut
   dakikada bir çalışır, veritabanındaki planlara bakıp vadesi geleni başlatır.
-  Planlar arayüzden değişir, kod yayını gerekmez.
+  Planlar arayüzden değişir, kod yayını gerekmez. Servis kipinde planlı yedek
+  ve günlük temizlik Laravel zamanlayıcısında (web hesabı) değil, servisin
+  döngüsünde (`yedek:calistir`) yürür (BY-009-R1).
 
 ### 5.3 Manifest (her yedeğin yanındaki `.json`)
 
@@ -698,6 +728,11 @@ bozuk bir veritabanı bırakır.
   o komut web'in her istekte yüklediği `maintenance.php`'yi de yazar (D7).
   Yol ya da klasörü bağlantıysa yazılmaz; yalnız kendi dosyasını kaldırır.
   Uygulama zaten bakım modundaysa işlem başlamaz.
+- Yayınla çakışma (BY-013-R1, BY-029-R1; §5.2 "Yayın kilidi"): işleyici yayın
+  kilidini ilk durumdan önce beklemeden alır, dönene kadar tutar; sonra yayın
+  açık işlemi durum dosyasından görür. `deploy.sh` başta bakım modu zaten
+  açıksa (`storage/framework/down` var) `down` / `up` çağırmaz: geri yüklemenin
+  bakım modunu kaldıramaz.
 - Kuyruk servisi `YEDEKLEME_KUYRUK_SERVISI` tanımlıysa `sudo -n systemctl
   stop|start` ile yönetilir (kurulum betiğinin dar sudo kuralı); başlatma
   hatası uygulamanın açılmasını engellemez, bildirilir. Ayrıca işçi ve
@@ -715,8 +750,51 @@ bozuk bir veritabanı bırakır.
   dosyadadır; ilerleme ucu veritabanına dayanmadan okur.
 - Erişim anahtarı 8 saat geçerlidir. İlerleme, onay ve geri dön uçları
   oturumsuzdur (yer değiştirmeyle oturumlar düşer); tek yetki anahtardır.
-  Onay / geri dön isteğinin anahtarını çalıştırıcı işlem durumundaki özetle
-  doğrular (kullanıcı tablosuna bakmaz: o tablo yedeğin anındadır).
+  Anahtar hiçbir dosyaya yazılmaz (BY-030-R1): web ucu anahtarı doğrular,
+  isteğe kısa ömürlü karar kanıtı yazar — `HMAC-SHA256(anahtar = özet,
+  işlem|karar|son geçerlilik|nonce|sha256(ayar seçimleri))`, son geçerlilik en
+  çok 5 dakika. Çalıştırıcı kanıtı işlem durumundaki özetle sabit sürede
+  doğrular (kullanıcı tablosuna bakmaz: o tablo yedeğin anındadır), süresi
+  geçmişse uygulamaz, nonce'u işlem durumunda tüketir (tek kullanım). Özet
+  işlem durumu dosyasındadır ve web süreci de okur: kanıt, diske düşen
+  isteğin yeniden oynatılmasını, başka karara / seçime çevrilmesini ve
+  anahtarın sızmasını önler; ele geçirilmiş web sürecine karşı koruma değildir.
+- **Yazıcı bariyeri (BY-028-R1).** Bakım modu yeni web isteklerini keser ama
+  başlamış istek, zamanlanmış komut ya da sonradan bağlantı açan iş öncesi
+  yedekten sonra da canlıya yazabilirdi. Bakım modundan sonra, öncesi yedekten
+  önce (`yazici_bariyeri` adımı): canlının özgün `datacl`'si (null =
+  varsayılan) kurtarma bağlamıyla işlem durumuna yazılır; CONNECT servis
+  rolüne açıkça verilir, PUBLIC'ten ve diğer rollerden geri alınır; bu sürecin
+  kendi oturumları dışındaki istemci oturumları sonlandırılır ve bitmeleri
+  beklenir (sonlandırılamayan oturum → geri sarma). Sonlandırılan işlemin
+  yazısı geri alınır: kabul edilmiş her yazı öncesi yedektedir. Öncesi yedeğin
+  anlık görüntü bağlantısı servis rolüyle ve parola dosyasıyla açılır;
+  manifesti daraltılmış değil ÖZGÜN yetkileri taşır. Geri sarmada ve geri
+  dönüşte canlıya özgün yetkiler aynen geri konur; yer değiştirmeden sonra
+  `erp_onceki_*`'e özgün yetkiler konur (bağlantıya kapalı kalır). Servis
+  rolü uygulama rolüyle aynıysa ya da parola dosyası yoksa işlem ön denetimde
+  `GERI_YUKLEME_SERVIS_ROLU_GEREKLI` ile başlamaz.
+- **Bağlanma yetkileri (BY-026-R1).** Farklı ada kopya, sınama ve üstüne
+  geri yüklemenin yeni veritabanı manifestteki `baglanma_yetkileri`'ne
+  eşdeğer yapılır (tek DO bloğu: yetkiler geri alınır, verilir, sonuç
+  rol / yetki / devredilebilir kümesi olarak karşılaştırılır — veren
+  karşılaştırılmaz). Rol yoksa ya da eşdeğerlik sağlanamazsa yetkiler hiç
+  değişmez, `GERI_YUKLEME_VERITABANI_YETKILERI` (yarım veritabanı silinir).
+- **Ayar seçimi (BY-028-R2, §5.3).** Gruplar ayar kopyasının gruplarıdır:
+  mail, yedek ayarları, planlar, hedefler. "Güncel" yan dosya kopyasıdır (5.
+  adımda donmuş canlıdan tazelenir; yazılamazsa yer değiştirmeden önce
+  durulur), "geri yüklenen" yan veritabanıdır. Farkı olan her grup için
+  onayda açık seçim zorunludur (varsayılan yok; ekran, uç ve çalıştırıcı
+  reddeder; komut satırında `--ayar=grup=guncel|geri_yuklenen`). Seçim işlem
+  durumuna yazılır, `guncel` gruplar sistem açılmadan tek veritabanı işleminde
+  yazılır (yeniden çalıştırılabilir); yazılamazsa uygulama kapalı kalır, karar
+  yine yöneticinindir. Seçim ve uyarılar denetim kaydına gider. Sırlar: mail
+  parolası dosyada `APP_KEY` ile şifrelidir, çözülüp yazılır; hedef sırları
+  dosyaya hiç yazılmaz — geri yüklenen veritabanındaki hedefin sırları olduğu
+  gibi kalır, yedekten sonra eklenmiş hedef sırsız ve PASİF açılır (uyarı);
+  açık şifreleme anahtarı dosyada yoktur, parmak izi farklıysa uyarı. Bugün
+  olmayan plan / hedef kullanılmıyorsa silinir, kopyası / bağı varsa pasife
+  alınıp adına "(silinmiş #id)" eklenir.
 - "Geri dön"de geri yüklenen veritabanı kendi `erp_geri_*` adına döner,
   silinmez ve bağlantıya kapalı kalır.
 - Disk ön denetimi: yedek klasörünün diskinde canlı veritabanının boyutu +

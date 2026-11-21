@@ -1,6 +1,6 @@
 import { api } from '@/api/client'
 
-/** 12 ileri adım (backend UstuneGeriYuklemeAdimi) — ekranın adım listesi */
+/** 13 ileri adım (backend UstuneGeriYuklemeAdimi) — ekranın adım listesi */
 export type UstuneDurum =
   | 'kuyrukta'
   | 'calisiyor'
@@ -29,6 +29,12 @@ export interface KullaniciOzeti {
   roller: string[]
 }
 
+/** Onayda ayrı ayrı seçilen ayar grupları (backend AyarKopyasi::GRUPLAR) */
+export type AyarGrubu = 'mail' | 'yedek_ayarlari' | 'planlar' | 'hedefler'
+
+/** guncel = ayarların dosya kopyası (bugün), geri_yuklenen = yedekteki */
+export type AyarSecimi = 'guncel' | 'geri_yuklenen'
+
 export interface OnayBilgisi {
   /** "Önceki" yan okunamadı: farklar gösterilemez */
   onceki_bilinmiyor: boolean
@@ -41,6 +47,10 @@ export interface OnayBilgisi {
     degisiklik: 'degisti' | 'geri_yuklenende_yok' | 'yalniz_geri_yuklenende'
     alanlar: string[]
   }[]
+  /** Farkı olan her grup için onayda seçim zorunlu (varsayılan yok); eski kayıtlarda yok */
+  ayar_gruplari?: { grup: AyarGrubu; farkli: boolean }[]
+  /** Ayarların dosya kopyası okunamadı: "güncel" seçilemez */
+  ayar_kopyasi_yok?: boolean
   kullanici_farklari: {
     kullanici_adi: string
     ad: string
@@ -125,14 +135,24 @@ const KOK = '/api/v1/yedekleme/ustune-geri-yukleme'
  * yönlendirir; burada 401 "anahtar yok" demektir. Çerez gönderilmez; tek
  * yetki `X-Erisim-Anahtari` başlığıdır.
  */
-async function anahtarliIstek<T>(yontem: 'GET' | 'POST', yol: string, anahtar: string): Promise<T> {
+async function anahtarliIstek<T>(
+  yontem: 'GET' | 'POST',
+  yol: string,
+  anahtar: string,
+  istekGovdesi?: Record<string, unknown>,
+): Promise<T> {
   let yanit: Response
   try {
     yanit = await fetch(yol, {
       method: yontem,
       credentials: 'omit',
       cache: 'no-store',
-      headers: { Accept: 'application/json', 'X-Erisim-Anahtari': anahtar },
+      headers: {
+        Accept: 'application/json',
+        'X-Erisim-Anahtari': anahtar,
+        ...(istekGovdesi === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      ...(istekGovdesi === undefined ? {} : { body: JSON.stringify(istekGovdesi) }),
     })
   } catch {
     throw new UstuneGeriYuklemeHatasi(0, 'AG_HATASI')
@@ -156,11 +176,21 @@ export function ustuneDurumGetir(
   return anahtarliIstek('GET', `${KOK}/${islem}/durum${sorgu}`, anahtar)
 }
 
-/** "Onayla" / "Geri dön" — 409 GERI_YUKLEME_ISLEM_DURUMU_UYGUN_DEGIL yapılabilir değilse */
+/**
+ * "Onayla" / "Geri dön" — 409 GERI_YUKLEME_ISLEM_DURUMU_UYGUN_DEGIL yapılabilir
+ * değilse. Onay, farkı olan her ayar grubunun seçimini taşır (422
+ * GERI_YUKLEME_AYAR_SECIMI_EKSIK aksi hâlde).
+ */
 export function ustuneKararVer(
   islem: string,
   anahtar: string,
   karar: 'onayla' | 'geri-don',
+  ayarSecimleri?: Partial<Record<AyarGrubu, AyarSecimi>>,
 ): Promise<{ istek_kimligi: string; durum: 'kuyrukta' }> {
-  return anahtarliIstek('POST', `${KOK}/${islem}/${karar}`, anahtar)
+  return anahtarliIstek(
+    'POST',
+    `${KOK}/${islem}/${karar}`,
+    anahtar,
+    karar === 'onayla' ? { ayar_secimleri: ayarSecimleri ?? {} } : undefined,
+  )
 }

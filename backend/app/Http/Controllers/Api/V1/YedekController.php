@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\YedekResource;
 use App\Models\Yedek;
 use App\Services\Yedekleme\DogrulamaDurumu;
+use App\Services\Yedekleme\GeriYuklemeKaynaklari;
 use App\Services\Yedekleme\IstekKutusu;
 use App\Services\Yedekleme\KullanimDenetimi;
 use App\Services\Yedekleme\PgAraclari;
@@ -100,6 +101,14 @@ final class YedekController extends Controller
 
         if (! $yedek->geriYuklenebilirMi()) {
             return $this->reddet('YEDEK_DOGRULANAMAZ', 'hata.yedek_dogrulanamaz');
+        }
+
+        // Doğrulama geri yükleme motorunu kullanır: yalnız şifreli kopyası
+        // kalan yedek ekrandan doğrulanamaz (BY-027-R1)
+        $engel = GeriYuklemeKaynaklari::engel($yedek->loadMissing('kopyalar'));
+
+        if ($engel !== null) {
+            return $this->reddet($engel, 'hata.yedek_dogrulama_kaynagi_yok');
         }
 
         return $this->kabul($this->istekler->birak('dogrula', ['yedek_kimligi' => $yedek->kimlik], (int) $request->user()->id, $yedek->id));

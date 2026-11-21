@@ -28,7 +28,7 @@ final class GeriDonIsleyicisi implements AnahtarlaYetkilendirilir
 
     public function isle(Istek $istek, YedekKilidi $kilit): IstekSonucu
     {
-        $this->anahtarDenetle($istek, $this->yapilandirma);
+        $this->kanitDenetle($istek, 'geri_don', $this->yapilandirma, $this->ustune, $kilit);
 
         try {
             $kayit = $this->ustune->geriDon($kilit, (string) $istek->metin('islem_kimligi'));

@@ -14,7 +14,7 @@ use Carbon\CarbonImmutable;
 final readonly class GuncelDurum
 {
     /**
-     * @param  array<string, array{hedef_id: int|null, hedef_ad: string|null, durum: string, uzak_kimlik: string|null, sifreli: bool, sifreli_sha256: string|null, plan_idleri: list<int>, silindi: bool}>  $kopyalar  hedef anahtarı ("id:<n>" ya da "ad:<ad>") => kopya
+     * @param  array<string, array{hedef_id: int|null, hedef_ad: string|null, durum: string, uzak_kimlik: string|null, sifreli: bool, sifreli_sha256: string|null, plan_idleri: list<int>, silindi: bool, hata_kodu: string|null}>  $kopyalar  hedef anahtarı ("id:<n>" ya da "ad:<ad>") => kopya
      */
     public function __construct(
         public bool $sabit,
@@ -70,6 +70,7 @@ final readonly class GuncelDurum
                             'sifreli_sha256' => is_string($a['sifreli_sha256'] ?? null) ? $a['sifreli_sha256'] : null,
                             'plan_idleri' => array_values(array_filter((array) ($a['plan_idleri'] ?? []), 'is_int')),
                             'silindi' => false,
+                            'hata_kodu' => null,
                         ];
                     }
                     break;
@@ -78,6 +79,8 @@ final readonly class GuncelDurum
                     if ($anahtar !== null && isset($kopyalar[$anahtar])) {
                         $kopyalar[$anahtar]['silindi'] = true;
                         $kopyalar[$anahtar]['durum'] = KopyaDurumu::Silindi->value;
+                        // Doluysa kopya fiziksel silinmedi, bizden çıkmış sayıldı (BY-023-R1)
+                        $kopyalar[$anahtar]['hata_kodu'] = is_string($a['hata_kodu'] ?? null) ? $a['hata_kodu'] : null;
                     }
                     break;
                 case OlayTuru::YerelSilindi:

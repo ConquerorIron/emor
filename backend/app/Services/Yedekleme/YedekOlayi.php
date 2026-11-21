@@ -12,7 +12,7 @@ use Throwable;
  * - dogrulandi: {durum: DogrulamaDurumu}
  * - aciklama: {aciklama: string|null}
  * - kopya: {hedef_id, hedef_ad, durum: KopyaDurumu, uzak_kimlik, sifreli, sifreli_sha256, plan_idleri}
- * - kopya_silindi: {hedef_id, hedef_ad}
+ * - kopya_silindi: {hedef_id, hedef_ad, hata_kodu?} (hata_kodu: fiziksel silinmedi, ör. HEDEF_SILME_YETKISI_YOK)
  * - sabitlendi, sabit_cozuldu, yerel_silindi, silindi: {}
  */
 final readonly class YedekOlayi

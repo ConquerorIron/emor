@@ -42,6 +42,7 @@ const hedef = (id: number, ad: string, tur: string): Hedef => ({
   baglanti: {},
   gizli_kayitli: {},
   plan_sayisi: 0,
+  konum_kilitli_alanlar: [],
   son_kopya: null,
 })
 
@@ -53,6 +54,7 @@ const AYLIK: Plan = {
   saat: '02:00',
   siklik: { ayin_gunu: 31 },
   son_calisma: null,
+  son_sonuc: null,
   sonraki_calisma: '2026-11-29T23:00:00+00:00',
   ay_sonu_uyarisi: true,
   hedefler: [
@@ -130,6 +132,44 @@ describe('YedekPlanlariPage', () => {
         hedefler: [{ hedef_id: 3, sakla_son_adet: 10, sakla_gun: null }],
       }),
     )
+  })
+
+  it('son çalışmanın sonucu başarılı, yedek hatalı ve hedef hatalı olarak ayrı gösterilir (BY-017-R1)', async () => {
+    const calismis = (id: number, ad: string, son_sonuc: Plan['son_sonuc']): Plan => ({
+      ...AYLIK,
+      id,
+      ad,
+      son_calisma: '2026-11-20T23:00:00+00:00',
+      son_sonuc,
+    })
+    api.planlar.mockResolvedValue([
+      calismis(1, 'Başarılı plan', { durum: 'basarili', hata_kodu: null, basarisiz_hedefler: [] }),
+      calismis(2, 'Dump hatalı plan', {
+        durum: 'yedek_basarisiz',
+        hata_kodu: 'HEDEF_ERISILEMEDI',
+        basarisiz_hedefler: [],
+      }),
+      calismis(3, 'Hedef hatalı plan', {
+        durum: 'hedef_basarisiz',
+        hata_kodu: null,
+        basarisiz_hedefler: [{ hedef_id: 3, ad: 'Ofis FTP', hata_kodu: 'HEDEF_YAZILAMADI' }],
+      }),
+    ])
+    ciz()
+
+    const basarili = await satir('Başarılı plan')
+    expect(within(basarili).getByText('Başarılı')).toBeInTheDocument()
+    expect(basarili).not.toHaveTextContent('Yedek alınamadı')
+    expect(basarili).not.toHaveTextContent('Kopya başarısız')
+
+    const dump = await satir('Dump hatalı plan')
+    expect(dump).toHaveTextContent('Yedek alınamadı')
+    expect(dump).toHaveTextContent('Hedefe ulaşılamadı')
+
+    const hedefHatali = await satir('Hedef hatalı plan')
+    expect(hedefHatali).toHaveTextContent('Kopya başarısız')
+    expect(hedefHatali).toHaveTextContent('Ofis FTP: Hedefe yazılamadı')
+    expect(hedefHatali).not.toHaveTextContent('Yedek alınamadı')
   })
 
   it('saklama kuralı boş ya da hedefsiz plan kaydedilmez', async () => {

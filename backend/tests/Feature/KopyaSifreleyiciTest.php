@@ -265,6 +265,38 @@ final class KopyaSifreleyiciTest extends TestCase
         $this->assertSame($yedek->sha256, hash_file('sha256', $this->yedekKoku.'/indirilen.dump'));
     }
 
+    /**
+     * BY-019-R1: gpg'nin süre aşımı geçicidir (D8 yalnız kendiliğinden
+     * düzelmeyeni keser): kopya yeniden denenir ve ikinci denemede yalnız
+     * şifreli dosya gider. Anahtar yokken tek deneme:
+     * YedekKopyalayiciTest::test_sunucu_disi_hedefe_sifreleme_yokken_kopya_gitmez.
+     */
+    public function test_gpg_sure_asiminda_kopya_yeniden_denenir_yalniz_sifreli_dosya_gider(): void
+    {
+        $this->anahtariKaydet('a');
+        BellekHedefi::$sunucuDisi = true;
+        // İlk şifreleme çağrısı süre sınırını aşar (asılı gpg), sonrakiler gerçek gpg
+        $isaret = $this->yedekKoku.'/ilk-sifreleme-asildi';
+        $sarmalayici = $this->dosya('gpg-sarmalayici', "#!/bin/sh\nfor a in \"\$@\"; do\n  if [ \"\$a\" = --encrypt ] && [ ! -e '{$isaret}' ]; then : > '{$isaret}'; exec sleep 5; fi\ndone\nexec /usr/bin/gpg \"\$@\"\n");
+        chmod($sarmalayici, 0700);
+        config(['yedekleme.gpg' => $sarmalayici, 'yedekleme.sure_siniri.sifreleme' => 1]);
+        $icerik = 'PGDMP-sure-asimi';
+        $yedek = Yedek::factory()->create(['sha256' => hash('sha256', $icerik), 'boyut' => strlen($icerik)]);
+        @mkdir(config('yedekleme.klasor'), 0750, true);
+        file_put_contents(config('yedekleme.klasor').'/'.$yedek->dosya_adi, $icerik);
+        $hedef = YedekHedefi::factory()->create(['tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'k']]);
+
+        $kopya = app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+
+        $this->assertFileExists($isaret);
+        $this->assertSame(KopyaDurumu::Tamam, $kopya->durum);
+        $this->assertSame(2, $kopya->deneme);
+        $this->assertSame($hedef->id.'/'.$yedek->dosya_adi.'.gpg', $kopya->uzak_kimlik);
+        $this->assertArrayNotHasKey($hedef->id.'/'.$yedek->dosya_adi, BellekHedefi::$dosyalar);
+        $this->assertNotContains($icerik, BellekHedefi::$dosyalar);
+        $this->assertSame($kopya->sifreli_sha256, hash('sha256', BellekHedefi::$dosyalar[$kopya->uzak_kimlik]));
+    }
+
     public function test_sifre_coz_komutu_dosyayi_verilen_anahtarla_cozer(): void
     {
         $this->anahtariKaydet('a');

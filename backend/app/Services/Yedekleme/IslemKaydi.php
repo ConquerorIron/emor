@@ -17,6 +17,12 @@ use Throwable;
  * üstüne geri yüklemede yer değiştirmeden sonra `geri_yuklemeler` satırı eski
  * veritabanında kalır; çökmeden sonra devam / geri sarma kararı ve geçmiş
  * kaydının yeniden yazılması yalnız bu dosyaya dayanabilir (README §6.4).
+ *
+ * Üstüne geri yüklemenin ek bağlamı (BY-028-R1/R2, BY-030-R1) — eski
+ * dosyalarda yoktur, yoksa boş sayılır (sürüm aynı; yazılırken hep yazılır):
+ * `bariyer` (yazıcı bariyerinden önceki ÖZGÜN bağlanma yetkileri), `ayar_secimleri`
+ * (onayda yöneticinin ayar grubu seçimleri), `kullanilan_kanitlar` (tüketilmiş
+ * karar kanıtlarının nonce'u → son geçerlilik anı; tek kullanım).
  */
 final readonly class IslemKaydi
 {
@@ -27,6 +33,12 @@ final readonly class IslemKaydi
         'erisim_anahtari_ozeti', 'erisim_anahtari_bitis',
         'yedek_kimligi', 'hedef_veritabani', 'onceki_veritabani', 'isteyen_kullanici_id',
     ];
+
+    /** Tutulan en çok tüketilmiş kanıt (süresi geçenler her yazımda düşer) */
+    public const EN_COK_KANIT = 64;
+
+    /** PostgreSQL `datacl::text` için üst sınır (bayt); veritabanı ACL'si bunun çok altındadır */
+    private const ACL_EN_UZUN = 16_384;
 
     private const TARIH_BICIMI = 'Y-m-d\TH:i:s.uP';
 
@@ -46,6 +58,9 @@ final readonly class IslemKaydi
      * @param  string|null  $hedefVeritabani  Geri yüklemenin açtığı veritabanı (ör. erp_geri_*)
      * @param  string|null  $oncekiVeritabani  Üstüne geri yüklemede eski veritabanının yeni adı (erp_onceki_*)
      * @param  int|null  $isteyenKullaniciId  İşlemi isteyen; boşsa sistem / komut satırı
+     * @param  array{baglanma_yetkileri: string|null}|null  $bariyer  Yazıcı bariyeri kurulmadan önceki özgün `datacl` (null = varsayılan yetkiler); bariyer kurulmadıysa null
+     * @param  array<string, string>|null  $ayarSecimleri  Onayda seçilen ayar grupları: grup => guncel | geri_yuklenen (AyarSecimi)
+     * @param  array<string, int>  $kullanilanKanitlar  Tüketilmiş karar kanıtları: nonce => son geçerlilik (Unix saniye)
      */
     public function __construct(
         public string $kimlik,
@@ -61,6 +76,9 @@ final readonly class IslemKaydi
         public ?string $hedefVeritabani = null,
         public ?string $oncekiVeritabani = null,
         public ?int $isteyenKullaniciId = null,
+        public ?array $bariyer = null,
+        public ?array $ayarSecimleri = null,
+        public array $kullanilanKanitlar = [],
     ) {}
 
     /**
@@ -83,6 +101,10 @@ final readonly class IslemKaydi
             'hedef_veritabani' => $this->hedefVeritabani,
             'onceki_veritabani' => $this->oncekiVeritabani,
             'isteyen_kullanici_id' => $this->isteyenKullaniciId,
+            'bariyer' => $this->bariyer,
+            'ayar_secimleri' => $this->ayarSecimleri,
+            // Boş nesne JSON'da `{}` kalsın (liste `[]` değil)
+            'kullanilan_kanitlar' => $this->kullanilanKanitlar === [] ? new \stdClass : $this->kullanilanKanitlar,
         ];
     }
 
@@ -156,6 +178,27 @@ final readonly class IslemKaydi
             throw $bozuk('isteyen kullanıcı kimliği pozitif tam sayı değil');
         }
 
+        $bariyer = $veri['bariyer'] ?? null;
+        if ($bariyer !== null && (! is_array($bariyer) || array_keys($bariyer) !== ['baglanma_yetkileri'] || ! self::aclMi($bariyer['baglanma_yetkileri']))) {
+            throw $bozuk('bariyer alanı yalnız {baglanma_yetkileri: metin | null} olmalı');
+        }
+
+        $secimler = $veri['ayar_secimleri'] ?? null;
+        if ($secimler !== null && (! is_array($secimler) || ($secimler !== [] && array_is_list($secimler)) || ! AyarSecimi::gecerliMi($secimler))) {
+            throw $bozuk('ayar seçimleri grup => guncel | geri_yuklenen olmalı');
+        }
+
+        $kanitlar = $veri['kullanilan_kanitlar'] ?? [];
+        $kanitlar = $kanitlar instanceof \stdClass ? (array) $kanitlar : $kanitlar;
+        if (! is_array($kanitlar) || ($kanitlar !== [] && array_is_list($kanitlar)) || count($kanitlar) > self::EN_COK_KANIT) {
+            throw $bozuk('kullanılan kanıtlar nonce => zaman nesnesi değil');
+        }
+        foreach ($kanitlar as $nonce => $son) {
+            if (! is_string($nonce) || preg_match('/^[0-9a-f]{32}$/D', $nonce) !== 1 || ! is_int($son) || $son < 1) {
+                throw $bozuk('kullanılan kanıtlar nonce => zaman nesnesi değil');
+            }
+        }
+
         return new self(
             kimlik: $veri['kimlik'],
             tur: $tur,
@@ -170,7 +213,17 @@ final readonly class IslemKaydi
             hedefVeritabani: $veri['hedef_veritabani'],
             oncekiVeritabani: $veri['onceki_veritabani'],
             isteyenKullaniciId: $isteyen,
+            bariyer: $bariyer === null ? null : ['baglanma_yetkileri' => $bariyer['baglanma_yetkileri']],
+            ayarSecimleri: $secimler,
+            kullanilanKanitlar: $kanitlar,
         );
+    }
+
+    /** `datacl::text` (ya da varsayılan yetkiler için null): kontrol karakteri yok, sınırlı uzunluk */
+    private static function aclMi(mixed $deger): bool
+    {
+        return $deger === null
+            || (is_string($deger) && strlen($deger) <= self::ACL_EN_UZUN && preg_match('/^\{[^\x00-\x1f\x7f]*\}$/D', $deger) === 1);
     }
 
     private static function uuidMi(mixed $deger): bool

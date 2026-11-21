@@ -41,7 +41,12 @@ export interface Yedek {
   imzali: boolean
   /** Eski yedeklerden içe alındı (BY-013) */
   ice_alindi: boolean
+  /** İmzalı ve tamamlanmış (doğrulama bununla açılır) */
   geri_yuklenebilir: boolean
+  /** Ekrandan geri yüklenebilecek kaynak var mı: yerel dosya ya da şifresiz uzak kopya */
+  webden_geri_yuklenebilir: boolean
+  /** Ekrandan geri yüklenemiyorsa nedeni (hata kodu; ör. yalnız şifreli kopya: GERI_YUKLEME_OZEL_ANAHTAR_GEREKLI) */
+  geri_yukleme_engeli: string | null
   /** Bayt */
   boyut: number | null
   alinma_zamani: string | null

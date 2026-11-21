@@ -23,8 +23,9 @@ use Throwable;
  * - Yazılan dosya hedeften geri okunup özeti karşılaştırılır; tutmazsa kopya
  *   başarısızdır. Başarısız kopya en çok `kopya_deneme` kez denenir.
  * - Sunucu dışı hedefe kopya şifrelenmeden GİTMEZ (README §4.7; KopyaSifreleyici).
- *   Başarılı sunucu dışı kopyadan sonra kurtarma dosyaları da o hedefe gider
- *   (KurtarmaPaketi; BY-024); onların hatası kopyayı başarısız saymaz.
+ *   Başarılı sunucu dışı kopyadan sonra kurtarma paketi de o hedefe gider
+ *   (KurtarmaPaketi; BY-024); onun hatası kopyayı başarısız saymaz ama uzak
+ *   yaşam sinyali yalnız paket tamamlanınca gönderilir.
  * - Bir hedefin hatası istisna olarak dışarı taşmaz: kopya `basarisiz`
  *   olur, diğer hedefler ve yedeğin kendisi etkilenmez.
  * - Sonuç olay günlüğüne ve denetim kaydına yazılır.
@@ -82,17 +83,19 @@ final class YedekKopyalayici
                 $this->denetim->kaydet('kopya', IslemSonucu::Basarili, $yedek->id, $kullaniciId, $this->sureMs($baslangic), [
                     'hedef' => $hedef->ad, 'deneme' => $deneme, 'sifreli' => $sifreli,
                 ]);
-                if ($sifreli) {
+                // Kurtarma paketinin hatası dışarı taşmaz, kopyayı başarısız saymaz (BY-024).
+                // Uzak yaşam sinyali yalnız paket de tamamlanıp doğrulanınca gider: boş
+                // sunucuda kurtarma, yedekle birlikte paketin manifestlerini ister (BY-024-R1).
+                if ($sifreli && $this->kurtarma->gonder($hedef, $yedek->id, $kullaniciId)) {
                     $this->sinyal->gonder(YasamSinyali::UZAK);
-                    // Hata dışarı taşmaz; kopyayı başarısız saymaz (BY-024)
-                    $this->kurtarma->gonder($hedef, $yedek->id, $kullaniciId);
                 }
 
                 return $kopya;
             } catch (Throwable $hata) {
                 $sonHata = $hata;
 
-                // Yapılandırma / şifreleme eksikliği yeniden denemeyle düzelmez (D8)
+                // Yapılandırma / şifreleme anahtarı eksikliği yeniden denemeyle düzelmez (D8).
+                // gpg süre aşımı (SifrelemeHatasi, gecici) kalıcı sayılmaz: sınırlı denenir (BY-019-R1).
                 if ($hata instanceof HedefHatasi && in_array($hata->kod, [HedefHatasi::YAPILANDIRMA, HedefHatasi::KIMLIK, HedefHatasi::YENIDEN_BAGLAN, HedefHatasi::SUNUCU_PARMAK_IZI, HedefHatasi::SERTIFIKA, HedefHatasi::BAGLI_DEGIL, HedefHatasi::KOTA], true)) {
                     break;
                 }
@@ -103,7 +106,7 @@ final class YedekKopyalayici
             }
         }
 
-        [$kod, $mesaj] = $sonHata instanceof HedefHatasi
+        [$kod, $mesaj] = $sonHata instanceof HedefHatasi || $sonHata instanceof SifrelemeHatasi
             ? [$sonHata->kod, Str::limit($sonHata->getMessage(), 500)]
             : ['KOPYA_BEKLENMEYEN_HATA', $sonHata === null ? '' : $sonHata::class];
 

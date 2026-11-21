@@ -39,6 +39,11 @@ kurulumun klasörleri olur):
 
 Kuyruk servisi adı ve `systemctl` yolu servis tanımından gelir
 (`YEDEKLEME_KUYRUK_SERVISI`, `YEDEKLEME_SYSTEMCTL`); sudoers kuralıyla aynıdır.
+İstek göndereninin doğrulandığı web ve yayın kullanıcısının uid'leri de
+servis tanımındadır (`YEDEKLEME_WEB_UID`, `YEDEKLEME_YAYIN_UID`; kurulum betiği
+yazar): çalıştırıcı kullanıcılı isteği yalnız web kullanıcısının, kullanıcısız
+yayın öncesi yedeği yalnız yayın kullanıcısının dosyasıysa işler
+(`.env`'e yazılmaz; geçiş kipinde web = çalıştırıcının kendi kullanıcısı).
 
 **Servis hesabıyla elle komut çalıştırma** (servis tanımının ortamıyla —
 kendi önbellek ve günlük yolları; README §5.5, D7):
@@ -72,9 +77,13 @@ Aşağıda "servis olarak" denen her komut bu kalıpla çalıştırılır.
 - **Nereden izlenir:** Yedekler ekranının özet şeridi (son yerel / uzak /
   sınama zamanları ayrı; sessizlik süresi), hata mailleri (doğrudan, kuyruksuz,
   aynı hata saatte bir), dış izleyicideki üç yaşam sinyali.
-- **Zamanlayıcı** (`routes/console.php`): `yedek:zamanla` dakikada bir (bakım
-  modunda da), `yedek:temizle` her gün 04:10 İstanbul, geçiş kipinde
-  `yedek:calistir --tek-tur` dakikada bir.
+- **Zamanlayıcı** (`routes/console.php`), geçiş kipinde: `yedek:zamanla`
+  dakikada bir (bakım modunda da), `yedek:temizle` her gün 04:10 İstanbul,
+  `yedek:calistir --tek-tur` dakikada bir. **Servis kipinde** bu üçü
+  zamanlayıcıda çalışmaz; `emor-yedek.service` döngüsü yürütür: istekler her
+  turda, planlı yedek dakikada bir, günlük temizlik 04:10 İstanbul'dan sonra
+  günde bir kez (son deneme anı `durum/temizlik-son-calisma`; servis o saatte
+  kapalıysa açılınca bir kez yapar). Açık üstüne geri yüklemede temizlik yapılmaz.
 - **Komutlar:**
 
   | Komut | Ne yapar |
@@ -83,15 +92,26 @@ Aşağıda "servis olarak" denen her komut bu kalıpla çalıştırılır.
   | `yedek:temizle [--onizleme]` | saklama kuralları; önizleme silmez |
   | `yedek:tara` | dizini manifestlerden yeniden kurar |
   | `yedek:yayin-oncesi` | deploy.sh'ın yedeği (başarısızsa yayın durur) |
+  | `yedek:yayin-korumasi kilit-yolu\|denetle` | deploy.sh'ın yayın kilidi yolu ve açık geri yükleme denetimi |
   | `yedek:eski-yedekleri-al` | eski imzasız yedekleri bir kez içeri alır |
   | `yedek:imza-anahtari` | imza anahtarını üretir (varsa dokunmaz) |
   | `yedek:calistir [--tek-tur]` | istek klasörünü işler |
   | `yedek:sifre-coz <dosya> <cikis> --anahtar=` | sunucu dışı kopyayı çözer (kurtarma) |
+  | `yedek:manifest-dogrula <dump> [--manifest=]` | dump'ı imzalı manifestine karşı doğrular (imza, boyut, SHA-256); elle geri yüklemeden önce (kurtarma.md §4.8) |
   | `yedek:acil durum\|onayla\|geri-don` | üstüne geri yüklemenin acil durum yolu (§6) |
 
-- **Yayın:** `deploy.sh` yedeği `yedek:yayin-oncesi` ile alır; açık üstüne
-  geri yükleme varken ya da kilit 60 sn'de boşalmazsa yayın DURUR. Yedeksiz
-  yayın yalnız bilerek: `./deploy.sh --no-backup`.
+- **Yayın:** modül açıksa `deploy.sh` önce **yayın kilidini**
+  (`durum/yayin.kilit`) alır ve betik bitene kadar tutar; kilit altında açık
+  üstüne geri yükleme varsa (ya da durum okunamazsa) yedekli de `--no-backup`
+  da yayın bakım modu, kod çekme, migration ve `artisan up` olmadan DURUR.
+  Kilit 60 sn'de boşalmazsa (başka yayın ya da başlayan geri yükleme; süre
+  `EMOR_YAYIN_KILIT_BEKLEME`) yine durur. Sonra yedeği `yedek:yayin-oncesi`
+  ile alır. Uygulama zaten bakım modundaysa yayın `down` / `up` çağırmaz
+  (yalnız kendi açtığını kapatır). Yayın sürerken üstüne geri yükleme
+  başlamaz (`GERI_YUKLEME_YAYIN_SURUYOR`). Yedeksiz yayın yalnız bilerek:
+  `./deploy.sh --no-backup`. Uygulamanın komutu çalışmıyorsa (bozuk
+  bağımlılık) açık geri yükleme bilinemez, yayın durur: önce durum elle
+  denetlenir (`yedek:acil durum`), kod elle çekilir.
 
 ## 4. Farklı adla geri yükleme (canlıya dokunmaz)
 
@@ -104,7 +124,7 @@ Aşağıda "servis olarak" denen her komut bu kalıpla çalıştırılır.
 4. İş bitince ekrandan silinir; silinmezse `YEDEKLEME_KOPYA_BEKLEME_GUN` gün
    sonra kendiliğinden silinir (ekranda son gün uyarısı).
 5. Yerel dosyası silinmiş, yalnız **şifreli** uzak kopyası olan yedek ekrandan
-   açılamaz (`GERI_YUKLEME_OZEL_ANAHTAR_GEREKLI`): kurtarma.md §4.4–4.7.
+   açılamaz (`GERI_YUKLEME_OZEL_ANAHTAR_GEREKLI`): kurtarma.md §4.6–4.9.
 
 ## 5. Üstüne geri yükleme (yıkıcı — yalnız sistem yöneticisi)
 
@@ -155,6 +175,11 @@ sudo -u emor-yedek env $(systemctl show emor-yedek -p Environment --value) php a
   mesajla çıkar (çıkış 1) — birkaç saniye sonra tekrar denenir; çalıştırıcı
   asılıysa `sudo systemctl stop emor-yedek` (iş bitince çıkar; en çok
   `TimeoutStopSec`).
+- `onayla`: farkı olan her ayar grubu (mail, yedek ayarları, planlar,
+  hedefler) için seçim ister: `--ayar=mail=guncel --ayar=planlar=geri_yuklenen`
+  gibi (`guncel` = geri yüklemeden önceki dosya kopyası, `geri_yuklenen` =
+  yedekteki hâli). Varsayılan seçim yoktur; `yedek:acil durum` hangi grupların
+  seçim istediğini yazar (BY-028-R2).
 - `--force` onay sorusunu atlar (yalnız betik içinde).
 - Sunucu "onay bekleniyor"dayken yeniden başlarsa: kuyruk ve zamanlayıcı
   açılsa da iş çalıştırmaz; karar bu komutla ya da ekrandan verilir.
@@ -168,6 +193,8 @@ sudo -u emor-yedek env $(systemctl show emor-yedek -p Environment --value) php a
 | `YEDEK_ACIK_GERI_YUKLEME` | üstüne geri yükleme onay bekliyor | §5.5 / §6 |
 | `YEDEK_ISLEM_DURUMU_OKUNAMADI` | `durum/islem.json` okunamıyor / bozuk | izinler; bozuksa elle bakılır, silinmez |
 | `ISTEK_YETKI_YOK` | isteyen kullanıcının izni işlem anında yok | rolü |
+| `ISTEK_GONDEREN_DOGRULANAMADI` | istek dosyasının sahibi web / yayın kullanıcısı değil | servis tanımındaki `YEDEKLEME_WEB_UID` / `_YAYIN_UID` (kurulum betiği); değilse saldırı şüphesi — denetim kaydındaki `gonderen_uid` |
+| `GERI_YUKLEME_YAYIN_SURUYOR` | üstüne geri yükleme istenirken yayın sürüyordu | yayın bitince yeniden iste |
 | `ISTEK_SURESI_DOLDU` | istek 24 saatten eski | yeniden iste; çalıştırıcı çalışıyor mu? |
 | `ISTEK_YARIDA_KALDI` | çalıştırıcı iş sırasında öldü | günlük; yeniden iste |
 | "isteği zamanında işlenmedi" (deploy) | servis kipinde çalıştırıcı yanıt vermedi | `systemctl status emor-yedek` |
@@ -176,7 +203,9 @@ sudo -u emor-yedek env $(systemctl show emor-yedek -p Environment --value) php a
 | `HEDEF_YENIDEN_BAGLAN` | Google izni kaldırılmış | Hedefler → "Google ile bağlan" |
 | `HEDEF_KOTA_DOLU` | uzak hedef dolu | yer aç; saklama kuralı |
 | `HEDEF_BAGLI_DEGIL` | NAS paylaşımı bağlı değil | `mount`; yerel diske yazılmadı |
-| `HEDEF_YAPILANDIRMA_HATASI` (şifreleme) | açık anahtar yok / süresi dolmuş | Ayarlar → açık anahtar; sunucu dışına şifresiz gitmez |
+| `HEDEF_YAPILANDIRMA_HATASI` (şifreleme) | açık anahtar yok / kayıtlı parmak iziyle uyuşmuyor / süresi dolmuş | yeniden denenmez (D8); Ayarlar → açık anahtar; sunucu dışına şifresiz gitmez |
+| `YEDEK_GPG_HATASI` (kopyada) | gpg süre sınırını aştı, çalıştırılamadı ya da geçici klasör / disk sorunu | geçici sayılır: kopya `kopya_deneme` kez denenir; sürerse disk / yük ve `YEDEKLEME_SIFRELEME_SURESI` |
+| İşlem Günlüğü'nde `kurtarma_paketi` başarısız | kurtarma paketinin yeni sürümü yarıda kaldı; yazılan dosyaları silindi, önceki tamam sürüm yetkili kaldı; uzak yaşam sinyali gitmedi | hata mesajındaki koda göre hedefi / günlük dosyasını düzelt; sonraki sunucu dışı kopyada yeniden gönderilir (kurtarma.md §1) |
 | `HEDEF_SILME_YETKISI_YOK` | hedef silmeye izin vermiyor (S3 kilidi) | hata değil; hedefin kendi kuralı temizler |
 | `GERI_YUKLEME_SEMA_UYUMSUZ` | yedekte olup kodda olmayan migration | doğru kod sürümünü yayınla |
 | `GERI_YUKLEME_KARSILASTIRMA_TUTMADI` | satır sayısı / migration listesi tutmadı | yedek "doğrulama başarısız"; başka yedek |
@@ -199,6 +228,9 @@ bakım modundan çıkmadı / iş çalıştırmadı.
 | Sürecin öldürülmesi (üstüne geri yükleme) | lokal PG, her adımda `kill -9` + sürdürme (BY-028 günlüğü) | 6. adımdan önce geri sarıldı; sonra onaya geldi | evet | evet |
 | Bozuk / eksik / imzası tutmayan manifest | `YedekManifestiTest`, `DizinKurucuTest`, `GeriYukleyiciTest` | "güvenilmeyen", geri yüklenemez; tarama durmaz | evet | — |
 | Yanlış şifreleme anahtarı | `KopyaSifreleyiciTest` (gerçek gpg) | anlaşılır kod, yarım dosya yok | evet | — |
+| gpg süre aşımı (geçici) | `KopyaSifreleyiciTest::test_gpg_sure_asiminda_kopya_yeniden_denenir_yalniz_sifreli_dosya_gider` | ikinci denemede tamam; hedefe yalnız şifreli dosya | evet | — |
+| Kurtarma paketinin ara dosyası yazılamaz | `KurtarmaPaketiTest::test_ara_bilesen_yazilamazsa_onceki_paket_yetkili_kalir_yasam_sinyali_gitmez` | yeni sürüm silindi; önceki sürüm ve işaretçisi aynen, ondan çözülüyor; uzak sinyal gitmedi | evet | — |
+| Bozuk manifest / yanlış imza anahtarıyla elle geri yükleme | `YedekManifestDogrulaTest` | `yedek:manifest-dogrula` başarısız, geri yükleme başlamaz | evet | — |
 | Migration hatası | `UstuneGeriYukleyiciTest` | yeni veritabanı silindi, canlı aynen | evet | evet |
 | Ad değiştirme sırasında kesinti | lokal PG (öncesi / sonrası öldürme), `test_yer_degistirmede_olen_islem_adlara_gore_karar_verir` | adlara göre geri sar / devam | evet | evet |
 | Veritabanına erişimin kesilmesi | `UstuneGeriYuklemeApiTest` (ilerleme ucu DB yokken), `test_acil_durum_komutu_veritabani_erisilemezken_onaylar` | kilit dosyada; yetkili okur, anahtarsız 401/403 | evet | evet |
@@ -215,9 +247,10 @@ bakım modundan çıkmadı / iş çalıştırmadı.
 ## 9. Tatbikat (öneri 3 ayda bir)
 
 1. Sunucu dışındaki **şifreli** kopyadan bir yedek seçilir (yerel dosyası
-   değil): kurtarma.md §4.4–4.6 ile indirilir, özel anahtarla çözülür, özet
-   manifestle karşılaştırılır.
-2. Ayrı bir veritabanına geri yüklenir (kurtarma.md §4.7, ad
+   değil): kurtarma.md §4.6–4.8 ile indirilir, özel anahtarla çözülür, imza
+   ve özet `yedek:manifest-dogrula` ile doğrulanır (çalıştıran kimlikler
+   oradaki gibi).
+2. Ayrı bir veritabanına geri yüklenir (kurtarma.md §4.9, ad
    `erp_geri_tatbikat_*`); satır sayıları ve uygulama rolü denetlenir.
 3. Sonuç ve süre bu dosyanın sonuna tarihli satır olarak yazılır; veritabanı silinir.
 

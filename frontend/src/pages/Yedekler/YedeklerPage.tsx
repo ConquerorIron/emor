@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -205,8 +205,6 @@ export function YedeklerPage() {
 
   // Ekrandaki satırlar yeni süzgecin sonucu değilse satır işlemleri kapalı (F1)
   const yenileniyor = liste.isFetching || liste.isPaused || liste.isPlaceholderData
-  // İş sürerken (yoklanırken) ve liste tazelenirken işlem başlatılmaz
-  const kilitli = calisiyor || yenileniyor
 
   // Silme ya da süzgeçle kayıtlar azalınca boş sayfada kalınmaz
   const sonSayfa = liste.isPlaceholderData ? undefined : liste.data?.meta.last_page
@@ -216,6 +214,10 @@ export function YedeklerPage() {
     }
   }, [sonSayfa, sayfa])
 
+  // İstek gönderilirken (yanıt gelip yoklama başlamadan) de yeni iş başlatılmaz:
+  // ardışık tıklama ikinci bir iş bırakmasın (BY-015-R1). `isPending` düğmeyi
+  // bir sonraki çizimde kapatır; aradaki tıklamayı eşzamanlı bayrak yakalar.
+  const gonderiliyor = useRef(false)
   const istek = useMutation({
     mutationFn: istegiBirak,
     onSuccess: (kabul, gonderilen) => {
@@ -226,7 +228,18 @@ export function YedeklerPage() {
       setKopyaYuklenecek(null)
     },
     onError: (error: unknown) => toast.error(t(apiErrorKey(error))),
+    onSettled: () => {
+      gonderiliyor.current = false
+    },
   })
+  const isiBirak = (yeni: YedekIstegi) => {
+    if (gonderiliyor.current) return
+    gonderiliyor.current = true
+    istek.mutate(yeni)
+  }
+  const isBirakiliyor = istek.isPending
+  // İş sürerken (yoklanırken) ve liste tazelenirken işlem başlatılmaz
+  const kilitli = calisiyor || isBirakiliyor || yenileniyor
 
   const filtreDegistir = (degisiklik: Partial<YedekFiltresi>) => {
     setFiltre((onceki) => ({ ...onceki, ...degisiklik }))
@@ -393,11 +406,12 @@ export function YedeklerPage() {
 
         return (
           <div className="flex flex-wrap justify-end gap-2">
-            {alabilir && yedek.geri_yuklenebilir ? (
+            {/* Doğrulama da geri yükleme motorunu kullanır: yalnız şifreli kopyası kalan yedekte açılmaz (BY-027-R1) */}
+            {alabilir && yedek.webden_geri_yuklenebilir ? (
               <Button
                 variant="secondary"
                 disabled={kilitli}
-                onClick={() => istek.mutate({ tur: 'dogrula', kimlik: yedek.kimlik })}
+                onClick={() => isiBirak({ tur: 'dogrula', kimlik: yedek.kimlik })}
               >
                 {t('yedekleme.yedekler.dogrula')}
               </Button>
@@ -420,19 +434,34 @@ export function YedeklerPage() {
                 <Button
                   variant="secondary"
                   disabled={kilitli}
-                  onClick={() => istek.mutate({ tur: 'sabitle', kimlik: yedek.kimlik })}
+                  onClick={() => isiBirak({ tur: 'sabitle', kimlik: yedek.kimlik })}
                 >
                   {t('yedekleme.yedekler.sabitle')}
                 </Button>
               )
             ) : null}
             {/*
-             * Geri yükleme yalnız `yedek.geri_yuklenebilir` (imzalı, tamam)
-             * satırda; güvenilmeyen (imzasız) yedekte hiçbir zaman. Üstüne
-             * geri yükleme ayrıca içe alınmış eski yedekte yok (migration
-             * listesi yok: şema uyumu denetlenemez) ve yalnız sistem yöneticisinde.
+             * Geri yükleme yalnız `yedek.webden_geri_yuklenebilir` satırda:
+             * imzalı, tamam ve ekrandan okunabilir bir kaynağı (yerel dosya ya
+             * da şifresiz kopya) olan; güvenilmeyen (imzasız) yedekte hiçbir
+             * zaman. Kaynağı yalnız şifreli kopya olan yedekte eylem yerine
+             * kurtarma yolu yazılır (BY-027-R1). Üstüne geri yükleme ayrıca
+             * içe alınmış eski yedekte yok (migration listesi yok: şema uyumu
+             * denetlenemez) ve yalnız sistem yöneticisinde.
              */}
-            {yonetici && yedek.geri_yuklenebilir && !yedek.ice_alindi ? (
+            {(yonetici || kopyalayabilir) &&
+            yedek.geri_yuklenebilir &&
+            !yedek.webden_geri_yuklenebilir &&
+            yedek.geri_yukleme_engeli ? (
+              <p className="max-w-xs text-right text-xs text-amber-700 dark:text-amber-300">
+                {yedek.geri_yukleme_engeli === 'GERI_YUKLEME_OZEL_ANAHTAR_GEREKLI'
+                  ? t('yedekleme.yedekler.yalnizSifreliKopya')
+                  : t(`hata.${yedek.geri_yukleme_engeli}`, {
+                      defaultValue: yedek.geri_yukleme_engeli,
+                    })}
+              </p>
+            ) : null}
+            {yonetici && yedek.webden_geri_yuklenebilir && !yedek.ice_alindi ? (
               <Button
                 variant="danger"
                 disabled={kilitli}
@@ -441,7 +470,7 @@ export function YedeklerPage() {
                 {t('yedekleme.ustune.dugme')}
               </Button>
             ) : null}
-            {kopyalayabilir && yedek.geri_yuklenebilir ? (
+            {kopyalayabilir && yedek.webden_geri_yuklenebilir ? (
               <Button
                 variant="secondary"
                 disabled={kilitli}
@@ -478,12 +507,16 @@ export function YedeklerPage() {
           <div className="flex flex-wrap gap-2">
             <Button
               variant="secondary"
-              disabled={calisiyor}
-              onClick={() => istek.mutate({ tur: 'tara' })}
+              disabled={calisiyor || isBirakiliyor}
+              onClick={() => isiBirak({ tur: 'tara' })}
             >
               {t('yedekleme.yedekler.klasoruTara')}
             </Button>
-            <Button variant="mor" disabled={calisiyor} onClick={() => setYeniYedekAcik(true)}>
+            <Button
+              variant="mor"
+              disabled={calisiyor || isBirakiliyor}
+              onClick={() => setYeniYedekAcik(true)}
+            >
               {t('yedekleme.yedekler.simdiYedekAl')}
             </Button>
           </div>
@@ -600,7 +633,7 @@ export function YedeklerPage() {
               baslangic=""
               onayEtiketi={t('yedekleme.yedekler.yedekAl')}
               yukleniyor={istek.isPending}
-              gonder={(aciklama) => istek.mutate({ tur: 'yedek_al', aciklama })}
+              gonder={(aciklama) => isiBirak({ tur: 'yedek_al', aciklama })}
               kapat={() => setYeniYedekAcik(false)}
             />
           </>
@@ -619,7 +652,7 @@ export function YedeklerPage() {
             onayEtiketi={t('ortak.kaydet')}
             yukleniyor={istek.isPending}
             gonder={(aciklama) =>
-              istek.mutate({ tur: 'aciklama', kimlik: notDuzenlenen.kimlik, aciklama })
+              isiBirak({ tur: 'aciklama', kimlik: notDuzenlenen.kimlik, aciklama })
             }
             kapat={() => setNotDuzenlenen(null)}
           />
@@ -636,7 +669,7 @@ export function YedeklerPage() {
             yedek={kopyaYuklenecek}
             yukleniyor={istek.isPending}
             gonder={(ek) =>
-              istek.mutate({ tur: 'kopya_geri_yukle', kimlik: kopyaYuklenecek.kimlik, ek })
+              isiBirak({ tur: 'kopya_geri_yukle', kimlik: kopyaYuklenecek.kimlik, ek })
             }
             kapat={() => setKopyaYuklenecek(null)}
           />
@@ -678,7 +711,7 @@ export function YedeklerPage() {
         yukleniyor={istek.isPending}
         onayla={() => {
           if (onayBekleyen !== null) {
-            istek.mutate({ tur: onayBekleyen.tur, kimlik: onayBekleyen.yedek.kimlik })
+            isiBirak({ tur: onayBekleyen.tur, kimlik: onayBekleyen.yedek.kimlik })
           }
         }}
       />

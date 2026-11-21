@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\YedekHedefi;
+use App\Services\Yedekleme\HedefKonumu;
 use App\Services\Yedekleme\Hedefler\HedefAlani;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use Illuminate\Http\Request;
@@ -45,6 +46,8 @@ final class YedekHedefiResource extends JsonResource
             'baglanti' => (object) array_intersect_key($this->baglanti ?? [], array_flip([...$acik, ...self::DURUM_ALANLARI])),
             'gizli_kayitli' => (object) array_combine($gizli, array_map(fn (string $ad): bool => ($sirlar[$ad] ?? '') !== '', $gizli)),
             'plan_sayisi' => $this->whenCounted('planlar'),
+            // Kopyası duran hedefte değiştirilemeyen konum alanları (BY-016-R1); kopya yoksa boş
+            'konum_kilitli_alanlar' => app(HedefKonumu::class)->kilitliAlanlar($this->resource),
             'son_kopya' => $sonKopya === null ? null : [
                 'durum' => $sonKopya->durum->value,
                 'zaman' => ($sonKopya->tamamlanma_zamani ?? $sonKopya->updated_at)?->toIso8601String(),

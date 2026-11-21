@@ -23,6 +23,7 @@ import {
   type KayitliUstuneIslem,
 } from '@/features/yedekleme/ustuneGeriYuklemeDeposu'
 
+import { AyarSecimleri, type AyarSecimDurumu } from './AyarSecimleri'
 import { OnayBilgisiPaneli } from './OnayBilgisiPaneli'
 
 const YOKLAMA_ARALIGI = 2000
@@ -99,6 +100,7 @@ export function UstuneGeriYuklemePage() {
     return saklanan?.islem_kimligi === islemKimligi ? saklanan : null
   })
   const [kararOnayi, setKararOnayi] = useState<'onayla' | 'geri-don' | null>(null)
+  const [ayarSecimleri, setAyarSecimleri] = useState<AyarSecimDurumu>({})
   const anahtar = kayit?.erisim_anahtari ?? null
   const kararIstegi = kayit?.karar_istegi ?? null
 
@@ -127,9 +129,17 @@ export function UstuneGeriYuklemePage() {
     }
   }, [bitti, islemKimligi])
 
+  // Farkı olan ayar grupları: her biri için açık seçim gerekir (BY-028-R2)
+  const secimGerekenler = (gorunum?.onay_bilgisi?.ayar_gruplari ?? [])
+    .filter((g) => g.farkli)
+    .map((g) => g.grup)
+  const secimlerTamam = secimGerekenler.every((grup) => ayarSecimleri[grup] !== undefined)
+
   const karar = useMutation({
     mutationFn: (secim: 'onayla' | 'geri-don') =>
-      ustuneKararVer(islemKimligi, anahtar ?? '', secim),
+      secim === 'onayla'
+        ? ustuneKararVer(islemKimligi, anahtar ?? '', secim, ayarSecimleri)
+        : ustuneKararVer(islemKimligi, anahtar ?? '', secim),
     onSuccess: (sonuc) => {
       if (kayit !== null) {
         const yeni = { ...kayit, karar_istegi: sonuc.istek_kimligi }
@@ -276,6 +286,16 @@ export function UstuneGeriYuklemePage() {
           <OnayBilgisiPaneli bilgi={gorunum.onay_bilgisi} />
         ) : null}
 
+        {gorunum?.yapilabilir.onayla && secimGerekenler.length > 0 ? (
+          <AyarSecimleri
+            gruplar={secimGerekenler}
+            kopyaYok={gorunum.onay_bilgisi?.ayar_kopyasi_yok === true}
+            secimler={ayarSecimleri}
+            degistir={(grup, secim) => setAyarSecimleri((onceki) => ({ ...onceki, [grup]: secim }))}
+            disabled={kararSuruyor}
+          />
+        ) : null}
+
         {gorunum && (gorunum.yapilabilir.onayla || gorunum.yapilabilir.geri_don) ? (
           <div className="flex flex-wrap justify-end gap-3">
             {gorunum.yapilabilir.geri_don ? (
@@ -290,7 +310,8 @@ export function UstuneGeriYuklemePage() {
             {gorunum.yapilabilir.onayla ? (
               <Button
                 variant="danger"
-                disabled={kararSuruyor}
+                disabled={kararSuruyor || !secimlerTamam}
+                title={secimlerTamam ? undefined : t('yedekleme.ustune.ayarSecimi.eksik')}
                 onClick={() => setKararOnayi('onayla')}
               >
                 {t('yedekleme.ustune.onayla')}

@@ -6,6 +6,7 @@ namespace App\Http\Resources;
 
 use App\Models\Yedek;
 use App\Models\YedekKopyasi;
+use App\Services\Yedekleme\GeriYuklemeKaynaklari;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -32,6 +33,13 @@ final class YedekResource extends JsonResource
             'imzali' => $this->imzali,
             'ice_alindi' => $this->ice_alindi,
             'geri_yuklenebilir' => $this->geriYuklenebilirMi(),
+            // Ekrandan (özel anahtarsız) geri yükleme kaynağı var mı; yoksa neden (BY-027-R1).
+            // GeriYukleyici aynı kuralla kaynak seçer. Kopyalar yüklüyse ek sorgu yok.
+            $this->mergeWhen($this->relationLoaded('kopyalar'), function (): array {
+                $engel = GeriYuklemeKaynaklari::engel($this->resource);
+
+                return ['webden_geri_yuklenebilir' => $engel === null, 'geri_yukleme_engeli' => $engel];
+            }),
             'boyut' => $this->boyut,
             'alinma_zamani' => $this->alinma_zamani?->toIso8601String(),
             'sabit' => $this->sabit,

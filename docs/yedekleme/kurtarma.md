@@ -9,28 +9,46 @@ sunucu dışındaki şifreli yedekten geri kurma adımları. Tasarım: README §
 > buraya, depoya ya da bilet sistemine yazmayın.
 
 **Son deneme:** 2026-11-21, lokal (WSL, PostgreSQL 16.15) — §8. Sunucuda
-(PostgreSQL 18.6) henüz denenmedi.
+(PostgreSQL 18.6) ve boş bir Linux makinesinde servis kipiyle henüz
+denenmedi; §4'ün bugünkü sırası (sürümlü paket, imza doğrulaması, çalıştıran
+kimlikler) baştan sona uygulanmadı.
 
 ---
 
 ## 1. Sunucu dışında ne var
 
 Her başarılı sunucu dışı kopyadan sonra (NAS, SFTP, FTP, S3, Google Drive)
-hedefte şunlar bulunur; hepsi Ayarlar'da yüklenen **aynı açık anahtarla**
-şifrelidir:
+hedefte şunlar bulunur. `.gpg` dosyaları Ayarlar'da yüklenen **aynı açık
+anahtarla** şifrelidir:
 
 | Uzak dosya | İçerik | Ne işe yarar |
 |---|---|---|
 | `erp_<kaynak>_<zaman>.dump.gpg` | Veritabanı yedeği (pg_dump özel biçim) | Geri yüklenecek veri |
-| `emor-kurtarma-manifestler.tar.gpg` | Yedek klasöründeki bütün imzalı manifestler (`erp_….json`) | Dump'ın özeti, kodlama / sıralama kuralı, satır sayıları; yedeğin "güvenilir" sayılması |
-| `emor-kurtarma-olaylar.jsonl.gpg` | Olay günlüğü (`olaylar.jsonl`, imzalı satırlar) | Sabitleme, doğrulama, kopya bilgisi; **şifreli kopyanın özeti** (`sifreli_sha256`) |
-| `emor-kurtarma-ayarlar.json.gpg` | Ayar kopyası (planlar, hedefler, mail ayarı; sırlar hariç) | Planları / hedefleri yeniden tanımlamak; veritabanı eskiyse güncel ayarlar |
-| `emor-kurtarma-denetim.log.gpg` | `yedekleme` denetim günlüğünün bütün günleri, birleşik | Kim ne zaman ne yaptı |
+| `emor-kurtarma-<sürüm>-tamam.json` | **Paketin işaretçisi** (şifresiz): sürümün bileşenlerinin adı, şifreli dosyanın SHA-256'sı, boyutu | Hangi sürümün tamam olduğu; indirilen paket dosyalarının bozulmadığı |
+| `emor-kurtarma-<sürüm>-manifestler.tar.gpg` | Yedek klasöründeki bütün imzalı manifestler (`erp_….json`) | Dump'ın özeti, kodlama / sıralama kuralı, satır sayıları; yedeğin "güvenilir" sayılması |
+| `emor-kurtarma-<sürüm>-olaylar.jsonl.gpg` | Olay günlüğü (`olaylar.jsonl`, imzalı satırlar) | Sabitleme, doğrulama, kopya bilgisi (şifreli kopyanın özeti `sifreli_sha256`) |
+| `emor-kurtarma-<sürüm>-ayarlar.json.gpg` | Ayar kopyası (planlar, hedefler, mail ayarı; sırlar hariç) | Planları / hedefleri yeniden tanımlamak; veritabanı eskiyse güncel ayarlar |
+| `emor-kurtarma-<sürüm>-denetim.log.gpg` | `yedekleme` denetim günlüğünün bütün günleri, birleşik | Kim ne zaman ne yaptı |
 
-`emor-kurtarma-*` dosyaları her kopyada üstüne yazılır (adla üstüne yazmayan
-Google Drive'da bir önceki silinir); `erp_` ile başlamadıkları için yedek
-listesine ve temizliğe girmezler. Gönderim başarısız olursa yedeğin kopyası
-yine "tamam" sayılır, hata İşlem Günlüğü'nde `kurtarma_paketi` olarak görünür.
+**Kurtarma paketi sürümlüdür.** `<sürüm>` UTC zamanla başlar
+(`20261121T101500Z-1a2b3c`): adlar ada göre sıralanınca zamana göre sıralanır.
+Her gönderim yeni adlarla yazar, hiçbir dosyanın üstüne yazmaz. Bileşenlerin
+hepsi yazılıp hedeften geri okunarak doğrulandıktan **sonra** o sürümün
+`-tamam.json` işaretçisi yazılır; ancak ondan sonra eski sürümler silinir ve
+uzak yaşam sinyali gider.
+
+- **Yetkili paket:** `-tamam.json` işaretçisi olan EN YENİ sürüm. İşaretçisi
+  olmayan `emor-kurtarma-<sürüm>-…` dosyaları yarım kalmış bir gönderimdir;
+  kullanılmaz (sonraki başarılı gönderim siler).
+- Hedefte son **iki** tamam sürüm durur: yenisinin bir dosyası bozuk çıkarsa
+  bir öncekiyle kurtarılır.
+- Gönderim yarıda kalırsa önceki tamam sürüm ve işaretçisi değişmez; yedeğin
+  kopyası yine "tamam" sayılır, hata İşlem Günlüğü'nde `kurtarma_paketi`
+  olarak görünür ve uzak yaşam sinyali gitmez (izleyici uyarır).
+- Adlar `erp_` ile başlamadığı için yedek listesine ve temizliğe girmezler.
+
+İşaretçi imzalı değildir: yalnız indirmenin bozulmadığını gösterir. Yedeğin bu
+sistemden çıktığı manifest imzasıyla doğrulanır (§4.8).
 
 ## 2. Saklanacak sırlar — nerede, kimde
 
@@ -73,21 +91,47 @@ saklanmaz: veritabanı yedeğindedir, `APP_KEY` ile açılır.
 
 ## 4. Adımlar
 
-Komutlar `admin` kullanıcısıyla, gerekiyorsa `sudo` ile çalıştırılır. Yollar
-canlı düzene göredir (`/var/www/emor`); geçiş döneminde yedek klasörü
-`backend/storage/app/yedekler`'dir (`YEDEKLEME_KLASORU`).
+Sıra servis kipine göredir (`YEDEKLEME_CALISTIRICI=servis`, isletim.md §1):
+yedek klasörü, imza anahtarı ve `emor_yedek` parolası servis hesabındadır
+(README §5.2, §5.5). Yollar kurulum betiğinin varsayılanlarıdır
+(`scripts/sunucu-yedekleme-kurulumu.sh`): uygulama `/var/www/emor`, yedek kökü
+`/var/lib/emor-yedek`.
 
-### 4.1 Sunucu bileşenleri
+**Her adımın başında onu çalıştıran kimlik yazar:**
+
+| Kimlik | Kim | Bu belgede ne yapar |
+|---|---|---|
+| **root** | `sudo` ile | Paketler, kurulum betiği, servisler. Servis hesabının klasörlerine **yazmaz**, oradaki yolları izlemez (D5) |
+| **postgres** | `sudo -u postgres` | PostgreSQL rolü ve veritabanı açma |
+| **admin** | yayın kullanıcısı | Uygulama klasörü (`git`, `composer`, `.env`), uzak hedeften indirme, `migrate`, `optimize` |
+| **emor-yedek** | servis hesabı, `sudo -u emor-yedek` | Kurtarma çalışma klasörü, şifre çözme, imza doğrulaması, yedek klasörüne yazma, geri yükleme, tarama |
+| www-data | web | Komut çalıştırmaz |
+
+Servis hesabının komutları **servis tanımının ortamıyla** çalışır (kendi
+önbellek ve günlük yolları, `PGPASSFILE`; README §5.5, D7 —
+sunucu-kurulumu.md §3). Ortam, kurulum betiğinin yazdığı
+`emor-yedek.service` tanımından gelir; tanım etkinleştirilmemiş olsa da okunur.
+Bu belgede kısaltma olarak (admin'in kabuğunda bir kez tanımlanır):
+
+```bash
+servis() { sudo -u emor-yedek env $(systemctl show emor-yedek -p Environment --value) "$@"; }
+```
+
+### 4.1 Sunucu bileşenleri — root
 
 1. Paketler: PostgreSQL 18, PHP 8.5 + uzantılar, msodbcsql18 + pecl
-   `sqlsrv` / `pdo_sqlsrv`, nginx, gnupg, Composer, Node.js.
-2. `en_US.UTF-8` yerel ayarı (§3).
-3. SSL sertifikası `/etc/ssl/emor` altına (§2).
-4. NAS hedefi kullanılıyorsa paylaşım `soft,timeo=…` seçenekleriyle bağlanır
+   `sqlsrv` / `pdo_sqlsrv`, nginx, gnupg, Composer, Node.js, `acl`
+   (kurulum betiği `setfacl` / `getfacl` ister).
+2. `admin` kullanıcısı (yayın kullanıcısı; `sudo` yetkili). `www-data`
+   nginx / php-fpm paketleriyle gelir.
+3. `en_US.UTF-8` yerel ayarı (§3).
+4. `fs.protected_hardlinks=1` (Ubuntu'da varsayılan; kurulum betiği yoksa durur).
+5. SSL sertifikası `/etc/ssl/emor` altına (§2).
+6. NAS hedefi kullanılıyorsa paylaşım `soft,timeo=…` seçenekleriyle bağlanır
    (`/etc/fstab`): asılı bir ağ paylaşımında PHP dosya çağrılarına süre sınırı
    konamaz; `hard` bağlamada kopya ve kilit süresiz bekleyebilir (BY-023).
 
-### 4.2 PostgreSQL rolleri
+### 4.2 PostgreSQL rolleri — postgres
 
 `pg_dump` rolleri içermez; yeniden açılır (README §9; `docs/yedekleme/kesif.md` §3–§6):
 
@@ -102,44 +146,121 @@ canlı düzene göredir (`/var/www/emor`); geçiş döneminde yedek klasörü
 sudo -u postgres createuser --login --pwprompt erp
 ```
 
-`emor_yedek` ve `emor_inceleme`'yi kurulum betiği açar ve yetkilerini
-denetler (§4.10; `docs/yedekleme/sunucu-kurulumu.md`). Betik çalışmadan önce
-geri yükleme yönetici rolüyle yapılabilir (§4.6).
+`emor_yedek` ve `emor_inceleme`'yi kurulum betiği açar (§4.4); betik `erp`
+rolünün var olmasını ister.
 
-### 4.3 Uygulama
+### 4.3 Uygulama — root, sonra admin
 
 ```bash
-sudo mkdir -p /var/www/emor && sudo chown admin: /var/www/emor
+# root
+sudo install -d -o admin -g admin -m 0755 /var/www/emor
+
+# admin
 git clone git@github.com:ConquerorIron/emor.git /var/www/emor   # deploy anahtarı (§2)
 cd /var/www/emor
-# backend/.env: kurtarma paketindeki kopyadan (APP_KEY, DB_PASSWORD, ERP_ADMIN_*, YEDEKLEME_* …)
+# backend/.env: güvenli yerdeki kopyadan (APP_KEY, DB_PASSWORD, ERP_ADMIN_*,
+# servis kipinin YEDEKLEME_* yolları — isletim.md §1 tablosu)
 (cd backend && composer install --no-dev --optimize-autoloader --no-interaction)
 (cd frontend && npm ci && npm run build)
+
+# root: .env'i web ve (www-data grubundaki) servis hesabı okur, başkası okumaz
+sudo chown admin:www-data backend/.env && sudo chmod 0640 backend/.env
 ```
+
+`.env`'deki yollar kurulum betiğinin yollarıyla **birebir** aynı olmalıdır:
+`YEDEKLEME_KLASORU=/var/lib/emor-yedek/yedekler`,
+`YEDEKLEME_IMZA_ANAHTARI=/var/lib/emor-yedek/gizli/imza.anahtar`,
+`YEDEKLEME_PAROLA_DOSYASI=/var/lib/emor-yedek/gizli/pgpass`,
+`YEDEKLEME_AYAR_KOPYASI=/var/lib/emor-yedek/gunluk/ayarlar.json`,
+`YEDEKLEME_DURUM_KLASORU=/var/lib/emor-yedek/durum`,
+`YEDEKLEME_ISTEK_KLASORU=/var/lib/emor-yedek/istekler`,
+`YEDEKLEME_KALICI_KOK=/var/lib/emor-yedek`, `YEDEKLEME_ROL=emor_yedek`.
 
 Bu aşamada `php artisan migrate` **çalıştırılmaz**: veritabanı daha yok ve boş
 şema geri yüklemenin önüne geçer.
 
-### 4.4 Uzak hedeften indirme
+### 4.4 Yedekleme servis hesabı ve izinler — root
 
-Hedefin kendi aracıyla (NAS: bağlayıp `cp`; SFTP: `sftp get`; S3: konsol ya da
-`aws s3 cp`; Google Drive: web arayüzü; FTP: istemci) bir çalışma klasörüne
-indirin, ör. `/root/kurtarma` (0700):
-
-- geri yüklenecek `erp_….dump.gpg` (genellikle en yenisi),
-- dört `emor-kurtarma-*.gpg` dosyası.
-
-### 4.5 Özel anahtarla çözme
-
-Özel anahtar dosyasını (ve parolalıysa parolanın bulunduğu dosyayı) yalnız bu
-adım için sunucuya getirin; uygulama klasörlerine koymayın, iş bitince silin.
-Parola hiçbir komutun satırına yazılmaz.
+Kurulum betiği servis hesabını (`emor-yedek`), grup üyeliklerini, yedek kökünü
+ve izinlerini (`/var/lib/emor-yedek/{yedekler,istekler,durum,gunluk,gizli,onbellek}`),
+`emor_yedek` / `emor_inceleme` rollerini, servis tanımını (etkinleştirmeden)
+ve dar sudo kuralını kurar (sunucu-kurulumu.md). Boş sunucuda parola dosyası
+olmadığı için `emor_yedek` rolüne yeni parola üretir ve
+`gizli/pgpass`'e yazar; parola hiçbir yerde görünmez.
 
 ```bash
+cd /var/www/emor
+sudo scripts/sunucu-yedekleme-kurulumu.sh --denetle   # ne eksik
+sudo scripts/sunucu-yedekleme-kurulumu.sh             # kur
+sudo scripts/sunucu-yedekleme-kurulumu.sh --denetle   # yalnız "[BİLGİ] imza anahtarı henüz yok" kalmalı
+```
+
+Betik `backend/.env`'i, `backend/vendor`'ı (§4.3) ve `erp` rolünü (§4.2) ister.
+Servis **etkinleştirilmez** (§4.11'e kadar): kurtarma sürerken çalıştırıcı
+iş almaz.
+
+### 4.5 İmza anahtarı — admin girdisiyle emor-yedek yazar
+
+Manifest imza anahtarı yedeklerden ayrı saklanan kopyadan (§2) gelir.
+**Taramadan ve imza doğrulamasından önce** yerinde olmalıdır (yoksa yedekler
+"güvenilmeyen" görünür, §4.8 geçmez). Dosyayı servis hesabı kendi klasörüne
+yazar; root oraya yazmaz (D5). `set -C`: var olan anahtarın üstüne yazılmaz.
+
+```bash
+# admin — anahtarın kopyası admin'in elinde, ör. ~/kurtarma-sir/imza.anahtar (0600)
+sudo -u emor-yedek sh -c 'umask 077; set -C; cat > /var/lib/emor-yedek/gizli/imza.anahtar' \
+  < ~/kurtarma-sir/imza.anahtar
+sudo /var/www/emor/scripts/sunucu-yedekleme-kurulumu.sh --denetle   # "DENETİM: her şey yerinde."
+```
+
+Denetim anahtarın sahibini (`emor-yedek`), iznini (0600) ve ACL'sini doğrular.
+
+### 4.6 Uzak hedeften indirme — admin
+
+Hedefin kendi aracıyla (NAS: bağlayıp `cp`; SFTP: `sftp get`; S3: konsol ya da
+`aws s3 cp`; Google Drive: web arayüzü; FTP: istemci) admin'in klasörüne
+indirin:
+
+```bash
+install -d -m 0700 ~/kurtarma-indirilen
+```
+
+1. En yeni `emor-kurtarma-<sürüm>-tamam.json` (adlar ada göre sıralanınca
+   sonuncusu, §1) ve içinde `dosyalar` altında adı geçen dosyalar.
+2. Geri yüklenecek `erp_….dump.gpg` (genellikle en yenisi).
+
+Paket dosyalarının indirmede bozulmadığını işaretçiyle denetleyin:
+
+```bash
+cd ~/kurtarma-indirilen
+php -r '$i = json_decode(file_get_contents($argv[1]), true, 8, JSON_THROW_ON_ERROR); $ok = true;
+  foreach ($i["dosyalar"] as $d) { $h = @hash_file("sha256", $d["ad"]); $ok = $ok && $h === $d["sha256"];
+    echo ($h === $d["sha256"] ? "TAMAM  " : "FARKLI "), $d["ad"], "\n"; } exit($ok ? 0 : 1);' \
+  emor-kurtarma-<sürüm>-tamam.json
+```
+
+Bir dosya `FARKLI` ya da yoksa bir önceki sürümü (diğer `-tamam.json`) indirin.
+Dump'ın kendisi §4.8'de manifestle doğrulanır.
+
+### 4.7 Çalışma klasörü ve şifre çözme — emor-yedek
+
+Çalışma klasörünü servis hesabı açar (0700, sahibi `emor-yedek`); admin'in
+indirdiği dosyaları ve özel anahtarı servis hesabına **standart girdiden**
+verir: root bu klasöre hiç yazmaz, admin içini göremez. Özel anahtarı (ve
+parolalıysa parola dosyasını) yalnız bu adım için sunucuya getirin; uygulama
+klasörlerine koymayın, §4.12'de silinir. Parola hiçbir komutun satırına
+yazılmaz.
+
+```bash
+# admin'in kabuğunda; komutlar emor-yedek olarak çalışır
 cd /var/www/emor/backend
-K=/root/kurtarma
-for f in $K/emor-kurtarma-*.gpg $K/erp_*.dump.gpg; do
-  php artisan yedek:sifre-coz "$f" "${f%.gpg}" --anahtar=$K/ozel.asc   # parolalıysa: --parola-dosyasi=$K/parola
+K=$(sudo -u emor-yedek mktemp -d /var/tmp/emor-kurtarma.XXXXXX)
+ver() { sudo -u emor-yedek sh -c 'umask 077; set -C; cat > "$1"' _ "$K/$2" < "$1"; }   # $1 kaynak, $2 ad
+for f in ~/kurtarma-indirilen/*; do ver "$f" "$(basename "$f")"; done
+ver ~/kurtarma-sir/ozel.asc ozel.asc          # parolalıysa: ver ~/kurtarma-sir/parola parola
+for f in ~/kurtarma-indirilen/*.gpg; do
+  b=$(basename "$f" .gpg)
+  servis php artisan yedek:sifre-coz "$K/$b.gpg" "$K/$b" --anahtar="$K/ozel.asc"   # parolalıysa: --parola-dosyasi="$K/parola"
 done
 ```
 
@@ -148,97 +269,122 @@ ve anahtarlık iş bitince silinir. Yanlış anahtar, eksik / yanlış parola ve
 bozuk dosya ayrı hata koduyla durur (`YEDEK_SIFRE_COZULEMEDI`,
 `YEDEK_ANAHTAR_PAROLASI_HATALI`); yarım çıktı bırakmaz.
 
-Uygulama henüz kurulamıyorsa aynı iş düz gpg ile yapılır:
+Uygulama henüz kurulamıyorsa yalnız **çözme** başka bir güvenilen makinede düz
+gpg ile yapılabilir (imza doğrulaması §4.8 yine bu uygulamayla yapılır):
 
 ```bash
 G=$(mktemp -d); chmod 700 $G
-gpg --homedir $G --batch --import $K/ozel.asc
-gpg --homedir $G --batch --pinentry-mode loopback --passphrase-file $K/parola \
-    --output $K/<ad>.dump --decrypt $K/<ad>.dump.gpg
+gpg --homedir $G --batch --import ozel.asc
+gpg --homedir $G --batch --pinentry-mode loopback --passphrase-file parola \
+    --output <ad>.dump --decrypt <ad>.dump.gpg
 gpgconf --homedir $G --kill all; rm -rf $G
 ```
 
-### 4.6 Doğrulama
+### 4.8 İmza ve özet doğrulaması — emor-yedek (SQL'den ÖNCE)
 
-1. **Şifreli dosya** olay günlüğündeki özetle aynı mı (indirme bozulmadı mı):
-
-   ```bash
-   # 1 ya da daha çok satır bulunmalı (kopya olayının sifreli_sha256 alanı)
-   grep -c "\"sifreli_sha256\":\"$(sha256sum $K/<ad>.dump.gpg | cut -c1-64)\"" $K/emor-kurtarma-olaylar.jsonl
-   ```
-
-2. Manifestleri yedek klasörüne açın, çözülmüş dump'ı yanına taşıyın:
-
-   ```bash
-   Y=<YEDEKLEME_KLASORU>   # .env'deki değer; geçiş döneminde /var/www/emor/backend/storage/app/yedekler
-   mkdir -p $Y
-   tar -xf $K/emor-kurtarma-manifestler.tar -C $Y
-   mv $K/<ad>.dump $Y/
-   ```
-
-3. **Çözülmüş dump** manifestteki özetle aynı mı:
-
-   ```bash
-   php -r '$m = json_decode(file_get_contents($argv[1]), true)["manifest"]; echo $m["sha256"] === hash_file("sha256", $argv[2]) ? "AYNI\n" : "FARKLI\n";' $Y/<ad>.json $Y/<ad>.dump
-   ```
-
-   Farklıysa geri yüklemeyin; başka bir yedekle tekrar deneyin.
-
-4. Kodlama ve sıralama kuralını manifestten okuyun:
-
-   ```bash
-   php -r 'print_r(json_decode(file_get_contents($argv[1]), true)["manifest"]["veritabani_ozellikleri"]);' $Y/<ad>.json
-   ```
-
-### 4.7 Veritabanını açma ve geri yükleme
-
-Değerler bir önceki adımdaki manifestten (canlıda bugün `UTF8` /
-`en_US.UTF-8`). `--create` kullanılmaz: veritabanı adı, kodlaması ve sahibi
-elle verilir (`kesif.md` §7).
+Manifestleri çalışma klasörüne açın ve geri yüklenecek dump'ı imzalı
+manifestine karşı doğrulayın. `yedek:manifest-dogrula`, tarama ve ekrandaki
+geri yüklemenin kullandığı kodla manifest imzasını (imza anahtarıyla, §4.5),
+manifestin bu dosyaya ait olduğunu, boyutu ve SHA-256'yı denetler; veritabanına
+bağlanmaz, dosyalara dokunmaz.
 
 ```bash
+sudo -u emor-yedek install -d -m 0700 "$K/m"
+sudo -u emor-yedek tar -xf "$K/emor-kurtarma-<sürüm>-manifestler.tar" -C "$K/m"
+servis php artisan yedek:manifest-dogrula "$K/<ad>.dump" --manifest="$K/m/<ad>.json"
+```
+
+**Yalnız `DOGRULANDI` yazarsa devam edin.** Komut `createdb` için kodlama ve
+sıralama değerlerini de yazar (§4.9). Başarısızsa (çıkış kodu 1) **geri
+yükleme yapılmaz**, hiçbir SQL çalıştırılmaz:
+
+| Çıktı | Anlamı | Ne yapılır |
+|---|---|---|
+| `GERI_YUKLEME_IMZA_GECERSIZ: … imzası tutmuyor` | Manifest değiştirilmiş ya da imza anahtarı yanlış | Doğru imza anahtarını bulun (§2); bulunamıyorsa §7 |
+| `GERI_YUKLEME_IMZA_GECERSIZ: imza anahtarı yok` | §4.5 yapılmadı / `.env` yolu farklı | §4.5, §4.3'teki yol |
+| `GERI_YUKLEME_IMZA_GECERSIZ: manifest bozuk / imzasız / yok / başka bir yedeğin` | Arşivde bu yedeğin geçerli manifesti yok | Başka bir yedek ya da önceki paket sürümü |
+| `GERI_YUKLEME_OZET_TUTMUYOR` | Dump bozuk, eksik ya da başka dosya | Dump'ı yeniden indirip çözün; olmazsa başka yedek |
+
+Doğrulanınca dosyaları servis hesabı yerlerine koyar (yalnız düz dosyalar;
+arşivdeki bağlantı vb. alınmaz):
+
+```bash
+sudo -u emor-yedek sh -c '
+  set -e; K="$1"; Y=/var/lib/emor-yedek/yedekler; G=/var/lib/emor-yedek/gunluk; S="$2"
+  find "$K/m" -maxdepth 1 -type f -name "erp_*.json" -exec install -m 0640 -t "$Y" {} +
+  install -m 0640 "$K/$3" "$Y/$3"
+  install -m 0640 "$K/emor-kurtarma-$S-olaylar.jsonl" "$Y/olaylar.jsonl"
+  install -m 0640 "$K/emor-kurtarma-$S-ayarlar.json" "$G/ayarlar.json"
+  install -m 0640 "$K/emor-kurtarma-$S-denetim.log" "$G/kurtarilan-denetim.log"' \
+  _ "$K" "<sürüm>" "<ad>.dump"
+```
+
+Olay günlüğü yedek klasörüne (`YEDEKLEME_KLASORU/olaylar.jsonl`), ayar kopyası
+`YEDEKLEME_AYAR_KOPYASI` yoluna, denetim günlüğü arşiv olarak günlük klasörüne
+günlük dosya adlarıyla karışmayan bir adla gider. İşaretçide `atlanan` altında
+geçen bileşen (gönderim anında kaynağı yoktu) pakette yoktur: onun satırını
+çıkarın.
+
+### 4.9 Veritabanını açma ve geri yükleme — postgres, sonra emor-yedek
+
+Değerler §4.8'in çıktısından (canlıda bugün `UTF8` / `en_US.UTF-8`).
+`--create` kullanılmaz: veritabanı adı, kodlaması ve sahibi elle verilir
+(`kesif.md` §7).
+
+```bash
+# postgres
 sudo -u postgres createdb --owner=erp --template=template0 \
      --encoding=UTF8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8 erp
 # Manifestte veritabanı düzeyi ayar varsa (bugün yok): ALTER DATABASE erp SET …;
 
-pg_restore -h 127.0.0.1 -U erp -d erp \
-    --no-owner --role=erp --exit-on-error --single-transaction $Y/<ad>.dump
+# emor-yedek — parola servis ortamındaki PGPASSFILE'dan (gizli/pgpass); -h .env'deki DB_HOST
+servis pg_restore -h 127.0.0.1 -U emor_yedek -d erp \
+    --no-owner --role=erp --exit-on-error --single-transaction \
+    /var/lib/emor-yedek/yedekler/<ad>.dump
 ```
 
-`-U erp` parolayı sorar (ya da `PGPASSFILE` ile 0600 parola dosyası); parola
-komut satırına yazılmaz. `emor_yedek` kurulduysa aynı komut `-U emor_yedek`
-ile çalışır, nesnelerin sahibi yine `erp` olur (`--role=erp`).
+Nesnelerin sahibi `erp` olur (`--role=erp`; `emor_yedek` `erp`'nin üyesi).
+Parola komut satırına yazılmaz, sorulmaz.
 
 Oturum, önbellek ve kuyruk tablolarının (`sessions`, `cache`, `jobs` …) yalnız
 şeması gelir, verisi boştur (README §7.1) — beklenen durumdur.
 
-### 4.8 İmza anahtarı, olay günlüğü, ayar kopyası
-
-1. İmza anahtarını kurtarma paketinden `YEDEKLEME_IMZA_ANAHTARI` yoluna koyun
-   (0600, uygulamanın / servis hesabının kullanıcısı). **Taramadan önce**
-   yapılmalı; yoksa yedek "güvenilmeyen" taranır.
-2. `$K/emor-kurtarma-olaylar.jsonl` → `$Y/olaylar.jsonl` (0640).
-3. `$K/emor-kurtarma-ayarlar.json` → `YEDEKLEME_AYAR_KOPYASI` yolu (0640).
-4. `$K/emor-kurtarma-denetim.log` → arşiv olarak `LOG_KLASORU` altına, günlük
-   dosya adlarıyla karışmayan bir adla (ör. `kurtarilan-denetim.log`).
-
-### 4.9 Şema ve dizin
+### 4.10 Şema ve dizin — admin, sonra emor-yedek
 
 ```bash
+# admin
 cd /var/www/emor/backend
 php artisan migrate --force      # kod yedekten yeniyse eksik migration'lar
-php artisan yedek:tara           # beklenen: "1 imzalı, 0 güvenilmeyen …"
+
+# emor-yedek
+servis php artisan yedek:tara    # beklenen: "… imzalı, 0 güvenilmeyen …"
+
+# admin
 php artisan storage:link
 php artisan optimize
 ```
 
-### 4.10 Servisler
+§4.8'den geçen yedek taramada "güvenilmeyen" görünüyorsa komutlar farklı bir
+anahtar ya da klasör görüyordur: `servis` kalıbıyla çalıştırıldığını, imza
+anahtarını (§4.5) ve `.env`'deki yolları (§4.3) denetleyin.
+
+### 4.11 Servisler — root
 
 1. nginx sitesi, php8.5-fpm, `emor-queue` systemd servisi, `/etc/cron.d/emor`
    zamanlayıcısı (`deploy.sh` ve sunucu notları).
-2. Yedekleme servis hesabı ve rolleri: `scripts/sunucu-yedekleme-kurulumu.sh`
-   (`docs/yedekleme/sunucu-kurulumu.md`).
-3. `php artisan up`.
+2. Grup üyelikleri süreçler yeniden başlayınca etkinleşir:
+   `sudo systemctl restart php8.5-fpm emor-queue`.
+3. Yedekleme çalıştırıcısı: `sudo systemctl enable --now emor-yedek`.
+
+### 4.12 Temizlik
+
+```bash
+sudo -u emor-yedek rm -rf -- "$K"      # emor-yedek: çözülmüş dosyalar, özel anahtar, parola dosyası
+rm -rf ~/kurtarma-indirilen            # admin
+```
+
+Özel anahtarın ve imza anahtarının admin'deki kopyası (`~/kurtarma-sir`) de
+silinir; asılları §2'deki yerlerinde kalır.
 
 ## 5. Son kontroller
 
@@ -251,7 +397,8 @@ php artisan optimize
 - [ ] Birkaç tablonun satır sayısı manifestteki `satir_sayilari` ile aynı.
 - [ ] Yedekler ekranında geri yüklenen yedek imzalı görünüyor.
 - [ ] Yeni bir elle yedek alınıyor, sunucu dışı hedefe kopyası "tamam", hedefte
-      `emor-kurtarma-*` dosyaları yenilendi.
+      yeni bir `emor-kurtarma-<sürüm>-tamam.json` göründü, İşlem Günlüğü'nde
+      `kurtarma_paketi` başarılı, dış izleyiciye uzak yaşam sinyali geldi.
 - [ ] Yedek hedefleri "Bağlantıyı Sına" başarılı (Google Drive "yeniden bağlanın"
       diyorsa yeniden bağlanın).
 - [ ] Özel anahtar ve parola dosyası sunucudan silindi.
@@ -281,14 +428,26 @@ Manifestler ve olay günlüğü imza anahtarıyla imzalıdır. Anahtar kaybolurs
   manifestlerin imzası tutmaz: bütün eski yedekler "güvenilmeyen" görünür ve
   **ekrandan geri yüklenemez** (README §4.5). Olay günlüğünün eski satırları da
   okunmaz (sabitleme, kopya bilgisi kaybolur).
-- Bu dokümandaki elle geri yükleme (§4.7) imzaya bakmaz; yedek yine geri
-  yüklenebilir. Ama dosyanın bu sistemden çıktığı artık kanıtlanamaz: açık
-  anahtar gizli değildir, onunla herkes şifreli dosya üretebilir. Karar
-  operatöründür: özeti başka bir kayıtla (bildirim maili, hedefteki dosya
-  tarihi, İşlem Günlüğü) karşılaştırın.
-- Bu yüzden imza anahtarı kurtarma paketinde, yedeklerden ayrı saklanır.
+- Bu dokümandaki elle geri yükleme de durur: `yedek:manifest-dogrula` (§4.8)
+  imzayı doğrulayamaz, `DOGRULANDI` yazmaz ve olağan sırada geri yükleme
+  yapılmaz. Dosyanın bu sistemden çıktığı artık kanıtlanamaz: açık anahtar
+  gizli değildir, onunla herkes şifreli dosya üretebilir.
+- Yine de geri yüklemek **istisnadır** ve sistem sahibinin yazılı kararını
+  ister: dump'ın SHA-256'sı imzadan bağımsız bir kayıtla (bildirim maili,
+  İşlem Günlüğü'nün başka bir kopyası, hedefteki dosya tarihi) karşılaştırılır;
+  karar, kim verdiği ve karşılaştırılan kayıt §8'e yazılır.
+- Bu yüzden imza anahtarı yedeklerden ayrı saklanır (§2).
 
 ## 8. Deneme kaydı
+
+**2026-11-21 — sıra değişti (BY-024-R1, R2; BY-031-R1), uygulanmadı.**
+Kurtarma paketi sürümlü oldu (`-tamam.json` işaretçisi), SQL'den önce
+`yedek:manifest-dogrula` ile imza + özet doğrulaması eklendi, her adıma
+çalıştıran kimlik yazıldı; servis hesabı, izinler ve imza anahtarı taramadan
+önce kurulur. Bu sıra boş bir Linux makinesinde servis kipiyle henüz baştan
+sona uygulanmadı (ilk imzalı tarama, arıza sonrası güvenli açılış ve geri
+dönüş kayda alınmadı). Otomatik testler: `KurtarmaPaketiTest`,
+`YedekManifestDogrulaTest`. Aşağıdaki prova eski sırayla yapıldı.
 
 **2026-11-21 — lokal prova (Claude, BY-024).** WSL Ubuntu 24.04,
 PostgreSQL 16.15, GnuPG 2.4.4. Yerel `erp` veritabanına yalnız okuma
@@ -313,4 +472,4 @@ ve geçici klasörlerde, sonunda silindi.
 Lokalde farklı olanlar: `createdb` `emor_yedek` yerine yerel `postgres`
 yöneticisiyle yapıldı (lokalde `emor_yedek` yok); PostgreSQL 18 değil 16;
 sıralama kuralı `en_US.UTF-8` değil `C.UTF-8`; uzak hedef gerçek bir NAS değil
-`/dev/shm`. Paket kurulumu (§4.1), servisler (§4.10) ve SSL denenmedi.
+`/dev/shm`. Paket kurulumu (§4.1), servisler (bugün §4.11) ve SSL denenmedi.

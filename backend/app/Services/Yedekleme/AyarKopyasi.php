@@ -30,6 +30,12 @@ final class AyarKopyasi
 {
     public const SURUM = 1;
 
+    /**
+     * Kopyanın grupları: üstüne geri yüklemeden sonra yönetici her farklı grup
+     * için "güncel" (bu dosya) ya da "geri yüklenen" seçer (README §5.3; BY-028-R2).
+     */
+    public const GRUPLAR = ['mail', 'yedek_ayarlari', 'planlar', 'hedefler'];
+
     public function __construct(
         private readonly YedeklemeYapilandirmasi $yapilandirma,
         private readonly YedekImzasi $imza,
@@ -127,6 +133,54 @@ final class AyarKopyasi
             'hedefler' => YedekHedefi::query()->orderBy('id')->get()->map(fn (YedekHedefi $h): array => [
                 'id' => $h->id, 'ad' => $h->ad, 'tur' => $h->tur->value, 'aktif' => $h->aktif, 'baglanti' => $h->baglanti,
             ])->all(),
+        ];
+    }
+
+    /**
+     * Grup başına karşılaştırılabilir içerik (GRUPLAR): `$kopya` verilirse o
+     * dosya kopyasının (oku()), verilmezse veritabanındaki ayarların. Sır
+     * taşımaz: mail parolası yerine APP_KEY'li HMAC'i (`sifre`) durur; plan
+     * hedefleri hedef kimliğine göre sıralıdır.
+     *
+     * @param  array<string, mixed>|null  $kopya
+     * @return array{mail: array<string, mixed>|null, yedek_ayarlari: array<string, mixed>, planlar: list<array<string, mixed>>, hedefler: list<array<string, mixed>>}
+     */
+    public function gruplar(?array $kopya = null): array
+    {
+        if ($kopya === null) {
+            $mail = MailAyari::query()->where('anahtar', MailAyari::ANAHTAR)->first();
+            $icerik = $this->icerik($mail);
+            $sifre = $mail?->sifre;
+        } else {
+            $icerik = $kopya;
+            try {
+                $sifre = is_string($kopya['mail']['sifre_sifreli'] ?? null) ? Crypt::decryptString($kopya['mail']['sifre_sifreli']) : null;
+            } catch (Throwable) {
+                // Çözülemeyen parola (APP_KEY değişmiş) hiçbir parolayla eşleşmesin
+                $sifre = "\0cozulemedi";
+            }
+        }
+
+        /** @var array<string, mixed> $dizi */
+        $dizi = json_decode(json_encode(array_intersect_key($icerik, array_flip(self::GRUPLAR)), JSON_THROW_ON_ERROR), true);
+        $mail = is_array($dizi['mail'] ?? null) ? $dizi['mail'] : null;
+        if ($mail !== null) {
+            unset($mail['sifre_sifreli']);
+            $mail['sifre'] = $sifre === null ? null : hash_hmac('sha256', $sifre, (string) config('app.key'));
+        }
+
+        $planlar = [];
+        foreach ((array) ($dizi['planlar'] ?? []) as $plan) {
+            $hedefler = (array) ($plan['hedefler'] ?? []);
+            usort($hedefler, fn (array $a, array $b): int => ($a['hedef_id'] ?? 0) <=> ($b['hedef_id'] ?? 0));
+            $planlar[] = [...$plan, 'hedefler' => $hedefler];
+        }
+
+        return [
+            'mail' => $mail,
+            'yedek_ayarlari' => (array) ($dizi['yedek_ayarlari'] ?? []),
+            'planlar' => $planlar,
+            'hedefler' => array_values((array) ($dizi['hedefler'] ?? [])),
         ];
     }
 

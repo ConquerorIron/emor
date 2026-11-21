@@ -106,6 +106,29 @@ final class GeriYuklemeHatasi extends RuntimeException
 
     public const ERISIM_ANAHTARI_SURESI_DOLDU = 'GERI_YUKLEME_ERISIM_ANAHTARI_SURESI_DOLDU';
 
+    // BY-026-R1, BY-028-R1/R2, BY-030-R1
+
+    /** Ayrı servis rolü (YEDEKLEME_ROL ≠ uygulama rolü) ya da parola dosyası yok: yazıcı bariyeri kurulamaz */
+    public const SERVIS_ROLU_GEREKLI = 'GERI_YUKLEME_SERVIS_ROLU_GEREKLI';
+
+    /** Canlının bağlanma yetkileri daraltılamadı ya da yazıcı oturumları sonlandırılamadı */
+    public const YAZICI_BARIYERI = 'GERI_YUKLEME_YAZICI_BARIYERI';
+
+    /** Manifestteki / özgün bağlanma yetkileri veritabanına eşdeğer uygulanamadı (ör. rol yok); yetkiler değişmedi */
+    public const VERITABANI_YETKILERI = 'GERI_YUKLEME_VERITABANI_YETKILERI';
+
+    /** Farkı olan bir ayar grubu için seçim yapılmadı (varsayılan seçim yok) */
+    public const AYAR_SECIMI_EKSIK = 'GERI_YUKLEME_AYAR_SECIMI_EKSIK';
+
+    /** "Güncel" seçilen ayarlar geri yüklenen veritabanına yazılamadı; hiçbiri yazılmadı */
+    public const AYAR_SECIMI_UYGULANAMADI = 'GERI_YUKLEME_AYAR_SECIMI_UYGULANAMADI';
+
+    /** Onay / geri dönüş kararının kanıtının süresi geçti (en çok 5 dakika) */
+    public const KARAR_SURESI_DOLDU = 'GERI_YUKLEME_KARAR_SURESI_DOLDU';
+
+    /** Bu karar kanıtı daha önce kullanıldı (tek kullanım) */
+    public const KARAR_KANITI_KULLANILDI = 'GERI_YUKLEME_KARAR_KANITI_KULLANILDI';
+
     /**
      * Yedeğin kendisinden kaynaklanan hatalar: sınamada bunlar yedeği
      * "doğrulama başarısız" yapar. Diğerleri (bağlantı, yetki, yapılandırma)

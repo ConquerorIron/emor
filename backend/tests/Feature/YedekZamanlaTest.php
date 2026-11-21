@@ -8,15 +8,23 @@ use App\Models\Yedek;
 use App\Models\YedekHedefi;
 use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
+use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use App\Services\Yedekleme\KopyaDurumu;
 use App\Services\Yedekleme\ManifestDeposu;
+use App\Services\Yedekleme\SaklamaPolitikasi;
 use App\Services\Yedekleme\SiklikTuru;
+use App\Services\Yedekleme\YedekAlici;
 use App\Services\Yedekleme\YedekDurumu;
+use App\Services\Yedekleme\YedekKaynagi;
+use App\Services\Yedekleme\YedekKopyalayici;
+use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use Carbon\CarbonImmutable;
+use Closure;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Sleep;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 use Tests\Yedekleme\YedeklemeOrtami;
 
@@ -146,6 +154,82 @@ final class YedekZamanlaTest extends TestCase
         $yedek = Yedek::query()->sole();
         $this->assertFileExists(config('yedekleme.klasor').'/'.$yedek->dosya_adi);
         $this->assertNull($yedek->yerel_silinme_zamani);
+    }
+
+    /** BY-010-R1: bir hedef tamam, diğeri başarısızken yerel dosya kalır; ikinci hedef doğrulanınca saklama siler. */
+    public function test_bir_hedef_basarisizken_yerel_dosya_kalir_ikinci_hedef_dogrulaninca_saklama_siler(): void
+    {
+        $this->sahtePgAraclari();
+        $plan = $this->vadesiGelenPlan('İki hedef', $this->hedef('Disk 2', $this->yedekKoku.'/disk-2'));
+        $bozuk = $this->hedef('Bozuk disk', '/proc/yedek-yazilamaz');
+        $plan->hedefler()->attach($bozuk, ['sakla_son_adet' => 14]);
+
+        $this->artisan('yedek:zamanla')->assertSuccessful();
+
+        $yedek = Yedek::query()->sole();
+        $yerel = config('yedekleme.klasor').'/'.$yedek->dosya_adi;
+        $this->assertFileExists($yerel);
+        $this->assertNull($yedek->yerel_silinme_zamani);
+
+        @mkdir($this->yedekKoku.'/disk-3', 0750, true);
+        $bozuk->update(['baglanti' => ['klasor' => $this->yedekKoku.'/disk-3']]);
+        app(YedekKopyalayici::class)->kopyala($yedek, $bozuk->refresh(), [$plan->id]);
+        app(SaklamaPolitikasi::class)->uygula();
+
+        $this->assertFileDoesNotExist($yerel);
+        $this->assertNotNull($yedek->refresh()->yerel_silinme_zamani);
+        $this->assertSame(YedekDurumu::Tamam, $yedek->durum);
+    }
+
+    /**
+     * BY-008-R1: yedek klasörünün farklı bir yazımı da ana klasördür; aynı dosya
+     * bağımsız kopya sayılıp eldeki tek arşiv silinmez (D4, F7).
+     */
+    #[DataProvider('anaKlasorYazimlari')]
+    public function test_ana_klasorun_farkli_yazimini_hedefleyen_planda_yedek_yerinde_kalir(Closure $yazim): void
+    {
+        $this->sahtePgAraclari();
+        $klasor = config('yedekleme.klasor');
+        @mkdir($klasor, 0750, true);
+        $this->vadesiGelenPlan('Yerel', $this->hedef('Yedek klasörü', $yazim($klasor)));
+
+        $this->artisan('yedek:zamanla')->assertSuccessful();
+
+        $yedek = Yedek::query()->sole();
+        $this->assertFileExists($klasor.'/'.$yedek->dosya_adi);
+        $this->assertNull($yedek->yerel_silinme_zamani);
+    }
+
+    /** @return array<string, array{Closure}> */
+    public static function anaKlasorYazimlari(): array
+    {
+        return [
+            'sondaki bölü' => [fn (string $k): string => $k.'/'],
+            'üst klasör (..)' => [fn (string $k): string => $k.'/../'.basename($k)],
+            'sembolik bağlantı' => [function (string $k): string {
+                symlink($k, $k.'-baglanti');
+
+                return $k.'-baglanti';
+            }],
+        ];
+    }
+
+    /** BY-008-R1: başka klasördeki aynı dosya (bağlantı) bağımsız kopya sayılmaz, açık kodla reddedilir. */
+    public function test_baska_klasorde_yerel_dosyanin_kendisi_kopya_sayilmaz(): void
+    {
+        $this->sahtePgAraclari();
+        $kilit = app(YedeklemeYapilandirmasi::class)->islemDurumu()->kilit();
+        $this->assertTrue($kilit->al());
+        $yedek = app(YedekAlici::class)->al($kilit, YedekKaynagi::Elle);
+        $kilit->birak();
+        $yerel = config('yedekleme.klasor').'/'.$yedek->dosya_adi;
+        $hedef = $this->hedef('Bağlantılı disk', $this->yedekKoku.'/disk-4');
+        symlink($yerel, $this->yedekKoku.'/disk-4/'.$yedek->dosya_adi);
+
+        $kopya = app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+
+        $this->assertSame([KopyaDurumu::Basarisiz, HedefHatasi::ANA_DOSYA], [$kopya->durum, $kopya->hata_kodu]);
+        $this->assertFileExists($yerel);
     }
 
     public function test_ilk_kez_gorulen_plan_geriye_donuk_calismaz_siradaki_an_kurulur(): void

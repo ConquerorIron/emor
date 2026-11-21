@@ -24,6 +24,12 @@ use JsonException;
  *
  * İkisi de durum klasöründe DOSYADA durur: ilerleme ucu bilgiyi veritabanına
  * dayanmadan okur (README §7.2); süreç ölse de önceki özet kaybolmaz.
+ *
+ * Ayar farkları bunun istisnasıdır (BY-028-R2): "güncel" yan ayarların dosya
+ * kopyasıdır, çünkü onayda seçilen `guncel` grup O kopyadan yazılır
+ * (AyarSecimi). Kopya 5. adımda donmuş canlıdan tazelenir. Gösterilen fark
+ * ile uygulanacak değer böylece aynı kaynaktandır; `ayar_gruplari` onayda
+ * seçim isteyen grupları verir.
  */
 final class OnayBilgisi
 {
@@ -31,12 +37,15 @@ final class OnayBilgisi
 
     private const BILGI_DOSYASI = 'onay-bilgisi.json';
 
-    public function __construct(private readonly YedeklemeYapilandirmasi $yapilandirma) {}
+    public function __construct(
+        private readonly YedeklemeYapilandirmasi $yapilandirma,
+        private readonly AyarSecimi $ayarSecimi,
+    ) {}
 
     /**
      * Varsayılan bağlantıdaki (canlı ad) veritabanının özeti.
      *
-     * @return array{aktif_erp_ortami: string|null, entegratorler: list<string>, alarm_kurallari: list<string>, kullanicilar: array<string, array{ad: string, aktif: bool, sistem_yoneticisi: bool, roller: list<string>}>, roller: array<string, list<string>>, yuklemeler: list<int>, ayarlar: array<string, array<string, mixed>>}
+     * @return array{aktif_erp_ortami: string|null, entegratorler: list<string>, alarm_kurallari: list<string>, kullanicilar: array<string, array{ad: string, aktif: bool, sistem_yoneticisi: bool, roller: list<string>}>, roller: array<string, list<string>>, yuklemeler: list<int>}
      */
     public function ozet(): array
     {
@@ -68,11 +77,13 @@ final class OnayBilgisi
             'kullanicilar' => $kullanicilar,
             'roller' => $roller,
             'yuklemeler' => DB::table('kesinti_yuklemeleri')->orderBy('id')->pluck('id')->map(fn (mixed $id): int => (int) $id)->values()->all(),
-            'ayarlar' => $this->ayarlar(),
         ];
     }
 
     /**
+     * Canlı ad şu an geri yüklenen veritabanını göstermelidir (8. adım): ayar
+     * farkı dosya kopyası ile veritabanı arasında hesaplanır (AyarSecimi).
+     *
      * @param  array<string, mixed>|null  $onceki  ozet() — bilinmiyorsa null (o kısımlar boş döner)
      * @param  array<string, mixed>  $geriYuklenen  ozet()
      * @return array<string, mixed> Ekrana giden bilgi (BY-030 API sözleşmesi)
@@ -84,13 +95,16 @@ final class OnayBilgisi
             'geri_yuklenen' => $geriYuklenen[$anahtar],
             'farkli' => $onceki !== null && $onceki[$anahtar] !== $geriYuklenen[$anahtar],
         ];
+        $ayar = $this->ayarSecimi->karsilastir();
 
         return [
             'onceki_bilinmiyor' => $onceki === null,
             'aktif_erp_ortami' => $taraf('aktif_erp_ortami'),
             'entegratorler' => $taraf('entegratorler'),
             'alarm_kurallari' => $taraf('alarm_kurallari'),
-            'ayar_farklari' => $onceki === null ? [] : $this->ayarFarklari($onceki['ayarlar'], $geriYuklenen['ayarlar']),
+            'ayar_farklari' => $ayar['farklar'],
+            'ayar_gruplari' => $ayar['gruplar'],
+            'ayar_kopyasi_yok' => $ayar['kopya_yok'],
             'kullanici_farklari' => $onceki === null ? [] : $this->kullaniciFarklari($onceki['kullanicilar'], $geriYuklenen['kullanicilar']),
             'rol_farklari' => $onceki === null ? [] : $this->rolFarklari($onceki['roller'], $geriYuklenen['roller']),
             'kaybolacak_yukleme_sayisi' => $onceki === null ? null : count(array_diff($onceki['yuklemeler'], $geriYuklenen['yuklemeler'])),
@@ -127,44 +141,6 @@ final class OnayBilgisi
     public function bilgiOku(string $islemKimligi): ?array
     {
         return $this->oku(self::BILGI_DOSYASI, $islemKimligi);
-    }
-
-    /**
-     * Ayar farkları (README §5.3): önceki = bugünkü ayarlar, geri yüklenen =
-     * yedekteki ayarlar. Sırlar karşılaştırılmaz.
-     *
-     * @param  array<string, array<string, mixed>>  $onceki
-     * @param  array<string, array<string, mixed>>  $geri
-     * @return list<array{bolum: string, ad: string|null, degisiklik: string, alanlar: list<string>}>
-     */
-    private function ayarFarklari(array $onceki, array $geri): array
-    {
-        $farklar = [];
-
-        foreach (['yedek_ayarlari', 'mail'] as $bolum) {
-            $alanlar = $this->farkliAlanlar($onceki[$bolum] ?? [], $geri[$bolum] ?? []);
-            if ($alanlar !== []) {
-                $farklar[] = ['bolum' => $bolum, 'ad' => null, 'degisiklik' => 'degisti', 'alanlar' => $alanlar];
-            }
-        }
-
-        foreach (['planlar', 'hedefler'] as $bolum) {
-            $o = $onceki[$bolum] ?? [];
-            $g = $geri[$bolum] ?? [];
-            foreach (array_unique([...array_keys($o), ...array_keys($g)]) as $ad) {
-                $ad = (string) $ad;
-                $degisiklik = match (true) {
-                    ! isset($g[$ad]) => 'geri_yuklenende_yok',
-                    ! isset($o[$ad]) => 'yalniz_geri_yuklenende',
-                    default => $this->farkliAlanlar($o[$ad], $g[$ad]) === [] ? null : 'degisti',
-                };
-                if ($degisiklik !== null) {
-                    $farklar[] = ['bolum' => $bolum, 'ad' => $ad, 'degisiklik' => $degisiklik, 'alanlar' => $degisiklik === 'degisti' ? $this->farkliAlanlar($o[$ad], $g[$ad]) : []];
-                }
-            }
-        }
-
-        return $farklar;
     }
 
     /**
@@ -246,45 +222,6 @@ final class OnayBilgisi
         sort($alanlar);
 
         return $alanlar;
-    }
-
-    /**
-     * Ayarlar, sırlar hariç (mail parolası, hedef gizli bilgileri).
-     *
-     * @return array<string, array<string, mixed>>
-     */
-    private function ayarlar(): array
-    {
-        $json = fn (mixed $deger): mixed => is_string($deger) ? json_decode($deger, true) : $deger;
-
-        $yedek = DB::table('yedek_ayarlari')->where('anahtar', 'varsayilan')->first([
-            'yayin_oncesi_son_adet', 'yayin_oncesi_gun', 'elle_gun', 'geri_yukleme_oncesi_gun', 'enaz_adet', 'enaz_bos_alan_yuzde', 'bildirim_alicilari',
-        ]);
-        $mail = DB::table('mail_ayarlari')->where('anahtar', 'varsayilan')->first([
-            'sunucu', 'port', 'sifreleme', 'kullanici_adi', 'gonderen_adres', 'gonderen_ad', 'yonlendirme_adresi',
-        ]);
-
-        $planlar = [];
-        foreach (DB::table('yedek_planlari')->orderBy('ad')->get(['ad', 'aktif', 'siklik_turu', 'saat', 'siklik']) as $p) {
-            $planlar[(string) $p->ad] = ['aktif' => (bool) $p->aktif, 'siklik_turu' => (string) $p->siklik_turu, 'saat' => (string) $p->saat, 'siklik' => $json($p->siklik)];
-        }
-
-        $hedefler = [];
-        foreach (DB::table('yedek_hedefleri')->orderBy('ad')->get(['ad', 'tur', 'aktif', 'baglanti']) as $h) {
-            $hedefler[(string) $h->ad] = ['tur' => (string) $h->tur, 'aktif' => (bool) $h->aktif, 'baglanti' => $json($h->baglanti)];
-        }
-
-        $yedekDizi = $yedek === null ? [] : (array) $yedek;
-        if (isset($yedekDizi['bildirim_alicilari'])) {
-            $yedekDizi['bildirim_alicilari'] = $json($yedekDizi['bildirim_alicilari']);
-        }
-
-        return [
-            'yedek_ayarlari' => $yedekDizi,
-            'mail' => $mail === null ? [] : (array) $mail,
-            'planlar' => $planlar,
-            'hedefler' => $hedefler,
-        ];
     }
 
     /**

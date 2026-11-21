@@ -578,6 +578,7 @@
     "YEDEK_DOGRULAMA_HATASI": "Yedek dosyası doğrulamayı geçemedi.",
     "YEDEK_DOSYA_HATASI": "Yedek dosyası yazılamadı ya da okunamadı.",
     "YEDEK_YAPILANDIRMA_HATASI": "Yedekleme sunucuda doğru yapılandırılmamış.",
+    "YEDEK_YARIDA_KALDI": "Yedeği alan süreç işi bitirmeden durdu; yedek tamamlanmadı.",
     "YEDEK_ANAHTAR_GECERSIZ": "Anahtar okunamadı: geçerli bir ASCII zırhlı OpenPGP açık anahtarı yapıştırın.",
     "YEDEK_ANAHTAR_OZEL": "Bu bir ÖZEL anahtar. Sunucuya yalnız açık anahtar yüklenir; özel anahtarı kendi güvenli yerinde saklayın.",
     "YEDEK_ANAHTAR_SURESI_DOLMUS": "Anahtarın süresi dolmuş; geçerli bir açık anahtar yükleyin.",
@@ -588,6 +589,10 @@
     "HEDEF_KULLANILIYOR": "Hedef kullanımda: {{plan}} planda tanımlı, {{kopya}} kopyası var. Önce planlardan çıkarın; kopyası olan hedef silinemez, pasife alınabilir.",
     "HEDEF_TURU_UYGUN_DEGIL": "Bu işlem bu hedef türünde yapılamaz.",
     "HEDEF_ERISILEMEDI": "Hedefe ulaşılamadı (adres, port ya da ağ).",
+    "HEDEF_KONUMU_DEGISMEZ": "Bu hedefte kopyalar var; kopyaların durduğu yeri belirleyen alanlar (sunucu, klasör, kova, bağlı hesap…) değiştirilemez. Başka bir yer için yeni bir hedef ekleyin; parola / anahtar yenilenebilir.",
+    "HEDEF_SINAMA_SURESI_DOLDU": "Sınamanın süresi doldu; bu adım çalıştırılmadı.",
+    "YEDEK_IMZA_ANAHTARI_YOK": "Yedekleme imza anahtarı bulunamadı ya da okunamıyor; ayarlar kaydedilmedi. Sunucu kurulumunu denetleyin.",
+    "YEDEK_AYAR_KOPYASI_YAZILAMADI": "Ayarların dosya kopyası yazılamadı; değişiklik geri alındı, ayarlar değişmedi.",
     "HEDEF_KIMLIK_HATALI": "Hedefin kullanıcı adı, parolası ya da anahtarı hatalı.",
     "HEDEF_YAZILAMADI": "Hedefe yazılamadı (izin ya da klasör).",
     "HEDEF_OKUNAMADI": "Hedeften okunamadı.",
@@ -598,6 +603,7 @@
     "HEDEF_SUNUCU_PARMAK_IZI_DEGISTI": "Sunucunun anahtarı (parmak izi) değişmiş; bağlantı güvenlik için reddedildi. Değişiklik bekleniyorsa sunucu anahtarını sıfırlayın.",
     "HEDEF_SERTIFIKA_HATASI": "Sunucu sertifikası doğrulanamadı.",
     "HEDEF_BAGLI_DEGIL": "Ağ paylaşımı sunucuya bağlı değil.",
+    "HEDEF_ANA_DOSYA": "Hedefteki dosya yedeğin kendisi (aynı konum); ayrı bir kopya sayılmaz. Hedefe başka bir klasör verin.",
     "HEDEF_YAPILANDIRMA_HATASI": "Hedef tanımı eksik ya da sunucu bu hedef için yapılandırılmamış.",
     "GOOGLE_DURUM_GECERSIZ": "Google bağlantı isteği geçersiz ya da süresi dolmuş. \"Google ile bağlan\"a yeniden basın.",
     "PLAN_KOPYALI": "Bu planın {{kopya}} kopyası olduğu için silinemez. Planı pasife alabilirsiniz (geçmişi korunur).",
@@ -624,6 +630,8 @@
     "ISTEK_KULLANICI_YOK": "İşlemi isteyen kullanıcı bulunamadı.",
     "ISTEK_YARIDA_KALDI": "İşlem yarıda kaldı (çalıştırıcı durdu); tekrar deneyin.",
     "ISTEK_YETKI_YOK": "Bu işlem için yetkiniz yok (istek işlenirken yeniden denetlendi).",
+    "ISTEK_GONDEREN_DOGRULANAMADI": "İşlem isteğinin göndereni doğrulanamadı; istek işlenmedi.",
+    "GERI_YUKLEME_YAYIN_SURUYOR": "Şu anda bir yayın (güncelleme) sürüyor; üstüne geri yükleme başlatılmadı. Yayın bitince tekrar deneyin.",
     "YEDEK_ISLEM_DURUMU_OKUNAMADI": "Yedekleme işlem durumu okunamadı; güvenlik için işlem yapılmadı.",
     "GERI_YUKLEME_SERVIS_GEREKLI": "Üstüne geri yükleme, servis hesabının çalıştırıcısı kurulmadan yapılamaz (YEDEKLEME_CALISTIRICI=servis).",
     "GERI_YUKLEME_ONAY_METNI_TUTMUYOR": "Yazılan ad canlı veritabanının adıyla aynı değil.",
@@ -645,7 +653,14 @@
     "GERI_YUKLEME_ERISIM_ANAHTARI_GECERSIZ": "Erişim anahtarı geçersiz ya da bu işlemin değil.",
     "GERI_YUKLEME_ERISIM_ANAHTARI_SURESI_DOLDU": "Erişim anahtarının süresi doldu. Onay ve geri dönüş aşağıdaki acil durum komutuyla sunucudan yapılabilir.",
     "GERI_YUKLEME_ISLEM_DURUMU_UYGUN_DEGIL": "İşlem bu adımda onaylanamaz ya da geri alınamaz.",
-    "GERI_YUKLEME_BILINMEYEN_ADIM": "İşlem durumu tanınmayan bir adım gösteriyor; acil durum komutuyla inceleyin."
+    "GERI_YUKLEME_BILINMEYEN_ADIM": "İşlem durumu tanınmayan bir adım gösteriyor; acil durum komutuyla inceleyin.",
+    "GERI_YUKLEME_SERVIS_ROLU_GEREKLI": "Üstüne geri yükleme, uygulama rolünden ayrı bir servis rolü (YEDEKLEME_ROL) ve parola dosyası olmadan yapılamaz.",
+    "GERI_YUKLEME_YAZICI_BARIYERI": "Canlı veritabanına yazan oturumlar durdurulamadı; işlem geri sarıldı, canlıya dokunulmadı.",
+    "GERI_YUKLEME_VERITABANI_YETKILERI": "Veritabanının bağlanma yetkileri eşdeğer uygulanamadı (ör. yetkideki rol bu sunucuda yok); yetkiler değişmedi.",
+    "GERI_YUKLEME_AYAR_SECIMI_EKSIK": "Farkı olan her ayar grubu için \"güncel\" ya da \"geri yüklenen\" seçilmeli.",
+    "GERI_YUKLEME_AYAR_SECIMI_UYGULANAMADI": "Güncel ayarlar yazılamadı; hiçbir ayar değişmedi, uygulama bakım modunda. Seçimi değiştirip yeniden onaylayın ya da geri dönün.",
+    "GERI_YUKLEME_KARAR_SURESI_DOLDU": "Kararın süresi geçti (5 dakika); uygulanmadı. Yeniden karar verin.",
+    "GERI_YUKLEME_KARAR_KANITI_KULLANILDI": "Bu karar daha önce işlendi; yeniden uygulanmadı."
   },
   "yetki": {
     "goruntule": "Görüntüle",
@@ -1542,6 +1557,7 @@
       "guvenilmeyenAciklama": "Manifest imzası yok ya da doğrulanamadı. Bu yedekten geri yükleme yapılamaz.",
       "iceAlindi": "Eski (içe alındı)",
       "yerelDosyaYok": "Yerel dosya yok",
+      "yalnizSifreliKopya": "Yalnız şifreli kopyası var: ekrandan geri yüklenemez. Sunucuda özel anahtarla `yedek:sifre-coz` kullanarak kurtarma kılavuzunu izleyin (docs/yedekleme/kurtarma.md).",
       "sifreli": "şifreli",
       "sabitRozet": "Sabit",
       "alan": "Alan: {{ad}}",
@@ -1580,6 +1596,7 @@
       "sina": "Bağlantıyı Sına",
       "sirKayitli": "kayıtlı — değiştirmek için yazın",
       "sirNotu": "Parola ve anahtar alanları güvenlik için gösterilmez; boş bırakılırsa kayıtlı değer korunur. Sunucu, port ya da kullanıcı değişirse yeniden girilmelidir.",
+      "konumKilitli": "Bu hedefte kopyalar var: kopyaların durduğu yeri belirleyen alanlar kilitli. Başka bir yer için yeni bir hedef ekleyin; parola / anahtar yenilenebilir.",
       "sunucuDisiNotu": "Sunucu dışı hedef: kopyalar Yedekleme Ayarları'ndaki açık anahtarla şifrelenerek gönderilir. Açık anahtar yoksa bu hedefe kopya gönderilmez.",
       "tur": {
         "yerel": "Yerel disk",
@@ -1630,6 +1647,11 @@
           "sil": "Sil"
         },
         "kalanAlan": "Kalan alan: {{alan}}",
+        "koruma": {
+          "etkin": "Silinmeye karşı koruma (nesne kilidi): etkin — eski kopyaları kovanın kendi saklama kuralı temizler.",
+          "devre_disi": "Silinmeye karşı koruma (nesne kilidi): devre dışı.",
+          "sorgulanamadi": "Silinmeye karşı koruma sorgulanamadı (uygulamanın bu bilgiyi okuma yetkisi yok)."
+        },
         "kayitliSinandi": "Kayıtlı hedef sınandı.",
         "kaydedilmemisSinandi": "Formdaki (kaydedilmemiş) değerlerle sınandı; kullanmak için kaydedin."
       },
@@ -1757,6 +1779,11 @@
         "uzak_kopya_var": "uzak kopyası var, yerel dosya gerekmiyor"
       },
       "sonCalisma": "Son çalışma",
+      "sonuc": {
+        "basarili": "Başarılı",
+        "yedek_basarisiz": "Yedek alınamadı",
+        "hedef_basarisiz": "Kopya başarısız"
+      },
       "sonrakiCalisma": "Sıradaki çalışma",
       "simdiCalistir": "Şimdi Çalıştır",
       "kaydedildi": "Plan kaydedildi.",
@@ -1942,7 +1969,7 @@
         "yedek": "Yedek",
         "canliyaDokunmaz": "Yedek yeni bir veritabanına açılır; canlı veritabanına (erp) hiçbir şekilde dokunulmaz. Kopyayı inceleyip gerekli veriyi alabilirsiniz.",
         "otomatikSilinir": "Kopya, sunucudaki bekleme süresi dolunca (varsayılan 7 gün) otomatik silinir. Silinme tarihi ve elle silme Geri Yüklemeler ekranındadır.",
-        "yerelDosyaYok": "Bu yedeğin yerel dosyası yok. Yalnız şifreli sunucu dışı kopyası varsa ekrandan geri yüklenemez; komut satırı yolunu izleyin (docs/yedekleme/kurtarma.md).",
+        "yerelDosyaYok": "Bu yedeğin yerel dosyası yok; şifresiz kopyasından (ör. ikinci disk) okunarak geri yüklenir.",
         "ek": "Ad eki (isteğe bağlı)",
         "ekGecersiz": "Ek yalnız küçük harf (a–z) ve rakamdan oluşabilir, en çok 16 karakter.",
         "adOrnegi": "Veritabanı adı: {{ad}}",
@@ -1995,6 +2022,7 @@
       "adim": {
         "on_denetim": "Ön denetimler (imza, şema, disk, kilit)",
         "bakim_modu": "Bakım modu, kuyruk durduruldu",
+        "yazici_bariyeri": "Canlıya yazan oturumların durdurulması",
         "oncesi_yedek": "Geri yükleme öncesi yedek",
         "veritabani": "Yeni veritabanı",
         "pg_restore": "Geri yükleme (pg_restore)",
@@ -2032,6 +2060,14 @@
       "geriDonOnayBaslik": "Geri dön",
       "geriDonOnayMesaj": "Veritabanı adları eski hâline çevrilecek ve uygulama bugünkü (eski) veritabanıyla açılacak. Geri yüklenen kopya silinmez, bağlantıya kapalı kalır.",
       "ilerlemeyiAc": "İlerlemeyi aç",
+      "ayarSecimi": {
+        "baslik": "Hangi ayarlar geçerli olsun?",
+        "aciklama": "Aşağıdaki ayar gruplarında bugünkü hâl ile geri yüklenen yedekteki hâl farklı. Her biri için seçin; seçmeden onaylanamaz.",
+        "kopyaYok": "Ayarların dosya kopyası okunamadı; yalnız \"geri yüklenen\" seçilebilir.",
+        "guncel": "Güncel (bugünkü)",
+        "geri_yuklenen": "Geri yüklenen (yedekteki)",
+        "eksik": "Önce farkı olan her ayar grubu için seçim yapın."
+      },
       "acil": {
         "baslik": "Acil durum yolu (sunucuda)",
         "aciklama": "Ekran açılamazsa ya da erişim anahtarı kaybolduysa / süresi dolduysa durum, onay ve geri dönüş sunucuda şu komutlarla yapılır:",

@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\YedekHedefiResource;
 use App\Models\YedekHedefi;
+use App\Services\Yedekleme\HedefKonumu;
 use App\Services\Yedekleme\Hedefler\GoogleDriveBaglayicisi;
 use App\Services\Yedekleme\Hedefler\HedefAlani;
 use App\Services\Yedekleme\Hedefler\HedefHatasi;
@@ -16,7 +17,7 @@ use App\Services\Yedekleme\Hedefler\HedefTuruTanimi;
 use App\Services\Yedekleme\HedefTuru;
 use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\YedekDenetimi;
-use App\Services\Yedekleme\YedeklemeYapilandirmasi;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -37,13 +38,14 @@ use Illuminate\Validation\ValidationException;
  *   gönderilmez (SQL bağlantısındaki kural; Dikkat_Edilecekler K8).
  * - Bağlayıcının kendi yazdığı alanlar (SFTP sunucu anahtarı, Google klasör
  *   kimliği) düzenlemede korunur; formdan gelmez.
- * - "Sına" web isteğinde çalışır ama kısa süre sınırıyla (D9).
+ * - Kopyası duran hedefin konumu (sunucu, klasör, kova…) değiştirilemez:
+ *   409 `HEDEF_KONUMU_DEGISMEZ`, yeni konum için yeni hedef açılır
+ *   (`HedefKonumu`, BY-016-R1). Sır yenileme serbesttir.
+ * - "Sına" web isteğinde çalışır; bütün adımlar tek toplam süre bütçesini
+ *   paylaşır (`HedefSinayici`, D9).
  */
 final class YedekHedefiController extends Controller
 {
-    /** Etkileşimli sınamada aktarım süresi sınırı (sn); kopyanın uzun sınırı kullanılmaz (D9) */
-    private const SINAMA_SURESI = 30;
-
     /** Google bağlantı akışının durum değeri bu süre geçerlidir (sn) */
     private const GOOGLE_DURUM_SURESI = 600;
 
@@ -56,12 +58,13 @@ final class YedekHedefiController extends Controller
     public function __construct(
         private readonly HedefKatalogu $katalog,
         private readonly YedekDenetimi $denetim,
+        private readonly HedefKonumu $konum,
     ) {}
 
     public function index(): AnonymousResourceCollection
     {
         return YedekHedefiResource::collection(
-            YedekHedefi::query()->with('sonKopya')->withCount('planlar')->orderBy('ad')->get()
+            HedefKonumu::kopyaVarMiEkle(YedekHedefi::query()->with('sonKopya')->withCount('planlar'))->orderBy('ad')->get()
         );
     }
 
@@ -89,7 +92,7 @@ final class YedekHedefiController extends Controller
 
     public function update(Request $request, YedekHedefi $hedef): YedekHedefiResource
     {
-        [, $acik, $gizli] = $this->dogrula($request, $hedef);
+        [, $acik, $gizli] = $this->dogrula($request, $hedef, konumKilidi: true);
 
         $hedef->fill([
             'ad' => $request->string('ad')->trim()->value(),
@@ -124,7 +127,8 @@ final class YedekHedefiController extends Controller
     }
 
     /**
-     * "Bağlantıyı Sına": bağlan → yaz → oku → doğrula → sil, adım adım.
+     * "Bağlantıyı Sına": bağlan → yaz → oku → doğrula → sil, adım adım; tek
+     * toplam süre bütçesiyle (D9). S3'te silinme koruması da bildirilir.
      * `id` verilip form değiştirilmediyse kayıtlı hedefin kendisi sınanır (SFTP
      * sunucu anahtarı ilk bağlantıda ona yazılır); değiştirildiyse kaydedilmemiş
      * kopyası sınanır, hiçbir şey kaydedilmez.
@@ -138,32 +142,23 @@ final class YedekHedefiController extends Controller
             ? $kayitli
             : new YedekHedefi(['ad' => $kayitli->ad ?? 'sinama', 'tur' => $tanim->tur, 'aktif' => true, 'baglanti' => $acik, 'gizli_bilgiler' => $gizli]);
 
-        config(['yedekleme.sure_siniri.kopya' => min(self::SINAMA_SURESI, app(YedeklemeYapilandirmasi::class)->sureSiniri('kopya'))]);
-
         try {
-            $baglayici = $this->katalog->olustur($hedef);
-            $adimlar = $sinayici->sina($baglayici);
-            $basarili = array_reduce($adimlar, fn (bool $t, array $a): bool => $t && $a['basarili'] === true, true);
-            $kalan = null;
-            if ($basarili) {
-                try {
-                    $kalan = $baglayici->kalanAlan();
-                } catch (HedefHatasi) {
-                    $kalan = null;
-                }
-            }
+            $sonuc = $sinayici->sonuc($this->katalog->olustur($hedef));
         } catch (HedefHatasi $hata) {
-            $adimlar = [['adim' => 'baglan', 'basarili' => false, 'kod' => $hata->kod, 'mesaj' => Str::limit($hata->getMessage(), 300)]];
-            $basarili = false;
-            $kalan = null;
+            $sonuc = [
+                'basarili' => false,
+                'adimlar' => [['adim' => 'baglan', 'basarili' => false, 'kod' => $hata->kod, 'mesaj' => Str::limit($hata->getMessage(), 300)]],
+                'kalan_alan' => null,
+                'silinme_korumasi' => null,
+            ];
         }
 
-        $this->denetle('hedef_sina', $request, $kayitli, ['tur' => $tanim->tur->value, 'basarili' => $basarili], $basarili ? null : ($adimlar[array_key_last($adimlar)]['kod'] ?? null));
+        $adimlar = $sonuc['adimlar'];
+        $hataKodu = $sonuc['basarili'] ? null : (array_values(array_filter(array_column($adimlar, 'kod')))[0] ?? null);
+        $this->denetle('hedef_sina', $request, $kayitli, ['tur' => $tanim->tur->value, 'basarili' => $sonuc['basarili']], $hataKodu);
 
         return response()->json(['data' => [
-            'basarili' => $basarili,
-            'adimlar' => $adimlar,
-            'kalan_alan' => $kalan,
+            ...$sonuc,
             'kaydedildi' => $hedef === $kayitli,
             'sunucu_parmak_izi' => $hedef->baglanti['sunucu_parmak_izi'] ?? null,
         ]]);
@@ -203,6 +198,11 @@ final class YedekHedefiController extends Controller
      * Google dönüşü: ekran (`/ayarlar/yedek-hedefleri/google-donus`) kod ve
      * durumu buraya iletir. Durum oturumdakiyle aynı değilse, süresi geçtiyse
      * ya da başka kullanıcınınsa reddedilir; değer bir kez kullanılır.
+     *
+     * Denetim ve tüketme durum değerinin kilidi altında tek adımdır
+     * (`Cache::pull` okuma + silme ayrı işlemdir; iki dönüş aynı değeri
+     * okuyabilirdi — BY-021-R1). Kullanıcı ya da hedef eşleşmezse değer
+     * TÜKETİLMEZ: yanlış oturumdaki deneme doğru akışı bozamaz.
      */
     public function googleDonus(Request $request): JsonResponse
     {
@@ -211,15 +211,29 @@ final class YedekHedefiController extends Controller
             'kod' => ['required', 'string', 'max:2048'],
             'durum' => ['required', 'string', 'max:128'],
         ]);
-        // Önbellek anahtarı durum değerinin özeti: değer bir kez kullanılır (pull),
-        // süresi önbellekte dolar; başka kullanıcıya verilmiş değer reddedilir
-        $beklenen = Cache::pull(self::googleDurumAnahtari($veri['durum']));
+        $gecersiz = fn (): JsonResponse => response()->json(['kod' => 'GOOGLE_DURUM_GECERSIZ', 'mesaj' => __('hata.yedek_google_durum_gecersiz')], 422);
+        $anahtar = self::googleDurumAnahtari($veri['durum']);
+        $kilit = Cache::lock(self::googleDurumKilidi($veri['durum']), 10);
 
-        if (! is_array($beklenen) || ($beklenen['kullanici_id'] ?? null) !== $request->user()->id) {
-            return response()->json(['kod' => 'GOOGLE_DURUM_GECERSIZ', 'mesaj' => __('hata.yedek_google_durum_gecersiz')], 422);
+        // Aynı değerle süren başka bir dönüş var: o tamamlar, bu reddedilir
+        if (! $kilit->get()) {
+            return $gecersiz();
         }
 
-        $hedef = YedekHedefi::query()->findOrFail((int) $beklenen['hedef_id']);
+        try {
+            $beklenen = Cache::get($anahtar);
+            $hedef = is_array($beklenen) && ($beklenen['kullanici_id'] ?? null) === $request->user()->id
+                ? YedekHedefi::query()->whereKey((int) ($beklenen['hedef_id'] ?? 0))->where('tur', HedefTuru::GoogleDrive->value)->first()
+                : null;
+
+            if ($hedef === null) {
+                return $gecersiz();
+            }
+
+            Cache::forget($anahtar);
+        } finally {
+            $kilit->release();
+        }
 
         try {
             $sonuc = GoogleDriveBaglayicisi::kodDegistir($veri['kod'], self::googleDonusAdresi());
@@ -227,6 +241,14 @@ final class YedekHedefiController extends Controller
             $this->denetle('hedef_google_baglan', $request, $hedef, [], $hata->kod);
 
             return response()->json(['kod' => $hata->kod, 'mesaj' => __('hata.yedek_google_baglanamadi')], 422);
+        }
+
+        // Başka bir Google hesabı kopyaların durduğu yeri değiştirir (dosya kimlikleri o hesaptadır)
+        $oncekiHesap = $hedef->baglanti['eposta'] ?? null;
+        if ($oncekiHesap !== null && $sonuc['eposta'] !== null && $oncekiHesap !== $sonuc['eposta'] && $this->konum->kilitliAlanlar($hedef) !== []) {
+            $this->denetle('hedef_google_baglan', $request, $hedef, [], 'HEDEF_KONUMU_DEGISMEZ');
+
+            return $this->konumDegismez(['eposta']);
         }
 
         DB::transaction(function () use ($hedef, $sonuc): void {
@@ -261,6 +283,24 @@ final class YedekHedefiController extends Controller
         return 'yedek-google-durum:'.hash('sha256', $durum);
     }
 
+    /** Durum değerinin denetimini ve tüketilmesini tek adım yapan kilit (testte de tutulur) */
+    public static function googleDurumKilidi(string $durum): string
+    {
+        return self::googleDurumAnahtari($durum).':kilit';
+    }
+
+    /**
+     * @param  list<string>  $alanlar
+     */
+    private function konumDegismez(array $alanlar): JsonResponse
+    {
+        return response()->json([
+            'kod' => 'HEDEF_KONUMU_DEGISMEZ',
+            'mesaj' => __('hata.yedek_hedefi_konumu_degismez', ['alanlar' => implode(', ', $alanlar)]),
+            'alanlar' => $alanlar,
+        ], 409);
+    }
+
     public static function googleDonusAdresi(): string
     {
         return rtrim((string) config('app.url'), '/').'/ayarlar/yedek-hedefleri/google-donus';
@@ -269,9 +309,10 @@ final class YedekHedefiController extends Controller
     /**
      * İstek gövdesi: `ad`, `aktif`, `tur` (yalnız eklemede), `alanlar` {ad: değer}.
      *
+     * @param  bool  $konumKilidi  Kayıtta (sınamada değil) kopyalı hedefin konumu değişmez (409)
      * @return array{0: HedefTuruTanimi, 1: array<string, mixed>, 2: array<string, string>} [tanım, açık alanlar, sırlar]
      */
-    private function dogrula(Request $request, ?YedekHedefi $kayitli, bool $adGerekli = true): array
+    private function dogrula(Request $request, ?YedekHedefi $kayitli, bool $adGerekli = true, bool $konumKilidi = false): array
     {
         $turler = array_map(fn (HedefTuruTanimi $t): string => $t->tur->value, $this->katalog->tanimlar());
         $temel = $request->validate([
@@ -321,6 +362,14 @@ final class YedekHedefiController extends Controller
                 $acikDegisti = true;
             }
             $acik[$alan->ad] = $deger;
+        }
+
+        // Konum kilidi sır kuralından önce: kilitli alanı değiştiren önce parolayı yeniden girmeye yönlenmesin
+        if ($konumKilidi && $kayitli !== null) {
+            $degisen = $this->konum->degisenKilitliAlanlar($kayitli, $acik);
+            if ($degisen !== []) {
+                throw new HttpResponseException($this->konumDegismez($degisen));
+            }
         }
 
         // Bağlantı hedefi değişirken kayıtlı sır yeni yere gönderilmez (K8)

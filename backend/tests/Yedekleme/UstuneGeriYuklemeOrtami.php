@@ -7,9 +7,11 @@ namespace Tests\Yedekleme;
 use App\Models\MailAyari;
 use App\Models\Yedek;
 use App\Models\YedekAyari;
+use App\Services\Yedekleme\AyarSecimi;
 use App\Services\Yedekleme\ErisimAnahtari;
 use App\Services\Yedekleme\IslemKaydi;
 use App\Services\Yedekleme\IslemTuru;
+use App\Services\Yedekleme\IstekKutusu;
 use App\Services\Yedekleme\UstuneGeriYuklemeAdimi;
 use App\Services\Yedekleme\UstuneGeriYukleyici;
 use App\Services\Yedekleme\YedekAlici;
@@ -61,12 +63,29 @@ trait UstuneGeriYuklemeOrtami
 
     protected ?string $migrationYapilandirmaDosyasi = null;
 
+    /**
+     * Veritabanlarının bağlanma yetkileri (`datacl::text`; null = varsayılan).
+     * Bariyer canlıyı servis rolüne daraltır; yetkileriUygula değeri yazar;
+     * ad değişince yetki adla birlikte gider.
+     *
+     * @var array<string, string|null>
+     */
+    protected array $veritabaniYetkileri = [];
+
+    protected ?string $bariyerHatasi = null;
+
     protected function ustuneOrtaminiKur(): void
     {
         $this->yedeklemeOrtaminiKur();
+        // Yazıcı bariyeri ayrı servis rolü ve onun parola dosyasını ister (BY-028-R1)
+        $parolaDosyasi = $this->yedekKoku.'/pgpass';
+        file_put_contents($parolaDosyasi, "127.0.0.1:5432:*:emor_yedek:servis-parolasi\n");
+        chmod($parolaDosyasi, 0600);
         config([
             'yedekleme.aktif' => true,
             'yedekleme.calistirici' => 'servis',
+            'yedekleme.rol' => 'emor_yedek',
+            'yedekleme.parola_dosyasi' => $parolaDosyasi,
             'yedekleme.kuyruk_servisi' => 'emor-queue',
             'yedekleme.sudo' => '/usr/bin/sudo',
             'yedekleme.systemctl' => '/usr/bin/systemctl',
@@ -131,6 +150,30 @@ trait UstuneGeriYuklemeOrtami
             return "1048576\n";
         }
 
+        if (str_contains($sql, 'datacl IS NULL')) {
+            $acl = $this->veritabaniYetkileri[$d['ad']] ?? null;
+
+            return $acl === null ? "t,\n" : 'f,"'.str_replace('"', '""', $acl)."\"\n";
+        }
+
+        if (str_contains($sql, 'erp_yedek.rol')) {
+            $this->komutlar[] = 'bariyer '.$d['ad'];
+            if ($this->bariyerHatasi !== null) {
+                return Process::result(errorOutput: $this->bariyerHatasi, exitCode: 3);
+            }
+            $this->veritabaniYetkileri[$d['ad']] = '{'.$d['rol'].'=c/erp}';
+
+            return "erp|emor_yedek\n0\n";
+        }
+
+        if (str_contains($sql, 'erp_yedek.acl')) {
+            $acl = $d['varsayilan'] === '1' ? null : $d['acl'];
+            $this->komutlar[] = 'yetki '.$d['ad'].' '.($acl ?? 'varsayilan');
+            $this->veritabaniYetkileri[$d['ad']] = $acl;
+
+            return '';
+        }
+
         if (str_contains($sql, 'datname IN')) {
             $adlar = array_values(array_filter($d, fn (string $k): bool => preg_match('/^a[0-9]+$/D', $k) === 1, ARRAY_FILTER_USE_KEY));
 
@@ -167,6 +210,7 @@ trait UstuneGeriYuklemeOrtami
             // Tek işlem: ikisi birden olur ya da hiçbiri (kesif.md §5)
             $vt = $this->veritabanlari;
             $kapali = $this->baglantiyaKapali;
+            $yetkiler = $this->veritabaniYetkileri;
             foreach ([[$d['a'], $d['b']], [$d['c'], $d['d']]] as [$eski, $yeni]) {
                 if (! in_array($eski, $vt, true) || in_array($yeni, $vt, true)) {
                     return Process::result(errorOutput: 'ERROR:  database does not exist / already exists', exitCode: 3);
@@ -176,9 +220,13 @@ trait UstuneGeriYuklemeOrtami
                     unset($kapali[$eski]);
                     $kapali[$yeni] = true;
                 }
+                $yetki = $yetkiler[$eski] ?? null;
+                unset($yetkiler[$eski]);
+                $yetkiler[$yeni] = $yetki;
             }
             $this->veritabanlari = $vt;
             $this->baglantiyaKapali = $kapali;
+            $this->veritabaniYetkileri = $yetkiler;
 
             // Kancanın kendi hatası "ad değiştirme hatası" gibi koda sızmasın:
             // saklanır, test kancanın çalıştığını ayrıca doğrular (T7)
@@ -238,8 +286,9 @@ trait UstuneGeriYuklemeOrtami
      * Elle kurulan durum (yarıda kalan işlem, onay bekleyen işlem).
      *
      * @param  array{kod: string, mesaj: string}|null  $hata
+     * @param  array{baglanma_yetkileri: string|null}|null  $bariyer  Yazıcı bariyerinin kaydettiği özgün yetkiler
      */
-    protected function durumYaz(UstuneGeriYuklemeAdimi|string $adim, bool $acik, ?array $hata = null, ?string $anahtar = null, ?CarbonImmutable $bitis = null, string $kimlik = '7d0c4f3e-2b1a-4c5d-8e9f-0a1b2c3d4e5f', ?string $yedekKimligi = null, ?int $isteyen = 1): IslemKaydi
+    protected function durumYaz(UstuneGeriYuklemeAdimi|string $adim, bool $acik, ?array $hata = null, ?string $anahtar = null, ?CarbonImmutable $bitis = null, string $kimlik = '7d0c4f3e-2b1a-4c5d-8e9f-0a1b2c3d4e5f', ?string $yedekKimligi = null, ?int $isteyen = 1, ?array $bariyer = null): IslemKaydi
     {
         $kayit = new IslemKaydi(
             kimlik: $kimlik,
@@ -255,6 +304,7 @@ trait UstuneGeriYuklemeOrtami
             hedefVeritabani: 'erp_geri_20261121_103000',
             oncekiVeritabani: 'erp_onceki_20261121_103000',
             isteyenKullaniciId: $isteyen,
+            bariyer: $bariyer,
         );
         $kilit = $this->kilitAl();
         app(YedeklemeYapilandirmasi::class)->islemDurumu()->yaz($kayit, $kilit);
@@ -262,6 +312,30 @@ trait UstuneGeriYuklemeOrtami
         $this->tutulanKilit = null;
 
         return $kayit;
+    }
+
+    /**
+     * Web ucunun yazdığı biçimde karar isteği: anahtar değil, anahtarın
+     * özetiyle üretilmiş kısa ömürlü kanıt (BY-030-R1). `$kanitAyarSecimleri`
+     * verilirse kanıt o seçimlerle, dosya `$ayarSecimleri` ile yazılır (kurcalama).
+     *
+     * @param  'onayla'|'geri_don'  $tur
+     * @param  array<string, string>  $ayarSecimleri
+     * @param  array<string, string>|null  $kanitAyarSecimleri
+     */
+    protected function kararIstegiYaz(string $tur, string $islem, string $anahtar, ?int $kullaniciId, array $ayarSecimleri = [], ?int $son = null, ?string $nonce = null, ?array $kanitAyarSecimleri = null): string
+    {
+        $son ??= CarbonImmutable::now()->getTimestamp() + ErisimAnahtari::KANIT_OMRU_SN;
+        $nonce ??= ErisimAnahtari::nonce();
+        $secim = AyarSecimi::metne($ayarSecimleri);
+
+        return app(IstekKutusu::class)->yaz($tur, [
+            'islem_kimligi' => $islem,
+            'son_gecerlilik' => $son,
+            'nonce' => $nonce,
+            ...($tur === 'onayla' ? ['ayar_secimleri' => $secim] : []),
+            'kanit' => ErisimAnahtari::kanit(ErisimAnahtari::ozet($anahtar), $islem, $tur, $son, $nonce, AyarSecimi::metne($kanitAyarSecimleri ?? $ayarSecimleri)),
+        ], $kullaniciId);
     }
 
     /** Bu işlemin bakım modu dosyası (Laravel biçimi + işaret) */

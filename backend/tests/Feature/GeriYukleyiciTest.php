@@ -454,6 +454,35 @@ final class GeriYukleyiciTest extends TestCase
             && in_array("--set=d1=0'; DROP DATABASE erp; --", (array) $p->command, true));
     }
 
+    /**
+     * BY-026-R1: kopya kaynağın bağlanma yetkileriyle açılır; eşdeğer
+     * uygulanamazsa (ör. rol yok) açık hata, yarım kopya silinir.
+     * Gerçek PostgreSQL'de eşdeğerlik: GeriYuklemeVeritabaniPostgresTest.
+     */
+    public function test_kopya_manifestteki_baglanma_yetkileriyle_acilir_uygulanamazsa_silinir(): void
+    {
+        $acl = '{erp=CTc/erp,emor_inceleme=c/erp}';
+        $yedek = $this->manifestliYedek(['kodlama' => 'UTF8', 'siralama' => 'en_US.UTF-8', 'karakter_turu' => 'en_US.UTF-8', 'ayarlar' => [], 'baglanma_yetkileri' => $acl]);
+
+        $geri = app(GeriYukleyici::class)->kopyaya($this->kilit, $yedek, null, null);
+
+        $this->assertSame(GeriYuklemeDurumu::Tamam, $geri->durum, (string) $geri->hata_mesaji);
+        Process::assertRan(fn (PendingProcess $p): bool => str_contains((string) $p->input, 'erp_yedek.acl')
+            && in_array('--set=ad='.$geri->hedef_veritabani, (array) $p->command, true)
+            && in_array('--set=acl='.$acl, (array) $p->command, true)
+            && in_array('--set=varsayilan=0', (array) $p->command, true));
+
+        // Rol yok: psql hata verir → kopya başarısız, açılan veritabanı silinir
+        $this->sahtePostgres(['*psql*' => fn (PendingProcess $p) => str_contains((string) $p->input, 'erp_yedek.acl')
+            ? Process::result(errorOutput: 'ERROR:  role "emor_inceleme" does not exist', exitCode: 3)
+            : $this->psqlYaniti($p)]);
+        $ikinci = app(GeriYukleyici::class)->kopyaya($this->kilit, $yedek, 'iki', null);
+
+        $this->assertSame(GeriYuklemeHatasi::VERITABANI_YETKILERI, $ikinci->hata_kodu);
+        $this->assertNotContains((string) $ikinci->hedef_veritabani, $this->veritabanlari);
+        $this->assertTrue($this->psqlCalisti('DROP DATABASE', (string) $ikinci->hedef_veritabani));
+    }
+
     public function test_liste_turundeki_veritabani_ayari_hicbir_sey_acmadan_reddedilir(): void
     {
         $yedek = $this->manifestliYedek(['kodlama' => 'UTF8', 'siralama' => 'en_US.UTF-8', 'karakter_turu' => 'en_US.UTF-8', 'ayarlar' => ['search_path="$user", public'], 'baglanma_yetkileri' => null]);

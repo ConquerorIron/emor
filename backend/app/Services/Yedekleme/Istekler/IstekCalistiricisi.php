@@ -10,6 +10,7 @@ use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\IstekKutusu;
 use App\Services\Yedekleme\KopyaVeritabanlari;
 use App\Services\Yedekleme\UstuneGeriYukleyici;
+use App\Services\Yedekleme\YapilandirmaHatasi;
 use App\Services\Yedekleme\YedekAlmaHatasi;
 use App\Services\Yedekleme\YedekDenetimi;
 use App\Services\Yedekleme\YedekKaynagi;
@@ -26,9 +27,10 @@ use Throwable;
  *    duran istek, işlerken ölmüş bir sürecindir: `ISTEK_YARIDA_KALDI`.
  * 2. Eski sonuçlar silinir.
  * 3. Bekleyen istekler eskiden yeniye: üstlen (tek adımlık taşıma) → doğrula
- *    (IstekKutusu::oku; isteğe güvenilmez) → işleyici → yetki (veritabanından,
- *    şimdi) → yedekleme kilidi (en çok `kilit_bekleme` sn) → açık üstüne geri
- *    yükleme yok → işle → sonucu yaz. Reddedilen istek `basarisiz` sonuç
+ *    (IstekKutusu::oku; isteğe güvenilmez) → işleyici → gönderen (dosyanın
+ *    sahibi) ve yetki (veritabanından, şimdi) → yedekleme kilidi (en çok
+ *    `kilit_bekleme` sn) → açık üstüne geri yükleme yok → yetki yeniden
+ *    (kilit altında) → işle → sonucu yaz. Reddedilen istek `basarisiz` sonuç
  *    (makine okunur kod) alır ve denetim kaydına yazılır.
  * 4. Süresi dolan geri yükleme kopyaları ve yarıda kalmış geri yüklemelerin
  *    artıkları silinir (kilit boşsa; doluysa bir sonraki tur).
@@ -39,9 +41,14 @@ use Throwable;
  * TEMIZLIK_ARALIGI_SN'de bir (D8); servis başlarken hemen.
  *
  * Yetki eşlemesi her işleyicinin izin()'indedir. Kullanıcısız istek yalnız
- * yayın öncesi yedektir (`deploy.sh`'ın uygulama kullanıcısı yok); kullanıcılı
- * istek o kaynağı kullanamaz. Onay ve geri dönüşün yetkisi erişim
- * anahtarıdır (AnahtarlaYetkilendirilir): kullanıcı tablosuna bakılmaz.
+ * yayın öncesi yedektir (`deploy.sh`'ın uygulama kullanıcısı yok) ve yalnız
+ * yayın kullanıcısının dosyasıysa; kullanıcılı istek o kaynağı kullanamaz ve
+ * yalnız web kullanıcısının dosyasıysa işlenir (gondereniDenetle). İstekteki
+ * kullanıcı kimliği web'in iddiasıdır: ele geçirilmiş web hesabı başka bir
+ * kullanıcı adına istek yazabilir (veritabanına zaten yazabildiği için sınır
+ * budur), ama yayın istisnasını taklit edemez (README §5.2). Onay ve geri
+ * dönüşün yetkisi erişim anahtarıdır (AnahtarlaYetkilendirilir): kullanıcı
+ * tablosuna bakılmaz.
  */
 final class IstekCalistiricisi
 {
@@ -122,10 +129,12 @@ final class IstekCalistiricisi
         try {
             $istek = $this->kutu->oku($yol);
             // Denetim kaydı için: istekte YAZAN kullanıcı (doğrulanmamış olabilir)
-            $baglam = ['tur' => $istek->tur, 'istekteki_kullanici' => $istek->kullaniciId];
+            $baglam = ['tur' => $istek->tur, 'istekteki_kullanici' => $istek->kullaniciId, 'gonderen_uid' => $istek->sahipUid];
             $sonucBaglami = $this->sonucBaglami($istek);
             $isleyici = $this->katalog->bul($istek->tur)
                 ?? throw new IstekReddi('ISTEK_ISLEYICISI_YOK', 'Bu istek türü henüz çalıştırıcıda yok.');
+            // Erken denetim: yetkisiz istek kilit beklemeden reddedilir. Son
+            // denetim kilit altında, işleyiciden hemen önce (kilitleIsle)
             $kullaniciId = $this->yetkiDenetle($istek, $isleyici);
             $sonuc = $this->kilitleIsle($istek, $isleyici);
         } catch (IstekReddi $red) {
@@ -183,24 +192,23 @@ final class IstekCalistiricisi
      */
     private function yetkiDenetle(Istek $istek, IstekIsleyicisi $isleyici): ?int
     {
+        $yayinIstegi = $istek->tur === 'yedek_al' && $istek->metin('kaynak') === YedekKaynagi::YayinOncesi->value;
+        $anahtarli = $isleyici instanceof AnahtarlaYetkilendirilir;
+
+        if (! $anahtarli && $istek->kullaniciId === null && ! $yayinIstegi) {
+            throw new IstekReddi('ISTEK_KULLANICI_YOK', 'İstekte kullanıcı yok; kullanıcısız istek yalnız yayın öncesi yedek olabilir.');
+        }
+
+        if (! $anahtarli && $istek->kullaniciId !== null && $yayinIstegi) {
+            throw new IstekReddi('ISTEK_YETKI_YOK', 'Yayın öncesi yedeği yalnız yayın betiği ister.');
+        }
+
+        $this->gondereniDenetle($istek, $yayinIstegi);
+
         // Yetki erişim anahtarıdır; işleyici işlem durumundan doğrular. Veritabanı
         // (kullanıcı tablosu yedeğin anında ya da erişilemez) burada sorulmaz.
-        if ($isleyici instanceof AnahtarlaYetkilendirilir) {
+        if ($anahtarli || $yayinIstegi) {
             return null;
-        }
-
-        $yayinIstegi = $istek->tur === 'yedek_al' && $istek->metin('kaynak') === YedekKaynagi::YayinOncesi->value;
-
-        if ($istek->kullaniciId === null) {
-            if (! $yayinIstegi) {
-                throw new IstekReddi('ISTEK_KULLANICI_YOK', 'İstekte kullanıcı yok; kullanıcısız istek yalnız yayın öncesi yedek olabilir.');
-            }
-
-            return null;
-        }
-
-        if ($yayinIstegi) {
-            throw new IstekReddi('ISTEK_YETKI_YOK', 'Yayın öncesi yedeği yalnız yayın betiği ister.');
         }
 
         $kullanici = User::query()->find($istek->kullaniciId);
@@ -221,6 +229,34 @@ final class IstekCalistiricisi
     }
 
     /**
+     * Gönderen, dosyanın çekirdekteki sahibiyle doğrulanır (BY-025-R1): istek
+     * içeriği (kullanıcı kimliği, yayın kaynağı) web'in iddiasıdır, sahibi
+     * değil. Kullanıcısız yayın öncesi yedek yalnız yayın kullanıcısının,
+     * geri kalan her istek yalnız web kullanıcısının dosyasıysa işlenir;
+     * tanınmayan sahip reddedilir (denetim kaydına gönderenin uid'siyle).
+     *
+     * @throws IstekReddi
+     */
+    private function gondereniDenetle(Istek $istek, bool $yayinIstegi): void
+    {
+        try {
+            $beklenen = $yayinIstegi ? $this->yapilandirma->yayinUid() : $this->yapilandirma->webUid();
+        } catch (YapilandirmaHatasi $hata) {
+            throw new IstekReddi('YEDEK_YAPILANDIRMA_HATASI', $hata->getMessage());
+        }
+
+        if ($beklenen === null || $istek->sahipUid !== $beklenen) {
+            throw new IstekReddi('ISTEK_GONDEREN_DOGRULANAMADI', $yayinIstegi
+                ? 'Yayın öncesi yedek isteği yayın kullanıcısının dosyası değil; işlenmedi.'
+                : 'İstek dosyası web kullanıcısının değil; işlenmedi.');
+        }
+    }
+
+    /**
+     * Yedekleme kilidi altında: açık geri yükleme denetimi ve SON yetki
+     * denetimi işleyiciden hemen önce (kilit beklenirken yetkisi alınan
+     * kullanıcının işi başlamaz — BY-025-R2).
+     *
      * @throws IstekReddi
      */
     private function kilitleIsle(Istek $istek, IstekIsleyicisi $isleyici): IstekSonucu
@@ -243,6 +279,8 @@ final class IstekCalistiricisi
                 throw new IstekReddi(YedekAlmaHatasi::ACIK_GERI_YUKLEME, 'Açık bir üstüne geri yükleme var; istek işlenmedi.');
             }
 
+            $this->yetkiDenetle($istek, $isleyici);
+
             return $isleyici->isle($istek, $kilit);
         } finally {
             $kilit->birak();
@@ -255,7 +293,7 @@ final class IstekCalistiricisi
      * "yarıda kaldı" diye yeniden sonuçlandırmayı dener.
      *
      * @param  int|null  $kullaniciId  Yetkisi doğrulanmış kullanıcı (denetim kaydının sahibi)
-     * @param  array{tur?: string, istekteki_kullanici?: int|null}  $baglam
+     * @param  array{tur?: string, istekteki_kullanici?: int|null, gonderen_uid?: int}  $baglam
      */
     private function sonuclandir(string $yol, IstekSonucu $sonuc, ?int $kullaniciId, array $baglam): void
     {

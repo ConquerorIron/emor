@@ -57,15 +57,26 @@ describe('üstüne geri yükleme ilerleme uçları', () => {
       )
     vi.stubGlobal('fetch', fetchSahte)
 
-    await ustuneKararVer(ISLEM, ANAHTAR, 'onayla')
+    await ustuneKararVer(ISLEM, ANAHTAR, 'onayla', { mail: 'guncel' })
     await ustuneKararVer(ISLEM, ANAHTAR, 'geri-don')
 
     expect(
-      fetchSahte.mock.calls.map(([adres, secenek]) => [adres, (secenek as RequestInit).method]),
+      fetchSahte.mock.calls.map(([adres, secenek]) => [
+        adres,
+        (secenek as RequestInit).method,
+        (secenek as RequestInit).body,
+      ]),
     ).toEqual([
-      [`/api/v1/yedekleme/ustune-geri-yukleme/${ISLEM}/onayla`, 'POST'],
-      [`/api/v1/yedekleme/ustune-geri-yukleme/${ISLEM}/geri-don`, 'POST'],
+      [
+        `/api/v1/yedekleme/ustune-geri-yukleme/${ISLEM}/onayla`,
+        'POST',
+        JSON.stringify({ ayar_secimleri: { mail: 'guncel' } }),
+      ],
+      [`/api/v1/yedekleme/ustune-geri-yukleme/${ISLEM}/geri-don`, 'POST', undefined],
     ])
+    expect((fetchSahte.mock.calls[0][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ 'Content-Type': 'application/json', 'X-Erisim-Anahtari': ANAHTAR }),
+    )
     expect((fetchSahte.mock.calls[1][1] as RequestInit).credentials).toBe('omit')
   })
 })

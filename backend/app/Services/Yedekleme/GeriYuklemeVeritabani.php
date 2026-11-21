@@ -340,6 +340,184 @@ final class GeriYuklemeVeritabani
     }
 
     /**
+     * Veritabanının bağlanma yetkileri (`datacl::text`); null = hiç
+     * değiştirilmemiş, varsayılan yetkiler (sahibe her şey, PUBLIC'e
+     * CONNECT + TEMP).
+     *
+     * @throws GeriYuklemeHatasi Veritabanı yok ya da okunamadı
+     */
+    public function yetkileriOku(string $ad): ?string
+    {
+        $this->yetkiAdiOlmali($ad);
+        $satirlar = $this->csvSatirlari($this->psql(
+            self::YONETIM_VERITABANI,
+            "SELECT datacl IS NULL, coalesce(datacl::text, '') FROM pg_database WHERE datname = :'ad';",
+            ['ad' => $ad],
+            GeriYuklemeHatasi::VERITABANI_YETKILERI,
+            csv: true,
+        ));
+
+        if (count($satirlar) !== 1 || count($satirlar[0]) !== 2 || ! in_array($satirlar[0][0], ['t', 'f'], true)) {
+            throw new GeriYuklemeHatasi(GeriYuklemeHatasi::VERITABANI_YETKILERI, "{$ad} veritabanının bağlanma yetkileri okunamadı.");
+        }
+
+        return $satirlar[0][0] === 't' ? null : $satirlar[0][1];
+    }
+
+    /**
+     * Veritabanının bağlanma yetkilerini verilen ACL'ye EŞDEĞER yapar
+     * (BY-026-R1, BY-028-R1): şimdiki ve hedefteki her role (PUBLIC dahil)
+     * bütün yetkiler geri alınır, hedefteki yetkiler verilir; sonuç
+     * (rol, yetki, devredilebilir) kümesi olarak hedefle karşılaştırılır.
+     * Tek DO bloğu = tek işlem: eşdeğerlik sağlanamazsa (rol yok, başka bir
+     * vericinin verdiği yetki kaldı) yetkiler HİÇ değişmez, istisna.
+     *
+     * Veren (grantor) karşılaştırılmaz: servis rolü sahibin üyesi olarak
+     * verir, kayıtta veren sahip olur. `null` = varsayılan yetkiler
+     * (`acldefault`); sonuç açık yazılmış ama eşdeğer bir ACL'dir.
+     *
+     * @param  string|null  $acl  `datacl::text` (manifestteki `baglanma_yetkileri` ya da yetkileriOku())
+     *
+     * @throws GeriYuklemeHatasi VERITABANI_YETKILERI (yetkiler değişmedi)
+     */
+    public function yetkileriUygula(string $ad, ?string $acl): void
+    {
+        $this->yetkiAdiOlmali($ad);
+
+        $this->psql(self::YONETIM_VERITABANI, <<<'SQL'
+            SELECT set_config('erp_yedek.vt', :'ad', false), set_config('erp_yedek.acl', :'acl', false), set_config('erp_yedek.varsayilan', :'varsayilan', false);
+            DO $$
+            DECLARE
+              vt text := current_setting('erp_yedek.vt');
+              hedef aclitem[];
+              simdiki aclitem[];
+              r record;
+            BEGIN
+              SELECT coalesce(d.datacl, acldefault('d', d.datdba)),
+                     CASE WHEN current_setting('erp_yedek.varsayilan') = '1' THEN acldefault('d', d.datdba) ELSE current_setting('erp_yedek.acl')::aclitem[] END
+                INTO simdiki, hedef FROM pg_database d WHERE d.datname = vt;
+              IF NOT FOUND THEN
+                RAISE EXCEPTION 'veritabani bulunamadi';
+              END IF;
+              FOR r IN SELECT DISTINCT g.grantee FROM (SELECT a.grantee FROM aclexplode(simdiki) a UNION ALL SELECT b.grantee FROM aclexplode(hedef) b) g LOOP
+                EXECUTE format('REVOKE ALL ON DATABASE %I FROM %s CASCADE', vt, CASE WHEN r.grantee = 0 THEN 'PUBLIC' ELSE quote_ident(pg_get_userbyid(r.grantee)) END);
+              END LOOP;
+              FOR r IN SELECT * FROM aclexplode(hedef) LOOP
+                EXECUTE format('GRANT %s ON DATABASE %I TO %s%s', r.privilege_type, vt,
+                  CASE WHEN r.grantee = 0 THEN 'PUBLIC' ELSE quote_ident(pg_get_userbyid(r.grantee)) END,
+                  CASE WHEN r.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END);
+              END LOOP;
+              IF (SELECT array_agg(x ORDER BY x) FROM (SELECT a.grantee::text || ':' || a.privilege_type || ':' || a.is_grantable::text AS x
+                    FROM pg_database d, aclexplode(coalesce(d.datacl, acldefault('d', d.datdba))) a WHERE d.datname = vt) s)
+                 IS DISTINCT FROM
+                 (SELECT array_agg(x ORDER BY x) FROM (SELECT a.grantee::text || ':' || a.privilege_type || ':' || a.is_grantable::text AS x FROM aclexplode(hedef) a) s) THEN
+                RAISE EXCEPTION 'baglanma yetkileri esdeger uygulanamadi';
+              END IF;
+            END $$;
+            SQL, ['ad' => $ad, 'acl' => $acl ?? '', 'varsayilan' => $acl === null ? '1' : '0'], GeriYuklemeHatasi::VERITABANI_YETKILERI);
+    }
+
+    /**
+     * Yazıcı bariyeri (README §6.4 2–3. adım arası; BY-028-R1): canlıya
+     * bağlanma yetkisi yalnız servis rolünde kalır (PUBLIC'ten ve diğer
+     * rollerden CONNECT geri alınır — tek DO bloğu, ya hepsi ya hiçbiri), sonra
+     * canlıdaki diğer istemci oturumları sonlandırılır ve bitmeleri beklenir.
+     * Sonlandırılan oturumun açık işlemi geri alınır (istemci hata görür):
+     * bariyerden sonra alınan yedek, kabul edilmiş her yazıyı içerir.
+     *
+     * Bakım modu yeni web isteklerini keser; ama başlamış istek, zamanlanmış
+     * komut ya da sonradan bağlantı açan iş, bu bariyer olmadan öncesi yedekten
+     * sonra da canlıya yazabilirdi. Yetkiyi geri koymak çağıranın işidir
+     * (özgün ACL işlem durumundadır: yetkileriUygula()).
+     *
+     * @param  list<int>  $haricPidler  Bu sürecin canlıdaki kendi oturumları (sonlandırılmaz)
+     *
+     * @throws GeriYuklemeHatasi YAZICI_BARIYERI
+     */
+    public function bariyerKur(string $canli, string $servisRolu, array $haricPidler, int $saniye = 15): void
+    {
+        $this->canliOlmali($canli);
+        $haric = implode(',', array_map('intval', $haricPidler));
+
+        $this->psql(self::YONETIM_VERITABANI, <<<'SQL'
+            SELECT set_config('erp_yedek.vt', :'ad', false), set_config('erp_yedek.rol', :'rol', false);
+            DO $$
+            DECLARE
+              vt text := current_setting('erp_yedek.vt');
+              rol text := current_setting('erp_yedek.rol');
+              r record;
+            BEGIN
+              FOR r IN SELECT DISTINCT a.grantee FROM pg_database d, aclexplode(coalesce(d.datacl, acldefault('d', d.datdba))) a
+                        WHERE d.datname = vt AND a.privilege_type = 'CONNECT' LOOP
+                IF r.grantee = 0 THEN
+                  EXECUTE format('REVOKE CONNECT ON DATABASE %I FROM PUBLIC CASCADE', vt);
+                ELSIF pg_get_userbyid(r.grantee) <> rol THEN
+                  EXECUTE format('REVOKE CONNECT ON DATABASE %I FROM %I CASCADE', vt, pg_get_userbyid(r.grantee));
+                END IF;
+              END LOOP;
+              EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', vt, rol);
+              IF EXISTS (SELECT 1 FROM pg_database d, aclexplode(d.datacl) a
+                          WHERE d.datname = vt AND a.privilege_type = 'CONNECT' AND a.grantee <> (SELECT oid FROM pg_roles WHERE rolname = rol)) THEN
+                RAISE EXCEPTION 'servis rolu disinda baglanma yetkisi kaldi';
+              END IF;
+            END $$;
+            SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity
+             WHERE datname = :'ad' AND backend_type = 'client backend' AND pid <> pg_backend_pid() AND NOT (pid = ANY (string_to_array(:'haric', ',')::int[]));
+            SQL, ['ad' => $canli, 'rol' => $servisRolu, 'haric' => $haric], GeriYuklemeHatasi::YAZICI_BARIYERI);
+
+        // Sonlandırma sinyaldir; oturumların bitmesi beklenir (monoton saat — D1)
+        $son = hrtime(true) + $saniye * 1_000_000_000;
+        while (true) {
+            $acik = trim($this->psql(
+                self::YONETIM_VERITABANI,
+                "SELECT count(*) FROM pg_stat_activity WHERE datname = :'ad' AND backend_type = 'client backend' AND pid <> pg_backend_pid() AND NOT (pid = ANY (string_to_array(:'haric', ',')::int[]));",
+                ['ad' => $canli, 'haric' => $haric],
+                GeriYuklemeHatasi::YAZICI_BARIYERI,
+            ));
+            if ($acik === '0') {
+                return;
+            }
+
+            if (hrtime(true) >= $son) {
+                throw new GeriYuklemeHatasi(GeriYuklemeHatasi::YAZICI_BARIYERI, "{$canli} veritabanında sonlandırılamayan {$acik} oturum kaldı (başka rolün ya da yöneticinin oturumu olabilir).");
+            }
+
+            usleep(200_000);
+        }
+    }
+
+    /**
+     * Bu süreçten canlıya YENİ açılan Laravel bağlantıları, iş süresince
+     * servis rolüyle ve parola dosyasıyla açılır (yazıcı bariyerinde CONNECT
+     * yalnız onda — BY-028-R1). Parola PHP'ye girmez: libpq'ya parola
+     * verilmez, `PGPASSFILE`'dan okur (D2). Açık bağlantılar etkilenmez; iş
+     * bitince yapılandırma ve ortam eski hâline döner. Bağlantı adını
+     * değiştirmez: uygulama rolü (PgAraclari::baglanti) yalnız bu sürede
+     * okunmamalı — çağıran yalnız yedek almayı sarar.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $is
+     * @return T
+     */
+    public function servisRoluyle(string $servisRolu, string $parolaDosyasi, Closure $is): mixed
+    {
+        $anahtar = 'database.connections.'.$this->yapilandirma->baglantiAdi();
+        $onceki = config($anahtar);
+        $oncekiOrtam = getenv('PGPASSFILE');
+
+        config(["{$anahtar}.username" => $servisRolu, "{$anahtar}.password" => null]);
+        putenv('PGPASSFILE='.$parolaDosyasi);
+
+        try {
+            return $is();
+        } finally {
+            config([$anahtar => $onceki]);
+            putenv($oncekiOrtam === false ? 'PGPASSFILE' : 'PGPASSFILE='.$oncekiOrtam);
+        }
+    }
+
+    /**
      * İki ad değişikliği TEK işlemde: ikincisi hata verirse birincisi de geri
      * alınır, adlar değişmez (kesif.md §5). Bağlı olunan veritabanının adı
      * değiştirilemediği için `postgres`'ten yapılır. İleri: canlı → önceki,
@@ -370,6 +548,14 @@ final class GeriYuklemeVeritabani
     {
         if ($ad !== $this->pg->baglanti()->veritabani && ! VeritabaniAdi::oncekiMi($ad) && ! VeritabaniAdi::kopyaMi($ad)) {
             throw new LogicException('Üstüne geri yükleme yalnız canlı veritabanında, erp_onceki_* ve erp_geri_* adlarında çalışır.');
+        }
+    }
+
+    /** Yetkileri okunan / değiştirilen adlar: üstüne geri yüklemenin adları ve kopya / sınama */
+    private function yetkiAdiOlmali(string $ad): void
+    {
+        if (! VeritabaniAdi::yonetilenMi($ad)) {
+            $this->ustuneAdOlmali($ad);
         }
     }
 

@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Yedek;
+use App\Services\Yedekleme\AyarKopyasi;
+use App\Services\Yedekleme\AyarSecimi;
 use App\Services\Yedekleme\ErisimAnahtari;
 use App\Services\Yedekleme\IslemDurumuBozuk;
 use App\Services\Yedekleme\IslemKaydi;
@@ -32,7 +34,9 @@ use Illuminate\Validation\ValidationException;
  * - durum / onayla / geriDon: OTURUMSUZ. Bakım modundan muaftır
  *   (bootstrap/app.php) ve veritabanına dokunmaz — yalnız işlem durumu,
  *   onay bilgisi ve istek dosyalarını okur, onay / geri dönüş isteğini
- *   dosyaya yazar. Oturumlar veritabanındadır ve yer değiştirmeyle düşer;
+ *   dosyaya yazar. İsteğe anahtar değil, 5 dakikalık tek kullanımlık karar
+ *   kanıtı yazılır (ErisimAnahtari::kanit; BY-030-R1); onay, farkı olan her
+ *   ayar grubunun seçimini taşır (BY-028-R2). Oturumlar veritabanındadır ve yer değiştirmeyle düşer;
  *   bu yüzden tek yetki `X-Erisim-Anahtari` başlığındaki anahtardır ve
  *   yalnız kendi işlemine erişir. Özel başlık tarayıcıdan başka siteden
  *   gönderilemez (CSRF koruması yerine geçer). Hız sınırı yoktur:
@@ -164,12 +168,57 @@ final class UstuneGeriYuklemeController extends Controller
             return $this->hata('GERI_YUKLEME_ISLEM_DURUMU_UYGUN_DEGIL', 'hata.geri_yukleme_islem_durumu_uygun_degil', 409);
         }
 
+        $parametreler = [];
+        if ($tur === 'onayla') {
+            $secimler = $this->ayarSecimleri($request, $islem);
+            if ($secimler instanceof JsonResponse) {
+                return $secimler;
+            }
+            $parametreler['ayar_secimleri'] = AyarSecimi::metne($secimler);
+        }
+
+        // İsteğe anahtar DEĞİL, kısa ömürlü, tek kullanımlık, karara ve
+        // seçimlere bağlı kanıt yazılır (BY-030-R1); çalıştırıcı özetle doğrular
+        $son = CarbonImmutable::now()->getTimestamp() + ErisimAnahtari::KANIT_OMRU_SN;
+        $nonce = ErisimAnahtari::nonce();
+        $istek = $this->kutu->yaz($tur, [
+            'islem_kimligi' => $islem,
+            'son_gecerlilik' => $son,
+            'nonce' => $nonce,
+            ...$parametreler,
+            'kanit' => ErisimAnahtari::kanit((string) $kayit->erisimAnahtariOzeti, $islem, $tur, $son, $nonce, $parametreler['ayar_secimleri'] ?? ''),
+        ], $kayit->isteyenKullaniciId);
         // Denetim kaydı veritabanına yazılmaz (erişilemez olabilir): günlüğe;
         // çalıştırıcı işlerken ayrıca kaydeder
-        $istek = $this->kutu->yaz($tur, ['islem_kimligi' => $islem, 'erisim_anahtari' => $anahtar], $kayit->isteyenKullaniciId);
         Log::channel('yedekleme')->info('yedekleme.istek', ['tur' => $tur, 'istek' => $istek, 'islem' => $islem, 'kullanici_id' => $kayit->isteyenKullaniciId]);
 
         return response()->json(['data' => ['istek_kimligi' => $istek, 'durum' => 'kuyrukta']], 202);
+    }
+
+    /**
+     * Onayın ayar grubu seçimleri (README §5.3; BY-028-R2): onay bilgisinde
+     * farkı olan her grup için `guncel` ya da `geri_yuklenen` zorunlu
+     * (varsayılan yok). Çalıştırıcı da yeniden denetler.
+     *
+     * @return array<string, string>|JsonResponse
+     */
+    private function ayarSecimleri(Request $request, string $islem): array|JsonResponse
+    {
+        /** @var array{ayar_secimleri?: array<string, string>} $veri */
+        $veri = $request->validate([
+            'ayar_secimleri' => ['sometimes', 'array:'.implode(',', AyarKopyasi::GRUPLAR)],
+            'ayar_secimleri.*' => ['string', 'in:'.AyarSecimi::GUNCEL.','.AyarSecimi::GERI_YUKLENEN],
+        ]);
+        $secimler = $veri['ayar_secimleri'] ?? [];
+
+        $gruplar = $this->onayBilgisi->bilgiOku($islem)['ayar_gruplari'] ?? [];
+        $gerekli = is_array($gruplar)
+            ? array_map(fn (array $g): string => (string) $g['grup'], array_filter($gruplar, fn (mixed $g): bool => is_array($g) && ($g['farkli'] ?? false) === true))
+            : [];
+
+        return array_diff($gerekli, array_keys($secimler)) === []
+            ? $secimler
+            : $this->hata('GERI_YUKLEME_AYAR_SECIMI_EKSIK', 'hata.geri_yukleme_ayar_secimi_eksik', 422);
     }
 
     /**

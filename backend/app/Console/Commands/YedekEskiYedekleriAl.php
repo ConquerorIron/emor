@@ -36,6 +36,10 @@ use Throwable;
  * ada geri yüklenebilir, şema uyumu denetlenemediği için üstüne geri
  * yüklenemez. Saklama kuralı yayın öncesi yedeklerinkidir.
  * İki kez çalıştırmak yedeği çoğaltmaz (kimlik dosya adı + özetten).
+ *
+ * Yedekleme kilidi altında çalışır (meşgulse çıkış 75). Yedek klasöründe aynı
+ * adla FARKLI bir yedek (dosya, manifest ya da kayıt) varsa arşiv içe
+ * alınmaz, hiçbir dosyaya dokunulmaz, sonda başarısız çıkılır (D4; BY-013-R2).
  */
 #[Signature('yedek:eski-yedekleri-al {--klasor=/var/backups/emor : deploy.sh yedeklerinin klasörü}')]
 #[Description('deploy.sh\'ın eski (imzasız) yayın öncesi yedeklerini içeri alır')]
@@ -59,7 +63,45 @@ final class YedekEskiYedekleriAl extends Command
             return self::FAILURE;
         }
 
-        $sayac = ['alinan' => 0, 'var' => 0, 'okunamayan' => 0];
+        try {
+            $kilit = $yapilandirma->islemDurumu()->kilit();
+            if (! $kilit->bekleyerekAl((float) $yapilandirma->sureSiniri('kilit_bekleme'))) {
+                $this->error('Başka bir yedekleme / geri yükleme / yayın işlemi sürüyor; içe alma yapılmadı.');
+
+                return YedekAl::KILIT_MESGUL;
+            }
+        } catch (Throwable $hata) {
+            $this->error('Yedekleme kilidi alınamadı: '.$hata->getMessage());
+
+            return self::FAILURE;
+        }
+
+        $sayac = ['alinan' => 0, 'var' => 0, 'okunamayan' => 0, 'cakisan' => 0];
+
+        try {
+            $this->iceAl($dosyalar, $yapilandirma, $pg, $hedefKlasor, $manifestler, $olaylar, $sayac);
+        } finally {
+            $kilit->birak();
+        }
+
+        $denetim->kaydet('eski_yedekleri_al', $sayac['cakisan'] === 0 ? IslemSonucu::Basarili : IslemSonucu::Basarisiz, ayrinti: $sayac + ['klasor' => $kaynakKlasor]);
+        $this->info(sprintf('İçeri alınan %d, zaten olan %d, okunamayan %d, çakışan %d.', $sayac['alinan'], $sayac['var'], $sayac['okunamayan'], $sayac['cakisan']));
+
+        if ($sayac['cakisan'] > 0) {
+            $this->error('Yedek klasöründe aynı adlı FARKLI içerikli dosya olan arşivler içe alınmadı; iki dosyayı elle karşılaştırın (hiçbirine dokunulmadı).');
+
+            return self::FAILURE;
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  list<string>  $dosyalar
+     * @param  array{alinan: int, var: int, okunamayan: int, cakisan: int}  $sayac
+     */
+    private function iceAl(array $dosyalar, YedeklemeYapilandirmasi $yapilandirma, PgAraclari $pg, string $hedefKlasor, ManifestDeposu $manifestler, OlayGunlugu $olaylar, array &$sayac): void
+    {
         $sure = $yapilandirma->sureSiniri('yedek');
 
         $pg->parolaylaCalis(function () use ($dosyalar, $pg, $sure, $hedefKlasor, $manifestler, $olaylar, &$sayac): void {
@@ -72,6 +114,21 @@ final class YedekEskiYedekleriAl extends Command
 
                     if (Yedek::query()->where('kimlik', $kimlik)->exists()) {
                         $sayac['var']++;
+
+                        continue;
+                    }
+
+                    // Hedef ad ve manifest yazılmadan ÖNCE (kilit altında): aynı adda
+                    // yedek varsa üstüne yazılmaz (D4; BY-013-R2)
+                    $durum = $this->hedefDurumu($hedefKlasor.'/'.$ad, $kimlik, $manifestler);
+                    if ($durum === 'ayni') {
+                        $sayac['var']++;
+
+                        continue;
+                    }
+                    if ($durum === 'cakisan') {
+                        $sayac['cakisan']++;
+                        $this->warn("Çakışma, içe alınmadı: {$ad} — yedek klasöründe bu adla başka bir yedek var.");
 
                         continue;
                     }
@@ -135,11 +192,31 @@ final class YedekEskiYedekleriAl extends Command
                 }
             }
         });
+    }
 
-        $denetim->kaydet('eski_yedekleri_al', IslemSonucu::Basarili, ayrinti: $sayac + ['klasor' => $kaynakKlasor]);
-        $this->info(sprintf('İçeri alınan %d, zaten olan %d, okunamayan %d.', $sayac['alinan'], $sayac['var'], $sayac['okunamayan']));
+    /**
+     * Hedef adın durumu: 'bos' (dosya, manifest ve kayıt yok), 'ayni' (aynı
+     * arşiv daha önce içe alınmış: aynı özet + aynı kimlikli imzalı manifest;
+     * kayıt eksikse `yedek:tara` kurar) ya da 'cakisan'. Çakışan ad ayrı ada
+     * alınmaz: deploy.sh adı arşivin zamanını taşır ve aynı ana iki farklı
+     * arşiv elle bakılması gereken bir durumdur — iki dosyaya da dokunulmaz.
+     *
+     * @return 'bos'|'ayni'|'cakisan'
+     */
+    private function hedefDurumu(string $hedef, string $kimlik, ManifestDeposu $manifestler): string
+    {
+        $json = ManifestDeposu::jsonYolu($hedef);
+        $kayitVar = Yedek::query()->where('dosya_adi', basename($hedef))->exists();
 
-        return self::SUCCESS;
+        if (! $kayitVar && ! file_exists($hedef) && ! file_exists($json)) {
+            return 'bos';
+        }
+
+        $manifest = $manifestler->oku($json);
+
+        return ! $kayitVar && $manifest->guvenilirMi() && $manifest->manifest->kimlik === $kimlik && ManifestDeposu::dosyaTutuyorMu($manifest->manifest, $hedef)
+            ? 'ayni'
+            : 'cakisan';
     }
 
     /** Dosya adı + özetten UUID: aynı dosya ikinci çalıştırmada aynı kimliği alır */

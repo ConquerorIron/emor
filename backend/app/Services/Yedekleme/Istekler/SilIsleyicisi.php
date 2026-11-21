@@ -10,15 +10,12 @@ use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use App\Services\Yedekleme\Hedefler\YerelDiskBaglayicisi;
 use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\KopyaDurumu;
+use App\Services\Yedekleme\KopyaSilmeKaydi;
 use App\Services\Yedekleme\KullanimDenetimi;
-use App\Services\Yedekleme\OlayGunlugu;
-use App\Services\Yedekleme\OlayTuru;
 use App\Services\Yedekleme\YedekDenetimi;
 use App\Services\Yedekleme\YedekKilidi;
-use App\Services\Yedekleme\YedekOlayi;
 use App\Services\Yedekleme\YerelDosyaSilici;
 use App\Yetki\Izin;
-use Carbon\CarbonImmutable;
 use Throwable;
 
 /**
@@ -26,7 +23,8 @@ use Throwable;
  * Sabitlenmiş ya da kullanımdaki (kopyalanan, doğrulanan, geri yüklenen)
  * yedek silinmez. Bir hedef silinemezse diğerleri sürer; yedek ancak
  * hiçbir yerde kopyası kalmayınca `silindi` olur (YerelDosyaSilici), kayıt
- * ve imzalı manifest kalır.
+ * ve imzalı manifest kalır. Kopya silme sonucunu saklamayla aynı adım yazar
+ * (KopyaSilmeKaydi; BY-025-R3).
  */
 final class SilIsleyicisi implements IstekIsleyicisi
 {
@@ -36,7 +34,7 @@ final class SilIsleyicisi implements IstekIsleyicisi
         private readonly HedefKatalogu $katalog,
         private readonly KullanimDenetimi $kullanim,
         private readonly YerelDosyaSilici $yerelSilici,
-        private readonly OlayGunlugu $olaylar,
+        private readonly KopyaSilmeKaydi $silmeKaydi,
         private readonly YedekDenetimi $denetim,
     ) {}
 
@@ -68,11 +66,11 @@ final class SilIsleyicisi implements IstekIsleyicisi
                 if (! $ayniDosya && $kopya->uzak_kimlik !== null) {
                     $baglayici->sil($kopya->uzak_kimlik);
                 }
-                $this->kopyaSilindi($kopya, null);
+                $this->silmeKaydi->kaydet($kopya);
             } catch (HedefHatasi $hata) {
                 // Değiştirilemez saklama: hedefin kendi kuralı temizler (README §4.6)
                 if ($hata->kod === HedefHatasi::SILME_YETKISI_YOK) {
-                    $this->kopyaSilindi($kopya, $hata->kod);
+                    $this->silmeKaydi->kaydet($kopya, $hata->kod);
 
                     continue;
                 }
@@ -84,7 +82,7 @@ final class SilIsleyicisi implements IstekIsleyicisi
         }
 
         // F7: başka bir yerde doğrulanmış kopya kaldıysa durum `silindi` olmaz
-        $this->yerelSilici->sil($yedek->refresh(), uzakKopyaSart: false);
+        $this->yerelSilici->sil($yedek->refresh());
         $yedek->refresh();
         $ek = ['yedek_kimligi' => $yedek->kimlik, 'yedek_durumu' => $yedek->durum->value];
 
@@ -98,13 +96,5 @@ final class SilIsleyicisi implements IstekIsleyicisi
         $this->denetim->kaydet('yedek_sil', IslemSonucu::Basarili, $yedek->id, $istek->kullaniciId, null, ['kopya' => $kopyalar->count()]);
 
         return IstekSonucu::tamam($ek);
-    }
-
-    private function kopyaSilindi(YedekKopyasi $kopya, ?string $hataKodu): void
-    {
-        $kopya->update(['durum' => KopyaDurumu::Silindi, 'hata_kodu' => $hataKodu, 'silinme_zamani' => CarbonImmutable::now()]);
-        $this->olaylar->ekle(YedekOlayi::simdi($kopya->yedek->kimlik, OlayTuru::KopyaSilindi, [
-            'hedef_id' => $kopya->yedek_hedefi_id, 'hedef_ad' => $kopya->hedef->ad,
-        ]));
     }
 }

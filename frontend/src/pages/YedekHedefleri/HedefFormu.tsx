@@ -154,6 +154,9 @@ function SinamaSonucuPaneli({ sonuc }: { sonuc: HedefSinamaSonucu }) {
           {t('yedekleme.hedef.sinama.kalanAlan', { alan: boyutGoster(sonuc.kalan_alan) })}
         </p>
       ) : null}
+      {sonuc.silinme_korumasi !== null ? (
+        <p className="mt-1">{t(`yedekleme.hedef.sinama.koruma.${sonuc.silinme_korumasi}`)}</p>
+      ) : null}
       {sonuc.sunucu_parmak_izi ? (
         <p className="mt-1 font-mono text-xs break-all">
           {t('yedekleme.hedef.sftp.parmakIzi')}: {sonuc.sunucu_parmak_izi}
@@ -267,6 +270,9 @@ export function HedefFormu({
     await kaydet.mutateAsync(girdi).catch(() => undefined)
   })
 
+  // Sunucunun bildirdiği konum kilidi (BY-016-R1): kopyalar eski konumda durur
+  const kilitliAlanlar = new Set(hedef?.konum_kilitli_alanlar ?? [])
+
   const etiket = (alan: HedefAlanTanimi) =>
     `${t(alan.etiket, { defaultValue: alan.ad })}${zorunluMu(alan, hedef) ? ' *' : ''}`
 
@@ -325,6 +331,9 @@ export function HedefFormu({
       )
     }
 
+    // Kopyası duran hedefin konum alanı salt okunur (disabled değil: değer gövdede kalmalı)
+    const konumKilitli = kilitliAlanlar.has(alan.ad)
+
     return (
       <Input
         key={alan.ad}
@@ -335,7 +344,13 @@ export function HedefFormu({
         autoComplete={alan.tur === 'parola' ? 'new-password' : 'off'}
         placeholder={yerTutucu}
         hata={hata}
-        readOnly={isSubmitting}
+        readOnly={isSubmitting || konumKilitli}
+        title={konumKilitli ? t('yedekleme.hedef.konumKilitli') : undefined}
+        className={
+          konumKilitli
+            ? 'read-only:bg-slate-100 read-only:text-slate-500 dark:read-only:bg-slate-900 dark:read-only:text-slate-400'
+            : ''
+        }
         {...register(`alanlar.${alan.ad}`)}
       />
     )
@@ -363,6 +378,15 @@ export function HedefFormu({
           className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
         >
           {t(tanim.uyari, { defaultValue: tanim.uyari })}
+        </p>
+      ) : null}
+
+      {kilitliAlanlar.size > 0 ? (
+        <p
+          role="note"
+          className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+        >
+          {t('yedekleme.hedef.konumKilitli')}
         </p>
       ) : null}
 

@@ -9,9 +9,13 @@ use App\Models\MailAyari;
 use App\Models\Yedek;
 use App\Models\YedekAyari;
 use App\Services\Yedekleme\AyarKopyasi;
+use App\Services\Yedekleme\DogrulamaDurumu;
+use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\YedekAlici;
 use App\Services\Yedekleme\YedekBildirimcisi;
+use App\Services\Yedekleme\YedekDenetimi;
 use App\Services\Yedekleme\YedekDurumu;
+use App\Services\Yedekleme\YedekIsaretleyici;
 use App\Services\Yedekleme\YedekKaynagi;
 use App\Services\Yedekleme\YedekOzeti;
 use Carbon\CarbonImmutable;
@@ -126,5 +130,19 @@ final class YedekBildirimTest extends TestCase
         $this->assertNull($ozet['son_uzak']);
         $this->assertNull($ozet['son_sinama']);
         $this->assertSame(1, $ozet['toplam_adet']);
+    }
+
+    /** BY-012-R1: sınama zamanı sınamanın kaydından gelir; sonradan not yazmak özeti ilerletmez. */
+    public function test_sinamadan_sonra_yalniz_aciklama_degisince_ozetin_sinama_zamani_ilerlemez(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-11-18 03:00', 'UTC'));
+        mkdir(config('yedekleme.klasor'), 0750, true);
+        $yedek = Yedek::factory()->create(['dogrulama_durumu' => DogrulamaDurumu::SinamaGecti]);
+        app(YedekDenetimi::class)->kaydet('sinama_geri_yukleme', IslemSonucu::Basarili, $yedek->id);
+        $this->travelTo(CarbonImmutable::parse('2026-11-21 12:00', 'UTC'));
+
+        app(YedekIsaretleyici::class)->aciklamaYaz($yedek, 'Yıl sonu', null);
+
+        $this->assertSame('2026-11-18T03:00:00+00:00', app(YedekOzeti::class)->hesapla()['son_sinama']);
     }
 }

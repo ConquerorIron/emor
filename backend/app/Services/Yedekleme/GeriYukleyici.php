@@ -31,7 +31,9 @@ use Throwable;
  *    ekrandan yapılamaz.
  * 4. Hedef ad sistemce üretilir (VeritabaniAdi); varsa dokunulmaz.
  * 5. Veritabanı manifestteki kodlama / sıralama / ayarlarla, sahibi uygulama
- *    rolü olarak açılır; `pg_restore --exit-on-error --single-transaction
+ *    rolü olarak açılır; bağlanma yetkileri (CONNECT / TEMP …) manifestteki
+ *    ACL'ye eşdeğer yapılır, yapılamazsa (rol yok) açık hata (BY-026-R1);
+ *    `pg_restore --exit-on-error --single-transaction
  *    --no-owner --role=<uygulama rolü>`.
  * 6. Satır sayıları, migration listesi ve tablo sahibi manifestle
  *    karşılaştırılır (içe alınmış eski yedekte manifest bunları bilmez:
@@ -219,6 +221,10 @@ final class GeriYukleyici
             }
             $olusturuldu = true;
             $this->vt->ayarla($ad, $ayarlar);
+            // Kaynağın bağlanma yetkileri (BY-026-R1); boşsa varsayılan zaten yeni veritabanınınkidir
+            if ($ozellikler['baglanma_yetkileri'] !== null) {
+                $this->vt->yetkileriUygula($ad, $ozellikler['baglanma_yetkileri']);
+            }
             $adim(GeriYuklemeAdimi::Veritabani, 'tamam');
 
             $adim(GeriYuklemeAdimi::PgRestore, 'basladi');
@@ -280,22 +286,10 @@ final class GeriYukleyici
             return [$manifest, $yerel, null];
         }
 
-        $kopyalar = YedekKopyasi::query()
-            ->with('hedef')
-            ->where('yedek_id', $yedek->id)
-            ->where('durum', KopyaDurumu::Tamam->value)
-            ->whereNotNull('uzak_kimlik')
-            ->orderBy('id')
-            ->get();
-        $sifreliVar = false;
+        // Hangi kopyaların denenebileceğine ekranla aynı kural karar verir (BY-027-R1)
+        $kaynaklar = GeriYuklemeKaynaklari::sec(false, YedekKopyasi::query()->with('hedef')->where('yedek_id', $yedek->id)->get());
 
-        foreach ($kopyalar as $kopya) {
-            if ($kopya->sifreli) {
-                $sifreliVar = true;
-
-                continue;
-            }
-
+        foreach ($kaynaklar->uzaklar as $kopya) {
             $gecici = $this->geciciKlasor();
             $hedefYol = $gecici.'/'.$dosyaAdi;
 
@@ -314,7 +308,7 @@ final class GeriYukleyici
             $this->geciciSil($gecici);
         }
 
-        throw $sifreliVar
+        throw $kaynaklar->sifreliVar
             ? new GeriYuklemeHatasi(GeriYuklemeHatasi::OZEL_ANAHTAR_GEREKLI, 'Yedeğin yalnız şifreli kopyası var; çözmek için özel anahtar gerekir (komut satırından yapılır).')
             : new GeriYuklemeHatasi(GeriYuklemeHatasi::YEDEK_DOSYASI_YOK, 'Yedeğin yerel dosyası da okunabilir bir kopyası da yok.');
     }

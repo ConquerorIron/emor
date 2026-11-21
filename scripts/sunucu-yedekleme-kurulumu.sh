@@ -63,6 +63,7 @@ SERVIS_ADI="${EMOR_SERVIS_ADI:-emor-yedek}"
 PGPASS_DOSYASI="$YEDEK_KOKU/gizli/pgpass"
 IMZA_ANAHTARI="$YEDEK_KOKU/gizli/imza.anahtar"
 KILIT_DOSYASI="$YEDEK_KOKU/durum/kilit"
+YAYIN_KILIDI="$YEDEK_KOKU/durum/yayin.kilit"
 SERVIS_DOSYASI="$SYSTEMD_DIZINI/$SERVIS_ADI.service"
 GERCEK_SISTEM=0
 if [[ "$SYSTEMD_DIZINI" == /etc/systemd/system ]] && command -v systemctl >/dev/null 2>&1; then
@@ -215,6 +216,12 @@ for ad in "$YEDEK_KULLANICI" "$WEB_KULLANICI" "$YAYIN_KULLANICI" "$KUYRUK_SERVIS
   # sudoers / systemd / ACL satırlarına girer
   [[ "$ad" =~ ^[a-z_][a-z0-9_-]*$ ]] || hata "Kullanıcı / servis adı uygun değil: '$ad'"
 done
+# Çalıştırıcı istek dosyasının göndereni dosyanın sahibiyle (uid) doğrular
+# (BY-025-R1); servis tanımına bölüm 6'da yazılır. Aynı uid olsaydı web, yayın
+# istisnasını taklit edebilirdi.
+WEB_UID="$(id -u "$WEB_KULLANICI")"
+YAYIN_UID="$(id -u "$YAYIN_KULLANICI")"
+[[ "$WEB_UID" != "$YAYIN_UID" ]] || hata "web ve yayın kullanıcısının uid'si aynı ($WEB_UID); istek göndereni ayırt edilemez."
 
 cd /   # postgres kullanıcısıyla çalışan psql, okuyamadığı bir klasörde başlamasın
 pg_yonetici() { runuser -u postgres -- psql -X -A -t -q -v ON_ERROR_STOP=1 "$@"; }
@@ -301,9 +308,11 @@ fi
 #      gizli/     0700  okur         erişmez      erişmez   (parola dosyası, imza anahtarı)
 #      onbellek/  0700  okur, yazar  erişmez      erişmez   (servisin Laravel önbellekleri — bölüm 6)
 #
-#    durum/kilit: herkes salt okunur açıp kilit alır (flock, okuma için
-#    açılmış dosyada da çalışır). Önceden açılır; yoksa yazma izni olmayan
-#    yayın betiği (deploy.sh) onu yaratamazdı.
+#    durum/kilit, durum/yayin.kilit: herkes salt okunur açıp kilit alır
+#    (flock, okuma için açılmış dosyada da çalışır). Önceden açılır; yoksa
+#    yazma izni olmayan yayın betiği (deploy.sh) yayın kilidini yaratamazdı.
+#    yayin.kilit (BY-013-R1): deploy.sh yayın boyunca tutar, üstüne geri
+#    yükleme başlarken servis beklemeden almayı dener; işlem kilidinden ayrıdır.
 #
 #    ACL her yolda TAMAMEN karşılaştırılır: izin bitleri doğru görünse de ek
 #    bir ACL girdisi (ör. yedekler/'e u:admin:r-x) yasak erişimi açar. Fark
@@ -425,19 +434,21 @@ if [[ -d "$YEDEK_KOKU/durum" ]]; then
   acl_denetle "$YEDEK_KOKU/gizli" 0700 ""
   # Sonradan eklendi: önceki kurulumda yoksa yukarıda "eksik" bildirildi
   if [[ -d "$YEDEK_KOKU/onbellek" ]]; then acl_denetle "$YEDEK_KOKU/onbellek" 0700 ""; fi
-  if [[ -z "${REDDEDILEN[$YEDEK_KOKU/durum]:-}" ]] && tur_denetle "$KILIT_DOSYASI" f; then
-    if [[ -f "$KILIT_DOSYASI" ]]; then
-      izin_denetle "$KILIT_DOSYASI" 0640
-      acl_denetle "$KILIT_DOSYASI" 0640 "r--"
-    else
-      # Servis hesabı açar: root, servisin yazabildiği klasörde dosya açmaz.
-      # Dosya ve girdisi diske zorlanır: uygulama var olan kilidi eşitlemez (BY-005-R11)
-      acl_tanimi 0640 "r--" ""
-      duzelt "$KILIT_DOSYASI açıldı (0640; yayın kullanıcısı okur)" \
-        runuser -u "$YEDEK_KULLANICI" -- bash -c 'install -m 640 /dev/null "$1" && setfacl --set "$2" "$1" && sync -- "$1" "$(dirname "$1")"' \
-          _ "$KILIT_DOSYASI" "$ACL_TANIMI"
+  for kilit in "$KILIT_DOSYASI" "$YAYIN_KILIDI"; do
+    if [[ -z "${REDDEDILEN[$YEDEK_KOKU/durum]:-}" ]] && tur_denetle "$kilit" f; then
+      if [[ -f "$kilit" ]]; then
+        izin_denetle "$kilit" 0640
+        acl_denetle "$kilit" 0640 "r--"
+      else
+        # Servis hesabı açar: root, servisin yazabildiği klasörde dosya açmaz.
+        # Dosya ve girdisi diske zorlanır: uygulama var olan kilidi eşitlemez (BY-005-R11)
+        acl_tanimi 0640 "r--" ""
+        duzelt "$kilit açıldı (0640; yayın kullanıcısı okur)" \
+          runuser -u "$YEDEK_KULLANICI" -- bash -c 'install -m 640 /dev/null "$1" && setfacl --set "$2" "$1" && sync -- "$1" "$(dirname "$1")"' \
+            _ "$kilit" "$ACL_TANIMI"
+      fi
     fi
-  fi
+  done
 elif [[ "$KIP" == denetle ]]; then
   eksik "ACL'ler ve kilit dosyası (klasörler yok)"
 fi
@@ -693,6 +704,13 @@ fi
 #    Durdurulunca çalıştırıcı o anki işi bitirip çıkar (SIGTERM); geri yükleme
 #    `sure_siniri.geri_yukleme` (3600 sn) sürebilir. systemd'nin 90 sn'lik
 #    varsayılanı işi yarıda öldürürdü: TimeoutStopSec bu sınırın üstündedir.
+#    YEDEKLEME_WEB_UID / YEDEKLEME_YAYIN_UID: çalıştırıcı istek dosyasının
+#    göndereni dosyanın sahibiyle doğrular (BY-025-R1) — kullanıcılı istekler
+#    yalnız web kullanıcısının, kullanıcısız yayın öncesi yedek yalnız yayın
+#    kullanıcısının dosyasıysa işlenir. Değerler yukarıdaki kullanıcı adlarından
+#    (bölüm 0; sudoers'taki gibi tek kaynak); kullanıcı yeniden açılıp uid'si
+#    değişirse içerik farklı görünür, kurulum tanımı günceller.
+#    Planlı yedek ve günlük temizlik de bu serviste yürür (BY-009-R1).
 # ---------------------------------------------------------------------------
 baslik "6. Servis tanımı"
 # Servis ortamındaki systemctl yolu ve kuyruk servisi (BY-028) sudoers kuralıyla
@@ -718,6 +736,8 @@ Environment=VIEW_COMPILED_PATH=$YEDEK_KOKU/onbellek/views
 Environment=LOG_KLASORU=$YEDEK_KOKU/gunluk
 Environment=YEDEKLEME_KUYRUK_SERVISI=$KUYRUK_SERVISI
 Environment=YEDEKLEME_SYSTEMCTL=$SYSTEMCTL
+Environment=YEDEKLEME_WEB_UID=$WEB_UID
+Environment=YEDEKLEME_YAYIN_UID=$YAYIN_UID
 ExecStart=/usr/bin/php $UYGULAMA_KOKU/backend/artisan yedek:calistir
 Restart=always
 RestartSec=5

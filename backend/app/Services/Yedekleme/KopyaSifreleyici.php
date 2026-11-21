@@ -9,6 +9,7 @@ use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Contracts\Process\ProcessResult;
+use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
@@ -22,7 +23,9 @@ use Throwable;
  *   aranmaz, saklanmaz; yüklenen metinde özel anahtar varsa reddedilir.
  *   Çözme için özel anahtar o anda dosya olarak verilir (komut satırı).
  * - Açık anahtar tanımlı değilken şifreleme hata verir: kopya sessizce
- *   şifresiz gitmez.
+ *   şifresiz gitmez. Anahtar eksik / geçersiz / süresi dolmuş kalıcı hatadır
+ *   (yeniden denenmez); gpg süre aşımı ve geçici klasör / disk sorunu
+ *   `gecici` işaretli SifrelemeHatasi'dır, kopya sınırlı denenir (D8).
  * - Her işlem kendi geçici anahtarlığında (GNUPGHOME, 0700) yapılır; işlem
  *   bitince (hata yolunda da) ajanı kapatılır ve klasör silinir. Kullanıcının
  *   ya da servis hesabının kendi anahtarlığına dokunulmaz.
@@ -53,7 +56,8 @@ class KopyaSifreleyici
      *
      * @return string Şifreli dosyanın yolu ($cikis)
      *
-     * @throws HedefHatasi Anahtar tanımlı değil / geçersiz ya da gpg başarısız (YAPILANDIRMA: yeniden denenmez)
+     * @throws HedefHatasi Anahtar tanımlı değil / kayıtlıyla uyuşmuyor / süresi dolmuş ya da araç yapılandırılmamış (YAPILANDIRMA: kalıcı, yeniden denenmez — D8)
+     * @throws SifrelemeHatasi gpg süre sınırını aştı, çalıştırılamadı ya da geçici klasör / disk sorunu (`gecici`: sınırlı yeniden denenir)
      */
     public function sifrele(string $kaynak, string $cikis): string
     {
@@ -89,12 +93,20 @@ class KopyaSifreleyici
                         throw new SifrelemeHatasi(SifrelemeHatasi::SURESI_DOLMUS, 'Açık anahtarın süresi dolmuş ya da şifrelemeye uygun değil; yeni anahtar yükleyin.');
                     }
 
+                    // Anahtar sorunları yukarıda ayrıldı; kalan (disk dolu, yarıda kesilme) geçici sayılır
                     if (! $sonuc->successful() || ! isset($durum['END_ENCRYPTION']) || ! is_file($gecici)) {
-                        throw new SifrelemeHatasi(SifrelemeHatasi::ARAC, 'Kopya şifrelenemedi ('.self::neden($durum, $sonuc).').');
+                        throw new SifrelemeHatasi(SifrelemeHatasi::ARAC, 'Kopya şifrelenemedi ('.self::neden($durum, $sonuc).').', gecici: true);
                     }
                 });
             });
         } catch (SifrelemeHatasi $hata) {
+            if ($hata->gecici) {
+                throw $hata;
+            }
+
+            throw new HedefHatasi(HedefHatasi::YAPILANDIRMA, $hata->getMessage());
+        } catch (YapilandirmaHatasi $hata) {
+            // Geçersiz süre sınırı ayarı (G9): kalıcı
             throw new HedefHatasi(HedefHatasi::YAPILANDIRMA, $hata->getMessage());
         }
 
@@ -269,7 +281,7 @@ class KopyaSifreleyici
         $ev = sys_get_temp_dir().'/emor-gpg-'.bin2hex(random_bytes(8));
 
         if (! @mkdir($ev, 0700) || ! chmod($ev, 0700)) {
-            throw new SifrelemeHatasi(SifrelemeHatasi::ARAC, 'Geçici anahtarlık klasörü açılamadı.');
+            throw new SifrelemeHatasi(SifrelemeHatasi::ARAC, 'Geçici anahtarlık klasörü açılamadı.', gecici: true);
         }
 
         try {
@@ -304,7 +316,7 @@ class KopyaSifreleyici
             @chmod($gecici, 0600);
 
             if (! @rename($gecici, $hedef)) {
-                throw new SifrelemeHatasi(SifrelemeHatasi::ARAC, 'Çıktı dosyası yerine taşınamadı.');
+                throw new SifrelemeHatasi(SifrelemeHatasi::ARAC, 'Çıktı dosyası yerine taşınamadı.', gecici: true);
             }
         } finally {
             if (file_exists($gecici)) {
@@ -326,9 +338,13 @@ class KopyaSifreleyici
                 ->env(['GNUPGHOME' => false, 'GPG_AGENT_INFO' => false, 'LC_ALL' => 'C', 'LANGUAGE' => false])
                 ->run([$this->yapilandirma->arac('gpg'), '--homedir', $ev, '--batch', '--no-tty', '--yes', '--status-fd', '1', ...$argumanlar]);
         } catch (YapilandirmaHatasi $hata) {
+            // Araç yolu tanımlı değil: girdi değişmeden düzelmez
             throw new SifrelemeHatasi(SifrelemeHatasi::ARAC, $hata->getMessage());
+        } catch (ProcessTimedOutException) {
+            throw new SifrelemeHatasi(SifrelemeHatasi::ARAC, "gpg {$sure} sn süre sınırında bitmedi.", gecici: true);
         } catch (Throwable $hata) {
-            throw new SifrelemeHatasi(SifrelemeHatasi::ARAC, 'gpg çalıştırılamadı ya da süre sınırında bitmedi ('.class_basename($hata).').');
+            // Süreç başlatılamadı (kaynak yetersizliği vb.)
+            throw new SifrelemeHatasi(SifrelemeHatasi::ARAC, 'gpg çalıştırılamadı ('.class_basename($hata).').', gecici: true);
         }
     }
 

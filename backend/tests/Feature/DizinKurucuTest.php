@@ -6,26 +6,37 @@ namespace Tests\Feature;
 
 use App\Models\GeriYukleme;
 use App\Models\Yedek;
+use App\Models\YedekAyari;
 use App\Models\YedekHedefi;
 use App\Models\YedekKopyasi;
+use App\Models\YedekPlani;
 use App\Services\Yedekleme\DizinKurucu;
 use App\Services\Yedekleme\GeriYuklemeDurumu;
 use App\Services\Yedekleme\GeriYuklemeTuru;
+use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use App\Services\Yedekleme\HedefTuru;
+use App\Services\Yedekleme\Istekler\Istek;
+use App\Services\Yedekleme\Istekler\SilIsleyicisi;
 use App\Services\Yedekleme\KopyaDurumu;
 use App\Services\Yedekleme\OlayGunlugu;
 use App\Services\Yedekleme\OlayTuru;
+use App\Services\Yedekleme\SahipsizYedekler;
+use App\Services\Yedekleme\SaklamaPolitikasi;
 use App\Services\Yedekleme\YedekAlici;
 use App\Services\Yedekleme\YedekDurumu;
 use App\Services\Yedekleme\YedekKaynagi;
 use App\Services\Yedekleme\YedekKopyalayici;
 use App\Services\Yedekleme\YedekOlayi;
 use App\Services\Yedekleme\YerelDosyaSilici;
+use Carbon\CarbonImmutable;
+use Closure;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Tests\TestCase;
 use Tests\Yedekleme\BellekHedefi;
 use Tests\Yedekleme\YedeklemeOrtami;
@@ -162,7 +173,7 @@ final class DizinKurucuTest extends TestCase
         $yedek = $this->gercekYedek();
         $hedef = YedekHedefi::factory()->create(['ad' => 'Uzak', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'k']]);
         app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
-        app(YerelDosyaSilici::class)->sil($yedek->refresh(), uzakKopyaSart: true);
+        app(YerelDosyaSilici::class)->sil($yedek->refresh());
         $this->dizinleriBosalt();
 
         $this->tara();
@@ -181,5 +192,140 @@ final class DizinKurucuTest extends TestCase
 
         $this->assertMatchesRegularExpression('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D', $kimlik);
         $this->assertSame($kimlik, DizinKurucu::dosyaKimligi('erp_predeploy_2026-08-05_101010.dump'));
+    }
+
+    /** BY-006-R1: satır ortasında kesilen yazımdan sonra eklenen olay yarım parçaya bitişip kaybolmaz. */
+    public function test_yarim_satirdan_sonra_yazilan_olay_yeniden_taramada_uygulanir(): void
+    {
+        $yedek = $this->gercekYedek();
+        $gunluk = app(OlayGunlugu::class);
+        file_put_contents($gunluk->yol(), '{"olay":{"zaman":"2026-11-21T10:00:00.000000+00:00","yedek_kim', FILE_APPEND);
+        $gunluk->ekle(YedekOlayi::simdi($yedek->kimlik, OlayTuru::Sabitlendi));
+        $this->dizinleriBosalt();
+
+        $sonuc = $this->tara();
+
+        $this->assertTrue(Yedek::query()->where('kimlik', $yedek->kimlik)->sole()->sabit);
+        $this->assertSame(1, $sonuc['gecersiz_olay']);
+    }
+
+    /** BY-011-R1 (D6): erişilemeyen yedek klasörü boş klasör sayılmaz; dizin değişmeden tarama durur. */
+    #[DataProvider('erisilemeyenKlasorler')]
+    public function test_yedek_klasoru_erisilemezken_tarama_kayitlara_ve_kopyalara_dokunmaz(Closure $erisimiKes): void
+    {
+        $yedek = $this->gercekYedek();
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Uzak', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'k']]);
+        app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        $klasor = config('yedekleme.klasor');
+        $erisimiKes($this, $klasor);
+        $hata = null;
+
+        try {
+            $this->tara();
+        } catch (RuntimeException $e) {
+            $hata = $e;
+        } finally {
+            @chmod($klasor, 0750);
+        }
+
+        $this->assertInstanceOf(RuntimeException::class, $hata);
+        $this->assertStringContainsString('dizin değiştirilmedi', $hata->getMessage());
+        $yedek->refresh();
+        $this->assertSame(YedekDurumu::Tamam, $yedek->durum);
+        $this->assertNull($yedek->yerel_silinme_zamani);
+        $this->assertSame(KopyaDurumu::Tamam, YedekKopyasi::query()->where('yedek_id', $yedek->id)->sole()->durum);
+    }
+
+    /** @return array<string, array{Closure}> */
+    public static function erisilemeyenKlasorler(): array
+    {
+        return [
+            'bağlanmamış (yok)' => [function (self $test, string $klasor): void {
+                rename($klasor, $klasor.'-baglanmamis');
+            }],
+            'okuma izni yok' => [function (self $test, string $klasor): void {
+                if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+                    $test->markTestSkipped('root izin denetimine takılmaz (T11).');
+                }
+                chmod($klasor, 0300);
+            }],
+        ];
+    }
+
+    /** BY-011-R1: okunabilen ama gerçekten boş klasör olağan taramadır — kayıt "dosya yok" olur. */
+    public function test_erisilebilen_bos_klasorde_kayit_dosya_yok_olur(): void
+    {
+        $yedek = $this->gercekYedek();
+        foreach ($this->klasordekiDosyalar() as $ad) {
+            unlink(config('yedekleme.klasor').'/'.$ad);
+        }
+
+        $sonuc = $this->tara();
+
+        $this->assertSame(1, $sonuc['dosyasi_yok']);
+        $this->assertNotNull($yedek->refresh()->yerel_silinme_zamani);
+    }
+
+    /** BY-007-R1: kilidi tutan tarama, dump sırasında ölen süreçten kalan `calisiyor` kaydı sonuçlandırır. */
+    public function test_kilitli_tarama_sahipsiz_calisan_yedegi_yarida_kaldi_yapar(): void
+    {
+        $this->gercekYedek();
+        $sahipsiz = Yedek::factory()->create(['durum' => YedekDurumu::Calisiyor, 'dosya_adi' => 'erp_elle_2026-11-21_101010+0300.dump']);
+        $gecici = config('yedekleme.klasor').'/.erp_elle_2026-11-21_101010+0300.dump.a1b2c3d4e5f6.tmp';
+        file_put_contents($gecici, 'PGDMP-yarim');
+
+        $sonuc = app(DizinKurucu::class)->tara($this->kilitAl());
+
+        $this->assertSame(1, $sonuc['sahipsiz']);
+        $this->assertSame([YedekDurumu::Basarisiz, SahipsizYedekler::YARIDA_KALDI], [$sahipsiz->refresh()->durum, $sahipsiz->hata_kodu]);
+        $this->assertFileDoesNotExist($gecici);
+    }
+
+    /** BY-023-R1: silme yetkisi reddedilen (mantıksal silinen) kopya boş katalogdan yeniden kurulunca geri gelmez. */
+    public function test_silme_yetkisi_reddedilen_kopya_yeniden_kurulunca_kullanilabilir_gorunmez(): void
+    {
+        YedekAyari::query()->create(['enaz_adet' => 1]);
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Kilitli S3', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'k']]);
+        $plan = YedekPlani::factory()->create();
+        $plan->hedefler()->attach($hedef, ['sakla_son_adet' => 1]);
+        $eski = $this->planYedegi($hedef, $plan);
+        $this->travel(1)->hours();
+        $this->planYedegi($hedef, $plan);
+        BellekHedefi::$hataAdimi = 'sil';
+        BellekHedefi::$hataKodu = HedefHatasi::SILME_YETKISI_YOK;
+        app(SaklamaPolitikasi::class)->uygula();
+        $this->dizinleriBosalt();
+
+        $this->tara();
+
+        $kopya = YedekKopyasi::query()->whereHas('yedek', fn ($q) => $q->where('kimlik', $eski->kimlik))->sole();
+        $this->assertSame([KopyaDurumu::Silindi, HedefHatasi::SILME_YETKISI_YOK], [$kopya->durum, $kopya->hata_kodu]);
+    }
+
+    /** BY-025-R3: elle silme, saklamayla aynı kayıt adımıyla olay yazar; yeniden kurulunca yedek ve kopya silinmiş kalır. */
+    public function test_elle_silinen_yedek_ve_kopyasi_yeniden_kurulunca_silinmis_kalir(): void
+    {
+        $yedek = $this->gercekYedek();
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Uzak', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'k']]);
+        app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        $istek = new Istek((string) Str::uuid(), 'sil', ['yedek_kimligi' => $yedek->kimlik], null, CarbonImmutable::now(), 0);
+        app(SilIsleyicisi::class)->isle($istek, $this->kilitAl());
+        $this->tutulanKilit?->birak();
+        $this->dizinleriBosalt();
+
+        $this->tara();
+
+        $kurulan = Yedek::query()->where('kimlik', $yedek->kimlik)->sole();
+        $this->assertSame(YedekDurumu::Silindi, $kurulan->durum);
+        $this->assertSame(KopyaDurumu::Silindi, YedekKopyasi::query()->where('yedek_id', $kurulan->id)->sole()->durum);
+    }
+
+    private function planYedegi(YedekHedefi $hedef, YedekPlani $plan): Yedek
+    {
+        $yedek = app(YedekAlici::class)->al($this->kilitAl(), YedekKaynagi::Plan, null, null, [$plan->ad]);
+        $this->tutulanKilit?->birak();
+        app(YedekKopyalayici::class)->kopyala($yedek, $hedef, [$plan->id]);
+
+        return $yedek;
     }
 }

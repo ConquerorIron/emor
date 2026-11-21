@@ -33,6 +33,7 @@ use App\Yetki\Izin;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Console\Kernel as ConsoleKernel;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Artisan;
@@ -240,8 +241,21 @@ final class YedekCalistiriciTest extends TestCase
         $this->reddedildi($kimlik, 'ISTEK_YETKI_YOK');
     }
 
+    /** Bu sürecin (testin yazdığı istek dosyalarının sahibinin) uid'si */
+    private function uid(): int
+    {
+        return stat('/proc/self')['uid'];
+    }
+
+    /** Testin yazdığı dosyalar yayın kullanıcısınınmış gibi (web başka biri) */
+    private function yayinKullanicisiOl(): void
+    {
+        config(['yedekleme.web_uid' => $this->uid() + 1, 'yedekleme.yayin_uid' => $this->uid()]);
+    }
+
     public function test_kullanicisiz_istek_yalniz_yayin_oncesi_yedekte_kabul_edilir(): void
     {
+        $this->yayinKullanicisiOl();
         $sabitle = $this->kutu()->yaz('sabitle', ['yedek_kimligi' => $this->yedek->kimlik], null);
         $elle = $this->kutu()->yaz('yedek_al', ['kaynak' => 'elle', 'aciklama' => null], null);
         $kullaniciliYayin = $this->kutu()->yaz('yedek_al', ['kaynak' => 'yayin_oncesi', 'aciklama' => null], $this->yonetici->id);
@@ -254,6 +268,53 @@ final class YedekCalistiriciTest extends TestCase
         $this->reddedildi($kullaniciliYayin, 'ISTEK_YETKI_YOK');
         $this->assertSame('tamam', $this->sonuc($yayin)['durum']);
         $this->assertSame(1, Yedek::query()->where('kaynak', YedekKaynagi::YayinOncesi->value)->count());
+    }
+
+    public function test_gonderen_dosyanin_sahibiyle_dogrulanir_web_yayin_istisnasini_taklit_edemez(): void
+    {
+        // Web kullanıcısının dosyası: kullanıcılı istek geçer, kullanıcısız yayın isteği geçmez
+        config(['yedekleme.web_uid' => $this->uid(), 'yedekleme.yayin_uid' => $this->uid() + 1]);
+        $webinYayini = $this->kutu()->yaz('yedek_al', ['kaynak' => 'yayin_oncesi', 'aciklama' => null], null);
+        $sabitle = $this->kutu()->yaz('sabitle', ['yedek_kimligi' => $this->yedek->kimlik], $this->yonetici->id);
+
+        $this->tur();
+
+        $this->reddedildi($webinYayini, 'ISTEK_GONDEREN_DOGRULANAMADI');
+        $this->assertTrue(YedekIslemKaydi::query()->where('islem', 'istek')->get()
+            ->contains(fn (YedekIslemKaydi $k): bool => ($k->ayrinti['istek'] ?? null) === $webinYayini && ($k->ayrinti['gonderen_uid'] ?? null) === $this->uid()));
+        $this->assertSame('tamam', $this->sonuc($sabitle)['durum']);
+        $this->assertSame(0, Yedek::query()->where('kaynak', YedekKaynagi::YayinOncesi->value)->count());
+
+        // Yayın kullanıcısının dosyası: yayın isteği geçer, kullanıcı adına yazılmış istek geçmez
+        $this->yayinKullanicisiOl();
+        $yayininKullaniciIstegi = $this->kutu()->yaz('sabit_coz', ['yedek_kimligi' => $this->yedek->kimlik], $this->yonetici->id);
+        $yayin = $this->kutu()->yaz('yedek_al', ['kaynak' => 'yayin_oncesi', 'aciklama' => null], null);
+
+        $this->tur();
+
+        $this->reddedildi($yayininKullaniciIstegi, 'ISTEK_GONDEREN_DOGRULANAMADI');
+        $this->assertTrue($this->yedek->refresh()->sabit, 'Tanınmayan gönderenin isteği işlenmedi');
+        $this->assertSame('tamam', $this->sonuc($yayin)['durum']);
+        $this->assertSame(1, Yedek::query()->where('kaynak', YedekKaynagi::YayinOncesi->value)->count());
+    }
+
+    public function test_kilit_beklenirken_yetkisi_alinan_kullanicinin_isi_hic_baslamaz(): void
+    {
+        $kullanici = $this->kullanici([Izin::YedeklerSil->value]);
+        $kimlik = $this->kutu()->yaz('sabitle', ['yedek_kimligi' => $this->yedek->kimlik], $kullanici->id);
+        $kilit = $this->kilitAl();
+        Sleep::fake();
+        // Çalıştırıcı kilidi beklerken: yetki alınır, kilit boşalır
+        Sleep::whenFakingSleep(function () use ($kullanici, $kilit): void {
+            $kullanici->roller()->detach();
+            $kilit->birak();
+        });
+
+        $this->tur();
+
+        $this->reddedildi($kimlik, 'ISTEK_YETKI_YOK');
+        $this->assertFalse($this->yedek->refresh()->sabit, 'Yetkisi alınan kullanıcının işi başlamadı');
+        Sleep::assertSleptTimes(1);
     }
 
     /**
@@ -437,8 +498,12 @@ final class YedekCalistiriciTest extends TestCase
 
     public function test_acik_islem_yokken_onay_istegi_anahtar_dogrulanamadigi_icin_reddedilir(): void
     {
-        // Onayın yetkisi erişim anahtarıdır (BY-029); işlem durumu yoksa doğrulanamaz
-        $kimlik = $this->kutu()->yaz('onayla', ['islem_kimligi' => (string) Str::uuid(), 'erisim_anahtari' => str_repeat('b', 64)], $this->yonetici->id);
+        // Onayın yetkisi erişim anahtarından üretilen karar kanıtıdır (BY-029, BY-030-R1);
+        // işlem durumu yoksa doğrulanamaz
+        $kimlik = $this->kutu()->yaz('onayla', [
+            'islem_kimligi' => (string) Str::uuid(), 'son_gecerlilik' => now()->getTimestamp() + 60,
+            'nonce' => str_repeat('a', 32), 'ayar_secimleri' => '', 'kanit' => str_repeat('b', 64),
+        ], $this->yonetici->id);
 
         $this->tur();
 
@@ -658,9 +723,85 @@ final class YedekCalistiriciTest extends TestCase
         $this->assertFalse($olay->filtersPass($this->app), 'Kapalıyken etkisiz');
     }
 
+    public function test_zamanlayici_planli_yedegi_ve_temizligi_servis_kipinde_calistirmaz(): void
+    {
+        Artisan::all();
+        foreach (['yedek:zamanla', 'yedek:temizle'] as $komut) {
+            $olay = collect(app(Schedule::class)->events())->first(fn ($e): bool => str_contains((string) $e->command, $komut));
+            $this->assertNotNull($olay);
+
+            config(['yedekleme.calistirici' => 'dogrudan']);
+            $this->assertTrue($olay->filtersPass($this->app), "{$komut}: geçiş kipinde zamanlayıcı çalıştırır");
+            config(['yedekleme.calistirici' => 'servis']);
+            $this->assertFalse($olay->filtersPass($this->app), "{$komut}: servis kipinde web hesabıyla çalışmaz");
+        }
+    }
+
+    /**
+     * Servis döngüsünün bir çalışması (systemd'nin başlattığı yeni süreç); çıktısı
+     * döner. Artisan uygulaması sıfırlanır: komut nesnesi (bellekteki durumu)
+     * çalışmalar arasında paylaşılmasın.
+     */
+    private function servisDongusu(): string
+    {
+        app(ConsoleKernel::class)->setArtisan(null);
+        Artisan::call('yedek:calistir', ['--en-cok-tur' => 3]);
+
+        return Artisan::output();
+    }
+
+    public function test_servis_kipinde_planli_yedegi_calistiricinin_dongusu_tetikler(): void
+    {
+        config(['yedekleme.calistirici' => 'servis']);
+        Sleep::fake();
+        $plan = YedekPlani::factory()->create();
+        $plan->forceFill(['sonraki_calisma' => CarbonImmutable::now()->subSeconds(30)])->save();
+
+        $this->servisDongusu();
+
+        $planli = Yedek::query()->where('kaynak', YedekKaynagi::Plan->value)->sole();
+        $this->assertSame(YedekDurumu::Tamam, $planli->durum);
+        $this->assertTrue($planli->imzali);
+        $this->assertNotNull($plan->refresh()->son_calisma);
+    }
+
+    public function test_servis_kipinde_gunluk_temizlik_vadeden_sonra_gunde_bir_kez_yapilir(): void
+    {
+        config(['yedekleme.calistirici' => 'servis']);
+        Sleep::fake();
+        $gun = CarbonImmutable::now('Europe/Istanbul')->startOfDay();
+
+        // Servis 04:10'da kapalıydı: açılınca (05:00) bir kez
+        $this->travelTo($gun->setTime(5, 0));
+        $this->assertSame(1, substr_count($this->servisDongusu(), 'Temizlik:'));
+        // Aynı gün yeniden başlayan servis tekrarlamaz
+        $this->travelTo($gun->setTime(23, 59));
+        $this->assertSame(0, substr_count($this->servisDongusu(), 'Temizlik:'));
+        // Ertesi gün vadeden önce yapılmaz, vadeden sonra yapılır
+        $this->travelTo($gun->addDay()->setTime(4, 9));
+        $this->assertSame(0, substr_count($this->servisDongusu(), 'Temizlik:'));
+        $this->travelTo($gun->addDay()->setTime(4, 11));
+        $this->assertSame(1, substr_count($this->servisDongusu(), 'Temizlik:'));
+    }
+
+    public function test_servis_kipinde_acik_geri_yuklemede_gunluk_temizlik_yapilmaz(): void
+    {
+        config(['yedekleme.calistirici' => 'servis']);
+        Sleep::fake();
+        $kilit = $this->kilitAl();
+        app(YedeklemeYapilandirmasi::class)->islemDurumu()->yaz(new IslemKaydi(
+            kimlik: (string) Str::uuid(), tur: IslemTuru::GeriYuklemeUstune, adim: 'onay_bekliyor', acik: true,
+            baslangic: CarbonImmutable::now('UTC'), sonGuncelleme: CarbonImmutable::now('UTC'), hata: null, erisimAnahtariOzeti: null,
+        ), $kilit);
+        $kilit->birak();
+
+        $this->assertSame(0, substr_count($this->servisDongusu(), 'Temizlik:'));
+    }
+
     public function test_yayin_oncesi_yedek_servis_kipinde_calistiriciyla_uctan_uca_alinir(): void
     {
         config(['yedekleme.calistirici' => 'servis']);
+        $this->yayinKullanicisiOl();
         Sleep::fake();
         // deploy.sh bekledikçe çalıştırıcı turu döner (ayrı süreç taklidi)
         Sleep::whenFakingSleep(fn () => app(IstekCalistiricisi::class)->tur());

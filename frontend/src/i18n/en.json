@@ -578,6 +578,7 @@
     "YEDEK_DOGRULAMA_HATASI": "The backup file failed verification.",
     "YEDEK_DOSYA_HATASI": "The backup file could not be written or read.",
     "YEDEK_YAPILANDIRMA_HATASI": "Backups are not configured correctly on the server.",
+    "YEDEK_YARIDA_KALDI": "The process taking the backup stopped before finishing; the backup is incomplete.",
     "YEDEK_ANAHTAR_GECERSIZ": "The key could not be read: paste a valid ASCII-armored OpenPGP public key.",
     "YEDEK_ANAHTAR_OZEL": "This is a PRIVATE key. Only a public key may be uploaded to the server; keep the private key in its own safe place.",
     "YEDEK_ANAHTAR_SURESI_DOLMUS": "The key has expired; upload a valid public key.",
@@ -588,6 +589,10 @@
     "HEDEF_KULLANILIYOR": "The target is in use: used by {{plan}} plan(s), {{kopya}} copies. Remove it from the plans first; a target with copies cannot be deleted but can be deactivated.",
     "HEDEF_TURU_UYGUN_DEGIL": "This action is not available for this target type.",
     "HEDEF_ERISILEMEDI": "The target could not be reached (address, port or network).",
+    "HEDEF_KONUMU_DEGISMEZ": "This target holds copies; the fields that define where they are stored (server, folder, bucket, connected account…) cannot be changed. Add a new target for another location; passwords / keys can be renewed.",
+    "HEDEF_SINAMA_SURESI_DOLDU": "The test ran out of time; this step was not run.",
+    "YEDEK_IMZA_ANAHTARI_YOK": "The backup signing key is missing or unreadable; settings were not saved. Check the server setup.",
+    "YEDEK_AYAR_KOPYASI_YAZILAMADI": "The settings file copy could not be written; the change was rolled back and settings are unchanged.",
     "HEDEF_KIMLIK_HATALI": "The target's user name, password or key is wrong.",
     "HEDEF_YAZILAMADI": "Could not write to the target (permission or folder).",
     "HEDEF_OKUNAMADI": "Could not read from the target.",
@@ -598,6 +603,7 @@
     "HEDEF_SUNUCU_PARMAK_IZI_DEGISTI": "The server key (fingerprint) has changed; the connection was refused for safety. If the change is expected, reset the server key.",
     "HEDEF_SERTIFIKA_HATASI": "The server certificate could not be verified.",
     "HEDEF_BAGLI_DEGIL": "The network share is not mounted on the server.",
+    "HEDEF_ANA_DOSYA": "The file on the target is the backup itself (same location); it does not count as a separate copy. Use a different folder for the target.",
     "HEDEF_YAPILANDIRMA_HATASI": "The target definition is incomplete or the server is not configured for this target.",
     "GOOGLE_DURUM_GECERSIZ": "The Google connection request is invalid or expired. Click \"Connect with Google\" again.",
     "PLAN_KOPYALI": "This plan has {{kopya}} copies and cannot be deleted. You can deactivate it instead (its history is kept).",
@@ -624,6 +630,8 @@
     "ISTEK_KULLANICI_YOK": "The user who requested the job was not found.",
     "ISTEK_YARIDA_KALDI": "The job was interrupted (the runner stopped); please try again.",
     "ISTEK_YETKI_YOK": "You are not allowed to do this (permission re-checked while processing).",
+    "ISTEK_GONDEREN_DOGRULANAMADI": "The sender of the job request could not be verified; the request was not processed.",
+    "GERI_YUKLEME_YAYIN_SURUYOR": "A deployment is in progress; the overwrite restore was not started. Try again when it finishes.",
     "YEDEK_ISLEM_DURUMU_OKUNAMADI": "The backup operation state could not be read; nothing was done, for safety.",
     "GERI_YUKLEME_SERVIS_GEREKLI": "Overwrite restore is not possible until the service-account runner is installed (YEDEKLEME_CALISTIRICI=servis).",
     "GERI_YUKLEME_ONAY_METNI_TUTMUYOR": "The typed name does not match the live database name.",
@@ -645,7 +653,14 @@
     "GERI_YUKLEME_ERISIM_ANAHTARI_GECERSIZ": "The access key is invalid or does not belong to this operation.",
     "GERI_YUKLEME_ERISIM_ANAHTARI_SURESI_DOLDU": "The access key has expired. Approval and rollback can be done on the server with the emergency command below.",
     "GERI_YUKLEME_ISLEM_DURUMU_UYGUN_DEGIL": "The operation cannot be approved or rolled back at this step.",
-    "GERI_YUKLEME_BILINMEYEN_ADIM": "The operation state shows an unknown step; inspect with the emergency command."
+    "GERI_YUKLEME_BILINMEYEN_ADIM": "The operation state shows an unknown step; inspect with the emergency command.",
+    "GERI_YUKLEME_SERVIS_ROLU_GEREKLI": "Restoring over the live database requires a service role separate from the application role (YEDEKLEME_ROL) and its password file.",
+    "GERI_YUKLEME_YAZICI_BARIYERI": "Sessions writing to the live database could not be stopped; the operation was rolled back, the live database was not touched.",
+    "GERI_YUKLEME_VERITABANI_YETKILERI": "The database connection privileges could not be applied equivalently (e.g. a role in them does not exist on this server); privileges unchanged.",
+    "GERI_YUKLEME_AYAR_SECIMI_EKSIK": "Choose \"current\" or \"restored\" for every settings group that differs.",
+    "GERI_YUKLEME_AYAR_SECIMI_UYGULANAMADI": "The current settings could not be written; no setting changed and the application is still in maintenance mode. Change the choice and approve again, or go back.",
+    "GERI_YUKLEME_KARAR_SURESI_DOLDU": "The decision expired (5 minutes) and was not applied. Decide again.",
+    "GERI_YUKLEME_KARAR_KANITI_KULLANILDI": "This decision was already processed; it was not applied again."
   },
   "yetki": {
     "goruntule": "View",
@@ -1542,6 +1557,7 @@
       "guvenilmeyenAciklama": "The manifest signature is missing or could not be verified. This backup cannot be restored.",
       "iceAlindi": "Legacy (imported)",
       "yerelDosyaYok": "No local file",
+      "yalnizSifreliKopya": "Only an encrypted copy exists: it cannot be restored from the screen. Follow the recovery guide on the server with the private key and `yedek:sifre-coz` (docs/yedekleme/kurtarma.md).",
       "sifreli": "encrypted",
       "sabitRozet": "Pinned",
       "alan": "By: {{ad}}",
@@ -1580,6 +1596,7 @@
       "sina": "Test Connection",
       "sirKayitli": "saved — type to change",
       "sirNotu": "Password and key fields are never shown; leave blank to keep the saved value. They must be re-entered if the server, port or user changes.",
+      "konumKilitli": "This target holds copies: the fields that define where they are stored are locked. Add a new target for another location; passwords / keys can be renewed.",
       "sunucuDisiNotu": "Off-server target: copies are encrypted with the public key from Backup Settings. Without a public key, no copies are sent to this target.",
       "tur": {
         "yerel": "Local disk",
@@ -1630,6 +1647,11 @@
           "sil": "Delete"
         },
         "kalanAlan": "Free space: {{alan}}",
+        "koruma": {
+          "etkin": "Deletion protection (object lock): enabled — the bucket's own retention rule removes old copies.",
+          "devre_disi": "Deletion protection (object lock): disabled.",
+          "sorgulanamadi": "Deletion protection could not be queried (the application lacks permission to read it)."
+        },
         "kayitliSinandi": "The saved target was tested.",
         "kaydedilmemisSinandi": "Tested with the (unsaved) form values; save to use them."
       },
@@ -1757,6 +1779,11 @@
         "uzak_kopya_var": "has a remote copy; local file not needed"
       },
       "sonCalisma": "Last run",
+      "sonuc": {
+        "basarili": "Succeeded",
+        "yedek_basarisiz": "Backup failed",
+        "hedef_basarisiz": "Copy failed"
+      },
       "sonrakiCalisma": "Next run",
       "simdiCalistir": "Run Now",
       "kaydedildi": "Plan saved.",
@@ -1942,7 +1969,7 @@
         "yedek": "Backup",
         "canliyaDokunmaz": "The backup is restored into a new database; the live database (erp) is never touched. You can inspect the copy and take the data you need.",
         "otomatikSilinir": "The copy is deleted automatically when the server's waiting period ends (default 7 days). The deletion date and manual deletion are on the Restores screen.",
-        "yerelDosyaYok": "This backup has no local file. If only an encrypted off-server copy exists it cannot be restored from the screen; use the command-line procedure (docs/yedekleme/kurtarma.md).",
+        "yerelDosyaYok": "This backup has no local file; it is restored from an unencrypted copy (e.g. a second disk).",
         "ek": "Name suffix (optional)",
         "ekGecersiz": "The suffix may contain only lowercase letters (a–z) and digits, at most 16 characters.",
         "adOrnegi": "Database name: {{ad}}",
@@ -1995,6 +2022,7 @@
       "adim": {
         "on_denetim": "Pre-checks (signature, schema, disk, lock)",
         "bakim_modu": "Maintenance mode, queue stopped",
+        "yazici_bariyeri": "Stopping sessions that write to the live database",
         "oncesi_yedek": "Pre-restore backup",
         "veritabani": "New database",
         "pg_restore": "Restore (pg_restore)",
@@ -2032,6 +2060,14 @@
       "geriDonOnayBaslik": "Go back",
       "geriDonOnayMesaj": "The database names will be swapped back and the application will open with today's (old) database. The restored copy is not deleted and stays closed to connections.",
       "ilerlemeyiAc": "Open progress",
+      "ayarSecimi": {
+        "baslik": "Which settings should apply?",
+        "aciklama": "The settings groups below differ between today and the restored backup. Choose for each one; approval is not possible without a choice.",
+        "kopyaYok": "The settings file copy could not be read; only \"restored\" can be chosen.",
+        "guncel": "Current (today)",
+        "geri_yuklenen": "Restored (from the backup)",
+        "eksik": "First choose for every settings group that differs."
+      },
       "acil": {
         "baslik": "Emergency path (on the server)",
         "aciklama": "If the screen cannot be opened or the access key is lost / expired, status, approval and rollback are done on the server with these commands:",

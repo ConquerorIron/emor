@@ -40,6 +40,8 @@ export interface Hedef {
   /** Sır alanlarının kayıtlı olup olmadığı (değerleri asla dönmez) */
   gizli_kayitli: Record<string, boolean>
   plan_sayisi: number
+  /** Kopyası duran hedefte değiştirilemeyen konum alanları (sunucu, klasör, kova…); kopya yoksa boş */
+  konum_kilitli_alanlar: string[]
   son_kopya: { durum: KopyaDurumu; zaman: string | null; hata_kodu: string | null } | null
 }
 
@@ -64,6 +66,8 @@ export interface HedefSinamaSonucu {
     mesaj: string | null
   }[]
   kalan_alan: number | null
+  /** S3 nesne kilidi (silinmeye karşı koruma); S3 dışında null */
+  silinme_korumasi: 'etkin' | 'devre_disi' | 'sorgulanamadi' | null
   /** true: kayıtlı hedefin kendisi sınandı (SFTP sunucu anahtarı ona yazıldı) */
   kaydedildi: boolean
   sunucu_parmak_izi: string | null
@@ -83,6 +87,7 @@ export async function hedefTurleriGetir(): Promise<HedefTuruTanimi[]> {
   return yanit.data.data
 }
 
+/** Güncellemede 409 HEDEF_KONUMU_DEGISMEZ {alanlar}: kopyası duran hedefin konumu değişmez */
 export async function hedefKaydet(id: number | null, govde: HedefGovdesi): Promise<Hedef> {
   const yanit =
     id === null

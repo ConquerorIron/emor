@@ -27,6 +27,13 @@ export interface PlanHedefi {
   kopya_sayisi: number
 }
 
+export interface PlanSonucu {
+  durum: 'basarili' | 'yedek_basarisiz' | 'hedef_basarisiz'
+  /** Yedek alınamadıysa yedeğin hata kodu */
+  hata_kodu: string | null
+  basarisiz_hedefler: { hedef_id: number; ad: string; hata_kodu: string | null }[]
+}
+
 export interface Plan {
   id: number
   ad: string
@@ -36,6 +43,8 @@ export interface Plan {
   saat: string
   siklik: Siklik
   son_calisma: string | null
+  /** Son çalışmanın sonucu (yedek + bu planın hedeflerine kopyalar); bilinmiyorsa null */
+  son_sonuc: PlanSonucu | null
   /** Pasif planda null */
   sonraki_calisma: string | null
   ay_sonu_uyarisi: boolean

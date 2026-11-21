@@ -115,6 +115,48 @@ final class YedekAyariApiTest extends TestCase
         $this->assertNull(app(AyarKopyasi::class)->oku());
     }
 
+    public function test_imza_anahtari_yoksa_ayar_veritabanina_ve_kopyaya_yazilmaz_409(): void
+    {
+        YedekAyari::query()->create(['elle_gun' => 30]);
+        @mkdir(dirname(config('yedekleme.ayar_kopyasi')), 0750, true);
+        file_put_contents(config('yedekleme.ayar_kopyasi'), 'ESKI-KOPYA');
+        unlink(config('yedekleme.imza_anahtari'));
+
+        $this->putJson(self::K.'/yedek-ayarlari', $this->govde(['elle_gun' => 45]))
+            ->assertStatus(409)->assertJsonPath('kod', 'YEDEK_IMZA_ANAHTARI_YOK');
+
+        $this->assertSame(30, YedekAyari::guncel()->elle_gun);
+        $this->assertSame('ESKI-KOPYA', file_get_contents(config('yedekleme.ayar_kopyasi')));
+        $this->assertSame(0, YedekIslemKaydi::query()->count());
+    }
+
+    public function test_ayar_kopyasi_yazilamazsa_veritabani_geri_alinir_onceki_kopya_baytlariyla_kalir(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('root klasör iznini aşar (T11).');
+        }
+        $this->putJson(self::K.'/yedek-ayarlari', $this->govde(['elle_gun' => 40]))->assertOk();
+        $yol = config('yedekleme.ayar_kopyasi');
+        $onceki = (string) file_get_contents($yol);
+        $klasor = dirname($yol);
+        chmod($klasor, 0555);
+
+        try {
+            $this->putJson(self::K.'/yedek-ayarlari', $this->govde(['elle_gun' => 45]))
+                ->assertStatus(500)->assertJsonPath('kod', 'YEDEK_AYAR_KOPYASI_YAZILAMADI');
+        } finally {
+            chmod($klasor, 0750);
+        }
+
+        $this->assertSame(40, YedekAyari::guncel()->elle_gun);
+        $this->assertSame($onceki, file_get_contents($yol));
+        $this->assertSame([], array_values(array_diff(scandir($klasor) ?: [], ['.', '..', basename($yol), 'kilit'])), 'geçici dosya kalmamalı');
+        $son = YedekIslemKaydi::query()->latest('id')->firstOrFail();
+        $this->assertSame(['ayar_guncelle', IslemSonucu::Basarisiz, 'AYAR_KOPYASI_YAZILAMADI'], [$son->islem, $son->sonuc, $son->ayrinti['kod']]);
+        // Başarılı sanılan ikinci değişikliğin kaydı veritabanında kalmadı
+        $this->assertSame(1, YedekIslemKaydi::query()->where('sonuc', IslemSonucu::Basarili->value)->count());
+    }
+
     public function test_en_az_sayi_1in_altina_indirilemez_https_olmayan_sinyal_reddedilir(): void
     {
         $this->putJson(self::K.'/yedek-ayarlari', $this->govde(['enaz_adet' => 0]))

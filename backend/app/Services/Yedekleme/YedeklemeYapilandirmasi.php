@@ -146,6 +146,92 @@ final class YedeklemeYapilandirmasi
     }
 
     /**
+     * Yayın kilidi (BY-013-R1): `deploy.sh` yayın boyunca tutar, üstüne geri
+     * yükleme başlarken beklemeden almayı dener. İşlem kilidinden (islemDurumu()->kilit())
+     * AYRIDIR: yayın öncesi yedeği servisten isterken ikisi birbirini beklemez.
+     * Sunucuda dosyayı kurulum betiği açar (yayın kullanıcısı salt okunur açıp `flock`).
+     */
+    public function yayinKilidi(): YedekKilidi
+    {
+        return new YedekKilidi($this->yayinKilidiYolu(), $this->kaliciKok());
+    }
+
+    public function yayinKilidiYolu(): string
+    {
+        return $this->durumKlasoru().'/yayin.kilit';
+    }
+
+    /**
+     * İstek dosyası sahibi olarak kabul edilen web kullanıcısının uid'si
+     * (BY-025-R1). Sahip, dosyayı açan sürecin kullanıcısıdır; çekirdek verir,
+     * istek içeriğinden bağımsızdır. Tanımsızsa bu sürecin kendi kullanıcısı:
+     * geçiş kipinde web ve çalıştırıcı aynı hesaptır; servis kipinde tanımsız
+     * kalırsa web istekleri reddedilir (kurulum betiği servis tanımına yazar).
+     *
+     * @throws YapilandirmaHatasi
+     */
+    public function webUid(): int
+    {
+        return $this->uid('web_uid') ?? $this->surecUid();
+    }
+
+    /**
+     * Kullanıcısız yayın öncesi yedek isteğini bırakabilen yayın kullanıcısının
+     * uid'si; tanımsızsa böyle istek kabul edilmez (geçiş kipinde yayın yedeği
+     * kendisi alır, istek bırakmaz).
+     *
+     * @throws YapilandirmaHatasi Değer geçersiz ya da web kullanıcısıyla aynı (yayın istisnası taklit edilebilirdi)
+     */
+    public function yayinUid(): ?int
+    {
+        $uid = $this->uid('yayin_uid');
+
+        if ($uid !== null && $uid === $this->webUid()) {
+            throw new YapilandirmaHatasi('yedekleme.yayin_uid web kullanıcısıyla aynı olamaz.');
+        }
+
+        return $uid;
+    }
+
+    /**
+     * @throws YapilandirmaHatasi
+     */
+    private function uid(string $anahtar): ?int
+    {
+        $deger = config("yedekleme.{$anahtar}");
+
+        if ($deger === null || $deger === '') {
+            return null;
+        }
+
+        // root (0) bir web / yayın kullanıcısı olamaz; sınır 32 bitlik uid'nin geçerli üst değeri
+        if ((is_int($deger) || (is_string($deger) && preg_match('/^[1-9][0-9]{0,9}$/D', $deger) === 1))
+            && (int) $deger >= 1 && (int) $deger <= 4_294_967_294) {
+            return (int) $deger;
+        }
+
+        throw new YapilandirmaHatasi("yedekleme.{$anahtar} pozitif bir kullanıcı numarası (uid) olmalı.");
+    }
+
+    /**
+     * Bu sürecin etkin kullanıcısı: Linux'ta /proc/self'in sahibi (posix
+     * uzantısına bağlanmamak için; getmyuid() betik dosyasının sahibini verir).
+     *
+     * @throws YapilandirmaHatasi
+     */
+    private function surecUid(): int
+    {
+        clearstatcache(true, '/proc/self');
+        $bilgi = @stat('/proc/self');
+
+        if ($bilgi === false) {
+            throw new YapilandirmaHatasi('Sürecin kullanıcısı okunamadı (/proc/self); yedekleme.web_uid tanımlanmalı.');
+        }
+
+        return $bilgi['uid'];
+    }
+
+    /**
      * @throws YapilandirmaHatasi
      */
     private function pozitifTamSayi(string $anahtar): int

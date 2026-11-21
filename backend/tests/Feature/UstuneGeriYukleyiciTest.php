@@ -8,10 +8,13 @@ use App\Mail\YedeklemeMaili;
 use App\Models\GeriYukleme;
 use App\Models\User;
 use App\Models\Yedek;
+use App\Services\Yedekleme\AnlikGoruntu;
 use App\Services\Yedekleme\BakimModu;
 use App\Services\Yedekleme\GeriYuklemeDurumu;
 use App\Services\Yedekleme\GeriYuklemeHatasi;
 use App\Services\Yedekleme\GeriYuklemeTuru;
+use App\Services\Yedekleme\KaynakVeritabani;
+use App\Services\Yedekleme\ManifestDeposu;
 use App\Services\Yedekleme\OnayBilgisi;
 use App\Services\Yedekleme\UstuneGeriYuklemeAdimi;
 use App\Services\Yedekleme\UstuneGeriYukleyici;
@@ -39,6 +42,9 @@ final class UstuneGeriYukleyiciTest extends TestCase
     use UstuneGeriYuklemeOrtami;
     use YedeklemeOrtami;
 
+    /** Canlının özgün bağlanma yetkileri: belirli bir role ayrıca CONNECT verilmiş */
+    private const OZGUN = '{=c/erp,erp=CTc/erp,emor_inceleme=c/erp}';
+
     private User $yonetici;
 
     protected function setUp(): void
@@ -57,6 +63,7 @@ final class UstuneGeriYukleyiciTest extends TestCase
     public function test_adimlar_sirayla_yurur_canli_yer_degistirir_ve_onay_bekler(): void
     {
         $yedek = $this->ustuneYedekAl();
+        $this->veritabaniYetkileri['erp'] = self::OZGUN;
 
         [$kayit] = $this->ustuneBaslat($yedek, $this->yonetici->id);
 
@@ -68,17 +75,21 @@ final class UstuneGeriYukleyiciTest extends TestCase
         $this->assertMatchesRegularExpression('/^erp_geri_\d{8}_\d{6}$/D', $hedef);
         $this->assertMatchesRegularExpression('/^erp_onceki_\d{8}_\d{6}$/D', $onceki);
 
-        // Sıra: kuyruk durur → öncesi yedek → yeni veritabanı → migration → kapat → yer değiştir
+        // Sıra: kuyruk durur → yazıcı bariyeri → öncesi yedek → yeni veritabanı → migration
+        // → kapat → yer değiştir → eski veritabanına özgün yetkiler
         $this->assertSame([
-            'systemctl stop emor-queue', 'pg_dump', "olustur {$hedef}", 'migrate', 'kapat erp', "yer erp>{$onceki} {$hedef}>erp",
+            'systemctl stop emor-queue', 'bariyer erp', 'pg_dump', "olustur {$hedef}", 'migrate', 'kapat erp', "yer erp>{$onceki} {$hedef}>erp", "yetki {$onceki} ".self::OZGUN,
         ], $this->komutlar);
         // Geri yükleme öncesi yedek bakım modundan SONRA alındı (P3)
         $this->assertSame([true], $this->pgDumpBakimda);
+        // Özgün yetkiler kurtarma bağlamıyla durum dosyasında (BY-028-R1)
+        $this->assertSame(['baglanma_yetkileri' => self::OZGUN], $kayit->bariyer);
 
-        // Eski veritabanı önceki adıyla duruyor ve bağlantıya kapalı; yeni canlı açık
+        // Eski veritabanı önceki adıyla, özgün yetkileriyle ve bağlantıya kapalı duruyor; yeni canlı açık
         $this->assertContains($onceki, $this->veritabanlari);
         $this->assertNotContains($hedef, $this->veritabanlari);
         $this->assertSame([$onceki => true], $this->baglantiyaKapali);
+        $this->assertSame(self::OZGUN, $this->veritabaniYetkileri[$onceki]);
 
         // Bakım modu sürüyor, kuyruk başlatılmadı
         $this->assertTrue($this->bakimdaBuIslemle($kayit->kimlik));
@@ -94,6 +105,62 @@ final class UstuneGeriYukleyiciTest extends TestCase
 
         $this->assertIsArray(app(OnayBilgisi::class)->bilgiOku($kayit->kimlik));
         Mail::assertSent(YedeklemeMaili::class, 2);
+    }
+
+    /**
+     * BY-028-R1: öncesi yedeğin anlık görüntüsü bariyerden sonra açılır —
+     * CONNECT yalnız servis rolünde olduğu için bağlantı servis rolüyle ve
+     * parola dosyasıyla; görüntü datacl'yi daraltılmış okur ama manifest
+     * ÖZGÜN yetkileri taşır (o yedekten geri dönüş doğru yetkilerle açılsın).
+     */
+    public function test_oncesi_yedek_bariyerden_sonra_servis_roluyle_alinir_manifesti_ozgun_yetkileri_tasir(): void
+    {
+        $yedek = $this->ustuneYedekAl();
+        $this->veritabaniYetkileri['erp'] = self::OZGUN;
+        $gorulen = [];
+        $goruntu = function () use (&$gorulen): AnlikGoruntu {
+            $gorulen[] = [
+                'kullanici' => config('database.connections.yedek_test.username'),
+                'parola' => config('database.connections.yedek_test.password'),
+                'pgpassfile' => getenv('PGPASSFILE'),
+                'yetkiler' => $this->veritabaniYetkileri['erp'] ?? null,
+            ];
+
+            return new AnlikGoruntu(
+                kimlik: '00000003-0000001B-1',
+                satirSayilari: $this->kaynakVeritabani->satirSayilari,
+                migrationlar: $this->kaynakVeritabani->migrationlar,
+                // Gerçek görüntü datacl'yi o anki (daraltılmış) hâliyle okur
+                ozellikler: ['kodlama' => 'UTF8', 'siralama' => 'en_US.UTF-8', 'karakter_turu' => 'en_US.UTF-8', 'ayarlar' => [], 'baglanma_yetkileri' => $this->veritabaniYetkileri['erp'] ?? null],
+                sahipRol: 'erp',
+                sunucuSurumu: '18.6',
+            );
+        };
+        $this->app->instance(KaynakVeritabani::class, new class($goruntu) implements KaynakVeritabani
+        {
+            public function __construct(private readonly \Closure $goruntu) {}
+
+            public function anlikGoruntuyle(\Closure $is): mixed
+            {
+                return $is(($this->goruntu)());
+            }
+        });
+        $pgpassOnce = getenv('PGPASSFILE');
+
+        [$kayit] = $this->ustuneBaslat($yedek, $this->yonetici->id);
+
+        $this->assertSame(UstuneGeriYuklemeAdimi::OnayBekliyor->value, $kayit->adim);
+        $this->assertSame([[
+            'kullanici' => 'emor_yedek', 'parola' => null, 'pgpassfile' => config('yedekleme.parola_dosyasi'), 'yetkiler' => '{emor_yedek=c/erp}',
+        ]], $gorulen);
+        // Bağlantı tanımı ve ortam eski hâline döndü
+        $this->assertSame('erp', config('database.connections.yedek_test.username'));
+        $this->assertSame('gizli:parola\\1', config('database.connections.yedek_test.password'));
+        $this->assertSame($pgpassOnce, getenv('PGPASSFILE'));
+
+        $oncesi = Yedek::query()->where('kaynak', YedekKaynagi::GeriYuklemeOncesi->value)->firstOrFail();
+        $manifest = app(ManifestDeposu::class)->oku(ManifestDeposu::jsonYolu(config('yedekleme.klasor').'/'.$oncesi->dosya_adi))->manifest;
+        $this->assertSame(self::OZGUN, $manifest?->veritabaniOzellikleri['baglanma_yetkileri']);
     }
 
     public function test_ilk_yazim_kurtarma_baglamini_tasir_ve_adimlar_enumdan(): void
@@ -196,6 +263,8 @@ final class UstuneGeriYukleyiciTest extends TestCase
         return [
             'onay metni canlının adı değil' => ['onay', GeriYuklemeHatasi::ONAY_METNI_TUTMUYOR],
             'servis çalıştırıcısı yok' => ['servis', GeriYuklemeHatasi::SERVIS_GEREKLI],
+            'servis rolü uygulama rolüyle aynı (bariyer kurulamaz)' => ['rol', GeriYuklemeHatasi::SERVIS_ROLU_GEREKLI],
+            'servis rolünün parola dosyası yok' => ['parola', GeriYuklemeHatasi::SERVIS_ROLU_GEREKLI],
             'uygulama zaten bakım modunda' => ['bakim', GeriYuklemeHatasi::BAKIM_MODU],
             'hedef ad zaten var' => ['hedef', GeriYuklemeHatasi::HEDEF_VAR],
         ];
@@ -209,6 +278,8 @@ final class UstuneGeriYukleyiciTest extends TestCase
         match ($durum) {
             'onay' => $onay = 'ERP',
             'servis' => config(['yedekleme.calistirici' => 'dogrudan']),
+            'rol' => config(['yedekleme.rol' => 'erp']),
+            'parola' => config(['yedekleme.parola_dosyasi' => null]),
             'bakim' => file_put_contents(storage_path('framework/down'), '{"status":503}'),
             'hedef' => $this->veritabanlari[] = 'erp_onceki_'.now('Europe/Istanbul')->format('Ymd_His'),
         };
@@ -232,6 +303,7 @@ final class UstuneGeriYukleyiciTest extends TestCase
     {
         return [
             'bakım modu (kuyruk durmadı)' => ['kuyruk', GeriYuklemeHatasi::KUYRUK_SERVISI],
+            'yazıcı bariyeri' => ['bariyer', GeriYuklemeHatasi::YAZICI_BARIYERI],
             'geri yükleme öncesi yedek' => ['oncesi', GeriYuklemeHatasi::ONCESI_YEDEK],
             'veritabanı açılamadı' => ['olustur', GeriYuklemeHatasi::VERITABANI_OLUSTURULAMADI],
             'pg_restore' => ['pg_restore', GeriYuklemeHatasi::PG_RESTORE],
@@ -247,8 +319,10 @@ final class UstuneGeriYukleyiciTest extends TestCase
     public function test_yer_degistirmeden_once_hata_canliyi_korur_ve_servisleri_acar(string $hata, string $kod): void
     {
         $yedek = $this->ustuneYedekAl();
+        $this->veritabaniYetkileri['erp'] = self::OZGUN;
         match ($hata) {
             'kuyruk' => $this->sudoHatasi = 'sudo: a password is required',
+            'bariyer' => $this->bariyerHatasi = 'ERROR:  permission denied to terminate process',
             'oncesi' => $this->sahteUstune(['*pg_dump*' => fn ($p) => in_array('--version', (array) $p->command, true) ? 'pg_dump (PostgreSQL) 18.6' : Process::result(errorOutput: 'pg_dump: error', exitCode: 1)]),
             'olustur' => $this->olusturmaHatasi = 'ERROR:  permission denied to create database',
             'pg_restore' => $this->pgRestoreHatasi = 'pg_restore: error: could not execute query',
@@ -275,6 +349,8 @@ final class UstuneGeriYukleyiciTest extends TestCase
         $this->assertNotContains($kayit->oncekiVeritabani, $this->veritabanlari);
         $this->assertNotContains($kayit->hedefVeritabani, $this->veritabanlari);
         $this->assertSame([], $this->baglantiyaKapali);
+        // Bariyer kurulduysa canlının özgün yetkileri aynen geri kondu (BY-028-R1)
+        $this->assertSame(self::OZGUN, $this->veritabaniYetkileri['erp']);
         // Servisler açıldı: bakım modu kalktı, kuyruk başlatıldı
         $this->assertFalse(app(BakimModu::class)->aktifMi());
         $this->assertContains('systemctl start emor-queue', $this->komutlar);
@@ -353,6 +429,7 @@ final class UstuneGeriYukleyiciTest extends TestCase
     {
         return [
             'bakım modu' => [UstuneGeriYuklemeAdimi::BakimModu, false],
+            'yazıcı bariyeri' => [UstuneGeriYuklemeAdimi::YaziciBariyeri, false],
             'öncesi yedek' => [UstuneGeriYuklemeAdimi::OncesiYedek, false],
             'veritabanı açılırken' => [UstuneGeriYuklemeAdimi::Veritabani, true],
             'pg_restore' => [UstuneGeriYuklemeAdimi::PgRestore, true],
@@ -365,7 +442,11 @@ final class UstuneGeriYukleyiciTest extends TestCase
     #[DataProvider('yaridaKalanOnce')]
     public function test_yer_degistirmeden_once_olen_islem_geri_sarilir(UstuneGeriYuklemeAdimi $adim, bool $hedefVar): void
     {
-        $kayit = $this->durumYaz($adim, true);
+        // Bakım modu adımında bariyer henüz kurulmamıştır; sonrasında durum dosyası
+        // özgün yetkileri taşır, canlı daraltılmış hâldedir
+        $bariyerVar = $adim !== UstuneGeriYuklemeAdimi::BakimModu;
+        $kayit = $this->durumYaz($adim, true, bariyer: $bariyerVar ? ['baglanma_yetkileri' => self::OZGUN] : null);
+        $this->veritabaniYetkileri['erp'] = $bariyerVar ? '{emor_yedek=c/erp}' : self::OZGUN;
         $this->bakimDosyasiYaz($kayit->kimlik);
         if ($hedefVar) {
             $this->veritabanlari[] = (string) $kayit->hedefVeritabani;
@@ -382,6 +463,7 @@ final class UstuneGeriYukleyiciTest extends TestCase
         $this->assertFalse($son->acik);
         $this->assertSame(['erp', 'postgres'], $this->veritabanlari);
         $this->assertSame([], $this->baglantiyaKapali);
+        $this->assertSame(self::OZGUN, $this->veritabaniYetkileri['erp']);
         $this->assertFalse(app(BakimModu::class)->aktifMi());
         $this->assertContains('systemctl start emor-queue', $this->komutlar);
     }

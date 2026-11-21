@@ -14,6 +14,7 @@ use App\Services\Yedekleme\IstekKutusu;
 use App\Services\Yedekleme\KopyaDurumu;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -124,6 +125,59 @@ final class YedekApiTest extends TestCase
         $durum->assertJsonPath('data.durum', 'tamam')->assertJsonPath('data.yedek_kimligi', 'abc')->assertJsonMissingPath('data.mesaj');
     }
 
+    public function test_denetim_kaydi_yazilamazsa_istek_yayinlanmaz_500(): void
+    {
+        // Günlük klasörü düz bir dosyanın altında: kanal yazamaz
+        touch($this->yedekKoku.'/dosya');
+        config(['logging.channels.yedekleme.path' => $this->yedekKoku.'/dosya/yedekleme.log']);
+        Log::forgetChannel('yedekleme');
+
+        $this->actingAs($this->izinli('yedekler.goruntule', 'yedekler.al'))
+            ->postJson(self::K.'/yedekler/tara')
+            ->assertStatus(500)->assertJsonPath('kod', 'BILINMEYEN');
+
+        $this->assertSame([], app(IstekKutusu::class)->bekleyenler());
+        $this->assertSame(0, YedekIslemKaydi::query()->count());
+    }
+
+    public function test_istek_yayinlanamazsa_ayni_kimlikle_basarisiz_izleme_kaydi_eklenir_500(): void
+    {
+        // İstek klasörü düz bir dosyanın altında: istek yazılamaz
+        touch($this->yedekKoku.'/dosya');
+        config(['yedekleme.istek_klasoru' => $this->yedekKoku.'/dosya/istekler']);
+        $kullanici = $this->izinli('yedekler.goruntule', 'yedekler.al');
+
+        $this->actingAs($kullanici)->postJson(self::K.'/yedekler/tara')->assertStatus(500);
+
+        $kayitlar = YedekIslemKaydi::query()->orderBy('id')->get();
+        $this->assertSame([['istek', 'basarili'], ['istek', 'basarisiz']], $kayitlar->map(fn (YedekIslemKaydi $k): array => [$k->islem, $k->sonuc->value])->all());
+        $this->assertSame($kayitlar[0]->ayrinti['istek'], $kayitlar[1]->ayrinti['istek']);
+        $this->assertSame(['tara', 'ISTEK_YAYINLANAMADI', $kullanici->id], [$kayitlar[1]->ayrinti['tur'], $kayitlar[1]->ayrinti['kod'], $kayitlar[1]->kullanici_id]);
+        $this->assertFileDoesNotExist($this->yedekKoku.'/dosya/istekler');
+    }
+
+    public function test_webden_geri_yukleme_kaynagi_yerel_sifresiz_uzak_ve_yalniz_sifreli_kopyaya_gore_bildirilir(): void
+    {
+        $yerel = Yedek::factory()->create();
+        $uzak = Yedek::factory()->create(['yerel_silinme_zamani' => now()]);
+        $sifreli = Yedek::factory()->create(['yerel_silinme_zamani' => now()]);
+        $ikinciDisk = YedekHedefi::factory()->create(['ad' => 'İkinci disk']);
+        $bulut = YedekHedefi::factory()->create(['ad' => 'Bulut']);
+        YedekKopyasi::query()->create(['yedek_id' => $uzak->id, 'yedek_hedefi_id' => $ikinciDisk->id, 'durum' => KopyaDurumu::Tamam, 'uzak_kimlik' => 'a.dump', 'sifreli' => false]);
+        YedekKopyasi::query()->create(['yedek_id' => $sifreli->id, 'yedek_hedefi_id' => $bulut->id, 'durum' => KopyaDurumu::Tamam, 'uzak_kimlik' => 'b.dump.gpg', 'sifreli' => true]);
+        // Başarısız şifresiz kopya kaynak sayılmaz
+        YedekKopyasi::query()->create(['yedek_id' => $sifreli->id, 'yedek_hedefi_id' => $ikinciDisk->id, 'durum' => KopyaDurumu::Basarisiz, 'sifreli' => false]);
+
+        $satirlar = collect($this->actingAs($this->izinli('yedekler.goruntule'))->getJson(self::K.'/yedekler')->assertOk()->json('data'))->keyBy('kimlik');
+
+        $durum = fn (Yedek $y): array => [$satirlar[$y->kimlik]['webden_geri_yuklenebilir'], $satirlar[$y->kimlik]['geri_yukleme_engeli']];
+        $this->assertSame([true, null], $durum($yerel));
+        $this->assertSame([true, null], $durum($uzak));
+        $this->assertSame([false, 'GERI_YUKLEME_OZEL_ANAHTAR_GEREKLI'], $durum($sifreli));
+        // İmzalı ve tamam: eski bayrak yine true (doğrulama gibi işlemler onunla açılır)
+        $this->assertTrue($satirlar[$sifreli->kimlik]['geri_yuklenebilir']);
+    }
+
     public function test_ozet_canli_veritabani_adini_verir(): void
     {
         $this->actingAs($this->izinli('yedekler.goruntule'))->getJson(self::K.'/yedekler/ozet')
@@ -177,6 +231,18 @@ final class YedekApiTest extends TestCase
         $this->actingAs($this->izinli('yedekler.goruntule', 'yedekler.al'))
             ->postJson(self::K.'/yedekler/'.$yedek->kimlik.'/dogrula')
             ->assertStatus(409)->assertJsonPath('kod', 'YEDEK_DOGRULANAMAZ');
+    }
+
+    public function test_yalniz_sifreli_kopyasi_kalan_yedek_ekrandan_dogrulanamaz_istek_birakilmaz(): void
+    {
+        $yedek = Yedek::factory()->create(['yerel_silinme_zamani' => now()]);
+        YedekKopyasi::query()->create(['yedek_id' => $yedek->id, 'yedek_hedefi_id' => YedekHedefi::factory()->create()->id, 'durum' => KopyaDurumu::Tamam, 'uzak_kimlik' => 'b.dump.gpg', 'sifreli' => true]);
+
+        $this->actingAs($this->izinli('yedekler.goruntule', 'yedekler.al'))
+            ->postJson(self::K.'/yedekler/'.$yedek->kimlik.'/dogrula')
+            ->assertStatus(409)->assertJsonPath('kod', 'GERI_YUKLEME_OZEL_ANAHTAR_GEREKLI');
+
+        $this->assertSame([], app(IstekKutusu::class)->bekleyenler());
     }
 
     public function test_liste_dosya_yolu_ve_hata_metni_dondurmez_kopyalari_gosterir(): void

@@ -26,8 +26,9 @@ use Throwable;
  *
  * Durum dosyası okunamıyorsa da çalışılmaz (bilinmeyen durum izin değildir —
  * D6). Modül kapalıyken (YEDEKLEME_AKTIF) etkisizdir; bakım modu ayrıca korur.
- * Yayın (`deploy.sh` → `yedek:yayin-oncesi`) ve planlı yedek (`yedek:zamanla`)
- * aynı denetimi kendileri yapar.
+ * Yayın (`deploy.sh` → `yedek:yayin-korumasi denetle`, yayın kilidi altında),
+ * planlı yedek (`yedek:zamanla`) ve servis döngüsünün günlük temizliği
+ * (`yedek:calistir`) aynı denetimi kendileri yapar.
  */
 final class AcikGeriYuklemeKorumasi
 {

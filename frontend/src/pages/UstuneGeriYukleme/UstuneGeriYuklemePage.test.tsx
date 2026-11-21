@@ -161,9 +161,76 @@ describe('UstuneGeriYuklemePage', () => {
     expect(api.karar).not.toHaveBeenCalled()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Onayla' }))
 
-    await waitFor(() => expect(api.karar).toHaveBeenCalledWith(ISLEM, ANAHTAR, 'onayla'))
+    await waitFor(() => expect(api.karar).toHaveBeenCalledWith(ISLEM, ANAHTAR, 'onayla', {}))
     await waitFor(() => expect(api.durum).toHaveBeenCalledWith(ISLEM, ANAHTAR, KARAR))
     expect(JSON.parse(localStorage.getItem(DEPO) ?? '{}').karar_istegi).toBe(KARAR)
+  })
+
+  it('farkı olan her ayar grubu seçilmeden "Onayla" kapalı; seçimler onayla gönderilir', async () => {
+    anahtariSakla()
+    api.durum.mockResolvedValue(
+      gorunum({
+        durum: 'onay_bekliyor',
+        adim: 'onay_bekliyor',
+        yer_degistirildi: true,
+        yapilabilir: { onayla: true, geri_don: true },
+        onay_bilgisi: {
+          ...ONAY_BILGISI,
+          ayar_gruplari: [
+            { grup: 'mail', farkli: true },
+            { grup: 'yedek_ayarlari', farkli: false },
+            { grup: 'planlar', farkli: false },
+            { grup: 'hedefler', farkli: true },
+          ],
+          ayar_kopyasi_yok: false,
+        },
+      }),
+    )
+    api.karar.mockResolvedValue({ istek_kimligi: KARAR, durum: 'kuyrukta' })
+    ciz()
+
+    const bolum = await screen.findByRole('region', { name: 'Hangi ayarlar geçerli olsun?' })
+    // Yalnız farklı gruplar sorulur; varsayılan seçim yok
+    expect(
+      within(bolum)
+        .getAllByRole('group')
+        .map((g) => g.textContent),
+    ).toEqual([
+      expect.stringContaining('Mail ayarları'),
+      expect.stringContaining('Yedek hedefleri'),
+    ])
+    expect(
+      within(bolum)
+        .getAllByRole('radio')
+        .every((r) => !(r as HTMLInputElement).checked),
+    ).toBe(true)
+    const onayla = screen.getByRole('button', { name: 'Onayla' })
+    expect(onayla).toBeDisabled()
+
+    fireEvent.click(
+      within(within(bolum).getByRole('group', { name: 'Mail ayarları' })).getByRole('radio', {
+        name: 'Güncel (bugünkü)',
+      }),
+    )
+    expect(onayla).toBeDisabled()
+    fireEvent.click(
+      within(within(bolum).getByRole('group', { name: 'Yedek hedefleri' })).getByRole('radio', {
+        name: 'Geri yüklenen (yedekteki)',
+      }),
+    )
+    expect(onayla).toBeEnabled()
+
+    fireEvent.click(onayla)
+    fireEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Onayla' }),
+    )
+
+    await waitFor(() =>
+      expect(api.karar).toHaveBeenCalledWith(ISLEM, ANAHTAR, 'onayla', {
+        mail: 'guncel',
+        hedefler: 'geri_yuklenen',
+      }),
+    )
   })
 
   it('"Geri dön" geri-don ucuna gider', async () => {

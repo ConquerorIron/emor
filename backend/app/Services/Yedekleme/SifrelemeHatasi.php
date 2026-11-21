@@ -33,7 +33,12 @@ final class SifrelemeHatasi extends RuntimeException
     /** gpg çalıştırılamadı, süre sınırını aştı ya da beklenmeyen biçimde bitti */
     public const ARAC = 'YEDEK_GPG_HATASI';
 
-    public function __construct(public readonly string $kod, string $mesaj)
+    /**
+     * @param  bool  $gecici  Girdi değişmeden düzelebilir (süre aşımı, geçici klasör / disk sorunu):
+     *                        kopya sınırlı sayıda yeniden denenir. Anahtar eksik / geçersiz gibi
+     *                        kalıcı hatalar false'tur ve yeniden denenmez (D8).
+     */
+    public function __construct(public readonly string $kod, string $mesaj, public readonly bool $gecici = false)
     {
         parent::__construct($mesaj);
     }

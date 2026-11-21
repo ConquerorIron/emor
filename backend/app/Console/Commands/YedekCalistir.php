@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Services\Yedekleme\AcikGeriYuklemeKorumasi;
+use App\Services\Yedekleme\AtomikDosya;
 use App\Services\Yedekleme\AyarKopyasi;
 use App\Services\Yedekleme\Istekler\IstekCalistiricisi;
+use App\Services\Yedekleme\KaliciKlasor;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
+use Carbon\CarbonImmutable;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -20,7 +24,9 @@ use Throwable;
  * - Servis (`emor-yedek.service`, servis hesabı): uzun süren döngü; turlar
  *   arası 2 sn. SIGTERM / SIGINT gelince (pcntl varsa) o anki iş bitince
  *   çıkar. `--en-cok-tur` turdan sonra kendiliğinden çıkar; systemd yeniden
- *   başlatır, yeni kod ve yapılandırma yüklenir.
+ *   başlatır, yeni kod ve yapılandırma yüklenir. Servis kipinde
+ *   (`calistirici = servis`) planlı yedek (`yedek:zamanla`, dakikada bir) ve
+ *   günlük temizlik (`yedek:temizle`) de bu döngüde yürür (BY-009-R1).
  * - `--tek-tur`: kuyruğu bir kez işler. Geçiş döneminde (`calistirici =
  *   dogrudan`) zamanlayıcı dakikada bir çağırır (routes/console.php).
  *
@@ -36,10 +42,26 @@ final class YedekCalistir extends Command
     /** Turlar arası bekleme (sn) */
     private const BEKLEME = 2;
 
+    /** Servis kipinde günlük temizliğin saati (routes/console.php'deki zamanlayıcıyla aynı) */
+    private const TEMIZLIK_SAATI = '04:10';
+
+    private const TEMIZLIK_SAAT_DILIMI = 'Europe/Istanbul';
+
+    /** Durum klasöründe günlük temizliğin son deneme anı (UTC) */
+    private const TEMIZLIK_DOSYASI = 'temizlik-son-calisma';
+
+    private const ZAMAN_BICIMI = 'Y-m-d\TH:i:sP';
+
     private bool $durdur = false;
 
     /** Ayar kopyasının son denetlendiği an (hrtime, ns) */
     private ?int $sonAyarDenetimi = null;
+
+    /** Planlı yedek tikinin son çalıştığı an (hrtime, ns) */
+    private ?int $sonPlanTiki = null;
+
+    /** Bu süreçte temizliğin denendiği (ya da yapılmış bulunduğu) vade */
+    private ?CarbonImmutable $sonTemizlikVadesi = null;
 
     public function handle(YedeklemeYapilandirmasi $yapilandirma, IstekCalistiricisi $calistirici): int
     {
@@ -63,6 +85,10 @@ final class YedekCalistir extends Command
         for ($tur = 0; $tur < (int) $enCok && ! $this->durdur; $tur++) {
             if ($yapilandirma->aktif()) {
                 $this->tur($calistirici);
+
+                if ($yapilandirma->servisCalistiricisi()) {
+                    $this->zamanlanmisIsler($yapilandirma);
+                }
             }
 
             if (! $this->durdur) {
@@ -71,6 +97,93 @@ final class YedekCalistir extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Servis kipinde planlı yedek ve günlük temizlik bu döngüde yürür (BY-009-R1):
+     * yedek klasörüne yazma ve imza anahtarı servis hesabınındır; Laravel
+     * zamanlayıcısı (web hesabı) servis kipinde bu iki işi çalıştırmaz
+     * (routes/console.php). Plan tiki dakikada bir (monoton saat — D1). Hata
+     * döngüyü bozmaz.
+     */
+    private function zamanlanmisIsler(YedeklemeYapilandirmasi $yapilandirma): void
+    {
+        try {
+            $simdi = hrtime(true);
+            if ($this->sonPlanTiki === null || $simdi - $this->sonPlanTiki >= 60_000_000_000) {
+                $this->sonPlanTiki = $simdi;
+                $this->call('yedek:zamanla');
+            }
+
+            $this->gunlukTemizlik($yapilandirma);
+        } catch (Throwable $hata) {
+            report($hata);
+            Log::channel('yedekleme')->error('Planlı yedek / günlük temizlik çalışmadı', ['hata' => $hata::class]);
+        }
+    }
+
+    /**
+     * Günlük temizlik: en son TEMIZLIK_SAATI (İstanbul) vadesinden sonra
+     * çalışılmadıysa bir kez. Son deneme anı (UTC) servisin durum klasöründe
+     * tutulur: servis o saatte kapalıysa açılınca bir kez yapar, yeniden
+     * başlayınca tekrarlamaz. Deneme SONUÇTAN bağımsız kaydedilir: başarısız
+     * temizlik (erişilemeyen hedef) her turda yeniden denenmez (D8). Açık
+     * üstüne geri yüklemede (ya da durum okunamazsa) çalışmaz — zamanlayıcının
+     * AcikGeriYuklemeKorumasi'nın karşılığı; işlem kapanınca yapılır.
+     */
+    private function gunlukTemizlik(YedeklemeYapilandirmasi $yapilandirma): void
+    {
+        [$saat, $dakika] = array_map('intval', explode(':', self::TEMIZLIK_SAATI));
+        $simdi = CarbonImmutable::now(self::TEMIZLIK_SAAT_DILIMI);
+        $vade = $simdi->setTime($saat, $dakika);
+        if ($vade->greaterThan($simdi)) {
+            $vade = $vade->subDay();
+        }
+
+        if ($this->sonTemizlikVadesi?->equalTo($vade)) {
+            return;
+        }
+
+        $dosya = $yapilandirma->durumKlasoru().'/'.self::TEMIZLIK_DOSYASI;
+        $son = $this->sonTemizlikAni($dosya);
+        if ($son !== null && $son->greaterThanOrEqualTo($vade)) {
+            $this->sonTemizlikVadesi = $vade;
+
+            return;
+        }
+
+        if (app(AcikGeriYuklemeKorumasi::class)->engelliMi()) {
+            return;
+        }
+
+        $this->sonTemizlikVadesi = $vade;
+
+        try {
+            KaliciKlasor::ac($yapilandirma->durumKlasoru(), $yapilandirma->kaliciKok());
+            AtomikDosya::yaz($dosya, CarbonImmutable::now('UTC')->format(self::ZAMAN_BICIMI), 0640);
+        } catch (Throwable $hata) {
+            // Bu süreçte tekrarlanmaz (sonTemizlikVadesi); yeniden başlarsa bir kez daha denenir
+            Log::channel('yedekleme')->warning('Günlük temizliğin son çalışma anı yazılamadı', ['hata' => $hata::class]);
+        }
+
+        $this->call('yedek:temizle');
+    }
+
+    /** Dosyadaki son temizlik anı; yoksa ya da biçimsizse null (G11: geri biçimlenip karşılaştırılır) */
+    private function sonTemizlikAni(string $dosya): ?CarbonImmutable
+    {
+        $metin = @file_get_contents($dosya);
+        if (! is_string($metin)) {
+            return null;
+        }
+
+        try {
+            $an = CarbonImmutable::createFromFormat(self::ZAMAN_BICIMI, $metin, 'UTC');
+        } catch (Throwable) {
+            return null;
+        }
+
+        return $an instanceof CarbonImmutable && $an->format(self::ZAMAN_BICIMI) === $metin ? $an : null;
     }
 
     /**

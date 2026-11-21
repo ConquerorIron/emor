@@ -59,10 +59,17 @@ Schedule::command('efatura:senkron --saglayici=protel --gun=45')
 // yapmadan çıkar. Asıl çakışma koruması dosya kilididir (YedekKilidi);
 // zamanlayıcının kilidi veritabanındaki önbellektedir, geri yüklemede kaybolur.
 // Yedek, yayın sırasında (bakım modu) da alınabilmeli (README §4.2).
+// Planlı yedek ve günlük temizlik zamanlayıcıda YALNIZ geçiş kipinde
+// (`calistirici=dogrudan`): servis kipinde yedek klasörüne yazma ve imza
+// anahtarı servis hesabınındır, iki iş emor-yedek.service'in döngüsünde
+// (`yedek:calistir`) yürür — aynı saat ve kurallarla (BY-009-R1).
+$gecisKipi = fn (): bool => ! app(YedeklemeYapilandirmasi::class)->servisCalistiricisi();
+
 Schedule::command('yedek:zamanla')
     ->everyMinute()
     ->evenInMaintenanceMode()
-    ->withoutOverlapping(120);
+    ->withoutOverlapping(120)
+    ->when($gecisKipi);
 
 // Ekranın istekleri (BY-025). Servis hesabı kurulduysa (`calistirici=servis`)
 // istekleri emor-yedek.service işler; geçiş döneminde zamanlayıcı dakikada
@@ -74,8 +81,10 @@ Schedule::command('yedek:calistir --tek-tur')
     ->when(fn (): bool => app(YedeklemeYapilandirmasi::class)->aktif() && ! app(YedeklemeYapilandirmasi::class)->servisCalistiricisi());
 
 // Temizlik her yedekten sonra da çalışır; günlük çalışma elle alınan ve
-// yayın öncesi yedeklerin sürelerini işletir (README §4.3)
+// yayın öncesi yedeklerin sürelerini işletir (README §4.3). Servis kipinde
+// saat YedekCalistir::TEMIZLIK_SAATI'ndedir (aynı 04:10 İstanbul).
 Schedule::command('yedek:temizle')
     ->dailyAt('04:10')
     ->timezone('Europe/Istanbul')
-    ->withoutOverlapping(60);
+    ->withoutOverlapping(60)
+    ->when($gecisKipi);

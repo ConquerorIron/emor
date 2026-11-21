@@ -6,10 +6,12 @@ namespace Tests\Feature;
 
 use App\Mail\YedeklemeMaili;
 use App\Models\GeriYukleme;
+use App\Models\MailAyari;
 use App\Models\User;
 use App\Models\Yedek;
 use App\Models\YedekHedefi;
 use App\Models\YedekPlani;
+use App\Services\Yedekleme\AyarKopyasi;
 use App\Services\Yedekleme\BakimModu;
 use App\Services\Yedekleme\ErisimAnahtari;
 use App\Services\Yedekleme\GeriYuklemeDurumu;
@@ -30,6 +32,7 @@ use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
@@ -51,6 +54,9 @@ final class UstuneGeriYuklemeOnayTest extends TestCase
     use SahtePostgres;
     use UstuneGeriYuklemeOrtami;
     use YedeklemeOrtami;
+
+    /** Canlının özgün bağlanma yetkileri: belirli bir role ayrıca CONNECT verilmiş */
+    private const OZGUN = '{=c/erp,erp=CTc/erp,emor_inceleme=c/erp}';
 
     private User $yonetici;
 
@@ -104,14 +110,19 @@ final class UstuneGeriYuklemeOnayTest extends TestCase
 
     public function test_geri_don_eski_veritabanini_canli_yapar_geri_yukleneni_silmeden_adlandirir(): void
     {
+        // Canlıda belirli role bağlanma verilmiş; bariyer bunu daraltır
+        $this->veritabaniYetkileri['erp'] = self::OZGUN;
         [$kayit] = $this->onayBekleyen();
+        $this->assertSame(self::OZGUN, $this->veritabaniYetkileri[$kayit->oncekiVeritabani]);
 
         $kilit = $this->kilitAl();
         $son = app(UstuneGeriYukleyici::class)->geriDon($kilit, $kayit->kimlik);
 
         $this->assertSame(UstuneGeriYuklemeAdimi::GeriDonuldu->value, $son->adim);
         $this->assertFalse($son->acik);
-        $this->assertSame(['kapat erp', "yer erp>{$kayit->hedefVeritabani} {$kayit->oncekiVeritabani}>erp", 'ac erp', 'systemctl start emor-queue'], $this->komutlar);
+        $this->assertSame(['kapat erp', "yer erp>{$kayit->hedefVeritabani} {$kayit->oncekiVeritabani}>erp", 'yetki erp '.self::OZGUN, 'ac erp', 'systemctl start emor-queue'], $this->komutlar);
+        // Eski veritabanı özgün yetkileriyle canlı (BY-028-R1)
+        $this->assertSame(self::OZGUN, $this->veritabaniYetkileri['erp']);
         // erp = eski veritabanı (yeniden açık); geri yüklenen kopya bilinen adıyla, silinmeden ve kapalı
         $this->assertEqualsCanonicalizing(['erp', 'postgres', (string) $kayit->hedefVeritabani], $this->veritabanlari);
         $this->assertSame([$kayit->hedefVeritabani => true], $this->baglantiyaKapali);
@@ -161,7 +172,7 @@ final class UstuneGeriYuklemeOnayTest extends TestCase
         app(IstekCalistiricisi::class)->tur();
         $this->assertSame('YEDEK_ACIK_GERI_YUKLEME', app(IstekKutusu::class)->durum($sabitle)['kod'] ?? null);
 
-        $onay = app(IstekKutusu::class)->yaz('onayla', ['islem_kimligi' => $baslat, 'erisim_anahtari' => $anahtar], $this->yonetici->id);
+        $onay = $this->kararIstegiYaz('onayla', $baslat, $anahtar, $this->yonetici->id);
         app(IstekCalistiricisi::class)->tur();
         $this->assertSame('tamam', app(IstekKutusu::class)->durum($onay)['durum'] ?? null);
         $this->assertSame(UstuneGeriYuklemeAdimi::Onaylandi->value, $this->durumOku()?->adim);
@@ -176,29 +187,174 @@ final class UstuneGeriYuklemeOnayTest extends TestCase
     public static function anahtarReddi(): array
     {
         return [
-            'yanlış anahtar' => ['yanlis', GeriYuklemeHatasi::ERISIM_ANAHTARI_GECERSIZ],
+            'başka anahtarla üretilmiş kanıt' => ['yanlis', GeriYuklemeHatasi::ERISIM_ANAHTARI_GECERSIZ],
             'süresi dolmuş anahtar' => ['suresi', GeriYuklemeHatasi::ERISIM_ANAHTARI_SURESI_DOLDU],
             'başka işlemin kimliği' => ['islem', GeriYuklemeHatasi::ERISIM_ANAHTARI_GECERSIZ],
             'isteyenden başka kullanıcı' => ['kullanici', GeriYuklemeHatasi::ERISIM_ANAHTARI_GECERSIZ],
+            'dosyadaki seçim kanıtınkinden farklı' => ['secim', GeriYuklemeHatasi::ERISIM_ANAHTARI_GECERSIZ],
+            'geri dönüş kanıtıyla onay' => ['karar', GeriYuklemeHatasi::ERISIM_ANAHTARI_GECERSIZ],
+            'ömrü 5 dakikadan uzun kanıt' => ['uzun', GeriYuklemeHatasi::KARAR_SURESI_DOLDU],
         ];
     }
 
     #[DataProvider('anahtarReddi')]
-    public function test_calistirici_onay_isteginin_anahtarini_islem_durumundan_dogrular(string $durum, string $kod): void
+    public function test_calistirici_karar_kanitini_islem_durumundaki_ozetle_dogrular(string $durum, string $kod): void
     {
         $anahtar = ErisimAnahtari::uret();
         $kayit = $this->durumYaz(UstuneGeriYuklemeAdimi::OnayBekliyor, true, anahtar: $anahtar, bitis: $durum === 'suresi' ? CarbonImmutable::now('UTC')->subMinute() : null, isteyen: $this->yonetici->id);
         $diger = User::factory()->yonetici()->create();
+        $islem = $durum === 'islem' ? (string) Str::uuid() : $kayit->kimlik;
+        $kullanici = $durum === 'kullanici' ? $diger->id : $this->yonetici->id;
 
-        $istek = app(IstekKutusu::class)->yaz('onayla', [
-            'islem_kimligi' => $durum === 'islem' ? (string) Str::uuid() : $kayit->kimlik,
-            'erisim_anahtari' => $durum === 'yanlis' ? ErisimAnahtari::uret() : $anahtar,
-        ], $durum === 'kullanici' ? $diger->id : $this->yonetici->id);
+        $istek = match ($durum) {
+            'yanlis' => $this->kararIstegiYaz('onayla', $islem, ErisimAnahtari::uret(), $kullanici),
+            'secim' => $this->kararIstegiYaz('onayla', $islem, $anahtar, $kullanici, ['mail' => 'guncel'], kanitAyarSecimleri: ['mail' => 'geri_yuklenen']),
+            'uzun' => $this->kararIstegiYaz('onayla', $islem, $anahtar, $kullanici, son: CarbonImmutable::now()->getTimestamp() + ErisimAnahtari::KANIT_OMRU_SN + 60),
+            // Geri dönüş için üretilmiş kanıt onay isteğine konmuş
+            'karar' => (function () use ($islem, $anahtar, $kullanici): string {
+                $son = CarbonImmutable::now()->getTimestamp() + 60;
+                $nonce = ErisimAnahtari::nonce();
+
+                return app(IstekKutusu::class)->yaz('onayla', ['islem_kimligi' => $islem, 'son_gecerlilik' => $son, 'nonce' => $nonce, 'ayar_secimleri' => '', 'kanit' => ErisimAnahtari::kanit(ErisimAnahtari::ozet($anahtar), $islem, 'geri_don', $son, $nonce, '')], $kullanici);
+            })(),
+            default => $this->kararIstegiYaz('onayla', $islem, $anahtar, $kullanici),
+        };
         app(IstekCalistiricisi::class)->tur();
 
         $this->assertSame($kod, app(IstekKutusu::class)->durum($istek)['kod'] ?? null);
         $this->assertSame(UstuneGeriYuklemeAdimi::OnayBekliyor->value, $this->durumOku()?->adim);
         $this->assertSame([], $this->komutlar);
+    }
+
+    /**
+     * BY-030-R1: onay isteğinde, sonucunda, durum / denetim dosyalarında ve
+     * günlükte tam anahtar yok; isteğin süresi geçince karar uygulanmaz.
+     */
+    public function test_karar_istegi_tam_anahtari_hicbir_dosyaya_yazmaz_suresi_gecen_karar_uygulanmaz(): void
+    {
+        [$kayit, $anahtar] = $this->onayBekleyen();
+        $gunluk = (string) config('logging.channels.yedekleme.path');
+        $gunlukOnce = is_file($gunluk) ? (int) filesize($gunluk) : 0;
+
+        // Web ucu anahtarı doğrular, isteğe kanıt yazar
+        $istek = (string) $this->postJson('/api/v1/yedekleme/ustune-geri-yukleme/'.$kayit->kimlik.'/onayla', [], ['X-Erisim-Anahtari' => $anahtar])->assertAccepted()->json('data.istek_kimligi');
+        $istekDosyasi = config('yedekleme.istek_klasoru').'/bekleyen/'.$istek.'.json';
+        $this->assertStringNotContainsString($anahtar, (string) file_get_contents($istekDosyasi));
+
+        // Ömrü geçti: çalıştırıcı uygulamaz, uygulama bakım modunda kalır
+        $this->travel(ErisimAnahtari::KANIT_OMRU_SN + 1)->seconds();
+        app(IstekCalistiricisi::class)->tur();
+
+        $this->assertSame(GeriYuklemeHatasi::KARAR_SURESI_DOLDU, app(IstekKutusu::class)->durum($istek)['kod'] ?? null);
+        $this->assertSame(UstuneGeriYuklemeAdimi::OnayBekliyor->value, $this->durumOku()?->adim);
+        $this->assertTrue($this->bakimdaBuIslemle($kayit->kimlik));
+
+        // Taze kararla onaylanır
+        $yeni = (string) $this->postJson('/api/v1/yedekleme/ustune-geri-yukleme/'.$kayit->kimlik.'/onayla', [], ['X-Erisim-Anahtari' => $anahtar])->assertAccepted()->json('data.istek_kimligi');
+        app(IstekCalistiricisi::class)->tur();
+        $this->assertSame('tamam', app(IstekKutusu::class)->durum($yeni)['durum'] ?? null);
+        $this->assertSame(UstuneGeriYuklemeAdimi::Onaylandi->value, $this->durumOku()?->adim);
+
+        // Hiçbir dosyada (istek, sonuç, işlem durumu, denetim, ayar kopyası) ve günlükte anahtar yok
+        foreach (File::allFiles($this->yedekKoku) as $dosya) {
+            $this->assertStringNotContainsString($anahtar, (string) file_get_contents($dosya->getPathname()), $dosya->getPathname());
+        }
+        $this->assertStringNotContainsString($anahtar, is_file($gunluk) ? (string) file_get_contents($gunluk, offset: $gunlukOnce) : '');
+        $this->assertStringNotContainsString($anahtar, (string) json_encode(DB::table('yedek_islem_kayitlari')->get()));
+    }
+
+    public function test_ayni_karar_kaniti_ikinci_kez_uygulanmaz(): void
+    {
+        $anahtar = ErisimAnahtari::uret();
+        $kayit = $this->durumYaz(UstuneGeriYuklemeAdimi::OnayBekliyor, true, anahtar: $anahtar, isteyen: $this->yonetici->id);
+        // Farkı olan grup var, seçim yok: ilk istek kanıtı tüketir ama onay reddedilir
+        app(OnayBilgisi::class)->bilgiYaz($kayit->kimlik, ['ayar_gruplari' => [['grup' => 'mail', 'farkli' => true]]]);
+        $son = CarbonImmutable::now()->getTimestamp() + 120;
+        $nonce = ErisimAnahtari::nonce();
+
+        $ilk = $this->kararIstegiYaz('onayla', $kayit->kimlik, $anahtar, $this->yonetici->id, son: $son, nonce: $nonce);
+        app(IstekCalistiricisi::class)->tur();
+        $tekrar = $this->kararIstegiYaz('onayla', $kayit->kimlik, $anahtar, $this->yonetici->id, son: $son, nonce: $nonce);
+        app(IstekCalistiricisi::class)->tur();
+
+        $this->assertSame(GeriYuklemeHatasi::AYAR_SECIMI_EKSIK, app(IstekKutusu::class)->durum($ilk)['kod'] ?? null);
+        $this->assertSame(GeriYuklemeHatasi::KARAR_KANITI_KULLANILDI, app(IstekKutusu::class)->durum($tekrar)['kod'] ?? null);
+        $this->assertSame([$nonce => $son], $this->durumOku()?->kullanilanKanitlar);
+    }
+
+    // -------------------------------------------------- ayar seçimi (BY-028-R2)
+
+    public function test_farkli_ayar_grubunda_secimsiz_onay_reddedilir_secilen_degerler_acilista_gecerli(): void
+    {
+        $hedef = YedekHedefi::factory()->create(['ad' => 'NAS', 'baglanti' => ['klasor' => '/yeni'], 'gizli_bilgiler' => ['parola' => 'hedef-gizli']]);
+        $yedek = $this->ustuneYedekAl();
+        // Geri yüklenen veritabanı yedeğin anındadır: mail ve hedef eski hâlinde
+        $this->yerDegistirmeSonrasi = function () use ($hedef): void {
+            MailAyari::query()->update(['sunucu' => 'eski.ornek.test']);
+            $hedef->forceFill(['baglanti' => ['klasor' => '/eski']])->save();
+        };
+        [$kayit] = $this->ustuneBaslat($yedek, $this->yonetici->id);
+        $this->assertNull($this->kancaHatasi);
+        $this->assertSame(UstuneGeriYuklemeAdimi::OnayBekliyor->value, $kayit->adim);
+        $this->assertSame([
+            ['grup' => 'mail', 'farkli' => true], ['grup' => 'yedek_ayarlari', 'farkli' => false],
+            ['grup' => 'planlar', 'farkli' => false], ['grup' => 'hedefler', 'farkli' => true],
+        ], app(OnayBilgisi::class)->bilgiOku($kayit->kimlik)['ayar_gruplari'] ?? null);
+
+        // Seçimsiz ya da eksik seçimle onay yok; hiçbir şey değişmez
+        foreach ([[], ['mail' => 'guncel']] as $eksik) {
+            try {
+                app(UstuneGeriYukleyici::class)->onayla($this->kilitAl(), $kayit->kimlik, $eksik);
+                $this->fail('Seçimi eksik onay kabul edildi.');
+            } catch (GeriYuklemeHatasi $hata) {
+                $this->assertSame(GeriYuklemeHatasi::AYAR_SECIMI_EKSIK, $hata->kod);
+            } finally {
+                $this->tutulanKilit?->birak();
+            }
+            $this->assertSame(UstuneGeriYuklemeAdimi::OnayBekliyor->value, $this->durumOku()?->adim);
+            $this->assertTrue($this->bakimdaBuIslemle($kayit->kimlik));
+            $this->assertSame('eski.ornek.test', MailAyari::query()->value('sunucu'));
+        }
+
+        $son = app(UstuneGeriYukleyici::class)->onayla($this->kilitAl(), $kayit->kimlik, ['mail' => 'guncel', 'hedefler' => 'geri_yuklenen']);
+
+        $this->assertSame(UstuneGeriYuklemeAdimi::Onaylandi->value, $son->adim);
+        $this->assertSame(['mail' => 'guncel', 'hedefler' => 'geri_yuklenen'], $son->ayarSecimleri);
+        // Açılışta geçerli olanlar: mail güncel (parolası dahil), hedef geri yüklenen
+        $mail = MailAyari::query()->firstOrFail();
+        $this->assertSame('smtp.ornek.test', $mail->sunucu);
+        $this->assertSame('smtp-gizli', $mail->sifre);
+        $this->assertSame(['klasor' => '/eski'], $hedef->refresh()->baglanti);
+        $this->assertFalse(app(BakimModu::class)->aktifMi());
+        $this->assertSame(1, DB::table('yedek_islem_kayitlari')->where('islem', 'geri_yukle_ustune_ayar_secimi')->where('sonuc', 'basarili')->count());
+    }
+
+    public function test_guncel_hedefler_yedekten_sonra_eklenen_hedefi_sirsiz_ve_pasif_acar_sir_dosyaya_yazilmaz(): void
+    {
+        $eski = YedekHedefi::factory()->create(['ad' => 'NAS', 'aktif' => true, 'gizli_bilgiler' => ['parola' => 'eski-hedef-gizli']]);
+        $yeni = YedekHedefi::factory()->create(['ad' => 'Drive', 'aktif' => true, 'gizli_bilgiler' => ['parola' => 'yeni-hedef-gizli']]);
+        $yedek = $this->ustuneYedekAl();
+        // Yedeğin anında yalnız eski hedef vardı
+        $this->yerDegistirmeSonrasi = fn () => DB::table('yedek_hedefleri')->where('id', $yeni->id)->delete();
+        [$kayit] = $this->ustuneBaslat($yedek, $this->yonetici->id);
+        $this->assertNull($this->kancaHatasi);
+
+        // Hedef sırları dosya kopyasına hiç yazılmadı
+        $kopya = (string) file_get_contents((string) config('yedekleme.ayar_kopyasi'));
+        $this->assertStringNotContainsString('yeni-hedef-gizli', $kopya);
+        $this->assertStringNotContainsString('eski-hedef-gizli', $kopya);
+
+        $son = app(UstuneGeriYukleyici::class)->onayla($this->kilitAl(), $kayit->kimlik, ['hedefler' => 'guncel']);
+
+        $this->assertSame(UstuneGeriYuklemeAdimi::Onaylandi->value, $son->adim);
+        $acilan = YedekHedefi::query()->findOrFail($yeni->id);
+        $this->assertSame('Drive', $acilan->ad);
+        $this->assertFalse($acilan->aktif);
+        $this->assertNull($acilan->gizli_bilgiler);
+        // Geri yüklenen veritabanında olan hedefin sırları olduğu gibi
+        $this->assertSame(['parola' => 'eski-hedef-gizli'], $eski->refresh()->gizli_bilgiler);
+        $ayrinti = json_decode((string) DB::table('yedek_islem_kayitlari')->where('islem', 'geri_yukle_ustune_ayar_secimi')->value('ayrinti'), true);
+        $this->assertStringContainsString('"Drive" yedekten sonra eklenmiş', implode(' ', $ayrinti['uyarilar'] ?? []));
     }
 
     public function test_onay_bilgisi_ortam_kullanici_rol_ayar_ve_kaybolacak_yukleme_farkini_verir(): void
@@ -213,6 +369,8 @@ final class UstuneGeriYuklemeOnayTest extends TestCase
             ['icmal' => 'isgucu', 'kaynak' => 'excel', 'satir_sayisi' => 4, 'created_at' => now(), 'updated_at' => now()],
         ]);
         $onceki = json_decode((string) json_encode($bilgi->ozet()), true);
+        // Bugünkü ayarların dosya kopyası: "güncel" ayar seçiminin kaynağı (BY-028-R2)
+        app(AyarKopyasi::class)->yaz();
 
         // "Geri yüklenen": yedeğin anı — test ortamı, aktif ERP, Ayşe aktif,
         // rolün izni fazla, yüklemeler yok, plan farklı
@@ -229,6 +387,11 @@ final class UstuneGeriYuklemeOnayTest extends TestCase
         $this->assertSame([['kullanici_adi' => 'ayse', 'degisiklik' => 'degisti', 'alanlar' => ['aktif']]], array_map(fn (array $k): array => array_intersect_key($k, array_flip(['kullanici_adi', 'degisiklik', 'alanlar'])), $fark['kullanici_farklari']));
         $this->assertSame([['rol' => 'Muhasebe', 'degisiklik' => 'degisti', 'geri_gelen_izinler' => ['kullanicilar.guncelle'], 'kaybolan_izinler' => []]], $fark['rol_farklari']);
         $this->assertSame([['bolum' => 'planlar', 'ad' => 'Eski plan', 'degisiklik' => 'yalniz_geri_yuklenende', 'alanlar' => []]], $fark['ayar_farklari']);
+        $this->assertSame([
+            ['grup' => 'mail', 'farkli' => false], ['grup' => 'yedek_ayarlari', 'farkli' => false],
+            ['grup' => 'planlar', 'farkli' => true], ['grup' => 'hedefler', 'farkli' => false],
+        ], $fark['ayar_gruplari']);
+        $this->assertFalse($fark['ayar_kopyasi_yok']);
     }
 
     // ------------------------------------------------------- korumalar
@@ -240,9 +403,10 @@ final class UstuneGeriYuklemeOnayTest extends TestCase
         $this->assertStringContainsString('efatura:senkron', $komutlar);
         $this->assertStringContainsString('efatura:alarmlar', $komutlar);
 
-        // Kapalıyken yalnız kendi filtresi olmayan görevler geçer
+        // Kapalıyken yalnız kendi filtresi olmayan görevler geçer (yedek görevlerinin
+        // filtresi geçiş kipidir: servis kipinde servis döngüsü yürütür — BY-009-R1)
         foreach ($gorevler as $gorev) {
-            $this->assertTrue($gorev->filtersPass($this->app) || str_contains((string) $gorev->command, 'yedek:calistir'), (string) $gorev->command);
+            $this->assertTrue($gorev->filtersPass($this->app) || preg_match('/yedek:(calistir|zamanla|temizle)/', (string) $gorev->command) === 1, (string) $gorev->command);
         }
 
         $this->durumYaz(UstuneGeriYuklemeAdimi::OnayBekliyor, true);

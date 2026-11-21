@@ -16,7 +16,8 @@ use Throwable;
 /**
  * Yedek alma (BY-007; README §6.1 1–5. adımlar, §4.1, §4.4 1. düzey):
  *
- * 1. Kilit çağıranda (yaz kuralı: durum klasörünün kilidi tutulmalı).
+ * 1. Kilit çağıranda (yaz kuralı: durum klasörünün kilidi tutulmalı). Ölen
+ *    bir süreçten kalan `calisiyor` kayıt önce sonuçlanır (SahipsizYedekler).
  * 2. Boş disk alanı eşiğin altındaysa yedek başlamaz; eski yedekler kural
  *    dışı silinmez (README §4.3).
  * 3. Anlık görüntü açılır; sayımlar ve migration listesi ondan okunur;
@@ -47,11 +48,14 @@ final class YedekAlici
         private readonly YasamSinyali $sinyal,
         private readonly AyarKopyasi $ayarKopyasi,
         private readonly GeriYukleyici $geriYukleyici,
+        private readonly SahipsizYedekler $sahipsizler,
     ) {}
 
     /**
      * @param  YedekKilidi  $kilit  Durum klasörünün tutulan kilidi
      * @param  list<string>  $planAdlari
+     * @param  array{baglanma_yetkileri: string|null}|null  $ozellikDuzeltmesi  Manifestin veritabanı özelliklerinde anlık görüntüdeki değerin yerine yazılacaklar:
+     *                                                                          üstüne geri yüklemenin yazıcı bariyeri bağlanma yetkilerini daraltmışken alınan öncesi yedek ÖZGÜN yetkileri taşır (BY-028-R1)
      * @return Yedek `tamam` ya da `basarisiz` dizin kaydı
      *
      * @throws LogicException Kilit tutulmuyor
@@ -64,12 +68,16 @@ final class YedekAlici
         ?int $kullaniciId = null,
         array $planAdlari = [],
         ?string $geriYuklemeKimligi = null,
+        ?array $ozellikDuzeltmesi = null,
     ): Yedek {
         $durum = $this->yapilandirma->islemDurumu();
 
         if (! $kilit->dosyayiTutuyorMu($this->yapilandirma->durumKlasoru().'/kilit')) {
             throw new LogicException('Yedek yalnız yedekleme kilidini tutan süreç tarafından alınır.');
         }
+
+        // Ölen önceki süreçten kalan `calisiyor` kaydı sonuçlanır (BY-007-R1)
+        $this->sahipsizler->sonuclandir($kilit);
 
         // Geri yükleme öncesi yedeği geri yüklemenin İÇİNDE alınır; diğerleri
         // açık bir üstüne geri yükleme varken başlamaz (README §6.4)
@@ -121,7 +129,7 @@ final class YedekAlici
             $this->diskDenetle($klasor);
             $sure = $this->sureSiniri();
 
-            $manifest = $this->pg->parolaylaCalis(function () use ($gecici, $sure, $yaz, $yedek, $kaynak, $zaman, $planAdlari, $aciklama, $kullaniciId, $geriYuklemeKimligi, $dosyaAdi): YedekManifesti {
+            $manifest = $this->pg->parolaylaCalis(function () use ($gecici, $sure, $yaz, $yedek, $kaynak, $zaman, $planAdlari, $aciklama, $kullaniciId, $geriYuklemeKimligi, $dosyaAdi, $ozellikDuzeltmesi): YedekManifesti {
                 $pgDumpSurumu = $this->pg->surum('pg_dump');
                 $baglanti = $this->pg->baglanti();
 
@@ -158,7 +166,7 @@ final class YedekAlici
                     migrationlar: $goruntu->migrationlar,
                     satirSayilari: $goruntu->satirSayilari,
                     verisiAlinmayanTablolar: $this->yapilandirma->verisiAlinmayanTablolar(),
-                    veritabaniOzellikleri: $goruntu->ozellikler,
+                    veritabaniOzellikleri: [...$goruntu->ozellikler, ...($ozellikDuzeltmesi ?? [])],
                     sahipRol: $goruntu->sahipRol,
                     sifreli: false,
                     appKeyParmakIzi: AppKeyParmakIzi::hesapla(),

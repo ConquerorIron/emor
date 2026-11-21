@@ -8,8 +8,10 @@ use App\Models\User;
 use App\Models\Yedek;
 use App\Models\YedekHedefi;
 use App\Models\YedekKopyasi;
+use App\Services\Yedekleme\Hedefler\YerelDiskBaglayicisi;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 use RuntimeException;
 use Throwable;
 
@@ -28,6 +30,13 @@ use Throwable;
  * - Yerel dosyası silinmiş ama manifesti duran yedek, olay günlüğündeki uzak
  *   kopyalarıyla bulunur (F7).
  * - Tek bir bozuk dosya taramayı durdurmaz.
+ * - Yedek klasörü yoksa ya da okunamıyorsa (bağlanmamış disk, izin) tarama
+ *   dizine DOKUNMADAN hata verir: "erişemiyorum" boş klasör sayılıp kayıtlar
+ *   "dosya yok" yapılmaz (D6; BY-011-R1). Okunabilen boş klasör olağan taramadır.
+ * - Kilidi tutan çağıran kilidi verirse ölen süreçten kalan `calisiyor`
+ *   yedek kayıtları önce sonuçlanır (SahipsizYedekler; BY-007-R1).
+ * - Ana klasör hedefi YerelDiskBaglayicisi::anaKlasorHedefiMi ile tanınır
+ *   (kopyalama ve saklamayla aynı ölçüt; BY-008-R1).
  */
 final class DizinKurucu
 {
@@ -35,24 +44,41 @@ final class DizinKurucu
         private readonly YedeklemeYapilandirmasi $yapilandirma,
         private readonly ManifestDeposu $manifestler,
         private readonly OlayGunlugu $olaylar,
+        private readonly SahipsizYedekler $sahipsizler,
     ) {}
 
     /**
-     * @return array{guvenilir: int, guvenilmeyen: int, eklenen: int, dosyasi_yok: int, bozuk: int, gecersiz_olay: int, bulunamayan_hedef: int}
+     * @param  YedekKilidi|null  $kilit  Tutulan yedekleme kilidi; verilmezse sahipsiz kayıtlara dokunulmaz
+     * @return array{guvenilir: int, guvenilmeyen: int, eklenen: int, dosyasi_yok: int, bozuk: int, gecersiz_olay: int, bulunamayan_hedef: int, sahipsiz: int}
+     *
+     * @throws RuntimeException Yedek klasörü yok ya da okunamıyor (dizin değişmedi)
+     * @throws LogicException Verilen kilit tutulmuyor
      */
-    public function tara(): array
+    public function tara(?YedekKilidi $kilit = null): array
     {
         $klasor = $this->yapilandirma->klasor();
-        $dosyalar = is_dir($klasor) ? @scandir($klasor) : [];
+        $dosyalar = is_dir($klasor) ? @scandir($klasor) : false;
 
         if ($dosyalar === false) {
-            throw new RuntimeException("Yedek klasörü okunamıyor: {$klasor}");
+            throw new RuntimeException("Yedek klasörü bulunamadı ya da okunamıyor; dizin değiştirilmedi: {$klasor}");
         }
 
-        $sayac = ['guvenilir' => 0, 'guvenilmeyen' => 0, 'eklenen' => 0, 'dosyasi_yok' => 0, 'bozuk' => 0, 'gecersiz_olay' => 0, 'bulunamayan_hedef' => 0];
+        $sayac = ['guvenilir' => 0, 'guvenilmeyen' => 0, 'eklenen' => 0, 'dosyasi_yok' => 0, 'bozuk' => 0, 'gecersiz_olay' => 0, 'bulunamayan_hedef' => 0, 'sahipsiz' => 0];
+
+        if ($kilit !== null) {
+            $sahipsiz = $this->sahipsizler->sonuclandir($kilit);
+            $sayac['sahipsiz'] = $sahipsiz['tamamlanan'] + $sahipsiz['yarida_kalan'];
+            // Sonuçlandırma geçici / dosyasız manifest silmiş olabilir
+            $dosyalar = @scandir($klasor);
+            if ($dosyalar === false) {
+                throw new RuntimeException("Yedek klasörü okunamıyor; dizin değiştirilmedi: {$klasor}");
+            }
+        }
+
+        // Günlük bir kez okunur; olaylar ve güncel durumlar aynı listeden (BY-011-R2)
         $okunan = $this->olaylar->oku();
         $sayac['gecersiz_olay'] = $okunan['gecersiz'];
-        $durumlar = $this->olaylar->durumlar();
+        $durumlar = OlayGunlugu::durumlaraAyir($okunan['olaylar']);
         $gorulenAdlar = [];
 
         $manifestler = array_filter($dosyalar, fn (string $ad): bool => ! str_starts_with($ad, '.') && str_ends_with($ad, '.json'));
@@ -96,8 +122,10 @@ final class DizinKurucu
             }
         }
 
-        // Diskte olmayan kayıtlar: silinmez, "dosya yok" olur
-        foreach (Yedek::query()->whereNotIn('durum', [YedekDurumu::Silindi->value, YedekDurumu::Calisiyor->value, YedekDurumu::Kuyrukta->value])->get() as $yedek) {
+        // Diskte olmayan kayıtlar: silinmez, "dosya yok" olur. Yalnız tamamlanmış
+        // yedekler: başarısız denemenin hiç dosyası olmadı, `basarisiz` kalır
+        // (saklamanın "son deneme başarısız" temkini onu görür; BY-007-R1)
+        foreach (Yedek::query()->where('durum', YedekDurumu::Tamam->value)->get() as $yedek) {
             if (isset($gorulenAdlar[$yedek->dosya_adi]) || is_file($klasor.'/'.$yedek->dosya_adi)) {
                 continue;
             }
@@ -167,6 +195,8 @@ final class DizinKurucu
                 $kopyaDurumu = KopyaDurumu::from($k['durum']);
                 $kopya->fill([
                     'durum' => $kopyaDurumu,
+                    // Silme yetkisi reddiyle bizden çıkmış kopya kodunu korur (BY-023-R1)
+                    'hata_kodu' => $kopyaDurumu === KopyaDurumu::Silindi ? $k['hata_kodu'] : $kopya->hata_kodu,
                     'uzak_kimlik' => $k['uzak_kimlik'],
                     'sifreli' => $k['sifreli'],
                     'sifreli_sha256' => $k['sifreli_sha256'],
@@ -218,10 +248,7 @@ final class DizinKurucu
     /** Yedek klasörünün kendisi olan yerel hedef: kopyası yerel dosyanın aynısıdır */
     private function anaKlasorHedefiMi(YedekHedefi $hedef): bool
     {
-        $klasor = $hedef->baglanti['klasor'] ?? '';
-
-        return $hedef->tur === HedefTuru::Yerel
-            && (! is_string($klasor) || $klasor === '' || rtrim($klasor, '/') === $this->yapilandirma->klasor());
+        return YerelDiskBaglayicisi::anaKlasorHedefiMi($hedef, $this->yapilandirma);
     }
 
     private function adindanKaynak(string $ad): YedekKaynagi

@@ -9,6 +9,7 @@ use App\Services\Yedekleme\GeriYuklemeHatasi;
 use App\Services\Yedekleme\UstuneGeriYuklemeAdimi;
 use App\Services\Yedekleme\UstuneGeriYukleyici;
 use App\Services\Yedekleme\YedekKilidi;
+use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use App\Yetki\Izin;
 
 /**
@@ -17,12 +18,21 @@ use App\Yetki\Izin;
  * kimliğidir; erişim anahtarının bitişi isteğin zamanından sayılır.
  * İşleyici onay adımında DÖNER: kilit bırakılır, onay / geri dön istekleri
  * sonraki turlarda işlenir.
+ *
+ * Yayın kilidi (BY-013-R1): ilk durum yazılmadan önce beklemeden alınır;
+ * `deploy.sh` tutuyorsa işlem başlamaz (`GERI_YUKLEME_YAYIN_SURUYOR`). İşleyici
+ * dönene kadar tutulur; sonra yayın açık işlemi durum dosyasından görür.
  */
 final class UstuneGeriYukleIsleyicisi implements IstekIsleyicisi
 {
     use YedegiBulur;
 
-    public function __construct(private readonly UstuneGeriYukleyici $ustune) {}
+    public const YAYIN_SURUYOR = 'GERI_YUKLEME_YAYIN_SURUYOR';
+
+    public function __construct(
+        private readonly UstuneGeriYukleyici $ustune,
+        private readonly YedeklemeYapilandirmasi $yapilandirma,
+    ) {}
 
     public function izin(): ?Izin
     {
@@ -32,6 +42,11 @@ final class UstuneGeriYukleIsleyicisi implements IstekIsleyicisi
     public function isle(Istek $istek, YedekKilidi $kilit): IstekSonucu
     {
         $yedek = $this->yedegiBul($istek);
+
+        $yayin = $this->yapilandirma->yayinKilidi();
+        if (! $yayin->al()) {
+            throw new IstekReddi(self::YAYIN_SURUYOR, 'Bir yayın (deploy.sh) sürüyor; üstüne geri yükleme başlatılmadı. Yayın bitince yeniden isteyin.');
+        }
 
         try {
             $kayit = $this->ustune->baslat(
@@ -45,6 +60,8 @@ final class UstuneGeriYukleIsleyicisi implements IstekIsleyicisi
             );
         } catch (GeriYuklemeHatasi $hata) {
             throw new IstekReddi($hata->kod, $hata->getMessage());
+        } finally {
+            $yayin->birak();
         }
 
         $ek = ['islem_kimligi' => $kayit->kimlik, 'adim' => $kayit->adim];

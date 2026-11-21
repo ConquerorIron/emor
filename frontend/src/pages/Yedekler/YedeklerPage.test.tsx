@@ -60,6 +60,8 @@ const YEDEK: Yedek = {
   imzali: true,
   ice_alindi: false,
   geri_yuklenebilir: true,
+  webden_geri_yuklenebilir: true,
+  geri_yukleme_engeli: null,
   boyut: 1677722,
   alinma_zamani: '2026-11-20T23:00:00+00:00',
   sabit: false,
@@ -85,6 +87,39 @@ const GUVENILMEYEN: Yedek = {
   imzali: false,
   ice_alindi: true,
   geri_yuklenebilir: false,
+  webden_geri_yuklenebilir: false,
+  geri_yukleme_engeli: 'GERI_YUKLEME_YEDEK_GERI_YUKLENEMEZ',
+}
+
+/** Yerel dosyası silinmiş, şifresiz uzak kopyası olan: ekrandan geri yüklenebilir */
+const UZAKTA: Yedek = {
+  ...YEDEK,
+  kimlik: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  dosya_adi: 'erp_plan_20261110_0200.dump',
+  yerel_dosya_var: false,
+  kopyalar: [
+    {
+      hedef_id: 2,
+      hedef_ad: 'İkinci disk',
+      hedef_tur: 'yerel',
+      durum: 'tamam',
+      sifreli: false,
+      tamamlanma_zamani: '2026-11-09T23:10:00+00:00',
+      hata_kodu: null,
+    },
+  ],
+}
+
+/** Yerel dosyası silinmiş, yalnız şifreli bulut kopyası olan: özel anahtar gerekir */
+const YALNIZ_SIFRELI: Yedek = {
+  ...UZAKTA,
+  kimlik: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+  dosya_adi: 'erp_plan_20261101_0200.dump',
+  webden_geri_yuklenebilir: false,
+  geri_yukleme_engeli: 'GERI_YUKLEME_OZEL_ANAHTAR_GEREKLI',
+  kopyalar: [
+    { ...UZAKTA.kopyalar[0], hedef_id: 3, hedef_ad: 'Bulut', hedef_tur: 's3', sifreli: true },
+  ],
 }
 
 const OZET: YedekOzeti = {
@@ -289,6 +324,50 @@ describe('YedeklerPage', () => {
     const bekleyen = await satir(YEDEK.dosya_adi)
     expect(within(bekleyen).getByRole('button', { name: 'Sil' })).toBeDisabled()
     expect(within(bekleyen).getByRole('button', { name: 'Doğrula' })).toBeDisabled()
+  })
+
+  it('istek yanıtı beklenirken ardışık tıklamalar yalnız bir istek gönderir (BY-015-R1)', async () => {
+    let taraBitir: (kabul: { istek_kimligi: string; durum: 'kuyrukta' }) => void = () => undefined
+    api.tara.mockReturnValue(new Promise((coz) => (taraBitir = coz)))
+    api.istek.mockResolvedValue({ kimlik: ISTEK_1, durum: 'kuyrukta' })
+    ciz()
+    const yedek = await satir(YEDEK.dosya_adi)
+
+    const tara = screen.getByRole('button', { name: 'Klasörü Tara' })
+    fireEvent.click(tara)
+    fireEvent.click(tara)
+    // Yanıt gelmeden satır işlemi de başlatılamaz
+    fireEvent.click(within(yedek).getByRole('button', { name: 'Sabitle' }))
+    fireEvent.click(within(yedek).getByRole('button', { name: 'Doğrula' }))
+
+    await waitFor(() => expect(tara).toBeDisabled())
+    expect(within(yedek).getByRole('button', { name: 'Sabitle' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Şimdi Yedek Al' })).toBeDisabled()
+    expect(api.tara).toHaveBeenCalledTimes(1)
+    expect(api.sabitle).not.toHaveBeenCalled()
+    expect(api.dogrula).not.toHaveBeenCalled()
+
+    taraBitir({ istek_kimligi: ISTEK_1, durum: 'kuyrukta' })
+    expect(await screen.findByRole('status')).toHaveTextContent('Klasör tarama')
+  })
+
+  it('yalnız şifreli kopyası olan yedekte geri yükleme yerine kurtarma yolu yazılır; yerel ve şifresiz uzak kopyada geri yükleme vardır (BY-027-R1)', async () => {
+    api.liste.mockResolvedValue(liste([YEDEK, UZAKTA, YALNIZ_SIFRELI]))
+    ciz(['yedekler.goruntule', 'yedekler.al', 'geri_yukleme.kopya'], true)
+
+    for (const yedek of [YEDEK, UZAKTA]) {
+      const satiri = await satir(yedek.dosya_adi)
+      expect(within(satiri).getByRole('button', { name: 'Farklı adla geri yükle' })).toBeEnabled()
+      expect(within(satiri).getByRole('button', { name: 'Üstüne geri yükle' })).toBeEnabled()
+      expect(within(satiri).getByRole('button', { name: 'Doğrula' })).toBeEnabled()
+    }
+
+    // Doğrulama da geri yükleme motorunu kullanır: yalnız şifreli kopyada o da yok
+    const sifreli = await satir(YALNIZ_SIFRELI.dosya_adi)
+    expect(within(sifreli).queryByRole('button', { name: /geri yükle/i })).not.toBeInTheDocument()
+    expect(within(sifreli).queryByRole('button', { name: 'Doğrula' })).not.toBeInTheDocument()
+    expect(sifreli).toHaveTextContent('yedek:sifre-coz')
+    expect(sifreli).toHaveTextContent('docs/yedekleme/kurtarma.md')
   })
 
   it('"Farklı adla geri yükle" yalnız geri_yukleme.kopya izniyle ve geri yüklenebilir satırda vardır', async () => {

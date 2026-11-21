@@ -27,7 +27,8 @@ final class TaraIsleyicisi implements IstekIsleyicisi
     public function isle(Istek $istek, YedekKilidi $kilit): IstekSonucu
     {
         try {
-            $sonuc = $this->kurucu->tara();
+            // Kilit tutuluyor: ölen süreçten kalan `calisiyor` kayıtlar da sonuçlanır (BY-007-R1)
+            $sonuc = $this->kurucu->tara($kilit);
         } catch (Throwable $hata) {
             $this->denetim->kaydet('klasor_tara', IslemSonucu::Basarisiz, kullaniciId: $istek->kullaniciId, hata: $hata->getMessage());
 

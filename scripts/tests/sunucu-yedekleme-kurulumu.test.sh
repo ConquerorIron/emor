@@ -79,6 +79,7 @@ grep -E "KURULUM:" "$D/son.txt" | sed 's/^/    /'
 bekle "kök ve üstü eşitlendi" esitlendi "$(dirname "$K") $K"
 bekle "durum klasörü ve kök eşitlendi" esitlendi "$K $K/durum"
 bekle "kilit dosyası ve klasörü eşitlendi" esitlendi "$K/durum/kilit $K/durum"
+bekle "yayın kilidi ve klasörü eşitlendi" esitlendi "$K/durum/yayin.kilit $K/durum"
 echo "== C. İkinci kurulum: değişiklik yok"
 sync_sifirla
 PATH="$SAHTE_PATH" calistir "ikinci kurulum" 0
@@ -132,6 +133,23 @@ bekle "sudoers root:root 440"       bash -c "[[ \$(stat -c '%U:%G %a' $EMOR_SUDO
 bekle "servis tanımı yazıldı"       grep -q "^User=emor-yedek-deneme$" "$EMOR_SYSTEMD_DIZINI/emor-yedek.service"
 bekle "servis uzun geri yüklemeyi bekler"  grep -qx "TimeoutStopSec=4000" "$EMOR_SYSTEMD_DIZINI/emor-yedek.service"
 bekle "servis kuyruk servisini sudoers ile aynı adla yönetir" bash -c "grep -qx \"Environment=YEDEKLEME_KUYRUK_SERVISI=$EMOR_KUYRUK_SERVISI\" \"$EMOR_SYSTEMD_DIZINI/emor-yedek.service\" && grep -q \"systemctl stop $EMOR_KUYRUK_SERVISI\" \"$EMOR_SUDOERS_DOSYASI\""
+# BY-025-R1: çalıştırıcı istek göndereni dosya sahibiyle doğrular
+bekle "servis tanımında web kullanıcısının uid'si" grep -qx "Environment=YEDEKLEME_WEB_UID=$(id -u www-data)" "$EMOR_SYSTEMD_DIZINI/emor-yedek.service"
+bekle "servis tanımında yayın kullanıcısının uid'si" grep -qx "Environment=YEDEKLEME_YAYIN_UID=$(id -u "$Y")" "$EMOR_SYSTEMD_DIZINI/emor-yedek.service"
+# BY-013-R1: yayın kilidi (işlem kilidinden ayrı)
+bekle "yayın kilidi servisin, 0640"  bash -c "[[ \$(stat -c '%U:%G %a' $K/durum/yayin.kilit) == 'emor-yedek-deneme:emor-yedek-deneme 640' ]]"
+bekle "yayın, yayın kilidini alır"   runuser -u $Y -- flock -n $K/durum/yayin.kilit true
+bekle "web yayın kilidini açar"      runuser -u www-data -- flock -n $K/durum/yayin.kilit true
+bekle "yayın yayın kilidine yazamaz" bash -c "! runuser -u $Y -- bash -c 'echo x >> $K/durum/yayin.kilit' 2>/dev/null"
+# İki ayrı süreç ve gerçek hesaplar: yayın tutarken servis beklemeden alamaz,
+# yayın bırakınca alır; yayın kilidi tutulurken işlem kilidi boştur (birbirini beklemez)
+# (-o: kilidi flock süreci tutar, alt süreç değil — flock öldürülünce kilit boşalır)
+runuser -u $Y -- flock -o $K/durum/yayin.kilit sleep 29.7 & TUTAN=$!
+for _ in $(seq 50); do flock -n $K/durum/yayin.kilit true || break; sleep 0.1; done
+bekle "yayın tutarken servis yayın kilidini alamaz" bash -c "! runuser -u emor-yedek-deneme -- flock -n $K/durum/yayin.kilit true"
+bekle "yayın kilidi tutulurken işlem kilidi boş"    runuser -u emor-yedek-deneme -- flock -n $K/durum/kilit true
+pkill -f "flock -o $K/durum/yayin.kilit" 2>/dev/null; pkill -f "sleep 29.7" 2>/dev/null; wait $TUTAN 2>/dev/null
+bekle "yayın bırakınca servis alır" runuser -u emor-yedek-deneme -- flock -n $K/durum/yayin.kilit true
 bekle "kullanıcı giriş yapamaz"     bash -c "[[ \$(getent passwd emor-yedek-deneme | cut -d: -f7) == /usr/sbin/nologin ]]"
 bekle "yayın gruba alınmadı"        bash -c "! id -nG $Y | tr ' ' '\n' | grep -qx emor-yedek-deneme"
 bekle "inceleme rolü NOLOGIN"       bash -c "[[ \$(runuser -u postgres -- psql -X -A -t -c \"select rolcanlogin from pg_roles where rolname='emor_inceleme_deneme'\") == f ]]"
@@ -242,7 +260,7 @@ bekle "ön koşul: servis korunan nesnelere erişemez" servis_erisemez
 bekle "servis yönetilen alt klasörü yerinden oynatamaz" bash -c "! runuser -u emor-yedek-deneme -- mv $K/yedekler $K/yedekler.x 2>/dev/null"
 bekle "servis kök klasöre bağlantı koyamaz"   bash -c "! runuser -u emor-yedek-deneme -- ln -s $KZ $K/yeni 2>/dev/null"
 cp -p $K/gizli/pgpass $D/pgpass.yedek
-for yaprak in gizli/pgpass gizli/imza.anahtar durum/kilit; do
+for yaprak in gizli/pgpass gizli/imza.anahtar durum/kilit durum/yayin.kilit; do
   # Servis hesabı, yazabildiği klasörde dosyayı korunan dosyaya bağlantıyla değiştirir
   runuser -u emor-yedek-deneme -- bash -c "rm -f $K/$yaprak && ln -s $KD $K/$yaprak"
   calistir "$yaprak bağlantı: denetim eksik" 1 --denetle
@@ -255,7 +273,8 @@ for yaprak in gizli/pgpass gizli/imza.anahtar durum/kilit; do
 done
 cp -p $D/pgpass.yedek $K/gizli/pgpass
 # Sabit bağlantı (servis bunu fs.protected_hardlinks yüzünden yapamaz; eski / elle bozulmuş durum)
-ln $KD $K/durum/kilit
+# (durum/yayin.kilit adımındaki kurulum, durmadan önce durum/kilit'i yeniden açmış olabilir)
+rm -f $K/durum/kilit; ln $KD $K/durum/kilit
 calistir "kilit sabit bağlantı: kurulum durur" 1
 bekle "sabit bağlantı söylendi" grep -q "kilit birden çok adı var" "$D/son.txt"
 bekle "sabit bağlantıda korunan nesneler değişmedi" korunan_ayni

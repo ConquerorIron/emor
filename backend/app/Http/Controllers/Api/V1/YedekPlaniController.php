@@ -6,15 +6,21 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Yedek;
+use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
 use App\Services\Yedekleme\IslemSonucu;
+use App\Services\Yedekleme\KopyaDurumu;
 use App\Services\Yedekleme\PlanTakvimi;
 use App\Services\Yedekleme\SaklamaPolitikasi;
 use App\Services\Yedekleme\SiklikTuru;
 use App\Services\Yedekleme\SilmeKarari;
 use App\Services\Yedekleme\YedekDenetimi;
+use App\Services\Yedekleme\YedekDurumu;
 use App\Services\Yedekleme\YedekIstekServisi;
+use App\Services\Yedekleme\YedekKaynagi;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -46,9 +52,7 @@ final class YedekPlaniController extends Controller
 
     public function index(): JsonResponse
     {
-        $planlar = YedekPlani::query()->with('hedefler')->orderBy('ad')->get();
-
-        return response()->json(['data' => $planlar->map(fn (YedekPlani $p): array => $this->diziye($p))->values()]);
+        return response()->json(['data' => $this->diziler($this->planSorgusu()->orderBy('ad')->get())]);
     }
 
     public function store(Request $request): JsonResponse
@@ -57,7 +61,7 @@ final class YedekPlaniController extends Controller
         $plan = DB::transaction(fn (): YedekPlani => $this->uygula(new YedekPlani, $veri));
         $this->denetle('plan_ekle', $request, $plan);
 
-        return response()->json(['data' => $this->diziye($plan->load('hedefler'))], 201);
+        return response()->json(['data' => $this->diziler($this->planSorgusu()->whereKey($plan->id)->get())[0]], 201);
     }
 
     public function update(Request $request, YedekPlani $plan): JsonResponse
@@ -66,7 +70,7 @@ final class YedekPlaniController extends Controller
         DB::transaction(fn (): YedekPlani => $this->uygula($plan, $veri));
         $this->denetle('plan_guncelle', $request, $plan);
 
-        return response()->json(['data' => $this->diziye($plan->refresh()->load('hedefler'))]);
+        return response()->json(['data' => $this->diziler($this->planSorgusu()->whereKey($plan->id)->get())[0]]);
     }
 
     /** Kopyası olan plan silinmez; pasife alınır (geçmişi durur) */
@@ -275,13 +279,87 @@ final class YedekPlaniController extends Controller
     }
 
     /**
+     * Planlar + son çalışmanın yedeği (`son_yedek_id`). Planlar kilit altında
+     * sırayla çalışır ve `son_calisma` çalışmanın SONUNDA yazılır (PlanliYedek):
+     * o andan önce açılan en yeni plan yedeği, planın son çalışmasının
+     * yedeğidir. Sınır: iki çalışma aynı saniyede birbirini izlerse ayırt edilemez.
+     *
+     * @return Builder<YedekPlani>
+     */
+    private function planSorgusu(): Builder
+    {
+        return YedekPlani::query()->with('hedefler')->addSelect(['son_yedek_id' => Yedek::query()->select('id')
+            ->where('kaynak', YedekKaynagi::Plan->value)
+            ->whereColumn('yedekler.created_at', '<=', 'yedek_planlari.son_calisma')
+            ->orderByDesc('yedekler.created_at')
+            ->orderByDesc('yedekler.id')
+            ->limit(1)]);
+    }
+
+    /**
+     * Liste dönüşümü: bağ sayıları ve son yedekler plan sayısından bağımsız
+     * sabit sayıda sorguyla alınır (BY-017-R2).
+     *
+     * @param  Collection<int, YedekPlani>  $planlar
+     * @return list<array<string, mixed>>
+     */
+    private function diziler(Collection $planlar): array
+    {
+        $bagSayilari = [];
+        DB::table('yedek_kopya_planlari')->whereIn('yedek_plani_id', $planlar->modelKeys())
+            ->groupBy('yedek_plani_id', 'yedek_hedefi_id')
+            ->selectRaw('yedek_plani_id, yedek_hedefi_id, count(*) as adet')
+            ->get()
+            ->each(function (object $satir) use (&$bagSayilari): void {
+                $bagSayilari[(int) $satir->yedek_plani_id][(int) $satir->yedek_hedefi_id] = (int) $satir->adet;
+            });
+
+        $sonYedekler = Yedek::query()->with('kopyalar')
+            ->whereIn('id', $planlar->pluck('son_yedek_id')->filter()->unique()->values()->all())
+            ->get()
+            ->keyBy('id');
+
+        return $planlar->map(fn (YedekPlani $p): array => $this->diziye(
+            $p,
+            $bagSayilari[$p->id] ?? [],
+            $p->getAttribute('son_yedek_id') === null ? null : $sonYedekler->get((int) $p->getAttribute('son_yedek_id')),
+        ))->values()->all();
+    }
+
+    /**
+     * Son çalışmanın sonucu (BY-017-R1), mevcut veriden: yedek alınamadıysa
+     * `yedek_basarisiz`; planın (şu anki) hedeflerinden birine kopya
+     * başarısızsa `hedef_basarisiz`; değilse `basarili`. Bilinmiyorsa null.
+     *
+     * @return array{durum: 'basarili'|'yedek_basarisiz'|'hedef_basarisiz', hata_kodu: string|null, basarisiz_hedefler: list<array{hedef_id: int, ad: string, hata_kodu: string|null}>}|null
+     */
+    private function sonSonuc(YedekPlani $plan, ?Yedek $yedek): ?array
+    {
+        if ($yedek === null || ! in_array($yedek->durum, [YedekDurumu::Tamam, YedekDurumu::Silindi, YedekDurumu::Basarisiz], true)) {
+            return null;
+        }
+
+        if ($yedek->durum === YedekDurumu::Basarisiz) {
+            return ['durum' => 'yedek_basarisiz', 'hata_kodu' => $yedek->hata_kodu, 'basarisiz_hedefler' => []];
+        }
+
+        $hedefler = $plan->hedefler->keyBy('id');
+        $basarisiz = $yedek->kopyalar
+            ->filter(fn (YedekKopyasi $k): bool => $k->durum === KopyaDurumu::Basarisiz && $hedefler->has($k->yedek_hedefi_id))
+            ->sortBy('yedek_hedefi_id')
+            ->map(fn (YedekKopyasi $k): array => ['hedef_id' => $k->yedek_hedefi_id, 'ad' => $hedefler[$k->yedek_hedefi_id]->ad, 'hata_kodu' => $k->hata_kodu])
+            ->values()
+            ->all();
+
+        return ['durum' => $basarisiz === [] ? 'basarili' : 'hedef_basarisiz', 'hata_kodu' => null, 'basarisiz_hedefler' => $basarisiz];
+    }
+
+    /**
+     * @param  array<int, int>  $bagSayilari  hedef id => bu plana bağlı kopya sayısı
      * @return array<string, mixed>
      */
-    private function diziye(YedekPlani $plan): array
+    private function diziye(YedekPlani $plan, array $bagSayilari, ?Yedek $sonYedek): array
     {
-        $bagSayilari = DB::table('yedek_kopya_planlari')->where('yedek_plani_id', $plan->id)
-            ->groupBy('yedek_hedefi_id')->selectRaw('yedek_hedefi_id, count(*) as adet')->pluck('adet', 'yedek_hedefi_id');
-
         return [
             'id' => $plan->id,
             'ad' => $plan->ad,
@@ -290,6 +368,7 @@ final class YedekPlaniController extends Controller
             'saat' => $plan->saat,
             'siklik' => (object) $plan->siklik,
             'son_calisma' => $plan->son_calisma?->toIso8601String(),
+            'son_sonuc' => $this->sonSonuc($plan, $sonYedek),
             'sonraki_calisma' => $plan->aktif ? $plan->sonraki_calisma?->toIso8601String() : null,
             'ay_sonu_uyarisi' => $this->takvim->ayinSonunaKayabilir($plan),
             'hedefler' => $plan->hedefler->map(fn ($h): array => [

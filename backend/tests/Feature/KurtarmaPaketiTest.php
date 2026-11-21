@@ -9,6 +9,7 @@ use App\Models\YedekAyari;
 use App\Models\YedekHedefi;
 use App\Models\YedekIslemKaydi;
 use App\Services\Yedekleme\AyarKopyasi;
+use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use App\Services\Yedekleme\HedefTuru;
 use App\Services\Yedekleme\IslemSonucu;
@@ -18,6 +19,7 @@ use App\Services\Yedekleme\KurtarmaPaketi;
 use App\Services\Yedekleme\OlayGunlugu;
 use App\Services\Yedekleme\YedekKopyalayici;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
 use Symfony\Component\Process\Process;
@@ -27,8 +29,9 @@ use Tests\Yedekleme\GpgAnahtarlari;
 use Tests\Yedekleme\YedeklemeOrtami;
 
 /**
- * BY-024: olay günlüğü, ayar kopyası ve denetim günlüğünün sunucu dışı
- * hedefe şifreli gitmesi (README §4.6 son madde, §9 "Kurtarma paketi").
+ * BY-024: olay günlüğü, ayar kopyası, denetim günlüğü ve manifestlerin sunucu
+ * dışı hedefe şifreli, sürümlü bir paket olarak gitmesi (README §4.6 son madde,
+ * §9 "Kurtarma paketi"; BY-024-R1).
  */
 final class KurtarmaPaketiTest extends TestCase
 {
@@ -36,7 +39,7 @@ final class KurtarmaPaketiTest extends TestCase
     use LazilyRefreshDatabase;
     use YedeklemeOrtami;
 
-    private const DOSYALAR = [KurtarmaPaketi::OLAYLAR, KurtarmaPaketi::AYARLAR, KurtarmaPaketi::DENETIM, KurtarmaPaketi::MANIFESTLER];
+    private const BILESENLER = [KurtarmaPaketi::OLAYLAR, KurtarmaPaketi::AYARLAR, KurtarmaPaketi::DENETIM, KurtarmaPaketi::MANIFESTLER];
 
     private string $gunlukKlasoru;
 
@@ -101,6 +104,40 @@ final class KurtarmaPaketiTest extends TestCase
         return (string) file_get_contents($giris.'.acik');
     }
 
+    /**
+     * Hedefteki tamam işaretçileri, ada göre sıralı (sonuncusu = yetkili paket).
+     *
+     * @return list<array{surum: string, dosyalar: list<array{ad: string, sha256: string, boyut: int}>}>
+     */
+    private function isaretciler(YedekHedefi $hedef): array
+    {
+        // Üstüne yazmayan hedefte kimliğin sonunda "#<sıra>" var
+        $adlar = array_filter(array_keys(BellekHedefi::$dosyalar), fn (string $k): bool => preg_match('/-'.preg_quote(KurtarmaPaketi::ISARETCI, '/').'(#\d+)?$/D', $k) === 1);
+        sort($adlar, SORT_STRING);
+
+        return array_map(fn (string $k): array => json_decode(BellekHedefi::$dosyalar[$k], true, 8, JSON_THROW_ON_ERROR), $adlar);
+    }
+
+    /**
+     * Kurtarmadaki gibi: işaretçideki her dosya hedefte var, özeti tutuyor;
+     * çözülmüş içerikler bileşen adıyla.
+     *
+     * @param  array{surum: string, dosyalar: list<array{ad: string, sha256: string, boyut: int}>}  $isaretci
+     * @return array<string, string>
+     */
+    private function paketiAc(YedekHedefi $hedef, array $isaretci): array
+    {
+        $acik = [];
+        foreach ($isaretci['dosyalar'] as $dosya) {
+            $uzak = BellekHedefi::$dosyalar[$hedef->id.'/'.$dosya['ad']];
+            $this->assertSame($dosya['sha256'], hash('sha256', $uzak));
+            $this->assertSame($dosya['boyut'], strlen($uzak));
+            $acik[substr($dosya['ad'], strlen(KurtarmaPaketi::uzakAd($isaretci['surum'], '')))] = $this->coz($uzak);
+        }
+
+        return $acik;
+    }
+
     public function test_sunucu_disi_kopyadan_sonra_olay_ayar_denetim_ve_manifestler_ayni_anahtarla_sifreli_gider(): void
     {
         $yedek = $this->yedek();
@@ -109,20 +146,20 @@ final class KurtarmaPaketiTest extends TestCase
         $kopya = app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
 
         $this->assertSame(KopyaDurumu::Tamam, $kopya->durum);
-        $uzak = fn (string $ad): string => BellekHedefi::$dosyalar[$hedef->id.'/'.$ad];
+        [$isaretci] = $this->isaretciler($hedef);
+        $acik = $this->paketiAc($hedef, $isaretci);
+        $this->assertSame(self::BILESENLER, array_keys($acik));
 
-        $this->assertStringNotContainsString($yedek->kimlik, $uzak(KurtarmaPaketi::OLAYLAR));
-        $this->assertSame(file_get_contents(app(OlayGunlugu::class)->yol()), $this->coz($uzak(KurtarmaPaketi::OLAYLAR)));
-        $this->assertStringContainsString($yedek->kimlik, $this->coz($uzak(KurtarmaPaketi::OLAYLAR)));
-        $this->assertSame(file_get_contents(config('yedekleme.ayar_kopyasi')), $this->coz($uzak(KurtarmaPaketi::AYARLAR)));
-
-        $denetim = $this->coz($uzak(KurtarmaPaketi::DENETIM));
-        $this->assertStringStartsWith("[2025-01-01] eski gun 1\n[2025-01-02] eski gun 2\n", $denetim);
-        $this->assertStringContainsString('yedekleme.kopya', $denetim);
+        $this->assertStringNotContainsString($yedek->kimlik, BellekHedefi::$dosyalar[$hedef->id.'/'.KurtarmaPaketi::uzakAd($isaretci['surum'], KurtarmaPaketi::OLAYLAR)]);
+        $this->assertSame(file_get_contents(app(OlayGunlugu::class)->yol()), $acik[KurtarmaPaketi::OLAYLAR]);
+        $this->assertStringContainsString($yedek->kimlik, $acik[KurtarmaPaketi::OLAYLAR]);
+        $this->assertSame(file_get_contents(config('yedekleme.ayar_kopyasi')), $acik[KurtarmaPaketi::AYARLAR]);
+        $this->assertStringStartsWith("[2025-01-01] eski gun 1\n[2025-01-02] eski gun 2\n", $acik[KurtarmaPaketi::DENETIM]);
+        $this->assertStringContainsString('yedekleme.kopya', $acik[KurtarmaPaketi::DENETIM]);
 
         // Manifest arşivi yedek klasörüne göre göreli adlarla açılır
         $arsiv = $this->yedekKoku.'/manifestler.tar';
-        file_put_contents($arsiv, $this->coz($uzak(KurtarmaPaketi::MANIFESTLER)));
+        file_put_contents($arsiv, $acik[KurtarmaPaketi::MANIFESTLER]);
         $acilan = $this->yedekKoku.'/acilan';
         mkdir($acilan);
         (new Process(['/usr/bin/tar', '-xf', $arsiv, '-C', $acilan]))->mustRun();
@@ -131,7 +168,8 @@ final class KurtarmaPaketiTest extends TestCase
 
         $kayit = YedekIslemKaydi::query()->where('islem', 'kurtarma_paketi')->sole();
         $this->assertSame(IslemSonucu::Basarili, $kayit->sonuc);
-        $this->assertSame(self::DOSYALAR, $kayit->ayrinti['gonderilen']);
+        $this->assertSame(self::BILESENLER, $kayit->ayrinti['gonderilen']);
+        $this->assertSame($isaretci['surum'], $kayit->ayrinti['surum']);
     }
 
     public function test_kurtarma_dosyalari_hedefin_yedek_listesine_girmez(): void
@@ -144,7 +182,9 @@ final class KurtarmaPaketiTest extends TestCase
 
         $this->assertTrue(app(KurtarmaPaketi::class)->gonder($hedef));
 
-        $this->assertEqualsCanonicalizing([$yedek->dosya_adi, ...self::DOSYALAR], array_values(array_diff(scandir($klasor) ?: [], ['.', '..'])));
+        $paket = array_values(array_filter(scandir($klasor) ?: [], fn (string $ad): bool => str_starts_with($ad, KurtarmaPaketi::ON_EK)));
+        $this->assertCount(5, $paket);
+        $this->assertEqualsCanonicalizing([$yedek->dosya_adi, ...$paket], array_values(array_diff(scandir($klasor) ?: [], ['.', '..'])));
         $this->assertSame([$yedek->dosya_adi], app(HedefKatalogu::class)->olustur($hedef)->listele());
     }
 
@@ -171,8 +211,68 @@ final class KurtarmaPaketiTest extends TestCase
         $this->assertSame(IslemSonucu::Basarili, YedekIslemKaydi::query()->where('islem', 'kopya')->sole()->sonuc);
     }
 
-    /** Google Drive gibi adla üstüne yazmayan hedef: önceki dosya, imzalı kimlik kaydından bulunup silinir */
-    public function test_ustune_yazmayan_hedefte_onceki_kurtarma_dosyalari_silinir_kayit_bozuksa_silinmez(): void
+    /**
+     * BY-024-R1: ara bileşen yazılamazsa yeni sürüm yarım kalır ve silinir;
+     * önceki doğrulanmış paket ve işaretçisi aynen durur, ondan kurtarılır.
+     * Uzak yaşam sinyali yalnız paket tamamlanınca gider.
+     */
+    public function test_ara_bilesen_yazilamazsa_onceki_paket_yetkili_kalir_yasam_sinyali_gitmez(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['https://izleyici.example.invalid/uzak' => Http::response()]);
+        YedekAyari::guncel()->update(['sinyal_uzak_adresi' => 'https://izleyici.example.invalid/uzak']);
+        $hedef = $this->bellekHedefi();
+        $ilk = $this->yedek('PGDMP-ilk');
+        app(YedekKopyalayici::class)->kopyala($ilk, $hedef);
+        Http::assertSentCount(1);
+        $oncekiDosyalar = BellekHedefi::$dosyalar;
+        [$onceki] = $this->isaretciler($hedef);
+
+        BellekHedefi::$yazilamayanAdSonu = '-'.KurtarmaPaketi::DENETIM;
+        $ikinci = $this->yedek('PGDMP-ikinci');
+        $kopya = app(YedekKopyalayici::class)->kopyala($ikinci, $hedef);
+
+        $this->assertSame(KopyaDurumu::Tamam, $kopya->durum);
+        Http::assertSentCount(1);
+        // Yeni sürümden geriye dosya kalmadı; hedefte yalnız iki yedek ve önceki paket
+        $this->assertEqualsCanonicalizing([...array_keys($oncekiDosyalar), $kopya->uzak_kimlik], array_keys(BellekHedefi::$dosyalar));
+        $this->assertSame([$onceki], $this->isaretciler($hedef));
+        $acik = $this->paketiAc($hedef, $onceki);
+        $this->assertSame(self::BILESENLER, array_keys($acik));
+        $this->assertStringContainsString($ilk->kimlik, $acik[KurtarmaPaketi::OLAYLAR]);
+        $kayit = YedekIslemKaydi::query()->where('islem', 'kurtarma_paketi')->latest('id')->first();
+        $this->assertSame(IslemSonucu::Basarisiz, $kayit->sonuc);
+        $this->assertSame([KurtarmaPaketi::OLAYLAR, KurtarmaPaketi::AYARLAR], $kayit->ayrinti['gonderilen']);
+    }
+
+    /**
+     * Değiştirilemez saklamalı hedef (S3 nesne kilidi) eski sürümü silmeye izin
+     * vermez: gönderim yine başarılıdır, sürüm kaydı her gönderimde büyümez.
+     */
+    public function test_silme_yetkisi_olmayan_hedefte_paket_basarili_surum_kaydi_buyumez(): void
+    {
+        BellekHedefi::$hataAdimi = 'sil';
+        BellekHedefi::$hataKodu = HedefHatasi::SILME_YETKISI_YOK;
+        $hedef = $this->bellekHedefi();
+        $paket = app(KurtarmaPaketi::class);
+        @mkdir(config('yedekleme.klasor'), 0750, true);
+        file_put_contents(app(OlayGunlugu::class)->yol(), "{}\n");
+
+        for ($i = 0; $i < 4; $i++) {
+            $this->assertTrue($paket->gonder($hedef));
+            $this->travel(1)->seconds();
+        }
+
+        $kayit = json_decode((string) file_get_contents(config('yedekleme.durum_klasoru').'/kurtarma-paketleri.json'), true);
+        $this->assertCount(2, $kayit['hedefler'][$hedef->id]);
+        $this->assertSame(0, YedekIslemKaydi::query()->where('islem', 'kurtarma_paketi')->latest('id')->first()->ayrinti['silinemeyen_eski_surum']);
+    }
+
+    /**
+     * Google Drive gibi üstüne yazmayan hedefte de: son iki tamam sürüm kalır,
+     * eskiler imzalı sürüm kaydından bulunup silinir; kayıt bozuksa hiçbir şey silinmez.
+     */
+    public function test_son_iki_tamam_surum_kalir_eskiler_silinir_kayit_bozuksa_silinmez(): void
     {
         BellekHedefi::$herYazimdaYeniKimlik = true;
         $hedef = $this->bellekHedefi();
@@ -180,19 +280,28 @@ final class KurtarmaPaketiTest extends TestCase
         @mkdir(config('yedekleme.klasor'), 0750, true);
         file_put_contents(app(OlayGunlugu::class)->yol(), "{}\n");
 
-        $paket->gonder($hedef);
-        $paket->gonder($hedef);
+        $this->assertTrue($paket->gonder($hedef));
+        $ilk = array_keys(BellekHedefi::$dosyalar);
+        $this->travel(1)->seconds();
+        $this->assertTrue($paket->gonder($hedef));
+        $this->travel(1)->seconds();
+        $this->assertTrue($paket->gonder($hedef));
 
-        $this->assertCount(3, BellekHedefi::$dosyalar);
-        $this->assertSame(['#4', '#5', '#6'], array_map(fn (string $k): string => strrchr($k, '#'), array_keys(BellekHedefi::$dosyalar)));
+        // Her sürüm: 3 bileşen (manifest yok) + işaretçi
+        $this->assertCount(8, BellekHedefi::$dosyalar);
+        $this->assertSame([], array_intersect($ilk, array_keys(BellekHedefi::$dosyalar)));
+        $this->assertCount(2, $this->isaretciler($hedef));
 
         // İmzası tutmayan kayıt bir yedeği gösteriyor: hiçbir uzak dosya silinmez
         $yedekKimligi = $hedef->id.'/erp_elle_20260101_000000.dump.gpg';
         BellekHedefi::$dosyalar[$yedekKimligi] = 'sifreli-yedek';
-        file_put_contents(config('yedekleme.durum_klasoru').'/kurtarma-kimlikleri.json', json_encode(['kimlikler' => [$hedef->id => array_fill_keys(self::DOSYALAR, $yedekKimligi)], 'imza' => str_repeat('0', 64)]));
-        $paket->gonder($hedef);
+        file_put_contents(config('yedekleme.durum_klasoru').'/kurtarma-paketleri.json', json_encode(['hedefler' => [$hedef->id => [
+            ['surum' => '20000101T000000Z-000000', 'tamam' => false, 'kimlikler' => [$yedekKimligi], 'isaretci' => null],
+        ]], 'imza' => str_repeat('0', 64)]));
+        $this->travel(1)->seconds();
+        $this->assertTrue($paket->gonder($hedef));
 
         $this->assertArrayHasKey($yedekKimligi, BellekHedefi::$dosyalar);
-        $this->assertCount(7, BellekHedefi::$dosyalar);
+        $this->assertCount(13, BellekHedefi::$dosyalar);
     }
 }
