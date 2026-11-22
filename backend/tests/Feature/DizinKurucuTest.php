@@ -769,6 +769,159 @@ final class DizinKurucuTest extends TestCase
     }
 
     /**
+     * BY-028-R10 (G21, F7): eski hedefin tanımı geri yüklenen veritabanında
+     * yok; tamam kopyası konum iziyle aynı yere yeni kayıtla eklenen hedefe
+     * bağlanır. O hedefin kendi kopyası (aynı yerde FARKLI nesne) silinmiş.
+     * Silme olayı yaşayan nesnenin kaydını ezmez: olayların iki sırasında da,
+     * iki taramada da hedefin kaydı yaşayan nesnedir ve geri yükleme kaynağıdır.
+     */
+    #[DataProvider('olaySiralari')]
+    public function test_ayni_hedefe_eslenen_yasayan_kopya_hedefin_silinmis_baska_nesnesiyle_ezilmez(bool $eskiKopyaOnce): void
+    {
+        $yedek = $this->gercekYedek();
+        $eski = YedekHedefi::factory()->create(['ad' => 'Eski', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'k']]);
+        $yeni = YedekHedefi::factory()->create(['ad' => 'Yeni', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'k']]);
+        if ($eskiKopyaOnce) {
+            app(YedekKopyalayici::class)->kopyala($yedek, $eski);
+            $this->travel(1)->minutes();
+            $this->kopyalaVeSil($yedek, $yeni);
+        } else {
+            $this->kopyalaVeSil($yedek, $yeni);
+            $this->travel(1)->minutes();
+            app(YedekKopyalayici::class)->kopyala($yedek, $eski);
+        }
+        app(YerelDosyaSilici::class)->sil($yedek->refresh());
+        $this->dizinleriBosalt();
+        $eski->delete();
+
+        foreach (['ilk', 'ikinci'] as $tarama) {
+            $this->tara();
+
+            $kurulan = Yedek::query()->where('kimlik', $yedek->kimlik)->sole();
+            $kopya = YedekKopyasi::query()->where('yedek_id', $kurulan->id)->sole();
+            $this->assertSame([YedekDurumu::Tamam, $yeni->id, KopyaDurumu::Tamam, $eski->id.'/'.$yedek->dosya_adi], [$kurulan->durum, $kopya->yedek_hedefi_id, $kopya->durum, $kopya->uzak_kimlik], "{$tarama} tarama");
+            $this->assertSame([$yeni->id], array_map(fn (YedekKopyasi $k): int => (int) $k->yedek_hedefi_id, GeriYuklemeKaynaklari::sec(false, $kurulan->kopyalar)->uzaklar));
+        }
+    }
+
+    /** @return array<string, array{bool}> */
+    public static function olaySiralari(): array
+    {
+        return [
+            'eski hedefin kopyası önce' => [true],
+            'yeni hedefin silinen kopyası önce' => [false],
+        ];
+    }
+
+    /**
+     * BY-028-R10: aynı güncel hedefe iki yaşayan FARKLI nesne düşer (eski
+     * hedefin ve yeni kayıtla eklenen aynı yerin kopyası). Hedefe kendi
+     * olayının nesnesi bağlanır; diğeri kaybolmaz: hedefsiz, kullanılamaz
+     * kayıt olarak listede kalır. İki tarama aynı sonucu verir. Bağlı nesne
+     * silinince sonraki taramada diğeri hedefe bağlanır.
+     */
+    public function test_ayni_hedefe_eslenen_ikinci_yasayan_nesne_hedefsiz_korunur_bagli_nesne_silinince_hedefe_baglanir(): void
+    {
+        $yedek = $this->gercekYedek();
+        $eski = YedekHedefi::factory()->create(['ad' => 'Eski', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'k']]);
+        $yeni = YedekHedefi::factory()->create(['ad' => 'Yeni', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'k']]);
+        app(YedekKopyalayici::class)->kopyala($yedek, $eski);
+        $this->travel(1)->minutes();
+        app(YedekKopyalayici::class)->kopyala($yedek, $yeni);
+        app(YerelDosyaSilici::class)->sil($yedek->refresh());
+        $this->dizinleriBosalt();
+        $eski->delete();
+        $eskiNesne = $eski->id.'/'.$yedek->dosya_adi;
+        $yeniNesne = $yeni->id.'/'.$yedek->dosya_adi;
+
+        foreach (['ilk', 'ikinci'] as $tarama) {
+            $this->tara();
+
+            $satir = $this->yedekListesi();
+            $this->assertSame([$yedek->kimlik, 'tamam', true], [$satir['kimlik'], $satir['durum'], $satir['webden_geri_yuklenebilir']], "{$tarama} tarama");
+            $this->assertEqualsCanonicalizing([
+                ['hedef_id' => $yeni->id, 'hedef_ad' => 'Yeni', 'durum' => 'tamam', 'hata_kodu' => null],
+                ['hedef_id' => null, 'hedef_ad' => 'Eski', 'durum' => 'konum_belirsiz', 'hata_kodu' => HedefKonumu::HEDEFTE_BASKA_KOPYA],
+            ], array_map(fn (array $k): array => array_intersect_key($k, array_flip(['hedef_id', 'hedef_ad', 'durum', 'hata_kodu'])), $satir['kopyalar']));
+            $this->assertSame([$yeniNesne, $eskiNesne], YedekKopyasi::query()->orderByRaw('yedek_hedefi_id is null')->pluck('uzak_kimlik')->all());
+        }
+
+        unset(BellekHedefi::$dosyalar[$yeniNesne]);
+        app(KopyaSilmeKaydi::class)->kaydet(YedekKopyasi::query()->where('yedek_hedefi_id', $yeni->id)->sole());
+        $this->tara();
+
+        $kopya = YedekKopyasi::query()->sole();
+        $this->assertSame([$yeni->id, KopyaDurumu::Tamam, $eskiNesne], [$kopya->yedek_hedefi_id, $kopya->durum, $kopya->uzak_kimlik]);
+    }
+
+    /**
+     * BY-028-R10: konum iziyle yeni hedefe bağlanmış eski hedef kopyası elle /
+     * saklamayla silinince silme olayı o nesneye uygulanır: yeniden kurmada
+     * kopya "tamam" diye geri gelmez (silinmiş dosya geri yükleme kaynağı
+     * olmaz), yeni hedefin kendi olayındaki başka nesneye de karışmaz.
+     */
+    public function test_konum_iziyle_baglanan_kopya_silinince_yeniden_kurmada_silinmis_kalir(): void
+    {
+        $yedek = $this->gercekYedek();
+        $eski = YedekHedefi::factory()->create(['ad' => 'Eski', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'k']]);
+        $yeni = YedekHedefi::factory()->create(['ad' => 'Yeni', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'k']]);
+        app(YedekKopyalayici::class)->kopyala($yedek, $eski);
+        $this->travel(1)->minutes();
+        $this->kopyalaVeSil($yedek, $yeni);
+        app(YerelDosyaSilici::class)->sil($yedek->refresh());
+        $this->dizinleriBosalt();
+        $eski->delete();
+        $this->tara();
+        $eskiNesne = $eski->id.'/'.$yedek->dosya_adi;
+        $this->travel(1)->minutes();
+        unset(BellekHedefi::$dosyalar[$eskiNesne]);
+        app(KopyaSilmeKaydi::class)->kaydet(YedekKopyasi::query()->where('yedek_hedefi_id', $yeni->id)->sole());
+
+        foreach (['ilk', 'ikinci'] as $tarama) {
+            $this->tara();
+
+            $kurulan = Yedek::query()->where('kimlik', $yedek->kimlik)->sole();
+            $kopya = YedekKopyasi::query()->where('yedek_id', $kurulan->id)->sole();
+            $this->assertSame([YedekDurumu::Silindi, $yeni->id, KopyaDurumu::Silindi], [$kurulan->durum, $kopya->yedek_hedefi_id, $kopya->durum], "{$tarama} tarama");
+        }
+    }
+
+    /**
+     * BY-028-R10: aynı yerdeki AYNI nesneyi (aynı uzak kimlik) iki olay hedefi
+     * anar: tek kayıt olur, ikinci nesne diye hedefsiz kopya açılmaz. Nesnenin
+     * sonraki silinmesi (uzak kimliksiz eski silme olayı) onun durumudur:
+     * diğer olay hedefinin daha eski "tamam" kaydı onu geri getirmez.
+     */
+    public function test_ayni_nesneyi_anan_iki_olay_hedefi_tek_kayit_olur_nesne_silinince_silindi_kalir(): void
+    {
+        $yedek = $this->gercekYedek();
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Bulut', 'tur' => HedefTuru::S3, 'baglanti' => ['kova' => 'k']]);
+        $ortak = [
+            'durum' => 'tamam', 'uzak_kimlik' => 'ortak/'.$yedek->dosya_adi, 'sifreli' => false, 'sifreli_sha256' => null,
+            'konum_izi' => app(HedefKonumu::class)->iz($hedef), 'plan_idleri' => [],
+        ];
+        $olaylar = app(OlayGunlugu::class);
+        $olaylar->ekle(YedekOlayi::simdi($yedek->kimlik, OlayTuru::Kopya, ['hedef_id' => $hedef->id, 'hedef_ad' => 'Bulut', ...$ortak]));
+        $this->travel(1)->minutes();
+        $olaylar->ekle(YedekOlayi::simdi($yedek->kimlik, OlayTuru::Kopya, ['hedef_id' => $hedef->id + 100, 'hedef_ad' => 'Eski', ...$ortak]));
+        unlink(config('yedekleme.klasor').'/'.$yedek->dosya_adi);
+        $this->dizinleriBosalt();
+
+        $this->tara();
+
+        $kopya = YedekKopyasi::query()->sole();
+        $this->assertSame([$hedef->id, KopyaDurumu::Tamam], [$kopya->yedek_hedefi_id, $kopya->durum]);
+
+        $this->travel(1)->minutes();
+        $olaylar->ekle(YedekOlayi::simdi($yedek->kimlik, OlayTuru::KopyaSilindi, ['hedef_id' => $hedef->id, 'hedef_ad' => 'Bulut']));
+        $this->tara();
+
+        $kopya = YedekKopyasi::query()->sole();
+        $this->assertSame([$hedef->id, KopyaDurumu::Silindi], [$kopya->yedek_hedefi_id, $kopya->durum]);
+        $this->assertSame(YedekDurumu::Silindi, Yedek::query()->where('kimlik', $yedek->kimlik)->sole()->durum);
+    }
+
+    /**
      * Yedek klasöründen ayrı bir "ikinci disk" yerel hedefi
      *
      * @return array{0: YedekHedefi, 1: string}
@@ -809,6 +962,14 @@ final class DizinKurucuTest extends TestCase
         $this->assertCount(1, $veri);
 
         return $veri[0];
+    }
+
+    /** Hedefe kopyalar, sonra kopyayı hedefte siler ve silme kaydını yazar (elle silme / saklamanın sonucu) */
+    private function kopyalaVeSil(Yedek $yedek, YedekHedefi $hedef): void
+    {
+        $kopya = app(YedekKopyalayici::class)->kopyala($yedek, $hedef);
+        unset(BellekHedefi::$dosyalar[$kopya->uzak_kimlik]);
+        app(KopyaSilmeKaydi::class)->kaydet($kopya->refresh());
     }
 
     private function planYedegi(YedekHedefi $hedef, YedekPlani $plan): Yedek

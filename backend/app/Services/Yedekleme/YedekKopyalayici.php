@@ -30,8 +30,10 @@ use Throwable;
  *   taşıyan paket doğrulanınca KURTARMAYA HAZIR olur (`kurtarma_hazir`;
  *   BY-010-R2): saklama yerel arşivi buna göre siler. Uzak yaşam sinyali
  *   yalnız paket tamamlanınca VE kopya kurtarmaya hazırsa gider (BY-024-R7).
- * - Aynı fiziksel depoyu gösteren başka bir hedefte kopyası duran yedek bu
- *   hedefe yazılmaz: kopya `basarisiz`, kod `HEDEF_AYNI_DEPO` (BY-010-R7).
+ * - Aynı fiziksel depoyu gösteren başka bir hedefte (aynı klasör; uzakta aynı
+ *   sunucu + kullanıcı + klasör ya da S3 uç noktası + kova + önek) kopyası
+ *   duran yedek bu hedefe yazılmaz: kopya `basarisiz`, kod `HEDEF_AYNI_DEPO`
+ *   (HedefKonumu::ayniDepoMu; BY-010-R7, R8).
  * - Bir hedefin hatası istisna olarak dışarı taşmaz: kopya `basarisiz`
  *   olur, diğer hedefler ve yedeğin kendisi etkilenmez.
  * - Sonuç olay günlüğüne ve denetim kaydına yazılır.
@@ -218,7 +220,7 @@ final class YedekKopyalayici
             ->first(fn (YedekKopyasi $k): bool => $k->hedef !== null && $this->konum->ayniDepoMu($hedef, $k->hedef));
 
         if ($ortak !== null) {
-            throw new HedefHatasi(HedefHatasi::AYNI_DEPO, "Hedefin klasörü \"{$ortak->hedef->ad}\" hedefininkiyle aynı yer ve yedeğin kopyası orada; ikinci kopya sayılmaz, yazılmadı.");
+            throw new HedefHatasi(HedefHatasi::AYNI_DEPO, "Hedef \"{$ortak->hedef->ad}\" hedefiyle aynı depoya yazıyor ve yedeğin kopyası orada; ikinci kopya sayılmaz, yazılmadı.");
         }
     }
 

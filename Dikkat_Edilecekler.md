@@ -224,6 +224,13 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   örneğin işlediği (kabul edilip silinen) kaydı geri getirir. Testte ilk
   eşzamansız adımı kontrollü bir Promise ile geciktir, iki örnek aynı depoda.
   *(Codex BY-014-R6: iki sayfanın v1→v2 taşıması.)*
+  `await`'siz blok yalnız o sekmenin JavaScript ortamında atomiktir; sekmeler
+  ayrı süreçlerdir ve `localStorage`'da kilit yoktur (HTML standardı). Ortak
+  depoda okuyup-değiştirip-yazan HER yol (taşıma, yeni kayıt, kabul temizliği,
+  süresi geçenin silinmesi) tek bir adlı Web Lock altında olsun; kilit yoksa
+  depoyu ortak kullanma, aynı garantiyi varsayma. Testte ayrı süreci, son
+  okumanın hemen ardından çalışan ve kilidi gözeten bir sahteyle kur.
+  *(Codex BY-014-R7: R6'nın yeniden okuması pencereyi yalnız daralttı.)*
 - **G19 — Aynı fiziksel nesneyi tanıyan ölçüt tek yardımcıda ve gerçek konuma
   göre olsun.** Yol metniyle karşılaştıran bir kod ile `realpath` / aygıt +
   düğüm ile karşılaştıran kardeşi birlikte yaşarsa (sondaki `/`, `..`,
@@ -236,6 +243,14 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   reddet; eskiden kalan çakışmada ortak nesneyi silme, görünür hata yaz.
   Testte aynı yeri farklı ad ve yazımla iki kez tanımla.
   *(Codex BY-010-R7: aynı klasörü gösteren iki yerel hedef.)*
+  "Bütün eşdeğerlikleri kanıtlayamıyorum" korumayı tümden kapatma gerekçesi
+  değildir: kanıtlanabilen alt kümeyi (normalleştirilmiş aynı tanım: aynı S3
+  uç nokta + kova + önek, aynı sunucu + kullanıcı + klasör) uygula, kalanını
+  (alan adı takma adı, türler arası) bilinen sınır olarak yaz. D4 yönü: fazla
+  engelleme bir 409'dur, eksik engelleme veri kaybı. Test çifti (bellek
+  hedefi) gerçek bağlayıcının adresleme kuralını taşımıyorsa fiziksel sonucu
+  gerçek bağlayıcı + sahte HTTP deposuyla sına.
+  *(Codex BY-010-R8: uzak türler aynı depo denetiminin dışında bırakılmıştı.)*
 - **G20 — Kimlik, konum ve sır kararında PHP `==` / `!=` kullanma.** Sayı
   görünümlü iki metni sayı olarak karşılaştırır: `"001" == "1"`, `"1e1" ==
   "10"`. Alan tipine uygun normalleştir (port → tam sayı, boş port →
@@ -283,6 +298,15 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   yüklenen veritabanında sıra eski değerinden devam eder; eski kimlik başka
   kayda verilebilir — kimlik eşitliği aynı nesnenin kanıtı değildir.
   *(Codex BY-028-R9: hedefi geri yüklenen veritabanında olmayan kopya.)*
+  Yeniden eşleme (iz, ad, yeni kimlik) birden çok kaynak kaydı tek hedef
+  anahtarına bağlayabiliyorsa kaynakları önce fiziksel nesne kimliğine (konum
+  izi + uzak kimlik) göre topla; ölü kaynak yaşayanı ezemez, fazladan yaşayan
+  nesne kaybolmadan ayrı kayıtta kalır. Eşlenmiş kayda yazılan silme olayı da
+  nesnenin kimliğini taşısın; yoksa yanlış kaynağa düşer ve silinen nesne
+  sonraki yeniden kurmada geri gelir. Testte iki kaynak, iki olay sırası ve
+  eşlenmiş kaydın silinmesini sına.
+  *(Codex BY-028-R10: iki olay hedefi tek güncel hedefe düşünce yaşayan
+  Drive kopyası silinmiş başka nesneyle eziliyordu.)*
 
 ## 2. Ön yüz
 

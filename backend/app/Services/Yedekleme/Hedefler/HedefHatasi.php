@@ -42,8 +42,9 @@ final class HedefHatasi extends RuntimeException
     public const ANA_DOSYA = 'HEDEF_ANA_DOSYA';
 
     /**
-     * Hedefin klasörü başka bir hedefinkiyle aynı fiziksel yer: aynı dosya iki
-     * bağımsız kopya sayılmaz (HedefKonumu::ayniDepoMu; BY-010-R7). Hedef
+     * Hedef başka bir hedefle aynı fiziksel depoya yazıyor (aynı klasör; uzakta
+     * aynı sunucu + kullanıcı + klasör ya da S3 uç noktası + kova + önek): aynı
+     * dosya iki bağımsız kopya sayılmaz (HedefKonumu::ayniDepoMu; BY-010-R7, R8). Hedef
      * kaydında 409, kopyada ve saklamada kalıcı hata (yeniden denenmez).
      */
     public const AYNI_DEPO = 'HEDEF_AYNI_DEPO';

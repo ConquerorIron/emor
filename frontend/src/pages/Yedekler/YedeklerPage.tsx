@@ -230,7 +230,7 @@ export function YedeklerPage() {
     mutationFn: async (yeni: YedekIstegi) => {
       const bekleyen = await istekAnahtarlari.hazirla(yeni)
       const kabul = await istegiBirak(yeni, bekleyen.anahtar)
-      bekleyen.kabulEdildi()
+      await bekleyen.kabulEdildi()
 
       return kabul
     },

@@ -58,8 +58,10 @@ use Throwable;
  *    aynı eşiği uygular (BY-010-R5). Aynı eşik, yerel dosya planda ana klasör
  *    hedefi olarak yazıldığında o hedefin kuralına da uygulanır
  *    (kurtarmaDayanagiYok). PlanliYedek her yedekten sonra burayı çalıştırır.
- * 7. Hedefler kayıt kimliğiyle değil fiziksel depoyla bağımsızdır (BY-010-R7):
- *    aynı klasörü gösteren iki hedefte aynı yedeğin kopyaları AYNI dosyadır.
+ * 7. Hedefler kayıt kimliğiyle değil fiziksel depoyla bağımsızdır (BY-010-R7,
+ *    R8): aynı depoyu gösteren iki hedefte (aynı klasör; uzakta aynı sunucu +
+ *    kullanıcı + klasör ya da S3 uç noktası + kova + önek —
+ *    HedefKonumu::ayniDepoMu) aynı yedeğin kopyaları AYNI dosyadır.
  *    Eskiden kalmış böyle tanımlarda kuralın silmek istediği ortak dosya
  *    silinmez (koruma nedeni `ayni_depo`, uygulamada `HEDEF_AYNI_DEPO`
  *    denetim kaydı); yalnız tek hedefte kopyası olan dosya kuralla silinir.
@@ -416,9 +418,9 @@ final class SaklamaPolitikasi
         // Aynı fiziksel depoyu gösteren hedeflerin ortak dosyası silinmez; her turda görünür hata (BY-010-R7)
         foreach ($hesap['engellenen'] as ['karar' => $karar, 'hedefler' => $hedefler]) {
             $ad = Yedek::query()->whereKey($karar->yedekId)->value('dosya_adi');
-            $sonuc['bilgi'][] = "hedef {$karar->hedefId}: {$ad} silinmedi; hedefin klasörü başka bir hedefinkiyle (".implode(', ', $hedefler).') aynı yer, dosya ortak';
+            $sonuc['bilgi'][] = "hedef {$karar->hedefId}: {$ad} silinmedi; hedef başka bir hedefle (".implode(', ', $hedefler).') aynı depoya yazıyor, dosya ortak';
             $this->denetim->kaydet('saklama_sil', IslemSonucu::Basarisiz, $karar->yedekId, $kullaniciId, null, [...$karar->diziye(), 'kod' => HedefHatasi::AYNI_DEPO, 'ayni_depo_hedefleri' => $hedefler],
-                'Hedefin klasörü başka bir hedefinkiyle aynı fiziksel yer; dosya iki hedefin ortak kopyası olduğu için silinmedi. Hedef tanımlarını düzeltin.');
+                'Hedef başka bir hedefle aynı fiziksel depoya yazıyor; dosya iki hedefin ortak kopyası olduğu için silinmedi. Hedef tanımlarını düzeltin.');
         }
 
         foreach ($hesap['silinecek'] as $karar) {

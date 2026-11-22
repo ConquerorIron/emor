@@ -25,7 +25,9 @@ namespace App\Services\Yedekleme;
  * Hedefi tanımsız kopya (BY-028-R9) da bu durumdadır: olaydaki hedef
  * veritabanında yok, kayıt hedefsiz (`yedek_hedefi_id` boş) tutulur; hedefe
  * dayanan hiçbir karar (paket, hesap, konum kilidi) onu görmez, varlık
- * kararları (yedeğin `silindi` olmaması, saklamada kalan kopya) sayar.
+ * kararları (yedeğin `silindi` olmaması, saklamada kalan kopya) sayar. Aynı
+ * hedefe bu yedeğin başka bir yaşayan nesnesi bağlandığı için ayrı tutulan
+ * kopya da böyle hedefsiz bir kayıttır (BY-028-R10).
  */
 enum KopyaDurumu: string
 {

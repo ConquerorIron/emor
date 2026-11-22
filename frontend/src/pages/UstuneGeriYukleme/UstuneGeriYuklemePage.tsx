@@ -148,7 +148,7 @@ export function UstuneGeriYuklemePage() {
       const sonuc = await (secim === 'onayla'
         ? ustuneKararVer(islemKimligi, anahtar ?? '', bekleyen.anahtar, secim, ayarSecimleri)
         : ustuneKararVer(islemKimligi, anahtar ?? '', bekleyen.anahtar, secim))
-      bekleyen.kabulEdildi()
+      await bekleyen.kabulEdildi()
 
       return sonuc
     },

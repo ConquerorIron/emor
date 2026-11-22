@@ -14,7 +14,11 @@ use Carbon\CarbonImmutable;
  * (BY-025-R3, K10). Silme KARARI çağıranda kalır; burası yalnız sonucu yazar.
  *
  * - Önce imzalı `kopya_silindi` olayı (doğruluk kaynağı), sonra dizin: dizin
- *   yeniden kurulunca (BY-011) kopya geri gelmez.
+ *   yeniden kurulunca (BY-011) kopya geri gelmez. Olay silinen nesnenin uzak
+ *   kimliğini ve konum izini taşır: yeniden kurmada yalnız o nesneye
+ *   uygulanır — kayıt konum iziyle bu hedefe bağlanmış başka bir olay
+ *   hedefinin kopyasıysa ona, aynı hedefteki farklı nesneye değil
+ *   (GuncelDurum::silinenler; BY-028-R10).
  * - `hataKodu` doluysa kopya fiziksel olarak silinmemiş, bizden çıkmış
  *   sayılmıştır (ör. `HEDEF_SILME_YETKISI_YOK`: hedefin kendi saklama kuralı
  *   temizler — BY-023-R1). Kod olayda da durur; yeniden kurulan kopya onu taşır.
@@ -32,6 +36,8 @@ final class KopyaSilmeKaydi
         $this->olaylar->ekle(YedekOlayi::simdi($yedek->kimlik, OlayTuru::KopyaSilindi, array_filter([
             'hedef_id' => $kopya->yedek_hedefi_id,
             'hedef_ad' => $kopya->hedef?->ad,
+            'uzak_kimlik' => $kopya->uzak_kimlik,
+            'konum_izi' => $kopya->konum_izi,
             'hata_kodu' => $hataKodu,
         ], fn (mixed $deger): bool => $deger !== null)));
         $kopya->update(['durum' => KopyaDurumu::Silindi, 'hata_kodu' => $hataKodu, 'silinme_zamani' => CarbonImmutable::now()]);

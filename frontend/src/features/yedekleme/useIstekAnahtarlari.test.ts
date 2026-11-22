@@ -1,9 +1,14 @@
 import { cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { type SahteKilitYoneticisi, sahteKilitleriKur } from '@/test/sahteKilitler'
+
 import { ANAHTAR_OMRU_MS, useIstekAnahtarlari } from './useIstekAnahtarlari'
 
 const DEPO = 'erp.yedekleme.istekAnahtarlari.v2.kullanici.1'
+const V1 = 'erp.yedekleme.istekAnahtarlari.v1.kullanici.1'
+/** Depoyu okuyup yazan her sekmenin aldığı ortak kilidin adı (sözleşme) */
+const KILIT = 'erp.yedekleme.istekAnahtarlari'
 const OZET_1 = 'a'.repeat(64)
 const OZET_2 = 'b'.repeat(64)
 const ANAHTAR_1 = '11111111-1111-4111-8111-111111111111'
@@ -32,10 +37,47 @@ function ilkOzetiGeciktir(): () => void {
   return serbestBirak
 }
 
+type Kayit = { ozet: string; anahtar: string; zaman: number }
+
+const depoyuOku = (): Kayit[] => JSON.parse(localStorage.getItem(DEPO) ?? '[]') as Kayit[]
+
+function depoyaYaz(kayitlar: Kayit[]): void {
+  if (kayitlar.length === 0) {
+    localStorage.removeItem(DEPO)
+  } else {
+    localStorage.setItem(DEPO, JSON.stringify(kayitlar))
+  }
+}
+
+/** Açılıştaki taşıma ve okuma bitsin (kilit kuyruğu ve özet sözleri boşalsın) */
+const bekle = () => new Promise((coz) => setTimeout(coz, 20))
+
 describe('useIstekAnahtarlari', () => {
+  let kilitler: SahteKilitYoneticisi
+
   beforeEach(() => {
     localStorage.clear()
+    kilitler = sahteKilitleriKur()
   })
+
+  /**
+   * Bu örneğin depodan (v2) bir SONRAKİ okumasıyla yazımı arasına, ayrı
+   * süreçteki başka bir sekmenin aynı kilit altındaki işini koyar: kilit
+   * boşsa o iş okumanın hemen ardından çalışır, tutuluyorsa sıraya girer.
+   */
+  function sonrakiOkumadaBaskaSekme(is: () => void): void {
+    const gercek = Storage.prototype.getItem
+    let tetiklendi = false
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(function (this: Storage, ad: string) {
+      const deger = gercek.call(this, ad)
+      if (!tetiklendi && ad === DEPO) {
+        tetiklendi = true
+        kilitler.baskaSekmedenCalistir(KILIT, is)
+      }
+
+      return deger
+    })
+  }
 
   afterEach(() => {
     cleanup()
@@ -109,7 +151,7 @@ describe('useIstekAnahtarlari', () => {
     ])
   })
 
-  it('özeti gecikmeli ikinci taşıma, başka örnekte taşınıp kabul edilen v1 kaydını eski kopyasından geri yazmaz; bilinçli yeni iş yeni anahtar alır (BY-014-R6)', async () => {
+  it('özeti gecikmeli taşıma bitene dek başka örnek depoya bakmaz; taşınıp kabul edilen v1 kaydı eski kopyasından geri yazılmaz, bilinçli yeni iş yeni anahtar alır (BY-014-R6, R7)', async () => {
     const eylem = { tur: 'yedek_al', aciklama: 'gizli not' }
     localStorage.setItem(
       'erp.yedekleme.istekAnahtarlari.v1.kullanici.1',
@@ -123,15 +165,26 @@ describe('useIstekAnahtarlari', () => {
     )
     const serbestBirak = ilkOzetiGeciktir()
 
-    // Yavaş örnek v1'i okuyup özet beklerken hızlı örnek taşır, gönderir, 202 alır
+    // Yavaş örnek v1'i okuyup özet beklerken (kilit onda) hızlı örneğin
+    // taşıması ve anahtar araması sıraya girer
     const yavas = renderHook(() => useIstekAnahtarlari('kullanici.1'))
     const hizli = renderHook(() => useIstekAnahtarlari('kullanici.1'))
-    const ilk = await hizli.result.current.hazirla(eylem)
-    expect(ilk.anahtar).toBe(ANAHTAR_1)
-    ilk.kabulEdildi()
-    expect(localStorage.getItem(DEPO)).toBeNull()
+    let ilkGeldi = false
+    const ilkSozu = hizli.result.current.hazirla(eylem).then((bekleyen) => {
+      ilkGeldi = true
+
+      return bekleyen
+    })
+    await bekle()
+    expect(ilkGeldi).toBe(false)
 
     serbestBirak()
+    // Hızlı örnek taşınan anahtarla gönderir, 202 alır
+    const ilk = await ilkSozu
+    expect(ilk.anahtar).toBe(ANAHTAR_1)
+    await ilk.kabulEdildi()
+    expect(localStorage.getItem(DEPO)).toBeNull()
+
     const yeni = await yavas.result.current.hazirla(eylem)
 
     expect(yeni.anahtar).not.toBe(ANAHTAR_1)
@@ -153,7 +206,7 @@ describe('useIstekAnahtarlari', () => {
     const serbestBirak = ilkOzetiGeciktir()
 
     const { result } = renderHook(() => useIstekAnahtarlari('kullanici.1'))
-    // Eski sürümün açık kalmış sekmesi girdiyi bu arada yeniden yazar
+    // Eski sürümün (kilit almayan) açık kalmış sekmesi girdiyi bu arada yeniden yazar
     localStorage.setItem(
       v1,
       JSON.stringify([
@@ -168,6 +221,102 @@ describe('useIstekAnahtarlari', () => {
       { ozet: OZET_GIZLI_NOT, anahtar: ANAHTAR_1, zaman },
     ])
     expect(localStorage.getItem(v1)).toBeNull()
+  })
+
+  it('taşımanın son okumasıyla yazımı arasına başka sekmenin taşıma ve 202 temizliği giremez; kabul edilen eski anahtar geri yazılmaz (BY-014-R7)', async () => {
+    const zaman = Date.now() - 60 * 1000
+    const eylem = { tur: 'yedek_al', aciklama: 'gizli not' }
+    localStorage.setItem(
+      V1,
+      JSON.stringify([
+        { imza: '{"aciklama":"gizli not","tur":"yedek_al"}', anahtar: ANAHTAR_1, zaman },
+      ]),
+    )
+    const bGonderdi: Array<string | undefined> = []
+    // B sekmesi: v1 duruyorsa taşır; aynı eylemi bekleyen anahtarıyla gönderir, 202 → siler
+    sonrakiOkumadaBaskaSekme(() => {
+      const depo = depoyuOku()
+      if (localStorage.getItem(V1) !== null) {
+        depo.push({ ozet: OZET_GIZLI_NOT, anahtar: ANAHTAR_1, zaman })
+        localStorage.removeItem(V1)
+      }
+      bGonderdi.push(depo.find((kayit) => kayit.ozet === OZET_GIZLI_NOT)?.anahtar)
+      depoyaYaz(depo.filter((kayit) => kayit.ozet !== OZET_GIZLI_NOT))
+    })
+
+    // A sekmesi açılır, taşır; ardından aynı eylemi bilinçli yeniden başlatır
+    const { result } = renderHook(() => useIstekAnahtarlari('kullanici.1'))
+    const yeni = await result.current.hazirla(eylem)
+
+    expect(bGonderdi).toEqual([ANAHTAR_1])
+    expect(yeni.anahtar).not.toBe(ANAHTAR_1)
+    expect(depoyuOku()).toEqual([
+      expect.objectContaining({ ozet: OZET_GIZLI_NOT, anahtar: yeni.anahtar }),
+    ])
+    expect(localStorage.getItem(V1)).toBeNull()
+  })
+
+  it('yeni anahtarın okumasıyla yazımı arasına başka sekmenin 202 temizliği giremez; kabul edilen anahtar geri yazılmaz (BY-014-R7)', async () => {
+    depoyaYaz([{ ozet: OZET_ESKI_NOT, anahtar: ANAHTAR_2, zaman: Date.now() - 60 * 1000 }])
+    const { result } = renderHook(() => useIstekAnahtarlari('kullanici.1'))
+    await bekle()
+    // B sekmesi "eski not" işini ANAHTAR_2 ile gönderdi, 202 aldı: kaydı siler
+    sonrakiOkumadaBaskaSekme(() =>
+      depoyaYaz(depoyuOku().filter((kayit) => kayit.ozet !== OZET_ESKI_NOT)),
+    )
+
+    const gizli = await result.current.hazirla({ tur: 'yedek_al', aciklama: 'gizli not' })
+
+    expect(depoyuOku()).toEqual([
+      expect.objectContaining({ ozet: OZET_GIZLI_NOT, anahtar: gizli.anahtar }),
+    ])
+    const eski = await result.current.hazirla({ tur: 'yedek_al', aciklama: 'eski not' })
+    expect(eski.anahtar).not.toBe(ANAHTAR_2)
+  })
+
+  it('kabul temizliğinin okumasıyla yazımı arasına başka sekmenin yeni anahtarı giremez; o anahtar kaybolmaz (BY-014-R7)', async () => {
+    const { result } = renderHook(() => useIstekAnahtarlari('kullanici.1'))
+    const gizli = await result.current.hazirla({ tur: 'yedek_al', aciklama: 'gizli not' })
+    // B sekmesi "eski not" işi için ANAHTAR_2'yi üretip istekten önce yazar
+    const bKaydi = { ozet: OZET_ESKI_NOT, anahtar: ANAHTAR_2, zaman: Date.now() }
+    sonrakiOkumadaBaskaSekme(() => depoyaYaz([...depoyuOku(), bKaydi]))
+
+    await gizli.kabulEdildi()
+
+    expect(depoyuOku()).toEqual([bKaydi])
+    // B'nin yanıtı kaybolan isteğinin yeniden denemesi aynı anahtarı taşır
+    const eski = await result.current.hazirla({ tur: 'yedek_al', aciklama: 'eski not' })
+    expect(eski.anahtar).toBe(ANAHTAR_2)
+  })
+
+  it('Web Locks yoksa v1 kaydı taşınmadan silinir; anahtar depoya yazılmaz, yalnız bu örneğin belleğinde yaşar ve durum günlüğe yazılır (BY-014-R7)', async () => {
+    Reflect.deleteProperty(navigator, 'locks')
+    const uyari = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const eylem = { tur: 'yedek_al', aciklama: 'gizli not' }
+    localStorage.setItem(
+      V1,
+      JSON.stringify([
+        {
+          imza: '{"aciklama":"gizli not","tur":"yedek_al"}',
+          anahtar: ANAHTAR_1,
+          zaman: Date.now() - 60 * 1000,
+        },
+      ]),
+    )
+
+    const { result } = renderHook(() => useIstekAnahtarlari('kullanici.1'))
+    const ilk = await result.current.hazirla(eylem)
+
+    expect(ilk.anahtar).not.toBe(ANAHTAR_1)
+    expect(localStorage.length).toBe(0)
+    expect(uyari).toHaveBeenCalledWith(expect.stringContaining('BY-014-R7'))
+    // Yeniden deneme (aynı örnek) aynı anahtarı, kabulden sonraki iş yenisini alır
+    const tekrar = await result.current.hazirla(eylem)
+    expect(tekrar.anahtar).toBe(ilk.anahtar)
+    await tekrar.kabulEdildi()
+    const yeni = await result.current.hazirla(eylem)
+    expect(yeni.anahtar).not.toBe(ilk.anahtar)
+    expect(localStorage.length).toBe(0)
   })
 
   it('süresi geçmiş kayıt yeni bir yazım beklemeden açılışta depodan silinir; geçerli kayıt kalır (BY-014-R4)', async () => {

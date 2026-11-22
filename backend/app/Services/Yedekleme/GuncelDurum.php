@@ -14,7 +14,7 @@ use Carbon\CarbonImmutable;
 final readonly class GuncelDurum
 {
     /**
-     * @param  array<string, array{hedef_id: int|null, hedef_ad: string|null, durum: string, uzak_kimlik: string|null, sifreli: bool, sifreli_sha256: string|null, konum_izi: string|null, plan_idleri: list<int>, silindi: bool, hata_kodu: string|null}>  $kopyalar  hedef anahtarı ("id:<n>" ya da "ad:<ad>") => kopya
+     * @param  array<string, array{hedef_id: int|null, hedef_ad: string|null, durum: string, uzak_kimlik: string|null, sifreli: bool, sifreli_sha256: string|null, konum_izi: string|null, plan_idleri: list<int>, silindi: bool, hata_kodu: string|null, zaman: CarbonImmutable}>  $kopyalar  olaydaki hedef anahtarı ("id:<n>" ya da "ad:<ad>") => o anahtarın son kopyası; `zaman` onu belirleyen son olayın (kopya ya da silme) zamanı
      */
     public function __construct(
         public bool $sabit,
@@ -65,24 +65,24 @@ final readonly class GuncelDurum
                             'hedef_id' => is_int($a['hedef_id'] ?? null) ? $a['hedef_id'] : null,
                             'hedef_ad' => is_string($a['hedef_ad'] ?? null) ? $a['hedef_ad'] : null,
                             'durum' => $a['durum'],
-                            'uzak_kimlik' => is_string($a['uzak_kimlik'] ?? null) ? $a['uzak_kimlik'] : null,
+                            'uzak_kimlik' => self::uzakKimlik($a),
                             'sifreli' => ($a['sifreli'] ?? false) === true,
                             'sifreli_sha256' => is_string($a['sifreli_sha256'] ?? null) ? $a['sifreli_sha256'] : null,
-                            // Biçimsiz iz izsiz sayılır: konum doğrulanamaz (BY-028-R5)
-                            'konum_izi' => is_string($a['konum_izi'] ?? null) && preg_match('/^[0-9a-f]{64}$/D', $a['konum_izi']) === 1 ? $a['konum_izi'] : null,
+                            'konum_izi' => self::konumIzi($a),
                             'plan_idleri' => array_values(array_filter((array) ($a['plan_idleri'] ?? []), 'is_int')),
                             'silindi' => false,
                             'hata_kodu' => null,
+                            'zaman' => $olay->zaman,
                         ];
                     }
                     break;
                 case OlayTuru::KopyaSilindi:
-                    $anahtar = self::hedefAnahtari($a);
-                    if ($anahtar !== null && isset($kopyalar[$anahtar])) {
+                    foreach (self::silinenler($kopyalar, $a) as $anahtar) {
                         $kopyalar[$anahtar]['silindi'] = true;
                         $kopyalar[$anahtar]['durum'] = KopyaDurumu::Silindi->value;
                         // Doluysa kopya fiziksel silinmedi, bizden çıkmış sayıldı (BY-023-R1)
                         $kopyalar[$anahtar]['hata_kodu'] = is_string($a['hata_kodu'] ?? null) ? $a['hata_kodu'] : null;
+                        $kopyalar[$anahtar]['zaman'] = $olay->zaman;
                     }
                     break;
                 case OlayTuru::YerelSilindi:
@@ -110,5 +110,55 @@ final readonly class GuncelDurum
         }
 
         return is_string($ayrinti['hedef_ad'] ?? null) ? 'ad:'.$ayrinti['hedef_ad'] : null;
+    }
+
+    /**
+     * Silme olayının ait olduğu kopyaların hedef anahtarları (BY-028-R10).
+     * Olay silinen kaydın uzak kimliğini taşıyorsa (KopyaSilmeKaydi) yalnız o
+     * fiziksel nesneye uygulanır: kendi anahtarındaki kopyaya uzak kimliği
+     * aynıysa, başka anahtardaki silinmemiş kopyaya uzak kimliği VE konum izi
+     * aynıysa (aynı yerdeki aynı nesne: dizin kurulurken konum iziyle bu
+     * hedefe bağlanmış başka bir olay hedefinin kopyası). Aynı hedefteki
+     * farklı nesne (ör. Google Drive'da aynı klasördeki başka dosya) silinmiş
+     * sayılmaz. Uzak kimliksiz (eski) olay yalnız kendi anahtarına uygulanır.
+     *
+     * @param  array<string, array{uzak_kimlik: string|null, konum_izi: string|null, silindi: bool}>  $kopyalar
+     * @param  array<string, mixed>  $ayrinti
+     * @return list<string>
+     */
+    private static function silinenler(array $kopyalar, array $ayrinti): array
+    {
+        $anahtar = self::hedefAnahtari($ayrinti);
+        $uzak = self::uzakKimlik($ayrinti);
+        if ($uzak === null) {
+            return $anahtar !== null && isset($kopyalar[$anahtar]) ? [$anahtar] : [];
+        }
+
+        $iz = self::konumIzi($ayrinti);
+        $silinenler = [];
+        foreach ($kopyalar as $a => $k) {
+            $a = (string) $a;
+            if ($k['uzak_kimlik'] === $uzak && ($a === $anahtar || ($iz !== null && ! $k['silindi'] && $k['konum_izi'] === $iz))) {
+                $silinenler[] = $a;
+            }
+        }
+
+        return $silinenler;
+    }
+
+    /** @param  array<string, mixed>  $ayrinti */
+    private static function uzakKimlik(array $ayrinti): ?string
+    {
+        return is_string($ayrinti['uzak_kimlik'] ?? null) ? $ayrinti['uzak_kimlik'] : null;
+    }
+
+    /**
+     * Biçimsiz iz izsiz sayılır: konum doğrulanamaz (BY-028-R5)
+     *
+     * @param  array<string, mixed>  $ayrinti
+     */
+    private static function konumIzi(array $ayrinti): ?string
+    {
+        return is_string($ayrinti['konum_izi'] ?? null) && preg_match('/^[0-9a-f]{64}$/D', $ayrinti['konum_izi']) === 1 ? $ayrinti['konum_izi'] : null;
     }
 }

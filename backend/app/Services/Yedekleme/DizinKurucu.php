@@ -45,6 +45,11 @@ use Throwable;
  *   olmaz; konumu aynı hedef eklenince sonraki taramada ona bağlanır
  *   (BY-028-R9). Hedef kimliği / konumu günlükten tahmin edilip dosya işlemi
  *   yapılmaz: tarama yalnız katalog yazar.
+ * - Birden çok olay hedefi aynı güncel hedefe düşerse (konum iziyle yeniden
+ *   eşleme) biri ötekinin kaydını ezmez: silinmiş nesne yaşayanı ezemez, aynı
+ *   hedefteki ikinci yaşayan nesne hedefsiz kayıt olarak korunur
+ *   (`KOPYA_HEDEFTE_BASKA_KOPYA`; hedefinKopyasi). Silme olayı yalnız ait
+ *   olduğu nesneye uygulanır (GuncelDurum::silinenler; BY-028-R10).
  * - Tek bir bozuk dosya taramayı durdurmaz.
  * - Yedek klasörü yoksa ya da okunamıyorsa (bağlanmamış disk, izin) tarama
  *   dizine DOKUNMADAN hata verir: "erişemiyorum" boş klasör sayılıp kayıtlar
@@ -207,8 +212,10 @@ final class DizinKurucu
             $uzakKopyaVar = false;
             $hedefsizler = [];
             $baskaHedefeBaglanan = [];
-            $yazilan = [];
+            /** @var array<int, array{hedef: YedekHedefi, adaylar: list<array{anahtar: string, k: array<string, mixed>, durum: KopyaDurumu, kendi: bool}>}> $gruplar */
+            $gruplar = [];
             foreach ($durum->kopyalar as $anahtar => $k) {
+                $anahtar = (string) $anahtar;
                 $kopyaDurumu = KopyaDurumu::from($k['durum']);
                 $bilinen = ($k['hedef_id'] !== null ? YedekHedefi::query()->find($k['hedef_id']) : null)
                     ?? ($k['hedef_ad'] !== null ? YedekHedefi::query()->where('ad', $k['hedef_ad'])->first() : null);
@@ -218,8 +225,8 @@ final class DizinKurucu
                     $sayac['bulunamayan_hedef']++;
                     // Dosyası duran kopya hedefi tanımsız da olsa katalogda kalır (BY-028-R9)
                     if ($kopyaDurumu === KopyaDurumu::Tamam) {
-                        $this->hedefsizKopyaYaz($yedek, (string) $anahtar, $k);
-                        $hedefsizler[] = (string) $anahtar;
+                        $this->hedefsizKopyaYaz($yedek, $anahtar, $k, HedefKonumu::HEDEFI_TANIMSIZ);
+                        $hedefsizler[] = $anahtar;
                         $uzakKopyaVar = true;
                     }
 
@@ -229,21 +236,37 @@ final class DizinKurucu
                 if ($bilinen !== null && $bilinen->id !== $hedef->id) {
                     $baskaHedefeBaglanan[$bilinen->id] = true;
                 }
-                $yazilan[$hedef->id] = true;
 
-                $kopya = YedekKopyasi::query()->firstOrNew(['yedek_id' => $yedek->id, 'yedek_hedefi_id' => $hedef->id]);
                 // Tamam kopya hedefe ancak olaydaki konum izi hedefin BUGÜNKÜ iziyle aynıysa bağlanır:
                 // geri yüklenen veritabanında hedef eski yerinde olabilir (BY-028-R5). İzsiz eski olay da doğrulanamaz.
                 if ($kopyaDurumu === KopyaDurumu::Tamam && ! $this->konum->konumdaMi($hedef, $k['konum_izi'])) {
                     $kopyaDurumu = KopyaDurumu::KonumBelirsiz;
                 }
+                $gruplar[$hedef->id]['hedef'] = $hedef;
+                $gruplar[$hedef->id]['adaylar'][] = ['anahtar' => $anahtar, 'k' => $k, 'durum' => $kopyaDurumu, 'kendi' => $bilinen?->id === $hedef->id];
+            }
+
+            // Birden çok olay hedefi aynı güncel hedefe düşebilir (konum iziyle yeniden eşleme):
+            // her biri kendi fiziksel nesnesidir, biri ötekinin kaydını ezmez (BY-028-R10)
+            foreach ($gruplar as ['hedef' => $hedef, 'adaylar' => $adaylar]) {
+                [$secilen, $ayrilanlar] = $this->hedefinKopyasi($adaylar);
+                foreach ($ayrilanlar as $ayrilan) {
+                    $this->hedefsizKopyaYaz($yedek, $ayrilan['anahtar'], $ayrilan['k'], HedefKonumu::HEDEFTE_BASKA_KOPYA);
+                    $hedefsizler[] = $ayrilan['anahtar'];
+                    $uzakKopyaVar = true;
+                }
+
+                $k = $secilen['k'];
+                $kopyaDurumu = $secilen['durum'];
+                $kopya = YedekKopyasi::query()->firstOrNew(['yedek_id' => $yedek->id, 'yedek_hedefi_id' => $hedef->id]);
                 $kopya->fill([
                     'durum' => $kopyaDurumu,
                     'hata_kodu' => match ($kopyaDurumu) {
                         // Silme yetkisi reddiyle bizden çıkmış kopya kodunu korur (BY-023-R1)
                         KopyaDurumu::Silindi => $k['hata_kodu'],
                         KopyaDurumu::KonumBelirsiz => HedefKonumu::DOGRULANAMADI,
-                        default => $kopya->hata_kodu === HedefKonumu::DOGRULANAMADI ? null : $kopya->hata_kodu,
+                        // Kayda başka bir nesne geldiyse eskisinin kodu ona ait değildir
+                        default => $kopya->hata_kodu === HedefKonumu::DOGRULANAMADI || $kopya->uzak_kimlik !== $k['uzak_kimlik'] ? null : $kopya->hata_kodu,
                     },
                     'uzak_kimlik' => $k['uzak_kimlik'],
                     'sifreli' => $k['sifreli'],
@@ -260,11 +283,12 @@ final class DizinKurucu
                 $uzakKopyaVar = $uzakKopyaVar || $this->yedegiTutarMi($kopyaDurumu, $hedef);
             }
 
-            // Hedefsiz kayıtlar olaylardan türer: olayı artık bir hedefe bağlanan ya da dosyası kalmayan kalkar.
+            // Hedefsiz kayıtlar olaylardan türer: olayı artık bir hedefe bağlanan ya da dosyası kalmayan kalkar
+            // (aynı hedefe başka kopya bağlandığı için ayrı tutulan nesne de bu taramada yazıldı, kalır).
             // Olay iziyle başka bir hedefe bağlanan kopyanın kimlik / adla bulunan hedefteki eski "konumu
             // belirsiz" izdüşümü de kalkar (o hedefe bu taramada bağlanan başka olay yoksa; sıra bağımsız)
             YedekKopyasi::query()->where('yedek_id', $yedek->id)->whereNull('yedek_hedefi_id')->whereNotIn('olay_hedef_anahtari', $hedefsizler)->delete();
-            $eskiIzdusumler = array_keys(array_diff_key($baskaHedefeBaglanan, $yazilan));
+            $eskiIzdusumler = array_keys(array_diff_key($baskaHedefeBaglanan, $gruplar));
             if ($eskiIzdusumler !== []) {
                 YedekKopyasi::query()->where('yedek_id', $yedek->id)->whereIn('yedek_hedefi_id', $eskiIzdusumler)
                     ->where('durum', KopyaDurumu::KonumBelirsiz->value)->delete();
@@ -346,21 +370,76 @@ final class DizinKurucu
     }
 
     /**
-     * Hedefi veritabanında olmayan tamam kopya olayı (BY-028-R9): kopya
-     * hedefsiz, `konum_belirsiz` kayıt olarak katalogda kalır — fiziksel
-     * kopyanın kimliği ve konum izi kaybolmaz, yedek `silindi` olmaz, ekranda
-     * uyarıyla görünür. Hiçbir işlemin kaynağı değildir (hepsi `tamam`'a ve bir
-     * hedefe dayanır); konumu aynı hedef eklenince sonraki taramada izle
-     * bağlanır (izdekiHedef) ve bu kayıt kalkar.
+     * Aynı güncel hedefe düşen olay hedeflerinden hangisi hedefin kaydına
+     * yazılır, hangileri ayrı tutulur (BY-028-R10; G21, F7). Konum iziyle
+     * yeniden eşleme farklı olay hedeflerini (ör. tanımı olmayan eski hedef ve
+     * aynı yere yeni kayıtla eklenen hedef) tek hedefe bağlayabilir; her biri
+     * ayrı bir fiziksel nesne olabilir (Google Drive'da aynı klasörde iki dosya).
      *
-     * @param  array{hedef_id: int|null, hedef_ad: string|null, durum: string, uzak_kimlik: string|null, sifreli: bool, sifreli_sha256: string|null, konum_izi: string|null, plan_idleri: list<int>, silindi: bool, hata_kodu: string|null}  $k
+     * 1. Aynı fiziksel nesne (aynı konum izi + aynı uzak kimlik) tek adaydır;
+     *    durumu en son olayınkidir (aynı dosyanın üstüne yazılan kopya da,
+     *    sonradan silinmesi de onundur). İzi ya da uzak kimliği olmayan kopya
+     *    kendi olay hedefinin nesnesidir.
+     * 2. Silinmiş nesne yaşayanın (KopyaDurumu::yedegiTutanlar) kaydını ezemez.
+     *    Yaşayanlardan biri hedefe bağlanır: yeri doğrulanmış (`tamam`) olan,
+     *    sonra olayı bu hedefi kendi kimliği / adıyla anan, sonra en son olay,
+     *    sonra hedef anahtarı (sıra bağımsız, deterministik). Diğer yaşayanlar
+     *    kaybolmaz: hedefsiz `konum_belirsiz` kayıt olarak ayrılır
+     *    (`KOPYA_HEDEFTE_BASKA_KOPYA`) — yedeği tutar, hiçbir işlemin kaynağı
+     *    olmaz, listede görünür.
+     * 3. Yaşayan yoksa en son olaylı silinmiş nesne hedefin kaydı olur.
+     *
+     * @param  non-empty-list<array{anahtar: string, k: array<string, mixed>, durum: KopyaDurumu, kendi: bool}>  $adaylar
+     * @return array{0: array{anahtar: string, k: array<string, mixed>, durum: KopyaDurumu, kendi: bool}, 1: list<array{anahtar: string, k: array<string, mixed>, durum: KopyaDurumu, kendi: bool}>}
      */
-    private function hedefsizKopyaYaz(Yedek $yedek, string $anahtar, array $k): void
+    private function hedefinKopyasi(array $adaylar): array
+    {
+        $sonOlay = fn (array $a, array $b): int => [$b['k']['zaman'], $b['anahtar']] <=> [$a['k']['zaman'], $a['anahtar']];
+
+        $nesneler = [];
+        foreach ($adaylar as $aday) {
+            $nesne = $aday['k']['konum_izi'] !== null && $aday['k']['uzak_kimlik'] !== null
+                ? 'nesne:'.$aday['k']['konum_izi'].'|'.$aday['k']['uzak_kimlik']
+                : 'olay:'.$aday['anahtar'];
+            if (! isset($nesneler[$nesne]) || $sonOlay($aday, $nesneler[$nesne]) < 0) {
+                $nesneler[$nesne] = $aday;
+            }
+        }
+
+        $yasayanlar = array_values(array_filter($nesneler, fn (array $a): bool => in_array($a['durum']->value, KopyaDurumu::yedegiTutanlar(), true)));
+        if ($yasayanlar === []) {
+            $olular = array_values($nesneler);
+            usort($olular, $sonOlay);
+
+            return [$olular[0], []];
+        }
+
+        usort($yasayanlar, fn (array $a, array $b): int => [$b['durum'] === KopyaDurumu::Tamam, $b['kendi']] <=> [$a['durum'] === KopyaDurumu::Tamam, $a['kendi']] ?: $sonOlay($a, $b));
+
+        return [$yasayanlar[0], array_slice($yasayanlar, 1)];
+    }
+
+    /**
+     * Hedefe bağlanamayan yaşayan kopya (BY-028-R9, R10): hedefsiz,
+     * `konum_belirsiz` kayıt olarak katalogda kalır — fiziksel kopyanın
+     * kimliği ve konum izi kaybolmaz, yedek `silindi` olmaz, ekranda uyarıyla
+     * görünür. Hiçbir işlemin kaynağı değildir (hepsi `tamam`'a ve bir hedefe
+     * dayanır). Nedeni hata kodudur:
+     * - `KOPYA_HEDEFI_TANIMSIZ`: olaydaki hedef veritabanında yok; konumu aynı
+     *   hedef eklenince sonraki taramada izle bağlanır (izdekiHedef) ve bu
+     *   kayıt kalkar.
+     * - `KOPYA_HEDEFTE_BASKA_KOPYA`: bağlanacağı hedefe bu yedeğin başka bir
+     *   yaşayan nesnesi bağlandı (hedefinKopyasi); o kayıt silinince sonraki
+     *   taramada bu nesne hedefe bağlanır.
+     *
+     * @param  array<string, mixed>  $k  GuncelDurum::kopyalar öğesi
+     */
+    private function hedefsizKopyaYaz(Yedek $yedek, string $anahtar, array $k, string $hataKodu): void
     {
         $kopya = YedekKopyasi::query()->whereNull('yedek_hedefi_id')->firstOrNew(['yedek_id' => $yedek->id, 'olay_hedef_anahtari' => $anahtar]);
         $kopya->fill([
             'durum' => KopyaDurumu::KonumBelirsiz,
-            'hata_kodu' => HedefKonumu::HEDEFI_TANIMSIZ,
+            'hata_kodu' => $hataKodu,
             'olay_hedef_ad' => $k['hedef_ad'],
             'uzak_kimlik' => $k['uzak_kimlik'],
             'sifreli' => $k['sifreli'],

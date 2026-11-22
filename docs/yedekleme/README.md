@@ -220,8 +220,9 @@ sunucu yöneticisi yetkisi ister ve bu dokümanın kapsamı dışındadır.
     konumuna (aygıt + düğüm) göre tanınır; başka bir hedefte yerel dosyanın
     kendisi bağımsız kopya sayılmaz (`HEDEF_ANA_DOSYA`; BY-008-R1).
   - **Hedefler fiziksel depoyla bağımsızdır, kayıt kimliğiyle değil
-    (BY-010-R7).** Aynı klasörü gösteren iki dosya sistemi hedefinde (§4.6)
-    aynı yedeğin kopyaları AYNI dosyadır. Eskiden kalmış (ya da üstüne geri
+    (BY-010-R7, R8).** Aynı depoyu gösteren iki hedefte (aynı klasör; uzakta
+    aynı sunucu + kullanıcı + klasör ya da aynı S3 uç noktası + kova + önek;
+    §4.6) aynı yedeğin kopyaları AYNI dosyadır. Eskiden kalmış (ya da üstüne geri
     yüklemeyle geri gelmiş) böyle tanımlarda saklama, kuralın silmek
     istediği ortak dosyayı silmez: önizlemede koruma nedeni `ayni_depo`,
     uygulamada her turda denetim kaydı `saklama_sil` / `basarisiz`, kod
@@ -339,7 +340,7 @@ yönetici komutuyla içeri alınır (YDK-09). Tarayıcıdan yedek yükleme yok
   (bağımlılık eklemek ayrıca onaylanır).
 - Hedef tanımı Ayarlar'daki diğer bağlantı tanımlarının kalıbını izler; şifre
   şifreli saklanır, "Bağlantıyı Sına" düğmesi olur.
-- **Bir fiziksel depo, tek hedef (BY-010-R7).** Dosya sistemi hedeflerinde
+- **Bir fiziksel depo, tek hedef (BY-010-R7, R8).** Dosya sistemi hedeflerinde
   (Yerel disk, NAS) aynı klasörü gösteren ikinci hedef kaydedilmez: 409
   `HEDEF_AYNI_DEPO`. Karşılaştırma yazıma değil gerçek konuma göredir
   (`/x`, `/x/.`, `/x/../x`, sembolik bağlantı, bind mount; klasör henüz yoksa
@@ -347,16 +348,35 @@ yönetici komutuyla içeri alınır (YDK-09). Tarayıcıdan yedek yükleme yok
   (G19); klasörü boş ikinci Yerel hedef ikinci ana klasör hedefidir, o da
   reddedilir. Yerel ↔ NAS aynı klasör de çakışmadır; alt klasör ayrı
   depodur. Aynı yeri birden çok plan kullanacaksa tek hedef birden çok plana
-  eklenir (F6). Ekleme ve konumu değişen güncelleme tek kilit altında
+  eklenir (F6). Ekleme ve başka depoya taşıyan güncelleme tek kilit altında
   denetlenir (eşzamanlı iki kayıt aynı klasörü ikinci kez tanımlayamaz);
-  konumu değişmeyen güncelleme (ad, aktiflik, parola) eski çakışan hedefte
-  de serbesttir. Eskiden kalmış çakışan hedefte kopyalayıcı, yedeğin
+  konumu değişmeyen güncelleme (ad, aktiflik, parola) ve aynı depoda kalan
+  konum değişikliği (eşdeğer yazım, S3 bölgesi / yol stili) eski çakışan
+  hedefte de serbesttir. Eskiden kalmış çakışan hedefte kopyalayıcı, yedeğin
   kopyası diğer hedefte duruyorsa ikinci kopyayı yazmaz (`basarisiz`, kod
   `HEDEF_AYNI_DEPO`, yeniden denenmez); saklama ortak dosyayı silmez (§4.3).
-  Uzak türler (FTP/FTPS, SFTP, S3, Google Drive) bu denetimin dışındadır:
-  aynı yer beyan edilen alanlardan kanıtlanamaz (alan adı / IP takma adı,
-  FTP ↔ FTPS, kullanıcının chroot'u, uç nokta takma adı); Google Drive'da
-  her kopya kendi kimliğiyle ayrı dosyadır.
+  Uzak hedeflerde (BY-010-R8) aynı kural, bağlayıcının dosya adresini
+  kurduğu alanlardan çıkan depo kimliğiyle uygulanır; aynı nesneye götüren
+  farklar kimliğe girmez, şüphede "aynı" sayılır (fazla engelleme bir 409,
+  eksik engelleme veri kaybıdır):
+  - S3: uç nokta (alan adı harf duyarsız, `:443` ve sondaki "/" yok
+    sayılır) + kova + önek (baştaki / sondaki "/" yok sayılır). Bölge,
+    erişim anahtarı ve yol stili (`uc/kova/…` ↔ `kova.uc/…`) aynı nesneye
+    gider, kimliğe girmez. Başka kova, önek (alt önek dahil), port ya da
+    uç nokta ayrı depodur.
+  - FTP / FTPS / SFTP tek ailedir: sunucu + kullanıcı adı + klasör; tür ve
+    port kimliğe girmez (aynı hesap aynı klasöre üç protokolle de yazabilir).
+    Kullanıcı adı ve klasör harf duyarsızdır (Windows / IIS FTP sunucuları);
+    klasörün baştaki ve sondaki "/"'ı yok sayılır (chroot'lu hesapta `/x` =
+    `x`, `/` = giriş klasörü). Başka sunucu, kullanıcı ya da alt klasör ayrı
+    depodur.
+  - Google Drive denetlenmez: her yükleme yeni dosya kimliği açar, okuma ve
+    silme o kimlikle yapılır; iki hedefin kopyası iki ayrı dosyadır.
+  - Bilinen sınır (kanıtlanamaz, ağ çağrısı yapılmaz): alan adı / IP takma
+    adı, S3 uç nokta takma adı (`s3.amazonaws.com` ↔ bölgesel uç nokta),
+    türler arası aynı yer (NAS bağlama noktası ↔ aynı sunucunun SFTP'si),
+    chroot'u farklı iki hesabın aynı klasörü. Bunlarda aynı depoyu iki hedef
+    olarak tanımlamamak kullanıcı sorumluluğundadır.
 - Kopyalama yedekten sonra ayrı adımdır; başarısız olursa yedek yine geçerlidir,
   kopya yeniden denenir ve uyarı üretilir.
 - Listede her yedek için "sunucu dışı kopya: var / yok / başarısız" görünür.
@@ -693,6 +713,26 @@ eklediğinde sonraki taramada kopya o hedefe `tamam` bağlanır ve hedefsiz kay�
 kalkar; olaydaki kimlik başka bir yere verilmiş bir hedefte bulunursa kopya
 önce ona `konum_belirsiz` bağlanır, aynı yer eklenince oradan taşınır.
 
+**Aynı hedefe düşen kopyalar birbirini ezmez (BY-028-R10).** Konum iziyle
+eşleme, olay günlüğünde farklı hedeflere yazılmış kopyaları (ör. tanımı
+olmayan eski hedef ve aynı yere yeni kayıtla eklenen hedef) aynı güncel hedefe
+bağlayabilir. Bunlar ayrı fiziksel nesneler olabilir (Google Drive'da aynı
+klasörde iki dosya). Kopya kaydı hedef başına tektir; eşleme şöyle karar verir:
+aynı yerdeki aynı uzak kimlik tek nesnedir, durumu son olayınkidir (üstüne
+yazılan da, sonradan silinen de odur). Silinmiş nesne yaşayan nesnenin kaydını
+ezmez. Aynı hedefte birden çok yaşayan nesne varsa hedefe biri bağlanır: önce
+yeri doğrulanmış (`tamam`) olan, sonra olayı o hedefi kendi kimliği / adıyla
+anan, sonra en son olaylı. Diğerleri kaybolmaz: hedefsiz, "konumu
+doğrulanamadı" kayıt olarak listede kalır (hata kodu
+`KOPYA_HEDEFTE_BASKA_KOPYA`); hiçbir işlemin kaynağı olmaz, yedeği tutar.
+Hedefe bağlı nesne silinince sonraki taramada sıradaki nesne hedefe bağlanır.
+Silme olayı silinen nesnenin uzak kimliğini ve konum izini taşır; yalnız o
+nesneye uygulanır — kayıt konum iziyle bu hedefe bağlanmış başka bir olay
+hedefinin kopyasıysa ona; aynı hedefin olayındaki farklı nesneye değil. Uzak
+kimliksiz eski silme olayı, eskisi gibi yalnız kendi hedefindeki kopyaya
+uygulanır. Sonuç olayların sırasına bağlı değildir; tarama tekrarlanınca
+aynıdır.
+
 **Ayarlar da geri döner.** Planlar, saklama kuralları ve hedef tanımları
 veritabanında durduğu için üstüne geri yüklemede eski hâllerine döner. Her
 değişiklikte bu ayarların bir kopyası dosyaya yazılır — yalnız commit olmuş
@@ -767,7 +807,10 @@ göstermez: istek çalıştırıcıya görünmüştür, kabul (202) döner, dene
 belirsizlik notu düşer. İstemci her eylem için bir `Idempotency-Key` üretir ve
 yeniden denemede aynısını gönderir — bekleyen anahtar tarayıcıda
 (`localStorage`, kullanıcı ya da işlem kapsamında, 15 dakika) durur, sayfa
-yenilense de kaybolmaz, kabulde silinir (BY-014-R3, BY-030-R4); istek kimliği bu anahtar ile eylemden
+yenilense de kaybolmaz, kabulde silinir (BY-014-R3, BY-030-R4). Depoyu okuyup
+yazan her adım (eski sürüm taşıması, anahtar yazımı, kabul temizliği) sekmeler
+arası tek bir Web Locks kilidi altındadır; Web Locks yoksa depo kullanılmaz,
+anahtar yalnız sayfanın belleğinde tutulur (BY-014-R7); istek kimliği bu anahtar ile eylemden
 (tür, kullanıcı, parametreler) türetilir. O kimlikle istek (bekleyen /
 işleniyor / sonuç) varsa ikinci dosya yazılmaz, mevcut kabul döner; bakış ve
 yazım `bekleyen/.kabul.kilit` dosya kilidi altında tek adımdır.

@@ -55,8 +55,9 @@ use Illuminate\Database\Eloquent\Collection;
  * da taşır.
  *
  * İki hedefin aynı fiziksel depoya yazıp yazmadığı ayrı sorudur (ayniDepoMu;
- * BY-010-R7): iz yazımı karşılaştırır, depo sorusu dosya sistemi hedeflerinde
- * gerçek konumu.
+ * BY-010-R7, R8): iz yazımı karşılaştırır, depo sorusu dosya sistemi
+ * hedeflerinde gerçek konumu, uzak hedeflerde dosyanın adresini belirleyen
+ * alanları (tür, port, bölge gibi aynı nesneye götüren farklar olmadan).
  */
 final class HedefKonumu
 {
@@ -89,6 +90,25 @@ final class HedefKonumu
     /** Formda olmayan, bağlayıcının yazdığı konum (ve sır) bileşenleri */
     private const BAGLAYICI_ALANLARI = ['google_drive' => ['eposta']];
 
+    /**
+     * Tür → depo ailesi (ayniDepoMu): aynı ailedeki iki hedef aynı dosyalara
+     * yazabilir. Google Drive ailesizdir (gerekçe ayniDepoMu'da).
+     */
+    private const DEPO_AILELERI = [
+        'yerel' => 'dosya_sistemi',
+        'nas' => 'dosya_sistemi',
+        'ftp' => 'dosya_sunucusu',
+        'ftps' => 'dosya_sunucusu',
+        'sftp' => 'dosya_sunucusu',
+        's3' => 's3',
+    ];
+
+    /** Uzak ailenin depo kimliğini veren alanlar (BY-010-R8; biçimler BICIMLER'den) */
+    private const DEPO_ALANLARI = [
+        'dosya_sunucusu' => ['sunucu', 'kullanici_adi', 'klasor'],
+        's3' => ['uc_nokta', 'kova', 'on_ek'],
+    ];
+
     /** `withExists` sütunu: liste sorgusunda hedef başına ayrı sorgu olmasın */
     public const KOPYALI_SUTUNU = 'konumda_kopya_var';
 
@@ -97,6 +117,9 @@ final class HedefKonumu
 
     /** Olaydaki hedefi veritabanında tanımlı olmayan kopyanın hata kodu (hedefsiz `konum_belirsiz`; BY-028-R9) */
     public const HEDEFI_TANIMSIZ = 'KOPYA_HEDEFI_TANIMSIZ';
+
+    /** Aynı hedefe bu yedeğin başka bir yaşayan kopyası bağlandığı için hedefsiz tutulan farklı nesnenin hata kodu (BY-028-R10) */
+    public const HEDEFTE_BASKA_KOPYA = 'KOPYA_HEDEFTE_BASKA_KOPYA';
 
     public function __construct(
         private readonly HedefKatalogu $katalog,
@@ -110,21 +133,49 @@ final class HedefKonumu
      * silinir. Bu yüzden böyle ikinci hedef kaydedilmez, eskiden kalmışsa
      * ortak dosyaya kopya yazılmaz ve saklama onu silmez.
      *
-     * Ölçüt yalnız bu sunucuda gerçek konumu sınanabilen dosya sistemi
-     * hedefleri (Yerel, NAS) içindir: klasörleri yazıma değil gerçek konuma
-     * göre karşılaştırılır (YerelDiskBaglayicisi::ayniKonumMu — G19 tek ölçüt;
-     * `/x`, `/x/.`, `/x/../x`, sembolik bağlantı, bind mount; klasörü boş
-     * Yerel hedef yedek klasörünün kendisidir). Uzak türler kapsam dışı:
-     * aynı yer beyan edilen alanlardan kanıtlanamaz (alan adı / IP takma adı,
-     * FTP ↔ FTPS, kullanıcının chroot'u, S3 uç nokta takma adı); Google
-     * Drive'da her kopya kendi kimliğiyle ayrı dosyadır.
+     * Dosya sistemi hedefleri (Yerel, NAS): klasörler yazıma değil bu
+     * sunucudaki gerçek konuma göre karşılaştırılır
+     * (YerelDiskBaglayicisi::ayniKonumMu — G19 tek ölçüt; `/x`, `/x/.`,
+     * `/x/../x`, sembolik bağlantı, bind mount; klasörü boş Yerel hedef yedek
+     * klasörünün kendisidir).
+     *
+     * Uzak hedefler (BY-010-R8): bağlayıcının dosya adresini kurduğu alanların
+     * mevcut normalleştirmesiyle (normallestir — izle aynı biçimler) depo
+     * kimliği. Aynı nesneye götüren farklar kimliğe girmez; şüphede "aynı"
+     * sayılır (D4: fazla engelleme bir 409'dur, eksik engelleme veri kaybı):
+     * - S3: uç nokta (alan adı küçük harf, `:443` ve sondaki "/" atılır) +
+     *   kova + önek (baştaki / sondaki "/" atılır; S3Baglayicisi::onEk ile
+     *   aynı). Bölge yalnız imzaya, erişim anahtarı yalnız kimliğe girer; yol
+     *   stili aynı kovaya giden iki adres biçimidir (`uc/kova/anahtar` ↔
+     *   `kova.uc/anahtar`): üçü de kimliğe girmez.
+     * - FTP / FTPS / SFTP tek ailedir (aynı sunucuda aynı hesap aynı
+     *   klasöre üç protokolle de yazabilir): sunucu + kullanıcı adı + klasör;
+     *   tür ve port girmez. Kullanıcı adı ve klasör harf duyarsız (Windows /
+     *   IIS FTP sunucuları duyarsızdır); klasörün baştaki ve sondaki "/"'ı
+     *   atılır (chroot'lu hesapta — ChrootDirectory %h, chroot_local_user —
+     *   `/x` ile `x`, `/` ile giriş klasörü aynı yerdir).
+     * - Zorunlu bileşeni (sunucu, kullanıcı, uç nokta, kova) eksik hedefin
+     *   kimliği yoktur: bağlayıcısı hiçbir yere yazamaz.
+     * Google Drive kapsam dışı: her yükleme yeni dosya kimliği açar (aynı adla
+     * da olsa üstüne yazmaz), okuma ve silme o kimlikle yapılır
+     * (GoogleDriveBaglayicisi::yaz / sil); iki hedefin kopyası iki ayrı dosyadır.
+     * Kanıtlanamayan eşdeğerlikler bilinen sınırdır (README §4.6): alan adı /
+     * IP takma adı (ağ çağrısı yapılmaz), türler arası (NAS bağlama noktası ↔
+     * aynı sunucunun SFTP'si), chroot'u farklı iki hesap, S3 uç nokta takma adı
+     * (`s3.amazonaws.com` ↔ bölgesel uç nokta).
      */
     public function ayniDepoMu(YedekHedefi $a, YedekHedefi $b): bool
     {
         $klasorA = $this->dosyaSistemiKlasoru($a);
         $klasorB = $this->dosyaSistemiKlasoru($b);
 
-        return $klasorA !== null && $klasorB !== null && YerelDiskBaglayicisi::ayniKonumMu($klasorA, $klasorB);
+        if ($klasorA !== null && $klasorB !== null) {
+            return YerelDiskBaglayicisi::ayniKonumMu($klasorA, $klasorB);
+        }
+
+        $kimlikA = $this->uzakDepoKimligi($a);
+
+        return $kimlikA !== null && $kimlikA === $this->uzakDepoKimligi($b);
     }
 
     /**
@@ -135,17 +186,48 @@ final class HedefKonumu
      */
     public function ayniDepodakiler(YedekHedefi $hedef): Collection
     {
-        if ($this->dosyaSistemiKlasoru($hedef) === null) {
+        if ($this->dosyaSistemiKlasoru($hedef) === null && $this->uzakDepoKimligi($hedef) === null) {
             return new Collection;
         }
 
         return YedekHedefi::query()
-            ->whereIn('tur', [HedefTuru::Yerel->value, HedefTuru::Nas->value])
+            ->whereIn('tur', array_keys(self::DEPO_AILELERI, self::DEPO_AILELERI[$hedef->tur->value], true))
             ->when($hedef->exists, fn (Builder $q) => $q->whereKeyNot($hedef->getKey()))
             ->orderBy('id')
             ->get()
             ->filter(fn (YedekHedefi $diger): bool => $this->ayniDepoMu($hedef, $diger))
             ->values();
+    }
+
+    /**
+     * Uzak hedefin depo kimliği (ayniDepoMu'daki kurallar); dosya sistemi
+     * hedefinde, Google Drive'da ve zorunlu bileşeni eksik hedefte null.
+     *
+     * @return list<string>|null
+     */
+    private function uzakDepoKimligi(YedekHedefi $hedef): ?array
+    {
+        $aile = self::DEPO_AILELERI[$hedef->tur->value] ?? null;
+
+        if ($aile === null || ! isset(self::DEPO_ALANLARI[$aile]) || ! $this->katalog->destekleniyorMu($hedef->tur)) {
+            return null;
+        }
+
+        $varsayilanlar = $this->varsayilanlar($hedef);
+        $kimlik = [$aile];
+        foreach (self::DEPO_ALANLARI[$aile] as $ad) {
+            $deger = self::normallestir(self::BICIMLER[$ad], $hedef->baglanti[$ad] ?? null, $varsayilanlar[$ad] ?? null);
+            if (! is_string($deger)) {
+                return null;
+            }
+            $kimlik[] = match (true) {
+                $aile !== 'dosya_sunucusu' => $deger,
+                $ad === 'klasor' => strtolower(trim($deger, '/')),
+                default => strtolower($deger),
+            };
+        }
+
+        return $kimlik;
     }
 
     /** Dosya sistemi hedefinin yazdığı klasör (bağlayıcıların okuduğu alan); diğer türlerde null */

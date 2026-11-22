@@ -24,12 +24,14 @@ use LogicException;
  * hedef) kopya `yedek_hedefi_id` boş, `konum_belirsiz` kayıt olarak tutulur;
  * olaydaki hedef anahtarını ve adını taşır. Yalnız varlık kararlarında
  * (yedeği katalogda tutar) sayılır, hiçbir işlemin kaynağı olmaz. Başka bir
- * durumda olamaz (aşağıda booted; PostgreSQL'de CHECK).
+ * durumda olamaz (aşağıda booted; PostgreSQL'de CHECK). Aynı hedefe bu
+ * yedeğin başka bir yaşayan nesnesi bağlandığı için ayrı tutulan kopya da
+ * böyle bir kayıttır (`KOPYA_HEDEFTE_BASKA_KOPYA`; BY-028-R10).
  *
  * @property int $id
  * @property int $yedek_id
  * @property int|null $yedek_hedefi_id Boş = hedefi tanımsız kopya (yalnız konum_belirsiz)
- * @property string|null $olay_hedef_anahtari Hedefi tanımsız kopyada olaydaki hedef anahtarı (GuncelDurum::hedefAnahtari)
+ * @property string|null $olay_hedef_anahtari Hedefsiz kopyada olaydaki hedef anahtarı (GuncelDurum::hedefAnahtari)
  * @property string|null $olay_hedef_ad Hedefi tanımsız kopyada olaydaki hedef adı (gösterim)
  * @property KopyaDurumu $durum
  * @property string|null $uzak_kimlik

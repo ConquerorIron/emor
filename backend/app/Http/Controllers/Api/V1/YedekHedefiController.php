@@ -53,8 +53,10 @@ use Illuminate\Validation\ValidationException;
  *   409 `GOOGLE_HESAP_DOGRULANAMADI` (BY-021-R2, R3, R4). "Kopyalı" burada
  *   dosyası durabilen kopyayı da kapsar (`konum_belirsiz`; BY-021-R5).
  * - Aynı fiziksel depoyu (yazımı farklı da olsa aynı klasör, klasörü boş
- *   ikinci Yerel hedef = ikinci ana klasör hedefi) gösteren ikinci hedef
- *   kaydedilmez: 409 `HEDEF_AYNI_DEPO` (HedefKonumu::ayniDepoMu; BY-010-R7).
+ *   ikinci Yerel hedef = ikinci ana klasör hedefi; uzakta aynı sunucu +
+ *   kullanıcı + klasör ya da aynı S3 uç noktası + kova + önek) gösteren
+ *   ikinci hedef kaydedilmez: 409 `HEDEF_AYNI_DEPO` (HedefKonumu::ayniDepoMu;
+ *   BY-010-R7, R8).
  * - "Sına" web isteğinde çalışır; bütün adımlar tek toplam süre bütçesini
  *   paylaşır (`HedefSinayici`, D9).
  */
@@ -111,16 +113,20 @@ final class YedekHedefiController extends Controller
      * Konum denetimi ile kayıt, hedef satırının kilidi altında tek işlemdir:
      * kopyalayıcı kopyayı aynı kilit altında "kopyalanıyor" yapar (BY-016-R3).
      * Denetim sırasında kopya başlayamaz; başlamışsa güncelleme onu görür.
-     * Konumu değişen hedef başka bir hedefin deposunu gösteremez (409
-     * `HEDEF_AYNI_DEPO`); konumu değişmeyen kayıt (ad, aktiflik, sır) eskiden
-     * kalmış çakışan hedefte de serbesttir — pasife alınabilsin (BY-010-R7).
+     * Başka bir depoya taşınan hedef başka bir hedefin deposunu gösteremez
+     * (409 `HEDEF_AYNI_DEPO`); konumu değişmeyen kayıt (ad, aktiflik, sır) ve
+     * aynı depoda kalan konum değişikliği (eşdeğer klasör yazımı, S3 bölgesi /
+     * yol stili — depo kimliğine girmeyen alanlar) eskiden kalmış çakışan
+     * hedefte de serbesttir: yeni çakışma doğurmaz, hedef pasife alınabilsin
+     * (BY-010-R7, R8).
      */
     public function update(Request $request, YedekHedefi $hedef): YedekHedefiResource
     {
         $hedef = $this->depoKilidiAltinda(fn (): YedekHedefi => DB::transaction(function () use ($request, $hedef): YedekHedefi {
             $hedef = YedekHedefi::query()->whereKey($hedef->getKey())->lockForUpdate()->firstOrFail();
             [, $acik, $gizli] = $this->dogrula($request, $hedef, konumKilidi: true);
-            $oncekiIz = $this->konum->iz($hedef);
+            $onceki = clone $hedef;
+            $oncekiIz = $this->konum->iz($onceki);
 
             $hedef->fill([
                 'ad' => $request->string('ad')->trim()->value(),
@@ -128,7 +134,7 @@ final class YedekHedefiController extends Controller
                 'baglanti' => $acik,
                 'gizli_bilgiler' => $gizli === [] ? null : $gizli,
             ]);
-            if ($this->konum->iz($hedef) !== $oncekiIz) {
+            if ($this->konum->iz($hedef) !== $oncekiIz && ! $this->konum->ayniDepoMu($onceki, $hedef)) {
                 $this->ayniDepoyuReddet($hedef);
             }
             $hedef->save();

@@ -14,7 +14,8 @@ use Throwable;
  * - aciklama: {aciklama: string|null}
  * - kopya: {hedef_id, hedef_ad, durum: KopyaDurumu, uzak_kimlik, sifreli, sifreli_sha256, konum_izi, plan_idleri}
  *   (konum_izi: kopyanın yapıldığı yer, HedefKonumu::iz; eski olaylarda yok — BY-028-R5)
- * - kopya_silindi: {hedef_id, hedef_ad, hata_kodu?} (hata_kodu: fiziksel silinmedi, ör. HEDEF_SILME_YETKISI_YOK)
+ * - kopya_silindi: {hedef_id, hedef_ad, uzak_kimlik?, konum_izi?, hata_kodu?} (hata_kodu: fiziksel silinmedi, ör.
+ *   HEDEF_SILME_YETKISI_YOK; uzak_kimlik + konum_izi: silinen nesne, eski olaylarda yok — BY-028-R10)
  * - sabitlendi, sabit_cozuldu, yerel_silindi, silindi: {}
  */
 final readonly class YedekOlayi

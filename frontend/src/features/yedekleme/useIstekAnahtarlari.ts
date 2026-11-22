@@ -21,6 +21,24 @@ const DEPO_ONEKI = 'erp.yedekleme.istekAnahtarlari'
 const depoAnahtari = (kapsam: string) => `${DEPO_ONEKI}.v2.${kapsam}`
 const ESKI_SURUM_ONEKI = `${DEPO_ONEKI}.v1.`
 
+/**
+ * Depoyu (v1 ve v2) okuyup yazan bütün kritik bölümlerin — v1→v2 taşıma,
+ * süresi geçenin silinmesi, yeni anahtar yazımı, kabul temizliği — ortak
+ * sekmeler arası kilidi (Web Locks, BY-014-R7). localStorage çok süreçli
+ * tarayıcıda sekmeler arası kilit vermez (HTML Web Storage standardı): bir
+ * sekmenin okumasıyla yazımı arasına başka sekmenin taşıma + 202 temizliği
+ * girip kabul edilmiş anahtarı geri getirebiliyordu. Kilit beklemeler (özet)
+ * boyunca da tutulur.
+ */
+const DEPO_KILIDI = DEPO_ONEKI
+
+/**
+ * Web Locks güvenli bağlam (HTTPS / localhost) ister; Vite'in hedeflediği
+ * tarayıcıların hepsinde vardır. Yoksa depo sekmeler arası eşzamanlanamaz:
+ * çağıran depoya dokunmaz (bkz. kilitsizAcilis).
+ */
+const kilitYoneticisi = (): LockManager | undefined => (navigator as Partial<Navigator>).locks
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const OZET = /^[0-9a-f]{64}$/
 
@@ -31,10 +49,13 @@ interface BekleyenAnahtar {
   zaman: number
 }
 
-/** Gönderilecek eylemin istek anahtarı; sunucu kabul edince (202) `kabulEdildi` */
+/**
+ * Gönderilecek eylemin istek anahtarı; sunucu kabul edince (202)
+ * `kabulEdildi` beklenir (depo temizliği sekmeler arası kilit altında)
+ */
 export interface BekleyenIstek {
   anahtar: string
-  kabulEdildi: () => void
+  kabulEdildi: () => Promise<void>
 }
 
 /** Anahtar sırasından bağımsız JSON: aynı seçimler hangi sırayla yapılırsa yapılsın aynı eylemdir */
@@ -137,13 +158,8 @@ function oku(kapsam: string, simdi: number): BekleyenAnahtar[] {
   }
 }
 
-/**
- * Eski sürüm (v1) kayıtlarını, hangi kapsamda olursa olsun, v2'ye taşır
- * (BY-014-R5). v1 sürümünde kabul edilip yanıtı kaybolan isteğin anahtarı hâlâ
- * geçerli olabilir; yeni sürümde aynı eylem yeni anahtar alırsa ikinci iş
- * açılır. Hiçbir zaman reddetmez; girdi başına eskiKaydiTasi.
- */
-async function eskiSurumuTasi(): Promise<void> {
+/** Bütün kapsamlardaki v1 girdilerinin adları; depo kapalıysa boş */
+function eskiGirdiAdlari(): string[] {
   const adlar: string[] = []
   try {
     for (let i = 0; i < localStorage.length; i++) {
@@ -153,10 +169,21 @@ async function eskiSurumuTasi(): Promise<void> {
       }
     }
   } catch {
-    return // depo kapalı
+    // depo kapalı
   }
 
-  for (const ad of adlar) {
+  return adlar
+}
+
+/**
+ * Eski sürüm (v1) kayıtlarını, hangi kapsamda olursa olsun, v2'ye taşır
+ * (BY-014-R5). v1 sürümünde kabul edilip yanıtı kaybolan isteğin anahtarı hâlâ
+ * geçerli olabilir; yeni sürümde aynı eylem yeni anahtar alırsa ikinci iş
+ * açılır. Hiçbir zaman reddetmez; girdi başına eskiKaydiTasi. DEPO_KILIDI
+ * altında çağrılır.
+ */
+async function eskiSurumuTasi(): Promise<void> {
+  for (const ad of eskiGirdiAdlari()) {
     await eskiKaydiTasi(ad)
   }
 }
@@ -176,12 +203,14 @@ function eskiKaydiSil(ad: string): void {
  * deneme) kalır. Ham v1 girdisi her durumda — süresi geçmiş, biçimsiz, özet ya
  * da yazım başarısız — silinir: düz metin depoda kalmaz.
  *
- * Özet eşzamansızdır; beklerken başka bir örnek (aynı sayfada başka bileşen ya
- * da başka sekme) aynı girdiyi taşımış, taşınan anahtarla istek kabul edilip
- * v2'den silinmiş olabilir (BY-014-R6). Bu yüzden v2'ye yazım, kaynağın hâlâ
- * okunan HAM metinle aynı olduğu doğrulanarak ve v1 silinerek, aradaki
- * beklemesiz tek eşzamanlı adımda yapılır: girdi artık yoksa (taşınmış)
- * eski kopyadan yeniden yazılmaz; değişmişse güncel hali baştan taşınır.
+ * Özet eşzamansızdır. Bu sürümün başka örnekleri (aynı sayfada başka bileşen
+ * ya da başka sekme) taşımayı, anahtar yazımını ve kabul temizliğini aynı
+ * DEPO_KILIDI altında yapar; beklerken araya giremezler (BY-014-R6, R7). Kilit
+ * almayan eski sürüm sekmesi ise v1 girdisini beklerken yeniden yazmış ya da
+ * silmiş olabilir: v2'ye yazım, kaynağın hâlâ okunan HAM metinle aynı olduğu
+ * doğrulanarak ve v1 silinerek, aradaki beklemesiz tek eşzamanlı adımda
+ * yapılır: girdi artık yoksa eski kopyadan yeniden yazılmaz; değişmişse güncel
+ * hali baştan taşınır.
  */
 async function eskiKaydiTasi(ad: string): Promise<void> {
   const kapsam = ad.slice(ESKI_SURUM_ONEKI.length)
@@ -224,6 +253,35 @@ async function eskiKaydiTasi(ad: string): Promise<void> {
 }
 
 /**
+ * Açılış: DEPO_KILIDI altında v1 taşıması ve bu kapsamın süresi geçmiş
+ * kayıtlarının silinmesi.
+ *
+ * Web Locks yoksa (güvenli olmayan bağlam ya da eski tarayıcı) sekmeler arası
+ * atomiklik VARSAYILMAZ (BY-014-R7): kilitsiz taşıma kabul edilmiş anahtarı
+ * geri getirip sonraki bilinçli işi eski işe eşleyebilir. Bu yüzden v1
+ * taşınmaz; ham girdileri yine silinir (D2, özet alınamadığı daldaki gibi).
+ * v2'ye hiç dokunulmaz: anahtarlar yalnız bu örneğin belleğinde yaşar (yenileme
+ * sonrası yeniden deneme yeni anahtar alır — ikinci iş, eski işin sessizce
+ * dönmesinden iyidir). Web Crypto da güvenli bağlam ister; orada `hazirla`
+ * zaten özet alamaz.
+ */
+async function acilisiYap(kapsam: string): Promise<void> {
+  const kilitler = kilitYoneticisi()
+  if (kilitler === undefined) {
+    console.warn(
+      'Web Locks yok: istek anahtarları sekmeler arası eşzamanlanamıyor; eski sürüm (v1) kayıtları taşınmadan silindi, anahtarlar yalnız bu sayfanın belleğinde tutulur (BY-014-R7)',
+    )
+    eskiGirdiAdlari().forEach(eskiKaydiSil)
+
+    return
+  }
+  await kilitler.request(DEPO_KILIDI, { mode: 'exclusive' }, async () => {
+    await eskiSurumuTasi()
+    oku(kapsam, Date.now())
+  })
+}
+
+/**
  * Aynı eylemin yeniden denemesi aynı `Idempotency-Key`'i taşır (BY-014-R2):
  * yanıtı alınamayan (ağ hatası, 5xx) istek sunucuda kabul edilmiş olabilir;
  * aynı anahtarla yeniden deneme ikinci iş bırakmaz, mevcut kabulü alır.
@@ -239,9 +297,14 @@ async function eskiKaydiTasi(ad: string): Promise<void> {
  * kapsamın süresi geçmiş kayıtları silinir. Depo erişilemezse bellekte
  * (özetle) çalışır.
  *
- * Özet eşzamansızdır: `hazirla` beklenir; açılıştaki taşıma bitmeden anahtar
- * aranmaz, anahtar depoya istek gönderilmeden ÖNCE yazılır. Çift tıklama
- * kilidinin (F5) yerine geçmez; onunla birlikte kullanılır.
+ * Depoyu okuyup yazan her adım (açılış, anahtar arama/yazma, kabul temizliği)
+ * sekmeler arası DEPO_KILIDI altındadır (BY-014-R7); Web Locks yoksa depo
+ * kullanılmaz, anahtarlar bellekte tutulur (acilisiYap).
+ *
+ * Özet ve kilit eşzamansızdır: `hazirla` ve `kabulEdildi` beklenir; açılıştaki
+ * taşıma bitmeden anahtar aranmaz, anahtar depoya istek gönderilmeden ÖNCE
+ * yazılır. Çift tıklama kilidinin (F5) yerine geçmez; onunla birlikte
+ * kullanılır.
  *
  * @param kapsam Anahtarların sahibi (ör. `kullanici.7`, `ustune.<işlem kimliği>`)
  */
@@ -250,38 +313,57 @@ export function useIstekAnahtarlari(kapsam: string) {
   const acilis = useRef<Promise<void> | null>(null)
 
   useEffect(() => {
-    acilis.current = eskiSurumuTasi().then(() => {
-      oku(kapsam, Date.now())
-    })
+    acilis.current = acilisiYap(kapsam)
   }, [kapsam])
 
   return {
     /** Eylemin bekleyen anahtarı; yoksa yenisi — depoya yazıldıktan sonra döner */
     async hazirla(eylem: unknown): Promise<BekleyenIstek> {
-      // v1'den taşınan geçerli anahtar aranmadan yeni anahtar üretilmesin
+      // v1'den taşınan geçerli anahtar aranmadan yeni anahtar üretilmesin.
+      // Kilitten ÖNCE beklenir: açılış aynı kilidi tutar
       await acilis.current
       const ozet = await ozetle(eylem)
-      const simdi = Date.now()
-      const kayitlar = oku(kapsam, simdi)
-      const mevcut = kayitlar.find((kayit) => kayit.ozet === ozet) ?? bellek.current.get(ozet)
+      const yeniKayit = (simdi: number): BekleyenAnahtar => ({
+        ozet,
+        anahtar: crypto.randomUUID(),
+        zaman: simdi,
+      })
+      const kilitler = kilitYoneticisi()
       let kayit: BekleyenAnahtar
-      if (gecerliMi(mevcut, simdi)) {
-        kayit = mevcut
+      if (kilitler === undefined) {
+        const simdi = Date.now()
+        const mevcut = bellek.current.get(ozet)
+        kayit = gecerliMi(mevcut, simdi) ? mevcut : yeniKayit(simdi)
       } else {
-        kayit = { ozet, anahtar: crypto.randomUUID(), zaman: simdi }
-        yaz(kapsam, [...kayitlar, kayit])
+        // Okuma ile yazım arasına başka sekmenin kabul temizliği girmesin
+        kayit = await kilitler.request(DEPO_KILIDI, { mode: 'exclusive' }, () => {
+          const simdi = Date.now()
+          const kayitlar = oku(kapsam, simdi)
+          const mevcut =
+            kayitlar.find((bekleyen) => bekleyen.ozet === ozet) ?? bellek.current.get(ozet)
+          if (gecerliMi(mevcut, simdi)) {
+            return mevcut
+          }
+          const yeni = yeniKayit(simdi)
+          yaz(kapsam, [...kayitlar, yeni])
+
+          return yeni
+        })
       }
       bellek.current.set(ozet, kayit)
 
       return {
         anahtar: kayit.anahtar,
         // Sunucu kabul etti: aynı eylemin bir sonraki gönderimi yeni anahtar alır
-        kabulEdildi: () => {
+        kabulEdildi: async () => {
           bellek.current.delete(ozet)
-          yaz(
-            kapsam,
-            oku(kapsam, Date.now()).filter((bekleyen) => bekleyen.ozet !== ozet),
-          )
+          // Okuma ile yazım arasında başka sekmenin yeni anahtarı kaybolmasın
+          await kilitler?.request(DEPO_KILIDI, { mode: 'exclusive' }, () => {
+            yaz(
+              kapsam,
+              oku(kapsam, Date.now()).filter((bekleyen) => bekleyen.ozet !== ozet),
+            )
+          })
         },
       }
     },
