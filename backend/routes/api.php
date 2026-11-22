@@ -996,6 +996,10 @@ Route::prefix('v1')->group(function (): void {
                     ->middleware('throttle:yedek-hedef-sina')->name('yedek-hedefleri.google.donus');
                 Route::post('/yedek-hedefleri/{hedef}/google/kes', [YedekHedefiController::class, 'googleKes'])
                     ->whereNumber('hedef')->name('yedek-hedefleri.google.kes');
+                Route::post('/yedek-hedefleri/{hedef}/google/secici', [YedekHedefiController::class, 'googleSecici'])
+                    ->whereNumber('hedef')->middleware('throttle:yedek-hedef-sina')->name('yedek-hedefleri.google.secici');
+                Route::post('/yedek-hedefleri/{hedef}/google/klasor', [YedekHedefiController::class, 'googleKlasor'])
+                    ->whereNumber('hedef')->middleware('throttle:yedek-hedef-sina')->name('yedek-hedefleri.google.klasor');
 
                 Route::post('/yedek-planlari', [YedekPlaniController::class, 'store'])->name('yedek-planlari.store');
                 Route::put('/yedek-planlari/{plan}', [YedekPlaniController::class, 'update'])

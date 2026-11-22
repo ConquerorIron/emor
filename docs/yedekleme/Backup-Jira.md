@@ -155,9 +155,9 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 | BY-017 | API + Ekran: Yedek Planları | 2 | BY-010, BY-016 | PASSED |
 | BY-018 | Ekran: İşlem Günlüğü ve Yedekleme Ayarları | 2 | BY-012, BY-015 | PASSED |
 | BY-019 | Şifreleme (sunucu dışı kopyalar) | 3 | BY-008 | PASSED |
-| BY-020 | Hedef: FTP ve FTPS | 3 | BY-016, BY-019 | BEKLIYOR |
-| BY-021 | Hedef: Google Drive | 3 | BY-016, BY-019 | BEKLIYOR |
-| BY-022 | Hedef: SFTP | 3 | BY-020 | BEKLIYOR |
+| BY-020 | Hedef: FTP ve FTPS | 3 | BY-016, BY-019 | REVIEW_BEKLIYOR |
+| BY-021 | Hedef: Google Drive | 3 | BY-016, BY-019 | REVIEW_BEKLIYOR |
+| BY-022 | Hedef: SFTP | 3 | BY-020 | REVIEW_BEKLIYOR |
 | BY-023 | Hedef: Ağ paylaşımı (NAS) ve S3 | 3 | BY-020 | PASSED |
 | BY-024 | Kurtarma paketi ve kurulum dokümanı | 3 | BY-019 | PASSED |
 | BY-025 | Çalıştırıcı servis ve istek klasörü (servis hesabı) | 4 | BY-003, BY-013 | BEKLIYOR |
@@ -3328,7 +3328,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-020 — Hedef: FTP ve FTPS
 
-- **Durum:** BEKLIYOR · **Bağımlı:** BY-016, BY-019
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-016, BY-019
 - **Tasarım:** README §4.6 (tablo)
 - **Ön koşul:** Bağımlılık onayı (FTP için Laravel dosya sistemi sürücüsü paketi);
   denemek için bir FTP sunucusu.
@@ -3374,10 +3374,14 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     - R1: Kod değişikliği yok. Gerçek FTP / FTPS sunucusuyla kabul (yaz–oku–özet–sil, sertifika reddi, kesinti sonrası yarım dosya) dış ortam bekliyor; kutucuk açık. BY-024-R1'in sürümlü kurtarma paketi bu hedefte de üstüne yazma / ad değiştirme kullanmıyor.
   - 2026-11-21 Codex → CHANGES_REQUESTED · ikinci tur `c2623ee`
     - R1 dış kabul bekliyor. Gerçek FTP ve FTPS sunucusunda yaz–oku–doğrula–sil, sertifika reddi ve kesinti sonrası geçici dosya kontrolleri açık.
+  - 2026-11-22 Claude → REVIEW_BEKLIYOR · gerçek sunucu kabulü (kullanıcı isteği: "FTP ile bağlantıları güzelce test et"); başlığı `feat(yedekleme): Google Drive klasor secimi (Picker), FTP/SFTP gercek sunucu testleri` olan commit
+    - Bağımlılık eklenmedi (bağlayıcı PHP curl). Gerçek sunucular WSL'de: vsftpd (2121 düz FTP, 2122 FTPS kendinden imzalı, 2123 FTPS yerel CA imzalı yalnız `localhost` adına, 2124 hız sınırlı), yalnız 127.0.0.1; kurulum `scripts/tests/gercek-hedef-sunuculari.sh kur|baslat|durdur|kaldir`. Testler `FtpBaglayicisiGercekSunucuTest` (23; `YEDEKLEME_GERCEK_FTP=1`, ortam yoksa nedeniyle atlanır — T11).
+    - Sonuçlar (hepsi gerçek sunucuya karşı, hata çıkmadı): Bağlantıyı Sına döngüsü düz FTP ve CA imzalı FTPS'te geçiyor; FTPS'te sunucu günlüğünde `AUTH TLS` `USER`'dan önce ve `PROT P`. 50 MB dosya pasif / aktif (EPRT) / FTPS'te yaz-listele-oku-sha256-sil. Mutlak / alt / boş klasör ve `/` doğru; olmayan klasör açılmaz (Sına ERISILEMEDI, yazma YAZILAMADI). Yanlış parola / kullanıcı KIMLIK, mesajda parola yok. Kapalı port, çözülemeyen ad ERISILEMEDI; yanıt vermeyen adres bağlanma sınırında bırakılıyor. Yazma izni olmayan klasör YAZILAMADI, geride dosya yok. Disk dolu YAZILAMADI (vsftpd `451` ile bildirir; KOTA ayırt edilemez). FTPS: kendinden imzalı ve alan adı uyuşmayan sertifika SERTIFIKA (günlükte USER/PASS yok); TLS'siz sunucu YAPILANDIRMA, kimlik hiç gönderilmiyor. Yükleme ortasında oturum öldürülünce YAZILAMADI, ne asıl ne geçici adda dosya kalıyor, yeniden deneme tamam ve baytlar aynı; dondurulan oturum kopya sınırında zaman aşımı, geçici dosya yeni bağlantıyla siliniyor; indirme ortasında kopma OKUNAMADI, yerelde yarım dosya yok.
+    - Denenemeyen: vsftpd dışındaki sunucular (IIS, ProFTPD), örtük FTPS (990; desteklenmiyor), NAT arkasında pasif kip, zincirli sertifika, gerçek kota yanıtı. Bilinen sınırlar: süre sınırı toplam süredir (`kopya` 900 sn; çok yavaş bağlantıda büyük yedek bitmeyebilir), PHP çökerse noktalı geçici dosya hedefte kalabilir.
 
 ### BY-021 — Hedef: Google Drive
 
-- **Durum:** BEKLIYOR · **Bağımlı:** BY-016, BY-019
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-016, BY-019
 - **Tasarım:** README §4.6 (Google Drive bağlantısı), §7.10
 - **Ön koşul:** Bağımlılık onayı; kullanıcının Google tarafında uygulama kaydı
   açması (kişisel Gmail → "herkese açık" + "yayında"); README §13 karar 3 ve 16
@@ -3391,6 +3395,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - [x] İzin Google tarafından kaldırılınca kopya `basarisiz`, hedef "yeniden bağlanın" (test: sahte yanıt).
   - [x] Bağlantı akışında sahte istek koruması var (durum değeri doğrulanıyor).
   - [x] Kota dolu yanıtı anlaşılır hata olarak gösteriliyor.
+  - [x] Bağlandıktan sonra kullanıcı Drive'ındaki klasörü Google'ın seçim penceresinde seçer ya da yeni klasör açtırır; klasör yazma denenerek doğrulanır (kullanıcı isteği 2026-11-22; test).
   - [ ] Gerçek bir hesapla uçtan uca denendi; 8 gün sonra hâlâ çalıştığı kontrol edilecek (günlükte tarihli not).
 - **Canlı:** Evet.
 - **İnceleme günlüğü:**
@@ -3498,10 +3503,20 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
   - 2026-11-21 Codex → CHANGES_REQUESTED · altıncı tur `2b7ea87` · dış kabul bekleniyor
     - R5 kod tarafında kapandı. Eski şemadan ileri migration ile `konum_belirsiz` olan kopya hesap kanıtına katılıyor. Kayıt öncesi klasör ve son fiziksel kopya hedef kilidi altında yeniden eşleniyor. İzsiz ya da eski hesapta kalacak kopya varsa hesap değişikliği reddediliyor. Konum izi yeni hesabı gösteren kopya için düzeltme yolunun açık kalması kabul edildi.
     - Yeni somut kod bulgusu yok. Görevin gerçek Google hesabıyla uçtan uca ve sekizinci gün kabul kutusu açık. Durum bu dış kabul nedeniyle `BEKLIYOR`. Sağlayıcının alan davranışı yerelde sahte yanıtlarla sınandı.
+  - 2026-11-22 Claude → REVIEW_BEKLIYOR · kullanıcı isteği: Google ile girişten sonra Drive'dan klasör seçimi; başlığı `feat(yedekleme): Google Drive klasor secimi (Picker), FTP/SFTP gercek sunucu testleri` olan commit
+    - Kullanıcı bulgusu: form yalnız "Klasör adı" soruyordu; uygulama klasörü adla arayıp yoksa açıyordu. Kullanıcı Google hesabıyla girip Drive'ındaki klasörü seçmek istiyor. Ayrıca canlıda `YEDEKLEME_GOOGLE_*` hiç tanımlı değildi: akış canlıda hiç çalışmamıştı (Dikkat P5).
+    - Yeni akış: hedef yalnız adla kaydedilir (Drive tanımında form alanı yok) → "Google ile bağlan" (değişmedi) → dönüşte klasörü seçilmemişse liste Google'ın klasör seçme penceresini (Google Picker) kendisi açar; ayrıca satırda "Klasör seç" ve "Yeni klasör" (Drive köküne verilen adla). Yetki yine yalnız `drive.file`.
+    - `POST …/{id}/google/secici`: bağlı hesabın kısa ömürlü erişim anahtarı + API anahtarı + proje numarası (Picker tarayıcıda Google'a bununla bağlanır). Yenileme anahtarı dönmez; `Cache-Control: no-store`; denetim kaydına anahtar girmez. Yapılandırma yoksa 409 `GOOGLE_SECICI_YAPILANDIRILMADI`, bağlı değilse 409 `HEDEF_YENIDEN_BAGLAN`.
+    - `POST …/{id}/google/klasor` (`klasor_kimligi` ya da `yeni_klasor_adi`, biri): bağlayıcı klasörü dener — klasör türü, çöpte değil, `ownedByMe` (paylaşılmış klasör başka hesabın deposu), `canAddChildren` false değil ve İÇİNE deneme dosyası yazılıp silinir (Google belgesi Picker + `drive.file` ile seçilen klasöre yazmayı açıkça yazmıyor; çelişen topluluk kayıtları var — T9: varsayım değil deneme). Deneme dosyasının adı `erp_` ile başlamaz (kalsa da yedek sayılmaz). Kayıt depo kilidi + hedef satır kilidi altında, denetimler yeniden: hesap bu arada değiştiyse 409 `GOOGLE_HESAP_DEGISTI`; kopyası duran hedefte (tamam / kopyalanıyor / konum_belirsiz — G21) başka klasör 409 `HEDEF_KONUMU_DEGISMEZ` (`klasor_kimligi`); başka hedefin klasörü 409 `HEDEF_AYNI_DEPO`. Ucuz konum denetimi ağ isteğinden önce de yapılır (kilitli hedefte boşuna klasör açılmasın).
+    - Bağlayıcı: klasör artık adla aranmaz / kendiliğinden açılmaz. Seçilmemişse `HEDEF_KLASOR_SECILMEDI`, kayıtlı klasör silinmiş / çöpte / klasör değilse `HEDEF_KLASOR_GECERSIZ` — kopya başka yere gitmez (G21). İkisi kopyalayıcıda kalıcı hata (yeniden denenmez, D8); hesabı bağlı ama klasörü seçilmemiş hedefte kopyalayıcı istek göndermeden `HEDEF_KLASOR_SECILMEDI` verir (önceki "konumu belirlenemiyor" iletisi yanıltıcıydı).
+    - Konum (HedefKonumu): Drive'da `eposta` + `klasor_kimligi` (bağlayıcı alanları); `klasor_adi` yalnız gösterim (Drive'da yeniden adlandırılabilir). Drive depo ailesi: aynı `klasor_kimligi` = aynı depo (klasör taraması klasördeki bütün yedek dosyalarını görür; iki hedef aynı klasörü gösterirse biri ötekinin dosyasını kendi kopyası sayardı). Canlıda hiç hedef yok (2026-11-22 sorgulandı): eski Drive kaydı için veri taşıma gerekmedi.
+    - Ön yüz: `googleKlasorSecici.ts` (Google'ın `api.js`'i ilk kullanımda yüklenir, npm bağımlılığı yok; yalnız klasörler, yalnız hesabın kendi klasörleri). Satırda klasör adı Drive bağlantısıyla; seçilmemişse "Klasör seçilmedi". Kopyası duran hedefte düğmeler kapalı. Çift tıklama tek pencere (F5: useRef). Yeni Drive hedefi formunda "Bağlantıyı Sına" yok (hesap ve klasör sonra gelir). `.env.example`: `YEDEKLEME_GOOGLE_API_ANAHTARI`, `YEDEKLEME_GOOGLE_PROJE_NUMARASI`.
+    - Testler: `GoogleDriveBaglayicisiTest` (seçilmemiş klasör hiç istek göndermez; kayıtlı klasör kullanılamıyorsa yeni klasör açılmaz; klasör doğrulama yazıp siler; 7 red durumu; biçimsiz kimlik; yazma 403 → YAZILAMADI; deneme silinemezse başarı yok; yeni klasör; seçici erişimi), `YedekHedefiApiTest` (+15: seçici yanıtı / no-store / yenileme anahtarı yok, yapılandırma yok, bağlı değil; klasör kaydı + iz; yeni klasör; red 422; 4 geçersiz istek; 3 kilitleyen kopya durumu; başarısız kopyada serbest; aynı depo; hesap değişti; formda alan yok), `YedekKopyalayiciTest` (+1), ön yüz (+12 sayfa, +1 dönüş). T5: 6 bilinçli bozma (konum_belirsiz sayılmaması, hesabın yeniden denetlenmemesi, aynı depo denetimi, Drive depo ailesi, no-store, klasörün konum olmaması) ve çift tıklama koruması kaldırılınca ilgili testler kırmızı.
+    - Doğrulanamayan: gerçek Google hesabı (Google Cloud'da OAuth istemcisi, API anahtarı, proje numarası kullanıcı tarafından açılacak; README §4.6 ön hazırlık). Özellikle Picker'da seçilen klasöre `drive.file` ile yazılabildiği gerçek hesapla görülmeli; yazılamazsa seçim açık hatayla reddedilir ("Yeni klasör" yolu yine çalışır — uygulamanın açtığı klasör).
 
 ### BY-022 — Hedef: SFTP
 
-- **Durum:** BEKLIYOR · **Bağımlı:** BY-020
+- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-020
 - **Tasarım:** README §4.6
 - **Ön koşul:** Bağımlılık onayı; kullanıcı bu hedefi istiyorsa (istemiyorsa `IPTAL`).
 - **Kapsam:** SFTP bağlayıcısı; parola ya da anahtarla kimlik doğrulama; sunucu
@@ -3542,6 +3557,12 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     - R1: Kod değişikliği yok. Gerçek SFTP sunucusunda parola / anahtar kipleri, parmak izi değişiminde ret ve kesinti sonrası dosya durumu dış ortam bekliyor; kutucuk açık.
   - 2026-11-21 Codex → CHANGES_REQUESTED · ikinci tur `c2623ee`
     - R1 gerçek SFTP kabulünü bekliyor. Parola ve anahtarla kimlik, parmak izi değişiminde ret, dört adımlı sınama ve kesinti sonrası dosya koşulları sahada doğrulanacak.
+  - 2026-11-22 Claude → REVIEW_BEKLIYOR · gerçek sunucu kabulü ve iki düzeltme; başlığı `feat(yedekleme): Google Drive klasor secimi (Picker), FTP/SFTP gercek sunucu testleri` olan commit
+    - Gerçek OpenSSH sunucusu WSL'de (2222 parola + anahtar; 2223 hız sınırlı), `scripts/tests/gercek-hedef-sunuculari.sh`; testler `SftpBaglayicisiGercekSunucuTest` (22; `YEDEKLEME_GERCEK_SFTP=1`). İlk Sına'da gerçek ed25519 anahtarı kaydediliyor (parmak izi `ssh-keygen -lf` ile aynı); 50 MB yaz-oku-sil, baytlar aynı; parolasız özel anahtar (CRLF dahil) çalışıyor; sunucu anahtarı değişince SUNUCU_PARMAK_IZI, doğrulanmamış sunucuya parola gitmiyor; yanlış parola işlem başına tek deneme (sshd günlüğü); kesinti ve asılı sunucuda yarım dosya yok; aktarım sürerken komut satırında / ortamda sır yok, geçici dosyalar 0600.
+    - Düzeltme 1 (G15): ilk "Bağlantıyı Sına"da tanım doğrulanmadan `ssh-keyscan` çalışıyordu — geçersiz klasörlü ya da kimlik bilgisi olmayan tanım sunucuya bağlanıp anahtarı kaydediyordu. `baglan()` artık önce `tanimiDogrula()` (bütün alanlar tek yerde; `calistir()` de onu kullanır). Test `test_gecersiz_tanimla_ilk_sinama_sunucu_anahtarini_almadan_yapilandirma_hatasi_verir` düzeltmeden önce 5/7 kırmızı; gerçek sunucuda Türkçe klasör testi de kırmızıydı (sshd günlüğünde keyscan'in 3 bağlantısı).
+    - Düzeltme 2: parolalı (şifreli) özel anahtar desteklenmiyordu ama uyarısız kabul edilip yalnız genel "kimlik doğrulanamadı" alınıyordu. Artık sunucuya gidilmeden YAPILANDIRMA "Parolalı özel anahtar desteklenmiyor" (PEM `Proc-Type: 4,ENCRYPTED`, PKCS#8 `ENCRYPTED PRIVATE KEY`, OpenSSH biçiminde şifre adı `none` değil). Geçersiz tanım listesine 3 durum; parolasız OpenSSH anahtarı reddedilmiyor (ayrı test). T5: denetim kaldırılınca 6 test kırmızı.
+    - Düzeltme 3: sır klasörü (`/tmp/emor-sftp-*`) `finally`'de siliniyordu, süreç öldürülünce (SIGKILL, kuyruk zaman aşımı) kalıyordu — yerelde 21 Kasım'dan kalmış iki klasör bulundu (birim testin sahte sırlarıyla). Artık her yeni klasörden önce, en uzun aktarım süresi + 1 saatten eski, bu sürecin kullanıcısına ait `emor-sftp-<16 hex>` klasörleri silinir; sembolik bağlantı atlanır. Test: eski silinir, yeni (süren işlem) ve bağlantının hedefi korunur; temizlik kaldırılınca kırmızı.
+    - Bilinen, düzeltilmeyen: Laravel `.env` değerleri (putenv) `Process` ile başlayan alt süreçlerin ortamına geçiyor (yerel risk; ssh `-F /dev/null` ile karşıya göndermez; uygulama geneli kalıp). Disk dolu KOTA değil YAZILAMADI (OpenSSH ayrı kod vermez). Denenemeyen: OpenSSH dışı sunucular, IPv4+IPv6'ya çözülen adla keyscan.
 
 ### BY-023 — Hedef: Ağ paylaşımı (NAS) ve S3
 

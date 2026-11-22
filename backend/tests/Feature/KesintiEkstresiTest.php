@@ -170,7 +170,8 @@ final class KesintiEkstresiTest extends TestCase
     public function test_uzun_proje_adi_ust_bilgiyi_sayfa_disina_tasirmaz(): void
     {
         $this->ornekVeri();
-        $this->zone10->update(['ad' => rtrim(str_repeat('ZONE 10 TERSANE GENİŞLETME SAHASI ', 6))]);
+        // En uzun geçerli ad (G4): kolon sınırı 200; SQLite uzunluğu denetlemez, fazlası yalnız PostgreSQL'de düşer (T6)
+        $this->zone10->update(['ad' => mb_substr(str_repeat('ZONE 10 TERSANE GENİŞLETME SAHASI ', 6), 0, 200)]);
 
         $pdf = app(KesintiEkstresiPdf::class)->olustur(
             app(KesintiEkstresi::class)->veri($this->parametreler($this->yemek->id)),

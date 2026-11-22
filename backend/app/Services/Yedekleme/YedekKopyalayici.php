@@ -117,7 +117,7 @@ final class YedekKopyalayici
 
                 // Yapılandırma / şifreleme anahtarı eksikliği yeniden denemeyle düzelmez (D8).
                 // gpg süre aşımı (SifrelemeHatasi, gecici) kalıcı sayılmaz: sınırlı denenir (BY-019-R1).
-                if ($hata instanceof HedefHatasi && in_array($hata->kod, [HedefHatasi::YAPILANDIRMA, HedefHatasi::KIMLIK, HedefHatasi::YENIDEN_BAGLAN, HedefHatasi::SUNUCU_PARMAK_IZI, HedefHatasi::SERTIFIKA, HedefHatasi::BAGLI_DEGIL, HedefHatasi::KOTA, HedefHatasi::AYNI_DEPO], true)) {
+                if ($hata instanceof HedefHatasi && in_array($hata->kod, [HedefHatasi::YAPILANDIRMA, HedefHatasi::KIMLIK, HedefHatasi::YENIDEN_BAGLAN, HedefHatasi::SUNUCU_PARMAK_IZI, HedefHatasi::SERTIFIKA, HedefHatasi::BAGLI_DEGIL, HedefHatasi::KOTA, HedefHatasi::AYNI_DEPO, HedefHatasi::KLASOR_SECILMEDI, HedefHatasi::KLASOR_GECERSIZ], true)) {
                     break;
                 }
 
@@ -153,7 +153,9 @@ final class YedekKopyalayici
     private function bir(Yedek $yedek, YedekHedefi $hedef): array
     {
         $konumIzi = $this->konum->iz($hedef)
-            ?? throw new HedefHatasi(HedefHatasi::YAPILANDIRMA, 'Hedefin konumu belirlenemiyor (bağlı hesap bilinmiyor); hedefi yeniden bağlayın. Kopyalanmadı.');
+            ?? throw ($hedef->tur === HedefTuru::GoogleDrive && is_string($hedef->baglanti['eposta'] ?? null)
+                ? new HedefHatasi(HedefHatasi::KLASOR_SECILMEDI, 'Google Drive klasörü seçilmedi; Yedek Hedefleri\'nde "Klasör seç" ile seçin. Kopyalanmadı.')
+                : new HedefHatasi(HedefHatasi::YAPILANDIRMA, 'Hedefin konumu belirlenemiyor (bağlı hesap bilinmiyor); hedefi yeniden bağlayın. Kopyalanmadı.'));
         $this->ayniDepoyaYazma($yedek, $hedef);
         $kaynak = $this->yapilandirma->klasor().'/'.$yedek->dosya_adi;
 

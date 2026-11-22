@@ -23,9 +23,16 @@ use Throwable;
  * Ek kütüphane yok: Drive REST v3 + OAuth yenileme Laravel HTTP istemcisiyle.
  *
  * Yetki en dar olanıdır: yalnız `drive.file` — uygulama yalnız KENDİ
- * oluşturduğu dosyaları görür, hesabın diğer dosyalarını listeleyemez. Bağlı
- * hesabın e-postası da bu yetkiyle `about.user`'dan okunur; `openid email`
- * istenmez.
+ * oluşturduğu dosyaları ve kullanıcının Google'ın seçim penceresinde
+ * (Picker) seçtiği klasörü görür, hesabın diğer dosyalarını listeleyemez.
+ * Bağlı hesabın e-postası da bu yetkiyle `about.user`'dan okunur; `openid
+ * email` istenmez.
+ *
+ * Akış: hedef kaydedilir → "Google ile bağlan" (OAuth, yenileme anahtarı) →
+ * "Klasör seç" (tarayıcıda Google Picker, `seciciErisimi`; ya da yeni klasör
+ * `klasorAc`) → seçilen klasör `klasorDogrula` ile denenip
+ * `baglanti.klasor_kimligi` / `klasor_adi`'na yazılır. Klasör konumdur
+ * (HedefKonumu): kopyası duran hedefte değiştirilemez.
  *
  * Sırlar: yenileme anahtarı `gizli_bilgiler['yenileme_anahtari']`'nda
  * (şifreli), istemci kimliği / sırrı config'te. Erişim anahtarı yalnız bu
@@ -46,8 +53,6 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
     public const KAPSAM = 'https://www.googleapis.com/auth/drive.file';
 
     public const DURUM_YENIDEN_BAGLAN = 'yeniden_baglan';
-
-    public const VARSAYILAN_KLASOR_ADI = 'eMOR Yedekleri';
 
     /** İzin kodu değişiminde hesabın kimliği okunamadı; bağlantı kaydedilmez */
     public const HESAP_OKUNAMADI = 'GOOGLE_HESAP_OKUNAMADI';
@@ -86,9 +91,8 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
 
     public static function tanim(HedefTuru $tur = HedefTuru::GoogleDrive): HedefTuruTanimi
     {
-        return new HedefTuruTanimi(HedefTuru::GoogleDrive, [
-            new HedefAlani('klasor_adi', 'yedekleme.hedef.alan.klasor_adi', kurallar: ['nullable', 'string', 'max:100', 'regex:/^[^\x00-\x1F\x7F]+$/Du'], varsayilan: self::VARSAYILAN_KLASOR_ADI),
-        ], sunucuDisi: true, oauth: true);
+        // Formda alan yok: hesap "Google ile bağlan", klasör "Klasör seç" ile gelir
+        return new HedefTuruTanimi(HedefTuru::GoogleDrive, [], sunucuDisi: true, oauth: true);
     }
 
     /**
@@ -184,7 +188,7 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
         ];
     }
 
-    /** Kimlik doğrulaması ve yedek klasörü (yoksa açılır, kimliği kaydedilir). */
+    /** Kimlik doğrulaması ve seçilen yedek klasörünün kullanılabilirliği. */
     public function baglan(): void
     {
         $this->klasor();
@@ -375,9 +379,144 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
     }
 
     /**
-     * Yedek klasörünün kimliği. Kayıtlı kimlik geçerliyse o; değilse (ilk
-     * bağlantı, klasör silinmiş) uygulamanın daha önce açtığı aynı adlı klasör
-     * aranır, yoksa açılır. Kimlik `baglanti.klasor_kimligi`'ne yazılır.
+     * Klasör seçme penceresi (Google Picker) için erişim anahtarı. Pencere
+     * kullanıcının tarayıcısında açılır ve Google'a bu anahtarla bağlanır;
+     * kapsamı `drive.file`, ömrü Google'ın verdiği kadardır (~1 saat).
+     * Yenileme anahtarı tarayıcıya hiç gitmez.
+     *
+     * @throws HedefHatasi Bağlı değil, izin kaldırılmış (YENIDEN_BAGLAN) ya da yapılandırma eksik
+     */
+    public function seciciErisimi(): string
+    {
+        return $this->erisimAnahtari();
+    }
+
+    /**
+     * Kullanıcının seçtiği klasörü doğrular: klasör türünde, çöpte değil,
+     * hesabın kendi klasörü (`ownedByMe` — paylaşılmış klasör başka hesabın
+     * deposudur, sahibi erişimi kaldırınca kopyalar kaybolur) ve içine
+     * gerçekten yazılabiliyor. Yazma, küçük bir deneme dosyası açılıp
+     * silinerek denenir: `capabilities.canAddChildren` alanına ya da Google'ın
+     * `drive.file` + seçim penceresi davranışına güvenilmez (belgede açık değil).
+     * Hiçbir şey kaydetmez; kaydı çağıran yapar.
+     *
+     * @return array{kimlik: string, ad: string}
+     *
+     * @throws HedefHatasi
+     */
+    public function klasorDogrula(string $kimlik): array
+    {
+        if (preg_match(self::KIMLIK, $kimlik) !== 1) {
+            throw new HedefHatasi(HedefHatasi::KLASOR_GECERSIZ, 'Google Drive klasör kimliği biçimsiz.');
+        }
+
+        $yanit = $this->istek('GET', self::API.'/files/'.$kimlik, ['fields' => 'id,name,mimeType,trashed,ownedByMe,capabilities(canAddChildren)']);
+
+        if ($yanit->status() === 404) {
+            throw new HedefHatasi(HedefHatasi::KLASOR_GECERSIZ, 'Seçilen Google Drive klasörüne erişilemiyor; klasörü yeniden seçin.');
+        }
+
+        if (! $yanit->successful()) {
+            throw self::hata($yanit, HedefHatasi::ERISILEMEDI, 'klasör sorgusu');
+        }
+
+        $ad = $yanit->json('name');
+
+        if ($yanit->json('id') !== $kimlik || $yanit->json('mimeType') !== self::KLASOR_TURU || ! is_string($ad)) {
+            throw new HedefHatasi(HedefHatasi::KLASOR_GECERSIZ, 'Seçilen öğe bir Google Drive klasörü değil.');
+        }
+
+        if ($yanit->json('trashed') !== false) {
+            throw new HedefHatasi(HedefHatasi::KLASOR_GECERSIZ, 'Seçilen Google Drive klasörü çöp kutusunda.');
+        }
+
+        if ($yanit->json('ownedByMe') !== true) {
+            throw new HedefHatasi(HedefHatasi::KLASOR_GECERSIZ, 'Seçilen klasör bağlı Google hesabının kendi klasörü değil (paylaşılmış klasör seçilemez).');
+        }
+
+        if ($yanit->json('capabilities.canAddChildren') === false) {
+            throw new HedefHatasi(HedefHatasi::YAZILAMADI, 'Seçilen Google Drive klasörüne dosya eklenemiyor.');
+        }
+
+        $this->yazmaSina($kimlik);
+
+        return ['kimlik' => $kimlik, 'ad' => $ad];
+    }
+
+    /**
+     * Hesabın Drive'ının köküne yeni klasör açar (seçim penceresi yerine
+     * "yeni klasör"). Dosya oluşturan istek: yeniden denenmez (yinelenen
+     * klasör açılmasın). Yazma, seçilen klasörde olduğu gibi denenir.
+     *
+     * @return array{kimlik: string, ad: string}
+     *
+     * @throws HedefHatasi
+     */
+    public function klasorAc(string $ad): array
+    {
+        $ad = trim($ad);
+
+        if ($ad === '' || mb_strlen($ad) > 100 || preg_match('/[\x00-\x1F\x7F]/u', $ad) !== 0) {
+            throw new HedefHatasi(HedefHatasi::KLASOR_GECERSIZ, 'Klasör adı boş, 100 karakterden uzun ya da denetim karakterli olamaz.');
+        }
+
+        $yanit = $this->istek('POST', self::API.'/files', ['fields' => 'id'], fn (PendingRequest $istemci): PendingRequest => $istemci
+            ->withBody((string) json_encode(['name' => $ad, 'mimeType' => self::KLASOR_TURU]), 'application/json; charset=UTF-8'), yenidenDene: false);
+        $kimlik = $yanit->successful() ? $yanit->json('id') : null;
+
+        if (! is_string($kimlik) || preg_match(self::KIMLIK, $kimlik) !== 1) {
+            throw $yanit->successful()
+                ? new HedefHatasi(HedefHatasi::ERISILEMEDI, 'Google Drive klasör yanıtında kimlik yok.')
+                : self::hata($yanit, HedefHatasi::YAZILAMADI, 'klasör açma');
+        }
+
+        $this->yazmaSina($kimlik);
+
+        return ['kimlik' => $kimlik, 'ad' => $ad];
+    }
+
+    /**
+     * Klasöre küçük bir deneme dosyası yazar ve siler. Ad `erp_` ile
+     * başlamaz: silinemeyip kalsa bile listede yedek sayılmaz.
+     *
+     * @throws HedefHatasi
+     */
+    private function yazmaSina(string $klasor): void
+    {
+        $sinir = 'emor'.bin2hex(random_bytes(12));
+        $govde = "--{$sinir}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"
+            .json_encode(['name' => '.emor-yazma-sinamasi-'.bin2hex(random_bytes(6)), 'parents' => [$klasor]])
+            ."\r\n--{$sinir}\r\nContent-Type: text/plain\r\n\r\neMOR yazma sinamasi\r\n--{$sinir}--";
+
+        $yanit = $this->istek('POST', self::YUKLEME_API, ['uploadType' => 'multipart', 'fields' => 'id'], fn (PendingRequest $istemci): PendingRequest => $istemci
+            ->withBody($govde, 'multipart/related; boundary='.$sinir), yenidenDene: false);
+        $kimlik = $yanit->successful() ? $yanit->json('id') : null;
+
+        if (! is_string($kimlik) || preg_match(self::KIMLIK, $kimlik) !== 1) {
+            $hata = $yanit->successful()
+                ? new HedefHatasi(HedefHatasi::YAZILAMADI, 'Google Drive deneme dosyası yanıtında kimlik yok.')
+                : self::hata($yanit, HedefHatasi::YAZILAMADI, 'klasöre yazma denemesi');
+
+            // 403 / 404 burada kimlik değil klasör izni sorunudur: erişim anahtarı az önce klasörü okudu
+            throw in_array($yanit->status(), [403, 404], true) && $hata->kod !== HedefHatasi::KOTA
+                ? new HedefHatasi(HedefHatasi::YAZILAMADI, 'Google, uygulamanın seçilen klasöre dosya eklemesine izin vermedi (HTTP '.$yanit->status().').')
+                : $hata;
+        }
+
+        $silme = $this->istek('DELETE', self::API.'/files/'.$kimlik);
+
+        if (! $silme->successful() && $silme->status() !== 404) {
+            throw self::hata($silme, HedefHatasi::SILINEMEDI, 'deneme dosyasının silinmesi');
+        }
+    }
+
+    /**
+     * Yedek klasörünün kimliği: kullanıcının seçtiği (ya da ekrandan açtırdığı)
+     * klasör, `baglanti.klasor_kimligi`. Seçilmemişse ya da artık
+     * kullanılamıyorsa (silinmiş, çöpte) hata: başka bir klasör kendiliğinden
+     * aranmaz ya da açılmaz — kopyaların yeri sessizce değişmesin (G21).
+     *
+     * @throws HedefHatasi
      */
     private function klasor(): string
     {
@@ -387,71 +526,25 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
 
         $kayitli = $this->hedef->baglanti['klasor_kimligi'] ?? null;
 
-        if (is_string($kayitli) && preg_match(self::KIMLIK, $kayitli) === 1 && $this->klasorKullanilabilir($kayitli)) {
-            return $this->klasorKimligi = $kayitli;
+        if (! is_string($kayitli) || preg_match(self::KIMLIK, $kayitli) !== 1) {
+            throw new HedefHatasi(HedefHatasi::KLASOR_SECILMEDI, 'Google Drive klasörü seçilmedi; listede "Klasör seç" ile seçin.');
         }
 
-        $kimlik = $this->klasorBul() ?? $this->klasorAc();
-        $this->baglantiyiGuncelle(['klasor_kimligi' => $kimlik]);
-
-        return $this->klasorKimligi = $kimlik;
-    }
-
-    private function klasorKullanilabilir(string $kimlik): bool
-    {
-        $yanit = $this->istek('GET', self::API.'/files/'.$kimlik, ['fields' => 'id,mimeType,trashed']);
+        $yanit = $this->istek('GET', self::API.'/files/'.$kayitli, ['fields' => 'id,mimeType,trashed']);
 
         if ($yanit->status() === 404) {
-            return false;
+            throw new HedefHatasi(HedefHatasi::KLASOR_GECERSIZ, 'Seçilen Google Drive klasörü bulunamadı (silinmiş ya da erişim kaldırılmış); klasörü yeniden seçin.');
         }
 
         if (! $yanit->successful()) {
             throw self::hata($yanit, HedefHatasi::ERISILEMEDI, 'klasör sorgusu');
         }
 
-        return $yanit->json('mimeType') === self::KLASOR_TURU && $yanit->json('trashed') !== true;
-    }
-
-    private function klasorBul(): ?string
-    {
-        $ad = str_replace(['\\', "'"], ['\\\\', "\\'"], $this->klasorAdi());
-        $yanit = $this->istek('GET', self::API.'/files', [
-            'q' => "mimeType = '".self::KLASOR_TURU."' and name = '{$ad}' and trashed = false",
-            'fields' => 'files(id)',
-            'pageSize' => '10',
-            'spaces' => 'drive',
-        ]);
-
-        if (! $yanit->successful()) {
-            throw self::hata($yanit, HedefHatasi::ERISILEMEDI, 'klasör araması');
+        if ($yanit->json('mimeType') !== self::KLASOR_TURU || $yanit->json('trashed') !== false) {
+            throw new HedefHatasi(HedefHatasi::KLASOR_GECERSIZ, 'Seçilen Google Drive klasörü çöp kutusunda ya da klasör değil; klasörü yeniden seçin.');
         }
 
-        $kimlik = $yanit->json('files.0.id');
-
-        return is_string($kimlik) && preg_match(self::KIMLIK, $kimlik) === 1 ? $kimlik : null;
-    }
-
-    /** Dosya oluşturan istek: yeniden denenmez (yinelenen klasör açılmasın). */
-    private function klasorAc(): string
-    {
-        $yanit = $this->istek('POST', self::API.'/files', ['fields' => 'id'], fn (PendingRequest $istemci): PendingRequest => $istemci
-            ->withBody((string) json_encode(['name' => $this->klasorAdi(), 'mimeType' => self::KLASOR_TURU]), 'application/json; charset=UTF-8'), yenidenDene: false);
-        $kimlik = $yanit->successful() ? $yanit->json('id') : null;
-
-        if (! is_string($kimlik) || preg_match(self::KIMLIK, $kimlik) !== 1) {
-            throw $yanit->successful()
-                ? new HedefHatasi(HedefHatasi::ERISILEMEDI, 'Google Drive klasör yanıtında kimlik yok.')
-                : self::hata($yanit, HedefHatasi::YAZILAMADI, 'klasör açma');
-        }
-
-        return $kimlik;
-    }
-
-    private function klasorAdi(): string
-    {
-        $ad = $this->hedef->baglanti['klasor_adi'] ?? null;
-
-        return is_string($ad) && trim($ad) !== '' ? trim($ad) : self::VARSAYILAN_KLASOR_ADI;
+        return $this->klasorKimligi = $kayitli;
     }
 
     /**

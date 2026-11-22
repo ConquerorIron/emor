@@ -226,6 +226,56 @@ final class SftpBaglayicisiTest extends TestCase
         $this->assertDirectoryDoesNotExist($cagri['klasor']);
     }
 
+    public function test_parolasiz_openssh_anahtari_reddedilmez(): void
+    {
+        $anahtar = "-----BEGIN OPENSSH PRIVATE KEY-----\n"
+            .base64_encode("openssh-key-v1\0".pack('N', 4).'none'.pack('N', 4).'none'.str_repeat("\0", 20))
+            ."\n-----END OPENSSH PRIVATE KEY-----";
+        $sahte = $this->sahteSftp();
+
+        $this->baglayici($this->hedef(gizli: ['ozel_anahtar' => $anahtar]))->listele();
+
+        $this->assertCount(1, $sahte->cagrilar);
+    }
+
+    /**
+     * Öldürülen süreçten (SIGKILL) kalan sır klasörü sonraki işlemde silinir;
+     * yeni (süren bir işlemin olabilecek) klasöre ve klasör adı taşıyan
+     * sembolik bağlantının hedefine dokunulmaz.
+     */
+    public function test_oldurulen_surecten_kalan_eski_sir_klasoru_silinir_yenisine_ve_baglantiya_dokunulmaz(): void
+    {
+        $tmp = rtrim(sys_get_temp_dir(), '/');
+        $eski = $tmp.'/emor-sftp-'.bin2hex(random_bytes(8));
+        $yeni = $tmp.'/emor-sftp-'.bin2hex(random_bytes(8));
+        $baglanti = $tmp.'/emor-sftp-'.bin2hex(random_bytes(8));
+        $baglantininHedefi = $this->kok.'/baska';
+        mkdir($eski, 0700);
+        file_put_contents($eski.'/sifre', 'eski-sir');
+        mkdir($yeni, 0700);
+        file_put_contents($yeni.'/sifre', 'suren-islem');
+        mkdir($baglantininHedefi, 0700);
+        file_put_contents($baglantininHedefi.'/dosya', 'dokunulmamali');
+        symlink($baglantininHedefi, $baglanti);
+        $cokEski = time() - config('yedekleme.sure_siniri.kopya', 900) - 7200;
+        touch($eski, $cokEski);
+        exec('touch -h -d @'.$cokEski.' '.escapeshellarg($baglanti));
+
+        try {
+            $this->sahteSftp();
+            $this->baglayici($this->hedef())->listele();
+
+            $this->assertDirectoryDoesNotExist($eski);
+            $this->assertFileExists($yeni.'/sifre');
+            $this->assertTrue(is_link($baglanti));
+            $this->assertFileExists($baglantininHedefi.'/dosya');
+        } finally {
+            @unlink($baglanti);
+            File::deleteDirectory($yeni);
+            File::deleteDirectory($eski);
+        }
+    }
+
     public function test_yedek_once_gecici_ada_yuklenir_sonra_asil_ada_tasinir(): void
     {
         $hedef = $this->hedef();
@@ -398,6 +448,12 @@ final class SftpBaglayicisiTest extends TestCase
             'seçenek gibi kullanıcı' => [['kullanici_adi' => '-oProxyCommand=x'], ['sifre' => self::SIFRE]],
             'satır sonlu parola' => [[], ['sifre' => "parola\nikinci"]],
             'anahtar da parola da yok' => [[], []],
+            // ssh çözme parolasını soramaz; yalnız genel "kimlik doğrulanamadı" derdi
+            'parolalı OpenSSH anahtarı' => [[], ['ozel_anahtar' => "-----BEGIN OPENSSH PRIVATE KEY-----\n"
+                .chunk_split(base64_encode("openssh-key-v1\0".pack('N', 10).'aes256-ctr'.pack('N', 6).'bcrypt'.str_repeat("\0", 40)), 70, "\n")
+                .'-----END OPENSSH PRIVATE KEY-----']],
+            'parolalı PEM anahtarı' => [[], ['ozel_anahtar' => "-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,0011\n\nAAAA\n-----END RSA PRIVATE KEY-----"]],
+            'şifreli PKCS#8 anahtarı' => [[], ['ozel_anahtar' => "-----BEGIN ENCRYPTED PRIVATE KEY-----\nAAAA\n-----END ENCRYPTED PRIVATE KEY-----"]],
         ];
     }
 
@@ -415,6 +471,26 @@ final class SftpBaglayicisiTest extends TestCase
 
         $this->assertSame(HedefHatasi::YAPILANDIRMA, $hata->kod);
         Process::assertNothingRan();
+    }
+
+    /**
+     * İlk "Bağlantıyı Sına": anahtar kayıtlı değilken de tanım, sunucuya ilk
+     * istekten (ssh-keyscan) önce doğrulanır; kullanılamaz tanıma anahtar kaydedilmez.
+     *
+     * @param  array<string, mixed>  $baglanti
+     * @param  array<string, string>  $gizli
+     */
+    #[DataProvider('gecersizTanimlar')]
+    public function test_gecersiz_tanimla_ilk_sinama_sunucu_anahtarini_almadan_yapilandirma_hatasi_verir(array $baglanti, array $gizli): void
+    {
+        $hedef = $this->hedef($baglanti, $gizli, anahtarKayitli: false);
+        Process::fake();
+
+        $hata = $this->hata(fn () => $this->baglayici($hedef)->baglan());
+
+        $this->assertSame(HedefHatasi::YAPILANDIRMA, $hata->kod);
+        Process::assertNothingRan();
+        $this->assertArrayNotHasKey('sunucu_anahtari', $hedef->refresh()->baglanti);
     }
 
     public function test_klasor_disina_cikan_dosya_adi_reddedilir(): void

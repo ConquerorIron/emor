@@ -49,6 +49,12 @@ final class HedefHatasi extends RuntimeException
      */
     public const AYNI_DEPO = 'HEDEF_AYNI_DEPO';
 
+    /** Google Drive hedefinde yedek klasörü seçilmedi (kullanıcı "Klasör seç" ile seçer) */
+    public const KLASOR_SECILMEDI = 'HEDEF_KLASOR_SECILMEDI';
+
+    /** Seçilen klasör kullanılamıyor: yok, çöpte, klasör değil, hesabın kendi klasörü değil */
+    public const KLASOR_GECERSIZ = 'HEDEF_KLASOR_GECERSIZ';
+
     public function __construct(public readonly string $kod, string $mesaj)
     {
         parent::__construct($mesaj);

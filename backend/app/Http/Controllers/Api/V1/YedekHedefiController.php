@@ -340,6 +340,130 @@ final class YedekHedefiController extends Controller
         return response()->json(['data' => new YedekHedefiResource($hedef->refresh()->loadCount('planlar'))]);
     }
 
+    /**
+     * Klasör seçme penceresi (Google Picker) için tarayıcıya verilenler: bağlı
+     * hesabın kısa ömürlü erişim anahtarı (`drive.file`), API anahtarı ve
+     * proje numarası. Yenileme anahtarı hiçbir yanıtta dönmez; yanıt
+     * önbelleğe alınmaz. Erişim anahtarı denetim kaydına girmez.
+     */
+    public function googleSecici(Request $request, YedekHedefi $hedef): JsonResponse
+    {
+        if ($hedef->tur !== HedefTuru::GoogleDrive) {
+            return response()->json(['kod' => 'HEDEF_TURU_UYGUN_DEGIL', 'mesaj' => __('hata.yedek_hedefi_google_degil')], 409);
+        }
+
+        $apiAnahtari = config('yedekleme.google.api_anahtari');
+        $projeNumarasi = config('yedekleme.google.proje_numarasi');
+
+        if (! is_string($apiAnahtari) || $apiAnahtari === '' || ! is_string($projeNumarasi) || preg_match('/^[0-9]{1,20}$/D', $projeNumarasi) !== 1) {
+            return response()->json(['kod' => 'GOOGLE_SECICI_YAPILANDIRILMADI', 'mesaj' => __('hata.yedek_google_secici_yapilandirilmadi')], 409);
+        }
+
+        try {
+            /** @var GoogleDriveBaglayicisi $baglayici */
+            $baglayici = $this->katalog->olustur($hedef);
+            $erisim = $baglayici->seciciErisimi();
+        } catch (HedefHatasi $hata) {
+            $this->denetle('hedef_google_secici', $request, $hedef, [], $hata->kod);
+
+            return response()->json(['kod' => $hata->kod, 'mesaj' => Str::limit($hata->getMessage(), 300)], 409);
+        }
+
+        $this->denetle('hedef_google_secici', $request, $hedef);
+
+        return response()->json(['data' => [
+            'erisim_anahtari' => $erisim,
+            'api_anahtari' => $apiAnahtari,
+            'proje_numarasi' => $projeNumarasi,
+            'eposta' => $hedef->baglanti['eposta'] ?? null,
+        ]])->header('Cache-Control', 'no-store, private');
+    }
+
+    /**
+     * Yedek klasörünü kaydeder: seçim penceresinde seçilen klasör
+     * (`klasor_kimligi`) ya da Drive'ın köküne açılacak yeni klasör
+     * (`yeni_klasor_adi`). Klasör önce bağlayıcıyla denenir (tür, çöp,
+     * sahiplik, deneme dosyası yazıp silme); kayıt hedef satırının ve depo
+     * kilidinin altında, denetimler yeniden yapılarak:
+     * - Klasör konumdur: kopyası duran hedefte başka klasöre geçilemez (409
+     *   `HEDEF_KONUMU_DEGISMEZ`); dosyası durabilen `konum_belirsiz` kopya da
+     *   sayılır (G21).
+     * - Başka bir hedefin klasörü seçilemez (409 `HEDEF_AYNI_DEPO`).
+     * - Deneme sürerken hesap değiştiyse (yeniden bağlandı) kayıt yapılmaz (409).
+     */
+    public function googleKlasor(Request $request, YedekHedefi $hedef): JsonResponse
+    {
+        if ($hedef->tur !== HedefTuru::GoogleDrive) {
+            return response()->json(['kod' => 'HEDEF_TURU_UYGUN_DEGIL', 'mesaj' => __('hata.yedek_hedefi_google_degil')], 409);
+        }
+
+        /** @var array{klasor_kimligi?: string|null, yeni_klasor_adi?: string|null} $veri */
+        $veri = $request->validate([
+            'klasor_kimligi' => ['required_without:yeni_klasor_adi', 'prohibits:yeni_klasor_adi', 'nullable', 'string', 'regex:/^[A-Za-z0-9_-]{1,200}$/D'],
+            'yeni_klasor_adi' => ['required_without:klasor_kimligi', 'nullable', 'string', 'max:100', 'regex:/^[^\x00-\x1F\x7F]+$/Du'],
+        ]);
+        $secilen = $veri['klasor_kimligi'] ?? null;
+
+        // Ağ isteğinden önce ucuz denetim: kilitli hedefte boşuna klasör açılmasın / denenmesin
+        if ($secilen !== ($hedef->baglanti['klasor_kimligi'] ?? null) && $this->klasorKilitliMi($hedef)) {
+            $this->denetle('hedef_google_klasor', $request, $hedef, [], 'HEDEF_KONUMU_DEGISMEZ');
+
+            return $this->konumDegismez(['klasor_kimligi']);
+        }
+
+        $hesap = $hedef->baglanti['eposta'] ?? null;
+
+        try {
+            /** @var GoogleDriveBaglayicisi $baglayici */
+            $baglayici = $this->katalog->olustur($hedef);
+            $klasor = $secilen !== null ? $baglayici->klasorDogrula($secilen) : $baglayici->klasorAc((string) $veri['yeni_klasor_adi']);
+        } catch (HedefHatasi $hata) {
+            $this->denetle('hedef_google_klasor', $request, $hedef, [], $hata->kod);
+
+            return response()->json(['kod' => $hata->kod, 'mesaj' => Str::limit($hata->getMessage(), 300)], 422);
+        }
+
+        $red = $this->depoKilidiAltinda(fn (): ?JsonResponse => DB::transaction(function () use ($hedef, $klasor, $hesap): ?JsonResponse {
+            $hedef = YedekHedefi::query()->whereKey($hedef->getKey())->lockForUpdate()->firstOrFail();
+
+            if (($hedef->baglanti['eposta'] ?? null) !== $hesap) {
+                return response()->json(['kod' => 'GOOGLE_HESAP_DEGISTI', 'mesaj' => __('hata.yedek_google_hesap_degisti')], 409);
+            }
+
+            if ($klasor['kimlik'] !== ($hedef->baglanti['klasor_kimligi'] ?? null) && $this->klasorKilitliMi($hedef)) {
+                return $this->konumDegismez(['klasor_kimligi']);
+            }
+
+            $hedef->baglanti = [...($hedef->baglanti ?? []), 'klasor_kimligi' => $klasor['kimlik'], 'klasor_adi' => $klasor['ad']];
+            $this->ayniDepoyuReddet($hedef);
+            $hedef->save();
+
+            return null;
+        }));
+
+        if ($red !== null) {
+            $this->denetle('hedef_google_klasor', $request, $hedef, [], (string) $red->getData(true)['kod']);
+
+            return $red;
+        }
+
+        $this->denetle('hedef_google_klasor', $request, $hedef, ['yeni' => $secilen === null]);
+
+        return response()->json(['data' => new YedekHedefiResource($hedef->refresh()->load('sonKopya')->loadCount('planlar'))]);
+    }
+
+    /**
+     * Klasör değiştirilemez mi: konum kilidi (kopyalanıyor / tamam) ya da
+     * dosyası durabilen başka kopya (`konum_belirsiz` dahil; G21). Klasörü
+     * hiç seçilmemiş hedefin kopyası olamaz (iz yok); eski sürümden kalan
+     * izsiz kopya da geride sayılır.
+     */
+    private function klasorKilitliMi(YedekHedefi $hedef): bool
+    {
+        return $this->konum->kilitliAlanlar($hedef) !== []
+            || $hedef->kopyalar()->whereIn('durum', KopyaDurumu::yedegiTutanlar())->exists();
+    }
+
     /** "Bağlantıyı kes": yenileme anahtarı silinir; kopyalar "yeniden bağlanın" ile durur */
     public function googleKes(Request $request, YedekHedefi $hedef): YedekHedefiResource
     {

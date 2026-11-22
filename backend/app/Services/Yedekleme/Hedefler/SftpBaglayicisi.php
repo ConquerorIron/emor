@@ -54,6 +54,9 @@ final class SftpBaglayicisi implements HedefBaglayicisi
 
     public function baglan(): void
     {
+        // Tanım, sunucuya giden ilk istekten (ssh-keyscan) önce doğrulanır: kullanılamaz tanıma anahtar kaydedilmez (G15)
+        $this->tanimiDogrula();
+
         if (! $this->anahtarKayitli()) {
             $this->sunucuAnahtariniKaydet();
         }
@@ -166,16 +169,7 @@ final class SftpBaglayicisi implements HedefBaglayicisi
      */
     private function calistir(array $komutlar, string $varsayilanKod, string $islem, bool $aktarim): ProcessResult
     {
-        $sunucu = $this->sunucu();
-        $port = $this->port();
-        $kullanici = $this->kullanici();
-        $klasor = $this->klasor();
-        $anahtar = $this->ozelAnahtar();
-        $sifre = $this->sifre();
-
-        if ($anahtar === null && $sifre === null) {
-            throw new HedefHatasi(HedefHatasi::YAPILANDIRMA, 'SFTP için özel anahtar ya da parola tanımlanmalı.');
-        }
+        [$sunucu, $port, $kullanici, $klasor, $anahtar, $sifre] = $this->tanimiDogrula();
 
         if (! $this->anahtarKayitli()) {
             throw new HedefHatasi(HedefHatasi::YAPILANDIRMA, 'Sunucunun parmak izi kayıtlı değil; önce "Bağlantıyı Sına" çalıştırılmalı.');
@@ -275,6 +269,23 @@ final class SftpBaglayicisi implements HedefBaglayicisi
         };
 
         return new HedefHatasi($kod, "SFTP {$islem}: {$neden} (çıkış {$sonuc->exitCode()}).");
+    }
+
+    /**
+     * Bağlantı tanımının bütün alanları; geçersiz alan ya da kimlik bilgisi
+     * yoksa hiçbir süreç başlamadan YAPILANDIRMA.
+     *
+     * @return array{0: string, 1: int, 2: string, 3: string, 4: string|null, 5: string|null} [sunucu, port, kullanıcı, klasör, özel anahtar, parola]
+     */
+    private function tanimiDogrula(): array
+    {
+        $tanim = [$this->sunucu(), $this->port(), $this->kullanici(), $this->klasor(), $this->ozelAnahtar(), $this->sifre()];
+
+        if ($tanim[4] === null && $tanim[5] === null) {
+            throw new HedefHatasi(HedefHatasi::YAPILANDIRMA, 'SFTP için özel anahtar ya da parola tanımlanmalı.');
+        }
+
+        return $tanim;
     }
 
     private function anahtarKayitli(): bool
@@ -423,7 +434,12 @@ final class SftpBaglayicisi implements HedefBaglayicisi
         return $sifre;
     }
 
-    /** OpenSSH anahtar dosyası LF satır sonu ve sonda satır sonu ister */
+    /**
+     * OpenSSH anahtar dosyası LF satır sonu ve sonda satır sonu ister.
+     * Parolalı (şifreli) anahtar desteklenmez: ssh, çözme parolasını soracak
+     * bir yer bulamaz ve yalnız genel "kimlik doğrulanamadı" der. Sunucuya hiç
+     * gidilmeden açık YAPILANDIRMA hatası verilir.
+     */
     private function ozelAnahtar(): ?string
     {
         $anahtar = $this->hedef->gizli_bilgiler['ozel_anahtar'] ?? null;
@@ -432,7 +448,42 @@ final class SftpBaglayicisi implements HedefBaglayicisi
             return null;
         }
 
-        return trim(str_replace("\r\n", "\n", $anahtar))."\n";
+        $anahtar = trim(str_replace("\r\n", "\n", $anahtar))."\n";
+
+        if (self::sifreliAnahtarMi($anahtar)) {
+            throw new HedefHatasi(HedefHatasi::YAPILANDIRMA, 'Parolalı (şifreli) özel anahtar desteklenmiyor; parolasız bir anahtar ya da parolayla giriş kullanın.');
+        }
+
+        return $anahtar;
+    }
+
+    /**
+     * PEM'de `Proc-Type: 4,ENCRYPTED` / `BEGIN ENCRYPTED PRIVATE KEY`;
+     * OpenSSH biçiminde şifre adı `none` değilse şifrelidir
+     * (`openssh-key-v1\0` + uint32 uzunluk + şifre adı). Ayrıştırılamayan
+     * anahtar burada reddedilmez; kararı ssh verir.
+     */
+    private static function sifreliAnahtarMi(string $anahtar): bool
+    {
+        if (str_contains($anahtar, 'Proc-Type: 4,ENCRYPTED') || str_contains($anahtar, '-----BEGIN ENCRYPTED PRIVATE KEY-----')) {
+            return true;
+        }
+
+        if (preg_match('/-----BEGIN OPENSSH PRIVATE KEY-----\n(.+?)\n-----END OPENSSH PRIVATE KEY-----/s', $anahtar, $parca) !== 1) {
+            return false;
+        }
+
+        $ham = base64_decode(str_replace(["\n", ' '], '', $parca[1]), true);
+        $baslik = "openssh-key-v1\0";
+
+        if (! is_string($ham) || ! str_starts_with($ham, $baslik) || strlen($ham) < strlen($baslik) + 4) {
+            return false;
+        }
+
+        $uzunluk = unpack('N', substr($ham, strlen($baslik), 4))[1];
+        $sifre = substr($ham, strlen($baslik) + 4, $uzunluk);
+
+        return $sifre !== '' && $sifre !== 'none';
     }
 
     /** Normalleştirilmiş klasör: "" (giriş klasörü), "/" ya da sonda "/" olmayan yol */
@@ -472,9 +523,15 @@ final class SftpBaglayicisi implements HedefBaglayicisi
         return $yol;
     }
 
-    /** Sırların yazıldığı geçici klasör (0700); yol ssh seçeneğine boşluksuz girer */
+    /**
+     * Sırların yazıldığı geçici klasör (0700); yol ssh seçeneğine boşluksuz
+     * girer. Önce, öldürülen bir süreçten (SIGKILL, kuyruk zaman aşımı) kalan
+     * eski klasörler silinir: sır dosyaları `finally`'de silinir ama süreç
+     * öldürülünce o adım çalışmaz.
+     */
     private function geciciKlasor(): string
     {
+        $this->artikKlasorleriSil();
         $yol = rtrim(sys_get_temp_dir(), '/').'/emor-sftp-'.bin2hex(random_bytes(8));
 
         if (preg_match('#^/[A-Za-z0-9._/-]+$#D', $yol) !== 1 || ! @mkdir($yol, 0700) || ! chmod($yol, 0700)) {
@@ -499,6 +556,29 @@ final class SftpBaglayicisi implements HedefBaglayicisi
             }
         } finally {
             fclose($tutamac);
+        }
+    }
+
+    /**
+     * Hiçbir işlemin kullanıyor olamayacağı kadar eski (en uzun aktarım
+     * süresi + 1 saat) `emor-sftp-<16 hex>` klasörleri. Sembolik bağlantı ve
+     * bu sürecin kullanıcısına ait olmayan klasör atlanır.
+     */
+    private function artikKlasorleriSil(): void
+    {
+        $kok = rtrim(sys_get_temp_dir(), '/');
+        $sinir = time() - $this->yapilandirma->sureSiniri('kopya') - 3600;
+
+        foreach (@scandir($kok) ?: [] as $ad) {
+            $yol = $kok.'/'.$ad;
+            $bilgi = preg_match('/^emor-sftp-[0-9a-f]{16}$/D', $ad) === 1 ? @lstat($yol) : false;
+
+            if ($bilgi === false || ($bilgi['mode'] & 0170000) !== 0040000 || $bilgi['mtime'] >= $sinir
+                || (function_exists('posix_geteuid') && $bilgi['uid'] !== posix_geteuid())) {
+                continue;
+            }
+
+            $this->klasoruSil($yol);
         }
     }
 

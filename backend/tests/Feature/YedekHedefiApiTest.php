@@ -771,7 +771,7 @@ final class YedekHedefiApiTest extends TestCase
     /**
      * BY-021-R5: konum izi yeni hesabı gösteren `konum_belirsiz` kopya geride
      * kalmaz — o hesaba dönmek kopyanın konumunu düzeltir (konum düzeltme yolu
-     * açık kalır); klasör yeni hesapta yeniden aranır.
+     * açık kalır); klasör eski hesaptadır, yeni hesapta yeniden seçilir.
      */
     public function test_konum_izi_yeni_hesabi_gosteren_konum_belirsiz_kopya_hesap_degisikligini_engellemez(): void
     {
@@ -784,5 +784,223 @@ final class YedekHedefiApiTest extends TestCase
         $this->postJson(self::K.'/google/donus', ['kod' => 'yetki-kodu', 'durum' => $this->googleDurumu($hedef)])->assertOk();
 
         $this->assertEquals(['klasor_adi' => 'eMOR', 'eposta' => 'baska@ornek.test'], $hedef->refresh()->baglanti);
+    }
+
+    // --- Klasör seçimi (Google Picker) -------------------------------------
+
+    private const G_TOKEN = 'https://oauth2.googleapis.com/token';
+
+    private const G_KLASOR = 'https://www.googleapis.com/drive/v3/files/secilen_1?fields=*';
+
+    private const G_YENI_KLASOR = 'https://www.googleapis.com/drive/v3/files?fields=id';
+
+    private const G_DENEME = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id';
+
+    private const G_DENEME_SIL = 'https://www.googleapis.com/drive/v3/files/deneme_1';
+
+    /** Hesabı ve yenileme anahtarı kayıtlı, klasörü seçilmemiş Drive hedefi */
+    private function bagliDriveHedefi(string $ad = 'Drive', array $baglanti = []): YedekHedefi
+    {
+        return YedekHedefi::factory()->create([
+            'ad' => $ad, 'tur' => HedefTuru::GoogleDrive,
+            'baglanti' => ['eposta' => 'yedek@ornek.test', ...$baglanti],
+            'gizli_bilgiler' => ['yenileme_anahtari' => 'yenileme-GIZLI'],
+        ]);
+    }
+
+    /**
+     * Google yapılandırması + klasör sorgusu, deneme dosyası yazma/silme sahteleri.
+     *
+     * @param  array<string, mixed>  $klasor  Seçilen klasörün `files.get` yanıtına eklenecekler
+     */
+    private function klasorSahtesi(array $klasor = []): void
+    {
+        config([
+            'yedekleme.google.istemci_kimligi' => 'istemci-1.apps.googleusercontent.com', 'yedekleme.google.istemci_sirri' => 'GOCSPX-sir',
+            'yedekleme.google.api_anahtari' => 'AIza-tarayici-anahtari', 'yedekleme.google.proje_numarasi' => '123456789012',
+        ]);
+        Http::preventStrayRequests();
+        Http::fake([
+            self::G_TOKEN => Http::response(['access_token' => 'ya29.kisa-omurlu', 'expires_in' => 3599, 'token_type' => 'Bearer']),
+            self::G_KLASOR => Http::response(['id' => 'secilen_1', 'name' => 'Muhasebe Yedekleri', 'mimeType' => 'application/vnd.google-apps.folder', 'trashed' => false, 'ownedByMe' => true, 'capabilities' => ['canAddChildren' => true], ...$klasor]),
+            self::G_YENI_KLASOR => Http::response(['id' => 'yeni_klasor']),
+            self::G_DENEME => Http::response(['id' => 'deneme_1']),
+            self::G_DENEME_SIL => Http::response('', 204),
+        ]);
+    }
+
+    public function test_google_secici_bagli_hesabin_kisa_omurlu_erisim_anahtarini_doner_yenileme_anahtari_donmez_onbellege_alinmaz(): void
+    {
+        $this->klasorSahtesi();
+        $hedef = $this->bagliDriveHedefi();
+
+        $yanit = $this->postJson(self::K.'/'.$hedef->id.'/google/secici')->assertOk()
+            ->assertExactJson(['data' => ['erisim_anahtari' => 'ya29.kisa-omurlu', 'api_anahtari' => 'AIza-tarayici-anahtari', 'proje_numarasi' => '123456789012', 'eposta' => 'yedek@ornek.test']]);
+
+        $this->assertStringContainsString('no-store', (string) $yanit->headers->get('Cache-Control'));
+        $this->assertStringNotContainsString('yenileme-GIZLI', (string) $yanit->getContent());
+        $kayit = YedekIslemKaydi::query()->where('islem', 'hedef_google_secici')->sole();
+        $this->assertStringNotContainsString('ya29.kisa-omurlu', (string) json_encode($kayit->getAttributes()));
+    }
+
+    public function test_google_secici_api_anahtari_ya_da_proje_numarasi_yoksa_409_ve_googlea_istek_gitmez(): void
+    {
+        $this->klasorSahtesi();
+        config(['yedekleme.google.proje_numarasi' => null]);
+        $hedef = $this->bagliDriveHedefi();
+
+        $this->postJson(self::K.'/'.$hedef->id.'/google/secici')->assertStatus(409)->assertJsonPath('kod', 'GOOGLE_SECICI_YAPILANDIRILMADI');
+        Http::assertNothingSent();
+    }
+
+    public function test_google_secici_hesabi_bagli_olmayan_hedefte_409_yeniden_baglan(): void
+    {
+        $this->klasorSahtesi();
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Drive', 'tur' => HedefTuru::GoogleDrive, 'baglanti' => []]);
+
+        $this->postJson(self::K.'/'.$hedef->id.'/google/secici')->assertStatus(409)->assertJsonPath('kod', 'HEDEF_YENIDEN_BAGLAN');
+        Http::assertNothingSent();
+    }
+
+    public function test_secilen_klasor_denenip_kaydedilir_adi_gosterilir_kopya_konumu_olusur(): void
+    {
+        $this->klasorSahtesi();
+        $hedef = $this->bagliDriveHedefi();
+        $this->assertNull(app(HedefKonumu::class)->iz($hedef));
+
+        $this->postJson(self::K.'/'.$hedef->id.'/google/klasor', ['klasor_kimligi' => 'secilen_1'])->assertOk()
+            ->assertJsonPath('data.baglanti.klasor_kimligi', 'secilen_1')
+            ->assertJsonPath('data.baglanti.klasor_adi', 'Muhasebe Yedekleri');
+
+        $hedef->refresh();
+        $this->assertEquals(['eposta' => 'yedek@ornek.test', 'klasor_kimligi' => 'secilen_1', 'klasor_adi' => 'Muhasebe Yedekleri'], $hedef->baglanti);
+        $this->assertNotNull(app(HedefKonumu::class)->iz($hedef));
+        Http::assertSent(fn (Request $istek): bool => $istek->url() === self::G_DENEME);
+        Http::assertSent(fn (Request $istek): bool => $istek->url() === self::G_DENEME_SIL && $istek->method() === 'DELETE');
+        $this->assertSame(['yeni' => false], array_intersect_key(YedekIslemKaydi::query()->where('islem', 'hedef_google_klasor')->sole()->ayrinti ?? [], ['yeni' => 1]));
+    }
+
+    public function test_yeni_klasor_drivein_kokune_acilip_kaydedilir(): void
+    {
+        $this->klasorSahtesi();
+        $hedef = $this->bagliDriveHedefi();
+
+        $this->postJson(self::K.'/'.$hedef->id.'/google/klasor', ['yeni_klasor_adi' => 'eMOR Yedekleri'])->assertOk()
+            ->assertJsonPath('data.baglanti.klasor_kimligi', 'yeni_klasor')
+            ->assertJsonPath('data.baglanti.klasor_adi', 'eMOR Yedekleri');
+
+        Http::assertSent(fn (Request $istek): bool => $istek->url() === self::G_YENI_KLASOR
+            && json_decode($istek->body(), true) === ['name' => 'eMOR Yedekleri', 'mimeType' => 'application/vnd.google-apps.folder']);
+    }
+
+    public function test_klasor_dogrulanamazsa_422_hicbir_sey_kaydedilmez(): void
+    {
+        $this->klasorSahtesi(['ownedByMe' => false]);
+        $hedef = $this->bagliDriveHedefi();
+
+        $this->postJson(self::K.'/'.$hedef->id.'/google/klasor', ['klasor_kimligi' => 'secilen_1'])
+            ->assertStatus(422)->assertJsonPath('kod', 'HEDEF_KLASOR_GECERSIZ');
+
+        $this->assertEquals(['eposta' => 'yedek@ornek.test'], $hedef->refresh()->baglanti);
+        Http::assertNotSent(fn (Request $istek): bool => $istek->url() === self::G_DENEME);
+    }
+
+    /** @return iterable<string, array{0: array<string, mixed>}> */
+    public static function gecersizKlasorIstekleri(): iterable
+    {
+        yield 'ikisi de yok' => [[]];
+        yield 'ikisi birden' => [['klasor_kimligi' => 'secilen_1', 'yeni_klasor_adi' => 'X']];
+        yield 'biçimsiz kimlik' => [['klasor_kimligi' => '../about?fields=*']];
+        yield 'denetim karakterli ad' => [['yeni_klasor_adi' => "a\nb"]];
+    }
+
+    /** @param  array<string, mixed>  $govde */
+    #[DataProvider('gecersizKlasorIstekleri')]
+    public function test_gecersiz_klasor_istegi_googlea_gitmeden_422(array $govde): void
+    {
+        $this->klasorSahtesi();
+        $hedef = $this->bagliDriveHedefi();
+
+        $this->postJson(self::K.'/'.$hedef->id.'/google/klasor', $govde)->assertStatus(422);
+        Http::assertNothingSent();
+    }
+
+    /** @return iterable<string, array{0: KopyaDurumu}> */
+    public static function klasoruKilitleyenKopyalar(): iterable
+    {
+        yield 'tamam' => [KopyaDurumu::Tamam];
+        yield 'kopyalanıyor' => [KopyaDurumu::Kopyalaniyor];
+        // Dosyası durabilir (G21): kilit yalnız tamam / kopyalanıyor'a bakar, klasör yine değişmemeli
+        yield 'konum belirsiz' => [KopyaDurumu::KonumBelirsiz];
+    }
+
+    #[DataProvider('klasoruKilitleyenKopyalar')]
+    public function test_kopyasi_duran_hedefte_baska_klasor_secilemez_409_googlea_istek_gitmez(KopyaDurumu $durum): void
+    {
+        $this->klasorSahtesi();
+        $hedef = $this->bagliDriveHedefi(baglanti: ['klasor_kimligi' => 'eski_klasor', 'klasor_adi' => 'Eski']);
+        YedekKopyasi::query()->create(['yedek_id' => Yedek::factory()->create()->id, 'yedek_hedefi_id' => $hedef->id, 'durum' => $durum, 'uzak_kimlik' => 'drive-dosya-1', 'sifreli' => true, 'konum_izi' => app(HedefKonumu::class)->iz($hedef)]);
+
+        $this->postJson(self::K.'/'.$hedef->id.'/google/klasor', ['klasor_kimligi' => 'secilen_1'])
+            ->assertStatus(409)->assertJsonPath('kod', 'HEDEF_KONUMU_DEGISMEZ')->assertJsonPath('alanlar', ['klasor_kimligi']);
+        $this->postJson(self::K.'/'.$hedef->id.'/google/klasor', ['yeni_klasor_adi' => 'Yeni'])->assertStatus(409);
+
+        Http::assertNothingSent();
+        $this->assertSame('eski_klasor', $hedef->refresh()->baglanti['klasor_kimligi']);
+    }
+
+    public function test_yalniz_basarisiz_kopyasi_olan_drive_hedefinin_klasoru_degisebilir(): void
+    {
+        $this->klasorSahtesi();
+        $hedef = $this->bagliDriveHedefi(baglanti: ['klasor_kimligi' => 'eski_klasor']);
+        YedekKopyasi::query()->create(['yedek_id' => Yedek::factory()->create()->id, 'yedek_hedefi_id' => $hedef->id, 'durum' => KopyaDurumu::Basarisiz, 'sifreli' => true]);
+
+        $this->postJson(self::K.'/'.$hedef->id.'/google/klasor', ['klasor_kimligi' => 'secilen_1'])->assertOk();
+
+        $this->assertSame('secilen_1', $hedef->refresh()->baglanti['klasor_kimligi']);
+    }
+
+    public function test_baska_hedefin_klasoru_secilemez_409_ayni_depo(): void
+    {
+        $this->klasorSahtesi();
+        $this->bagliDriveHedefi('Birinci', ['klasor_kimligi' => 'secilen_1']);
+        $ikinci = $this->bagliDriveHedefi('İkinci');
+
+        $this->postJson(self::K.'/'.$ikinci->id.'/google/klasor', ['klasor_kimligi' => 'secilen_1'])
+            ->assertStatus(409)->assertJsonPath('kod', 'HEDEF_AYNI_DEPO')->assertJsonPath('hedefler', ['Birinci']);
+
+        $this->assertArrayNotHasKey('klasor_kimligi', $ikinci->refresh()->baglanti);
+    }
+
+    public function test_klasor_denenirken_hedef_baska_hesaba_baglanirsa_klasor_kaydedilmez_409(): void
+    {
+        $this->klasorSahtesi();
+        $hedef = $this->bagliDriveHedefi();
+        Http::fake([
+            self::G_TOKEN => Http::response(['access_token' => 'ya29.kisa-omurlu', 'expires_in' => 3599, 'token_type' => 'Bearer']),
+            self::G_KLASOR => Http::response(['id' => 'secilen_1', 'name' => 'X', 'mimeType' => 'application/vnd.google-apps.folder', 'trashed' => false, 'ownedByMe' => true, 'capabilities' => ['canAddChildren' => true]]),
+            self::G_DENEME => function () use ($hedef) {
+                // Deneme sürerken başka sekmede başka hesapla yeniden bağlandı
+                YedekHedefi::query()->whereKey($hedef->id)->update(['baglanti' => json_encode(['eposta' => 'baska@ornek.test'])]);
+
+                return Http::response(['id' => 'deneme_1']);
+            },
+            self::G_DENEME_SIL => Http::response('', 204),
+        ]);
+
+        $this->postJson(self::K.'/'.$hedef->id.'/google/klasor', ['klasor_kimligi' => 'secilen_1'])
+            ->assertStatus(409)->assertJsonPath('kod', 'GOOGLE_HESAP_DEGISTI');
+
+        $this->assertEquals(['eposta' => 'baska@ornek.test'], $hedef->refresh()->baglanti);
+    }
+
+    public function test_drive_formunda_alan_yok_hedef_yalniz_adla_eklenir(): void
+    {
+        $turler = collect($this->getJson(self::K.'/turler')->assertOk()->json('data'))->keyBy('tur');
+        $this->assertSame([], $turler['google_drive']['alanlar']);
+
+        $this->postJson(self::K, ['ad' => 'Drive', 'tur' => 'google_drive', 'alanlar' => []])->assertCreated()
+            ->assertJsonPath('data.baglanti', []);
+        $this->postJson(self::K, ['ad' => 'Drive 2', 'tur' => 'google_drive', 'alanlar' => ['klasor_adi' => 'X']])->assertStatus(422);
     }
 }

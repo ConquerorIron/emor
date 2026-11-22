@@ -121,6 +121,8 @@ return [
     'yedek_google_yapilandirilmadi' => 'Google bağlantısı için sunucuda istemci kimliği ve sırrı tanımlı değil (YEDEKLEME_GOOGLE_*).',
     'yedek_google_durum_gecersiz' => 'Google bağlantısı doğrulanamadı (süresi geçmiş ya da başka bir oturumdan). "Google ile bağlan"ı yeniden deneyin.',
     'yedek_google_baglanamadi' => 'Google bağlantısı kurulamadı. Yeniden deneyin.',
+    'yedek_google_secici_yapilandirilmadi' => 'Google klasör seçme penceresi için sunucuda API anahtarı ve proje numarası tanımlı değil (YEDEKLEME_GOOGLE_API_ANAHTARI, YEDEKLEME_GOOGLE_PROJE_NUMARASI).',
+    'yedek_google_hesap_degisti' => 'Klasör denenirken hedef başka bir Google hesabına bağlandı; klasör kaydedilmedi. Klasörü yeniden seçin.',
     'yedek_google_hesap_okunamadi' => 'Bağlanan Google hesabının kimliği (e-posta) okunamadı; bağlantı kaydedilmedi. "Google ile bağlan"ı yeniden deneyin.',
     'yedek_google_hesap_dogrulanamadi' => 'Bu hedefte kopyalar var ve bağlanan Google hesabının kayıtlı hesapla aynı olduğu doğrulanamadı (hesap, yedek klasörünün ve kayıtlı kopyanın sahibi olmalı); eski bağlantı korundu. Klasörün sahibi olan hesapla yeniden deneyin; olmuyorsa yeni bir hedef ekleyin ve bu hedefin kopyalarını elle uzlaştırın.',
     'yedek_plani_kopyali' => 'Bu plana bağlı :adet kopya var; plan silinemez. Pasife alın — geçmişi durur.',

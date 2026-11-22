@@ -217,6 +217,23 @@ final class YedekKopyalayiciTest extends TestCase
         Http::assertNothingSent();
     }
 
+    /**
+     * Hesabı bağlı ama klasörü seçilmemiş Drive hedefi: kopya gönderilmez,
+     * Drive'da klasör aranmaz / açılmaz, yeniden denenmez; neden kodda açık.
+     */
+    public function test_klasoru_secilmemis_drive_hedefine_kopya_gonderilmez_klasor_secilmedi(): void
+    {
+        config(['yedekleme.google.istemci_kimligi' => 'istemci-1.apps.googleusercontent.com', 'yedekleme.google.istemci_sirri' => 'GOCSPX-sir']);
+        Http::preventStrayRequests();
+        Http::fake([]);
+        $hedef = YedekHedefi::factory()->create(['tur' => HedefTuru::GoogleDrive, 'baglanti' => ['eposta' => 'yedek@ornek.test'], 'gizli_bilgiler' => ['yenileme_anahtari' => 'yenileme']]);
+
+        $kopya = $this->kopyalayici()->kopyala($this->yedek(), $hedef);
+
+        $this->assertSame([KopyaDurumu::Basarisiz, HedefHatasi::KLASOR_SECILMEDI, 1], [$kopya->durum, $kopya->hata_kodu, $kopya->deneme]);
+        Http::assertNothingSent();
+    }
+
     /** Aynı hedefi paylaşan iki plan tek fiziksel kopyaya bağlanır (F6). */
     public function test_ayni_hedefi_paylasan_iki_plan_tek_kopyaya_baglanir_dosya_bir_kez_yazilir(): void
     {

@@ -22,7 +22,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 final class YedekHedefiResource extends JsonResource
 {
     /** Bağlayıcıların `baglanti`'ya yazdığı, ekranda gösterilebilir alanlar */
-    private const DURUM_ALANLARI = ['sunucu_parmak_izi', 'sunucu_anahtari_icin', 'durum', 'eposta'];
+    private const DURUM_ALANLARI = ['sunucu_parmak_izi', 'sunucu_anahtari_icin', 'durum', 'eposta', 'klasor_kimligi', 'klasor_adi'];
 
     /**
      * @return array<string, mixed>

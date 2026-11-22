@@ -109,6 +109,10 @@ return [
     'google' => [
         'istemci_kimligi' => env('YEDEKLEME_GOOGLE_ISTEMCI_KIMLIGI') ?: null,
         'istemci_sirri' => env('YEDEKLEME_GOOGLE_ISTEMCI_SIRRI') ?: null,
+        // Klasör seçme penceresi (Google Picker, tarayıcıda): API anahtarı
+        // (Picker API'yle ve sitenin adresiyle sınırlanmış) ve proje numarası
+        'api_anahtari' => env('YEDEKLEME_GOOGLE_API_ANAHTARI') ?: null,
+        'proje_numarasi' => env('YEDEKLEME_GOOGLE_PROJE_NUMARASI') ?: null,
     ],
 
     // Verisi yedeğe GİRMEYEN tablolar (şeması girer): oturum, önbellek ve

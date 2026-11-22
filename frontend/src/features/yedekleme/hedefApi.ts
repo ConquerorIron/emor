@@ -35,7 +35,7 @@ export interface Hedef {
   tur: string
   aktif: boolean
   sunucu_disi: boolean
-  /** Formun sır olmayan alanları + bağlayıcının durum alanları (sunucu_parmak_izi, durum, eposta) */
+  /** Formun sır olmayan alanları + bağlayıcının durum alanları (sunucu_parmak_izi, durum, eposta, klasor_kimligi, klasor_adi) */
   baglanti: Record<string, HedefDegeri | undefined>
   /** Sır alanlarının kayıtlı olup olmadığı (değerleri asla dönmez) */
   gizli_kayitli: Record<string, boolean>
@@ -127,9 +127,40 @@ export async function googleBaglantiAdresi(id: number): Promise<string> {
   return yanit.data.data.adres
 }
 
-/** Google dönüşündeki kod ve durum değeri (422 GOOGLE_DURUM_GECERSIZ) */
-export async function googleDonusunuTamamla(kod: string, durum: string): Promise<void> {
-  await api.post(`${KOK}/google/donus`, { kod, durum })
+/** Google dönüşündeki kod ve durum değeri (422 GOOGLE_DURUM_GECERSIZ); bağlanan hedef döner */
+export async function googleDonusunuTamamla(kod: string, durum: string): Promise<Hedef> {
+  const yanit = await api.post<{ data: Hedef }>(`${KOK}/google/donus`, { kod, durum })
+
+  return yanit.data.data
+}
+
+/** Klasör seçme penceresi (Google Picker) için: kısa ömürlü erişim anahtarı ve pencere ayarları */
+export interface GoogleSeciciBilgisi {
+  erisim_anahtari: string
+  api_anahtari: string
+  proje_numarasi: string
+  eposta: string | null
+}
+
+/** 409 GOOGLE_SECICI_YAPILANDIRILMADI / HEDEF_YENIDEN_BAGLAN */
+export async function googleSeciciBilgisi(id: number): Promise<GoogleSeciciBilgisi> {
+  const yanit = await api.post<{ data: GoogleSeciciBilgisi }>(`${KOK}/${id}/google/secici`)
+
+  return yanit.data.data
+}
+
+/**
+ * Yedek klasörünü kaydeder: seçilen klasör ya da Drive'ın köküne açılacak yeni
+ * klasör. Sunucu klasöre deneme dosyası yazıp siler; 422 HEDEF_KLASOR_GECERSIZ /
+ * HEDEF_YAZILAMADI, 409 HEDEF_KONUMU_DEGISMEZ / HEDEF_AYNI_DEPO / GOOGLE_HESAP_DEGISTI.
+ */
+export async function googleKlasorKaydet(
+  id: number,
+  govde: { klasor_kimligi: string } | { yeni_klasor_adi: string },
+): Promise<Hedef> {
+  const yanit = await api.post<{ data: Hedef }>(`${KOK}/${id}/google/klasor`, govde)
+
+  return yanit.data.data
 }
 
 export async function googleBaglantisiniKes(id: number): Promise<Hedef> {

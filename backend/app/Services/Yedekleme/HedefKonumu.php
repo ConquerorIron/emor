@@ -36,9 +36,10 @@ use Illuminate\Database\Eloquent\Collection;
  * - `on_ek` (S3): konum (uzak kimlik ön ekle başlar); baştaki / sondaki "/" atılır.
  * - `yol_stili` (S3): konum — kapalıyken istek `kova.uc_nokta` alan adına
  *   gider, başka bir sunucuya çözülebilir. Bağlayıcı gibi yalnız `true` açıktır.
- * - `klasor_adi` (Drive): konum; boş = varsayılan klasör adı.
- * - `eposta` (Drive, bağlayıcının yazdığı alan): konum — dosya kimlikleri
- *   bağlı Google hesabındadır.
+ * - `eposta` ve `klasor_kimligi` (Drive, formda değil; "Google ile bağlan"
+ *   ve "Klasör seç" yazar): konum — dosya kimlikleri bağlı Google
+ *   hesabındadır, kopyalar seçilen klasöre gider. Klasör adı (`klasor_adi`)
+ *   yalnız gösterimdir: Drive'da klasör yeniden adlandırılabilir.
  * Serbest: sırlar, ad, aktiflik, FTP pasif kip (yalnız veri bağlantısının
  * yönü), S3 erişim anahtarı (kimlik; anahtar döndürme engellenmez — sır
  * kuralı yine uygulanır: adresDegistiMi).
@@ -73,13 +74,13 @@ final class HedefKonumu
         'kova' => 'metin',
         'on_ek' => 'on_ek',
         'yol_stili' => 'yol_stili',
-        'klasor_adi' => 'klasor_adi',
+        'klasor_kimligi' => 'metin',
         'erisim_anahtari' => 'metin',
         'eposta' => 'metin',
     ];
 
     /** Dosyanın nerede durduğunu belirleyen form alanları (bağlayıcı tanımlarındaki adlar) */
-    private const KONUM_ALANLARI = ['sunucu', 'port', 'kullanici_adi', 'klasor', 'baglanti_noktasi', 'uc_nokta', 'bolge', 'kova', 'on_ek', 'yol_stili', 'klasor_adi'];
+    private const KONUM_ALANLARI = ['sunucu', 'port', 'kullanici_adi', 'klasor', 'baglanti_noktasi', 'uc_nokta', 'bolge', 'kova', 'on_ek', 'yol_stili'];
 
     /**
      * Sırrın gideceği yeri belirleyen form alanları: biri değişirken kayıtlı
@@ -88,11 +89,11 @@ final class HedefKonumu
     private const ADRES_ALANLARI = ['sunucu', 'port', 'kullanici_adi', 'uc_nokta', 'bolge', 'kova', 'erisim_anahtari'];
 
     /** Formda olmayan, bağlayıcının yazdığı konum (ve sır) bileşenleri */
-    private const BAGLAYICI_ALANLARI = ['google_drive' => ['eposta']];
+    private const BAGLAYICI_ALANLARI = ['google_drive' => ['eposta', 'klasor_kimligi']];
 
     /**
      * Tür → depo ailesi (ayniDepoMu): aynı ailedeki iki hedef aynı dosyalara
-     * yazabilir. Google Drive ailesizdir (gerekçe ayniDepoMu'da).
+     * yazabilir.
      */
     private const DEPO_AILELERI = [
         'yerel' => 'dosya_sistemi',
@@ -101,12 +102,14 @@ final class HedefKonumu
         'ftps' => 'dosya_sunucusu',
         'sftp' => 'dosya_sunucusu',
         's3' => 's3',
+        'google_drive' => 'google_drive',
     ];
 
     /** Uzak ailenin depo kimliğini veren alanlar (BY-010-R8; biçimler BICIMLER'den) */
     private const DEPO_ALANLARI = [
         'dosya_sunucusu' => ['sunucu', 'kullanici_adi', 'klasor'],
         's3' => ['uc_nokta', 'kova', 'on_ek'],
+        'google_drive' => ['klasor_kimligi'],
     ];
 
     /** `withExists` sütunu: liste sorgusunda hedef başına ayrı sorgu olmasın */
@@ -156,9 +159,11 @@ final class HedefKonumu
      *   `/x` ile `x`, `/` ile giriş klasörü aynı yerdir).
      * - Zorunlu bileşeni (sunucu, kullanıcı, uç nokta, kova) eksik hedefin
      *   kimliği yoktur: bağlayıcısı hiçbir yere yazamaz.
-     * Google Drive kapsam dışı: her yükleme yeni dosya kimliği açar (aynı adla
-     * da olsa üstüne yazmaz), okuma ve silme o kimlikle yapılır
-     * (GoogleDriveBaglayicisi::yaz / sil); iki hedefin kopyası iki ayrı dosyadır.
+     * - Google Drive: seçilen klasörün kimliği (Drive'da bütün hesaplarda
+     *   tektir). Her yükleme yeni dosya kimliği açar, ama klasör taraması ve
+     *   dizin kurma klasördeki bütün yedek dosyalarını görür: iki hedef aynı
+     *   klasörü gösterirse biri ötekinin dosyasını kendi kopyası sayardı.
+     *   Klasörü seçilmemiş hedefin kimliği yoktur.
      * Kanıtlanamayan eşdeğerlikler bilinen sınırdır (README §4.6): alan adı /
      * IP takma adı (ağ çağrısı yapılmaz), türler arası (NAS bağlama noktası ↔
      * aynı sunucunun SFTP'si), chroot'u farklı iki hesap, S3 uç nokta takma adı
@@ -201,7 +206,7 @@ final class HedefKonumu
 
     /**
      * Uzak hedefin depo kimliği (ayniDepoMu'daki kurallar); dosya sistemi
-     * hedefinde, Google Drive'da ve zorunlu bileşeni eksik hedefte null.
+     * hedefinde ve zorunlu bileşeni eksik hedefte null.
      *
      * @return list<string>|null
      */
@@ -403,7 +408,6 @@ final class HedefKonumu
             },
             'on_ek' => $deger === null ? '' : (is_string($deger) ? trim($deger, '/') : $deger),
             'uc_nokta' => is_string($deger) ? (string) preg_replace('#(?::443)?/?$#D', '', strtolower($deger)) : $deger,
-            'klasor_adi' => is_string($deger) && trim($deger) !== '' ? trim($deger) : $varsayilan,
             'yol_stili' => $deger === true,
             default => $deger,
         };

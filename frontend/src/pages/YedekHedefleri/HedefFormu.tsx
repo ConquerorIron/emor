@@ -465,14 +465,17 @@ export function HedefFormu({
         <Button variant="secondary" onClick={kapat}>
           {t('ortak.iptal')}
         </Button>
-        <Button
-          variant="secondary"
-          yukleniyor={sina.isPending}
-          disabled={isSubmitting}
-          onClick={() => sina.mutate(sinamaSurumu.current)}
-        >
-          {t('yedekleme.hedef.sina')}
-        </Button>
+        {/* Hesabı tarayıcıdan bağlanan tür (Google Drive) kaydedilmeden sınanamaz: hesap ve klasör sonra seçilir */}
+        {tanim.oauth && hedef === null ? null : (
+          <Button
+            variant="secondary"
+            yukleniyor={sina.isPending}
+            disabled={isSubmitting}
+            onClick={() => sina.mutate(sinamaSurumu.current)}
+          >
+            {t('yedekleme.hedef.sina')}
+          </Button>
+        )}
         <Button type="submit" yukleniyor={isSubmitting}>
           {isSubmitting ? t('ortak.kaydediliyor') : t('ortak.kaydet')}
         </Button>

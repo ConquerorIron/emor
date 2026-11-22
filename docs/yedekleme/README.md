@@ -416,17 +416,38 @@ yönetici komutuyla içeri alınır (YDK-09). Tarayıcıdan yedek yükleme yok
 - Yedekler gece kimse giriş yapmadan gideceği için uygulama, Google'dan kalıcı
   bir yenileme anahtarı alır ve şifreli saklar. Kullanıcının parolası uygulamaya
   hiç gelmez.
-- İstenen yetki en dar olanıdır: uygulama yalnız **kendi oluşturduğu dosyaları**
-  görür; hesabın diğer Drive dosyalarına erişemez.
+- **Klasör seçimi (2026-11-22, kullanıcı isteği):** bağlandıktan sonra
+  Google'ın kendi klasör seçme penceresi (Google Picker) açılır; kullanıcı
+  Drive'ındaki klasörlerinden birini seçer ya da uygulamaya Drive'ın köküne
+  yeni klasör açtırır. Formda klasör adı sorulmaz; klasör adla aranmaz ya da
+  kendiliğinden açılmaz. Seçilen klasör kaydedilmeden önce denenir: klasör
+  türünde, çöpte değil, bağlı hesabın **kendi** klasörü (paylaşılmış klasör
+  seçilemez) ve içine küçük bir deneme dosyası yazılıp silinebiliyor. Klasör
+  silinirse ya da çöpe atılırsa kopya başka yere gitmez, "klasörü yeniden
+  seçin" hatasıyla durur. Klasör konumdur: kopyası duran hedefte (dosyası
+  durabilen `konum_belirsiz` dahil) başka klasöre geçilmez; iki hedef aynı
+  klasörü gösteremez (`HEDEF_AYNI_DEPO`). Pencere tarayıcıda açılır ve Google'a
+  bağlı hesabın kısa ömürlü (~1 saat) erişim anahtarıyla bağlanır; yenileme
+  anahtarı tarayıcıya gitmez.
+- İstenen yetki en dar olanıdır (`drive.file`): uygulama yalnız **kendi
+  oluşturduğu dosyaları ve kullanıcının pencerede seçtiği klasörü** görür;
+  hesabın diğer Drive dosyalarına erişemez. Google'ın belgesi, seçilen klasöre
+  bu yetkiyle yazılabildiğini açıkça yazmıyor; bu yüzden seçimde yazma
+  gerçekten denenir (gerçek hesapla doğrulanacak, BY-021).
 - Bağlantı bir kişinin hesabına bağlıdır. O kişi parolasını değiştirir, izni
   kaldırır ya da şirketten ayrılırsa kopyalama durur. Bu durum "sunucu dışı
   kopya başarısız" uyarısı üretir ve hedef ekranında "yeniden bağlanın" olarak
   görünür. Kişisel hesap yerine ortak bir şirket hesabıyla bağlanmak bu riski azaltır.
 - Hesabın depolama kotası dolarsa kopyalama başarısız olur; kalan alan hedef
   ekranında gösterilir.
-- Ön hazırlık (bir kez): Google tarafında bir "uygulama kaydı" açılıp istemci
-  kimliği ve gizli anahtarı alınır, uygulamanın adresi yönlendirme adresi olarak
-  tanımlanır. **Dikkat:** uygulama kaydı "deneme" durumunda bırakılırsa Google
+- Ön hazırlık (bir kez): Google Cloud'da bir proje açılır; Google Drive API ve
+  Google Picker API etkinleştirilir; "Web uygulaması" türünde OAuth istemcisi
+  açılıp istemci kimliği ve gizli anahtarı alınır (yönlendirme adresi
+  `https://<site>/ayarlar/yedek-hedefleri/google-donus`, JavaScript kaynağı
+  `https://<site>`); seçim penceresi için Picker API'yle ve sitenin adresiyle
+  sınırlanmış bir API anahtarı açılır; proje numarası not edilir. Dördü
+  sunucunun `.env`'ine yazılır (`YEDEKLEME_GOOGLE_ISTEMCI_KIMLIGI`,
+  `_ISTEMCI_SIRRI`, `_API_ANAHTARI`, `_PROJE_NUMARASI`). **Dikkat:** uygulama kaydı "deneme" durumunda bırakılırsa Google
   yenileme anahtarını yaklaşık 7 günde geçersiz kılar ve yedekler bir hafta
   sonra sessizce durur. Bağlanacak hesaplar şimdilik **kişisel Gmail hesapları**
   olacağı için (kullanıcı kararı 2026-11-18) kayıt "herkese açık" türde açılıp

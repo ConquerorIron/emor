@@ -266,23 +266,199 @@ final class GoogleDriveBaglayicisiTest extends TestCase
         $this->assertCount(1, Http::recorded(fn (Request $istek): bool => $istek->url() === self::OTURUM && $istek->body() === 'GPG-sifreli-yedek'));
     }
 
-    public function test_klasor_yoksa_acilir_ve_kimligi_hedefe_kaydedilir(): void
+    public function test_klasoru_secilmemis_hedef_hicbir_istek_gondermeden_klasor_secilmedi_hatasi_verir(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake();
+        $hedef = $this->hedef(['eposta' => 'kisi@gmail.com']);
+
+        $yazma = $this->hataBekle(fn () => $this->baglayici($hedef)->yaz($this->yedekDosyasi(), 'erp_20261121.dump.gpg'));
+        $sinama = $this->hataBekle(fn () => $this->baglayici($hedef)->baglan());
+
+        $this->assertSame(HedefHatasi::KLASOR_SECILMEDI, $yazma->kod);
+        $this->assertSame(HedefHatasi::KLASOR_SECILMEDI, $sinama->kod);
+        // Adla klasör aranmaz, kendiliğinden açılmaz
+        Http::assertNothingSent();
+        $this->assertEquals(['eposta' => 'kisi@gmail.com'], $hedef->fresh()->baglanti);
+    }
+
+    /** @return iterable<string, array{0: array<string, mixed>, 1: int}> */
+    public static function kullanilamayanKayitliKlasorler(): iterable
+    {
+        yield 'silinmiş (404)' => [['error' => ['code' => 404]], 404];
+        yield 'çöpte' => [['id' => 'klasor123', 'mimeType' => 'application/vnd.google-apps.folder', 'trashed' => true], 200];
+        yield 'klasör değil' => [['id' => 'klasor123', 'mimeType' => 'text/plain', 'trashed' => false], 200];
+    }
+
+    /** @param  array<string, mixed>  $govde */
+    #[DataProvider('kullanilamayanKayitliKlasorler')]
+    public function test_kayitli_klasor_kullanilamiyorsa_yeni_klasor_acilmaz_ve_yazilmaz(array $govde, int $durum): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([self::TOKEN => self::tokenYaniti(), self::KLASOR => Http::response($govde, $durum)]);
+        $hedef = $this->hedef();
+
+        $hata = $this->hataBekle(fn () => $this->baglayici($hedef)->yaz($this->yedekDosyasi(), 'erp_20261121.dump.gpg'));
+
+        $this->assertSame(HedefHatasi::KLASOR_GECERSIZ, $hata->kod);
+        Http::assertNotSent(fn (Request $istek): bool => $istek->method() === 'POST' && str_starts_with($istek->url(), 'https://www.googleapis.com/'));
+        $this->assertSame('klasor123', $hedef->fresh()->baglanti['klasor_kimligi']);
+    }
+
+    private const SECILEN = 'https://www.googleapis.com/drive/v3/files/secilen_1?fields=id%2Cname%2CmimeType%2Ctrashed%2CownedByMe%2Ccapabilities%28canAddChildren%29';
+
+    private const COK_PARCALI = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id';
+
+    private const DENEME_SIL = 'https://www.googleapis.com/drive/v3/files/deneme_1';
+
+    /**
+     * @param  array<string, mixed>  $ek
+     * @return array<string, mixed>
+     */
+    private static function secilenGovdesi(array $ek = []): array
+    {
+        return [
+            'id' => 'secilen_1', 'name' => 'Muhasebe Yedekleri', 'mimeType' => 'application/vnd.google-apps.folder',
+            'trashed' => false, 'ownedByMe' => true, 'capabilities' => ['canAddChildren' => true], ...$ek,
+        ];
+    }
+
+    private static function secilenYaniti(): PromiseInterface
+    {
+        return Http::response(self::secilenGovdesi());
+    }
+
+    /** Çok parçalı gövdenin ilk (JSON) bölümü */
+    private static function ustBilgi(Request $istek): ?array
+    {
+        return preg_match('/\r\n\r\n(\{.*?\})\r\n--/s', $istek->body(), $m) === 1 ? json_decode($m[1], true) : null;
+    }
+
+    public function test_secilen_klasor_deneme_dosyasi_yazilip_silinerek_dogrulanir_ve_adi_doner(): void
     {
         Http::preventStrayRequests();
         Http::fake([
             self::TOKEN => self::tokenYaniti(),
-            'https://www.googleapis.com/drive/v3/files?q=*' => Http::response(['files' => []]),
-            'https://www.googleapis.com/drive/v3/files?fields=id' => Http::response(['id' => 'yeniKlasor'], 200),
+            self::SECILEN => self::secilenYaniti(),
+            self::COK_PARCALI => Http::response(['id' => 'deneme_1']),
+            self::DENEME_SIL => Http::response('', 204),
         ]);
-        $hedef = $this->hedef(['klasor_adi' => "Ali'nin Yedekleri"]);
+        $hedef = $this->hedef(['eposta' => 'kisi@gmail.com']);
 
-        $this->baglayici($hedef)->baglan();
+        $klasor = $this->baglayici($hedef)->klasorDogrula('secilen_1');
 
-        $this->assertEquals(['klasor_adi' => "Ali'nin Yedekleri", 'klasor_kimligi' => 'yeniKlasor'], $hedef->fresh()->baglanti);
-        Http::assertSent(fn (Request $istek): bool => $istek->method() === 'GET'
-            && ($istek->data()['q'] ?? null) === "mimeType = 'application/vnd.google-apps.folder' and name = 'Ali\\'nin Yedekleri' and trashed = false");
-        Http::assertSent(fn (Request $istek): bool => $istek->method() === 'POST'
+        $this->assertSame(['kimlik' => 'secilen_1', 'ad' => 'Muhasebe Yedekleri'], $klasor);
+        Http::assertSent(function (Request $istek): bool {
+            $ust = self::ustBilgi($istek);
+
+            return $istek->url() === self::COK_PARCALI
+                && $istek->hasHeader('Authorization', 'Bearer '.self::ERISIM)
+                && str_starts_with($istek->header('Content-Type')[0] ?? '', 'multipart/related; boundary=')
+                && ($ust['parents'] ?? null) === ['secilen_1']
+                // Silinemeyip kalsa bile yedek sayılmaz (listele yalnız erp_ ile başlayanları alır)
+                && is_string($ust['name'] ?? null) && ! str_starts_with($ust['name'], 'erp_');
+        });
+        Http::assertSent(fn (Request $istek): bool => $istek->url() === self::DENEME_SIL && $istek->method() === 'DELETE');
+        // Doğrulama kaydetmez: kaydı uç yapar (kilit + konum denetimiyle)
+        $this->assertEquals(['eposta' => 'kisi@gmail.com'], $hedef->fresh()->baglanti);
+    }
+
+    /** @return iterable<string, array{0: array<string, mixed>, 1: int, 2: string}> */
+    public static function secilemeyenKlasorler(): iterable
+    {
+        yield 'erişilemiyor (404)' => [['error' => ['code' => 404]], 404, HedefHatasi::KLASOR_GECERSIZ];
+        yield 'klasör değil' => [self::secilenGovdesi(['mimeType' => 'application/pdf']), 200, HedefHatasi::KLASOR_GECERSIZ];
+        yield 'çöpte' => [self::secilenGovdesi(['trashed' => true]), 200, HedefHatasi::KLASOR_GECERSIZ];
+        yield 'paylaşılmış (sahibi başkası)' => [self::secilenGovdesi(['ownedByMe' => false]), 200, HedefHatasi::KLASOR_GECERSIZ];
+        yield 'sahiplik alanı yok' => [['id' => 'secilen_1', 'name' => 'X', 'mimeType' => 'application/vnd.google-apps.folder', 'trashed' => false], 200, HedefHatasi::KLASOR_GECERSIZ];
+        yield 'dosya eklenemiyor' => [self::secilenGovdesi(['capabilities' => ['canAddChildren' => false]]), 200, HedefHatasi::YAZILAMADI];
+        yield 'başka kimlik döndü' => [self::secilenGovdesi(['id' => 'baska']), 200, HedefHatasi::KLASOR_GECERSIZ];
+    }
+
+    /** @param  array<string, mixed>  $govde */
+    #[DataProvider('secilemeyenKlasorler')]
+    public function test_kullanilamayan_klasor_secilemez_ve_deneme_dosyasi_yazilmaz(array $govde, int $durum, string $kod): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([self::TOKEN => self::tokenYaniti(), self::SECILEN => Http::response($govde, $durum)]);
+
+        $hata = $this->hataBekle(fn () => $this->baglayici($this->hedef(['eposta' => 'kisi@gmail.com']))->klasorDogrula('secilen_1'));
+
+        $this->assertSame($kod, $hata->kod);
+        Http::assertNotSent(fn (Request $istek): bool => $istek->method() === 'POST' && $istek->url() !== self::TOKEN);
+    }
+
+    public function test_bicimsiz_klasor_kimligi_drivea_sorulmadan_reddedilir(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake();
+
+        $hata = $this->hataBekle(fn () => $this->baglayici($this->hedef())->klasorDogrula('../files/x?fields=*'));
+
+        $this->assertSame(HedefHatasi::KLASOR_GECERSIZ, $hata->kod);
+        Http::assertNothingSent();
+    }
+
+    public function test_klasore_yazma_denemesi_reddedilirse_klasor_secilemez(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            self::TOKEN => self::tokenYaniti(),
+            self::SECILEN => self::secilenYaniti(),
+            self::COK_PARCALI => Http::response(['error' => ['code' => 403, 'errors' => [['reason' => 'insufficientFilePermissions']]]], 403),
+        ]);
+
+        $hata = $this->hataBekle(fn () => $this->baglayici($this->hedef())->klasorDogrula('secilen_1'));
+
+        $this->assertSame(HedefHatasi::YAZILAMADI, $hata->kod);
+        // Dosya oluşturan istek yeniden denenmez
+        $this->assertCount(1, Http::recorded(fn (Request $istek): bool => $istek->url() === self::COK_PARCALI));
+    }
+
+    public function test_deneme_dosyasi_silinemezse_basari_donmez(): void
+    {
+        Http::preventStrayRequests();
+        Sleep::fake();
+        Http::fake([
+            self::TOKEN => self::tokenYaniti(),
+            self::SECILEN => self::secilenYaniti(),
+            self::COK_PARCALI => Http::response(['id' => 'deneme_1']),
+            self::DENEME_SIL => Http::response(['error' => ['code' => 400]], 400),
+        ]);
+
+        $hata = $this->hataBekle(fn () => $this->baglayici($this->hedef())->klasorDogrula('secilen_1'));
+
+        $this->assertSame(HedefHatasi::SILINEMEDI, $hata->kod);
+    }
+
+    public function test_yeni_klasor_kokte_verilen_adla_acilir_ve_yazma_denenir(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            self::TOKEN => self::tokenYaniti(),
+            'https://www.googleapis.com/drive/v3/files?fields=id' => Http::response(['id' => 'yeni_klasor']),
+            self::COK_PARCALI => Http::response(['id' => 'deneme_1']),
+            self::DENEME_SIL => Http::response('', 204),
+        ]);
+
+        $klasor = $this->baglayici($this->hedef(['eposta' => 'kisi@gmail.com']))->klasorAc("  Ali'nin Yedekleri ");
+
+        $this->assertSame(['kimlik' => 'yeni_klasor', 'ad' => "Ali'nin Yedekleri"], $klasor);
+        Http::assertSent(fn (Request $istek): bool => $istek->url() === 'https://www.googleapis.com/drive/v3/files?fields=id'
             && json_decode($istek->body(), true) === ['name' => "Ali'nin Yedekleri", 'mimeType' => 'application/vnd.google-apps.folder']);
+        Http::assertSent(fn (Request $istek): bool => $istek->url() === self::COK_PARCALI && (self::ustBilgi($istek)['parents'] ?? null) === ['yeni_klasor']);
+        $this->assertCount(1, Http::recorded(fn (Request $istek): bool => $istek->url() === 'https://www.googleapis.com/drive/v3/files?fields=id'));
+    }
+
+    public function test_secici_erisimi_yenileme_anahtariyla_alinan_erisim_anahtaridir(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([self::TOKEN => self::tokenYaniti()]);
+
+        $this->assertSame(self::ERISIM, $this->baglayici($this->hedef())->seciciErisimi());
+        Http::assertSent(fn (Request $istek): bool => $istek->url() === self::TOKEN
+            && ($istek->data()['grant_type'] ?? null) === 'refresh_token'
+            && ($istek->data()['refresh_token'] ?? null) === self::YENILEME);
     }
 
     public function test_liste_yalniz_klasordeki_yedek_dosyalarinin_kimliklerini_sayfalayarak_dondurur(): void

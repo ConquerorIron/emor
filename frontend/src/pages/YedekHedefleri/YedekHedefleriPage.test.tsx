@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import '@/i18n/i18n'
@@ -17,6 +18,9 @@ const api = vi.hoisted(() => ({
   sifirla: vi.fn(),
   googleAdres: vi.fn(),
   googleKes: vi.fn(),
+  googleSecici: vi.fn(),
+  googleKlasor: vi.fn(),
+  pencere: vi.fn(),
 }))
 
 vi.mock('@/features/yedekleme/hedefApi', () => ({
@@ -28,7 +32,12 @@ vi.mock('@/features/yedekleme/hedefApi', () => ({
   sunucuAnahtariniSifirla: api.sifirla,
   googleBaglantiAdresi: api.googleAdres,
   googleBaglantisiniKes: api.googleKes,
+  googleSeciciBilgisi: api.googleSecici,
+  googleKlasorKaydet: api.googleKlasor,
 }))
+
+// Google'ın klasör seçme penceresi (dış betik) testte açılmaz
+vi.mock('./googleKlasorSecici', () => ({ googleKlasorSec: api.pencere }))
 
 const FTP: HedefTuruTanimi = {
   tur: 'ftp',
@@ -89,16 +98,7 @@ const FTP: HedefTuruTanimi = {
 
 const GOOGLE: HedefTuruTanimi = {
   tur: 'google_drive',
-  alanlar: [
-    {
-      ad: 'klasor_adi',
-      etiket: 'yedekleme.hedef.alan.klasor_adi',
-      tur: 'metin',
-      zorunlu: false,
-      gizli: false,
-      varsayilan: 'eMOR',
-    },
-  ],
+  alanlar: [],
   sunucu_disi: true,
   uyari: null,
   oauth: true,
@@ -147,7 +147,7 @@ const GOOGLE_HEDEFI: Hedef = {
   tur: 'google_drive',
   aktif: true,
   sunucu_disi: true,
-  baglanti: { klasor_adi: 'eMOR', durum: 'yeniden_baglan', eposta: 'yedek@ornek.test' },
+  baglanti: { durum: 'yeniden_baglan', eposta: 'yedek@ornek.test' },
   gizli_kayitli: {},
   plan_sayisi: 1,
   konum_kilitli_alanlar: [],
@@ -158,11 +158,16 @@ function hata(status: number, data: unknown) {
   return Object.assign(new Error('istek'), { isAxiosError: true, response: { status, data } })
 }
 
-function ciz(izinler = ['yedek_planlari.goruntule', 'yedek_planlari.guncelle']) {
+function ciz(
+  izinler = ['yedek_planlari.goruntule', 'yedek_planlari.guncelle'],
+  durum: unknown = null,
+) {
   render(
     <AppProviders>
       <SahteOturum izinler={izinler} yedeklemeAktif>
-        <YedekHedefleriPage />
+        <MemoryRouter initialEntries={[{ pathname: '/ayarlar/yedek-hedefleri', state: durum }]}>
+          <YedekHedefleriPage />
+        </MemoryRouter>
       </SahteOturum>
     </AppProviders>,
   )
@@ -467,5 +472,197 @@ describe('YedekHedefleriPage', () => {
     expect(screen.queryByRole('button', { name: 'Yeni Hedef' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Düzenle' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Sil' })).not.toBeInTheDocument()
+  })
+
+  describe('Google Drive klasör seçimi', () => {
+    const BAGLI: Hedef = {
+      ...GOOGLE_HEDEFI,
+      id: 5,
+      ad: 'Kişisel Drive',
+      baglanti: { eposta: 'kisi@gmail.com' },
+      son_kopya: null,
+    }
+    const SECICI = {
+      erisim_anahtari: 'ya29.kisa',
+      api_anahtari: 'AIza-anahtar',
+      proje_numarasi: '1234',
+      eposta: 'kisi@gmail.com',
+    }
+
+    beforeEach(() => {
+      api.hedefler.mockResolvedValue([BAGLI])
+      api.googleSecici.mockResolvedValue(SECICI)
+    })
+
+    it('klasör seçilmemişse belirtir; seçilen klasör sunucuya kimliğiyle gider ve adı bildirilir', async () => {
+      api.pencere.mockResolvedValue({ id: 'klasor_9', ad: 'Muhasebe' })
+      api.googleKlasor.mockResolvedValue({
+        ...BAGLI,
+        baglanti: { ...BAGLI.baglanti, klasor_kimligi: 'klasor_9', klasor_adi: 'Muhasebe' },
+      })
+      ciz()
+      const drive = await satir('Kişisel Drive')
+      expect(within(drive).getByText('Klasör seçilmedi')).toBeInTheDocument()
+
+      fireEvent.click(within(drive).getByRole('button', { name: 'Klasör seç' }))
+
+      await waitFor(() =>
+        expect(api.googleKlasor).toHaveBeenCalledWith(5, { klasor_kimligi: 'klasor_9' }),
+      )
+      expect(api.googleSecici).toHaveBeenCalledWith(5)
+      expect(api.pencere).toHaveBeenCalledWith(SECICI, {
+        baslik: 'Yedeklerin gideceği klasörü seçin',
+        dil: expect.any(String),
+      })
+      expect(await screen.findByText(/Yedek klasörü kaydedildi: Muhasebe/)).toBeInTheDocument()
+    })
+
+    it('pencere açıkken ikinci tıklama ikinci pencere açmaz (F5)', async () => {
+      let sec: (deger: null) => void = () => {}
+      api.pencere.mockReturnValue(
+        new Promise((resolve) => {
+          sec = resolve
+        }),
+      )
+      ciz()
+      const dugme = within(await satir('Kişisel Drive')).getByRole('button', {
+        name: 'Klasör seç',
+      })
+
+      fireEvent.click(dugme)
+      fireEvent.click(dugme)
+      await waitFor(() => expect(api.pencere).toHaveBeenCalledTimes(1))
+      sec(null)
+
+      await waitFor(() => expect(dugme).toBeEnabled())
+      expect(api.googleSecici).toHaveBeenCalledTimes(1)
+    })
+
+    it('pencerede vazgeçilirse hiçbir şey kaydedilmez', async () => {
+      api.pencere.mockResolvedValue(null)
+      ciz()
+
+      fireEvent.click(
+        within(await satir('Kişisel Drive')).getByRole('button', { name: 'Klasör seç' }),
+      )
+
+      await waitFor(() => expect(api.pencere).toHaveBeenCalled())
+      expect(api.googleKlasor).not.toHaveBeenCalled()
+    })
+
+    it('pencere yüklenemezse nedenini söyler, sunucuya kayıt gitmez', async () => {
+      api.pencere.mockRejectedValue(new Error('betik'))
+      ciz()
+
+      fireEvent.click(
+        within(await satir('Kişisel Drive')).getByRole('button', { name: 'Klasör seç' }),
+      )
+
+      expect(await screen.findByText(/klasör seçme penceresi açılamadı/)).toBeInTheDocument()
+      expect(api.googleKlasor).not.toHaveBeenCalled()
+    })
+
+    it('sunucu klasörü reddederse nedenini gösterir', async () => {
+      api.pencere.mockResolvedValue({ id: 'paylasilan', ad: 'Ortak' })
+      api.googleKlasor.mockRejectedValue(hata(422, { kod: 'HEDEF_KLASOR_GECERSIZ' }))
+      ciz()
+
+      fireEvent.click(
+        within(await satir('Kişisel Drive')).getByRole('button', { name: 'Klasör seç' }),
+      )
+
+      expect(await screen.findByText(/Google Drive klasörü kullanılamıyor/)).toBeInTheDocument()
+    })
+
+    it('yeni klasör verilen adla açtırılır', async () => {
+      api.googleKlasor.mockResolvedValue({
+        ...BAGLI,
+        baglanti: { ...BAGLI.baglanti, klasor_kimligi: 'yeni', klasor_adi: 'Şirket Yedekleri' },
+      })
+      ciz()
+
+      fireEvent.click(
+        within(await satir('Kişisel Drive')).getByRole('button', { name: 'Yeni klasör' }),
+      )
+      const pencere = await screen.findByRole('dialog')
+      expect(within(pencere).getByText(/kisi@gmail.com/)).toBeInTheDocument()
+      fireEvent.change(within(pencere).getByLabelText('Klasör adı'), {
+        target: { value: '  Şirket Yedekleri ' },
+      })
+      fireEvent.click(within(pencere).getByRole('button', { name: 'Klasörü aç' }))
+
+      await waitFor(() =>
+        expect(api.googleKlasor).toHaveBeenCalledWith(5, { yeni_klasor_adi: 'Şirket Yedekleri' }),
+      )
+      expect(api.pencere).not.toHaveBeenCalled()
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    })
+
+    it('seçili klasör Drive bağlantısıyla gösterilir; kopyası duran hedefte klasör düğmeleri kapalı', async () => {
+      api.hedefler.mockResolvedValue([
+        {
+          ...BAGLI,
+          baglanti: { ...BAGLI.baglanti, klasor_kimligi: 'klasor_9', klasor_adi: 'Muhasebe' },
+          konum_kilitli_alanlar: ['eposta', 'klasor_kimligi'],
+        },
+      ])
+      ciz()
+      const drive = await satir('Kişisel Drive')
+
+      expect(within(drive).getByRole('link', { name: 'Muhasebe' })).toHaveAttribute(
+        'href',
+        'https://drive.google.com/drive/folders/klasor_9',
+      )
+      expect(within(drive).getByRole('button', { name: 'Klasör seç' })).toBeDisabled()
+      expect(within(drive).getByRole('button', { name: 'Yeni klasör' })).toBeDisabled()
+    })
+
+    it('Google dönüşünden gelinince klasör seçme penceresi kendiliğinden bir kez açılır', async () => {
+      api.pencere.mockResolvedValue(null)
+      ciz(undefined, { klasorSecilecek: 5 })
+
+      await waitFor(() => expect(api.pencere).toHaveBeenCalledTimes(1))
+      expect(api.googleSecici).toHaveBeenCalledWith(5)
+    })
+
+    it('klasörü zaten seçili hedefte dönüş pencereyi açmaz', async () => {
+      api.hedefler.mockResolvedValue([
+        { ...BAGLI, baglanti: { ...BAGLI.baglanti, klasor_kimligi: 'k', klasor_adi: 'K' } },
+      ])
+      ciz(undefined, { klasorSecilecek: 5 })
+
+      await satir('Kişisel Drive')
+      expect(api.googleSecici).not.toHaveBeenCalled()
+      expect(api.pencere).not.toHaveBeenCalled()
+    })
+
+    it('yeni Drive hedefinin formunda alan ve "Bağlantıyı Sına" yok; yalnız adla kaydedilir', async () => {
+      api.kaydet.mockResolvedValue({ ...BAGLI, id: 9, ad: 'Yeni Drive', baglanti: {} })
+      ciz()
+      await satir('Kişisel Drive')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Yeni Hedef' }))
+      const pencere = await screen.findByRole('dialog')
+      fireEvent.keyDown(within(pencere).getByLabelText('Hedef türü'), { key: 'ArrowDown' })
+      fireEvent.click(await screen.findByRole('option', { name: 'Google Drive' }))
+      fireEvent.change(await within(pencere).findByLabelText('Ad *'), {
+        target: { value: 'Yeni Drive' },
+      })
+
+      expect(
+        within(pencere).queryByRole('button', { name: 'Bağlantıyı Sına' }),
+      ).not.toBeInTheDocument()
+      expect(within(pencere).queryByLabelText('Klasör adı')).not.toBeInTheDocument()
+      fireEvent.click(within(pencere).getByRole('button', { name: 'Kaydet' }))
+
+      await waitFor(() =>
+        expect(api.kaydet).toHaveBeenCalledWith(null, {
+          ad: 'Yeni Drive',
+          aktif: true,
+          tur: 'google_drive',
+          alanlar: {},
+        }),
+      )
+    })
   })
 })

@@ -187,6 +187,13 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   `https://kotu.com\.izinli.com.tr` örneğini sına.
   *(Fable incelemesi PRT-F4, PRT-F5: Protel kilidi `uuid` için dizi kabul
   ediyor, adres kuralı `evil.com\.protel.com.tr`'yi kaydediyordu.)*
+  Tanımın doğrulaması **her yolda** ilk dış istekten önce, tek yöntemde olsun:
+  ilk kurulum / ilk kullanımda güven gibi yan yolun isteği (ssh-keyscan, token
+  alma) de doğrulamadan sonra gelir. Testte o yan yolu açan durumla (anahtar
+  kayıtlı DEĞİL) geçersiz tanımı dene: `Process::assertNothingRan()`.
+  *(Gerçek sunucu kabulü 2026-11-22: SFTP ilk "Bağlantıyı Sına", geçersiz
+  klasörlü ya da kimlik bilgisiz tanımda ssh-keyscan çalıştırıp anahtarı
+  kaydediyordu; doğrulama yalnız sftp yolundaydı.)*
 - **G16 — Akış kopyasının başarısını `feof()` ile ölçme.** Farklı dosya
   sistemleri arasında (`ext4` → `tmpfs` / ağ paylaşımı) `stream_copy_to_stream`
   bütün baytları kopyaladığı hâlde kaynakta `feof()` false kalabiliyor; kopya
@@ -682,6 +689,17 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   *(Fable incelemesi F5–F7: durum dosyasında anahtarın bitişi ve kurtarma
   bağlamı yok; aynı hedefi paylaşan iki planın kopyası; yerel dosya silinince
   yedeğin durumu.)*
+
+- **P5 — Güvenlik gerekçesiyle kullanıcının beklediği akışı kısma; aynı
+  güvenliği veren akışı ara.** "En dar yetki" doğruydu ama karşılığında
+  kullanıcı Drive'ında klasör seçemiyor, yalnız ad yazıyordu; Google'ın seçim
+  penceresi (Picker) aynı dar yetkiyle seçimi sağlıyordu. Dış hizmete bağlanan
+  özelliği bitti saymadan önce: kullanıcının o hizmette alışık olduğu akışı
+  (hesapla giriş → yer seçimi) sağlıyor mu, canlıda gereken yapılandırma
+  (istemci kimliği, anahtar) gerçekten var mı — yoksa "kod hazır, canlıda
+  çalışmaz" diye açıkça söyle.
+  *(BY-021, 2026-11-22: canlıda Google istemci kimliği hiç yoktu; form
+  yalnız klasör adı soruyordu.)*
 
 ## 6. Araçlar
 
