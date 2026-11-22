@@ -92,7 +92,20 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
     public static function tanim(HedefTuru $tur = HedefTuru::GoogleDrive): HedefTuruTanimi
     {
         // Formda alan yok: hesap "Google ile bağlan", klasör "Klasör seç" ile gelir
-        return new HedefTuruTanimi(HedefTuru::GoogleDrive, [], sunucuDisi: true, oauth: true);
+        return new HedefTuruTanimi(HedefTuru::GoogleDrive, [], sunucuDisi: true, oauth: true, oauthHazir: self::yapilandirildi());
+    }
+
+    /**
+     * Google bağlantısı ve klasör seçme penceresi için sunucu yapılandırması
+     * tam mı (istemci kimliği / sırrı, API anahtarı, proje numarası). Eksikse
+     * ekran "Google ile bağlan"ı kapatır ve nedenini söyler.
+     */
+    public static function yapilandirildi(): bool
+    {
+        $dolu = static fn (string $anahtar): bool => is_string(config("yedekleme.google.{$anahtar}")) && config("yedekleme.google.{$anahtar}") !== '';
+
+        return $dolu('istemci_kimligi') && $dolu('istemci_sirri') && $dolu('api_anahtari')
+            && preg_match('/^[0-9]{1,20}$/D', (string) config('yedekleme.google.proje_numarasi')) === 1;
     }
 
     /**

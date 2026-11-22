@@ -17,6 +17,7 @@
     "ortamSecilmedi": "No Environment Selected",
     "kayitBulunamadi": "No records found.",
     "secVeyaAra": "Select or search…",
+    "sec": "Select…",
     "sayfaBoyutu": "Page size",
     "ilk": "First",
     "onceki": "Previous",
@@ -1674,7 +1675,10 @@
         "sifirla": "Reset server key"
       },
       "google": {
-        "formNotu": "Save the target, then use \"Connect with Google\" in the list to sign in to your Google account and choose the folder for the backups in Google's picker (or create a new folder). The app only sees the folder you choose and the backups it uploads; it cannot access your other Drive files.",
+        "formNotu": "Pressing \"Sign in with Google\" opens Google's sign-in screen. After signing in with your Gmail account you choose the Drive folder for the backups in Google's picker. The app only sees the folder you choose and the backups it uploads; it cannot access your other Drive files.",
+        "kaydetVeBaglan": "Sign in with Google",
+        "yapilandirilmadi": "Google sign-in is not enabled on this server yet: the Google Cloud app registration details (client ID, client secret, API key, project number) have not been entered. The target can be saved; \"Connect with Google\" works once they are entered.",
+        "yapilandirilmadiKisa": "Google sign-in is not enabled on the server yet.",
         "klasor": "Folder",
         "klasorSecilmedi": "No folder selected",
         "klasorSec": "Choose folder",

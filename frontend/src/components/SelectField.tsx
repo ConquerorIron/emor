@@ -1,5 +1,7 @@
 import Select, { type MultiValue, type SingleValue } from 'react-select'
 
+import { useTranslation } from 'react-i18next'
+
 import { ALAN_ETIKETI } from '@/components/alanStilleri'
 import { selectStilleri, type SecenekOgesi } from '@/components/selectStilleri'
 import { useTheme } from '@/hooks/useTheme'
@@ -80,6 +82,7 @@ export function SelectField({
   secenekBicimi,
 }: SelectFieldProps) {
   const { theme } = useTheme()
+  const { t } = useTranslation()
 
   return (
     <AlanSarici id={id} label={label} hata={hata} etiketGizli={etiketGizli}>
@@ -91,7 +94,7 @@ export function SelectField({
         onChange={onChange}
         onKeyDown={tusaBasildi}
         options={options}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t(isSearchable && !disabled ? 'ortak.secVeyaAra' : 'ortak.sec')}
         isClearable={isClearable && !disabled}
         isSearchable={isSearchable && !disabled}
         isDisabled={disabled}
@@ -131,6 +134,7 @@ export function MultiSelectField({
   isSearchable = true,
 }: MultiSelectFieldProps) {
   const { theme } = useTheme()
+  const { t } = useTranslation()
 
   return (
     <AlanSarici id={id} label={label} hata={hata}>
@@ -140,7 +144,7 @@ export function MultiSelectField({
         value={value}
         onChange={onChange}
         options={options}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t(isSearchable ? 'ortak.secVeyaAra' : 'ortak.sec')}
         isSearchable={isSearchable}
         closeMenuOnSelect={false}
         classNamePrefix="erp-select"

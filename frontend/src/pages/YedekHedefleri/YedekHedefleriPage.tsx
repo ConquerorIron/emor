@@ -277,6 +277,11 @@ export function YedekHedefleriPage() {
             {google === 'bagli_degil' ? (
               <Rozet renk="sari">{t('yedekleme.hedef.google.bagliDegil')}</Rozet>
             ) : null}
+            {google !== null && tanimBul(hedef.tur)?.oauth_hazir === false ? (
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                {t('yedekleme.hedef.google.yapilandirilmadiKisa')}
+              </p>
+            ) : null}
             {typeof eposta === 'string' ? <p className="text-xs break-all">{eposta}</p> : null}
             {google !== null && typeof eposta === 'string' ? (
               typeof klasorKimligi === 'string' ? (
@@ -347,12 +352,18 @@ export function YedekHedefleriPage() {
         const klasorSecili = typeof hedef.baglanti['klasor_kimligi'] === 'string'
         // Kopyası duran hedefin klasörü değişmez (sunucu konum_belirsiz kopyayı da sayar, 409)
         const klasorKilitli = hedef.konum_kilitli_alanlar.includes('klasor_kimligi')
+        // Sunucuda Google uygulama kaydı (istemci kimliği, API anahtarı…) yoksa bağlanılamaz
+        const googleHazir = tanimBul(hedef.tur)?.oauth_hazir
 
         return (
           <div className="flex flex-wrap justify-end gap-2">
             {google === null ? null : (
               <Button
                 variant={google === 'bagli' ? 'secondary' : 'primary'}
+                disabled={googleHazir === false}
+                title={
+                  googleHazir === false ? t('yedekleme.hedef.google.yapilandirilmadi') : undefined
+                }
                 yukleniyor={googleBaglan.isPending && googleBaglan.variables.id === hedef.id}
                 onClick={() => googleBaglan.mutate(hedef)}
               >

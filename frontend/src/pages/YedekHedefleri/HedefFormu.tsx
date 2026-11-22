@@ -14,6 +14,7 @@ import { SinirliMetinInput } from '@/components/SinirliMetinInput'
 import { Switch } from '@/components/Switch'
 import { alanHataMetni, boyutGoster, dogrulamaHatalari } from '@/features/yedekleme/bicim'
 import {
+  googleBaglantiAdresi,
   hedefKaydet,
   hedefSina,
   type Hedef,
@@ -74,7 +75,11 @@ function semaUret(
 }
 
 /** Sırlar hiçbir zaman önceden doldurulmaz; diğerleri kayıttan ya da varsayılandan */
-function baslangicDegerleri(tanim: HedefTuruTanimi, hedef: Hedef | null): HedefGirdisi {
+function baslangicDegerleri(
+  tanim: HedefTuruTanimi,
+  hedef: Hedef | null,
+  varsayilanAd: string,
+): HedefGirdisi {
   const alanlar: Record<string, AlanDegeri> = {}
   for (const alan of tanim.alanlar) {
     const kayitli = hedef === null ? alan.varsayilan : (hedef.baglanti[alan.ad] ?? alan.varsayilan)
@@ -85,7 +90,7 @@ function baslangicDegerleri(tanim: HedefTuruTanimi, hedef: Hedef | null): HedefG
     }
   }
 
-  return { ad: hedef?.ad ?? '', aktif: hedef?.aktif ?? true, alanlar }
+  return { ad: hedef?.ad ?? varsayilanAd, aktif: hedef?.aktif ?? true, alanlar }
 }
 
 /** Boş sır gönderilmez (kayıtlı korunur); boş metin null, sayı sayı olarak gider */
@@ -202,7 +207,12 @@ export function HedefFormu({
     formState: { errors, isSubmitting },
   } = useForm<HedefGirdisi>({
     resolver: standardSchemaResolver(semaUret(tanim, hedef)),
-    defaultValues: baslangicDegerleri(tanim, hedef),
+    // Hesabı tarayıcıdan bağlanan türde (Google Drive) ad kendiliğinden gelir: ilk adım Google girişi
+    defaultValues: baslangicDegerleri(
+      tanim,
+      hedef,
+      tanim.oauth ? t(`yedekleme.hedef.tur.${tanim.tur}`, { defaultValue: tanim.tur }) : '',
+    ),
   })
 
   const sunucuHatalariniDagit = (error: unknown) => {
@@ -224,6 +234,8 @@ export function HedefFormu({
     }
   }
 
+  const googleyaGidilecek = tanim.oauth && tanim.oauth_hazir && hedef === null
+
   const kaydet = useMutation({
     mutationFn: (girdi: HedefGirdisi) =>
       hedefKaydet(hedef?.id ?? null, {
@@ -232,9 +244,19 @@ export function HedefFormu({
         ...(hedef === null ? { tur: tanim.tur } : {}),
         alanlar: alanlariGovdeye(tanim, girdi.alanlar),
       }),
-    onSuccess: async () => {
+    onSuccess: async (kaydedilen) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.yedekleme.hedefler })
       toast.success(t('yedekleme.hedef.kaydedildi'))
+      // Yeni Google Drive hedefi: kayıttan sonra doğrudan Google girişine gidilir;
+      // dönüşte Hedefler ekranı klasör seçme penceresini açar
+      if (googleyaGidilecek) {
+        try {
+          window.location.assign(await googleBaglantiAdresi(kaydedilen.id))
+          return
+        } catch (error: unknown) {
+          toast.error(t(apiErrorKey(error)))
+        }
+      }
       kapat()
     },
     onError: sunucuHatalariniDagit,
@@ -295,6 +317,7 @@ export function HedefFormu({
             // Controller'lı anahtarda disabled yalnız arayüzü kilitler; değer gövdede kalır
             <Switch
               id={id}
+              alanHizali
               label={etiket(alan)}
               checked={field.value === true}
               disabled={isSubmitting || konumKilitli}
@@ -406,6 +429,7 @@ export function HedefFormu({
           render={({ field }) => (
             <Switch
               id="hedef-aktif"
+              alanHizali
               label={t('yedekleme.hedef.aktif')}
               checked={field.value}
               disabled={isSubmitting}
@@ -424,9 +448,17 @@ export function HedefFormu({
           {t('yedekleme.hedef.sunucuDisiNotu')}
         </p>
       ) : null}
-      {tanim.oauth ? (
+      {tanim.oauth && tanim.oauth_hazir ? (
         <p className="text-xs text-slate-500 dark:text-slate-400">
           {t('yedekleme.hedef.google.formNotu')}
+        </p>
+      ) : null}
+      {tanim.oauth && !tanim.oauth_hazir ? (
+        <p
+          role="alert"
+          className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+        >
+          {t('yedekleme.hedef.google.yapilandirilmadi')}
         </p>
       ) : null}
       {tanim.tur === 'sftp' ? (
@@ -477,7 +509,11 @@ export function HedefFormu({
           </Button>
         )}
         <Button type="submit" yukleniyor={isSubmitting}>
-          {isSubmitting ? t('ortak.kaydediliyor') : t('ortak.kaydet')}
+          {isSubmitting
+            ? t('ortak.kaydediliyor')
+            : googleyaGidilecek
+              ? t('yedekleme.hedef.google.kaydetVeBaglan')
+              : t('ortak.kaydet')}
         </Button>
       </div>
     </form>

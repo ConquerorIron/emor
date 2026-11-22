@@ -1,6 +1,6 @@
 import { Switch as HeadlessSwitch } from '@headlessui/react'
 
-import { ALAN_ETIKET_SATIRI } from '@/components/alanStilleri'
+import { ALAN_ETIKET_SATIRI, ALAN_KUTUSU } from '@/components/alanStilleri'
 
 interface SwitchProps {
   id?: string
@@ -20,6 +20,13 @@ interface SwitchProps {
    * yazar) yalnız anahtar çizilir; erişilebilir ad aria-label ile korunur.
    */
   etiketGizli?: boolean
+  /**
+   * Izgarada bir giriş alanının yanında: üstte etiket satırı kadar boşluk
+   * bırakır, kutu alan yüksekliğindedir (42 px) — vurgu kutusu komşu alanın
+   * kutusuyla aynı satırda durur, etiketin hizasına kaymaz. Tek sütunda
+   * (dar ekran) boşluk bırakılmaz.
+   */
+  alanHizali?: boolean
 }
 
 /** Boolean girişlerin standart bileşeni — checkbox kullanılmaz (rules.md §2). */
@@ -31,6 +38,7 @@ export function Switch({
   disabled = false,
   vurgulu = true,
   etiketGizli = false,
+  alanHizali = false,
 }: SwitchProps) {
   const dugme = (
     <HeadlessSwitch
@@ -59,6 +67,20 @@ export function Switch({
       {dugme}
     </div>
   )
+
+  if (alanHizali) {
+    return (
+      <div>
+        {/* Etiket satırının yüksekliği (ALAN_ETIKET_SATIRI: h-6) */}
+        <div aria-hidden="true" className="hidden h-6 sm:block" />
+        <div
+          className={`flex ${ALAN_KUTUSU} items-center rounded-xl px-3 sm:mt-1 ${vurgulu ? 'switch-vurgu' : ''}`}
+        >
+          <div className="w-full">{icerik}</div>
+        </div>
+      </div>
+    )
+  }
 
   return vurgulu ? <div className="switch-vurgu rounded-xl px-3 py-2">{icerik}</div> : icerik
 }

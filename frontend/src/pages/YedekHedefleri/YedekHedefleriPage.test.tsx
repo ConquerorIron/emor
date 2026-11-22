@@ -94,6 +94,7 @@ const FTP: HedefTuruTanimi = {
   sunucu_disi: true,
   uyari: 'yedekleme.hedef.uyari.duz_ftp',
   oauth: false,
+  oauth_hazir: false,
 }
 
 const GOOGLE: HedefTuruTanimi = {
@@ -102,6 +103,7 @@ const GOOGLE: HedefTuruTanimi = {
   sunucu_disi: true,
   uyari: null,
   oauth: true,
+  oauth_hazir: true,
 }
 
 /** Ekranın hiç bilmediği bir tür: form yalnız tanımdan çizilmeli */
@@ -120,6 +122,7 @@ const YENI_TUR: HedefTuruTanimi = {
   sunucu_disi: true,
   uyari: null,
   oauth: false,
+  oauth_hazir: false,
 }
 
 const FTP_HEDEFI: Hedef = {
@@ -346,6 +349,7 @@ describe('YedekHedefleriPage', () => {
       sunucu_disi: true,
       uyari: null,
       oauth: false,
+      oauth_hazir: false,
     }
     api.turler.mockResolvedValue([FTP, S3])
     api.hedefler.mockResolvedValue([
@@ -636,33 +640,67 @@ describe('YedekHedefleriPage', () => {
       expect(api.pencere).not.toHaveBeenCalled()
     })
 
-    it('yeni Drive hedefinin formunda alan ve "Bağlantıyı Sına" yok; yalnız adla kaydedilir', async () => {
-      api.kaydet.mockResolvedValue({ ...BAGLI, id: 9, ad: 'Yeni Drive', baglanti: {} })
+    it('Google Drive seçilince ad kendiliğinden gelir; "Google ile giriş yap" kaydedip Google girişine gider', async () => {
+      const asil = window.location
+      const assign = vi.fn()
+      Object.defineProperty(window, 'location', { configurable: true, value: { ...asil, assign } })
+      api.kaydet.mockResolvedValue({ ...BAGLI, id: 9, ad: 'Google Drive', baglanti: {} })
+      api.googleAdres.mockResolvedValue('https://accounts.google.com/o/oauth2/v2/auth?state=yeni')
+      try {
+        ciz()
+        await satir('Kişisel Drive')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Yeni Hedef' }))
+        const pencere = await screen.findByRole('dialog')
+        fireEvent.keyDown(within(pencere).getByLabelText('Hedef türü'), { key: 'ArrowDown' })
+        fireEvent.click(await screen.findByRole('option', { name: 'Google Drive' }))
+
+        expect(await within(pencere).findByLabelText('Ad *')).toHaveValue('Google Drive')
+        expect(
+          within(pencere).queryByRole('button', { name: 'Bağlantıyı Sına' }),
+        ).not.toBeInTheDocument()
+        expect(within(pencere).queryByRole('button', { name: 'Kaydet' })).not.toBeInTheDocument()
+        fireEvent.click(within(pencere).getByRole('button', { name: 'Google ile giriş yap' }))
+
+        await waitFor(() =>
+          expect(assign).toHaveBeenCalledWith(
+            'https://accounts.google.com/o/oauth2/v2/auth?state=yeni',
+          ),
+        )
+        expect(api.kaydet).toHaveBeenCalledWith(null, {
+          ad: 'Google Drive',
+          aktif: true,
+          tur: 'google_drive',
+          alanlar: {},
+        })
+        expect(api.googleAdres).toHaveBeenCalledWith(9)
+      } finally {
+        Object.defineProperty(window, 'location', { configurable: true, value: asil })
+      }
+    })
+
+    it("sunucuda Google girişi açılmamışsa form ve liste nedenini söyler; Google'a gidilmez", async () => {
+      api.turler.mockResolvedValue([FTP, { ...GOOGLE, oauth_hazir: false }, YENI_TUR])
+      api.hedefler.mockResolvedValue([{ ...BAGLI, baglanti: {} }])
+      api.kaydet.mockResolvedValue({ ...BAGLI, id: 9, ad: 'Google Drive', baglanti: {} })
       ciz()
-      await satir('Kişisel Drive')
+      const drive = await satir('Kişisel Drive')
+
+      expect(within(drive).getByText('Sunucuda Google girişi henüz açılmadı.')).toBeInTheDocument()
+      expect(within(drive).getByRole('button', { name: 'Google ile bağlan' })).toBeDisabled()
 
       fireEvent.click(screen.getByRole('button', { name: 'Yeni Hedef' }))
       const pencere = await screen.findByRole('dialog')
       fireEvent.keyDown(within(pencere).getByLabelText('Hedef türü'), { key: 'ArrowDown' })
       fireEvent.click(await screen.findByRole('option', { name: 'Google Drive' }))
-      fireEvent.change(await within(pencere).findByLabelText('Ad *'), {
-        target: { value: 'Yeni Drive' },
-      })
 
-      expect(
-        within(pencere).queryByRole('button', { name: 'Bağlantıyı Sına' }),
-      ).not.toBeInTheDocument()
-      expect(within(pencere).queryByLabelText('Klasör adı')).not.toBeInTheDocument()
+      expect(await within(pencere).findByRole('alert')).toHaveTextContent(
+        'Google girişi bu sunucuda henüz açılmadı',
+      )
       fireEvent.click(within(pencere).getByRole('button', { name: 'Kaydet' }))
 
-      await waitFor(() =>
-        expect(api.kaydet).toHaveBeenCalledWith(null, {
-          ad: 'Yeni Drive',
-          aktif: true,
-          tur: 'google_drive',
-          alanlar: {},
-        }),
-      )
+      await waitFor(() => expect(api.kaydet).toHaveBeenCalled())
+      expect(api.googleAdres).not.toHaveBeenCalled()
     })
   })
 })

@@ -468,6 +468,7 @@ export function PlanFormu({
           render={({ field }) => (
             <Switch
               id="plan-aktif"
+              alanHizali
               label={t('yedekleme.plan.aktif')}
               checked={field.value}
               disabled={isSubmitting}
@@ -656,6 +657,7 @@ export function PlanFormu({
               />
               <div className="sm:pt-7">
                 <Button
+                  className="h-[42px]"
                   variant="secondary"
                   disabled={isSubmitting}
                   aria-label={t('yedekleme.plan.hedefiKaldir', { sira: sira + 1 })}

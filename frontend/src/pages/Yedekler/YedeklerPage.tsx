@@ -601,6 +601,7 @@ export function YedeklerPage() {
         />
         <Switch
           id="yedek-silinenler"
+          alanHizali
           label={t('yedekleme.yedekler.silinenleriGoster')}
           checked={filtre.silinenler}
           onChange={(silinenler) => filtreDegistir({ silinenler })}

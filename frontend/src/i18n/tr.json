@@ -17,6 +17,7 @@
     "ortamSecilmedi": "Ortam Seçilmedi",
     "kayitBulunamadi": "Kayıt bulunamadı.",
     "secVeyaAra": "Seçin veya arayın…",
+    "sec": "Seçin…",
     "sayfaBoyutu": "Sayfa boyutu",
     "ilk": "İlk",
     "onceki": "Önceki",
@@ -1674,7 +1675,10 @@
         "sifirla": "Sunucu anahtarını sıfırla"
       },
       "google": {
-        "formNotu": "Hedefi kaydedin; listede \"Google ile bağlan\" ile Google hesabınıza giriş yapın, ardından Google'ın penceresinde Drive'ınızdan yedeklerin gideceği klasörü seçin (ya da yeni klasör açın). Uygulama yalnız seçtiğiniz klasörü ve kendi yüklediği yedekleri görür; Drive'ınızdaki diğer dosyalara erişmez.",
+        "formNotu": "\"Google ile giriş yap\"a basınca Google'ın giriş ekranı açılır. Gmail hesabınızla girdikten sonra Google'ın penceresinde yedeklerin gideceği Drive klasörünü seçersiniz. Uygulama yalnız seçtiğiniz klasörü ve kendi yüklediği yedekleri görür; Drive'ınızdaki diğer dosyalara erişmez.",
+        "kaydetVeBaglan": "Google ile giriş yap",
+        "yapilandirilmadi": "Google girişi bu sunucuda henüz açılmadı: Google Cloud'daki uygulama kaydının bilgileri (istemci kimliği, gizli anahtar, API anahtarı, proje numarası) sunucuya girilmedi. Hedef kaydedilebilir; bilgiler girilince \"Google ile bağlan\" çalışır.",
+        "yapilandirilmadiKisa": "Sunucuda Google girişi henüz açılmadı.",
         "klasor": "Klasör",
         "klasorSecilmedi": "Klasör seçilmedi",
         "klasorSec": "Klasör seç",

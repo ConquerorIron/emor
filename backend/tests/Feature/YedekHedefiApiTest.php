@@ -994,6 +994,24 @@ final class YedekHedefiApiTest extends TestCase
         $this->assertEquals(['eposta' => 'baska@ornek.test'], $hedef->refresh()->baglanti);
     }
 
+    public function test_tur_listesi_google_yapilandirmasi_eksikse_drivei_hazir_degil_gosterir(): void
+    {
+        $hazirMi = fn (): bool => collect($this->getJson(self::K.'/turler')->assertOk()->json('data'))->keyBy('tur')['google_drive']['oauth_hazir'];
+
+        config(['yedekleme.google.istemci_kimligi' => null, 'yedekleme.google.istemci_sirri' => null, 'yedekleme.google.api_anahtari' => null, 'yedekleme.google.proje_numarasi' => null]);
+        $this->assertFalse($hazirMi());
+
+        // Klasör seçme penceresinin anahtarı eksik: bağlanılsa da klasör seçilemezdi
+        config(['yedekleme.google.istemci_kimligi' => 'istemci-1.apps.googleusercontent.com', 'yedekleme.google.istemci_sirri' => 'GOCSPX-sir']);
+        $this->assertFalse($hazirMi());
+
+        config(['yedekleme.google.api_anahtari' => 'AIza-anahtar', 'yedekleme.google.proje_numarasi' => '123456789012']);
+        $this->assertTrue($hazirMi());
+
+        $turler = collect($this->getJson(self::K.'/turler')->json('data'))->keyBy('tur');
+        $this->assertFalse($turler['ftp']['oauth_hazir']);
+    }
+
     public function test_drive_formunda_alan_yok_hedef_yalniz_adla_eklenir(): void
     {
         $turler = collect($this->getJson(self::K.'/turler')->assertOk()->json('data'))->keyBy('tur');

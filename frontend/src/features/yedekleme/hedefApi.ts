@@ -25,6 +25,8 @@ export interface HedefTuruTanimi {
   uyari: string | null
   /** Hesap bağlantısı tarayıcıdan yapılır (Google Drive) */
   oauth: boolean
+  /** Tarayıcıdan bağlanan türde sunucu yapılandırması tam (Google istemci kimliği, API anahtarı…) */
+  oauth_hazir: boolean
 }
 
 export type HedefDegeri = string | number | boolean | null
