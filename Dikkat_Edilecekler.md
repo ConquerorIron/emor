@@ -231,6 +231,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   depoyu ortak kullanma, aynı garantiyi varsayma. Testte ayrı süreci, son
   okumanın hemen ardından çalışan ve kilidi gözeten bir sahteyle kur.
   *(Codex BY-014-R7: R6'nın yeniden okuması pencereyi yalnız daralttı.)*
+  Kilit sırayı verir, kimliği değil: bir olayın sonucu olarak yapılan
+  temizlik (202 kabulü, tamamlanma) yalnız O olayın kaydını silsin — sınıfa
+  (eylem özeti, tür) göre değil kayıt kimliğine (UUID) göre süz. Yoksa eski
+  isteğin geciken yanıtı aynı sınıfın sonradan açılmış kaydını siler. Testte
+  aynı eylem için iki kimlik üret, eskinin kabulünü en son ver.
+  *(Codex BY-014-R8: eski isteğin geciken 202'si yeni anahtarı siliyordu.)*
 - **G19 — Aynı fiziksel nesneyi tanıyan ölçüt tek yardımcıda ve gerçek konuma
   göre olsun.** Yol metniyle karşılaştıran bir kod ile `realpath` / aygıt +
   düğüm ile karşılaştıran kardeşi birlikte yaşarsa (sondaki `/`, `..`,

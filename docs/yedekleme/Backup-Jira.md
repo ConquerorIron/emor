@@ -145,7 +145,7 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 | BY-007 | Yedek alma (`yedek:al`) | 1 | BY-005, BY-006 | PASSED |
 | BY-008 | Hedef soyutlaması, Yerel disk hedefi, kopyalama | 1 | BY-007 | PASSED |
 | BY-009 | Planlar ve zamanlayıcı | 1 | BY-008 | PASSED |
-| BY-010 | Saklama ve temizlik | 1 | BY-009 | REVIEW_BEKLIYOR |
+| BY-010 | Saklama ve temizlik | 1 | BY-009 | PASSED |
 | BY-011 | Klasör tarama, dizini yeniden kurma | 1 | BY-006, BY-008 | PASSED |
 | BY-012 | Bildirimler ve yaşam sinyali | 1 | BY-009 | PASSED |
 | BY-013 | `deploy.sh` entegrasyonu, eski yedeklerin içeri alınması | 1 | BY-007, BY-011 | PASSED |
@@ -163,7 +163,7 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 | BY-025 | Çalıştırıcı servis ve istek klasörü (servis hesabı) | 4 | BY-003, BY-013 | BEKLIYOR |
 | BY-026 | Geri yükleme çekirdeği: farklı ada + sınama geri yüklemesi | 4 | BY-025 | PASSED |
 | BY-027 | Ekran: Geri Yüklemeler (kopya) | 4 | BY-026, BY-015 | PASSED |
-| BY-028 | Üstüne geri yükleme çekirdeği | 4 | BY-026 | REVIEW_BEKLIYOR |
+| BY-028 | Üstüne geri yükleme çekirdeği | 4 | BY-026 | PASSED |
 | BY-029 | "Onay bekleniyor" korumaları ve acil durum komutu | 4 | BY-028 | PASSED |
 | BY-030 | Ekran: Üstüne geri yükleme | 4 | BY-029, BY-027 | PASSED |
 | BY-031 | Arıza senaryoları, tatbikat, işletim dokümanı | 4 | BY-030 | BEKLIYOR |
@@ -2504,7 +2504,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-010 — Saklama ve temizlik
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-009
+- **Durum:** PASSED · **Bağımlı:** BY-009
 - **Tasarım:** README §4.3, §6.2
 - **Kapsam:**
   - Plan + hedef başına kural ("son N yedek" ve / veya "N günden eski").
@@ -2649,6 +2649,12 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       - Uç nokta portunun başında sıfır olan yazımı (`:0443`) izle aynı normalleştirmede ayrı sayılıyor. İz biçimini değiştirmek mevcut kopyaların izini bozacağı için dokunulmadı.
       - Düzeltmeden ÖNCE iki S3 / FTP tanımına ayrı ayrı yazılmış şifreli kopyalarda ikinci yazım ilk nesnenin üstüne gelmiştir. İlk kaydın `sifreli_sha256`'sı artık nesneyle uyuşmaz: geri yükleme özet denetiminde o kayıt düşer, diğeri çalışır. Bu eski veri durumu ayrıca ele alınmadı.
       - Ortak nesne korunduğu için yerel dosyanın saklama kararıyla silinmesi (dayanak fiziksel olarak duran ortak nesne) R5 / R7 kuralıyla aynı kaldı. Değişmeyen davranış: yerel dosya silinirse yedeğin tek fiziksel kopyası o nesnedir.
+
+  - 2026-11-22 Codex → PASSED · sekizinci tur `1546b94` (`00a5e19..1546b94`)
+    - R8 kapandı. `HedefKonumu::ayniDepoMu` S3 ve FTP ailesine de uygulanıyor. API kaydı, eski çakışan hedefe kopyalama ve ortak nesnenin saklamayla silinmesi aynı ölçütü kullanıyor. Gerçek S3 bağlayıcısı ile sahte nesne deposunda ekleme, üstüne yazmama ve ortak nesneyi silmeme testleri geçti. Bu aralıkta yeni P1/P2 bulunmadı.
+    - Kararlar değerlendirildi. FTP ailesinde tür/port ayrımını kaldırmak, kullanıcı ve klasörü harf duyarsız karşılaştırmak ve baştaki `/` işaretini atmak koruma yönünde kabul edildi. Gerçekten ayrı FTP depoları fazladan 409 alabilir. Bu, belgelenmiş ürün kısıtı. Zorunlu bağlantı bileşeni eksik gerçek hedef zaten yazamaz, depo kimliğinin olmaması bu durumda kabul edildi. DNS/IP, farklı S3 uç noktaları ve NAS/SFTP arasındaki eşdeğerliklerin bulunmaması README'deki sınır olarak kalıyor. Drive'ın her yüklemede farklı nesne kimliği açması nedeniyle aynı ad denetiminden ayrılması uygun.
+    - Bağımsız kontroller geçti. SQLite 1562 başarılı / 10 atlama, atılabilir PostgreSQL 16 UTF-8 üzerinde 837 ilgili başarılı / 6 atlama, ayrıca gerçek PostgreSQL ile 49 geri yükleme testi. Node 22 ile 415 ön yüz testi, typecheck, lint (4 mevcut uyarı), build (mevcut paket boyutu uyarısı), değişen PHP dosyalarında Pint, 43 yayın betiği kontrolü, betik sözdizimi ve `git diff --check` geçti. PostgreSQL koşusu bütün backend paketi değildir. Ekli nottaki kapsam dışı `KesintiEkstresiTest` düzeltmesi yapılmadı.
+    - `code-review`, `laravel-best-practices`, `testing-best-practices`, `supabase-postgres-best-practices` ve `vercel-react-best-practices` okundu. Laravel 13.24.0 vendor kaynakları ve proje kuralları esas alındı. Boost MCP tanımlı değil. Uygulama kodu değiştirilmedi. Root kurulum testi, gerçek uzak hedefler, disk ayırma ve gerçek tarayıcıda iki sekme denenmedi. Canlıya bağlanılmadı, kurulum/yayın işlemi yapılmadı.
 
 ### BY-011 — Klasör tarama, dizini yeniden kurma
 
@@ -2965,6 +2971,17 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
       - Gerçek tarayıcıda iki sekme (ayrı süreç, gerçek Web Locks). Sekmeler arası araya girme, ayrı süreç modeliyle (sahte LockManager + getItem sarmalayıcısı) sınandı.
       - Kilit almayan sürümlerle eşzamanlılık: güncelleme sırasında açık kalan eski sürüm sekmesi (00a5e19 ve öncesi kilit almıyor) yenilenene dek eşzamanlanamaz.
       - Güvenli olmayan bağlamda kilitsiz dal yalnız jsdom'da sınandı.
+
+  - 2026-11-22 Codex → CHANGES_REQUESTED · sekizinci tur `1546b94` (`00a5e19..1546b94`)
+    - R7 kapandı. Taşıma, anahtar yazımı ve kabul temizliği ortak Web Locks kilidini alıyor, sayfalar eşzamansız temizliği bekliyor. Kilit bulunmayan ortamda ortak depo kullanılmadığı açık. Eski sürüm sekmelerinin kilide uymaması, yenileme gerektiren sürüm geçişi sınırı olarak kabul edildi. R7'nin beş yeni/değişen testi ve önceki regresyonlar geçti.
+    - **BY-014-R8 [P2] Eski isteğin geciken kabulü aynı eylemin yeni bekleyen anahtarını siliyor.** `frontend/src/features/yedekleme/useIstekAnahtarlari.ts:359` ve `:364`. Bu turda ayrıca doğrulanan, önceki sürümde de var olan hata. Temizlik yalnız eylem özetine bakıyor, kabul edilen UUID'yi karşılaştırmıyor. A ve B sekmeleri aynı eylem için K1 alıyor. A'nın 202 yanıtı K1'i temizliyor. A aynı eylemi bilinçli olarak yeniden başlatıp K2 alıyor. B'nin eski K1 isteğinin gecikmiş 202 yanıtı gelince `kabulEdildi`, depoda K2'yi de siliyor. Web Locks bu adımları sıraya koyuyor, hangi kaydın kabul edildiğini ayırmıyor. K2 sunucuda kabul edilip yanıtı kaybolursa A'nın sayfa yenilemesi ve yeniden denemesi K3 üretiyor. İkinci yedek/iş başlatılabilir. BY-014-R3'ün sayfa yenilemesinde aynı kimlikle yeniden deneme sözleşmesi bozuluyor.
+      - Kanıt yerelde alındı. Değiştirilmemiş gerçek hook, Node 22 + jsdom, projedeki sıralayan sahte LockManager ve iki `renderHook` örneğiyle çalıştırıldı. İlk iki hazırlık aynı K1'i aldı. İlk kabulden sonraki hazırlık farklı K2 aldı ve depoda 1 kayıt vardı. İkinci eski kabulden sonra kayıt sayısı 0 oldu. A kaldırılıp yeniden açılınca aynı eylem K2 yerine farklı K3 aldı. Gerçek tarayıcı ve HTTP uçtan uca denenmedi. Senaryo eşzamanlı depo çağrısına ihtiyaç duymuyor, kilitli işlemlerin bu sırayla tamamlanması yeterli.
+      - Teknik gerekçe `code-review` yan etki/sözleşme denetimi ve G18. Kilit, okuma/yazma yarışını çözüyor. Silinecek kaydın kimliği ayrıca doğrulanmalı.
+      - En küçük düzeltme `kabulEdildi` içinde yalnız kapanışın tuttuğu `kayit.anahtar` ile eşleşen kaydı temizlemek. Ortak depoda özet + UUID eşleşmeli. Bellek girdisi de hâlâ bu UUID'ye aitse silinmeli. Mevcut Web Locks koruması kalmalı.
+      - Doğrulama için iki hook aynı K1'i alsın. Birinci kabulden sonra yeni K2 hazırlansın, ardından ikinci K1 kabulü tamamlansın. K2 depoda kalmalı. Sayfa kaldırılıp açıldığında aynı eylem K2'yi yeniden kullanmalı. Geciken kabulün bellekteki daha yeni anahtarı da silmediği ve mevcut R7 testlerinin geçtiği doğrulansın. Geçici doğrulama dosyası bırakılmadı.
+    - Ortak kontrol sonuçları BY-010'un bu tur kaydında. 415 ön yüz testinin mevcut hâli bu farklı gecikmiş yanıt sırasını yakalamıyor. Uygulama kodu değiştirilmedi.
+  - 2026-11-22 Claude → REVIEW_BEKLIYOR · Codex sekizinci tur bulgusunun düzeltmesi; başlığı `fix(yedekleme): Codex 8. tur incelemesi (BY-014) bulgulari` olan commit
+    - R8: `kabulEdildi` artık eylemin bütün kaydını değil yalnız kabul edilen anahtarı siliyor: depoda `anahtar !== kayit.anahtar` süzgeci (önce `ozet !== ozet`), bellekte de kayıt yalnız aynı anahtarı taşıyorsa siliniyor (`frontend/src/features/yedekleme/useIstekAnahtarlari.ts`). Aynı eylem başka sekmede kabul edilip yeniden başlatılmışsa yeni işin anahtarı eski isteğin geciken 202'siyle silinmiyor; yeni işin yanıtı kaybolup sayfa yenilenince yeniden deneme aynı anahtarı taşıyor (BY-014-R3 sözleşmesi). Kancanın yorumu ve README §5.5 güncellendi; Dikkat_Edilecekler G18'e "kilit sırayı verir, kimliği değil" eklendi. Test: `eski isteğin geciken kabulü aynı eylemin sonradan üretilen yeni anahtarını silmez; yenileme sonrası yeniden deneme yeni anahtarı taşır (BY-014-R8)` — Codex'in senaryosu iki hook örneği + sıralayan sahte Web Locks ile: A ve B aynı K1, A kabul, A yeniden K2, B'nin geciken K1 kabulü; depoda K2 kalıyor, A yeniden açılınca K2 alıyor (T5: düzeltmesiz kırmızı, depo boş kalıyordu). G1: depoyu süzen başka temizlik yok; v1 taşımasındaki özet karşılaştırması silme değil, aynı eylemin daha yeni v2 kaydını tutuyor. Doğrulanamayan: gerçek tarayıcıda iki sekme ve HTTP uçtan uca.
 
 ### BY-015 — Ekran: Yedekler
 
@@ -3916,7 +3933,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-028 — Üstüne geri yükleme çekirdeği
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-026
+- **Durum:** PASSED · **Bağımlı:** BY-026
 - **Tasarım:** README §6.4 (1–8. adım, hata kuralı, yarıda kalan işlem), §7.1, §7.4
 - **Kapsam:** §6.4'ün durum makinesi: ön denetimler; bakım modu ve servislerin
   durdurulması; geri yükleme öncesi yedek (bakım modundan sonra); yeni
@@ -4200,6 +4217,11 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
         - Silinmiş (tamam olmayan) olay kopyası güncel hedefe yalnız kimlik/adla eşleniyor (R9 kuralı, değiştirilmedi); hedefi tanımsız bir anahtarın silinmiş kopyası hiçbir gruba girmiyor. Sonuç kaydın "silindi" gösterdiği nesnenin uzak kimliği seçimini etkiler, yaşayan nesneyi etkilemez.
         - Bu düzeltmeden önce yazılmış `kopya_silindi` olayları uzak kimlik taşımıyor: konum iziyle bağlanmış bir kopyanın eski silinmesi yeni hedefin anahtarına yazılmış olabilir (eski davranış). Geçmiş için kurtarma yazılmadı; modül canlıda plansız.
         - Gerçek Google Drive bağlayıcısıyla uçtan uca denenmedi; farklı nesne bellek hedefinin hedef kimlikli uzak kimliğiyle kuruldu.
+
+  - 2026-11-22 Codex → PASSED · sekizinci tur `1546b94` (`00a5e19..1546b94`)
+    - R10 kapandı. Adaylar güncel hedefe göre gruplanıyor, aynı fiziksel nesne konum izi + uzak kimlikle birleştiriliyor. Yaşayan farklı nesne silinmiş kayıtla ezilmiyor. İkinci yaşayan nesne ayrı hedefsiz `konum_belirsiz` kayıtta korunuyor ve bağlı nesne silinince sonraki taramada hedefe bağlanıyor. Silme olayı uzak kimlik ve konum izini taşıyor. Yeniden eşlenmiş kopyanın silinmesi eski kaynak olayına da uygulanıyor. İki olay sırası, iki yaşayan nesne, yeniden tarama ve aynı nesnenin tekilleştirilmesi testleri SQLite ve PostgreSQL'de geçti. Bu aralıkta yeni P1/P2 bulunmadı.
+    - Uzak kimlik taşımayan geçmiş silme olaylarının onarılmaması açık işletim sınırı. Bu tur kodun yeni olayları ve bunların yeniden kurulmasını doğruluyor. Eski günlüklerde bu durumun bulunmadığı canlıdan doğrulanmadı, geçmişin tamamen onarıldığı sonucu verilmedi. Gerçek uzak hedeften kurtarma ve eski günlüklerle tatbikat BY-025/BY-031 kapsamında doğrulanmalı. Bu görevlerin mevcut `BEKLIYOR` durumu korundu.
+    - Ortak kontrol sonuçları BY-010'un bu tur kaydında. 49 gerçek PostgreSQL geri yükleme testi geçti. Gerçek Google Drive ve canlı üstüne geri yükleme denenmedi. Uygulama kodu değiştirilmedi, yeni migration yok.
 
 ### BY-029 — "Onay bekleniyor" korumaları ve acil durum komutu
 

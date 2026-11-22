@@ -807,7 +807,9 @@ göstermez: istek çalıştırıcıya görünmüştür, kabul (202) döner, dene
 belirsizlik notu düşer. İstemci her eylem için bir `Idempotency-Key` üretir ve
 yeniden denemede aynısını gönderir — bekleyen anahtar tarayıcıda
 (`localStorage`, kullanıcı ya da işlem kapsamında, 15 dakika) durur, sayfa
-yenilense de kaybolmaz, kabulde silinir (BY-014-R3, BY-030-R4). Depoyu okuyup
+yenilense de kaybolmaz, kabulde silinir (BY-014-R3, BY-030-R4). Kabul yalnız
+kabul edilen anahtarı siler: eski isteğin geciken 202'si, aynı eylem için
+sonradan üretilmiş yeni anahtarı silmez (BY-014-R8). Depoyu okuyup
 yazan her adım (eski sürüm taşıması, anahtar yazımı, kabul temizliği) sekmeler
 arası tek bir Web Locks kilidi altındadır; Web Locks yoksa depo kullanılmaz,
 anahtar yalnız sayfanın belleğinde tutulur (BY-014-R7); istek kimliği bu anahtar ile eylemden

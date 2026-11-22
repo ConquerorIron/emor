@@ -289,6 +289,34 @@ describe('useIstekAnahtarlari', () => {
     expect(eski.anahtar).toBe(ANAHTAR_2)
   })
 
+  it('eski isteğin geciken kabulü aynı eylemin sonradan üretilen yeni anahtarını silmez; yenileme sonrası yeniden deneme yeni anahtarı taşır (BY-014-R8)', async () => {
+    const eylem = { tur: 'yedek_al', aciklama: 'gizli not' }
+    const a = renderHook(() => useIstekAnahtarlari('kullanici.1'))
+    const b = renderHook(() => useIstekAnahtarlari('kullanici.1'))
+    await bekle()
+    const aIlk = await a.result.current.hazirla(eylem)
+    const bIlk = await b.result.current.hazirla(eylem)
+    expect(bIlk.anahtar).toBe(aIlk.anahtar)
+
+    // A'nın 202'si geldi; A aynı eylemi bilinçli olarak yeniden başlatıyor
+    await aIlk.kabulEdildi()
+    const aYeni = await a.result.current.hazirla(eylem)
+    expect(aYeni.anahtar).not.toBe(aIlk.anahtar)
+    // B'nin aynı (eski) anahtarlı isteğinin 202'si gecikerek geliyor
+    await bIlk.kabulEdildi()
+
+    expect(depoyuOku()).toEqual([
+      expect.objectContaining({ ozet: OZET_GIZLI_NOT, anahtar: aYeni.anahtar }),
+    ])
+    // A'nın yeni isteğinin yanıtı kayboldu, sayfa yenilendi: yeniden deneme aynı anahtarı taşır
+    a.unmount()
+    const aYenilenmis = renderHook(() => useIstekAnahtarlari('kullanici.1'))
+    await bekle()
+    expect((await aYenilenmis.result.current.hazirla(eylem)).anahtar).toBe(aYeni.anahtar)
+    // B'nin belleğindeki yeni anahtar da eski kabulle silinmez
+    expect((await b.result.current.hazirla(eylem)).anahtar).toBe(aYeni.anahtar)
+  })
+
   it('Web Locks yoksa v1 kaydı taşınmadan silinir; anahtar depoya yazılmaz, yalnız bu örneğin belleğinde yaşar ve durum günlüğe yazılır (BY-014-R7)', async () => {
     Reflect.deleteProperty(navigator, 'locks')
     const uyari = vi.spyOn(console, 'warn').mockImplementation(() => {})

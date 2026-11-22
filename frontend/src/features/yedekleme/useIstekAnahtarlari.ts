@@ -286,7 +286,8 @@ async function acilisiYap(kapsam: string): Promise<void> {
  * yanıtı alınamayan (ağ hatası, 5xx) istek sunucuda kabul edilmiş olabilir;
  * aynı anahtarla yeniden deneme ikinci iş bırakmaz, mevcut kabulü alır.
  * Anahtar eylem (tür + parametreler) başına tutulur ve kabul (202) gelince
- * unutulur: aynı eylemin sonraki bilinçli tekrarı yeni bir iştir.
+ * unutulur: aynı eylemin sonraki bilinçli tekrarı yeni bir iştir. Kabul yalnız
+ * kendi anahtarını siler, eylemin sonradan üretilmiş anahtarını değil (BY-014-R8).
  *
  * Bekleyen anahtarlar sayfa yenilenince de kaybolmasın diye `localStorage`'da
  * kapsam (kullanıcı ya da işlem) başına, ANAHTAR_OMRU_MS boyunca durur
@@ -354,14 +355,20 @@ export function useIstekAnahtarlari(kapsam: string) {
 
       return {
         anahtar: kayit.anahtar,
-        // Sunucu kabul etti: aynı eylemin bir sonraki gönderimi yeni anahtar alır
+        // Sunucu kabul etti: aynı eylemin bir sonraki gönderimi yeni anahtar alır.
+        // Yalnız KABUL EDİLEN anahtar unutulur, eylemin kaydı değil (BY-014-R8):
+        // başka sekmede aynı eylem bu arada kabul edilip yeniden başlatılmışsa
+        // depoda o yeni işin anahtarı durur; eski isteğin geciken 202'si onu
+        // silerse yeni işin yanıtı kaybolunca yeniden deneme ikinci iş açar.
         kabulEdildi: async () => {
-          bellek.current.delete(ozet)
+          if (bellek.current.get(ozet)?.anahtar === kayit.anahtar) {
+            bellek.current.delete(ozet)
+          }
           // Okuma ile yazım arasında başka sekmenin yeni anahtarı kaybolmasın
           await kilitler?.request(DEPO_KILIDI, { mode: 'exclusive' }, () => {
             yaz(
               kapsam,
-              oku(kapsam, Date.now()).filter((bekleyen) => bekleyen.ozet !== ozet),
+              oku(kapsam, Date.now()).filter((bekleyen) => bekleyen.anahtar !== kayit.anahtar),
             )
           })
         },
