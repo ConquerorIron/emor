@@ -447,7 +447,8 @@ yönetici komutuyla içeri alınır (YDK-09). Tarayıcıdan yedek yükleme yok
   `https://<site>`); seçim penceresi için Picker API'yle ve sitenin adresiyle
   sınırlanmış bir API anahtarı açılır; proje numarası not edilir. Dördü
   sunucunun `.env`'ine yazılır (`YEDEKLEME_GOOGLE_ISTEMCI_KIMLIGI`,
-  `_ISTEMCI_SIRRI`, `_API_ANAHTARI`, `_PROJE_NUMARASI`). **Dikkat:** uygulama kaydı "deneme" durumunda bırakılırsa Google
+  `_ISTEMCI_SIRRI`, `_API_ANAHTARI`, `_PROJE_NUMARASI`). Adım adım:
+  [google-drive-kurulumu.md](google-drive-kurulumu.md). **Dikkat:** uygulama kaydı "deneme" durumunda bırakılırsa Google
   yenileme anahtarını yaklaşık 7 günde geçersiz kılar ve yedekler bir hafta
   sonra sessizce durur. Bağlanacak hesaplar şimdilik **kişisel Gmail hesapları**
   olacağı için (kullanıcı kararı 2026-11-18) kayıt "herkese açık" türde açılıp
