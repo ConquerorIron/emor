@@ -1296,6 +1296,9 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 ---
 
 ## Faz 1 — Çekirdek (yerel diske planlı yedek)
+  - 2026-11-22 Claude → canlı kurulum düzeltmesi · başlığı `fix(yedekleme): kurulum betigi uutils sort/comm sirasi` olan commit
+    - Sunucuda ilk çalıştırma 3. adımda (kök klasörün ACL farkı) `comm: file 2 is not in sorted order` ile durdu. Neden: Ubuntu 26.04 uutils coreutils; `sort` en_US harf sırasıyla (`:` yok sayılır), `comm` bayt sırasıyla çalışıyor, yayın kullanıcısı `admin` olunca `user:admin:--x` iki araçta farklı yere düşüyor. Yerelde GNU araçlarıyla görünmüyordu.
+    - Düzeltme: `satir_farki` yardımcısı, `sort` ve `comm` ikisi de `LC_ALL=C`. Test: sahte `sort` (C dışı dilde noktalamayı yok sayar) bütün kurulum testinde PATH'te; eski betikle kurulum bu hatayla kırmızı, düzeltmeyle 226/226. Ders: Dikkat_Edilecekler D10.
 
 ### BY-004 — Veri modeli, yapılandırma, izinler
 

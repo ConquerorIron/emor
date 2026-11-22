@@ -58,6 +58,18 @@ GERCEK_SYNC="$(command -v sync)"
 mkdir -m 755 "$D/sahte"
 printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> %s/sync.gunluk\nexec %s "$@"\n' "$D" "$GERCEK_SYNC" > "$D/sahte/sync"
 chmod 755 "$D/sahte/sync"
+# Ubuntu 26.04'ün uutils sort'u C dışı dilde noktalamayı yok sayarak dizer
+# ("user:admin:--x" "user::rwx"ten önce), comm bayt sırası bekler. Sahte sort
+# bunu taklit eder; kurulum betiği sort + comm'u C sırasıyla çağırmazsa ACL
+# farkı hesabında comm durur (sunucuda ilk kurulum 3. adımda kaldı).
+GERCEK_SORT="$(command -v sort)"
+cat > "$D/sahte/sort" <<EOF
+#!/bin/bash
+dil="\${LC_ALL:-\${LC_COLLATE:-\${LANG:-}}}"
+case "\$dil" in C|POSIX) exec $GERCEK_SORT "\$@" ;; esac
+awk '{ k = \$0; gsub(/[^A-Za-z0-9]/, "", k); print k "\t" \$0 }' | LC_ALL=C $GERCEK_SORT -s -t "\$(printf '\t')" -k1,1 | cut -f2-
+EOF
+chmod 755 "$D/sahte/sort"
 SAHTE_PATH="$D/sahte:$PATH"
 esitlendi() { grep -qxF -- "-- $1" "$D/sync.gunluk"; } # $1 "yol1 yol2"
 sync_sifirla() { install -m 666 /dev/null "$D/sync.gunluk"; }

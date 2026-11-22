@@ -643,6 +643,17 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   *timeouts that fit the calling request or job*).
   *(Fable incelemesi PRT-F2.)*
 
+- **D10 — Sunucunun araçları yereldekilerle aynı değil; sıraya dayanan araç
+  zincirini dilden bağımsız çağır.** Ubuntu 26.04 GNU coreutils yerine uutils
+  (Rust) kullanır: `sort` yerel dilin harf sırasıyla (en_US: `:` yok sayılır),
+  `comm` bayt sırasıyla çalışır; `sort | comm` / `join` zinciri "not in sorted
+  order" ile durur. Yerelde (GNU, C.UTF-8) görünmez. Sıralı girdi bekleyen her
+  zincirde `LC_ALL=C` iki tarafa da verilir; testte sunucunun davranışını
+  taklit eden sahte `sort` ile sına. Uzaktan çıkış kodu ölçerken `$?`'yi yerel
+  kabuğun açmadığından emin ol (betiği `bash -s` ile gönder).
+  *(BY-003, 2026-11-22: kurulum betiği canlıda ilk çalıştırmada 3. adımda
+  kaldı; 226 yerel test geçiyordu.)*
+
 ## 5. Tasarım dokümanları
 
 - **P1 — Aynı kural iki bölümde çelişmesin.** Bir bölümde "onaysız

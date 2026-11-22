@@ -385,6 +385,14 @@ acl_tanimi() {
     ACL_TANIMI+=",d:u::$u,d:u:$adli,d:g::$g,d:m::$g,d:o::$o"
   fi
 }
+# İki satır kümesinin farkı ($1: comm seçeneği, -23 yalnız ilkinde, -13 yalnız
+# ikincide). sort ve comm AYNI sırayı kullanmalı: Ubuntu 26.04'ün uutils
+# araçlarında sort yerel dilin harf sırasını (en_US: ":" yok sayılır), comm
+# bayt sırasını kullanır; "user:admin:--x" iki araçta farklı yere düşer ve
+# comm "not in sorted order" ile durur. İkisi de C sırasıyla çalışır.
+satir_farki() {
+  LC_ALL=C comm "$1" <(LC_ALL=C sort <<<"$2") <(LC_ALL=C sort <<<"$3") | paste -sd ' '
+}
 acl_denetle() { # $1 yol, $2 izin, $3 yayın izni ya da "", $4 "varsayilan" ya da "", $5 sahip (varsayılan servis)
   local yol="$1" sahip="${5:-$YEDEK_KULLANICI}" mevcut fazla eksikler fark komut
   if [[ -n "${REDDEDILEN[$yol]:-}" ]]; then return 0; fi
@@ -394,8 +402,8 @@ acl_denetle() { # $1 yol, $2 izin, $3 yayın izni ya da "", $4 "varsayilan" ya d
     tamam "$yol ACL (yalnız izin verilen girdiler)"
     return
   fi
-  fazla="$(comm -23 <(sort <<<"$mevcut") <(sort <<<"$ACL_BEKLENEN") | paste -sd ' ')"
-  eksikler="$(comm -13 <(sort <<<"$mevcut") <(sort <<<"$ACL_BEKLENEN") | paste -sd ' ')"
+  fazla="$(satir_farki -23 "$mevcut" "$ACL_BEKLENEN")"
+  eksikler="$(satir_farki -13 "$mevcut" "$ACL_BEKLENEN")"
   fark=""
   if [[ -n "$fazla" ]]; then fark="fazla: $fazla"; fi
   if [[ -n "$eksikler" ]]; then fark="${fark:+$fark; }eksik: $eksikler"; fi
