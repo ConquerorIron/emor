@@ -149,7 +149,7 @@ Görevin kendi kabul ölçütlerine **ek olarak**:
 | BY-011 | Klasör tarama, dizini yeniden kurma | 1 | BY-006, BY-008 | PASSED |
 | BY-012 | Bildirimler ve yaşam sinyali | 1 | BY-009 | PASSED |
 | BY-013 | `deploy.sh` entegrasyonu, eski yedeklerin içeri alınması | 1 | BY-007, BY-011 | PASSED |
-| BY-014 | API: Yedekler | 2 | BY-010, BY-011 | REVIEW_BEKLIYOR |
+| BY-014 | API: Yedekler | 2 | BY-010, BY-011 | PASSED |
 | BY-015 | Ekran: Yedekler | 2 | BY-014 | BEKLIYOR |
 | BY-016 | API + Ekran: Yedek Hedefleri | 2 | BY-008, BY-015 | PASSED |
 | BY-017 | API + Ekran: Yedek Planları | 2 | BY-010, BY-016 | PASSED |
@@ -2850,7 +2850,7 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
 
 ### BY-014 — API: Yedekler
 
-- **Durum:** REVIEW_BEKLIYOR · **Bağımlı:** BY-010, BY-011
+- **Durum:** PASSED · **Bağımlı:** BY-010, BY-011
 - **Tasarım:** README §4.9, §4.10 (1), §5.2 (istek yalnız kaydedilir), §8
 - **Kapsam:** `v1/yedekler` uçları: liste (süzgeç, sıralama, sayfalama), özet
   şeridi verisi, elle yedek isteği, doğrulama isteği, sabitle / çöz, not, sil,
@@ -2982,6 +2982,12 @@ dışı** · **Kabul ölçütleri** · **Canlı** · **İnceleme günlüğü**.
     - Ortak kontrol sonuçları BY-010'un bu tur kaydında. 415 ön yüz testinin mevcut hâli bu farklı gecikmiş yanıt sırasını yakalamıyor. Uygulama kodu değiştirilmedi.
   - 2026-11-22 Claude → REVIEW_BEKLIYOR · Codex sekizinci tur bulgusunun düzeltmesi; başlığı `fix(yedekleme): Codex 8. tur incelemesi (BY-014) bulgulari` olan commit
     - R8: `kabulEdildi` artık eylemin bütün kaydını değil yalnız kabul edilen anahtarı siliyor: depoda `anahtar !== kayit.anahtar` süzgeci (önce `ozet !== ozet`), bellekte de kayıt yalnız aynı anahtarı taşıyorsa siliniyor (`frontend/src/features/yedekleme/useIstekAnahtarlari.ts`). Aynı eylem başka sekmede kabul edilip yeniden başlatılmışsa yeni işin anahtarı eski isteğin geciken 202'siyle silinmiyor; yeni işin yanıtı kaybolup sayfa yenilenince yeniden deneme aynı anahtarı taşıyor (BY-014-R3 sözleşmesi). Kancanın yorumu ve README §5.5 güncellendi; Dikkat_Edilecekler G18'e "kilit sırayı verir, kimliği değil" eklendi. Test: `eski isteğin geciken kabulü aynı eylemin sonradan üretilen yeni anahtarını silmez; yenileme sonrası yeniden deneme yeni anahtarı taşır (BY-014-R8)` — Codex'in senaryosu iki hook örneği + sıralayan sahte Web Locks ile: A ve B aynı K1, A kabul, A yeniden K2, B'nin geciken K1 kabulü; depoda K2 kalıyor, A yeniden açılınca K2 alıyor (T5: düzeltmesiz kırmızı, depo boş kalıyordu). G1: depoyu süzen başka temizlik yok; v1 taşımasındaki özet karşılaştırması silme değil, aynı eylemin daha yeni v2 kaydını tutuyor. Doğrulanamayan: gerçek tarayıcıda iki sekme ve HTTP uçtan uca.
+  - 2026-11-22 Codex → PASSED · dokuzuncu tur `79deb29` (`1546b94..79deb29`)
+    - BY-014-R8 kapandı. `frontend/src/features/yedekleme/useIstekAnahtarlari.ts:364` bellekteki kaydı yalnız kabul edilen UUID hâlâ aynıysa siliyor. `:371` ortak depodan yalnız bu UUID'yi kaldırıyor, temizlik mevcut Web Locks kilidinin içinde kalıyor. Gecikmiş K1 kabulü daha yeni K2 kaydını etkilemiyor. UUID ile eşleştirme, önceki rapordaki en küçük düzeltmenin gereğini karşılıyor. Çağıran iki sayfa kabul temizliğini beklemeye devam ediyor.
+    - `useIstekAnahtarlari.test.ts:292` yeni regresyonu gerçek hook örnekleriyle kapsıyor. A ve B aynı K1'i alıyor, A kabulden sonra yeni K2 üretiyor, B'nin gecikmiş K1 kabulü tamamlanıyor. Depoda yalnız K2 kalıyor ve A yeniden açıldığında yeniden deneme K2'yi kullanıyor. Önceki taşıma, kilit, ağ hatası ve süre testleri de geçti. Bellekteki UUID koşulu koddan ayrıca incelendi.
+    - Bu commit aralığında yeni hata, davranış bozukluğu veya performans gerilemesi bulunmadı. Değişiklik mevcut doğrusal süzme işlemini koruyor, ek bağımlılık ya da sorgu getirmiyor. G18 ve README §5.5 güncellemeleri davranışla uyumlu. `code-review` ve `vercel-react-best-practices` ile ilgili localStorage/ref kuralları esas alındı. React 19 kullanan mevcut Vite SPA yapısı korundu.
+    - Bağımsız kontroller Node 22 ile geçti. Ön yüz 62 dosyada 416/416 test, `npm run typecheck`, `npm run lint` (4 mevcut uyarı, hata yok), `npm run build` (mevcut paket boyutu uyarısı) ve `git diff --check`. Backend, şema ve betikler değişmediği için bu turda backend/PostgreSQL/geri yükleme/Pint/kurulum/yayın testleri yeniden çalıştırılmadı. Önceki turdaki doğrulamalar bu turun yeni test sonucu olarak sunulmadı.
+    - Gerçek tarayıcıda iki sekme ve HTTP üzerinden uçtan uca deneme yapılmadı. Uygulama kodu değiştirilmedi, yalnız bu inceleme kaydı ve görev durumu güncellendi. Canlıya bağlanılmadı, kurulum betiği çalıştırılmadı. BY-010 ve BY-028 `PASSED`, saha doğrulaması bekleyen diğer görevler mevcut durumlarında kaldı.
 
 ### BY-015 — Ekran: Yedekler
 
