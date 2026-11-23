@@ -1061,31 +1061,42 @@ describe('EFaturalarPage', () => {
         'SAP',
         'Fatura No',
       ])
-      // Kaynak uç gelene kadar SAP kolonu boş ve açıklamalı
+      // İşaretlenmemiş SAP boş ve açıklamalı: Protel'de ekranın anahtarı, İzibiz'de SAP ucu bekleniyor
       const satir = screen.getByText('OTL2026000000002').closest('tr') as HTMLElement
       expect(satir.querySelectorAll('td')[2]).toHaveTextContent('Protel')
       const izibizSatiri = screen.getByText('ABC2026000000001').closest('tr') as HTMLElement
       expect(izibizSatiri.querySelectorAll('td')[2]).toHaveTextContent('İzibiz')
-      expect(within(satir).getAllByTitle(/servisi açıldığında gelecek/)).toHaveLength(1)
+      expect(
+        within(satir.querySelectorAll('td')[5]).getByTitle(/"İşlendi" işaretlenmedi/),
+      ).toHaveTextContent('—')
+      expect(within(satir).queryByTitle(/servisi açıldığında gelecek/)).not.toBeInTheDocument()
+      expect(
+        within(izibizSatiri.querySelectorAll('td')[5]).getByTitle(/servisi açıldığında gelecek/),
+      ).toBeInTheDocument()
       expect(screen.queryByText('ERP Okudu')).not.toBeInTheDocument()
       // Senkron sağlayıcı ekranlarında: durum istenmez
       expect(api.durum).not.toHaveBeenCalled()
       expect(screen.queryByRole('button', { name: 'Entegratör Senkronla' })).not.toBeInTheDocument()
     })
 
-    it('Entegratör ve SAP kolonlarına göre sıralanır; dolu SAP durumu Evet/Hayır görünür', async () => {
+    it('Entegratör ve SAP kolonlarına göre sıralanır; işlenen fatura SAP kolonunda "İşlendi" görünür', async () => {
       api.faturalar.mockResolvedValue({
         ...BIRLESIK,
-        data: [{ ...FATURA, saglayici: 'izibiz', sap_islendi: true }, PROTEL_FATURASI],
+        data: [
+          { ...FATURA, saglayici: 'izibiz', sap_islendi: false },
+          { ...PROTEL_FATURASI, sap_islendi: true },
+        ],
       })
       ciz(IZINLER, 'tum')
       await screen.findByText('Otel Tedarik A.Ş.')
 
+      const protelSatiri = screen.getByText('OTL2026000000002').closest('tr') as HTMLElement
+      expect(protelSatiri.querySelectorAll('td')[5]).toHaveTextContent(/^İşlendi$/)
       const izibizSatiri = screen.getByText('ABC2026000000001').closest('tr') as HTMLElement
+      expect(izibizSatiri.querySelectorAll('td')[5]).toHaveTextContent(/^Hayır$/)
       expect(
         within(izibizSatiri).queryByTitle(/servisi açıldığında gelecek/),
       ).not.toBeInTheDocument()
-      expect(within(izibizSatiri).getAllByText('Evet').length).toBeGreaterThan(0)
 
       for (const [baslik, anahtar] of [
         [/^Entegratör/, 'entegrator'],

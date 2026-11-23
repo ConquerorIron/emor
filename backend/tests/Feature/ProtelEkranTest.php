@@ -83,6 +83,8 @@ final class ProtelEkranTest extends TestCase
             'PDF izni olmadan PDF' => ['GET', '/api/v1/protel/faturalar/1/pdf', ['protel_faturalari.goruntule', 'efatura.pdf']],
             'Excel izni olmadan Excel' => ['GET', '/api/v1/protel/gelen/faturalar/excel?'.self::ARALIK, ['protel_faturalari.goruntule', 'efatura.disari_aktar']],
             'senkron izni olmadan senkron' => ['POST', '/api/v1/protel/senkron', ['protel_faturalari.goruntule', 'efatura.senkron']],
+            'işleme izni olmadan İşlendi' => ['PUT', '/api/v1/protel/faturalar/1/islendi', ['protel_faturalari.goruntule', 'efatura.gizle']],
+            'görüntüleme izni olmadan İşlendi' => ['PUT', '/api/v1/protel/faturalar/1/islendi', ['protel_faturalari.isle']],
         ];
     }
 
@@ -98,6 +100,46 @@ final class ProtelEkranTest extends TestCase
         $this->actingAs($this->izinli(...$izinler))
             ->json($metot, $adres, ['baslangic' => '2026-01-01', 'bitis' => '2026-01-31'])
             ->assertForbidden();
+    }
+
+    public function test_islendi_isareti_yalniz_emorda_tutulur_kaldirilinca_bosalir_protele_istek_gitmez(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake();
+        $protel = $this->protelTanimi();
+        $fatura = EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTEL0000000000001']);
+        $kullanici = $this->izinli('protel_faturalari.goruntule', 'protel_faturalari.isle');
+        $adres = "/api/v1/protel/faturalar/{$fatura->id}/islendi";
+
+        $this->actingAs($kullanici)->putJson($adres, ['islendi' => true])
+            ->assertOk()
+            ->assertJsonPath('data.belge_no', 'OTEL0000000000001')
+            ->assertJsonPath('data.sap_islendi', true);
+        $this->assertTrue($fatura->fresh()->sap_islendi);
+
+        // Kaldırılınca hiç işaretlenmemiş hâle döner (Tüm Faturalar'da "—")
+        $this->actingAs($kullanici)->putJson($adres, ['islendi' => false])
+            ->assertOk()
+            ->assertJsonPath('data.sap_islendi', null);
+        $this->assertNull($fatura->fresh()->sap_islendi);
+        Http::assertNothingSent();
+    }
+
+    public function test_islendi_aktif_protel_taniminin_disindaki_faturayi_bulamaz_deger_zorunludur(): void
+    {
+        $protel = $this->protelTanimi();
+        $izibizFaturasi = EFatura::factory()->create(['entegrator_baglanti_id' => EntegratorBaglanti::factory()->aktif()->create()->id]);
+        $protelFaturasi = EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id]);
+        $kullanici = $this->izinli('protel_faturalari.goruntule', 'protel_faturalari.isle');
+
+        $this->actingAs($kullanici)->putJson("/api/v1/protel/faturalar/{$izibizFaturasi->id}/islendi", ['islendi' => true])
+            ->assertNotFound();
+        $this->assertNull($izibizFaturasi->fresh()->sap_islendi);
+
+        $this->actingAs($kullanici)->putJson("/api/v1/protel/faturalar/{$protelFaturasi->id}/islendi", ['islendi' => 'belki'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrorFor('islendi', 'hatalar');
+        $this->assertNull($protelFaturasi->fresh()->sap_islendi);
     }
 
     public function test_protelde_giden_liste_ve_xml_ucu_yoktur(): void

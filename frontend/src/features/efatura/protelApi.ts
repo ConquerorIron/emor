@@ -2,6 +2,7 @@ import { api } from '@/api/client'
 import { blobHatasiniCoz, dosyayiIndir } from '@/api/indirme'
 
 import type {
+  EFatura,
   EFaturaListesi,
   ErpOkunduFiltresi,
   ExcelKolonu,
@@ -12,7 +13,8 @@ import type {
 
 /**
  * Protel Gelen Faturalar (PRT-12) — otelin posta kutusu. Sunucu e-Fatura
- * uçlarını Protel tanımıyla çalıştırır: yalnız gelen, XML / gizleme / eMOR yok.
+ * uçlarını Protel tanımıyla çalıştırır: yalnız gelen, XML / gizleme / eMOR yok;
+ * kendine özgü tek yazma "İşlendi" işaretidir (eMOR'da).
  */
 export interface ProtelFaturaFiltresi {
   baslangic: string
@@ -76,6 +78,18 @@ export async function protelPdfGetir(faturaId: number): Promise<FaturaPdfi> {
     .catch(blobHatasiniCoz)
 
   return { pdf: yanit.data, kaynak: 'entegrator' }
+}
+
+/**
+ * "İşlendi" işareti — yalnız eMOR'da tutulur (Tüm Faturalar → SAP kolonu);
+ * Protel'e istek gitmez. Sunucunun güncel faturasını döndürür.
+ */
+export async function protelIslendiDegistir(faturaId: number, islendi: boolean): Promise<EFatura> {
+  const yanit = await api.put<{ data: EFatura }>(`/api/v1/protel/faturalar/${faturaId}/islendi`, {
+    islendi,
+  })
+
+  return yanit.data.data
 }
 
 /** Tablonun o anki hâli (aynı filtre, sıralama, sayfa; görünen kolonlar) .xlsx olarak */

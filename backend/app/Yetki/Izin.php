@@ -41,6 +41,8 @@ enum Izin: string
     case ProtelFaturalariSenkron = 'protel_faturalari.senkron';
     case ProtelFaturalariPdf = 'protel_faturalari.pdf';
     case ProtelFaturalariDisariAktar = 'protel_faturalari.disari_aktar';
+    /** Faturayı "İşlendi" işaretleme — yalnız eMOR'da tutulur (Tüm Faturalar → SAP) */
+    case ProtelFaturalariIsle = 'protel_faturalari.isle';
 
     case KesintiTurleriGoruntule = 'kesinti_turleri.goruntule';
     case KesintiTurleriGuncelle = 'kesinti_turleri.guncelle';
@@ -170,7 +172,7 @@ enum Izin: string
             $ekran('satinalma_talebi', self::SatinalmaTalebiGoruntule, self::SatinalmaTalebiGuncelle),
             $ekran('tum_faturalar', self::TumFaturalarGoruntule, null, self::TumFaturalarPdf, self::TumFaturalarDisariAktar),
             $ekran('efatura', self::EfaturaGoruntule, self::EfaturaSenkron, self::EfaturaPdf, self::EfaturaDisariAktar, self::EfaturaGizle),
-            $ekran('protel_faturalari', self::ProtelFaturalariGoruntule, self::ProtelFaturalariSenkron, self::ProtelFaturalariPdf, self::ProtelFaturalariDisariAktar),
+            $ekran('protel_faturalari', self::ProtelFaturalariGoruntule, self::ProtelFaturalariSenkron, self::ProtelFaturalariPdf, self::ProtelFaturalariDisariAktar, self::ProtelFaturalariIsle),
             // Kesinti Yönetimi grubu: menüdeki gibi önce raporlar
             $ekran('kesinti_ozeti', self::KesintiOzetiGoruntule, null),
             $ekran('pivot', self::PivotGoruntule, null),

@@ -46,6 +46,8 @@ import { useKaliciSiralama } from '@/hooks/useKaliciSiralama'
 import { useKolonGorunurlugu } from '@/hooks/useKolonGorunurlugu'
 import { bugunIso, tarihGoster, zamanGoster } from '@/utils/tarih'
 
+import { IslendiAnahtari } from './IslendiAnahtari'
+
 const ERP_FILTRELERI: readonly ErpOkunduFiltresi[] = ['evet', 'hayir', 'bilinmiyor']
 
 /** Protel `erpStatus` değerleri (Swagger enum'u); bilinmeyen değer olduğu gibi gösterilir */
@@ -54,15 +56,16 @@ const ERP_DURUMLARI = ['New', 'Processing', 'Completed', 'Cancelled', 'Error', '
 type AcikPdf = EFatura | null
 
 /**
- * Protel Gelen Faturalar (PRT-12) — otelin e-Fatura posta kutusu. Yalnız
- * okunur: Protel'de hiçbir alan değiştirilmez. eMOR karşılaştırması yok
- * (faturalar otelindir — kullanıcı kararı 2026-11-18).
+ * Protel Gelen Faturalar (PRT-12) — otelin e-Fatura posta kutusu. Protel'de
+ * hiçbir alan değiştirilmez. eMOR karşılaştırması yok (faturalar otelindir —
+ * kullanıcı kararı 2026-11-18); satırdaki "İşlendi" anahtarı yalnız eMOR'a yazar.
  */
 export function ProtelFaturalariPage() {
   const { t } = useTranslation()
   const pdfIzni = useIzin('protel_faturalari.pdf')
   const excelIzni = useIzin('protel_faturalari.disari_aktar')
   const senkronIzni = useIzin('protel_faturalari.senkron')
+  const isleIzni = useIzin('protel_faturalari.isle')
 
   const [filtre, setFiltre] = useState<ProtelFaturaFiltresi>(() => ({
     baslangic: varsayilanBaslangic(bugunIso()),
@@ -287,6 +290,13 @@ export function ProtelFaturalariPage() {
           },
         ]
       : []),
+    {
+      // PDF'in sağında, her zaman görünür; izni olmayan durumu görür, değiştiremez
+      anahtar: 'islendi',
+      baslik: t('protel.kolon.islendi'),
+      hizala: 'orta' as const,
+      render: (f: EFatura) => <IslendiAnahtari fatura={f} izinli={isleIzni} />,
+    },
     ...secilebilirKolonlar.filter((kolon) => kolonGorunurlugu.gorunurMu(kolon.anahtar)),
   ]
 

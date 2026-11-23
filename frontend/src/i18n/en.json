@@ -735,6 +735,7 @@
       "protel_faturalari_senkron": "Start Protel sync manually",
       "protel_faturalari_pdf": "View Protel invoice PDFs",
       "protel_faturalari_disari_aktar": "Export the Protel list to Excel",
+      "protel_faturalari_isle": "Mark / unmark Protel invoices as \"Processed\"",
       "yedekler_sil": "Delete / pin backups",
       "yedekler_indir": "Download backup files (all data)",
       "geri_yukleme_kopya": "Restore a backup under a new name (copy)"
@@ -857,6 +858,7 @@
       "istisnaKoduErp": "Exemption Code (ERP)",
       "sap": "SAP",
       "sistemBekleniyor": "This will be filled once the SAP service is available.",
+      "sapProtelde": "Not marked as \"Processed\" on the Protel Incoming Invoices screen.",
       "entegrator": "Integrator",
       "siraNo": "No."
     },
@@ -907,6 +909,7 @@
       "alan": "Hidden"
     },
     "tumAciklama": "Invoices received in İzibiz and Protel in one list. Sync and hiding are done on the provider screens.",
+    "sapIslendi": "Processed",
     "saglayici": {
       "izibiz": "İzibiz",
       "protel": "Protel"
@@ -914,9 +917,16 @@
   },
   "protel": {
     "baslik": "Protel Incoming Invoices",
-    "aciklama": "The hotel's e-invoice mailbox (Protel). Read only; nothing is changed in Protel.",
+    "aciklama": "The hotel's e-invoice mailbox (Protel). The \"Processed\" mark is kept only in eMOR; nothing is changed in Protel.",
     "modulKapali": "The Protel connection is disabled on the server (PROTEL_AKTIF): sync does not run and PDFs do not open.",
+    "islendi": {
+      "etiket": "{{no}} processed",
+      "isaretlendi": "Invoice {{no}} was marked as processed.",
+      "kaldirildi": "Invoice {{no}} was marked as not processed.",
+      "izinYok": "You are not allowed to change this mark."
+    },
     "kolon": {
+      "islendi": "Processed",
       "erpAldi": "Hotel ERP Received",
       "erpDurumu": "Hotel ERP Status",
       "yazdirildi": "Printed"

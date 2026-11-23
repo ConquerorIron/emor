@@ -176,15 +176,35 @@ function HizliFiltre({
  * Sistem kolonu (SAP): değer gelince Evet/Hayır; kaynak uç (SAP servisi) gelene
  * kadar boş ve açıklamalı.
  */
-function SistemDurumu({ deger }: { deger: boolean | null }) {
+/**
+ * SAP kolonu: işlenen "İşlendi". Protel faturası Protel Gelen Faturalar
+ * ekranındaki anahtarla işaretlenir (kullanıcı isteği 2026-11-23); İzibiz
+ * için SAP ucu bekleniyor.
+ */
+function SapDurumu({ fatura }: { fatura: EFatura }) {
   const { t } = useTranslation()
 
-  return deger === null ? (
-    <span className="text-slate-400" title={t('efatura.kolon.sistemBekleniyor')}>
-      —
+  if (fatura.sap_islendi === null) {
+    return (
+      <span
+        className="text-slate-400"
+        title={t(
+          fatura.saglayici === 'protel'
+            ? 'efatura.kolon.sapProtelde'
+            : 'efatura.kolon.sistemBekleniyor',
+        )}
+      >
+        —
+      </span>
+    )
+  }
+
+  return fatura.sap_islendi ? (
+    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+      {t('efatura.sapIslendi')}
     </span>
   ) : (
-    <EvetHayirRozeti deger={deger} />
+    <EvetHayirRozeti deger={false} />
   )
 }
 
@@ -194,8 +214,8 @@ type AcikPencere = { tur: 'detay' | 'pdf'; fatura: EFatura } | null
  * İzibiz gelen / giden faturalar; `kapsam="tum"` ise İzibiz + Protel gelen
  * faturaların birleşik listesi (Tüm Faturalar — kullanıcı isteği 2026-11-20).
  * Birleşik listede ekran aynıdır; farkları: kendi izinleri, "ERP Okudu" →
- * "eMOR Okudu", Entegratör kolonu ve filtresi, SAP kolonu (kaynak uç gelene
- * kadar boş), senkron ve gizleme yok (sağlayıcı ekranlarında); onun yerine
+ * "eMOR Okudu", Entegratör kolonu ve filtresi, SAP kolonu (Protel ekranındaki
+ * "İşlendi" anahtarından; İzibiz için uç bekleniyor), senkron ve gizleme yok (sağlayıcı ekranlarında); onun yerine
  * güncel olmayan posta kutusu uyarısı.
  */
 export function EFaturalarPage({
@@ -320,8 +340,8 @@ export function EFaturalarPage({
       hizala: 'orta',
       render: (f) => <EmorRozeti deger={f.emor_durumu} />,
     },
-    // Birleşik liste: faturanın SAP'ye girilip girilmediği. SAP ekibinden uç
-    // bekleniyor; o zamana kadar kolon boş (kullanıcı isteği 2026-11-20)
+    // Birleşik liste: faturanın SAP'ye girilip girilmediği (kullanıcı isteği
+    // 2026-11-20). Protel'de ekrandaki anahtarla işaretlenir; İzibiz için SAP ucu bekleniyor
     ...(tum
       ? [
           {
@@ -329,7 +349,7 @@ export function EFaturalarPage({
             baslik: t('efatura.kolon.sap'),
             siralamaAnahtari: 'sap',
             hizala: 'orta' as const,
-            render: (f: EFatura) => <SistemDurumu deger={f.sap_islendi} />,
+            render: (f: EFatura) => <SapDurumu fatura={f} />,
           },
         ]
       : []),

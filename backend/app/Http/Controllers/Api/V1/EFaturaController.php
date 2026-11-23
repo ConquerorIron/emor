@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\EFatura\EFaturaGizlemeRequest;
 use App\Http\Requests\EFatura\EFaturaListeRequest;
+use App\Http\Requests\EFatura\ProtelIslendiRequest;
 use App\Http\Resources\EFaturaResource;
 use App\Models\EFatura;
 use App\Models\EntegratorBaglanti;
@@ -30,7 +31,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * PRT-12) AKTİF tanımıdır: başka sağlayıcının ya da ortamın faturası
  * listelenmez ve PDF'i açılmaz (404 — varlığı da açık edilmez).
  * Yetkiler rota middleware'inde (`can:efatura.*`, `can:protel_faturalari.*`).
- * XML ve gizleme yalnız İzibiz rotalarındadır.
+ * XML ve gizleme yalnız İzibiz, "İşlendi" işareti yalnız Protel rotalarındadır.
  */
 final class EFaturaController extends Controller
 {
@@ -111,6 +112,28 @@ final class EFaturaController extends Controller
 
         // Liste, özet, Excel ve alarmı etkiler: kim ne zaman yaptı izi kalır
         Log::channel('denetim')->info($gizli ? 'e-Fatura gizlendi' : 'e-Fatura listeye geri alındı', [
+            'kullanici_id' => $request->user()?->id,
+            'fatura_id' => $kayit->id,
+            'belge_no' => $kayit->belge_no,
+        ]);
+
+        return new EFaturaResource($kayit->load('gizleyen:id,ad'));
+    }
+
+    /**
+     * Protel faturasını "İşlendi" işaretler ya da işareti kaldırır (kullanıcı
+     * isteği 2026-11-23). Yalnız eMOR'da tutulur: `sap_islendi` true, kaldırılınca
+     * NULL (işaretlenmemiş). Tüm Faturalar'ın SAP kolonunda görünür. Protel'e
+     * istek gitmez; senkron bu kolona yazmaz.
+     */
+    public function islendi(ProtelIslendiRequest $request, int $fatura): EFaturaResource
+    {
+        $kayit = $this->aktifHesabinFaturasi($this->aktifTanim($request), $fatura);
+        $islendi = $request->boolean('islendi');
+
+        $kayit->update(['sap_islendi' => $islendi ?: null]);
+
+        Log::channel('denetim')->info($islendi ? 'Protel faturası işlendi işaretlendi' : 'Protel faturasının işlendi işareti kaldırıldı', [
             'kullanici_id' => $request->user()?->id,
             'fatura_id' => $kayit->id,
             'belge_no' => $kayit->belge_no,

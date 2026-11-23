@@ -137,8 +137,8 @@ final class EFaturaSenkronTest extends TestCase
         $tanim = EntegratorBaglanti::factory()->create();
         $this->sahteIzibiz([$this->kayit(1), $this->kayit(2)]);
         $this->servis()->senkronEt($tanim, FaturaYonu::Gelen, $this->gun('2026-01-01'), $this->gun('2026-01-31'), 'manuel');
-        // Ekrandan gizlenmiş: senkron bu alanlara dokunmaz
-        EFatura::query()->where('kaynak_id', 1)->update(['gizlenme_zamani' => now()]);
+        // Ekrandan gizlenmiş, "İşlendi" işaretlenmiş: senkron bu alanlara dokunmaz
+        EFatura::query()->where('kaynak_id', 1)->update(['gizlenme_zamani' => now(), 'sap_islendi' => true]);
 
         $this->travelTo('2026-09-23 12:00:00');
         $this->sahteIzibiz([$this->kayit(1, ['documentStatus' => ['value' => 'ACCEPTED', 'label' => 'Kabul Edildi'], 'erpReadFlag' => true]), $this->kayit(2), $this->kayit(3)]);
@@ -152,6 +152,7 @@ final class EFaturaSenkronTest extends TestCase
         $this->assertSame('2026-09-23 11:24:41', $fatura->ilk_gorulme->utc()->format('Y-m-d H:i:s'));
         $this->assertSame('2026-09-23 12:00:00', $fatura->son_gorulme->utc()->format('Y-m-d H:i:s'));
         $this->assertSame('2026-09-23 11:24:41', $fatura->gizlenme_zamani?->utc()->format('Y-m-d H:i:s'));
+        $this->assertTrue($fatura->sap_islendi);
     }
 
     public function test_aralik_takvim_aylarina_bolunur(): void

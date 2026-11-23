@@ -231,6 +231,12 @@ Route::prefix('v1')->group(function (): void {
                 ->defaults('saglayici', 'protel')
                 ->middleware(['can:protel_faturalari.pdf', 'throttle:efatura-pdf'])
                 ->name('protel.faturalar.pdf');
+            // "İşlendi" işareti yalnız eMOR'da (sap_islendi); Protel'e istek gitmez
+            Route::put('/protel/faturalar/{fatura}/islendi', [EFaturaController::class, 'islendi'])
+                ->whereNumber('fatura')
+                ->defaults('saglayici', 'protel')
+                ->middleware('can:protel_faturalari.isle')
+                ->name('protel.faturalar.islendi');
             Route::post('/protel/senkron', [EFaturaSenkronController::class, 'baslat'])
                 ->defaults('saglayici', 'protel')
                 ->middleware('can:protel_faturalari.senkron')

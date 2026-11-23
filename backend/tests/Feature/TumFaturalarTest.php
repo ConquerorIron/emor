@@ -230,7 +230,7 @@ final class TumFaturalarTest extends TestCase
 
         $sayfa = $kitap->getSheet(0);
         $this->assertSame(array_values($kolonlar), $sayfa->rangeToArray('A1:E1')[0]);
-        $this->assertSame(['İzibiz', 'INS1', 'Evet', null, 'Evet'], $sayfa->rangeToArray('A2:E2')[0]);
+        $this->assertSame(['İzibiz', 'INS1', 'Evet', null, 'İşlendi'], $sayfa->rangeToArray('A2:E2')[0]);
         // Protel faturasını eMOR okumaz (otelin ERP bayrağı ayrı kolonda); elle işlenmiş olabilir
         $this->assertSame(['Protel', 'OTL1', null, 'İşlendi (elle)', 'Hayır'], $sayfa->rangeToArray('A3:E3')[0]);
         $this->assertSame(['Liste', 'Tüm Faturalar (İzibiz + Protel)'], $kitap->getSheet(1)->rangeToArray('A1:B1')[0]);

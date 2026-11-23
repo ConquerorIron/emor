@@ -735,6 +735,7 @@
       "protel_faturalari_senkron": "Protel senkronunu elle başlatma",
       "protel_faturalari_pdf": "Protel fatura PDF'i görüntüleme",
       "protel_faturalari_disari_aktar": "Protel listesini Excel'e aktarma",
+      "protel_faturalari_isle": "Protel faturasını \"İşlendi\" işaretleme / işareti kaldırma",
       "yedekler_sil": "Yedek silme / sabitleme",
       "yedekler_indir": "Yedek dosyasını indirme (bütün veri)",
       "geri_yukleme_kopya": "Yedeği farklı adla geri yükleme (kopya)"
@@ -857,6 +858,7 @@
       "istisnaKoduErp": "İstisna Kodu (ERP)",
       "sap": "SAP",
       "sistemBekleniyor": "Bu bilgi, SAP servisi açıldığında gelecek.",
+      "sapProtelde": "Protel Gelen Faturalar ekranında \"İşlendi\" işaretlenmedi.",
       "entegrator": "Entegratör",
       "siraNo": "Sıra No"
     },
@@ -907,6 +909,7 @@
       "alan": "Gizlendi"
     },
     "tumAciklama": "İzibiz ve Protel'e gelen faturalar tek listede. Senkron ve gizleme sağlayıcı ekranlarından yapılır.",
+    "sapIslendi": "İşlendi",
     "saglayici": {
       "izibiz": "İzibiz",
       "protel": "Protel"
@@ -914,9 +917,16 @@
   },
   "protel": {
     "baslik": "Protel Gelen Faturalar",
-    "aciklama": "Otelin e-Fatura posta kutusu (Protel). Yalnız görüntülenir; Protel'de hiçbir şey değiştirilmez.",
+    "aciklama": "Otelin e-Fatura posta kutusu (Protel). \"İşlendi\" işareti yalnız eMOR'da tutulur; Protel'de hiçbir şey değiştirilmez.",
     "modulKapali": "Protel bağlantısı sunucuda kapalı (PROTEL_AKTIF): senkron çalışmaz, PDF açılmaz.",
+    "islendi": {
+      "etiket": "{{no}} işlendi",
+      "isaretlendi": "{{no}} nolu fatura işlendi olarak güncellendi.",
+      "kaldirildi": "{{no}} nolu fatura işlenmedi olarak güncellendi.",
+      "izinYok": "İşaretleme izniniz yok."
+    },
     "kolon": {
+      "islendi": "İşlendi",
       "erpAldi": "Otel ERP Aldı",
       "erpDurumu": "Otel ERP Durumu",
       "yazdirildi": "Yazdırıldı"

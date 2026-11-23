@@ -32,7 +32,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $erp_durumu Protel `erpStatus` (İzibiz'de null)
  * @property bool|null $yazdirildi Protel `isPrinted` (İzibiz'de null)
  * @property bool|null $otel_erp_okundu Protel `isErpRecieved` — otelin ERP'si aldı mı (İzibiz'de null; eMOR okuması `erp_okundu`)
- * @property bool|null $sap_islendi Tüm Faturalar: SAP'ye işlendi mi (kaynak uç bekleniyor)
+ * @property bool|null $sap_islendi Tüm Faturalar: SAP'ye işlendi mi. Protel faturasında ekrandaki "İşlendi" anahtarı yazar (true / NULL); İzibiz için kaynak uç bekleniyor
  */
 final class EFatura extends Model
 {

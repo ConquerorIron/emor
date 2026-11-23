@@ -15,6 +15,7 @@ const api = vi.hoisted(() => ({
   senkron: vi.fn(),
   pdf: vi.fn(),
   excel: vi.fn(),
+  islendi: vi.fn(),
 }))
 
 vi.mock('@/features/efatura/protelApi', () => ({
@@ -23,6 +24,7 @@ vi.mock('@/features/efatura/protelApi', () => ({
   protelSenkronBaslat: api.senkron,
   protelPdfGetir: api.pdf,
   protelExcelIndir: api.excel,
+  protelIslendiDegistir: api.islendi,
 }))
 
 const FATURA: EFatura = {
@@ -152,6 +154,64 @@ describe('ProtelFaturalariPage', () => {
     expect(screen.queryByRole('columnheader', { name: /eMOR/ })).not.toBeInTheDocument()
     // PDF izni yoksa düğme de yok
     expect(screen.queryByRole('button', { name: 'PDF' })).not.toBeInTheDocument()
+  })
+
+  it('İşlendi anahtarı PDF’in sağında; tıklanınca hemen kaydeder, bildirir, satırı yerinde günceller; art arda tıklama tek istek', async () => {
+    api.faturalar.mockResolvedValue(liste([FATURA]))
+    let bitir: (fatura: EFatura) => void = () => undefined
+    api.islendi.mockImplementation(
+      () =>
+        new Promise<EFatura>((coz) => {
+          bitir = coz
+        }),
+    )
+    ciz(['protel_faturalari.goruntule', 'protel_faturalari.pdf', 'protel_faturalari.isle'])
+
+    const satir = (await screen.findByText('OTL2026000000001')).closest('tr') as HTMLElement
+    expect(screen.getAllByRole('columnheader')[2]).toHaveTextContent('İşlendi')
+    const hucreler = satir.querySelectorAll('td')
+    expect(within(hucreler[1]).getByRole('button', { name: 'PDF' })).toBeInTheDocument()
+    const anahtar = within(hucreler[2]).getByRole('switch', { name: 'OTL2026000000001 işlendi' })
+    expect(anahtar).not.toBeChecked()
+
+    fireEvent.click(anahtar)
+    fireEvent.click(anahtar)
+    await waitFor(() => expect(api.islendi).toHaveBeenCalled())
+    expect(api.islendi).toHaveBeenCalledTimes(1)
+    expect(api.islendi).toHaveBeenCalledWith(21, true)
+
+    bitir({ ...FATURA, sap_islendi: true })
+    expect(
+      await screen.findByText('OTL2026000000001 nolu fatura işlendi olarak güncellendi.'),
+    ).toBeInTheDocument()
+    await waitFor(() => expect(anahtar).toBeChecked())
+    // Satır sunucunun yanıtıyla güncellenir; liste yeniden çekilmez
+    expect(api.faturalar).toHaveBeenCalledTimes(1)
+  })
+
+  it('işaret kaldırılınca "işlenmedi" bildirilir; işleme izni yoksa anahtar durumu gösterir ama değiştirilemez', async () => {
+    api.faturalar.mockResolvedValue(liste([{ ...FATURA, sap_islendi: true }]))
+    api.islendi.mockResolvedValue({ ...FATURA, sap_islendi: null })
+    ciz(['protel_faturalari.goruntule', 'protel_faturalari.isle'])
+
+    const anahtar = await screen.findByRole('switch', { name: 'OTL2026000000001 işlendi' })
+    expect(anahtar).toBeChecked()
+    fireEvent.click(anahtar)
+
+    await waitFor(() => expect(api.islendi).toHaveBeenCalledWith(21, false))
+    expect(
+      await screen.findByText('OTL2026000000001 nolu fatura işlenmedi olarak güncellendi.'),
+    ).toBeInTheDocument()
+    await waitFor(() => expect(anahtar).not.toBeChecked())
+
+    cleanup()
+    api.islendi.mockClear()
+    ciz(['protel_faturalari.goruntule'])
+    const salt = await screen.findByRole('switch', { name: 'OTL2026000000001 işlendi' })
+    expect(salt).toBeChecked()
+    expect(salt).toBeDisabled()
+    fireEvent.click(salt)
+    expect(api.islendi).not.toHaveBeenCalled()
   })
 
   it('PDF portalda yazdırılmamış faturada da açılır ve Protel PDF ucu doğru id ile çağrılır', async () => {

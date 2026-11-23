@@ -6,6 +6,7 @@ declare(strict_types=1);
 return [
     'evet' => 'Evet',
     'hayir' => 'Hayır',
+    'sap_islendi' => 'İşlendi',
 
     'ortam' => [
         'test' => 'Test',

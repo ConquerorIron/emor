@@ -82,7 +82,7 @@ final class RolTest extends TestCase
                 'ekran' => 'protel_faturalari',
                 'goruntule' => 'protel_faturalari.goruntule',
                 'guncelle' => 'protel_faturalari.senkron',
-                'ekler' => ['protel_faturalari.pdf', 'protel_faturalari.disari_aktar'],
+                'ekler' => ['protel_faturalari.pdf', 'protel_faturalari.disari_aktar', 'protel_faturalari.isle'],
             ])
             ->assertJsonPath('data.32', [
                 'ekran' => 'yedekler',
