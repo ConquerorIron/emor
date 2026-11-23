@@ -108,17 +108,32 @@ describe('KullanicilarPage', () => {
     expect(within(satir('Yönetici')).getByText('Sistem Yöneticisi')).toBeInTheDocument()
   })
 
-  it('aramayla ve yalnız izinliler anahtarıyla listeyi süzer', async () => {
+  it('ad, giriş rozeti ve rol adıyla arar; yalnız izinliler anahtarıyla süzer', async () => {
     ciz()
     await screen.findByText('Ayşe Yılmaz')
+    const ara = (deger: string) =>
+      fireEvent.change(screen.getByLabelText('Ad, kullanıcı adı, giriş ya da rol ara'), {
+        target: { value: deger },
+      })
+    const gorunenler = () =>
+      ['Yönetici', 'Ayşe Yılmaz', 'Özalp DOĞANALP'].filter((ad) => screen.queryByText(ad) !== null)
 
-    fireEvent.change(screen.getByLabelText('Ad veya kullanıcı adı ara'), {
-      target: { value: 'özalp' },
-    })
-    expect(screen.queryByText('Ayşe Yılmaz')).not.toBeInTheDocument()
-    expect(screen.getByText('Özalp DOĞANALP')).toBeInTheDocument()
+    ara('özalp')
+    expect(gorunenler()).toEqual(['Özalp DOĞANALP'])
 
-    fireEvent.change(screen.getByLabelText('Ad veya kullanıcı adı ara'), { target: { value: '' } })
+    // "Giriş" kolonu: "Giriş izni var" / "Giriş izni yok" / "Lokal"
+    ara('var')
+    expect(gorunenler()).toEqual(['Yönetici', 'Ayşe Yılmaz'])
+    ara('YOK')
+    expect(gorunenler()).toEqual(['Özalp DOĞANALP'])
+    ara('lokal')
+    expect(gorunenler()).toEqual(['Yönetici'])
+
+    // Rol adı (roller yüklendikten sonra)
+    ara('muhase')
+    await waitFor(() => expect(gorunenler()).toEqual(['Ayşe Yılmaz']))
+
+    ara('')
     fireEvent.click(screen.getByRole('switch', { name: 'Yalnız giriş izni olanlar' }))
     expect(screen.queryByText('Özalp DOĞANALP')).not.toBeInTheDocument()
     expect(screen.getByText('Ayşe Yılmaz')).toBeInTheDocument()

@@ -435,7 +435,7 @@
       "baslik": "Users",
       "aciklama": "ERP users are listed. Only users granted access here can sign in, with their ERP password; what they see comes from their roles. ERP system administrators can always sign in.",
       "duzenleBaslik": "Edit User",
-      "ara": "Search name or username",
+      "ara": "Search name, username, sign-in or role",
       "ad": "Full Name",
       "erpKullaniciId": "ERP User ID",
       "roller": "Roles",

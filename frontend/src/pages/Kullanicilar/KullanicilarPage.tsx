@@ -164,7 +164,7 @@ function DuzenleFormu({
   )
 }
 
-function Rozet({ renk, children }: { renk: 'mavi' | 'mor' | 'gri' | 'kirmizi'; children: string }) {
+function Rozet({ renk, children }: { renk: RozetRengi; children: string }) {
   const siniflar = {
     mavi: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
     mor: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
@@ -179,6 +179,32 @@ function Rozet({ renk, children }: { renk: 'mavi' | 'mor' | 'gri' | 'kirmizi'; c
       {children}
     </span>
   )
+}
+
+type RozetRengi = 'mavi' | 'mor' | 'gri' | 'kirmizi'
+
+/**
+ * "Giriş" kolonundaki rozetler. Arama da aynı metinlerde yapılır ("var",
+ * "yok", "lokal"…); kolon ile arama ayrışmasın diye tek yerde üretilir.
+ */
+function girisRozetleri(
+  k: YonetilenKullanici,
+  t: (anahtar: string) => string,
+): { renk: RozetRengi; metin: string }[] {
+  return [
+    k.aktif_mi
+      ? { renk: 'mavi' as const, metin: t('ayarlar.kullanicilar.izinli') }
+      : { renk: 'gri' as const, metin: t('ayarlar.kullanicilar.izinYok') },
+    ...(k.kaynak === 'lokal'
+      ? [{ renk: 'gri' as const, metin: t('ayarlar.kullanicilar.kaynak.lokal') }]
+      : []),
+    ...(k.erpde_yok
+      ? [{ renk: 'kirmizi' as const, metin: t('ayarlar.kullanicilar.erpdeYok') }]
+      : []),
+    ...(k.sistem_yoneticisi
+      ? [{ renk: 'mor' as const, metin: t('ayarlar.kullanicilar.sistemYoneticisi') }]
+      : []),
+  ]
 }
 
 /**
@@ -205,13 +231,18 @@ export function KullanicilarPage() {
     [roller.data],
   )
 
+  const rolMetni = (k: YonetilenKullanici) =>
+    k.rol_idleri.map((id) => rolAdlari.get(id) ?? `#${id}`).join(', ')
+
+  // Ad, kullanıcı adı, "Giriş" rozetleri ve roller: ekranda görünen metinde aranır
   const aranan = arama.trim().toLocaleLowerCase('tr')
   const gorunenler = (liste.data?.kullanicilar ?? []).filter(
     (k) =>
       (!yalnizIzinliler || k.aktif_mi) &&
       (aranan === '' ||
-        k.ad.toLocaleLowerCase('tr').includes(aranan) ||
-        k.kullanici_adi.toLocaleLowerCase('tr').includes(aranan)),
+        [k.ad, k.kullanici_adi, ...girisRozetleri(k, t).map((r) => r.metin), rolMetni(k)].some(
+          (metin) => metin.toLocaleLowerCase('tr').includes(aranan),
+        )),
   )
 
   // Sistem yöneticisi hesabını yalnız sistem yöneticisi değiştirebilir (backend de denetler)
@@ -247,18 +278,11 @@ export function KullanicilarPage() {
       baslik: t('ayarlar.kullanicilar.giris'),
       render: (k) => (
         <div className="flex flex-wrap gap-1">
-          {k.aktif_mi ? (
-            <Rozet renk="mavi">{t('ayarlar.kullanicilar.izinli')}</Rozet>
-          ) : (
-            <Rozet renk="gri">{t('ayarlar.kullanicilar.izinYok')}</Rozet>
-          )}
-          {k.kaynak === 'lokal' ? (
-            <Rozet renk="gri">{t('ayarlar.kullanicilar.kaynak.lokal')}</Rozet>
-          ) : null}
-          {k.erpde_yok ? <Rozet renk="kirmizi">{t('ayarlar.kullanicilar.erpdeYok')}</Rozet> : null}
-          {k.sistem_yoneticisi ? (
-            <Rozet renk="mor">{t('ayarlar.kullanicilar.sistemYoneticisi')}</Rozet>
-          ) : null}
+          {girisRozetleri(k, t).map((rozet) => (
+            <Rozet key={rozet.metin} renk={rozet.renk}>
+              {rozet.metin}
+            </Rozet>
+          ))}
         </div>
       ),
     },
@@ -266,11 +290,7 @@ export function KullanicilarPage() {
       anahtar: 'roller',
       baslik: t('ayarlar.kullanicilar.roller'),
       render: (k) =>
-        k.rol_idleri.length === 0 ? (
-          <span className="text-slate-400">—</span>
-        ) : (
-          k.rol_idleri.map((id) => rolAdlari.get(id) ?? `#${id}`).join(', ')
-        ),
+        k.rol_idleri.length === 0 ? <span className="text-slate-400">—</span> : rolMetni(k),
     },
     {
       anahtar: 'islemler',

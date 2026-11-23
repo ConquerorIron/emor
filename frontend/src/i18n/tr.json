@@ -435,7 +435,7 @@
       "baslik": "Kullanıcılar",
       "aciklama": "ERP'deki kullanıcılar listelenir. Uygulamaya yalnız burada giriş izni verilenler, ERP şifreleriyle girer; ne görebilecekleri rollerinden gelir. ERP'de sistem yöneticisi olanlar her zaman girebilir.",
       "duzenleBaslik": "Kullanıcıyı Düzenle",
-      "ara": "Ad veya kullanıcı adı ara",
+      "ara": "Ad, kullanıcı adı, giriş ya da rol ara",
       "ad": "Ad Soyad",
       "erpKullaniciId": "ERP Kullanıcı ID",
       "roller": "Roller",
