@@ -212,11 +212,13 @@ final class TumFaturalarTest extends TestCase
         $this->actingAs($kullanici)->getJson("/api/v1/tum-faturalar/faturalar/{$pasif->id}/pdf")->assertNotFound();
     }
 
-    public function test_excel_iki_saglayicinin_satirlarini_entegrator_adiyla_ve_ekrandaki_kolonlarla_yazar_bilinmeyen_sistem_durumu_bos_kalir(): void
+    public function test_excel_iki_saglayicinin_satirlarini_entegrator_adiyla_ve_ekrandaki_kolonlarla_yazar_bilinmeyen_sistem_durumu_bos_kalir_reddedilen_protel_red_yazar(): void
     {
         [$izibiz, $protel] = $this->tanimlar();
         EFatura::factory()->create(['entegrator_baglanti_id' => $izibiz->id, 'belge_no' => 'INS1', 'erp_okundu' => true, 'sap_islendi' => true]);
         EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTL1', 'emor_durumu' => 'elle_islendi', 'sap_islendi' => false]);
+        // Portalda reddedilmiş: daha önce İşlendi işaretlenmiş olsa da "Red"
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTL2', 'durum' => 'RejectAnswerCompleted', 'sap_islendi' => true]);
         $kolonlar = ['entegrator' => 'Entegratör', 'belge_no' => 'Fatura No', 'erp_okundu' => 'eMOR Okudu', 'emor' => 'eMOR', 'sap' => 'SAP'];
         $sorgu = http_build_query(['kolonlar' => array_keys($kolonlar), 'basliklar' => array_values($kolonlar), 'sirala' => 'belge_no', 'yon' => 'asc']);
 
@@ -233,6 +235,7 @@ final class TumFaturalarTest extends TestCase
         $this->assertSame(['İzibiz', 'INS1', 'Evet', null, 'İşlendi'], $sayfa->rangeToArray('A2:E2')[0]);
         // Protel faturasını eMOR okumaz (otelin ERP bayrağı ayrı kolonda); elle işlenmiş olabilir
         $this->assertSame(['Protel', 'OTL1', null, 'İşlendi (elle)', 'Hayır'], $sayfa->rangeToArray('A3:E3')[0]);
+        $this->assertSame(['Protel', 'OTL2', null, null, 'Red'], $sayfa->rangeToArray('A4:E4')[0]);
         $this->assertSame(['Liste', 'Tüm Faturalar (İzibiz + Protel)'], $kitap->getSheet(1)->rangeToArray('A1:B1')[0]);
         $this->assertSame(['Ortam', 'Canlı'], $kitap->getSheet(1)->rangeToArray('A2:B2')[0]);
     }

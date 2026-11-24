@@ -81,6 +81,8 @@ export interface EFatura {
   otel_erp_okundu: boolean | null
   /** Tüm Faturalar: SAP'ye işlendi mi — kaynak uç (SAP) gelene kadar null */
   sap_islendi: boolean | null
+  /** Protel portalında reddedilmiş: "İşlendi" işaretlenemez, SAP kolonunda "Red" */
+  protel_red: boolean
   /** Yalnız Tüm Faturalar: satırın posta kutusu (XML yalnız İzibiz'de) */
   saglayici?: 'izibiz' | 'protel'
 }

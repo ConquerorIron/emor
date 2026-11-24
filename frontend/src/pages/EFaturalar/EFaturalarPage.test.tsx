@@ -87,6 +87,7 @@ const FATURA: EFatura = {
   gizleyen: null,
   otel_erp_okundu: null,
   sap_islendi: null,
+  protel_red: false,
 }
 
 /** Gelen faturalar kullanıcı henüz sıralamadıysa en son alınan üstte açılır */
@@ -1079,19 +1080,29 @@ describe('EFaturalarPage', () => {
       expect(screen.queryByRole('button', { name: 'Entegratör Senkronla' })).not.toBeInTheDocument()
     })
 
-    it('Entegratör ve SAP kolonlarına göre sıralanır; işlenen fatura SAP kolonunda "İşlendi" görünür', async () => {
+    it('Entegratör ve SAP kolonlarına göre sıralanır; işlenen fatura "İşlendi", reddedilen Protel faturası "Red" görünür', async () => {
       api.faturalar.mockResolvedValue({
         ...BIRLESIK,
         data: [
           { ...FATURA, saglayici: 'izibiz', sap_islendi: false },
           { ...PROTEL_FATURASI, sap_islendi: true },
+          // Portalda reddedilmiş: işaretli olsa da "Red" önce gelir
+          {
+            ...PROTEL_FATURASI,
+            id: 13,
+            belge_no: 'OTL2026000000003',
+            sap_islendi: true,
+            protel_red: true,
+          },
         ],
       })
       ciz(IZINLER, 'tum')
-      await screen.findByText('Otel Tedarik A.Ş.')
+      await screen.findAllByText('Otel Tedarik A.Ş.')
 
       const protelSatiri = screen.getByText('OTL2026000000002').closest('tr') as HTMLElement
       expect(protelSatiri.querySelectorAll('td')[5]).toHaveTextContent(/^İşlendi$/)
+      const redSatiri = screen.getByText('OTL2026000000003').closest('tr') as HTMLElement
+      expect(redSatiri.querySelectorAll('td')[5]).toHaveTextContent(/^Red$/)
       const izibizSatiri = screen.getByText('ABC2026000000001').closest('tr') as HTMLElement
       expect(izibizSatiri.querySelectorAll('td')[5]).toHaveTextContent(/^Hayır$/)
       expect(

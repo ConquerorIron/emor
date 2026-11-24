@@ -187,8 +187,13 @@ final class EFaturaExcelAktarici
             }],
             'emor' => ['metin', $f->emor_durumu === null ? null : __('efatura.emor.'.$f->emor_durumu->value)],
             'otel_erp_okundu' => ['metin', $this->evetHayir($f->otel_erp_okundu)],
-            // Ekrandaki gibi: işlenen "İşlendi" (Protel'de anahtarla işaretlenir)
-            'sap' => ['metin', $f->sap_islendi === true ? __('efatura.sap_islendi') : $this->evetHayir($f->sap_islendi)],
+            // Ekrandaki gibi: portalda reddedilen Protel faturası "Red" (önce gelir),
+            // işlenen "İşlendi" (Protel'de anahtarla işaretlenir)
+            'sap' => ['metin', match (true) {
+                $f->protelReddedildi() => __('efatura.sap_red'),
+                $f->sap_islendi === true => __('efatura.sap_islendi'),
+                default => $this->evetHayir($f->sap_islendi),
+            }],
             'yazdirildi' => ['metin', match ($f->yazdirildi) {
                 true => __('efatura.evet'),
                 false => __('efatura.hayir'),

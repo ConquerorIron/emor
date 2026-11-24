@@ -8,6 +8,7 @@ import { queryKeys } from '@/api/queryKeys'
 import { Switch } from '@/components/Switch'
 import type { EFatura, EFaturaListesi } from '@/features/efatura/efaturaApi'
 import { protelIslendiDegistir } from '@/features/efatura/protelApi'
+import { ProtelRedRozeti } from '@/features/efatura/ProtelRedRozeti'
 
 /**
  * Satırdaki "İşlendi" anahtarı (kullanıcı isteği 2026-11-23): tıklanınca hemen
@@ -44,6 +45,11 @@ export function IslendiAnahtari({ fatura, izinli }: { fatura: EFatura; izinli: b
       suruyor.current = false
     },
   })
+
+  // Portalda reddedilen fatura İşlendi'ye çevrilemez: anahtar yerine yalnız "Red"
+  if (fatura.protel_red) {
+    return <ProtelRedRozeti />
+  }
 
   return (
     <span className="inline-flex" title={izinli ? undefined : t('protel.islendi.izinYok')}>

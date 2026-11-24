@@ -540,6 +540,7 @@
     "ENTEGRATOR_AKTIF_YOK": "Aktif entegratör ortamı seçilmemiş.",
     "ENTEGRATOR_ORTAM_DEGISTI": "Aktif entegratör ortamı değişti; ekrandaki liste eski ortama ait. Liste yenilendikten sonra Excel'i tekrar alın.",
     "PROTEL_KAPALI": "Protel bağlantısı sunucuda kapalı (PROTEL_AKTIF); Protel'e istek gönderilmedi.",
+    "PROTEL_FATURA_REDDEDILDI": "Bu fatura Protel portalında reddedilmiş; İşlendi işaretlenemez.",
     "guncellendiBaslik": "Uygulama güncellendi",
     "guncellendiOtomatik": "Yeni sürüm yüklendi; sayfa yenilenince geçerli olur.",
     "guncellendiElle": "Sayfayı yenileyerek yeni sürüme geçebilirsiniz.",
@@ -910,6 +911,8 @@
     },
     "tumAciklama": "İzibiz ve Protel'e gelen faturalar tek listede. Senkron ve gizleme sağlayıcı ekranlarından yapılır.",
     "sapIslendi": "İşlendi",
+    "sapRed": "Red",
+    "protelRedAciklama": "Protel portalında reddedildi; İşlendi işaretlenemez.",
     "saglayici": {
       "izibiz": "İzibiz",
       "protel": "Protel"
@@ -917,7 +920,7 @@
   },
   "protel": {
     "baslik": "Protel Gelen Faturalar",
-    "aciklama": "Otelin e-Fatura posta kutusu (Protel). \"İşlendi\" işareti yalnız eMOR'da tutulur; Protel'de hiçbir şey değiştirilmez.",
+    "aciklama": "Otelin e-Fatura posta kutusu (Protel). \"İşlendi\" işareti yalnız eMOR'da tutulur; portalda reddedilen faturada \"Red\" yazar. Protel'de hiçbir şey değiştirilmez.",
     "modulKapali": "Protel bağlantısı sunucuda kapalı (PROTEL_AKTIF): senkron çalışmaz, PDF açılmaz.",
     "islendi": {
       "etiket": "{{no}} işlendi",

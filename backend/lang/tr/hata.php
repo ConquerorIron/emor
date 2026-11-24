@@ -35,6 +35,7 @@ return [
     'protel_vkn_gecmisli' => 'Bu Protel tanımının faturaları ve senkron geçmişi var; VKN değiştirilemez. Başka bir firmanın kutusu için ayrı tanım gerekir.',
     'entegrator_ortam_degisti' => 'Aktif entegratör ortamı değişti; ekrandaki liste eski ortama ait. Liste yenilendikten sonra Excel dosyasını tekrar alın.',
     'protel_kapali' => 'Protel bağlantısı kapalı (sunucu ayarı PROTEL_AKTIF). Protel\'e istek gönderilmedi.',
+    'protel_fatura_reddedildi' => 'Bu fatura Protel portalında reddedilmiş; İşlendi işaretlenemez.',
     'entegrator_erisilemedi' => 'Entegratöre ulaşılamadı. Ağ bağlantısını kontrol edip tekrar deneyin.',
     'entegrator_kimlik_hatali' => 'Entegratör kullanıcı adı veya şifresi hatalı.',
     'entegrator_giris_bekletiliyor' => 'Entegratör girişi reddedildiği için otomatik giriş :saat saat bekletiliyor (hesap kilitlenmesin diye). Şifreyi Ayarlar → Entegratör Bağlantıları\'nda güncelleyin ya da "Bağlantıyı Sına" ile yeniden deneyin.',

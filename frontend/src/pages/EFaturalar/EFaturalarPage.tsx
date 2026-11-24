@@ -47,6 +47,7 @@ import {
   SiraNo,
 } from '@/features/efatura/ListeParcalari'
 import { PdfGoruntuleyici } from '@/features/efatura/PdfGoruntuleyici'
+import { ProtelRedRozeti } from '@/features/efatura/ProtelRedRozeti'
 import { SenkronDurumuPaneli } from '@/features/efatura/SenkronDurumuPaneli'
 import { useDurumlaTazele, useFaturaListesi } from '@/features/efatura/useFaturaListesi'
 import { useDebounce } from '@/hooks/useDebounce'
@@ -179,10 +180,14 @@ function HizliFiltre({
 /**
  * SAP kolonu: işlenen "İşlendi". Protel faturası Protel Gelen Faturalar
  * ekranındaki anahtarla işaretlenir (kullanıcı isteği 2026-11-23); İzibiz
- * için SAP ucu bekleniyor.
+ * için SAP ucu bekleniyor. Portalda reddedilen Protel faturası "Red" (önce gelir).
  */
 function SapDurumu({ fatura }: { fatura: EFatura }) {
   const { t } = useTranslation()
+
+  if (fatura.protel_red) {
+    return <ProtelRedRozeti />
+  }
 
   if (fatura.sap_islendi === null) {
     return (

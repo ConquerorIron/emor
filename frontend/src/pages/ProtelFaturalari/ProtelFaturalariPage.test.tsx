@@ -78,6 +78,7 @@ const FATURA: EFatura = {
   gizleyen: null,
   otel_erp_okundu: true,
   sap_islendi: null,
+  protel_red: false,
 }
 
 function liste(faturalar: EFatura[]): EFaturaListesi {
@@ -212,6 +213,33 @@ describe('ProtelFaturalariPage', () => {
     expect(salt).toBeDisabled()
     fireEvent.click(salt)
     expect(api.islendi).not.toHaveBeenCalled()
+  })
+
+  it('portalda reddedilen faturada İşlendi anahtarı yok, yalnız "Red" yazar', async () => {
+    api.faturalar.mockResolvedValue(
+      liste([
+        {
+          ...FATURA,
+          id: 22,
+          belge_no: 'OTL2026000000002',
+          durum: 'RejectAnswered',
+          protel_red: true,
+        },
+        FATURA,
+      ]),
+    )
+    ciz(['protel_faturalari.goruntule', 'protel_faturalari.pdf', 'protel_faturalari.isle'])
+
+    const redSatiri = (await screen.findByText('OTL2026000000002')).closest('tr') as HTMLElement
+    // İşlendi kolonu (PDF'in sağı) yalnız "Red" içerir
+    const islendiHucresi = redSatiri.querySelectorAll('td')[2]
+    expect(islendiHucresi).toHaveTextContent(/^Red$/)
+    expect(
+      within(islendiHucresi).getByTitle(/reddedildi; İşlendi işaretlenemez/),
+    ).toBeInTheDocument()
+    expect(within(redSatiri).queryByRole('switch')).not.toBeInTheDocument()
+    // Reddedilmemiş satırın anahtarı yerinde
+    expect(screen.getByRole('switch', { name: 'OTL2026000000001 işlendi' })).toBeEnabled()
   })
 
   it('PDF portalda yazdırılmamış faturada da açılır ve Protel PDF ucu doğru id ile çağrılır', async () => {

@@ -125,6 +125,33 @@ final class ProtelEkranTest extends TestCase
         Http::assertNothingSent();
     }
 
+    /** Portalda reddedilen fatura İşlendi'ye çevrilemez; listede `protel_red` ile "Red" görünür. */
+    public function test_portalda_reddedilen_fatura_islendi_isaretlenemez_listede_red_doner(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake();
+        $protel = $this->protelTanimi();
+        $red = EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTLRED', 'durum' => 'RejectAnswered']);
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTLOK']);
+        $kullanici = $this->izinli('protel_faturalari.goruntule', 'protel_faturalari.isle');
+
+        foreach ([true, false] as $deger) {
+            $this->actingAs($kullanici)->putJson("/api/v1/protel/faturalar/{$red->id}/islendi", ['islendi' => $deger])
+                ->assertConflict()
+                ->assertJsonPath('kod', 'PROTEL_FATURA_REDDEDILDI');
+        }
+        $this->assertNull($red->fresh()->sap_islendi);
+
+        $liste = $this->actingAs($kullanici)
+            ->getJson('/api/v1/protel/gelen/faturalar?'.self::ARALIK)
+            ->assertOk()->json('data');
+        $this->assertEqualsCanonicalizing(
+            [['OTLRED', true], ['OTLOK', false]],
+            array_map(fn (array $f): array => [$f['belge_no'], $f['protel_red']], $liste),
+        );
+        Http::assertNothingSent();
+    }
+
     public function test_islendi_aktif_protel_taniminin_disindaki_faturayi_bulamaz_deger_zorunludur(): void
     {
         $protel = $this->protelTanimi();

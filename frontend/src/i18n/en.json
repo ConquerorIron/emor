@@ -540,6 +540,7 @@
     "ENTEGRATOR_AKTIF_YOK": "No active integrator environment is selected.",
     "ENTEGRATOR_ORTAM_DEGISTI": "The active integrator environment changed; the list on screen belongs to the previous environment. Export again after the list refreshes.",
     "PROTEL_KAPALI": "The Protel connection is disabled on the server (PROTEL_AKTIF); no request was sent to Protel.",
+    "PROTEL_FATURA_REDDEDILDI": "This invoice was rejected on the Protel portal; it cannot be marked as processed.",
     "guncellendiBaslik": "Application updated",
     "guncellendiOtomatik": "A new version has been installed; it takes effect after a refresh.",
     "guncellendiElle": "Refresh the page to switch to the new version.",
@@ -910,6 +911,8 @@
     },
     "tumAciklama": "Invoices received in İzibiz and Protel in one list. Sync and hiding are done on the provider screens.",
     "sapIslendi": "Processed",
+    "sapRed": "Rejected",
+    "protelRedAciklama": "Rejected on the Protel portal; it cannot be marked as processed.",
     "saglayici": {
       "izibiz": "İzibiz",
       "protel": "Protel"
@@ -917,7 +920,7 @@
   },
   "protel": {
     "baslik": "Protel Incoming Invoices",
-    "aciklama": "The hotel's e-invoice mailbox (Protel). The \"Processed\" mark is kept only in eMOR; nothing is changed in Protel.",
+    "aciklama": "The hotel's e-invoice mailbox (Protel). The \"Processed\" mark is kept only in eMOR; invoices rejected on the portal show \"Rejected\". Nothing is changed in Protel.",
     "modulKapali": "The Protel connection is disabled on the server (PROTEL_AKTIF): sync does not run and PDFs do not open.",
     "islendi": {
       "etiket": "{{no}} processed",

@@ -72,6 +72,8 @@ final class EFaturaResource extends JsonResource
             'otel_erp_okundu' => $this->getAttribute('otel_erp_okundu'),
             // Tüm Faturalar: SAP'ye işlendi mi (kaynak uç gelene kadar null)
             'sap_islendi' => $this->getAttribute('sap_islendi'),
+            // Protel portalında reddedilmiş: "İşlendi" yerine "Red" (anahtar kapalı)
+            'protel_red' => $this->protelReddedildi(),
             'son_gorulme' => $this->getAttribute('son_gorulme')?->toIso8601String(),
             'gizli' => $this->gizlenme_zamani !== null,
             'gizlenme_zamani' => $this->gizlenme_zamani?->toIso8601String(),

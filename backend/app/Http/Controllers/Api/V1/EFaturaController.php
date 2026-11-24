@@ -17,6 +17,7 @@ use App\Services\Entegrator\EntegratorHatasi;
 use App\Services\Entegrator\FaturaBelgeServisi;
 use App\Services\Entegrator\FaturaYonu;
 use App\Services\EntegratorBaglantiServisi;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -124,12 +125,20 @@ final class EFaturaController extends Controller
      * Protel faturasını "İşlendi" işaretler ya da işareti kaldırır (kullanıcı
      * isteği 2026-11-23). Yalnız eMOR'da tutulur: `sap_islendi` true, kaldırılınca
      * NULL (işaretlenmemiş). Tüm Faturalar'ın SAP kolonunda görünür. Protel'e
-     * istek gitmez; senkron bu kolona yazmaz.
+     * istek gitmez; senkron bu kolona yazmaz. Portalda reddedilmiş fatura
+     * işaretlenemez (409 PROTEL_FATURA_REDDEDILDI; ekranda "Red" yazar).
      */
     public function islendi(ProtelIslendiRequest $request, int $fatura): EFaturaResource
     {
         $kayit = $this->aktifHesabinFaturasi($this->aktifTanim($request), $fatura);
         $islendi = $request->boolean('islendi');
+
+        if ($kayit->protelReddedildi()) {
+            throw new HttpResponseException(response()->json([
+                'kod' => 'PROTEL_FATURA_REDDEDILDI',
+                'mesaj' => __('hata.protel_fatura_reddedildi'),
+            ], 409));
+        }
 
         $kayit->update(['sap_islendi' => $islendi ?: null]);
 

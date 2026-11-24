@@ -7,6 +7,7 @@ return [
     'evet' => 'Evet',
     'hayir' => 'Hayır',
     'sap_islendi' => 'İşlendi',
+    'sap_red' => 'Red',
 
     'ortam' => [
         'test' => 'Test',

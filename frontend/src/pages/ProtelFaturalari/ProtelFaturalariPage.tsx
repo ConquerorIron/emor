@@ -58,7 +58,7 @@ type AcikPdf = EFatura | null
 /**
  * Protel Gelen Faturalar (PRT-12) — otelin e-Fatura posta kutusu. Protel'de
  * hiçbir alan değiştirilmez. eMOR karşılaştırması yok (faturalar otelindir —
- * kullanıcı kararı 2026-11-18); satırdaki "İşlendi" anahtarı yalnız eMOR'a yazar.
+ * kullanıcı kararı 2026-11-18); satırdaki "İşlendi" anahtarı yalnız eMOR'a yazar (portalda reddedilende yerine "Red").
  */
 export function ProtelFaturalariPage() {
   const { t } = useTranslation()
