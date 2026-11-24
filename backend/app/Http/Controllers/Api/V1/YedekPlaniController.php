@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\IstekAnahtari;
 use App\Models\Yedek;
 use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
@@ -57,8 +58,14 @@ final class YedekPlaniController extends Controller
     public function store(Request $request): JsonResponse
     {
         $veri = $this->dogrula($request, null);
-        $plan = DB::transaction(fn (): YedekPlani => $this->uygula(new YedekPlani, $veri));
-        $this->denetle('plan_ekle', $request, $plan);
+        // Denetim kaydı değişiklikle aynı işlemde: günlük yazılamazsa değişiklik
+        // geri alınır, kayıtsız değişiklik olmaz (BY-014-R1'in kuralı, G1 — YF-33)
+        $plan = DB::transaction(function () use ($request, $veri): YedekPlani {
+            $plan = $this->uygula(new YedekPlani, $veri);
+            $this->denetle('plan_ekle', $request, $plan);
+
+            return $plan;
+        });
 
         return response()->json(['data' => $this->diziler($this->planSorgusu()->whereKey($plan->id)->get())[0]], 201);
     }
@@ -66,8 +73,10 @@ final class YedekPlaniController extends Controller
     public function update(Request $request, YedekPlani $plan): JsonResponse
     {
         $veri = $this->dogrula($request, $plan);
-        DB::transaction(fn (): YedekPlani => $this->uygula($plan, $veri));
-        $this->denetle('plan_guncelle', $request, $plan);
+        DB::transaction(function () use ($request, $plan, $veri): void {
+            $this->uygula($plan, $veri);
+            $this->denetle('plan_guncelle', $request, $plan);
+        });
 
         return response()->json(['data' => $this->diziler($this->planSorgusu()->whereKey($plan->id)->get())[0]]);
     }
@@ -80,8 +89,10 @@ final class YedekPlaniController extends Controller
             return response()->json(['kod' => 'PLAN_KOPYALI', 'mesaj' => __('hata.yedek_plani_kopyali', ['adet' => $kopya]), 'kopya_sayisi' => $kopya], 409);
         }
 
-        $plan->delete();
-        $this->denetle('plan_sil', $request, $plan);
+        DB::transaction(function () use ($request, $plan): void {
+            $plan->delete();
+            $this->denetle('plan_sil', $request, $plan);
+        });
 
         return response()->json(null, 204);
     }
@@ -125,10 +136,14 @@ final class YedekPlaniController extends Controller
         return response()->json(['data' => $sonuc]);
     }
 
-    /** "Şimdi çalıştır": isteği çalıştırıcıya bırakır */
+    /**
+     * "Şimdi çalıştır": isteği çalıştırıcıya bırakır. Yanıtı alınamayan
+     * isteğin aynı `Idempotency-Key` ile yeniden denemesi ikinci iş bırakmaz,
+     * mevcut kabulü döner (YF-11).
+     */
     public function calistir(Request $request, YedekIstekServisi $istekler, YedekPlani $plan): JsonResponse
     {
-        $kimlik = $istekler->birak('plan_calistir', ['plan_id' => $plan->id], (int) $request->user()->id);
+        $kimlik = $istekler->birak('plan_calistir', ['plan_id' => $plan->id], (int) $request->user()->id, null, IstekAnahtari::oku($request));
 
         return response()->json(['data' => ['istek_kimligi' => $kimlik, 'durum' => 'kuyrukta']], 202);
     }
@@ -195,7 +210,9 @@ final class YedekPlaniController extends Controller
                 'aralik' => min(24, (int) $gerekli('aralik')),
                 'saat_baslangic' => $girdi['saat_baslangic'] ?? null,
                 'saat_bitis' => $girdi['saat_bitis'] ?? null,
-                'gunler' => $girdi['gunler'] ?? null,
+                // Haftalık'taki gibi tam sayıya çevrilir: `integer` kuralı "1"'i de
+                // kabul eder, takvim metni yok sayıp "her gün" çalışırdı (G10, YF-31)
+                'gunler' => isset($girdi['gunler']) ? array_values(array_map('intval', (array) $girdi['gunler'])) : null,
             ], fn ($d) => $d !== null && $d !== []),
             SiklikTuru::Gunluk => [],
             SiklikTuru::NGunluk => array_filter([

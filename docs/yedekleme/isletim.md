@@ -14,7 +14,7 @@ Modül iki kipte çalışır (`.env`, `YEDEKLEME_CALISTIRICI`):
 | Kip | Yedeği kim alır | İstekleri kim işler | Ne zaman |
 |---|---|---|---|
 | `dogrudan` (varsayılan, geçiş) | uygulama kullanıcısı (www-data) | zamanlayıcı dakikada bir `yedek:calistir --tek-tur` | servis hesabı kurulana kadar |
-| `servis` | servis hesabı (`emor-yedek`) | `emor-yedek.service` (`yedek:calistir` döngüsü) | BY-003 kurulumu sunucuda çalıştırıldıktan sonra |
+| `servis` | servis hesabı (`emor-yedek`) | `emor-yedek.service` (`yedek:calistir` döngüsü) | §2'deki geçişten sonra |
 
 Üstüne geri yükleme yalnız `servis` kipinde açılır (README §5.2).
 
@@ -49,27 +49,129 @@ yayın öncesi yedeği yalnız yayın kullanıcısının dosyasıysa işler
 kendi önbellek ve günlük yolları; README §5.5, D7):
 
 ```bash
+# admin'in kabuğunda bir kez tanımlanır. Servis tanımı okunamazsa (kurulum
+# betiği çalışmamış, ad yanlış) DURUR: boş ortamla komut uygulamanın ortak
+# önbelleğini ve günlüklerini kullanırdı (YF-71).
+servis() {
+  local ortam
+  ortam="$(systemctl show emor-yedek -p Environment --value)"
+  if [ -z "$ortam" ]; then echo "HATA: emor-yedek servis tanımı okunamadı; komut çalıştırılmadı." >&2; return 1; fi
+  sudo -u emor-yedek env $ortam "$@"
+}
 cd /var/www/emor/backend
-sudo -u emor-yedek env $(systemctl show emor-yedek -p Environment --value) php artisan <komut>
+servis php artisan <komut>
 ```
 
-Aşağıda "servis olarak" denen her komut bu kalıpla çalıştırılır.
+Aşağıda "servis olarak" denen her komut bu kalıpla (`servis php artisan …`)
+çalıştırılır. Tanım etkinleştirilmemiş olsa da okunur.
 
-## 2. Modülü açma (bir kez, kullanıcı talimatıyla)
+## 2. Servis kipine geçiş (bir kez, kullanıcı talimatıyla)
 
-1. Kod yayında; `php artisan migrate` çalıştı (deploy.sh yapar).
-2. (Servis kipi) `sudo scripts/sunucu-yedekleme-kurulumu.sh --denetle`, sonra
-   kurulum, sonra yine denetim "her şey yerinde" (sunucu-kurulumu.md §3).
-3. İmza anahtarı: servis olarak `yedek:imza-anahtari` (varsa dokunmaz).
-4. `.env`: §1'deki anahtarlar; `php artisan optimize` (web) ve
-   `sudo systemctl enable --now emor-yedek` (servis).
-5. Eski yayın yedeklerini içeri al: servis olarak
-   `yedek:eski-yedekleri-al --klasor=/var/backups/emor`.
-6. Ekrandan: Yedekleme Ayarları (alıcılar, sinyal adresleri, açık anahtar —
+Hangi yol? `backend/storage/app/yedek-imza.key` VARSA modül geçiş kipinde
+çalışmıştır (canlı böyle): **§2B**. Yoksa ve hiç yedek yoksa: §2A. Var olan
+bir imza anahtarının yanında `yedek:imza-anahtari` ÇALIŞTIRILMAZ: yeni anahtar
+eski manifestlerin ve olay günlüğünün imzasını tutmaz, bütün yedekler
+"güvenilmeyen" olur (YF-26).
+
+Komutlar admin olarak, `/var/www/emor/backend`'de; "servis olarak" = §1'deki
+`servis` kalıbı.
+
+### 2A. Boş kurulum (imza anahtarı ve yedek yok)
+
+1. Kod yayında; `migrate` çalıştı (deploy.sh yapar).
+2. Kurulum betiği: `--denetle`, kur, yine kur ("0 değişiklik"), `--denetle`
+   (sunucu-kurulumu.md §3). Grup üyelikleri için
+   `sudo systemctl restart php8.5-fpm emor-queue` (kısa kesinti; haber verilerek).
+3. `.env`: §1'deki servis anahtarları (`YEDEKLEME_CALISTIRICI=servis`, yollar,
+   `YEDEKLEME_ROL`, `YEDEKLEME_SINAMA`) ve `YEDEKLEME_AKTIF=true`;
+   `php artisan optimize`.
+4. İmza anahtarı — `.env`'den SONRA (önce çalışırsa anahtar web'in yazabildiği
+   `storage/app/yedek-imza.key`'e üretilir): servis olarak
+   `php artisan yedek:imza-anahtari`. `sudo ../scripts/sunucu-yedekleme-kurulumu.sh --denetle`
+   artık "imza anahtarı henüz yok" demez, anahtarı 0600 `emor-yedek` görür.
+   Anahtarın ayrı saklanan kopyası alınır (kurtarma.md §2).
+5. `sudo systemctl enable --now emor-yedek`; `systemctl status emor-yedek`.
+6. Ortak son adımlar (aşağıda).
+
+### 2B. Geçiş kipinden servis kipine (kipte çalışmış kurulum)
+
+Geçiş kipinde her şey `backend/storage/app` altındadır: `yedekler/` (döküm,
+manifest, `olaylar.jsonl`), `yedek-imza.key`, `yedek-durum/` (`islem.json`,
+kurtarma paketi sürüm kaydı, bildirimler, `ayarlar.json`, kilitler),
+`yedek-istekler/`; denetim günlüğü `storage/logs/yedekleme-*.log`. Bunlar yeni
+yere **servis hesabı** tarafından kopyalanır (root servisin klasörüne yazmaz —
+D5); eskiler ancak yeni yer doğrulandıktan sonra silinir (D4).
+
+```bash
+S=/var/www/emor/backend/storage/app
+Y=/var/lib/emor-yedek
+
+# 1. Süren iş yok, sonra modülü kapat
+sudo ls -A $S/yedek-istekler/bekleyen $S/yedek-istekler/isleniyor   # boş olana kadar bekle
+#    .env: YEDEKLEME_AKTIF=false
+php artisan config:cache && php artisan queue:restart
+
+# 2. Kurulum betiği (denetle / kur / kur / denetle — sunucu-kurulumu.md §3);
+#    denetimde yalnız "[BİLGİ] imza anahtarı henüz yok" kalmalı. Sonra:
+sudo systemctl restart php8.5-fpm emor-queue     # grup üyelikleri (kısa kesinti)
+
+# 3. İmza anahtarı: dosyanın sahibi okur, servis hesabı standart girdiden yazar
+#    (set -C: var olanın üstüne yazmaz). Bağlantıysa DUR.
+A=$S/yedek-imza.key
+[ -f "$A" ] && [ ! -L "$A" ] && echo "düz dosya: tamam"
+sudo -u "$(stat -c %U "$A")" cat "$A" | sudo -u emor-yedek sh -c 'umask 077; set -C; cat > /var/lib/emor-yedek/gizli/imza.anahtar'
+sudo -u "$(stat -c %U "$A")" sha256sum "$A"; sudo -u emor-yedek sha256sum $Y/gizli/imza.anahtar   # özetler AYNI olmalı
+
+# 4. Yedekler ve durum dosyaları (servis hesabı web grubundan okur).
+#    Depo işareti ve çalışma klasörü kopyalanmaz (kurulum yeni yerde kendi işaretini açtı);
+#    kilit dosyaları kopyalanmaz (kurulum açtı).
+sudo -u emor-yedek find $S/yedekler -mindepth 1 -maxdepth 1 -type f ! -name .emor-yedek-deposu \
+  -exec cp --preserve=mode,timestamps -t $Y/yedekler/ {} +
+sudo find $S/yedekler -mindepth 1 -maxdepth 1 -type f ! -name .emor-yedek-deposu | wc -l
+sudo -u emor-yedek find $Y/yedekler -mindepth 1 -maxdepth 1 -type f ! -name .emor-yedek-deposu | wc -l   # sayılar AYNI
+sudo -u emor-yedek find $S/yedek-durum -maxdepth 1 -type f ! -name kilit ! -name yayin.kilit \
+  ! -name calistirici ! -name ayarlar.json -exec cp --preserve=timestamps -t $Y/durum/ {} +
+sudo -u emor-yedek cp --preserve=timestamps $S/yedek-durum/ayarlar.json $Y/gunluk/ayarlar.json   # varsa
+#    Denetim günlüğü (önerilir): eski günlükler servisin günlük klasörüne
+sudo -u emor-yedek install -d -m 2750 $Y/gunluk/gecis-kipi
+sudo -u emor-yedek sh -c 'cp --preserve=timestamps "$@" /var/lib/emor-yedek/gunluk/gecis-kipi/' _ /var/www/emor/backend/storage/logs/yedekleme-*.log
+```
+
+`cp` bir dosyayı okuyamazsa (grubu web grubu değil) durun: o dosyanın grubunu
+`www-data` yapıp (`sudo chgrp www-data <dosya>`) adımı yineleyin. Bekleyen
+istekler taşınmaz (24 saatten eskisi zaten işlenmez); kullanıcı yeniden ister.
+
+5. `.env`: §1'deki servis anahtarları (yollar, `YEDEKLEME_CALISTIRICI=servis`,
+   `YEDEKLEME_ROL`, `YEDEKLEME_SINAMA`); `YEDEKLEME_AKTIF` hâlâ `false`.
+   `php artisan optimize`.
+6. Doğrulama — servis olarak:
+   `php artisan yedek:tara` → "Tarama: N imzalı, 0 güvenilmeyen …, 0 dosyası
+   yok" (N = kopyalanan yedek sayısı). `0 güvenilmeyen` değilse ya da dosyası
+   olmayan varsa DURUN: anahtar ya da kopya eksiktir; eski kopyalara
+   dokunmayın, `.env`'i geri alın. `php artisan yedek:acil durum` → "Üstüne
+   geri yükleme işlemi yok."
+7. Modülü aç, servisi aç: `.env`: `YEDEKLEME_AKTIF=true`;
+   `php artisan config:cache && php artisan queue:restart`;
+   `sudo systemctl enable --now emor-yedek` (servis `.env`'i açılışta okur).
+8. Ancak 6. adım doğrulandıktan sonra eski kopyalar silinir (önce anahtarın
+   ayrı saklanan kopyasının güncel olduğu görülür — kurtarma.md §2):
+   ```bash
+   sudo rm -f $S/yedek-imza.key
+   sudo rm -rf $S/yedekler $S/yedek-durum $S/yedek-istekler
+   ```
+9. Ortak son adımlar (aşağıda).
+
+### Ortak son adımlar
+
+1. `sudo ../scripts/sunucu-yedekleme-kurulumu.sh --denetle` → "her şey yerinde".
+2. Eski yayın yedeklerini içeri al (henüz alınmadıysa; okuma izniyle —
+   sunucu-kurulumu.md §3): servis olarak
+   `php artisan yedek:eski-yedekleri-al --klasor=/var/backups/emor`.
+3. Ekrandan: Yedekleme Ayarları (alıcılar, sinyal adresleri, açık anahtar —
    kurtarma.md §6), Yedek Hedefleri (+ "Bağlantıyı Sına"), Yedek Planları
    (önizleyerek).
-7. "Şimdi Yedek Al" → listede "tamam", doğrulama "sınama geçti" görülür.
-8. Bir yedek "Farklı adla geri yükle" ile açılır, `emor_inceleme` rolüyle
+4. "Şimdi Yedek Al" → listede "tamam", doğrulama "sınama geçti" görülür.
+5. Bir yedek "Farklı adla geri yükle" ile açılır, `emor_inceleme` rolüyle
    bakılır, ekrandan silinir (§4).
 
 ## 3. Günlük işletim
@@ -112,6 +214,38 @@ Aşağıda "servis olarak" denen her komut bu kalıpla çalıştırılır.
   `./deploy.sh --no-backup`. Uygulamanın komutu çalışmıyorsa (bozuk
   bağımlılık) açık geri yükleme bilinemez, yayın durur: önce durum elle
   denetlenir (`yedek:acil durum`), kod elle çekilir.
+  Servis kipinde yayın öncesi yedek isteğini çalıştırıcı 90 sn içinde
+  üstlenmezse (servis durmuş ya da başka bir iş sürüyor) istek geri çekilir,
+  yayın beklemeden durur (YF-68); üstlenilen yedek için 30 dk beklenir.
+- **Yayın ve çalıştırıcı (YF-24):** başarılı yayının sonunda `deploy.sh` proje
+  kökünde `.yayin-damgasi` yazar (sürüm + zaman; `.gitignore`'da). Servis
+  döngüsü her boş turun başında damgaya bakar, değiştiyse çıkar; systemd yeni
+  kodla başlatır (iş sürüyorsa iş bitince). Damga yalnız başarılı yayında
+  yazılır: kod çekildikten sonra yarıda kalan bir yayından sonra
+  `sudo systemctl restart emor-yedek`.
+- **Yayın ve uygulama önbelleği (YF-03):** `deploy.sh` ilk `php` çağrısından
+  önce `backend/bootstrap/cache`'i web'e yazılamaz yapar ve içindeki bütün
+  `*.php`'yi siler (web'in yazmış olabileceği dosya admin olarak yüklenmez);
+  önbellekler yayının sonunda `optimize` ile yeniden üretilir. Klasörün sahibi
+  yayın kullanıcısı (`admin`) olmalı, değilse yayın durur
+  (`sudo chown admin backend/bootstrap/cache`, bir kez). Yayın boyunca admin'in
+  artisan çağrıları derlenmiş görünümleri özel bir geçici klasörde tutar.
+- **Yayından önce modülü kapat, sonra aç** (bugünkü uygulama; plan tanımlama,
+  otomatik yedek ya da geri yükleme başlatılmaz): önce açık işlem yoktur
+  (`yedek:acil durum`, servis kipinde servis olarak), sonra
+  ```bash
+  cd /var/www/emor/backend
+  # .env: YEDEKLEME_AKTIF=false
+  php artisan config:clear
+  cd .. && ./deploy.sh         # modül kapalı: yayın kilidi alınmaz, yedek eski davranışla
+                               # /var/backups/emor/<vt>_predeploy_<zaman>.dump (imzasız)
+  cd backend
+  # .env: YEDEKLEME_AKTIF=true
+  php artisan config:cache && php artisan queue:restart
+  sudo systemctl restart emor-yedek   # yalnız servis kipinde: servis .env'i açılışta okur
+  ```
+  Bu yolla alınan imzasız yedekler sonradan `yedek:eski-yedekleri-al` ile içeri
+  alınabilir (sunucu-kurulumu.md §3).
 
 ## 4. Farklı adla geri yükleme (canlıya dokunmaz)
 
@@ -164,17 +298,22 @@ başlamaz.
 Web, veritabanı ya da erişim anahtarı yoksa / süresi dolduysa:
 
 ```bash
-cd /var/www/emor/backend
-sudo -u emor-yedek env $(systemctl show emor-yedek -p Environment --value) php artisan yedek:acil durum
-sudo -u emor-yedek env $(systemctl show emor-yedek -p Environment --value) php artisan yedek:acil onayla
-sudo -u emor-yedek env $(systemctl show emor-yedek -p Environment --value) php artisan yedek:acil geri-don
+cd /var/www/emor/backend      # servis(): §1
+servis php artisan yedek:acil durum
+servis php artisan yedek:acil onayla
+servis php artisan yedek:acil geri-don
 ```
 
 - Yalnız durum dosyası ve PostgreSQL araçlarıyla çalışır.
 - Önce yedekleme kilidini alır; çalıştırıcı tutuyorsa BEKLEMEDEN anlaşılır
-  mesajla çıkar (çıkış 1) — birkaç saniye sonra tekrar denenir; çalıştırıcı
-  asılıysa `sudo systemctl stop emor-yedek` (iş bitince çıkar; en çok
-  `TimeoutStopSec`).
+  mesajla çıkar (çıkış 1) — birkaç saniye sonra tekrar denenir. Çalıştırıcıyı
+  durdurmak gerekirse `sudo systemctl stop emor-yedek`: `KillMode=mixed` ile
+  SIGTERM yalnız PHP sürecine gider, o anki iş (`pg_dump` / `pg_restore`
+  dahil) bitince çıkar. Durdurma `TimeoutStopSec` (4000 sn) kadar sürebilir;
+  iş bu süreyi aşarsa bütün süreçler yine öldürülür (YF-23). İş gerçekten
+  ilerlemiyorsa son çare `sudo systemctl kill --signal=SIGKILL emor-yedek`:
+  süren iş yarıda kalır (yedek `basarisiz`; üstüne geri yükleme açılışta
+  sürdürülür / geri sarılır — §5).
 - `onayla`: farkı olan her ayar grubu (mail, yedek ayarları, planlar,
   hedefler) için seçim ister: `--ayar=mail=guncel --ayar=planlar=geri_yuklenen`
   gibi (`guncel` = geri yüklemeden önceki dosya kopyası, `geri_yuklenen` =
@@ -197,7 +336,9 @@ sudo -u emor-yedek env $(systemctl show emor-yedek -p Environment --value) php a
 | `GERI_YUKLEME_YAYIN_SURUYOR` | üstüne geri yükleme istenirken yayın sürüyordu | yayın bitince yeniden iste |
 | `ISTEK_SURESI_DOLDU` | istek 24 saatten eski | yeniden iste; çalıştırıcı çalışıyor mu? |
 | `ISTEK_YARIDA_KALDI` | çalıştırıcı iş sırasında öldü | günlük; yeniden iste |
-| "isteği zamanında işlenmedi" (deploy) | servis kipinde çalıştırıcı yanıt vermedi | `systemctl status emor-yedek` |
+| "Çalıştırıcı isteği üstlenmedi" (deploy) | servis kipinde yayın öncesi yedek isteği 90 sn kuyrukta kaldı (servis durmuş ya da başka iş sürüyor); istek geri çekildi | `systemctl status emor-yedek`; iş sürüyorsa bitince yayını yinele |
+| "isteği zamanında işlenmedi" (deploy) | servis kipinde çalıştırıcı üstlendiği yedeği 30 dk'da bitirmedi | `systemctl status emor-yedek`, `gunluk/yedekleme-*.log` |
+| "bootstrap/cache'in sahibi …" (deploy) | uygulama önbellek klasörü yayın kullanıcısının değil (YF-03) | `sudo chown admin backend/bootstrap/cache`, yayını yinele |
 | `HEDEF_KIMLIK_HATALI` / `HEDEF_SERTIFIKA_HATASI` | uzak hedef reddetti | yeniden denenmez (D8); hedefi düzelt, "Sına" |
 | `HEDEF_SUNUCU_PARMAK_IZI_DEGISTI` | SFTP sunucu anahtarı değişti | sunucu gerçekten değiştiyse "parmak izini sıfırla" + "Sına"; değilse saldırı şüphesi |
 | `HEDEF_YENIDEN_BAGLAN` | Google izni kaldırılmış | Hedefler → "Google ile bağlan" |

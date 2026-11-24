@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Yedekleme\Hedefler;
 
+use App\Services\Yedekleme\GeciciKlasor;
 use App\Services\Yedekleme\SureButcesi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use Closure;
@@ -13,7 +14,9 @@ use Throwable;
  * "Bağlantıyı Sına" (README §4.6): yalnız bağlanmayı değil yaz – oku –
  * doğrula – sil döngüsünü sınar. Her adım ayrı raporlanır; bir adım
  * başarısızsa sonrakiler "atlandı" olur (silme yine denenir: hedefte sınama
- * dosyası kalmasın).
+ * dosyası kalmasın). Silme yetkisi yoksa (SILME_YETKISI_YOK, önerilen
+ * değiştirilemez saklama) silme adımı başarılı sayılır, kod bilgi olarak
+ * döner; sınama dosyasının adı `emor-sinama-` ile başlar, yedek sanılmaz (YF-20).
  *
  * Sınama web isteğinde çalışır: bütün adımlar TEK bir toplam süre bütçesini
  * paylaşır (D9, BY-016-R2). Her adımdan önce bağlayıcının okuduğu süre
@@ -47,6 +50,15 @@ final class HedefSinayici
     public const SURE_DOLDU = 'HEDEF_SINAMA_SURESI_DOLDU';
 
     /**
+     * Servis kipinde dosya sistemi hedefinin yazma adımları web isteğinde
+     * çalıştırılmadı: o klasöre çalıştırıcının hesabı yazar (YF-21)
+     */
+    public const CALISTIRICIDA = 'HEDEF_SINAMA_CALISTIRICIDA';
+
+    /** Hedefe yazılan sınama dosyasının adı bununla başlar (yedek kalıbı `erp_` değil) */
+    public const DOSYA_ON_EKI = 'emor-sinama-';
+
+    /**
      * Bir bağlayıcı çağrısı verilen süre sınırını en çok bu kadar kez
      * tüketebilir (3 deneme; dosya taşımayan işlemde bağlantı sınırı × 3):
      * adımın sınırı kalan sürenin bu kadarda biri olur.
@@ -71,13 +83,15 @@ final class HedefSinayici
             ];
         };
 
-        $klasor = sys_get_temp_dir().'/emor-hedef-sinama-'.bin2hex(random_bytes(6));
-        mkdir($klasor, 0700);
+        // 4 KB'lık iki dosya: sistem geçici klasöründe kalır — servis kipinde "Sına"yı çalıştıran web
+        // hesabı yedek diskindeki çalışma köküne yazamaz. Öldürülen isteklerin artıkları önce silinir (YF-28)
+        $klasor = GeciciKlasor::ac(sys_get_temp_dir(), 'emor-hedef-sinama-', $this->yapilandirma->artikKlasorYasi());
         $kaynak = $klasor.'/kaynak';
         $geri = $klasor.'/geri';
         $icerik = random_bytes(4096);
         file_put_contents($kaynak, $icerik);
-        $ad = 'erp_sinama_'.bin2hex(random_bytes(6)).'.dump';
+        // `erp_` ile başlamaz: silinemeyip hedefte kalırsa (silme yetkisi yok) yedek sanılmasın (YF-20)
+        $ad = self::DOSYA_ON_EKI.bin2hex(random_bytes(6)).'.tmp';
         $uzak = null;
 
         try {
@@ -115,7 +129,9 @@ final class HedefSinayici
                     $this->sinirli($butce, 0, fn () => $baglayici->sil($uzak), herDurumda: true);
                     $ekle('sil', true);
                 } catch (Throwable $hata) {
-                    $ekle('sil', false, $hata);
+                    // Silme yetkisi yok (önerilen kurulum, değiştirilemez saklama): hata değil bilgi —
+                    // saklama ve elle silme de böyle sayar; kod ekranda gösterilir (YF-20)
+                    $ekle('sil', $hata instanceof HedefHatasi && $hata->kod === HedefHatasi::SILME_YETKISI_YOK, $hata);
                 }
             } else {
                 foreach (['oku', 'dogrula', 'sil'] as $kalan) {
@@ -169,6 +185,38 @@ final class HedefSinayici
         }
 
         return ['basarili' => $basarili, 'adimlar' => $adimlar, 'kalan_alan' => $kalan, 'silinme_korumasi' => $koruma];
+    }
+
+    /**
+     * Servis kipinde dosya sistemi hedefi (Yerel, NAS) için web'in yapabildiği
+     * sınama (YF-21): yalnız klasörün varlığı / paylaşımın bağlı olduğu.
+     * O klasöre çalıştırıcının hesabı yazar (servis düzeninde web yedek
+     * klasörünü yalnız okur); yazma iznini web hesabıyla sınamak yanlış
+     * kırmızı ya da yanlış yeşil verirdi. Yazma, okuma, doğrulama ve silme
+     * çalıştırılmaz (`basarili: null`, kod CALISTIRICIDA). Varlık denetimi
+     * geçince sonuç "kısmen sınandı"dır (`basarili: null`): başarısız değil,
+     * tam doğrulanmış da değil.
+     *
+     * @return array{basarili: bool|null, adimlar: list<array{adim: string, basarili: bool|null, kod: string|null, mesaj: string|null}>, kalan_alan: null, silinme_korumasi: null}
+     */
+    public function varlikSonucu(DosyaSistemiHedefi $baglayici): array
+    {
+        try {
+            $baglayici->varlikDenetle();
+            $adimlar = [['adim' => 'baglan', 'basarili' => true, 'kod' => null, 'mesaj' => null]];
+            $kod = self::CALISTIRICIDA;
+            $mesaj = 'Servis kipinde bu klasöre çalıştırıcının hesabı yazar; yazma sınaması web isteğinde yapılmadı. Kopyanın sonucu yedek listesinde görünür.';
+        } catch (Throwable $hata) {
+            $adimlar = [['adim' => 'baglan', 'basarili' => false, 'kod' => $hata instanceof HedefHatasi ? $hata->kod : HedefHatasi::ERISILEMEDI, 'mesaj' => $hata instanceof HedefHatasi ? $hata->getMessage() : null]];
+            $kod = null;
+            $mesaj = null;
+        }
+
+        foreach (['yaz', 'oku', 'dogrula', 'sil'] as $adim) {
+            $adimlar[] = ['adim' => $adim, 'basarili' => null, 'kod' => $kod, 'mesaj' => $mesaj];
+        }
+
+        return ['basarili' => $kod === null ? false : null, 'adimlar' => $adimlar, 'kalan_alan' => null, 'silinme_korumasi' => null];
     }
 
     /**

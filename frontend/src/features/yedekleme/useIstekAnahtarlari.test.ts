@@ -317,6 +317,43 @@ describe('useIstekAnahtarlari', () => {
     expect((await b.result.current.hazirla(eylem)).anahtar).toBe(aYeni.anahtar)
   })
 
+  it('başka sekmede kabul edilip depodan silinen anahtar bu sekmenin belleğinden yeniden kullanılmaz; bilinçli tekrar yeni anahtar alır (YF-59)', async () => {
+    const eylem = { tur: 'yedek_al', aciklama: null }
+    const a = renderHook(() => useIstekAnahtarlari('kullanici.1'))
+    const b = renderHook(() => useIstekAnahtarlari('kullanici.1'))
+    await bekle()
+
+    // A gönderdi, yanıt alamadı (kabul yok)
+    const aIlk = await a.result.current.hazirla(eylem)
+    // B aynı eylemi aynı (depodaki) anahtarla gönderdi ve 202 aldı
+    const bIlk = await b.result.current.hazirla(eylem)
+    expect(bIlk.anahtar).toBe(aIlk.anahtar)
+    await bIlk.kabulEdildi()
+    expect(localStorage.getItem(DEPO)).toBeNull()
+
+    // A yeniden basar: eski kabul değil yeni iş
+    const aYeni = await a.result.current.hazirla(eylem)
+
+    expect(aYeni.anahtar).not.toBe(aIlk.anahtar)
+    expect(depoyuOku()).toEqual([expect.objectContaining({ anahtar: aYeni.anahtar })])
+  })
+
+  it('depo okunabildiği hâlde anahtar yazılamadıysa (kota) yeniden deneme bellekteki anahtarı taşır (YF-59)', async () => {
+    const eylem = { tur: 'tara' }
+    const { result } = renderHook(() => useIstekAnahtarlari('kullanici.1'))
+    await bekle()
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('dolu', 'QuotaExceededError')
+    })
+
+    const ilk = await result.current.hazirla(eylem)
+    const tekrar = await result.current.hazirla(eylem)
+
+    expect(localStorage.getItem(DEPO)).toBeNull()
+    expect(tekrar.anahtar).toBe(ilk.anahtar)
+    setItem.mockRestore()
+  })
+
   it('Web Locks yoksa v1 kaydı taşınmadan silinir; anahtar depoya yazılmaz, yalnız bu örneğin belleğinde yaşar ve durum günlüğe yazılır (BY-014-R7)', async () => {
     Reflect.deleteProperty(navigator, 'locks')
     const uyari = vi.spyOn(console, 'warn').mockImplementation(() => {})

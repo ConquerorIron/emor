@@ -9,6 +9,7 @@ return [
         'alt_not' => 'Bu mail yedekleme çalıştırıcısı tarafından doğrudan gönderildi (kuyruk kullanılmadı). Aynı uyarı bir saat içinde yinelenmez.',
         'ekrani_ac' => 'Yedekler ekranını aç',
         'yedek_basarisiz' => 'Yedek alınamadı',
+        'planli_yedek_calismadi' => 'Planlı yedek çalıştırılamadı',
         'kopya_basarisiz' => 'Sunucu dışı kopya başarısız',
         'dogrulama_basarisiz' => 'Yedek doğrulaması başarısız',
         'disk_esigi' => 'Yedek diski dolmak üzere',

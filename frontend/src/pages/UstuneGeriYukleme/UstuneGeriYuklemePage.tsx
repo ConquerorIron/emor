@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/Button'
@@ -17,6 +17,7 @@ import {
   type UstuneGorunum,
 } from '@/features/yedekleme/ustuneGeriYuklemeApi'
 import {
+  gecerliUstuneIslem,
   kayitliUstuneIslem,
   ustuneIslemiKaydet,
   ustuneIslemiUnut,
@@ -95,10 +96,15 @@ function AcilDurumYolu({ vurgulu }: { vurgulu: boolean }) {
 export function UstuneGeriYuklemePage() {
   const { t } = useTranslation()
   const { islemKimligi = '' } = useParams()
+  const konum = useLocation()
+  const navigate = useNavigate()
+  // Başlatan formun gezinme durumu önce gelir: depo yazılamamış olabilir (YF-10).
+  // Durum da depo gibi denetlenir (biçim, işlem kimliği, bitiş)
   const [kayit, setKayit] = useState<KayitliUstuneIslem | null>(() => {
-    const saklanan = kayitliUstuneIslem()
+    const durumdaki = gecerliUstuneIslem((konum.state as { kayit?: unknown } | null)?.kayit)
+    const aday = durumdaki?.islem_kimligi === islemKimligi ? durumdaki : kayitliUstuneIslem()
 
-    return saklanan?.islem_kimligi === islemKimligi ? saklanan : null
+    return aday?.islem_kimligi === islemKimligi ? aday : null
   })
   const [kararOnayi, setKararOnayi] = useState<'onayla' | 'geri-don' | null>(null)
   const [ayarSecimleri, setAyarSecimleri] = useState<AyarSecimDurumu>({})
@@ -123,12 +129,17 @@ export function UstuneGeriYuklemePage() {
   const gorunum = durum.data
   const bitti = gorunum !== undefined && BITMIS_DURUMLAR.includes(gorunum.durum)
 
-  // İşlem bitince anahtar bu tarayıcıdan silinir (8 saat geçerliydi)
+  // İşlem bitince anahtar bu tarayıcıdan silinir (8 saat geçerliydi); gezinme
+  // geçmişindeki kopyası da (YF-10)
+  const durumdaAnahtarVar = konum.state !== null && konum.state !== undefined
   useEffect(() => {
     if (bitti) {
       ustuneIslemiUnut(islemKimligi)
+      if (durumdaAnahtarVar) {
+        void navigate('.', { replace: true, state: null })
+      }
     }
-  }, [bitti, islemKimligi])
+  }, [bitti, islemKimligi, durumdaAnahtarVar, navigate])
 
   // Farkı olan ayar grupları: her biri için açık seçim gerekir (BY-028-R2)
   const secimGerekenler = (gorunum?.onay_bilgisi?.ayar_gruplari ?? [])

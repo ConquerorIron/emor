@@ -12,7 +12,9 @@ use RuntimeException;
  * Yedek / geri yükleme kilidi ve yayın kilidi (BY-005, BY-013-R1, README §5.2):
  * işletim sistemi dosya kilidi (flock). Veritabanına ve önbelleğe DAYANMAZ —
  * ikisi de geri yüklenen veritabanının içinde. Kilit, onu tutan süreç bitince
- * (öldürülse de) çekirdek tarafından bırakılır.
+ * (öldürülse de) çekirdek tarafından bırakılır. Dosya close-on-exec (`e`)
+ * açılır: alt süreçler (pg_dump, pg_restore, gpg) tutamacı miras almaz, PHP
+ * süreci ölünce kilit alt süreç bitmeden düşer (YF-36).
  *
  * Yayın kilidini (YedeklemeYapilandirmasi::yayinKilidi) `deploy.sh` da `flock`
  * komutuyla alır. Sunucuda kilit dosyaları önceden açılır ve yayın kullanıcısı
@@ -158,12 +160,12 @@ final class YedekKilidi
     private function ac()
     {
         if (is_file($this->yol)) {
-            $tutamac = @fopen($this->yol, 'r');
+            $tutamac = @fopen($this->yol, 're');
         } else {
             $klasor = dirname($this->yol);
             KaliciKlasor::ac($klasor, $this->kaliciKok);
 
-            $tutamac = @fopen($this->yol, 'c');
+            $tutamac = @fopen($this->yol, 'ce');
             if ($tutamac !== false) {
                 @chmod($this->yol, 0640);
                 KaliciKlasor::esitle($klasor);

@@ -24,7 +24,13 @@ use Throwable;
  * - Servis (`emor-yedek.service`, servis hesabı): uzun süren döngü; turlar
  *   arası 2 sn. SIGTERM / SIGINT gelince (pcntl varsa) o anki iş bitince
  *   çıkar. `--en-cok-tur` turdan sonra kendiliğinden çıkar; systemd yeniden
- *   başlatır, yeni kod ve yapılandırma yüklenir. Servis kipinde
+ *   başlatır, yeni kod ve yapılandırma yüklenir. Yayından sonra beklemez:
+ *   `deploy.sh` başarılı yayının sonunda yayın damgasını yazar
+ *   (`yedekleme.yayin_damgasi`); döngü her turun başında (iş yokken) damgayı
+ *   açılıştakiyle karşılaştırır, değiştiyse çıkar (YF-24). Bellekteki eski
+ *   sınıflar yeni şemaya, diskteki yeni sınıflarla karışarak çalışmaz. Damga
+ *   yoksa ya da okunamıyorsa etkisizdir; içeriği yalnız karşılaştırılır.
+ *   Servis kipinde
  *   (`calistirici = servis`) planlı yedek (`yedek:zamanla`, dakikada bir) ve
  *   günlük temizlik (`yedek:temizle`) de bu döngüde yürür (BY-009-R1).
  * - `--tek-tur`: kuyruğu bir kez işler. Geçiş döneminde (`calistirici =
@@ -82,7 +88,17 @@ final class YedekCalistir extends Command
             });
         }
 
+        $damgaYolu = (string) config('yedekleme.yayin_damgasi');
+        $ilkDamga = $this->yayinDamgasi($damgaYolu);
+
         for ($tur = 0; $tur < (int) $enCok && ! $this->durdur; $tur++) {
+            $damga = $this->yayinDamgasi($damgaYolu);
+            if ($damga !== null && $damga !== $ilkDamga) {
+                $this->line('Yeni yayın görüldü; çalıştırıcı yeni kodla başlamak için çıkıyor.');
+
+                break;
+            }
+
             if ($yapilandirma->aktif()) {
                 $this->tur($calistirici);
 
@@ -97,6 +113,18 @@ final class YedekCalistir extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /** Yayın damgasının içeriği (en çok 256 bayt); yol boşsa, dosya yoksa ya da okunamıyorsa null */
+    private function yayinDamgasi(string $yol): ?string
+    {
+        if ($yol === '') {
+            return null;
+        }
+
+        $icerik = @file_get_contents($yol, false, null, 0, 256);
+
+        return is_string($icerik) ? $icerik : null;
     }
 
     /**

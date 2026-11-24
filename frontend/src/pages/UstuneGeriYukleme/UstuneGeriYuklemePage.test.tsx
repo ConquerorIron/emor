@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import '@/i18n/i18n'
@@ -83,16 +83,24 @@ function anahtariSakla(kararIstegi: string | null = null) {
   )
 }
 
-function ciz() {
+/** Gezinme durumu (location.state): testte görünür kılınır */
+function DurumGozcusu() {
+  return <pre aria-label="gezinme durumu">{JSON.stringify(useLocation().state)}</pre>
+}
+
+function ciz(durum: unknown = null) {
   render(
     <AppProviders>
-      <MemoryRouter initialEntries={[`/ayarlar/geri-yuklemeler/ustune/${ISLEM}`]}>
+      <MemoryRouter
+        initialEntries={[{ pathname: `/ayarlar/geri-yuklemeler/ustune/${ISLEM}`, state: durum }]}
+      >
         <Routes>
           <Route
             path="/ayarlar/geri-yuklemeler/ustune/:islemKimligi"
             element={<UstuneGeriYuklemePage />}
           />
         </Routes>
+        <DurumGozcusu />
       </MemoryRouter>
     </AppProviders>,
   )
@@ -100,6 +108,9 @@ function ciz() {
 
 describe('UstuneGeriYuklemePage', () => {
   beforeEach(() => {
+    // Anahtarın bitişi (2026-11-21T18:00Z) saate göre denetlenir: saat sabit (T12)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-21T10:00:00Z'))
     localStorage.clear()
     api.me.mockRejectedValue(new Error('503 bakım modu'))
   })
@@ -107,6 +118,51 @@ describe('UstuneGeriYuklemePage', () => {
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()
+    vi.useRealTimers()
+  })
+
+  it('başlatan formun gezinme durumundaki anahtarla izler; depo boş olsa da (YF-10)', async () => {
+    api.durum.mockResolvedValue(gorunum({}))
+    ciz({
+      kayit: {
+        islem_kimligi: ISLEM,
+        erisim_anahtari: ANAHTAR,
+        erisim_anahtari_bitis: '2026-11-21T18:00:00+00:00',
+        karar_istegi: null,
+      },
+    })
+
+    expect(await screen.findByRole('list', { name: 'Adımlar' })).toBeInTheDocument()
+    expect(api.durum).toHaveBeenCalledWith(ISLEM, ANAHTAR, null)
+  })
+
+  it.each([
+    ['başka işlemin', { islem_kimligi: KARAR }],
+    ['biçimsiz anahtarlı', { erisim_anahtari: 'kisa' }],
+    ['süresi geçmiş', { erisim_anahtari_bitis: '2026-11-21T09:59:59+00:00' }],
+  ])('gezinme durumundaki %s kayda güvenilmez; istek gitmez (YF-10)', async (_ad, bozuk) => {
+    ciz({
+      kayit: {
+        islem_kimligi: ISLEM,
+        erisim_anahtari: ANAHTAR,
+        erisim_anahtari_bitis: '2026-11-21T18:00:00+00:00',
+        karar_istegi: null,
+        ...bozuk,
+      },
+    })
+
+    expect(await screen.findByText(/erişim anahtarı bu tarayıcıda yok/)).toBeInTheDocument()
+    expect(api.durum).not.toHaveBeenCalled()
+  })
+
+  it('süresi geçmiş saklı anahtarla istek atmaz ve anahtarı depodan siler (YF-60)', async () => {
+    anahtariSakla()
+    vi.setSystemTime(new Date('2026-11-21T18:00:01Z'))
+    ciz()
+
+    expect(await screen.findByText(/erişim anahtarı bu tarayıcıda yok/)).toBeInTheDocument()
+    expect(api.durum).not.toHaveBeenCalled()
+    expect(localStorage.getItem(DEPO)).toBeNull()
   })
 
   it('anahtar bu tarayıcıda yoksa istek atmaz, acil durum komutunu anlatır', async () => {
@@ -338,12 +394,20 @@ describe('UstuneGeriYuklemePage', () => {
     expect(screen.queryByRole('button', { name: 'Onayla' })).not.toBeInTheDocument()
   })
 
-  it('işlem bitince anahtarı tarayıcıdan siler', async () => {
+  it('işlem bitince anahtarı tarayıcıdan ve gezinme durumundan siler', async () => {
     anahtariSakla(KARAR)
     api.durum.mockResolvedValue(gorunum({ durum: 'onaylandi', adim: 'onaylandi', acik: false }))
-    ciz()
+    ciz({
+      kayit: {
+        islem_kimligi: ISLEM,
+        erisim_anahtari: ANAHTAR,
+        erisim_anahtari_bitis: '2026-11-21T18:00:00+00:00',
+        karar_istegi: null,
+      },
+    })
 
     expect(await screen.findByText('Tamamlandı')).toBeInTheDocument()
     await waitFor(() => expect(localStorage.getItem(DEPO)).toBeNull())
+    await waitFor(() => expect(screen.getByLabelText('gezinme durumu')).toHaveTextContent('null'))
   })
 })

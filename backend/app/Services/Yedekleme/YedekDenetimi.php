@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Yedekleme;
 
 use App\Models\YedekIslemKaydi;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
@@ -36,7 +37,11 @@ final class YedekDenetimi
         $this->gunlugeYaz($islem, $sonuc, $yedekId, $kullaniciId, $sureMs, $ayrinti, $hata, $geriYuklemeId);
 
         try {
-            YedekIslemKaydi::query()->create([
+            // Çağıran bir işlemin içindeyse (ayar / hedef güncellemesi) yazım
+            // kendi SAVEPOINT'inde yapılır: PostgreSQL'de hatalı ifade bütün
+            // işlemi iptal eder, COMMIT sessizce ROLLBACK olurdu. Savepoint'e
+            // geri dönülünce dış işlem sağlam kalır (T6, YF-12)
+            DB::transaction(fn () => YedekIslemKaydi::query()->create([
                 'kullanici_id' => $kullaniciId,
                 'islem' => $islem,
                 'yedek_id' => $yedekId,
@@ -45,7 +50,7 @@ final class YedekDenetimi
                 'sure_ms' => $sureMs,
                 'ayrinti' => $ayrinti === [] ? null : $ayrinti,
                 'hata_mesaji' => $hata,
-            ]);
+            ]));
         } catch (Throwable $e) {
             Log::channel('yedekleme')->warning('Denetim kaydı veritabanına yazılamadı; yalnız dosyada', ['hata' => $e::class]);
         }

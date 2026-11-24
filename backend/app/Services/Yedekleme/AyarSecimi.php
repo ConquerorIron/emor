@@ -262,6 +262,7 @@ final class AyarSecimi
     private function hedefleriYaz(array $hedefler): array
     {
         $this->bugunOlmayanlariAyir('yedek_hedefleri', array_column($hedefler, 'id'));
+        $this->degisecekAdlariBosalt('yedek_hedefleri', $hedefler);
         $uyarilar = [];
         $eklendi = false;
 
@@ -316,6 +317,7 @@ final class AyarSecimi
     private function planlariYaz(array $planlar): array
     {
         $this->bugunOlmayanlariAyir('yedek_planlari', array_column($planlar, 'id'));
+        $this->degisecekAdlariBosalt('yedek_planlari', $planlar);
         $uyarilar = [];
         $eklendi = false;
 
@@ -403,6 +405,24 @@ final class AyarSecimi
                 'aktif' => false,
                 'updated_at' => now(),
             ]);
+        }
+    }
+
+    /**
+     * Ad tekildir ve satırlar kimlik sırasıyla yazılır: #1'in yeni adı henüz
+     * yazılmamış #2'nin eski adına çarpardı (YF-44). Adı değişecek mevcut
+     * satırlar önce kimliği taşıyan geçici, tekil bir ada alınır; döngü
+     * gerçek adı yazar. Aynı işlemdedir: hata olursa geçici adlar da geri alınır.
+     *
+     * @param  'yedek_hedefleri'|'yedek_planlari'  $tablo
+     * @param  list<array<string, mixed>>  $kayitlar  Dosyadaki (güncel) satırlar
+     */
+    private function degisecekAdlariBosalt(string $tablo, array $kayitlar): void
+    {
+        foreach ($kayitlar as $k) {
+            $ad = (string) ($k['ad'] ?? '');
+            DB::table($tablo)->where('id', (int) $k['id'])->where('ad', '!=', $ad)
+                ->update(['ad' => mb_substr('~'.(int) $k['id'].'~'.$ad, 0, 100), 'updated_at' => now()]);
         }
     }
 

@@ -1,8 +1,7 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { toast } from 'sonner'
 
 import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
@@ -20,10 +19,12 @@ import {
 } from '@/features/yedekleme/geriYuklemeApi'
 import { IstekSeridi } from '@/features/yedekleme/IstekSeridi'
 import { Rozet, type RozetRengi } from '@/features/yedekleme/Rozet'
+import { useIsBirakma } from '@/features/yedekleme/useIsBirakma'
 import { useIstekTakibi } from '@/features/yedekleme/useIstekTakibi'
 import {
   kayitliUstuneIslem,
   ustuneIlerlemeAdresi,
+  ustuneIslemiUnut,
 } from '@/features/yedekleme/ustuneGeriYuklemeDeposu'
 import { useIzin } from '@/hooks/useIzin'
 
@@ -31,6 +32,9 @@ const GUN_MS = 24 * 60 * 60 * 1000
 
 /** Süren geri yükleme varken liste bu aralıkla tazelenir (ms) */
 const SUREN_TAZELEME = 5000
+
+/** Bu durumdaki üstüne geri yüklemenin erişim anahtarına artık gerek yok */
+const USTUNE_BITMIS_DURUMLAR: readonly GeriYuklemeDurumu[] = ['tamam', 'basarisiz', 'geri_alindi']
 
 const DURUM_RENGI: Record<GeriYuklemeDurumu, RozetRengi> = {
   kuyrukta: 'mavi',
@@ -105,31 +109,51 @@ export function GeriYuklemelerPage() {
   const { t } = useTranslation()
   const kopyaYetkisi = useIzin('geri_yukleme.kopya')
   const { calisanlar, calisiyor, baslat } = useIstekTakibi('geri_yuklemeler')
+  // "Farklı adla geri yükle" Yedekler ekranında bırakılır: kuyruktaki isteğin
+  // satırı henüz yoktur. O ekranın takibi burada da sürer; istek bitince
+  // listeler tazelenir, sürerken liste yoklanır (YF-62)
+  const yedekTakibi = useIstekTakibi('yedekler')
+  const kopyaGeriYuklemeleri = yedekTakibi.calisanlar.filter(
+    (istek) => istek.tur === 'kopya_geri_yukle',
+  )
+  const kopyaBekleniyor = kopyaGeriYuklemeleri.length > 0
   const [silinecek, setSilinecek] = useState<GeriYukleme | null>(null)
 
   const liste = useQuery({
     queryKey: queryKeys.yedekleme.geriYuklemeler,
     queryFn: geriYuklemeleriGetir,
     refetchInterval: (sorgu) =>
+      kopyaBekleniyor ||
       sorgu.state.data?.some((geri) => geri.durum === 'kuyrukta' || geri.durum === 'calisiyor')
         ? SUREN_TAZELEME
         : false,
   })
-  // Silme düğmesi eski listedeki satırda çalışmasın (F1)
-  const kilitli = calisiyor || liste.isFetching || liste.isPaused
 
-  const sil = useMutation({
-    mutationFn: (geri: GeriYukleme) => kopyaSil(geri.kimlik),
-    onSuccess: (kabul) => {
+  // Çift tıklama kilidi + yeniden denemede aynı istek anahtarı (YF-11)
+  const sil = useIsBirakma(
+    (eylem: { tur: 'kopya_sil'; kimlik: string }, anahtar) => kopyaSil(eylem.kimlik, anahtar),
+    (kabul) => {
       baslat(kabul, 'kopya_sil')
       setSilinecek(null)
     },
-    onError: (error: unknown) => toast.error(t(apiErrorKey(error))),
-  })
+  )
+  // Silme düğmesi eski listedeki satırda çalışmasın (F1)
+  const kilitli = calisiyor || sil.gonderiliyor || liste.isFetching || liste.isPaused
 
   const simdi = Date.now()
-  const saklananIslem = kayitliUstuneIslem()?.islem_kimligi ?? null
   const kayitlar = liste.data ?? []
+  // Erişim anahtarı yalnız işlem sürerken tutulur: liste bitmiş gösteriyorsa
+  // ilerleme sayfası açılmadan da tarayıcıdan silinir (YF-60)
+  const saklanan = kayitliUstuneIslem()?.islem_kimligi ?? null
+  const saklananBitti = kayitlar.some(
+    (geri) => geri.kimlik === saklanan && USTUNE_BITMIS_DURUMLAR.includes(geri.durum),
+  )
+  useEffect(() => {
+    if (saklanan !== null && saklananBitti) {
+      ustuneIslemiUnut(saklanan)
+    }
+  }, [saklanan, saklananBitti])
+  const saklananIslem = saklananBitti ? null : saklanan
   const bekleyenler = kayitlar.filter((geri) => geri.bekleyen_kopya)
 
   const bekleyenKolonlari: DataTableKolonu<GeriYukleme>[] = [
@@ -315,7 +339,7 @@ export function GeriYuklemelerPage() {
         {t('yedekleme.geriYukleme.aciklamaMetni')}
       </p>
 
-      <IstekSeridi calisanlar={calisanlar} />
+      <IstekSeridi calisanlar={[...calisanlar, ...kopyaGeriYuklemeleri]} />
 
       {liste.isError ? (
         <div className="mt-4">
@@ -356,10 +380,10 @@ export function GeriYuklemelerPage() {
           veritabani: silinecek?.hedef_veritabani ?? '',
         })}
         onayEtiketi={t('ortak.sil')}
-        yukleniyor={sil.isPending}
+        yukleniyor={sil.gonderiliyor}
         onayla={() => {
           if (silinecek !== null) {
-            sil.mutate(silinecek)
+            sil.birak({ tur: 'kopya_sil', kimlik: silinecek.kimlik })
           }
         }}
       />

@@ -72,7 +72,10 @@ final class GeriYuklemeController extends Controller
         return response()->json(['data' => ['istek_kimligi' => $istek, 'durum' => 'kuyrukta']], 202);
     }
 
-    /** Bekleyen kopyayı sil (onaylı); yalnız kaydı olan `erp_geri_*` */
+    /**
+     * Bekleyen kopyayı sil (onaylı); yalnız kaydı olan `erp_geri_*`. Aynı
+     * `Idempotency-Key` ile yeniden deneme mevcut kabulü döner (YF-11).
+     */
     public function kopyaSil(Request $request, string $kimlik): JsonResponse
     {
         $geri = GeriYukleme::query()->where('kimlik', $kimlik)->firstOrFail();
@@ -81,7 +84,7 @@ final class GeriYuklemeController extends Controller
             return response()->json(['kod' => 'GERI_YUKLEME_KOPYA_YOK', 'mesaj' => __('hata.geri_yukleme_kopya_yok')], 409);
         }
 
-        $istek = $this->istekler->birak('kopya_sil', ['veritabani' => $geri->hedef_veritabani], (int) $request->user()->id, $geri->yedek_id);
+        $istek = $this->istekler->birak('kopya_sil', ['veritabani' => $geri->hedef_veritabani], (int) $request->user()->id, $geri->yedek_id, IstekAnahtari::oku($request));
 
         return response()->json(['data' => ['istek_kimligi' => $istek, 'durum' => 'kuyrukta']], 202);
     }

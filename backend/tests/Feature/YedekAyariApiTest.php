@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\MailAyari;
+use App\Models\Rol;
 use App\Models\User;
 use App\Models\YedekAyari;
 use App\Models\YedekIslemKaydi;
@@ -18,7 +19,9 @@ use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Events\TransactionCommitted;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Tests\TestCase;
@@ -79,6 +82,21 @@ final class YedekAyariApiTest extends TestCase
         $this->assertNotNull($kopya);
         $this->assertSame(45, YedekAyari::guncel()->elle_gun);
         $this->assertStringContainsString('"elle_gun":45', (string) json_encode($kopya));
+    }
+
+    /**
+     * YF-12 (T6): denetim kaydının veritabanı yazımı GERÇEK bir sorgu hatasıyla
+     * düşerse ayar yine kaydedilir (denetim dosyada kalır). PostgreSQL'de hata
+     * savepoint'siz işlemi zehirleyip değişikliği sessizce geri alırdı; bu yüzden
+     * test PostgreSQL'de de koşulmalı (SQLite hatalı ifadeden sonra işlemi sürdürür).
+     */
+    public function test_denetim_kaydi_veritabanina_yazilamazsa_ayar_yine_kaydedilir(): void
+    {
+        Schema::rename('yedek_islem_kayitlari', 'yedek_islem_kayitlari_gecici');
+
+        $this->putJson(self::K.'/yedek-ayarlari', $this->govde(['elle_gun' => 45]))->assertOk();
+
+        $this->assertSame(45, DB::table('yedek_ayarlari')->value('elle_gun'));
     }
 
     public function test_servis_kipinde_web_kopyayi_yazmaz_calistirici_turu_degisince_yazar(): void
@@ -289,5 +307,27 @@ final class YedekAyariApiTest extends TestCase
             $this->{$yontem}(self::K.'/yedek-islem-kayitlari')->assertStatus(405);
         }
         $this->assertSame(2, YedekIslemKaydi::query()->count());
+    }
+
+    /**
+     * YF-30 (D2): serbest hata metni (pg_dump stderr: yol, rol) yalnız sistem
+     * yöneticisine döner; yaşam sinyali adresi denetim farkına değerle yazılmaz.
+     */
+    public function test_islem_gunlugu_hata_metnini_yalniz_yoneticiye_verir_sinyal_adresini_yazmaz(): void
+    {
+        $this->putJson(self::K.'/yedek-ayarlari', $this->govde(['sinyal_uzak_adresi' => 'https://izleme.ornek.test/ping/gizli-uzak']))->assertOk();
+        app(YedekDenetimi::class)->kaydet('yedek_al', IslemSonucu::Basarisiz, null, null, null, ['kod' => 'YEDEK_PG_DUMP'], 'pg_dump: /var/lib/emor-yedek/yedekler: connection to emor_yedek@db failed');
+        $izinli = User::factory()->create();
+        $rol = Rol::query()->create(['ad' => 'Yedek izleyici']);
+        DB::table('rol_izinleri')->insert(['rol_id' => $rol->id, 'izin' => 'yedekler.goruntule']);
+        $izinli->roller()->attach($rol);
+
+        $kayitlar = collect($this->actingAs($izinli)->getJson(self::K.'/yedek-islem-kayitlari')->assertOk()->json('data'))->keyBy('islem');
+
+        $this->assertNull($kayitlar['yedek_al']['hata_mesaji']);
+        $this->assertSame('YEDEK_PG_DUMP', $kayitlar['yedek_al']['ayrinti']['kod']);
+        $this->assertSame(['degisti' => true], $kayitlar['ayar_guncelle']['ayrinti']['sinyal_uzak_adresi']);
+        $this->actingAs($this->yonetici)->getJson(self::K.'/yedek-islem-kayitlari?sonuc=basarisiz')->assertOk()
+            ->assertJsonPath('data.0.hata_mesaji', 'pg_dump: /var/lib/emor-yedek/yedekler: connection to emor_yedek@db failed');
     }
 }

@@ -202,17 +202,56 @@ final class YedekYayinOncesiTest extends TestCase
         $this->assertCount(1, $istekler);
     }
 
-    public function test_servis_yanit_vermezse_yayin_durur_istek_geri_cekilir(): void
+    /**
+     * YF-68: çalıştırıcı isteği hiç üstlenmezse (servis durmuş) yayın 30
+     * dakika değil üstlenme sınırı (90 yoklama) kadar bekler; istek geri çekilir.
+     */
+    public function test_calistirici_istegi_ustlenmezse_yayin_kisa_surede_durur_istek_geri_cekilir(): void
     {
         config(['yedekleme.calistirici' => 'servis']);
         Process::fake();
         Sleep::fake();
 
         $this->artisan('yedek:yayin-oncesi')
-            ->expectsOutputToContain('zamanında işlenmedi')
+            ->expectsOutputToContain('isteği üstlenmedi')
             ->assertFailed();
 
+        Sleep::assertSleptTimes(90);
         $this->assertSame([], app(IstekKutusu::class)->bekleyenler());
+    }
+
+    /**
+     * YF-68: üstlenilmiş iş üstlenme sınırına takılmaz; uzun yedek (ör. 120
+     * yoklama) için uzun bekleme süresi geçerlidir.
+     */
+    public function test_ustlenilen_istek_ustlenme_sinirindan_uzun_surse_de_beklenir(): void
+    {
+        config(['yedekleme.calistirici' => 'servis']);
+        Process::fake();
+        Sleep::fake();
+        $kutu = app(IstekKutusu::class);
+        $kok = config('yedekleme.istek_klasoru');
+        $yoklama = 0;
+        // Çalıştırıcı ilk yoklamada üstlenir (bekleyen → isleniyor), 120. yoklamada bitirir
+        Sleep::whenFakingSleep(function () use ($kutu, $kok, &$yoklama): void {
+            $yoklama++;
+            if ($yoklama === 1) {
+                foreach ($kutu->bekleyenler() as $yol) {
+                    @mkdir($kok.'/isleniyor', 0750, true);
+                    rename($yol, $kok.'/isleniyor/'.basename($yol));
+                }
+            }
+            if ($yoklama === 120) {
+                foreach (glob($kok.'/isleniyor/*.json') ?: [] as $yol) {
+                    unlink($yol);
+                    $kutu->sonucYaz(basename($yol, '.json'), 'tamam');
+                }
+            }
+        });
+
+        $this->artisan('yedek:yayin-oncesi')->assertSuccessful();
+
+        Sleep::assertSleptTimes(120);
     }
 
     public function test_servisten_basarisiz_sonuc_gelirse_yayin_durur(): void

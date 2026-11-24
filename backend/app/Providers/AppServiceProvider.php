@@ -107,6 +107,13 @@ class AppServiceProvider extends ServiceProvider
             $user->izinler(),
         ) !== []);
 
+        // Yedekleme isteğinin durumu: isteği bırakabilen her ekran yoklar —
+        // Yedekler ve Yedek Planları (Şimdi Çalıştır) ayrı izinlerdir (YF-09)
+        Gate::define('yedek-istek-durumu', fn (User $user): bool => array_intersect(
+            [Izin::YedeklerGoruntule->value, Izin::YedekPlanlariGoruntule->value],
+            $user->izinler(),
+        ) !== []);
+
         // Brute-force koruması: IP + kullanıcı adı bazlı
         RateLimiter::for('login', function (Request $request): Limit {
             return Limit::perMinute(5)->by($request->ip().'|'.$request->string('kullanici_adi')->value());

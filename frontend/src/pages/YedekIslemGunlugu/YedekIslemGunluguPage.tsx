@@ -15,43 +15,15 @@ import { Rozet } from '@/features/yedekleme/Rozet'
 import { useIzin } from '@/hooks/useIzin'
 import { bugunIso, gunEkle } from '@/utils/tarih'
 
-import { islemKayitlariniGetir, type IslemKaydi, type IslemKaydiFiltresi } from './islemGunluguApi'
+import {
+  BILINEN_ISLEMLER,
+  islemKayitlariniGetir,
+  type IslemKaydi,
+  type IslemKaydiFiltresi,
+} from './islemGunluguApi'
 
 /** Açılışta son 30 gün — sabit tarih yok, aralık bugüne göre kayar (F2) */
 const VARSAYILAN_GUN = 30
-
-/**
- * Bilinen işlem adları (süzgeç seçenekleri). Liste kapalı değildir:
- * çalıştırıcı yenilerini ekler; bilinmeyen ad çevirisiz, olduğu gibi gösterilir.
- */
-const BILINEN_ISLEMLER = [
-  'istek',
-  'yedek_al',
-  'kopya',
-  'kopya_sil',
-  'saklama_bag',
-  'saklama_sil',
-  'klasor_tara',
-  'sinama_geri_yukleme',
-  'geri_yukle_kopya',
-  'eski_yedekleri_al',
-  'kurtarma_paketi',
-  'sifre_coz',
-  'hedef_ekle',
-  'hedef_guncelle',
-  'hedef_sil',
-  'hedef_sina',
-  'hedef_sunucu_anahtari_sifirla',
-  'hedef_google_baglan',
-  'hedef_google_kes',
-  'plan_ekle',
-  'plan_guncelle',
-  'plan_sil',
-  'ayar_guncelle',
-  'ayar_kopyasi',
-  'sifreleme_anahtari_yukle',
-  'sifreleme_anahtari_kaldir',
-] as const
 
 type Ceviri = (anahtar: string, secenekler?: Record<string, unknown>) => string
 

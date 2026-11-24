@@ -35,11 +35,15 @@ use Throwable;
  *    veritabanına geri yüklenip karşılaştırılır (GeriYukleyici::sina, BY-026).
  *
  * Hata yolunda geçici dosya silinir, kayıt `basarisiz` olur, sonuç denetim
- * kaydına yazılır; yarım dosya listede hiç görünmez. Kopyalama, planlar ve
- * temizlik bu sınıfın işi değildir (BY-008…BY-010).
+ * kaydına yazılır; yarım dosya listede hiç görünmez. Dump asıl adına
+ * taşındıktan SONRAKİ hata yedeği `basarisiz` yapmaz (yedek geçerlidir; D3).
+ * Kopyalama, planlar ve temizlik bu sınıfın işi değildir (BY-008…BY-010).
  */
 final class YedekAlici
 {
+    /** Dump yayımlandı ama kalıcılık, olay günlüğü ya da durum dosyası yazılamadı (denetim ayrıntısında) */
+    public const YAYIM_SONRASI_UYARI = 'YEDEK_YAYIM_SONRASI_UYARI';
+
     public function __construct(
         private readonly YedeklemeYapilandirmasi $yapilandirma,
         private readonly PgAraclari $pg,
@@ -136,6 +140,8 @@ final class YedekAlici
         $asil = $klasor.'/'.$dosyaAdi;
         $gecici = AtomikDosya::geciciAd($asil);
         $manifestYolu = null;
+        // Dump asıl adına taşındı mı: taşımadan SONRAKİ hata "yedek alınmadı" değildir (D3, YF-05)
+        $yayimlandi = false;
 
         try {
             $yaz(YedekAdimi::Basladi->value);
@@ -203,7 +209,21 @@ final class YedekAlici
             if (! @rename($gecici, $asil)) {
                 throw new YedekAlmaHatasi(YedekAlmaHatasi::DOSYA, 'Yedek dosyası asıl adına taşınamadı.');
             }
-            KaliciKlasor::esitle($klasor);
+            $yayimlandi = true;
+
+            // Bundan sonrası yedeği geçersiz kılmaz: dump ve imzalı manifesti yerinde.
+            // Kalıcılık / olay günlüğü / durum dosyası yazılamazsa yedek `tamam`
+            // kalır, denetim kaydı uyarıyı taşır (D3, YF-05).
+            $uyarilar = [];
+            $yayimSonrasi = function (string $ad, callable $is) use (&$uyarilar): void {
+                try {
+                    $is();
+                } catch (Throwable $hata) {
+                    report($hata);
+                    $uyarilar[] = $ad;
+                }
+            };
+            $yayimSonrasi('kalicilik', fn () => KaliciKlasor::esitle($klasor));
 
             $yedek->update([
                 'durum' => YedekDurumu::Tamam,
@@ -211,14 +231,15 @@ final class YedekAlici
                 'imzali' => true,
                 'boyut' => $manifest->boyut,
                 'sha256' => $manifest->sha256,
-                'alinma_zamani' => $zaman,
+                'alinma_zamani' => $zaman->utc(),
                 'bitti' => CarbonImmutable::now(),
             ]);
-            $this->olaylar->ekle(YedekOlayi::simdi($yedek->kimlik, OlayTuru::Dogrulandi, ['durum' => DogrulamaDurumu::OzetTamam->value]));
-            $yaz(YedekAdimi::Bitti->value);
+            $yayimSonrasi('olay_gunlugu', fn () => $this->olaylar->ekle(YedekOlayi::simdi($yedek->kimlik, OlayTuru::Dogrulandi, ['durum' => DogrulamaDurumu::OzetTamam->value])));
+            $yayimSonrasi('islem_durumu', fn () => $yaz(YedekAdimi::Bitti->value));
 
             $this->denetim->kaydet('yedek_al', IslemSonucu::Basarili, $yedek->id, $kullaniciId, $this->sureMs($baslangic), [
                 'kaynak' => $kaynak->value, 'dosya' => $dosyaAdi, 'boyut' => $manifest->boyut,
+                ...($uyarilar === [] ? [] : ['kod' => self::YAYIM_SONRASI_UYARI, 'uyarilar' => $uyarilar]),
             ]);
             $this->sinyal->gonder(YasamSinyali::YEREL);
 
@@ -229,6 +250,16 @@ final class YedekAlici
                 report($hata);
             }
         } catch (Throwable $hata) {
+            if ($yayimlandi) {
+                // Dump ve imzalı manifest yayımlandı: yedek geçerlidir, `basarisiz`
+                // yapılmaz ve dosyalar silinmez (D3). Kayıt `tamam`'a çevrilemediyse
+                // (veritabanı) sonraki yedeğin sahipsiz sonuçlandırması ya da
+                // "Klasörü Tara" onu manifestten tamamlar.
+                report($hata);
+
+                return $yedek->refresh();
+            }
+
             @unlink($gecici);
             // Manifest yazıldı ama dosya taşınamadıysa dosyasız manifest bırakma
             if ($manifestYolu !== null && ! is_file($asil)) {
@@ -236,12 +267,18 @@ final class YedekAlici
             }
 
             [$kod, $mesaj] = $this->hataBilgisi($hata);
-            $yedek->update([
-                'durum' => YedekDurumu::Basarisiz,
-                'hata_kodu' => $kod,
-                'hata_mesaji' => $mesaj,
-                'bitti' => CarbonImmutable::now(),
-            ]);
+            // Kayıt güncellenemese de (veritabanı yok) denetim günlüğü ve bildirim
+            // gider: bildirimci mail ayarını dosya kopyasından da okur (YF-39)
+            try {
+                $yedek->update([
+                    'durum' => YedekDurumu::Basarisiz,
+                    'hata_kodu' => $kod,
+                    'hata_mesaji' => $mesaj,
+                    'bitti' => CarbonImmutable::now(),
+                ]);
+            } catch (Throwable $guncellemeHatasi) {
+                report($guncellemeHatasi);
+            }
 
             try {
                 $yaz(YedekAdimi::Basarisiz->value, ['kod' => $kod, 'mesaj' => $mesaj]);

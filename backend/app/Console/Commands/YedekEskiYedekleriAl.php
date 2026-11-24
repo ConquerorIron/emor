@@ -52,6 +52,16 @@ final class YedekEskiYedekleriAl extends Command
     public function handle(YedeklemeYapilandirmasi $yapilandirma, PgAraclari $pg, ManifestDeposu $manifestler, OlayGunlugu $olaylar, YedekDenetimi $denetim, YedekDeposu $depo): int
     {
         $kaynakKlasor = rtrim((string) $this->option('klasor'), '/');
+
+        // "Yok" ile "erişemiyorum" ayrı (D6; YF-67): glob okunamayan klasörde de
+        // boş döner, komut "dosya yok" deyip başarıyla biterdi. Servis hesabının
+        // klasörü okuyabilmesi kurulumun işidir (sunucu-kurulumu.md §3).
+        if (! is_dir($kaynakKlasor) || ! is_readable($kaynakKlasor) || @scandir($kaynakKlasor) === false) {
+            $this->error("Kaynak klasör okunamıyor (yok ya da bu kullanıcının okuma izni yok): {$kaynakKlasor}");
+
+            return self::FAILURE;
+        }
+
         $dosyalar = glob($kaynakKlasor.'/*_predeploy_*.dump') ?: [];
 
         if ($dosyalar === []) {

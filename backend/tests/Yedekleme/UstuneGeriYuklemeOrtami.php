@@ -146,10 +146,6 @@ trait UstuneGeriYuklemeOrtami
         $sql = (string) $p->input;
         $d = $this->psqlDegiskenleri($p);
 
-        if (str_contains($sql, 'pg_database_size')) {
-            return "1048576\n";
-        }
-
         if (str_contains($sql, 'datacl IS NULL')) {
             $acl = $this->veritabaniYetkileri[$d['ad']] ?? null;
 

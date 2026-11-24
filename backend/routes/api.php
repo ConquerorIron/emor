@@ -59,6 +59,7 @@ use App\Http\Controllers\Api\V1\YedekPlaniController;
 use App\Http\Controllers\Api\V1\YemekKesintisiController;
 use App\Http\Controllers\Api\V1\YemekYuklemeController;
 use App\Models\AlarmKurali;
+use App\Services\Yedekleme\IstekKutusu;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
@@ -77,9 +78,9 @@ Route::prefix('v1')->group(function (): void {
     // (X-Erisim-Anahtari). Yolu değiştirirken bakım modu istisnasını da değiştirin.
     Route::middleware('yedekleme')->withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
         ->prefix('/yedekleme/ustune-geri-yukleme')->name('yedekleme.ustune-geri-yukleme.')->group(function (): void {
-            Route::get('/{islem}/durum', [UstuneGeriYuklemeController::class, 'durum'])->whereUuid('islem')->name('durum');
-            Route::post('/{islem}/onayla', [UstuneGeriYuklemeController::class, 'onayla'])->whereUuid('islem')->name('onayla');
-            Route::post('/{islem}/geri-don', [UstuneGeriYuklemeController::class, 'geriDon'])->whereUuid('islem')->name('geri-don');
+            Route::get('/{islem}/durum', [UstuneGeriYuklemeController::class, 'durum'])->where('islem', IstekKutusu::KIMLIK_DESENI)->name('durum');
+            Route::post('/{islem}/onayla', [UstuneGeriYuklemeController::class, 'onayla'])->where('islem', IstekKutusu::KIMLIK_DESENI)->name('onayla');
+            Route::post('/{islem}/geri-don', [UstuneGeriYuklemeController::class, 'geriDon'])->where('islem', IstekKutusu::KIMLIK_DESENI)->name('geri-don');
         });
 
     Route::middleware(['auth:sanctum', 'aktif'])->group(function (): void {
@@ -942,11 +943,15 @@ Route::prefix('v1')->group(function (): void {
         // (YEDEKLEME_AKTIF) bütün uçlar 409 YEDEKLEME_KAPALI. Değiştiren işlemler
         // istek klasörüne bırakılır, işi çalıştırıcı yapar (202 + istek kimliği).
         Route::middleware('yedekleme')->prefix('/ayarlar')->name('ayarlar.')->group(function (): void {
+            // İsteğin durumunu yoklamak, isteği bırakabilen her ekranın işidir: plan
+            // izinli kullanıcı "Şimdi Çalıştır"ın durumunu da okur (YF-09). Kimlik
+            // küçük harfli UUID (istek kutusunun biçimi; büyük harf 404 — YF-29)
+            Route::get('/yedekler/istekler/{kimlik}', [YedekController::class, 'istek'])
+                ->where('kimlik', IstekKutusu::KIMLIK_DESENI)
+                ->middleware('can:yedek-istek-durumu')->name('yedekler.istek');
             Route::middleware('can:yedekler.goruntule')->group(function (): void {
                 Route::get('/yedekler', [YedekController::class, 'index'])->name('yedekler');
                 Route::get('/yedekler/ozet', [YedekController::class, 'ozet'])->name('yedekler.ozet');
-                Route::get('/yedekler/istekler/{kimlik}', [YedekController::class, 'istek'])
-                    ->whereUuid('kimlik')->name('yedekler.istek');
                 Route::get('/yedek-islem-kayitlari', [YedekIslemKaydiController::class, 'index'])->name('yedek-islem-kayitlari');
                 Route::get('/geri-yuklemeler', [GeriYuklemeController::class, 'index'])->name('geri-yuklemeler');
             });

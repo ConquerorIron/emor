@@ -31,7 +31,9 @@ interface HedefBaglayicisi
     public function sil(string $uzakKimlik): void;
 
     /**
-     * Hedefte bu uygulamanın yazdığı dosyaların kimlikleri.
+     * Hedefte bu uygulamanın yazdığı dosyaların kimlikleri. Bugün üretimde
+     * çağıranı yok (saklama ve dizin kurma kayıtlı kimliklerle çalışır);
+     * testler uzak durumu bununla inceler (YF-51).
      *
      * @return list<string>
      */

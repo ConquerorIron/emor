@@ -8,6 +8,7 @@ use App\Models\YedekHedefi;
 use App\Services\Yedekleme\AtomikDosya;
 use App\Services\Yedekleme\HedefTuru;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
+use Closure;
 use RuntimeException;
 
 /**
@@ -18,9 +19,17 @@ use RuntimeException;
  * verilirse (ör. ikinci disk) dosya oraya atomik kopyalanır. Bir klasör
  * (yazımı ne olursa olsun) tek hedefin deposudur: aynı yeri gösteren ikinci
  * hedef kaydedilmez (HedefKonumu::ayniDepoMu; BY-010-R7).
+ *
+ * Kopya burada şifresiz durur (sunucu dışı değil): klasör uygulama ağacında
+ * (`public/`, `storage/app/public` web'den sunulur) ya da çekirdeğin sanal
+ * dosya sistemlerinde olamaz — kayıtta 422, eskiden kaydedilmiş hedefte
+ * yazmadan önce YAPILANDIRMA (YF-07; yasakKlasorMu).
  */
-final class YerelDiskBaglayicisi implements HedefBaglayicisi
+final class YerelDiskBaglayicisi implements DosyaSistemiHedefi
 {
+    /** Yedek klasörü dışında hedef olamayan kökler (uygulama ağacı ayrıca: base_path) */
+    private const SISTEM_KOKLERI = ['/proc', '/sys', '/dev', '/run'];
+
     public function __construct(
         private readonly YedekHedefi $hedef,
         private readonly YedeklemeYapilandirmasi $yapilandirma,
@@ -29,8 +38,66 @@ final class YerelDiskBaglayicisi implements HedefBaglayicisi
     public static function tanim(HedefTuru $tur = HedefTuru::Yerel): HedefTuruTanimi
     {
         return new HedefTuruTanimi(HedefTuru::Yerel, [
-            new HedefAlani('klasor', 'yedekleme.hedef.alan.klasor', kurallar: ['nullable', 'string', 'max:500', 'regex:#^(/[^/\0]+)+$#D']),
+            new HedefAlani('klasor', 'yedekleme.hedef.alan.klasor', kurallar: [
+                'nullable', 'string', 'max:500', 'regex:#^(/[^/\0]+)+$#D',
+                static function (string $alan, mixed $deger, Closure $hata): void {
+                    if (is_string($deger) && $deger !== '' && self::yasakKlasorMu($deger, app(YedeklemeYapilandirmasi::class))) {
+                        $hata(__('hata.yedek_hedefi_klasor_yasak'));
+                    }
+                },
+            ]),
         ], sunucuDisi: false);
+    }
+
+    /**
+     * Klasör hedef olamayacak bir yerde mi (YF-07): uygulama ağacı
+     * (`base_path()`; `public/` ve web'den sunulan `storage/app/public` dahil)
+     * ya da `/proc`, `/sys`, `/dev`, `/run`. Yapılandırılmış yedek klasörü ve
+     * altı serbesttir (geçiş döneminde `storage/app/yedekler`). `/tmp`
+     * yasak değildir: Yerel hedef zaten sunucu dışı sayılmaz.
+     *
+     * Gerçek konuma bakılır (G19): var olan en uzun ata `realpath` ile çözülür
+     * (sembolik bağlantı ve `..` fiziksel olarak), henüz olmayan parçalar
+     * sadeleştirilip eklenir.
+     */
+    public static function yasakKlasorMu(string $klasor, YedeklemeYapilandirmasi $yapilandirma): bool
+    {
+        $gercek = self::gercekYol($klasor);
+
+        if (self::altindaMi($gercek, self::gercekYol($yapilandirma->klasor()))) {
+            return false;
+        }
+
+        foreach ([base_path(), ...self::SISTEM_KOKLERI] as $kok) {
+            if (self::altindaMi($gercek, self::gercekYol($kok))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function gercekYol(string $yol): string
+    {
+        $ata = $yol;
+        $kalan = [];
+        clearstatcache(true);
+
+        while (($cozulen = @realpath($ata)) === false) {
+            $ust = dirname($ata);
+            if ($ust === $ata) {
+                return self::sadelestir($yol);
+            }
+            array_unshift($kalan, basename($ata));
+            $ata = $ust;
+        }
+
+        return self::sadelestir($cozulen.'/'.implode('/', $kalan));
+    }
+
+    private static function altindaMi(string $yol, string $kok): bool
+    {
+        return $kok !== '/' && ($yol === $kok || str_starts_with($yol, $kok.'/'));
     }
 
     /** Hedef, yedek klasörünün kendisi mi (kopya yok). */
@@ -93,17 +160,26 @@ final class YerelDiskBaglayicisi implements HedefBaglayicisi
 
     public function baglan(): void
     {
-        $klasor = $this->klasor();
+        $klasor = $this->yazilacakKlasor();
 
         if (! is_dir($klasor) || ! is_writable($klasor)) {
             throw new HedefHatasi(HedefHatasi::ERISILEMEDI, "Hedef klasörü yok ya da yazılamıyor: {$klasor}");
         }
     }
 
+    public function varlikDenetle(): void
+    {
+        $klasor = $this->yazilacakKlasor();
+
+        if (! is_dir($klasor)) {
+            throw new HedefHatasi(HedefHatasi::ERISILEMEDI, "Hedef klasörü yok: {$klasor}");
+        }
+    }
+
     public function yaz(string $yerelYol, string $ad): string
     {
         $this->adDenetle($ad);
-        $hedef = $this->klasor().'/'.$ad;
+        $hedef = $this->yazilacakKlasor().'/'.$ad;
 
         // Ana klasör hedefinde kopya yapılmaz; başka bir hedefte aynı dosya
         // (sembolik / sabit bağlantı) bağımsız kopya diye kabul edilmez (D4)
@@ -169,6 +245,24 @@ final class YerelDiskBaglayicisi implements HedefBaglayicisi
     private function klasor(): string
     {
         return self::hedefKlasoru($this->hedef, $this->yapilandirma);
+    }
+
+    /**
+     * Yazılacak klasör: yasak yerdeyse (eskiden kaydedilmiş hedef) yazılmaz.
+     * Okuma ve silme serbest kalır: oraya düşmüş şifresiz kopya saklamayla
+     * ya da elle silinebilsin (YF-07).
+     *
+     * @throws HedefHatasi
+     */
+    private function yazilacakKlasor(): string
+    {
+        $klasor = $this->klasor();
+
+        if (self::yasakKlasorMu($klasor, $this->yapilandirma)) {
+            throw new HedefHatasi(HedefHatasi::YAPILANDIRMA, "Hedef klasörü uygulama ağacında ya da bir sistem klasöründe; şifresiz kopya buraya yazılmaz: {$klasor}");
+        }
+
+        return $klasor;
     }
 
     /** Hedefin yazdığı klasör: boşsa yedek klasörünün kendisi */

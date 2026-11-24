@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace App\Services\Yedekleme\Hedefler;
 
+use Closure;
+
 /**
  * Hedef formundaki bir alanın tanımı. Ekran formu bu tanımlardan çizilir:
  * yeni bir tür ekranda kod değişikliği gerektirmez (BY-016).
  *
  * `gizli` alanlar `gizli_bilgiler`'e (şifreli) yazılır ve hiçbir yanıtta
- * dönmez; düzenlemede boş bırakılırsa değişmez.
+ * dönmez; düzenlemede boş bırakılırsa değişmez. Zorunlu olmayan gizli alanın
+ * kayıtlı değeri isteğin `silinecek_sirlar` listesiyle silinir (YF-49).
+ * Evet / hayır (`EVET_HAYIR`) alanı yalnız boolean değer alır, `bool` saklanır.
  */
 final readonly class HedefAlani
 {
@@ -25,7 +29,7 @@ final readonly class HedefAlani
 
     /**
      * @param  string  $etiket  i18n anahtarı (frontend `yedekleme.hedef.alan.*`)
-     * @param  list<string>  $kurallar  Laravel doğrulama kuralları
+     * @param  list<string|Closure>  $kurallar  Laravel doğrulama kuralları (kapanış: dosya sistemi denetimi gibi bağlayıcıya özgü kural)
      */
     public function __construct(
         public string $ad,

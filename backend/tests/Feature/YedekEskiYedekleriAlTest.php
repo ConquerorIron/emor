@@ -115,6 +115,35 @@ final class YedekEskiYedekleriAlTest extends TestCase
         $this->assertSame(2, Yedek::query()->count());
     }
 
+    /**
+     * YF-67 (D6): okunamayan kaynak klasör "dosya yok" sayılıp başarıyla
+     * bitmez; operatör yedeklerin alındığını sanmasın.
+     */
+    public function test_okunamayan_kaynak_klasor_hata_ile_biter_hicbir_sey_ice_alinmaz(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('root klasör iznini aşar (T11).');
+        }
+        chmod($this->eski, 0000);
+
+        try {
+            $this->artisan('yedek:eski-yedekleri-al', ['--klasor' => $this->eski])
+                ->expectsOutputToContain('okunamıyor')
+                ->assertFailed();
+        } finally {
+            chmod($this->eski, 0750);
+        }
+
+        $this->assertSame(0, Yedek::query()->count());
+    }
+
+    public function test_olmayan_kaynak_klasor_hata_ile_biter(): void
+    {
+        $this->artisan('yedek:eski-yedekleri-al', ['--klasor' => $this->yedekKoku.'/yok'])
+            ->expectsOutputToContain('okunamıyor')
+            ->assertFailed();
+    }
+
     public function test_dizin_yeniden_kurulunca_ice_alindi_isareti_manifestten_gelir(): void
     {
         $this->artisan('yedek:eski-yedekleri-al', ['--klasor' => $this->eski])->assertSuccessful();

@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import '@/i18n/i18n'
 import type { Yedek, YedekListesi, YedekOzeti } from '@/features/yedekleme/yedekApi'
+// Uçtan uca: form → gerçek ilerleme sayfası (yalnız testte; sayfalar birbirini içe aktarmaz)
+import { UstuneGeriYuklemePage } from '@/pages/UstuneGeriYukleme/UstuneGeriYuklemePage'
 import { AppProviders } from '@/providers/AppProviders'
 import { SahteOturum } from '@/test/SahteOturum'
 
@@ -22,11 +24,13 @@ const api = vi.hoisted(() => ({
   sil: vi.fn(),
   kopyaGeriYukle: vi.fn(),
   ustune: vi.fn(),
+  ustuneDurum: vi.fn(),
 }))
 
 vi.mock('@/features/yedekleme/ustuneGeriYuklemeApi', async (asil) => ({
   ...(await asil<typeof import('@/features/yedekleme/ustuneGeriYuklemeApi')>()),
   ustuneGeriYukle: api.ustune,
+  ustuneDurumGetir: api.ustuneDurum,
 }))
 
 vi.mock('@/features/yedekleme/geriYuklemeApi', async (asil) => ({
@@ -134,6 +138,7 @@ const OZET: YedekOzeti = {
   bos_alan: 10737418240,
   toplam_alan: 53687091200,
   canli_veritabani: 'erp',
+  ustune_geri_yukleme_hazir: true,
 }
 
 function liste(yedekler: Yedek[]): YedekListesi {
@@ -283,7 +288,7 @@ describe('YedeklerPage', () => {
   it('sayfadan ayrılıp dönünce süren işi yoklamaya devam eder; hata kodunu çevirerek bildirir', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'setInterval'], shouldAdvanceTime: true })
     sessionStorage.setItem(
-      'erp.yedekleme.istekler.v1.yedekler',
+      'erp.yedekleme.istekler.v2.kullanici.1.yedekler',
       JSON.stringify([{ kimlik: ISTEK_2, tur: 'sil' }]),
     )
     api.istek
@@ -303,7 +308,7 @@ describe('YedeklerPage', () => {
       ),
     ).toBeInTheDocument()
     await waitFor(() =>
-      expect(sessionStorage.getItem('erp.yedekleme.istekler.v1.yedekler')).toBeNull(),
+      expect(sessionStorage.getItem('erp.yedekleme.istekler.v2.kullanici.1.yedekler')).toBeNull(),
     )
     expect(screen.getByRole('button', { name: 'Şimdi Yedek Al' })).toBeEnabled()
   })
@@ -667,6 +672,89 @@ describe('YedeklerPage', () => {
       within(await satir(YEDEK.dosya_adi)).getByRole('button', { name: 'Üstüne geri yükle' }),
     ).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Üstüne geri yükle' })).toHaveLength(1)
+  })
+
+  it('servis çalıştırıcısı yokken (geçiş kipi) "Üstüne geri yükle" kapalıdır ve nedenini söyler (YF-63)', async () => {
+    api.ozet.mockResolvedValue({ ...OZET, ustune_geri_yukleme_hazir: false })
+    ciz(['yedekler.goruntule'], true)
+
+    const dugme = within(await satir(YEDEK.dosya_adi)).getByRole('button', {
+      name: 'Üstüne geri yükle',
+    })
+    await waitFor(() => expect(dugme).toHaveAttribute('title', expect.stringContaining('servis')))
+    expect(dugme).toBeDisabled()
+    fireEvent.click(dugme)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('üstüne geri yükleme yanıtı beklenirken ikinci gönderim ikinci işlem başlatmaz (F5, YF-10)', async () => {
+    api.ustune.mockReturnValue(new Promise(() => undefined))
+    ciz(['yedekler.goruntule'], true)
+
+    fireEvent.click(
+      within(await satir(YEDEK.dosya_adi)).getByRole('button', { name: 'Üstüne geri yükle' }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(await within(dialog).findByLabelText(/canlı veritabanının adını/), {
+      target: { value: 'erp' },
+    })
+    const baslat = within(dialog).getByRole('button', { name: 'Üstüne geri yüklemeyi başlat' })
+    fireEvent.click(baslat)
+    fireEvent.click(baslat)
+
+    await waitFor(() => expect(api.ustune).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(baslat).toBeDisabled())
+    expect(api.ustune).toHaveBeenCalledTimes(1)
+  })
+
+  it('tarayıcı deposu yazılamasa da ilerleme sayfası başlatılan işlemi anahtarıyla izler (YF-10)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-21T10:00:00Z'))
+    api.ustune.mockResolvedValue({
+      istek_kimligi: ISTEK_1,
+      islem_kimligi: ISTEK_1,
+      erisim_anahtari: 'a'.repeat(64),
+      erisim_anahtari_bitis: '2026-11-21T18:00:00+00:00',
+      durum: 'kuyrukta',
+    })
+    api.ustuneDurum.mockReturnValue(new Promise(() => undefined))
+    render(
+      <AppProviders>
+        <SahteOturum izinler={['yedekler.goruntule']} sistemYoneticisi yedeklemeAktif>
+          <MemoryRouter initialEntries={['/ayarlar/yedekler']}>
+            <Routes>
+              <Route path="/ayarlar/yedekler" element={<YedeklerPage />} />
+              <Route
+                path="/ayarlar/geri-yuklemeler/ustune/:islemKimligi"
+                element={<UstuneGeriYuklemePage />}
+              />
+            </Routes>
+          </MemoryRouter>
+        </SahteOturum>
+      </AppProviders>,
+    )
+    fireEvent.click(
+      within(await satir(YEDEK.dosya_adi)).getByRole('button', { name: 'Üstüne geri yükle' }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(await within(dialog).findByLabelText(/canlı veritabanının adını/), {
+      target: { value: 'erp' },
+    })
+    const kota = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('dolu', 'QuotaExceededError')
+    })
+
+    try {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Üstüne geri yüklemeyi başlat' }))
+
+      await waitFor(() =>
+        expect(api.ustuneDurum).toHaveBeenCalledWith(ISTEK_1, 'a'.repeat(64), null),
+      )
+      expect(localStorage.getItem('erp.yedekleme.ustuneGeriYukleme.v1')).toBeNull()
+      expect(screen.queryByText(/erişim anahtarı bu tarayıcıda yok/)).not.toBeInTheDocument()
+    } finally {
+      kota.mockRestore()
+    }
   })
 
   it('üstüne geri yükleme yedeğin tarihini ve kaybı yazar; canlı adı aynen yazılmadan başlamaz', async () => {

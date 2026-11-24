@@ -4,7 +4,9 @@ declare(strict_types=1);
 use Illuminate\Support\Env;
 
 /**
- * scripts/gecici-gunluk-yedek.sh için .env okuyucu (BY-001).
+ * Kabuk betikleri için .env okuyucu (BY-001'de artık kaldırılmış
+ * gecici-gunluk-yedek.sh için yazıldı; bugün scripts/sunucu-yedekleme-kurulumu.sh
+ * kullanır: yalnız DB_HOST, DB_PORT, DB_USERNAME).
  *
  * .env'i kabukta elle ayrıştırmak yerine uygulamanın kendi kodunu kullanır:
  *  1. vlucas/phpdotenv dosyayı ayrıştırır (tırnak, kaçış, satır sonu yorumu);

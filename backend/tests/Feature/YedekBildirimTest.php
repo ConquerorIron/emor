@@ -8,6 +8,7 @@ use App\Mail\YedeklemeMaili;
 use App\Models\MailAyari;
 use App\Models\Yedek;
 use App\Models\YedekAyari;
+use App\Models\YedekPlani;
 use App\Services\Yedekleme\AyarKopyasi;
 use App\Services\Yedekleme\DogrulamaDurumu;
 use App\Services\Yedekleme\IslemSonucu;
@@ -24,6 +25,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Process;
+use RuntimeException;
 use Tests\TestCase;
 use Tests\Yedekleme\YedeklemeOrtami;
 
@@ -62,6 +64,49 @@ final class YedekBildirimTest extends TestCase
 
         Mail::assertSent(YedeklemeMaili::class, fn (YedeklemeMaili $m): bool => $m->hasTo('bt@ornek.test') && $m->baslik === 'Yedek alınamadı');
         Mail::assertNothingQueued();
+    }
+
+    /**
+     * YF-39: hata yolunda yedek kaydı güncellenemese de (veritabanı yazımı
+     * düşer) denetim kaydı yazılır ve "yedek alınamadı" maili gider.
+     */
+    public function test_basarisiz_yedegin_kaydi_guncellenemese_de_mail_gider(): void
+    {
+        $this->sahtePgAraclari(['*pg_dump*--file=*' => Process::result(errorOutput: 'pg_dump: error', exitCode: 1)]);
+        $kancaCalisti = false;
+        Yedek::updating(function (Yedek $yedek) use (&$kancaCalisti): void {
+            if ($yedek->durum === YedekDurumu::Basarisiz) {
+                $kancaCalisti = true;
+                throw new RuntimeException('veritabanı yazılamıyor');
+            }
+        });
+
+        $yedek = app(YedekAlici::class)->al($this->kilitAl(), YedekKaynagi::Elle);
+
+        // Kanca gerçekten çalıştı (T14): kayıt `basarisiz`'a geçemedi
+        $this->assertTrue($kancaCalisti);
+        $this->assertSame(YedekDurumu::Calisiyor, $yedek->durum);
+        Mail::assertSent(YedeklemeMaili::class, fn (YedeklemeMaili $m): bool => $m->baslik === 'Yedek alınamadı');
+    }
+
+    /** YF-39: yedek kaydı hiç açılamazsa (veritabanı yazılamıyor) zamanlayıcı bildirir. */
+    public function test_planli_yedegin_kaydi_acilamazsa_zamanlayici_mail_gonderir(): void
+    {
+        config(['yedekleme.aktif' => true]);
+        $this->sahtePgAraclari();
+        $plan = YedekPlani::factory()->create();
+        $plan->forceFill(['sonraki_calisma' => CarbonImmutable::now()->subMinute()])->save();
+        $kancaCalisti = false;
+        Yedek::creating(function () use (&$kancaCalisti): void {
+            $kancaCalisti = true;
+            throw new RuntimeException('veritabanı yazılamıyor');
+        });
+
+        $this->artisan('yedek:zamanla')->assertFailed();
+
+        $this->assertTrue($kancaCalisti);
+        Mail::assertSent(YedeklemeMaili::class, fn (YedeklemeMaili $m): bool => $m->baslik === 'Yedek alınamadı'
+            && str_contains(implode("\n", $m->satirlar), 'Planlı yedek çalıştırılamadı: RuntimeException'));
     }
 
     /** Geri yükleme sırasında mail ayarı veritabanında olmayabilir: dosya kopyasından gönderilir. */

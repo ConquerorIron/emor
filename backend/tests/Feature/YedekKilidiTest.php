@@ -145,6 +145,31 @@ final class YedekKilidiTest extends TestCase
         $this->assertTrue($kilit->al());
     }
 
+    /**
+     * YF-36 (D1): kilidi tutan süreç bir alt süreç (pg_dump gibi) başlatıp
+     * öldürülürse kilit hemen düşer; alt süreç kilidin tutamacını miras almaz.
+     */
+    public function test_alt_surec_baslatan_surec_olunce_kilit_alt_surec_bitmeden_duser(): void
+    {
+        $kod = 'require $argv[3]; $k = new App\Services\Yedekleme\YedekKilidi($argv[1], $argv[2]); $k->al() || exit(1);'
+            .' $bos = ["file", "/dev/null", "r"]; $yaz = ["file", "/dev/null", "w"];'
+            .' $c = proc_open(["sleep", "60"], [$bos, $yaz, $yaz], $p); echo "cocuk ".proc_get_status($c)["pid"]."\n"; sleep(60);';
+        $surec = Process::timeout(60)->start([PHP_BINARY, '-r', $kod, $this->yol, $this->kaliciKok, base_path('vendor/autoload.php')]);
+        $this->surecler[] = $surec;
+        $surec->waitUntil(fn (string $tur, string $cikti): bool => str_contains($cikti, "\n"));
+        $this->assertSame(1, preg_match('/cocuk (\d+)/', $surec->output(), $eslesme));
+        $cocuk = (int) $eslesme[1];
+
+        try {
+            $surec->signal(self::SIGKILL);
+            $surec->wait();
+
+            $this->assertTrue((new YedekKilidi($this->yol, $this->kaliciKok))->al());
+        } finally {
+            Process::run(['kill', '-9', (string) $cocuk]);
+        }
+    }
+
     public function test_kilit_tutulurken_flock_komutu_da_alamaz(): void
     {
         $this->flockKomutuGerekli();

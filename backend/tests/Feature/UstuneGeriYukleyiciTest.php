@@ -64,9 +64,17 @@ final class UstuneGeriYukleyiciTest extends TestCase
     {
         $yedek = $this->ustuneYedekAl();
         $this->veritabaniYetkileri['erp'] = self::OZGUN;
+        // Geri yüklenen veritabanı yedeğin anındadır: bu işlemin geçmiş satırı da
+        // öncesi yedeğin dizin kaydı da onda yoktur (SQLite'ta veritabanı aynıdır;
+        // kanca canlıdaki gerçek durumu kurar — YF-15)
+        $this->yerDegistirmeSonrasi = function (): void {
+            GeriYukleme::query()->delete();
+            Yedek::query()->where('kaynak', YedekKaynagi::GeriYuklemeOncesi->value)->delete();
+        };
 
         [$kayit] = $this->ustuneBaslat($yedek, $this->yonetici->id);
 
+        $this->assertNull($this->kancaHatasi, 'Kanca çalışmadı: '.$this->kancaHatasi?->getMessage());
         $this->assertSame(UstuneGeriYuklemeAdimi::OnayBekliyor->value, $kayit->adim);
         $this->assertTrue($kayit->acik);
         $this->assertNull($kayit->hata);
@@ -95,16 +103,54 @@ final class UstuneGeriYukleyiciTest extends TestCase
         $this->assertTrue($this->bakimdaBuIslemle($kayit->kimlik));
         $this->assertNotContains('systemctl start emor-queue', $this->komutlar);
 
-        // Geçmiş kaydı dosyadan yazıldı; öncesi yedek bağlı
+        // Geçmiş kaydı dosyadan yeniden yazıldı (satır yoktu: ileri akışın adımları
+        // dosyadan kurulur); öncesi yedek klasörden kurulan dizin kaydına bağlı
         $geri = GeriYukleme::query()->where('kimlik', $kayit->kimlik)->firstOrFail();
         $this->assertSame(GeriYuklemeTuru::Ustune, $geri->tur);
         $this->assertSame(GeriYuklemeDurumu::OnayBekliyor, $geri->durum);
         $this->assertSame($onceki, $geri->onceki_veritabani);
+        $this->assertSame(['adim' => UstuneGeriYuklemeAdimi::OnDenetim->value, 'durum' => 'tamam'], array_intersect_key($geri->adimlar[0] ?? [], ['adim' => 1, 'durum' => 1]));
         $oncesi = Yedek::query()->findOrFail($geri->getAttribute('oncesi_yedek_id'));
         $this->assertSame(YedekKaynagi::GeriYuklemeOncesi, $oncesi->kaynak);
+        $this->assertTrue($oncesi->imzali);
+
+        // YF-40: bağlantı sayımı ve sonlandırması yalnız istemci oturumlarında
+        // (otomatik vakum işçisi ve diğer arka uçlar sayılmaz, sinyallenmez)
+        Process::assertDidntRun(fn ($p): bool => str_contains((string) $p->input, 'pg_stat_activity') && ! str_contains((string) $p->input, "backend_type = 'client backend'"));
+        $this->assertTrue($this->psqlCalisti('ALLOW_CONNECTIONS false', 'erp'));
 
         $this->assertIsArray(app(OnayBilgisi::class)->bilgiOku($kayit->kimlik));
         Mail::assertSent(YedeklemeMaili::class, 2);
+    }
+
+    /**
+     * YF-13: anahtar değiştirilip eskisi APP_PREVIOUS_KEYS'e alındıysa eski
+     * yedekteki şifreli alanlar çözülür; parmak izi taşımayan manifest (anahtar
+     * tanımsızken alınmış) denetlenemez, geri yüklemeyi engellemez.
+     *
+     * @return array<string, array{0: string}>
+     */
+    public static function appKeyKabulu(): array
+    {
+        return [
+            'yedeği alan anahtar önceki anahtarlarda' => ['onceki'],
+            'manifestte parmak izi yok' => ['izsiz'],
+        ];
+    }
+
+    #[DataProvider('appKeyKabulu')]
+    public function test_onceki_anahtarla_ya_da_parmak_izsiz_alinmis_yedek_on_denetimden_gecer(string $durum): void
+    {
+        $eski = (string) config('app.key');
+        if ($durum === 'izsiz') {
+            config(['app.key' => null]);
+        }
+        $yedek = $this->ustuneYedekAl();
+        config(['app.key' => 'base64:'.base64_encode(random_bytes(32)), 'app.previous_keys' => $durum === 'onceki' ? [$eski] : []]);
+
+        [$kayit] = $this->ustuneBaslat($yedek, $this->yonetici->id);
+
+        $this->assertSame(UstuneGeriYuklemeAdimi::OnayBekliyor->value, $kayit->adim, (string) json_encode($kayit->hata));
     }
 
     /**
@@ -267,12 +313,29 @@ final class UstuneGeriYukleyiciTest extends TestCase
             'servis rolünün parola dosyası yok' => ['parola', GeriYuklemeHatasi::SERVIS_ROLU_GEREKLI],
             'uygulama zaten bakım modunda' => ['bakim', GeriYuklemeHatasi::BAKIM_MODU],
             'hedef ad zaten var' => ['hedef', GeriYuklemeHatasi::HEDEF_VAR],
+            // YF-13: şifreli alanlar bugünkü anahtarlarla çözülemezdi
+            'yedek bugünkü ve önceki APP_KEY dışındaki anahtarla alınmış' => ['app_key', GeriYuklemeHatasi::APP_KEY_UYUMSUZ],
+            // YF-14: imzalı manifestten bilinen retler kesintiden önce
+            'manifestte liste türü veritabanı ayarı' => ['liste_ayari', GeriYuklemeHatasi::VERITABANI_OZELLIGI],
+            'yedek sunucudan yeni araçla alınmış' => ['sunucu_eski', GeriYuklemeHatasi::PG_SURUMU],
+            'yedek pg_restore\'dan yeni araçla alınmış' => ['pg_restore_eski', GeriYuklemeHatasi::PG_SURUMU],
+            'manifest yetkisindeki rol artık yok' => ['acl_rolu_yok', GeriYuklemeHatasi::VERITABANI_YETKILERI],
+            // YF-45: canlının kimliğine bağlı özellikleri ad değiştirmeyle kaybolurdu
+            'canlıda rol düzeyi veritabanı ayarı' => ['rol_ayari', GeriYuklemeHatasi::VERITABANI_OZELLIGI],
+            'canlıda bağlantı sınırı' => ['baglanti_siniri', GeriYuklemeHatasi::VERITABANI_OZELLIGI],
+            'canlıda libc dışı sıralama sağlayıcısı' => ['icu', GeriYuklemeHatasi::VERITABANI_OZELLIGI],
         ];
     }
 
     #[DataProvider('onDenetimReddi')]
     public function test_on_denetim_reddinde_hicbir_sey_degismez(string $durum, string $kod): void
     {
+        // Manifeste yazılanlar yedekten önce kurulur
+        match ($durum) {
+            'liste_ayari' => $this->kaynakVeritabani->ozellikler['ayarlar'] = ['search_path=public'],
+            'acl_rolu_yok' => $this->kaynakVeritabani->ozellikler['baglanma_yetkileri'] = '{erp=CTc/erp,emekli_rol=c/erp}',
+            default => null,
+        };
         $yedek = $this->ustuneYedekAl();
         $onay = 'erp';
         match ($durum) {
@@ -282,6 +345,13 @@ final class UstuneGeriYukleyiciTest extends TestCase
             'parola' => config(['yedekleme.parola_dosyasi' => null]),
             'bakim' => file_put_contents(storage_path('framework/down'), '{"status":503}'),
             'hedef' => $this->veritabanlari[] = 'erp_onceki_'.now('Europe/Istanbul')->format('Ymd_His'),
+            'app_key' => config(['app.key' => 'base64:'.base64_encode(random_bytes(32)), 'app.previous_keys' => ['base64:'.base64_encode(random_bytes(32))]]),
+            'sunucu_eski' => $this->sunucuSurumNo = '170004',
+            'pg_restore_eski' => $this->sahteUstune(['*pg_restore*--version*' => 'pg_restore (PostgreSQL) 17.2']),
+            'rol_ayari' => $this->canliOzellikleri = "1,-1,c\n",
+            'baglanti_siniri' => $this->canliOzellikleri = "0,20,c\n",
+            'icu' => $this->canliOzellikleri = "0,-1,i\n",
+            default => null,
         };
 
         [$kayit] = $this->ustuneBaslat($yedek, $this->yonetici->id, $onay);
@@ -511,6 +581,138 @@ final class UstuneGeriYukleyiciTest extends TestCase
         $this->komutlar = [];
         $this->assertFalse(app(UstuneGeriYukleyici::class)->yaridaKalaniIsle());
         $this->assertSame([], $this->komutlar);
+    }
+
+    /**
+     * YF-41: 6. adımda bağlantılar kapatılamadı ve adlar da OKUNAMADI
+     * (PostgreSQL o an erişilemiyor). Bu "adlar tutarsız" değildir: adım
+     * değişmez, çalıştırıcı sonraki turda yeniden dener; PostgreSQL dönünce
+     * geri sarılır ve uygulama açılır.
+     */
+    public function test_adlar_okunamazsa_karar_yoneticiye_kilitlenmez_sonraki_turda_geri_sarilir(): void
+    {
+        $yedek = $this->ustuneYedekAl();
+        $this->kapatmaHatasi = 'psql: error: connection to server failed';
+        $erisilemez = true;
+        // Sunucu bağlantı kapatma denemesiyle birlikte erişilemez oldu (ön denetim okuyabilmişti)
+        $this->sahteUstune(['*psql*' => function ($p) use (&$erisilemez) {
+            if ($erisilemez && in_array('kapat erp', $this->komutlar, true) && str_contains((string) $p->input, 'datname IN')) {
+                return Process::result(errorOutput: 'psql: error: connection to server failed', exitCode: 2);
+            }
+
+            return $this->psqlUstune($p);
+        }]);
+
+        [$kayit] = $this->ustuneBaslat($yedek, $this->yonetici->id);
+
+        $this->assertSame(UstuneGeriYuklemeAdimi::BaglantiKapatma->value, $kayit->adim);
+        $this->assertSame(GeriYuklemeHatasi::ADLAR_OKUNAMADI, $kayit->hata['kod'] ?? null);
+        $this->assertTrue($kayit->acik);
+        $this->assertTrue($this->bakimdaBuIslemle($kayit->kimlik));
+        $this->assertContains($kayit->hedefVeritabani, $this->veritabanlari);
+
+        // PostgreSQL döndü: çalıştırıcının sonraki turu geri sarar
+        $erisilemez = false;
+        $this->kapatmaHatasi = null;
+        $this->assertTrue(app(UstuneGeriYukleyici::class)->yaridaKalaniIsle());
+
+        $son = $this->durumOku();
+        $this->assertSame(UstuneGeriYuklemeAdimi::Basarisiz->value, $son?->adim);
+        $this->assertFalse($son->acik);
+        $this->assertSame(['erp', 'postgres'], $this->veritabanlari);
+        $this->assertFalse(app(BakimModu::class)->aktifMi());
+        $this->assertContains('systemctl start emor-queue', $this->komutlar);
+    }
+
+    /**
+     * YF-15: onay ya da geri dönüş sürerken ölen işlem çalıştırıcıda tamamlanır.
+     */
+    public function test_onaylanirken_olen_islem_onayi_tamamlar_uygulamayi_acar(): void
+    {
+        $yedek = $this->ustuneYedekAl();
+        $kayit = $this->durumYaz(UstuneGeriYuklemeAdimi::Onaylaniyor, true, yedekKimligi: $yedek->kimlik, isteyen: $this->yonetici->id, bariyer: ['baglanma_yetkileri' => self::OZGUN]);
+        $this->bakimDosyasiYaz($kayit->kimlik);
+        $this->veritabanlari = ['erp', 'postgres', (string) $kayit->oncekiVeritabani];
+        $this->baglantiyaKapali = [(string) $kayit->oncekiVeritabani => true];
+
+        $this->assertTrue(app(UstuneGeriYukleyici::class)->yaridaKalaniIsle());
+
+        $son = $this->durumOku();
+        $this->assertSame(UstuneGeriYuklemeAdimi::Onaylandi->value, $son?->adim);
+        $this->assertFalse($son->acik);
+        $this->assertFalse(app(BakimModu::class)->aktifMi());
+        $this->assertContains('systemctl start emor-queue', $this->komutlar);
+        // Adlara dokunulmadı; eski veritabanı özgün yetkileriyle ve kapalı bekliyor
+        $this->assertSame(['erp', 'postgres', (string) $kayit->oncekiVeritabani], $this->veritabanlari);
+        $this->assertSame([(string) $kayit->oncekiVeritabani => true], $this->baglantiyaKapali);
+        $this->assertSame(self::OZGUN, $this->veritabaniYetkileri[(string) $kayit->oncekiVeritabani]);
+        $this->assertSame(GeriYuklemeDurumu::Tamam, GeriYukleme::query()->where('kimlik', $kayit->kimlik)->firstOrFail()->durum);
+    }
+
+    /**
+     * @return array<string, array{0: bool}>
+     */
+    public static function geriDonusAdlari(): array
+    {
+        return [
+            'adlar hâlâ yer değişmiş (ad değiştirmeden önce öldü)' => [true],
+            'adlar geri çevrilmiş (açmadan önce öldü)' => [false],
+        ];
+    }
+
+    #[DataProvider('geriDonusAdlari')]
+    public function test_geri_donulurken_olen_islem_adlara_gore_geri_donusu_tamamlar(bool $yerDegismis): void
+    {
+        $yedek = $this->ustuneYedekAl();
+        $kayit = $this->durumYaz(UstuneGeriYuklemeAdimi::GeriDonuluyor, true, yedekKimligi: $yedek->kimlik, isteyen: $this->yonetici->id, bariyer: ['baglanma_yetkileri' => self::OZGUN]);
+        $this->bakimDosyasiYaz($kayit->kimlik);
+        $hedef = (string) $kayit->hedefVeritabani;
+        $onceki = (string) $kayit->oncekiVeritabani;
+        $this->veritabanlari = ['erp', 'postgres', $yerDegismis ? $onceki : $hedef];
+        $this->baglantiyaKapali = $yerDegismis ? [$onceki => true] : ['erp' => true];
+
+        $this->assertTrue(app(UstuneGeriYukleyici::class)->yaridaKalaniIsle());
+
+        $this->assertSame(UstuneGeriYuklemeAdimi::GeriDonuldu->value, $this->durumOku()?->adim);
+        // erp yeniden eski veritabanı, açık ve özgün yetkileriyle; geri yüklenen kopya silinmeden kapalı
+        $this->assertEqualsCanonicalizing(['erp', 'postgres', $hedef], $this->veritabanlari);
+        $this->assertSame($yerDegismis ? [$hedef => true] : [], $this->baglantiyaKapali);
+        $this->assertSame(self::OZGUN, $this->veritabaniYetkileri['erp']);
+        $this->assertSame($yerDegismis, in_array("yer erp>{$hedef} {$onceki}>erp", $this->komutlar, true));
+        $this->assertFalse(app(BakimModu::class)->aktifMi());
+        $this->assertContains('systemctl start emor-queue', $this->komutlar);
+    }
+
+    /**
+     * YF-15: geri sarmanın kendisi düşerse işlem açık kalır (bakım modu
+     * sürer); sorun geçince çalıştırıcının sonraki turu geri sarmayı bitirir.
+     */
+    public function test_geri_sarma_hatasi_islemi_acik_birakir_sonraki_turda_tamamlanir(): void
+    {
+        $kayit = $this->durumYaz(UstuneGeriYuklemeAdimi::PgRestore, true, bariyer: ['baglanma_yetkileri' => self::OZGUN]);
+        $this->veritabaniYetkileri['erp'] = '{emor_yedek=c/erp}';
+        $this->bakimDosyasiYaz($kayit->kimlik);
+        $this->veritabanlari[] = (string) $kayit->hedefVeritabani;
+        $this->silmeHatasi = 'ERROR:  database is being accessed by other users';
+
+        $this->assertTrue(app(UstuneGeriYukleyici::class)->yaridaKalaniIsle());
+
+        $ara = $this->durumOku();
+        $this->assertSame(UstuneGeriYuklemeAdimi::GeriSariliyor->value, $ara?->adim);
+        $this->assertSame(GeriYuklemeHatasi::VERITABANI_SILINEMEDI, $ara->hata['kod'] ?? null);
+        $this->assertTrue($ara->acik);
+        $this->assertTrue($this->bakimdaBuIslemle($kayit->kimlik));
+        $this->assertContains($kayit->hedefVeritabani, $this->veritabanlari);
+
+        $this->silmeHatasi = null;
+        $this->assertTrue(app(UstuneGeriYukleyici::class)->yaridaKalaniIsle());
+
+        $son = $this->durumOku();
+        $this->assertSame(UstuneGeriYuklemeAdimi::Basarisiz->value, $son?->adim);
+        $this->assertFalse($son->acik);
+        $this->assertSame(['erp', 'postgres'], $this->veritabanlari);
+        $this->assertSame(self::OZGUN, $this->veritabaniYetkileri['erp']);
+        $this->assertFalse(app(BakimModu::class)->aktifMi());
     }
 
     /**

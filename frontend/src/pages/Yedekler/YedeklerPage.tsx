@@ -1,7 +1,6 @@
-import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
@@ -18,7 +17,7 @@ import { boyutGoster, istanbulZamani } from '@/features/yedekleme/bicim'
 import { kopyaGeriYukle } from '@/features/yedekleme/geriYuklemeApi'
 import { IstekSeridi } from '@/features/yedekleme/IstekSeridi'
 import { Rozet, type RozetRengi } from '@/features/yedekleme/Rozet'
-import { useIstekAnahtarlari } from '@/features/yedekleme/useIstekAnahtarlari'
+import { useIsBirakma } from '@/features/yedekleme/useIsBirakma'
 import { useIstekTakibi } from '@/features/yedekleme/useIstekTakibi'
 import {
   aciklamaKaydet,
@@ -217,41 +216,20 @@ export function YedeklerPage() {
     }
   }, [sonSayfa, sayfa])
 
-  // İstek gönderilirken (yanıt gelip yoklama başlamadan) de yeni iş başlatılmaz:
-  // ardışık tıklama ikinci bir iş bırakmasın (BY-015-R1). `isPending` düğmeyi
-  // bir sonraki çizimde kapatır; aradaki tıklamayı eşzamanlı bayrak yakalar.
-  const gonderiliyor = useRef(false)
-  // Yanıtı alınamayan iş sunucuda kabul edilmiş olabilir: aynı işin yeniden
-  // denemesi — sayfa yenilendikten sonra da — aynı istek anahtarını taşır,
-  // ikinci iş bırakılmaz (BY-014-R2, BY-014-R3). Depoda açıklama metni değil
-  // eylemin özeti durur (BY-014-R4)
-  const istekAnahtarlari = useIstekAnahtarlari(`kullanici.${kullanici?.id ?? 'yok'}`)
-  const istek = useMutation({
-    mutationFn: async (yeni: YedekIstegi) => {
-      const bekleyen = await istekAnahtarlari.hazirla(yeni)
-      const kabul = await istegiBirak(yeni, bekleyen.anahtar)
-      await bekleyen.kabulEdildi()
-
-      return kabul
-    },
-    onSuccess: (kabul, gonderilen) => {
+  // Çift tıklama kilidi + yeniden denemede aynı istek anahtarı (BY-015-R1,
+  // BY-014-R2…R4): ortak akış useIsBirakma
+  const { birak: isiBirak, gonderiliyor: isBirakiliyor } = useIsBirakma(
+    istegiBirak,
+    (kabul, gonderilen: YedekIstegi) => {
       baslat(kabul, gonderilen.tur)
       setYeniYedekAcik(false)
       setNotDuzenlenen(null)
       setOnayBekleyen(null)
       setKopyaYuklenecek(null)
     },
-    onError: (error: unknown) => toast.error(t(apiErrorKey(error))),
-    onSettled: () => {
-      gonderiliyor.current = false
-    },
-  })
-  const isiBirak = (yeni: YedekIstegi) => {
-    if (gonderiliyor.current) return
-    gonderiliyor.current = true
-    istek.mutate(yeni)
-  }
-  const isBirakiliyor = istek.isPending
+  )
+  // Üstüne geri yükleme yalnız servis çalıştırıcısında başlatılabilir (YF-63)
+  const ustuneHazir = ozet.data?.ustune_geri_yukleme_hazir === true
   // İş sürerken (yoklanırken) ve liste tazelenirken işlem başlatılmaz
   const kilitli = calisiyor || isBirakiliyor || yenileniyor
 
@@ -487,7 +465,10 @@ export function YedeklerPage() {
             {yonetici && yedek.webden_geri_yuklenebilir && !yedek.ice_alindi ? (
               <Button
                 variant="danger"
-                disabled={kilitli}
+                disabled={kilitli || !ustuneHazir}
+                title={
+                  ozet.data && !ustuneHazir ? t('hata.GERI_YUKLEME_SERVIS_GEREKLI') : undefined
+                }
                 onClick={() => setUstuneYuklenecek(yedek)}
               >
                 {t('yedekleme.ustune.dugme')}
@@ -656,7 +637,7 @@ export function YedeklerPage() {
               id="yeni-yedek-aciklama"
               baslangic=""
               onayEtiketi={t('yedekleme.yedekler.yedekAl')}
-              yukleniyor={istek.isPending}
+              yukleniyor={isBirakiliyor}
               gonder={(aciklama) => isiBirak({ tur: 'yedek_al', aciklama })}
               kapat={() => setYeniYedekAcik(false)}
             />
@@ -674,7 +655,7 @@ export function YedeklerPage() {
             id="yedek-not"
             baslangic={notDuzenlenen.aciklama ?? ''}
             onayEtiketi={t('ortak.kaydet')}
-            yukleniyor={istek.isPending}
+            yukleniyor={isBirakiliyor}
             gonder={(aciklama) =>
               isiBirak({ tur: 'aciklama', kimlik: notDuzenlenen.kimlik, aciklama })
             }
@@ -691,7 +672,7 @@ export function YedeklerPage() {
         {kopyaYuklenecek !== null ? (
           <KopyaGeriYukleFormu
             yedek={kopyaYuklenecek}
-            yukleniyor={istek.isPending}
+            yukleniyor={isBirakiliyor}
             gonder={(ek) =>
               isiBirak({ tur: 'kopya_geri_yukle', kimlik: kopyaYuklenecek.kimlik, ek })
             }
@@ -732,7 +713,7 @@ export function YedeklerPage() {
         onayEtiketi={t(
           onayBekleyen?.tur === 'sabit_coz' ? 'yedekleme.yedekler.sabitCoz' : 'ortak.sil',
         )}
-        yukleniyor={istek.isPending}
+        yukleniyor={isBirakiliyor}
         onayla={() => {
           if (onayBekleyen !== null) {
             isiBirak({ tur: onayBekleyen.tur, kimlik: onayBekleyen.yedek.kimlik })

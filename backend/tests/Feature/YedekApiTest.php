@@ -10,8 +10,10 @@ use App\Models\Yedek;
 use App\Models\YedekHedefi;
 use App\Models\YedekIslemKaydi;
 use App\Models\YedekKopyasi;
+use App\Models\YedekPlani;
 use App\Services\Yedekleme\IstekKutusu;
 use App\Services\Yedekleme\KopyaDurumu;
+use App\Services\Yedekleme\YedekDurumu;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -67,8 +69,8 @@ final class YedekApiTest extends TestCase
         return [
             'liste' => ['get', '/yedekler', 'yedekler.goruntule'],
             'özet' => ['get', '/yedekler/ozet', 'yedekler.goruntule'],
-            'istek durumu' => ['get', "/yedekler/istekler/{$k}", 'yedekler.goruntule'],
             'işlem günlüğü' => ['get', '/yedek-islem-kayitlari', 'yedekler.goruntule'],
+            'geri yükleme listesi' => ['get', '/geri-yuklemeler', 'yedekler.goruntule'],
             'yedek al' => ['post', '/yedekler', 'yedekler.al'],
             'tara' => ['post', '/yedekler/tara', 'yedekler.al'],
             'doğrula' => ['post', "/yedekler/{$k}/dogrula", 'yedekler.al'],
@@ -76,17 +78,80 @@ final class YedekApiTest extends TestCase
             'sabitle' => ['post', "/yedekler/{$k}/sabit", 'yedekler.sil'],
             'sabit çöz' => ['delete', "/yedekler/{$k}/sabit", 'yedekler.sil'],
             'sil' => ['delete', "/yedekler/{$k}", 'yedekler.sil'],
+            // Hedefler, planlar, ayarlar (YF-16): {hedef} / {plan} testte gerçek kayıtla değişir
+            'hedef listesi' => ['get', '/yedek-hedefleri', 'yedek_planlari.goruntule'],
+            'hedef türleri' => ['get', '/yedek-hedefleri/turler', 'yedek_planlari.goruntule'],
+            'plan listesi' => ['get', '/yedek-planlari', 'yedek_planlari.goruntule'],
+            'plan önizleme' => ['post', '/yedek-planlari/onizleme', 'yedek_planlari.goruntule'],
+            'ayarlar' => ['get', '/yedek-ayarlari', 'yedek_planlari.goruntule'],
+            'hedef ekle' => ['post', '/yedek-hedefleri', 'yedek_planlari.guncelle'],
+            'hedef güncelle' => ['put', '/yedek-hedefleri/{hedef}', 'yedek_planlari.guncelle'],
+            'hedef sil' => ['delete', '/yedek-hedefleri/{hedef}', 'yedek_planlari.guncelle'],
+            'hedef sına' => ['post', '/yedek-hedefleri/sina', 'yedek_planlari.guncelle'],
+            'sunucu anahtarı sıfırla' => ['post', '/yedek-hedefleri/{hedef}/sunucu-anahtari-sifirla', 'yedek_planlari.guncelle'],
+            'google bağlan' => ['post', '/yedek-hedefleri/{hedef}/google/baglan', 'yedek_planlari.guncelle'],
+            'google dönüş' => ['post', '/yedek-hedefleri/google/donus', 'yedek_planlari.guncelle'],
+            'google kes' => ['post', '/yedek-hedefleri/{hedef}/google/kes', 'yedek_planlari.guncelle'],
+            'google seçici' => ['post', '/yedek-hedefleri/{hedef}/google/secici', 'yedek_planlari.guncelle'],
+            'google klasör' => ['post', '/yedek-hedefleri/{hedef}/google/klasor', 'yedek_planlari.guncelle'],
+            'plan ekle' => ['post', '/yedek-planlari', 'yedek_planlari.guncelle'],
+            'plan güncelle' => ['put', '/yedek-planlari/{plan}', 'yedek_planlari.guncelle'],
+            'plan sil' => ['delete', '/yedek-planlari/{plan}', 'yedek_planlari.guncelle'],
+            'plan çalıştır' => ['post', '/yedek-planlari/{plan}/calistir', 'yedek_planlari.guncelle'],
+            'ayar güncelle' => ['put', '/yedek-ayarlari', 'yedek_planlari.guncelle'],
+            'şifreleme anahtarı yükle' => ['put', '/yedek-ayarlari/sifreleme-anahtari', 'yedek_planlari.guncelle'],
+            'şifreleme anahtarı kaldır' => ['delete', '/yedek-ayarlari/sifreleme-anahtari', 'yedek_planlari.guncelle'],
         ];
     }
 
     #[DataProvider('uclar')]
     public function test_her_uc_girissiz_401_izinsiz_403(string $yontem, string $yol, string $izin): void
     {
+        $yol = strtr($yol, ['{hedef}' => (string) YedekHedefi::factory()->create()->id, '{plan}' => (string) YedekPlani::factory()->create()->id]);
         $this->json($yontem, self::K.$yol)->assertUnauthorized()->assertJsonPath('kod', 'YETKISIZ');
 
         // Görüntüleme izni değiştiren uçları açmaz; başka ekranın izni hiçbirini açmaz
-        $baska = $izin === 'yedekler.goruntule' ? 'yedek_planlari.goruntule' : 'yedekler.goruntule';
+        $baska = match ($izin) {
+            'yedekler.goruntule' => 'yedek_planlari.goruntule',
+            'yedek_planlari.guncelle' => 'yedek_planlari.goruntule',
+            default => 'yedekler.goruntule',
+        };
         $this->actingAs($this->izinli($baska))->json($yontem, self::K.$yol)->assertForbidden()->assertJsonPath('kod', 'ERISIM_ENGELLI');
+    }
+
+    /**
+     * YF-16 (README §8): iş bırakan uçlar kullanıcı başına dakikada 10 istekle
+     * sınırlıdır; 11. istek 429 döner ve istek dosyası yazmaz.
+     */
+    public function test_is_birakan_uclar_kullanici_basina_hiz_sinirlidir(): void
+    {
+        $this->actingAs($this->izinli('yedekler.goruntule', 'yedekler.al'));
+        foreach (range(1, 10) as $_) {
+            $this->postJson(self::K.'/yedekler/tara')->assertStatus(202);
+        }
+
+        $this->postJson(self::K.'/yedekler/tara')->assertStatus(429);
+        $this->assertCount(10, app(IstekKutusu::class)->bekleyenler());
+    }
+
+    /**
+     * YF-09: isteğin durumunu isteği bırakabilen her ekran okur (Yedekler ya da
+     * Yedek Planları — "Şimdi Çalıştır"); başka ekranın izni okuyamaz.
+     * YF-29: kimlik küçük harfli UUID'dir; büyük harf 500 değil 404.
+     */
+    public function test_istek_durumunu_yedek_ya_da_plan_izni_okur_buyuk_harfli_kimlik_404(): void
+    {
+        $k = '00000000-0000-4000-8000-0000000000ab';
+        $this->getJson(self::K."/yedekler/istekler/{$k}")->assertUnauthorized();
+        $this->actingAs($this->izinli('kullanicilar.goruntule'))->getJson(self::K."/yedekler/istekler/{$k}")->assertForbidden();
+
+        foreach (['yedekler.goruntule', 'yedek_planlari.goruntule'] as $izin) {
+            $this->actingAs($this->izinli($izin))->getJson(self::K."/yedekler/istekler/{$k}")
+                ->assertNotFound()->assertJsonPath('kod', 'ISTEK_BULUNAMADI');
+        }
+
+        $this->getJson(self::K.'/yedekler/istekler/'.strtoupper($k))->assertNotFound();
+        $this->getJson('/api/v1/yedekleme/ustune-geri-yukleme/'.strtoupper($k).'/durum', ['X-Erisim-Anahtari' => str_repeat('a', 43)])->assertNotFound();
     }
 
     public function test_modul_kapaliyken_uclar_409_yedekleme_kapali(): void
@@ -327,12 +392,28 @@ final class YedekApiTest extends TestCase
             ->assertOk()->assertJsonPath('data.canli_veritabani', 'erp')->assertJsonStructure(['data' => ['son_yerel', 'son_uzak', 'son_sinama', 'siradaki']]);
     }
 
+    /** YF-63: üstüne geri yükleme yalnız servis çalıştırıcısında yapılabilir; ekran düğmeyi buna göre açar */
+    public function test_ozet_ustune_geri_yuklemenin_yalniz_servis_calistiricisinda_hazir_oldugunu_soyler(): void
+    {
+        $this->actingAs($this->izinli('yedekler.goruntule'));
+
+        config(['yedekleme.calistirici' => 'dogrudan']);
+        $this->getJson(self::K.'/yedekler/ozet')->assertOk()->assertJsonPath('data.ustune_geri_yukleme_hazir', false);
+        config(['yedekleme.calistirici' => 'servis']);
+        $this->getJson(self::K.'/yedekler/ozet')->assertOk()->assertJsonPath('data.ustune_geri_yukleme_hazir', true);
+    }
+
     public function test_gecersiz_girdi_422_kod_alaniyla(): void
     {
         $this->actingAs($this->izinli('yedekler.goruntule', 'yedekler.al'))
             ->postJson(self::K.'/yedekler', ['aciklama' => str_repeat('a', 501)])
             ->assertStatus(422)->assertJsonPath('kod', 'DOGRULAMA');
         $this->getJson(self::K.'/yedekler?siralama=dosya_adi;drop')->assertStatus(422)->assertJsonPath('kod', 'DOGRULAMA');
+        // Bozuk UTF-8 (form kodlu gövde) 500 değil 422; istek ve denetim kaydı yazılmaz (YF-32)
+        $this->post(self::K.'/yedekler', ['aciklama' => "a\xC3\x28"], ['Accept' => 'application/json'])
+            ->assertStatus(422)->assertJsonPath('kod', 'DOGRULAMA');
+        $this->assertSame([], app(IstekKutusu::class)->bekleyenler());
+        $this->assertSame(0, YedekIslemKaydi::query()->count());
     }
 
     public function test_sabitlenmis_yedek_silinemez_409(): void
@@ -386,6 +467,25 @@ final class YedekApiTest extends TestCase
             ->assertStatus(409)->assertJsonPath('kod', 'GERI_YUKLEME_OZEL_ANAHTAR_GEREKLI');
 
         $this->assertSame([], app(IstekKutusu::class)->bekleyenler());
+    }
+
+    /**
+     * YF-17 (T6): alınma zamanı olmayan başarısız deneme, yapıldığı ana göre
+     * sıralanır; boyutsuz kayıt iki yönde de sondadır. SQLite ve PostgreSQL'de
+     * aynı sonucu vermeli (PostgreSQL NULL'ları DESC'te başa koyar).
+     */
+    public function test_liste_basarisiz_denemeyi_yapildigi_ana_gore_siralar_iki_veritabaninda_ayni(): void
+    {
+        $this->actingAs($this->izinli('yedekler.goruntule'));
+        $t1 = Yedek::factory()->create(['alinma_zamani' => '2026-11-20 10:00:00', 'created_at' => '2026-11-20 10:00:00', 'boyut' => 300]);
+        $basarisiz = Yedek::factory()->create(['durum' => YedekDurumu::Basarisiz, 'alinma_zamani' => null, 'boyut' => null, 'created_at' => '2026-11-21 10:00:00']);
+        $t3 = Yedek::factory()->create(['alinma_zamani' => '2026-11-22 10:00:00', 'created_at' => '2026-11-22 10:00:00', 'boyut' => 100]);
+        $sira = fn (string $sorgu): array => array_column($this->getJson(self::K.'/yedekler?'.$sorgu)->assertOk()->json('data'), 'kimlik');
+
+        $this->assertSame([$t1->kimlik, $basarisiz->kimlik, $t3->kimlik], $sira('yon=asc'));
+        $this->assertSame([$t3->kimlik, $basarisiz->kimlik, $t1->kimlik], $sira('yon=desc'));
+        $this->assertSame([$t3->kimlik, $t1->kimlik, $basarisiz->kimlik], $sira('siralama=boyut&yon=asc'));
+        $this->assertSame([$t1->kimlik, $t3->kimlik, $basarisiz->kimlik], $sira('siralama=boyut&yon=desc'));
     }
 
     public function test_liste_dosya_yolu_ve_hata_metni_dondurmez_kopyalari_gosterir(): void

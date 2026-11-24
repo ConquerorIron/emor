@@ -35,6 +35,8 @@ trait YedeklemeOrtami
 
         config([
             'yedekleme.klasor' => $this->yedekKoku.'/yedekler',
+            // Varsayılan (<klasor>/.calisma) klasordekiDosyalar()'a karışmasın; varsayılan YedeklemeYapilandirmasiTest'te
+            'yedekleme.calisma_klasoru' => $this->yedekKoku.'/calisma',
             'yedekleme.durum_klasoru' => $this->yedekKoku.'/durum',
             'yedekleme.kalici_kok' => sys_get_temp_dir(),
             'yedekleme.imza_anahtari' => $this->yedekKoku.'/imza.key',

@@ -110,6 +110,10 @@ final class DizinKurucu
         $durumlar = OlayGunlugu::durumlaraAyir($okunan['olaylar']);
         $gorulenAdlar = [];
 
+        // Hedefler, kullanıcılar ve plan-hedef ilişkileri bir kez okunur: manifest ve
+        // kopya olayı başına sorgu yok (YF-53)
+        $onbellek = $this->onbellek();
+
         $manifestler = array_filter($dosyalar, fn (string $ad): bool => ! str_starts_with($ad, '.') && str_ends_with($ad, '.json'));
         $dumplar = array_filter($dosyalar, fn (string $ad): bool => ! str_starts_with($ad, '.') && str_ends_with($ad, '.dump'));
         $guvenilirDumplar = [];
@@ -124,7 +128,7 @@ final class DizinKurucu
                 }
 
                 $manifest = $sonuc->manifest;
-                $yeni = $this->manifesttenKur($manifest, $durumlar[$manifest->kimlik] ?? GuncelDurum::hesapla([]), $klasor, $sayac);
+                $yeni = $this->manifesttenKur($manifest, $durumlar[$manifest->kimlik] ?? GuncelDurum::hesapla([]), $klasor, $sayac, $onbellek);
                 $sayac['guvenilir']++;
                 $sayac['eklenen'] += $yeni ? 1 : 0;
                 $gorulenAdlar[$manifest->dosyaAdi] = true;
@@ -154,7 +158,7 @@ final class DizinKurucu
         // Diskte olmayan kayıtlar: silinmez, "dosya yok" olur. Yalnız tamamlanmış
         // yedekler: başarısız denemenin hiç dosyası olmadı, `basarisiz` kalır
         // (saklamanın "son deneme başarısız" temkini onu görür; BY-007-R1)
-        foreach (Yedek::query()->where('durum', YedekDurumu::Tamam->value)->get() as $yedek) {
+        foreach (Yedek::query()->where('durum', YedekDurumu::Tamam->value)->lazyById(500) as $yedek) {
             if (isset($gorulenAdlar[$yedek->dosya_adi]) || is_file($klasor.'/'.$yedek->dosya_adi)) {
                 continue;
             }
@@ -178,13 +182,22 @@ final class DizinKurucu
 
     /**
      * @param  array<string, int>  $sayac
+     * @param  array{hedefler: array<int, YedekHedefi>, adlar: array<string, YedekHedefi>, kullanicilar: array<int, true>, plan_hedefleri: array<int, list<int>>}  $onbellek
      * @return bool Yeni kayıt mı açıldı
      */
-    private function manifesttenKur(YedekManifesti $m, GuncelDurum $durum, string $klasor, array &$sayac): bool
+    private function manifesttenKur(YedekManifesti $m, GuncelDurum $durum, string $klasor, array &$sayac, array $onbellek): bool
     {
-        return DB::transaction(function () use ($m, $durum, $klasor, &$sayac): bool {
-            $yedek = Yedek::query()->where('kimlik', $m->kimlik)->first() ?? new Yedek(['kimlik' => $m->kimlik]);
+        return DB::transaction(function () use ($m, $durum, $klasor, &$sayac, $onbellek): bool {
+            // Manifest önceki taramada güvenilmezdi (anahtar yoktu, `.json` sonradan
+            // geldi): dosya o zaman deterministik kimlikle güvenilmeyen kaydı aldı.
+            // O kayıt devralınır (id ve bağları korunur); yoksa aynı dosya adı
+            // tekil indekse çarpar, yedek hep güvenilmeyen kalırdı (G21, YF-18)
+            $yedek = Yedek::query()->where('kimlik', $m->kimlik)->first()
+                ?? Yedek::query()->where('dosya_adi', $m->dosyaAdi)->where('imzali', false)
+                    ->where('kimlik', self::dosyaKimligi($m->dosyaAdi))->first()
+                ?? new Yedek;
             $yeni = ! $yedek->exists;
+            $yedek->kimlik = $m->kimlik;
             $dump = $klasor.'/'.$m->dosyaAdi;
             $dumpVar = is_file($dump) && @filesize($dump) === $m->boyut;
 
@@ -193,14 +206,14 @@ final class DizinKurucu
                 'kaynak' => $m->kaynak,
                 'boyut' => $m->boyut,
                 'sha256' => $m->sha256,
-                'alinma_zamani' => $m->alinmaZamani,
-                'bitti' => $yedek->bitti ?? $m->alinmaZamani,
+                'alinma_zamani' => $m->alinmaZamani->utc(),
+                'bitti' => $yedek->bitti ?? $m->alinmaZamani->utc(),
                 'imzali' => true,
                 'ice_alindi' => $m->iceAlindi,
                 'sabit' => $durum->sabit,
                 'aciklama' => $durum->aciklamaDegisti ? $durum->aciklama : $m->aciklama,
                 'dogrulama_durumu' => $durum->dogrulama ?? DogrulamaDurumu::OzetTamam,
-                'alan_kullanici_id' => $m->alanKullaniciId !== null && User::query()->whereKey($m->alanKullaniciId)->exists() ? $m->alanKullaniciId : null,
+                'alan_kullanici_id' => $m->alanKullaniciId !== null && isset($onbellek['kullanicilar'][$m->alanKullaniciId]) ? $m->alanKullaniciId : null,
                 'hata_kodu' => null,
                 'hata_mesaji' => null,
                 'yerel_silinme_zamani' => $dumpVar ? null : ($yedek->yerel_silinme_zamani ?? $durum->yerelSilinme ?? CarbonImmutable::now()),
@@ -217,9 +230,9 @@ final class DizinKurucu
             foreach ($durum->kopyalar as $anahtar => $k) {
                 $anahtar = (string) $anahtar;
                 $kopyaDurumu = KopyaDurumu::from($k['durum']);
-                $bilinen = ($k['hedef_id'] !== null ? YedekHedefi::query()->find($k['hedef_id']) : null)
-                    ?? ($k['hedef_ad'] !== null ? YedekHedefi::query()->where('ad', $k['hedef_ad'])->first() : null);
-                $hedef = $kopyaDurumu === KopyaDurumu::Tamam ? $this->izdekiHedef($k['konum_izi'], $bilinen) : $bilinen;
+                $bilinen = ($k['hedef_id'] !== null ? ($onbellek['hedefler'][$k['hedef_id']] ?? null) : null)
+                    ?? ($k['hedef_ad'] !== null ? ($onbellek['adlar'][$k['hedef_ad']] ?? null) : null);
+                $hedef = $kopyaDurumu === KopyaDurumu::Tamam ? $this->izdekiHedef($k['konum_izi'], $bilinen, $onbellek['hedefler']) : $bilinen;
 
                 if ($hedef === null) {
                     $sayac['bulunamayan_hedef']++;
@@ -276,7 +289,7 @@ final class DizinKurucu
                 ])->save();
 
                 // Bağlar yalnız planın bu hedefle gerçek ilişkisi varsa (bileşik anahtar; BY-004-R8)
-                $gecerli = DB::table('yedek_plan_hedefleri')->where('yedek_hedefi_id', $hedef->id)->whereIn('yedek_plani_id', $k['plan_idleri'])->pluck('yedek_plani_id')->all();
+                $gecerli = array_values(array_intersect(array_map('intval', $k['plan_idleri']), $onbellek['plan_hedefleri'][$hedef->id] ?? []));
                 $kopya->planlar()->sync(array_fill_keys(array_map('intval', $gecerli), ['yedek_hedefi_id' => $hedef->id]));
 
                 // Yeri doğrulanamayan kopya da yedeği tutar: dosya bir yerde durabilir (BY-028-R7)
@@ -359,14 +372,37 @@ final class DizinKurucu
      * `konum_belirsiz` bağlanır; BY-028-R5) ya da null (hedefi tanımsız kopya).
      * İzsiz olay yalnız kimlik / adla eşlenir.
      */
-    private function izdekiHedef(?string $iz, ?YedekHedefi $bilinen): ?YedekHedefi
+    /**
+     * @param  array<int, YedekHedefi>  $hedefler  Kimlik sırasıyla bütün hedefler (onbellek())
+     */
+    private function izdekiHedef(?string $iz, ?YedekHedefi $bilinen, array $hedefler): ?YedekHedefi
     {
         if ($iz === null || ($bilinen !== null && $this->konum->konumdaMi($bilinen, $iz))) {
             return $bilinen;
         }
 
-        return YedekHedefi::query()->orderBy('id')->get()
-            ->first(fn (YedekHedefi $h): bool => $this->konum->konumdaMi($h, $iz)) ?? $bilinen;
+        return collect($hedefler)->first(fn (YedekHedefi $h): bool => $this->konum->konumdaMi($h, $iz)) ?? $bilinen;
+    }
+
+    /**
+     * Taramanın tanım eşlemleri; tarama boyunca bir kez okunur (YF-53).
+     *
+     * @return array{hedefler: array<int, YedekHedefi>, adlar: array<string, YedekHedefi>, kullanicilar: array<int, true>, plan_hedefleri: array<int, list<int>>}
+     */
+    private function onbellek(): array
+    {
+        $hedefler = YedekHedefi::query()->orderBy('id')->get()->keyBy('id')->all();
+        $planHedefleri = [];
+        foreach (DB::table('yedek_plan_hedefleri')->get(['yedek_hedefi_id', 'yedek_plani_id']) as $bag) {
+            $planHedefleri[(int) $bag->yedek_hedefi_id][] = (int) $bag->yedek_plani_id;
+        }
+
+        return [
+            'hedefler' => $hedefler,
+            'adlar' => collect($hedefler)->keyBy('ad')->all(),
+            'kullanicilar' => array_fill_keys(User::query()->pluck('id')->map(fn ($id): int => (int) $id)->all(), true),
+            'plan_hedefleri' => $planHedefleri,
+        ];
     }
 
     /**

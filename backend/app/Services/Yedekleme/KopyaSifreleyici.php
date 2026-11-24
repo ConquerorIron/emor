@@ -13,6 +13,7 @@ use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -27,7 +28,9 @@ use Throwable;
  *   (yeniden denenmez); gpg süre aşımı ve geçici klasör / disk sorunu
  *   `gecici` işaretli SifrelemeHatasi'dır, kopya sınırlı denenir (D8).
  * - Her işlem kendi geçici anahtarlığında (GNUPGHOME, 0700) yapılır; işlem
- *   bitince (hata yolunda da) ajanı kapatılır ve klasör silinir. Kullanıcının
+ *   bitince (hata yolunda da) ajanı kapatılır ve klasör silinir; öldürülen
+ *   bir işlemden kalan eski anahtarlıklar yenisi açılmadan silinir, kesme
+ *   sinyalinde `yedek:sifre-coz` açık anahtarlığı siler (YF-28). Kullanıcının
  *   ya da servis hesabının kendi anahtarlığına dokunulmaz.
  * - gpg argüman dizisiyle, kabuksuz ve süre sınırıyla çalışır (D1). Parola
  *   komut satırına girmez, yalnız dosyasının yolu verilir (D2).
@@ -48,6 +51,9 @@ class KopyaSifreleyici
 
     /** libgpg-error GPG_ERR_BAD_PASSPHRASE */
     private const GPG_HATA_PAROLA = 11;
+
+    /** @var array<string, true> O anda açık geçici anahtarlıklar (sinyalde silinir) */
+    private array $acikAnahtarliklar = [];
 
     public function __construct(private readonly YedeklemeYapilandirmasi $yapilandirma) {}
 
@@ -278,25 +284,51 @@ class KopyaSifreleyici
      */
     private function geciciAnahtarlikla(Closure $is): mixed
     {
-        $ev = sys_get_temp_dir().'/emor-gpg-'.bin2hex(random_bytes(8));
+        // Geçersiz süre ayarı (YapilandirmaHatasi) kalıcıdır: yukarı taşınır (G9)
+        $yas = $this->yapilandirma->artikKlasorYasi();
 
-        if (! @mkdir($ev, 0700) || ! chmod($ev, 0700)) {
+        try {
+            // Anahtarlık küçük ve sır taşır (çözmede özel anahtar): sistem geçici klasöründe kalır.
+            // Öldürülmüş bir işlemden kalan eski anahtarlıklar önce silinir (YF-28)
+            $ev = GeciciKlasor::ac(sys_get_temp_dir(), 'emor-gpg-', $yas, 8);
+        } catch (RuntimeException) {
             throw new SifrelemeHatasi(SifrelemeHatasi::ARAC, 'Geçici anahtarlık klasörü açılamadı.', gecici: true);
         }
+
+        $this->acikAnahtarliklar[$ev] = true;
 
         try {
             return $is($ev);
         } finally {
-            foreach ([['--kill', 'all'], ['--remove-socketdir']] as $arguman) {
-                try {
-                    Process::timeout(self::ANAHTAR_SURESI)->env(['GNUPGHOME' => false])
-                        ->run([$this->yapilandirma->arac('gpgconf'), '--homedir', $ev, ...$arguman]);
-                } catch (Throwable) {
-                    // Ajan zaten yoksa ya da kapatılamadıysa: klasör yine silinir, ajan soketi kaybolunca kendisi çıkar
-                }
-            }
-            File::deleteDirectory($ev);
+            $this->anahtarligiKapat($ev);
         }
+    }
+
+    /**
+     * Bu nesnenin o anda açık geçici anahtarlıklarını kapatır ve siler.
+     * Kesme sinyalinde (Ctrl-C, SIGTERM) `finally` çalışmaz: `yedek:sifre-coz`
+     * sinyal yakalayıcısından çağrılır; içe alınan özel anahtar sunucuda kalmasın (YF-28).
+     */
+    public function acikAnahtarliklariSil(): void
+    {
+        foreach (array_keys($this->acikAnahtarliklar) as $ev) {
+            $this->anahtarligiKapat($ev);
+        }
+    }
+
+    /** Ajanı kapatır (hata yolunda da), klasörü siler */
+    private function anahtarligiKapat(string $ev): void
+    {
+        foreach ([['--kill', 'all'], ['--remove-socketdir']] as $arguman) {
+            try {
+                Process::timeout(self::ANAHTAR_SURESI)->env(['GNUPGHOME' => false])
+                    ->run([$this->yapilandirma->arac('gpgconf'), '--homedir', $ev, ...$arguman]);
+            } catch (Throwable) {
+                // Ajan zaten yoksa ya da kapatılamadıysa: klasör yine silinir, ajan soketi kaybolunca kendisi çıkar
+            }
+        }
+        File::deleteDirectory($ev);
+        unset($this->acikAnahtarliklar[$ev]);
     }
 
     /**

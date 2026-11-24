@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Yedekleme;
 
 use App\Models\Yedek;
+use App\Models\YedekKopyasi;
 use Carbon\CarbonImmutable;
 use LogicException;
 
@@ -22,6 +23,8 @@ use LogicException;
  * - Yoksa `basarisiz` (`YEDEK_YARIDA_KALDI`): geçici dosyalar ve dosyası
  *   olmayan manifest silinir; son başarısız deneme saklamanın temkin
  *   kuralına görünür.
+ * - `bekliyor` / `kopyalaniyor` kalmış kopyalar `basarisiz` olur
+ *   (`KOPYA_YARIDA_KALDI`; YF-04).
  *
  * "Dosya yok" kararı ancak doğrulanmış depoda verilir (D3, D6; BY-011-R4):
  * hiçbir kayda dokunmadan önce yedek klasörü depo işaretiyle doğrulanır
@@ -32,6 +35,8 @@ use LogicException;
 final class SahipsizYedekler
 {
     public const YARIDA_KALDI = 'YEDEK_YARIDA_KALDI';
+
+    public const KOPYA_YARIDA_KALDI = 'KOPYA_YARIDA_KALDI';
 
     public function __construct(
         private readonly YedeklemeYapilandirmasi $yapilandirma,
@@ -55,7 +60,7 @@ final class SahipsizYedekler
 
         $this->depo->hazirla();
 
-        $sayac = ['tamamlanan' => 0, 'yarida_kalan' => 0];
+        $sayac = ['tamamlanan' => 0, 'yarida_kalan' => 0, 'yarida_kalan_kopya' => 0];
 
         foreach (Yedek::query()->where('durum', YedekDurumu::Calisiyor->value)->orderBy('id')->get() as $yedek) {
             if ($this->tamamla($yedek)) {
@@ -66,7 +71,31 @@ final class SahipsizYedekler
             }
         }
 
+        // Kopya da yalnız kilit altında yapılır: kilidi yeni alan için `bekliyor` /
+        // `kopyalaniyor` kopya ölen sürecindir. Sonuçlanmazsa yedek kalıcı
+        // "kullanımda" sayılır (silinemez, saklama dokunmaz) ve hedefin konum
+        // alanları kilitli kalır (YF-04)
+        $takilanlar = YedekKopyasi::query()
+            ->whereIn('durum', [KopyaDurumu::Bekliyor->value, KopyaDurumu::Kopyalaniyor->value])
+            ->with(['yedek', 'hedef'])
+            ->orderBy('id')
+            ->get();
+        foreach ($takilanlar as $kopya) {
+            $this->kopyaYaridaKaldi($kopya);
+            $sayac['yarida_kalan_kopya']++;
+        }
+
         return $sayac;
+    }
+
+    private function kopyaYaridaKaldi(YedekKopyasi $kopya): void
+    {
+        $mesaj = 'Kopyalayan süreç işi bitirmeden durdu; kopya tamamlanmadı.';
+        $kopya->fill(['durum' => KopyaDurumu::Basarisiz, 'hata_kodu' => self::KOPYA_YARIDA_KALDI, 'hata_mesaji' => $mesaj])->save();
+        $this->olaylar->ekle(YedekOlayi::kopya($kopya, $kopya->yedek->kimlik, $kopya->hedef->ad));
+        $this->denetim->kaydet('kopya', IslemSonucu::Basarisiz, $kopya->yedek_id, null, null, [
+            'hedef' => $kopya->hedef->ad, 'kod' => self::KOPYA_YARIDA_KALDI,
+        ], $mesaj);
     }
 
     private function tamamla(Yedek $yedek): bool
@@ -86,7 +115,7 @@ final class SahipsizYedekler
             'imzali' => true,
             'boyut' => $manifest->boyut,
             'sha256' => $manifest->sha256,
-            'alinma_zamani' => $manifest->alinmaZamani,
+            'alinma_zamani' => $manifest->alinmaZamani->utc(),
             'bitti' => CarbonImmutable::now(),
         ]);
         $this->denetim->kaydet('yedek_al', IslemSonucu::Basarili, $yedek->id, $yedek->alan_kullanici_id, null, [

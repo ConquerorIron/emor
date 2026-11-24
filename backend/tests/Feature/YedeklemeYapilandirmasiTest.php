@@ -138,6 +138,70 @@ final class YedeklemeYapilandirmasiTest extends TestCase
     }
 
     /**
+     * YF-02, YF-43: üstüne geri yükleme isteğinin ömrü ve bekleyen kopya
+     * sınırı — tanımsız / boş varsayılana döner (G6), verilen kullanılır,
+     * geçersiz sessizce dönüştürülmez (G9).
+     */
+    public function test_ustune_istek_omru_ve_bekleyen_kopya_siniri_bos_gecerli_ve_gecersiz_degerde(): void
+    {
+        $ayarlar = ['YEDEKLEME_USTUNE_ISTEK_OMRU_DK' => ['ustune_istek_omru_dk', 'ustuneIstekOmruDakika', 15], 'YEDEKLEME_BEKLEYEN_KOPYA_SINIRI' => ['bekleyen_kopya_siniri', 'bekleyenKopyaSiniri', 3]];
+        $okuyucu = app(YedeklemeYapilandirmasi::class);
+
+        try {
+            foreach ($ayarlar as $degisken => [$anahtar, $yontem, $varsayilan]) {
+                foreach ([null, ''] as $bos) {
+                    $this->ortam($degisken, $bos);
+                    config(["yedekleme.{$anahtar}" => $this->yapilandirma()[$anahtar]]);
+                    $this->assertSame($varsayilan, $okuyucu->{$yontem}(), "{$degisken} boş");
+                }
+
+                $this->ortam($degisken, '45');
+                config(["yedekleme.{$anahtar}" => $this->yapilandirma()[$anahtar]]);
+                $this->assertSame(45, $okuyucu->{$yontem}());
+
+                // '0' boş sayılır (config'in `?:` kalıbı): varsayılana döner, sınırsıza değil
+                foreach (['abc', '-5', '1.5'] as $gecersiz) {
+                    $this->ortam($degisken, $gecersiz);
+                    config(["yedekleme.{$anahtar}" => $this->yapilandirma()[$anahtar]]);
+                    try {
+                        $okuyucu->{$yontem}();
+                        $this->fail("{$degisken}={$gecersiz} kabul edildi");
+                    } catch (YapilandirmaHatasi) {
+                        // beklenen
+                    }
+                }
+            }
+        } finally {
+            foreach (array_keys($ayarlar) as $degisken) {
+                $this->ortam($degisken, null);
+            }
+        }
+    }
+
+    /**
+     * YF-28: büyük geçici dosyaların kökü — boşsa yedek klasörünün diskinde
+     * (`<klasor>/.calisma`; /tmp sunucuda bellektir), verilince o mutlak yol;
+     * göreli yol açık hatadır (G9).
+     */
+    public function test_calisma_klasoru_bossa_yedek_klasorunun_altinda_verilince_o_yol_goreli_yol_hata(): void
+    {
+        $okuyucu = new YedeklemeYapilandirmasi;
+        config(['yedekleme.klasor' => '/var/lib/emor-yedek/yedekler']);
+
+        foreach ([null, ''] as $bos) {
+            config(['yedekleme.calisma_klasoru' => $bos]);
+            $this->assertSame('/var/lib/emor-yedek/yedekler/.calisma', $okuyucu->calismaKlasoru());
+        }
+
+        config(['yedekleme.calisma_klasoru' => '/srv/yedek-gecici/']);
+        $this->assertSame('/srv/yedek-gecici', $okuyucu->calismaKlasoru());
+
+        config(['yedekleme.calisma_klasoru' => 'gecici']);
+        $this->expectException(YapilandirmaHatasi::class);
+        $okuyucu->calismaKlasoru();
+    }
+
+    /**
      * Yapılandırma dosyasını o anki ortamla yeniden değerlendirir.
      *
      * @return array<string, mixed>

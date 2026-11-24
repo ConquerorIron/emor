@@ -86,6 +86,19 @@ if [[ -f backend/artisan ]]; then
   fi
 fi
 
+# --------- Yayın betiği (deploy.sh) testi ---------
+# Root, veritabanı ya da ağ istemez (sahte komutlarla çalışır); deploy.sh'taki
+# bir gerileme canlıdan önce burada görülür (YF-69). Testin yayın kilidi
+# senaryoları flock ister (util-linux).
+if [[ "$RUN_TESTS" -eq 1 && -f scripts/tests/deploy.test.sh ]]; then
+  if command -v flock >/dev/null 2>&1; then
+    echo "==> deploy.sh testi"
+    bash scripts/tests/deploy.test.sh
+  else
+    echo "==> deploy.sh testi ATLANDI: flock bulunamadı (util-linux paketi kurulu değil)"
+  fi
+fi
+
 # --------- Frontend kontrolleri ---------
 if [[ -f frontend/package.json ]]; then
   if [[ "$RUN_TESTS" -eq 1 ]]; then

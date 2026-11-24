@@ -31,8 +31,11 @@ use Throwable;
  *
  * Tek PUT atomiktir: nesne ancak yükleme tamamlanınca görünür, hedefte yarım
  * dosya kalmaz. Gövdenin SHA-256'sı imzaya girer; S3 içeriği bununla doğrular.
- * Bütün işlemler (GET, HEAD, PUT aynı nesneye, DELETE) tekrarlanabilir: yalnız
- * bağlantı hatası, 5xx ve 429'da yeniden denenir; 4xx kalıcıdır (D8).
+ * PUT ayrıca `Content-MD5` taşır (imzalı): nesne kilidi varsayılan saklamalı
+ * kovada zorunludur (YF-19). Dosya taşımayan istekler (HEAD, liste, DELETE)
+ * yalnız bağlantı hatası, 5xx ve 429'da yeniden denenir; 4xx kalıcıdır (D8).
+ * Dosya taşıyan istekler (PUT, indirme) burada denenmez: kopyalayıcı yeni
+ * imzayla dener (YF-22).
  */
 final class S3Baglayicisi implements HedefBaglayicisi
 {
@@ -246,9 +249,12 @@ final class S3Baglayicisi implements HedefBaglayicisi
         $amzTarih = $zaman->format('Ymd\THis\Z');
 
         $imzali = ['host' => $sunucu, 'x-amz-content-sha256' => $govdeOzeti, 'x-amz-date' => $amzTarih];
+        // Nesne kilidi varsayılan saklamalı kovada PUT bütünlük başlığı ister (yoksa 400 InvalidRequest; YF-19)
+        if ($govdeYolu !== null) {
+            $imzali['content-md5'] = base64_encode((string) md5_file($govdeYolu, true));
+        }
         $basliklar = [
-            'x-amz-content-sha256' => $govdeOzeti,
-            'x-amz-date' => $amzTarih,
+            ...array_diff_key($imzali, ['host' => true]),
             'Authorization' => $this->yetkiBasligi($yontem, $yol, $sorguMetni, $imzali, $govdeOzeti, $zaman),
         ];
 
@@ -275,16 +281,24 @@ final class S3Baglayicisi implements HedefBaglayicisi
     /**
      * Sınamada (etkin süre bütçesi) sınırlar ortak son zamana kısalır, deneme
      * ve önündeki bekleme sığmıyorsa yapılmaz (BY-016-R4).
+     *
+     * Dosya taşıyan istek (PUT, indirme) burada yeniden denenmez (YF-22):
+     * imza bir kez üretilir, `sure_siniri.kopya` dolduktan sonraki deneme 15
+     * dakikalık imza süresini aşar (403 RequestTimeTooSkewed) ve süre sınırı
+     * katlanır. Kopyalayıcı denemeyi her seferinde yeni imzayla zaten yapar.
      */
     private function istemci(bool $dosyaTasir): PendingRequest
     {
         $kopyaSuresi = $this->yapilandirma->sureSiniri('kopya');
         $baglanti = $this->yapilandirma->sureSiniri('baglanti');
         $zamanAsimi = $dosyaTasir ? $kopyaSuresi : min(self::KISA_ISTEK_SURESI, $kopyaSuresi);
+        $istemci = Http::connectTimeout($baglanti)->timeout($zamanAsimi)->withoutRedirecting();
 
-        return Http::connectTimeout($baglanti)
-            ->timeout($zamanAsimi)
-            ->withoutRedirecting()
+        if ($dosyaTasir) {
+            return $istemci;
+        }
+
+        return $istemci
             ->retry(
                 self::YENIDEN_DENEME_MS,
                 0,
@@ -447,7 +461,8 @@ final class S3Baglayicisi implements HedefBaglayicisi
         $ek = "HTTP {$durum}".($s3Kodu === null ? '' : ", {$s3Kodu}");
 
         $kod = match (true) {
-            $durum >= 500 || $durum === 429 => HedefHatasi::ERISILEMEDI,
+            // İmzanın zamanı geçti (yavaş aktarım, saat kayması): kimlik hatası değil, yeni imzayla denenir (YF-22)
+            $durum >= 500 || $durum === 429 || $s3Kodu === 'RequestTimeTooSkewed' => HedefHatasi::ERISILEMEDI,
             $durum === 401 || $durum === 403 => HedefHatasi::KIMLIK,
             $s3Kodu === 'NoSuchBucket' => HedefHatasi::YAPILANDIRMA,
             default => $varsayilanKod,

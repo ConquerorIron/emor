@@ -114,29 +114,38 @@ const bicimliMi = (oge: unknown): oge is BekleyenAnahtar =>
   UUID.test((oge as BekleyenAnahtar).anahtar) &&
   typeof (oge as BekleyenAnahtar).zaman === 'number'
 
-function yaz(kapsam: string, kayitlar: BekleyenAnahtar[]): void {
+/** false: depo kapalı ya da dolu — anahtar yalnız bu örneğin belleğinde yaşar */
+function yaz(kapsam: string, kayitlar: BekleyenAnahtar[]): boolean {
   try {
     if (kayitlar.length === 0) {
       localStorage.removeItem(depoAnahtari(kapsam))
     } else {
       localStorage.setItem(depoAnahtari(kapsam), JSON.stringify(kayitlar))
     }
+
+    return true
   } catch {
-    // depo kapalı: anahtar yalnız bu çizimin belleğinde yaşar
+    return false
   }
 }
 
 /**
- * Süresi geçmemiş geçerli kayıtlar; depo kapalıysa (gizli pencere, kota) boş.
+ * Süresi geçmemiş geçerli kayıtlar; depo okunamıyorsa (gizli pencere,
+ * erişim engeli) null — "kayıt yok" ile "bilinmiyor" ayrıdır (YF-59, D6).
  * Süresi geçen ya da biçimsiz kayıt okurken depodan da silinir: bir sonraki
  * yazımı beklemez.
  */
-function oku(kapsam: string, simdi: number): BekleyenAnahtar[] {
+function oku(kapsam: string, simdi: number): BekleyenAnahtar[] | null {
+  let ham: string | null
   try {
-    const ham = localStorage.getItem(depoAnahtari(kapsam))
-    if (ham === null) {
-      return []
-    }
+    ham = localStorage.getItem(depoAnahtari(kapsam))
+  } catch {
+    return null
+  }
+  if (ham === null) {
+    return []
+  }
+  try {
     const deger: unknown = JSON.parse(ham)
     const tumu: unknown[] = Array.isArray(deger) ? deger : []
     const gecerli = tumu.filter(
@@ -156,6 +165,30 @@ function oku(kapsam: string, simdi: number): BekleyenAnahtar[] {
 
     return []
   }
+}
+
+type BellekKaydi = BekleyenAnahtar & { depoda: boolean }
+
+/**
+ * Eylemin bekleyen kaydı (YF-59). Depo okunabiliyorsa doğruluk kaynağı odur:
+ * depoya yazılmış ama artık orada olmayan anahtar başka sekmede kabul edilip
+ * silinmiştir, bellekten geri getirilmez. Bellek yalnız depo okunamıyorken ya
+ * da anahtar depoya hiç yazılamamışken (kota) kullanılır.
+ */
+function bekleyenKayit(
+  kayitlar: BekleyenAnahtar[] | null,
+  ozet: string,
+  bellekteki: BellekKaydi | undefined,
+): BellekKaydi | undefined {
+  if (kayitlar === null) {
+    return bellekteki
+  }
+  const depodaki = kayitlar.find((bekleyen) => bekleyen.ozet === ozet)
+  if (depodaki !== undefined) {
+    return { ...depodaki, depoda: true }
+  }
+
+  return bellekteki?.depoda === false ? bellekteki : undefined
 }
 
 /** Bütün kapsamlardaki v1 girdilerinin adları; depo kapalıysa boş */
@@ -240,7 +273,7 @@ async function eskiKaydiTasi(ad: string): Promise<void> {
     if (localStorage.getItem(ad) !== ham) {
       return eskiKaydiTasi(ad)
     }
-    const mevcut = oku(kapsam, Date.now())
+    const mevcut = oku(kapsam, Date.now()) ?? []
     yaz(kapsam, [
       ...mevcut,
       ...yeniler.filter((yeni) => !mevcut.some((kayit) => kayit.ozet === yeni.ozet)),
@@ -310,7 +343,11 @@ async function acilisiYap(kapsam: string): Promise<void> {
  * @param kapsam Anahtarların sahibi (ör. `kullanici.7`, `ustune.<işlem kimliği>`)
  */
 export function useIstekAnahtarlari(kapsam: string) {
-  const bellek = useRef(new Map<string, BekleyenAnahtar>())
+  // Bellek yedeği yalnız depo kullanılamıyorken geçerlidir (YF-59): depoya
+  // yazılmış anahtar depoda yoksa başka sekmede kabul edilip silinmiştir;
+  // bellekten yeniden kullanılırsa sunucu eski kabulü döndürür, yeni iş açılmaz.
+  // `depoda: false` — depo okunabildiği hâlde yazılamadı (kota): tek kopya bellektedir
+  const bellek = useRef(new Map<string, BellekKaydi>())
   const acilis = useRef<Promise<void> | null>(null)
 
   useEffect(() => {
@@ -330,25 +367,23 @@ export function useIstekAnahtarlari(kapsam: string) {
         zaman: simdi,
       })
       const kilitler = kilitYoneticisi()
-      let kayit: BekleyenAnahtar
+      let kayit: BellekKaydi
       if (kilitler === undefined) {
         const simdi = Date.now()
         const mevcut = bellek.current.get(ozet)
-        kayit = gecerliMi(mevcut, simdi) ? mevcut : yeniKayit(simdi)
+        kayit = gecerliMi(mevcut, simdi) ? mevcut : { ...yeniKayit(simdi), depoda: false }
       } else {
         // Okuma ile yazım arasına başka sekmenin kabul temizliği girmesin
         kayit = await kilitler.request(DEPO_KILIDI, { mode: 'exclusive' }, () => {
           const simdi = Date.now()
           const kayitlar = oku(kapsam, simdi)
-          const mevcut =
-            kayitlar.find((bekleyen) => bekleyen.ozet === ozet) ?? bellek.current.get(ozet)
+          const mevcut = bekleyenKayit(kayitlar, ozet, bellek.current.get(ozet))
           if (gecerliMi(mevcut, simdi)) {
             return mevcut
           }
           const yeni = yeniKayit(simdi)
-          yaz(kapsam, [...kayitlar, yeni])
 
-          return yeni
+          return { ...yeni, depoda: kayitlar !== null && yaz(kapsam, [...kayitlar, yeni]) }
         })
       }
       bellek.current.set(ozet, kayit)
@@ -366,10 +401,13 @@ export function useIstekAnahtarlari(kapsam: string) {
           }
           // Okuma ile yazım arasında başka sekmenin yeni anahtarı kaybolmasın
           await kilitler?.request(DEPO_KILIDI, { mode: 'exclusive' }, () => {
-            yaz(
-              kapsam,
-              oku(kapsam, Date.now()).filter((bekleyen) => bekleyen.anahtar !== kayit.anahtar),
-            )
+            const kayitlar = oku(kapsam, Date.now())
+            if (kayitlar !== null) {
+              yaz(
+                kapsam,
+                kayitlar.filter((bekleyen) => bekleyen.anahtar !== kayit.anahtar),
+              )
+            }
           })
         },
       }

@@ -75,7 +75,14 @@ final class IstekKutusu
 
     private const ALANLAR = ['surum', 'kimlik', 'tur', 'parametreler', 'kullanici_id', 'zaman'];
 
-    private const UUID = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D';
+    /**
+     * İstek / işlem kimliğinin biçimi (küçük harfli UUID). Rotalar da bunu
+     * kullanır: Laravel'in `whereUuid`'i büyük harfi kabul eder, kutu reddeder
+     * (500 yerine 404 — YF-29).
+     */
+    public const KIMLIK_DESENI = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+
+    private const UUID = '/^'.self::KIMLIK_DESENI.'$/D';
 
     private const ZAMAN_BICIMI = 'Y-m-d\TH:i:sP';
 
@@ -285,10 +292,21 @@ final class IstekKutusu
      * çok `$enCokSaniye` yoklama yapılır. Süre dolduğunda istek hâlâ kuyruktaysa
      * geri çekilir: bekleyen vazgeçtikten sonra iş kendiliğinden çalışmasın.
      *
+     * `$ustlenmeSaniye` verilirse iki aşamalıdır (YF-68; D9): istek o kadar
+     * yoklama boyunca `bekleyen/`'de kalırsa (çalıştırıcı durmuş ya da başka
+     * bir işle meşgul) geri çekilir ve beklemeden hata verilir; `$enCokSaniye`
+     * ancak istek `bekleyen/`'den çıktıktan (üstlenildikten) sonra başlar.
+     * Yayın kullanıcısı `isleniyor/`'u göremez: üstlenilen isteğin durumu
+     * onun için `null`dur, `kuyrukta` değildir.
+     *
      * @return array<string, mixed>
      */
-    public function bekle(string $kimlik, int $enCokSaniye): array
+    public function bekle(string $kimlik, int $enCokSaniye, ?int $ustlenmeSaniye = null): array
     {
+        $bekleyen = $this->yapilandirma->istekKlasoru().'/bekleyen/'.$kimlik.'.json';
+        $ustlenmeSonu = hrtime(true) + ($ustlenmeSaniye ?? 0) * 1_000_000_000;
+        $ustlenildi = $ustlenmeSaniye === null;
+        $ustlenmeYoklamasi = 0;
         $son = hrtime(true) + $enCokSaniye * 1_000_000_000;
 
         for ($yoklama = 0; ; $yoklama++) {
@@ -297,8 +315,26 @@ final class IstekKutusu
                 return $durum;
             }
 
-            if ($yoklama >= $enCokSaniye || hrtime(true) >= $son) {
-                @unlink($this->yapilandirma->istekKlasoru().'/bekleyen/'.$kimlik.'.json');
+            if (! $ustlenildi && ($durum['durum'] ?? null) !== 'kuyrukta') {
+                $ustlenildi = true;
+                $ustlenmeYoklamasi = $yoklama;
+                $son = hrtime(true) + $enCokSaniye * 1_000_000_000;
+            }
+
+            if (! $ustlenildi && ($yoklama >= $ustlenmeSaniye || hrtime(true) >= $ustlenmeSonu)) {
+                if (@unlink($bekleyen)) {
+                    throw new RuntimeException("Çalıştırıcı isteği üstlenmedi ({$ustlenmeSaniye} sn beklendi); istek geri çekildi. Servis durmuş ya da başka bir iş sürüyor olabilir: systemctl status emor-yedek");
+                }
+                if (is_file($bekleyen)) {
+                    throw new RuntimeException('Çalıştırıcı isteği üstlenmedi ve istek geri çekilemedi (izin?); çalıştırıcı sonradan işleyebilir. systemctl status emor-yedek');
+                }
+
+                // Tam bu arada üstlenildi: sonraki yoklama bunu görür
+                continue;
+            }
+
+            if ($ustlenildi && ($yoklama - $ustlenmeYoklamasi >= $enCokSaniye || hrtime(true) >= $son)) {
+                @unlink($bekleyen);
 
                 throw new RuntimeException('Yedekleme isteği zamanında işlenmedi (çalıştırıcı servisi çalışıyor mu?).');
             }

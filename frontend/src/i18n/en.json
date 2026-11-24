@@ -583,6 +583,8 @@
     "YEDEK_YAPILANDIRMA_HATASI": "Backups are not configured correctly on the server.",
     "YEDEK_DEPO_ISARETI_YOK": "The backup folder could not be verified as the backup store; the backup disk may not be mounted. No backup was taken.",
     "YEDEK_YARIDA_KALDI": "The process taking the backup stopped before finishing; the backup is incomplete.",
+    "KOPYA_BEKLENMEYEN_HATA": "Copying stopped with an unexpected error; the copy was not completed. See the server log for details.",
+    "KOPYA_YARIDA_KALDI": "The copying process stopped before finishing; the copy was not completed. It is retried after the next scheduled backup.",
     "YEDEK_ANAHTAR_GECERSIZ": "The key could not be read: paste a valid ASCII-armored OpenPGP public key.",
     "YEDEK_ANAHTAR_OZEL": "This is a PRIVATE key. Only a public key may be uploaded to the server; keep the private key in its own safe place.",
     "YEDEK_ANAHTAR_SURESI_DOLMUS": "The key has expired; upload a valid public key.",
@@ -595,6 +597,8 @@
     "HEDEF_ERISILEMEDI": "The target could not be reached (address, port or network).",
     "HEDEF_KONUMU_DEGISMEZ": "This target holds copies; the fields that define where they are stored (server, port, folder, bucket, connected account…) cannot be changed. Add a new target for another location; passwords / keys can be renewed.",
     "HEDEF_SINAMA_SURESI_DOLDU": "The test ran out of time; this step was not run.",
+    "HEDEF_SINAMA_CALISTIRICIDA": "In service mode the runner account writes to this folder; the write test was not run in the web request. The copy result appears in the backup list.",
+    "GOOGLE_IPTAL_EDILEMEDI": "The Google connection key could not be revoked at Google; remove it manually in the Google account security settings (third-party access).",
     "YEDEK_IMZA_ANAHTARI_YOK": "The backup signing key is missing or unreadable; settings were not saved. Check the server setup.",
     "HEDEF_KIMLIK_HATALI": "The target's user name, password or key is wrong.",
     "HEDEF_YAZILAMADI": "Could not write to the target (permission or folder).",
@@ -628,7 +632,7 @@
     "GERI_YUKLEME_OZET_TUTMUYOR": "The backup file checksum does not match the manifest.",
     "GERI_YUKLEME_YEDEK_DOSYASI_YOK": "The backup file is not on disk.",
     "GERI_YUKLEME_OZEL_ANAHTAR_GEREKLI": "This backup exists only as an encrypted off-server copy; it needs the private key and cannot be restored from the screen. Use the command-line procedure (docs/yedekleme/kurtarma.md).",
-    "GERI_YUKLEME_VERITABANI_OZELLIGI": "Database properties could not be read.",
+    "GERI_YUKLEME_VERITABANI_OZELLIGI": "Database properties could not be read, or this restore cannot carry them (list-type setting, role-level setting, connection limit, non-libc collation provider). See the operation log message for details.",
     "GERI_YUKLEME_VERITABANI_OLUSTURULAMADI": "The database could not be created.",
     "GERI_YUKLEME_PG_RESTORE_HATASI": "The restore (pg_restore) failed.",
     "GERI_YUKLEME_KARSILASTIRMA_TUTMADI": "The restored data does not match the manifest.",
@@ -658,6 +662,10 @@
     "GERI_YUKLEME_BAGLANTI_KAPATILAMADI": "Connections to the live database could not be closed.",
     "GERI_YUKLEME_YER_DEGISTIRILEMEDI": "The databases could not be swapped; names are unchanged.",
     "GERI_YUKLEME_ADLAR_TUTARSIZ": "Database names are not in the expected state; inspect with the emergency command.",
+    "GERI_YUKLEME_ADLAR_OKUNAMADI": "Database names could not be read (PostgreSQL unreachable); the application stays in maintenance mode and the operation will be retried automatically.",
+    "GERI_YUKLEME_PG_SURUMU_UYUMSUZ": "The backup was taken with a newer PostgreSQL version than this server's (or the version could not be read); not restored.",
+    "GERI_YUKLEME_APP_KEY_UYUMSUZ": "The backup was taken with an application key (APP_KEY) other than the current and previous keys; encrypted fields could not be decrypted, so it was not restored over the live database.",
+    "GERI_YUKLEME_KOPYA_SINIRI": "The number of pending restore copies is at its limit; delete copies you no longer need first.",
     "GERI_YUKLEME_DIZIN_KURULAMADI": "The backup index could not be rebuilt after the swap.",
     "GERI_YUKLEME_AYAR_UZLASTIRILAMADI": "Settings could not be reconciled after the swap.",
     "GERI_YUKLEME_YONETICI_GERI_DONDU": "The administrator chose to go back; the application opened with the old database.",
@@ -1524,7 +1532,8 @@
         "sil": "Backup deletion",
         "plan_calistir": "Plan run",
         "kopya_geri_yukle": "Restore as copy",
-        "kopya_sil": "Copy deletion"
+        "kopya_sil": "Copy deletion",
+        "ustune_geri_yukle": "Overwrite restore"
       },
       "durum": {
         "kuyrukta": "queued",
@@ -1623,6 +1632,7 @@
       "kaydedildi": "Target saved.",
       "sina": "Test Connection",
       "sirKayitli": "saved — type to change",
+      "kayitliDegeriSil": "Delete saved value ({{alan}})",
       "sirNotu": "Password and key fields are never shown; leave blank to keep the saved value. They must be re-entered if the server, port or user changes.",
       "konumKilitli": "This target holds copies: the fields that define where they are stored are locked. Add a new target for another location; passwords / keys can be renewed.",
       "sunucuDisiNotu": "Off-server target: copies are encrypted with the public key from Backup Settings. Without a public key, no copies are sent to this target.",
@@ -1664,6 +1674,7 @@
       "sinama": {
         "basarili": "Connection test succeeded.",
         "basarisiz": "Connection test failed.",
+        "kismen": "Folder found; the write test is done with the runner account (service mode).",
         "gecti": "passed",
         "atlandi": "skipped",
         "adim": {
@@ -1886,6 +1897,7 @@
         "hedef_sunucu_anahtari_sifirla": "Server key reset",
         "hedef_google_baglan": "Google connection",
         "hedef_google_kes": "Google disconnection",
+        "hedef_google_iptal": "Google key revocation",
         "plan_ekle": "Plan added",
         "plan_guncelle": "Plan updated",
         "plan_sil": "Plan deleted",
@@ -1897,13 +1909,16 @@
         "sabitle": "Pin",
         "sabit_coz": "Unpin",
         "aciklama": "Note update",
-        "sil": "Backup deletion",
         "tara": "Folder scan",
         "dogrula": "Verification",
         "kopya_geri_yukle": "Restore as copy",
-        "ustune_geri_yukle": "Overwrite restore",
-        "onayla": "Overwrite restore approval",
-        "geri_don": "Overwrite restore rollback"
+        "yedek_sil": "Backup deletion",
+        "geri_yukle_ustune": "Overwrite restore",
+        "geri_yukle_ustune_onay": "Overwrite restore approval",
+        "geri_yukle_ustune_geri_don": "Overwrite restore rollback",
+        "geri_yukle_ustune_ayar_secimi": "Overwrite restore settings choice",
+        "hedef_google_klasor": "Google Drive folder selection",
+        "hedef_google_secici": "Google Drive folder picker"
       }
     },
     "ayarlar": {

@@ -68,6 +68,33 @@ const USTUNE: GeriYukleme = {
   silinecegi_zaman: null,
 }
 
+const USTUNE_DEPO = 'erp.yedekleme.ustuneGeriYukleme.v1'
+const ISTEK = '77777777-7777-4777-8777-777777777777'
+
+/** USTUNE işleminin erişim anahtarı bu tarayıcıda (bitiş, sabit saatten sonra) */
+function anahtariSakla() {
+  localStorage.setItem(
+    USTUNE_DEPO,
+    JSON.stringify({
+      islem_kimligi: USTUNE.kimlik,
+      erisim_anahtari: 'd'.repeat(64),
+      erisim_anahtari_bitis: '2026-11-21T18:00:00+03:00',
+      karar_istegi: null,
+    }),
+  )
+}
+
+/** Bekleyen kopyanın "Sil" düğmesine basar; onay penceresinin "Sil" düğmesini döndürür */
+async function kopyayiSil() {
+  await screen.findAllByText('erp_geri_20261114_120000_mart1')
+  const kopya = within(screen.getAllByRole('table')[0])
+    .getByText('erp_geri_20261114_120000_mart1')
+    .closest('tr') as HTMLElement
+  fireEvent.click(within(kopya).getByRole('button', { name: 'Sil' }))
+
+  return within(await screen.findByRole('dialog')).getByRole('button', { name: 'Sil' })
+}
+
 function ciz(izinler = ['yedekler.goruntule', 'geri_yukleme.kopya']) {
   render(
     <AppProviders>
@@ -152,7 +179,7 @@ describe('GeriYuklemelerPage', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Sil' }))
 
-    await waitFor(() => expect(api.sil).toHaveBeenCalledWith(temel.kimlik))
+    await waitFor(() => expect(api.sil).toHaveBeenCalledWith(temel.kimlik, expect.any(String)))
     expect(await screen.findByRole('status')).toHaveTextContent('Kopya silme — çalışıyor')
   })
 
@@ -163,20 +190,91 @@ describe('GeriYuklemelerPage', () => {
     expect(screen.queryByRole('button', { name: 'Sil' })).not.toBeInTheDocument()
   })
 
-  it('üstüne geri yüklemenin anahtarı bu tarayıcıdaysa satır ilerleme sayfasına bağlanır', async () => {
-    localStorage.setItem(
-      'erp.yedekleme.ustuneGeriYukleme.v1',
-      JSON.stringify({
-        islem_kimligi: USTUNE.kimlik,
-        erisim_anahtari: 'd'.repeat(64),
-        erisim_anahtari_bitis: '2026-11-21T18:00:00+03:00',
-        karar_istegi: null,
-      }),
-    )
+  it('süren üstüne geri yüklemenin anahtarı bu tarayıcıdaysa satır ilerleme sayfasına bağlanır', async () => {
+    api.liste.mockResolvedValue([temel, { ...USTUNE, durum: 'onay_bekliyor', hata_kodu: null }])
+    anahtariSakla()
     ciz()
 
     const baglanti = await screen.findByRole('link', { name: 'İlerlemeyi aç' })
     expect(baglanti).toHaveAttribute('href', `/ayarlar/geri-yuklemeler/ustune/${USTUNE.kimlik}`)
     expect(screen.getAllByRole('link', { name: 'İlerlemeyi aç' })).toHaveLength(1)
+    expect(localStorage.getItem(USTUNE_DEPO)).not.toBeNull()
+  })
+
+  it('liste üstüne geri yüklemeyi bitmiş gösteriyorsa erişim anahtarı ilerleme sayfası açılmadan silinir (YF-60)', async () => {
+    anahtariSakla()
+    ciz()
+
+    await screen.findByText('erp_onceki_20261110_080000')
+    await waitFor(() => expect(localStorage.getItem(USTUNE_DEPO)).toBeNull())
+    expect(screen.queryByRole('link', { name: 'İlerlemeyi aç' })).not.toBeInTheDocument()
+  })
+
+  it('kopya silme yanıtı beklenirken ikinci onay ikinci istek göndermez (F5, YF-11)', async () => {
+    let bitir: (kabul: { istek_kimligi: string; durum: 'kuyrukta' }) => void = () => undefined
+    api.sil.mockReturnValue(new Promise((coz) => (bitir = coz)))
+    api.istek.mockResolvedValue({ kimlik: ISTEK, durum: 'calisiyor' })
+    ciz()
+
+    const onay = await kopyayiSil()
+    fireEvent.click(onay)
+    fireEvent.click(onay)
+
+    await waitFor(() => expect(api.sil).toHaveBeenCalledTimes(1))
+    bitir({ istek_kimligi: ISTEK, durum: 'kuyrukta' })
+    expect(await screen.findByRole('status')).toHaveTextContent('Kopya silme')
+    expect(api.sil).toHaveBeenCalledTimes(1)
+  })
+
+  it('yanıtı alınamayan kopya silme yeniden denenince aynı istek anahtarını taşır (YF-11)', async () => {
+    api.sil
+      .mockRejectedValueOnce(new Error('Network Error'))
+      .mockResolvedValue({ istek_kimligi: ISTEK, durum: 'kuyrukta' })
+    api.istek.mockResolvedValue({ kimlik: ISTEK, durum: 'calisiyor' })
+    ciz()
+
+    const onay = await kopyayiSil()
+    fireEvent.click(onay)
+    await waitFor(() => expect(api.sil).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(onay).toBeEnabled())
+    fireEvent.click(onay)
+    await waitFor(() => expect(api.sil).toHaveBeenCalledTimes(2))
+
+    const ilk = api.sil.mock.calls[0][1] as string
+    expect(ilk).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(api.sil.mock.calls[1]).toEqual([temel.kimlik, ilk])
+  })
+
+  it('Yedekler ekranında bırakılan farklı adla geri yükleme kuyruktayken liste yoklanır; bitince bildirilir (YF-62)', async () => {
+    vi.useFakeTimers({
+      toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
+      shouldAdvanceTime: true,
+    })
+    vi.setSystemTime(new Date('2026-11-21T10:00:00+03:00'))
+    sessionStorage.setItem(
+      'erp.yedekleme.istekler.v2.kullanici.1.yedekler',
+      JSON.stringify([{ kimlik: ISTEK, tur: 'kopya_geri_yukle' }]),
+    )
+    api.istek
+      .mockResolvedValueOnce({ kimlik: ISTEK, durum: 'kuyrukta' })
+      .mockResolvedValueOnce({ kimlik: ISTEK, durum: 'kuyrukta' })
+      .mockResolvedValueOnce({ kimlik: ISTEK, durum: 'kuyrukta' })
+      .mockResolvedValue({ kimlik: ISTEK, durum: 'tamam', hedef_veritabani: 'erp_geri_yeni' })
+    ciz()
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Farklı adla geri yükleme')
+    const ilkListe = api.liste.mock.calls.length
+    await vi.advanceTimersByTimeAsync(5100)
+    expect(api.liste.mock.calls.length).toBeGreaterThan(ilkListe)
+
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(await screen.findByText(/erp_geri_yeni/)).toBeInTheDocument()
+    await waitFor(() =>
+      expect(sessionStorage.getItem('erp.yedekleme.istekler.v2.kullanici.1.yedekler')).toBeNull(),
+    )
+    // İstek bitti, süren satır yok: liste artık yoklanmaz
+    const sonListe = api.liste.mock.calls.length
+    await vi.advanceTimersByTimeAsync(11000)
+    expect(api.liste.mock.calls.length).toBe(sonListe)
   })
 })

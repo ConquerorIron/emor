@@ -7,8 +7,10 @@ namespace App\Services\Yedekleme;
 use App\Models\Yedek;
 use App\Models\YedekHedefi;
 use App\Models\YedekKopyasi;
+use App\Services\Yedekleme\Hedefler\HedefBaglayicisi;
 use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
+use App\Services\Yedekleme\Hedefler\YerelDiskBaglayicisi;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Sleep;
@@ -169,8 +171,8 @@ final class YedekKopyalayici
 
         $baglayici = $this->katalog->olustur($hedef);
         $sunucuDisi = $this->katalog->sunucuDisiMi($hedef->tur);
-        $calisma = sys_get_temp_dir().'/emor-kopya-'.bin2hex(random_bytes(6));
-        mkdir($calisma, 0700);
+        // Şifreli dosya ve geri okunan kopya döküm boyutundadır: bellekteki /tmp'ye değil yedek diskine (YF-28)
+        $calisma = GeciciKlasor::ac($this->yapilandirma->calismaKlasoru(), 'emor-kopya-', $this->yapilandirma->artikKlasorYasi());
 
         try {
             $yuklenecek = $kaynak;
@@ -186,20 +188,43 @@ final class YedekKopyalayici
             $beklenenOzet = $sifreliOzet ?? $yedek->sha256;
             $uzakKimlik = $baglayici->yaz($yuklenecek, $ad);
 
-            $geri = $calisma.'/geri';
-            $baglayici->oku($uzakKimlik, $geri);
-            $okunanOzet = is_file($geri) ? hash_file('sha256', $geri) : false;
+            try {
+                $geri = $calisma.'/geri';
+                $baglayici->oku($uzakKimlik, $geri);
+                $okunanOzet = is_file($geri) ? hash_file('sha256', $geri) : false;
 
-            if (! is_string($okunanOzet) || ! hash_equals($beklenenOzet, $okunanOzet)) {
-                throw new HedefHatasi(HedefHatasi::OKUNAMADI, 'Hedeften geri okunan kopyanın özeti yazılanla aynı değil.');
+                if (! is_string($okunanOzet) || ! hash_equals($beklenenOzet, $okunanOzet)) {
+                    throw new HedefHatasi(HedefHatasi::OKUNAMADI, 'Hedeften geri okunan kopyanın özeti yazılanla aynı değil.');
+                }
+            } catch (Throwable $hata) {
+                $this->dogrulanmayaniSil($baglayici, $uzakKimlik);
+
+                throw $hata;
             }
 
             return [$uzakKimlik, $sunucuDisi, $sifreliOzet, $konumIzi];
         } finally {
-            foreach (glob($calisma.'/*') ?: [] as $dosya) {
-                @unlink($dosya);
-            }
-            @rmdir($calisma);
+            GeciciKlasor::sil($calisma);
+        }
+    }
+
+    /**
+     * Doğrulanamayan yükleme hedefte kayıtsız kalmasın (YF-08): kimliği hiçbir
+     * kayda yazılmaz, saklama ona hiç ulaşamaz; her yazımda yeni kimlik açan
+     * hedefte (Drive) her deneme bir tam kopya bırakırdı. En iyi çaba: silme
+     * hatası asıl hatayı gizlemez. Ana klasör Yerel hedefinde silinmez — oradaki
+     * "kopya" yedeğin yerel dosyasının kendisidir.
+     */
+    private function dogrulanmayaniSil(HedefBaglayicisi $baglayici, string $uzakKimlik): void
+    {
+        if ($baglayici instanceof YerelDiskBaglayicisi && $baglayici->anaKlasorMu()) {
+            return;
+        }
+
+        try {
+            $baglayici->sil($uzakKimlik);
+        } catch (Throwable) {
+            // Silinemeyen (yetki yok, erişilemiyor) dosya kalır; asıl hata yine bildirilir
         }
     }
 

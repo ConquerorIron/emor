@@ -32,4 +32,26 @@ final class AppKeyParmakIzi
 
         return substr(hash_hmac('sha256', self::ALAN, $ham), 0, 16);
     }
+
+    /**
+     * Parmak izi bugünkü `APP_KEY`'in ya da `APP_PREVIOUS_KEYS`'ten birinin mi
+     * (Laravel şifreli alanı bunlarla çözer — README §7.5; YF-13). Parmak izi
+     * olmayan manifest (eski / içe alınmış yedek) denetlenemez: true.
+     */
+    public static function bilinenMi(?string $parmakIzi): bool
+    {
+        if ($parmakIzi === null) {
+            return true;
+        }
+
+        $onceki = config('app.previous_keys');
+        foreach ([config('app.key'), ...(is_array($onceki) ? $onceki : [])] as $anahtar) {
+            $iz = self::hesapla($anahtar);
+            if ($iz !== null && hash_equals($iz, $parmakIzi)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

@@ -38,8 +38,11 @@ use Illuminate\Validation\ValidationException;
  *   kanıtı yazılır (ErisimAnahtari::kanit; BY-030-R1); onay, farkı olan her
  *   ayar grubunun seçimini taşır (BY-028-R2). Oturumlar veritabanındadır ve yer değiştirmeyle düşer;
  *   bu yüzden tek yetki `X-Erisim-Anahtari` başlığındaki anahtardır ve
- *   yalnız kendi işlemine erişir. Özel başlık tarayıcıdan başka siteden
- *   gönderilemez (CSRF koruması yerine geçer). Hız sınırı yoktur:
+ *   yalnız kendi işlemine erişir. CSRF belirteci gerekmez, çünkü anahtar
+ *   çerez gibi tarayıcının kendiliğinden eklediği bir kimlik bilgisi
+ *   değildir: başka site onu bilmeden isteği yetkilendiremez (CORS bu
+ *   başlığı engellemez; koruma başlığın gönderilememesi değil, anahtarın
+ *   sırrıdır — YF-34). Hız sınırı yoktur:
  *   sınırlayıcı veritabanındaki önbelleğe dayanır; anahtar 256 bit rastgele,
  *   karşılaştırma sabit sürelidir.
  */

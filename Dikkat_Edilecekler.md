@@ -209,6 +209,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   kaydedilip geri okunan anı UTC ile karşılaştır.
   *(BY-013 `yedek:eski-yedekleri-al`: addan okunan UTC zaman İstanbul'a
   çevrilip kaydedilince 13:10 oldu.)*
+  Eloquent'e dilimli (`+03:00`) Carbon vermek de aynı kaymadır: dosya adı için
+  İstanbul'da üretilen ya da manifestten ofsetle okunan zaman modele `->utc()`
+  ile verilir. Testte beklentiyi iki tarafı aynı (kayık) yoldan üreterek
+  kurma; sabit bir UTC anıyla karşılaştır.
+  *(Fable incelemesi YF-01: yedeğin `alinma_zamani` üç yerde 3 saat ileri
+  yazılıyordu; BY-013'te yalnız içe alma düzeltilmişti — G1.)*
 - **G18 — Denetle-ve-yap tek atomik adım olsun.** Denetim ile eylem arasında
   kilit beklemesi ya da eşzamanlı istek varsa son denetim kilit altında, eylemden
   hemen önce tekrarlanır (beklerken yetkisi alınan kullanıcı). "Oku-sil"
@@ -385,6 +391,14 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   dizer): JSON kolondan okunan diziyi `assertSame` ile değil sırasız
   (`assertEquals`) karşılaştır.
   *(BY-021 Google Drive testi yalnız PostgreSQL'de kırıldı.)*
+  `ORDER BY … DESC`'te NULL'lar PostgreSQL'de başta, SQLite'ta sondadır: NULL
+  olabilen kolonda sıralamayı açık yaz (`coalesce(…)`, `kolon is null`).
+  PostgreSQL'de işlem içindeki hatalı ifade bütün işlemi iptal eder; hatayı
+  yakalayıp sürmek COMMIT'i sessizce ROLLBACK yapar. "Yazılamazsa yalnız
+  dosyaya yaz" gibi yutulan yazımı kendi savepoint'inde yap (iç içe
+  `DB::transaction`); testi gerçek bir sorgu hatasıyla PostgreSQL'de koş.
+  *(Fable incelemesi YF-17: başarısız yedekler listenin hep tepesindeydi.
+  YF-12: denetim kaydı hatası ayar değişikliğini sessizce geri alıyordu.)*
 - **T7 — Testin varsayımını da doğrula.** "Kütüphane bu girdiyi reddeder"
   diye yazmadan önce gerçekten reddettiğini dene.
   *(BY-001: kapanmayan tırnak ayrıştırıcıda hata sanıldı, oysa kabul ediliyordu.)*
@@ -463,6 +477,12 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   `kalan < 1` → ret) ilk denetimde biter: taban, eşik + hazırlık payından
   büyük olsun. İki denetim arasında ilerleyen sahte saatle sına.
   *(Codex BY-016-R5: sınama dosyasının temizliği hiç çağrılmıyordu.)*
+  "Süreç ölünce / durunca ne olur" iddiasını alt süreçlerle birlikte düşün:
+  systemd'nin `KillMode` varsayılanı (`control-group`) durdurmada pg_dump /
+  gpg gibi alt süreçleri de öldürür (`KillMode=mixed`); PHP `fopen` kilit
+  tanıtıcısını alt süreçlere miras bırakır, ebeveyn ölse de kilit çocuk
+  bitene kadar tutulur (`'re'` / `'ce'` kipi, close-on-exec).
+  *(Fable incelemesi YF-23, YF-36.)*
 - **D2 — Sır hiçbir yere sızmasın.** Parola komut satırında, ortam
   değişkeninde ya da günlükte olmaz. Hata mesajına ham girdiyi / hatalı
   satırı yazma; kütüphanenin hata metni de sır içerebilir. **Karşı tarafın
@@ -576,6 +596,11 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   zorunlu dosyayı (bakım modu) yazan kod bağlantı izlemesin. Sunucudaki gerçek
   izinlere bakarak doğrula; testte uygulamayı servisin ortamıyla açıp
   `get_included_files()`'ı ve çalışma zamanındaki günlük yollarını denetle.
+  Ayrı hesabın önbelleğini ayırmak yetmez: o hesabın çalıştırdığı KODU
+  yazabilen hesabın (yayın kullanıcısı) yüklediği dosyaları da say —
+  `deploy.sh`'ın `php artisan`'ı web'in yazabildiği `bootstrap/cache/*.php`'yi
+  ve derlenmiş görünümleri yüklerse zincir web → admin → servis olur.
+  *(Fable incelemesi YF-03; panoda "ayrı iş" diye kalmıştı.)*
   Bir işi ayrı hesaba taşırken onu tetikleyen HER giriş noktasını say:
   zamanlayıcı, kuyruk, yayın betiği, elle komut — biri eski hesapla çalışmaya
   devam ederse iş yetkisizlikten sessizce düşer. Ortak yazılabilir klasördeki
@@ -660,6 +685,16 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   kabuğun açmadığından emin ol (betiği `bash -s` ile gönder).
   *(BY-003, 2026-11-22: kurulum betiği canlıda ilk çalıştırmada 3. adımda
   kaldı; 226 yerel test geçiyordu.)*
+
+- **D11 — Büyük dosyayı `sys_get_temp_dir()`'e yazma.** Sunucuda `/tmp` bir
+  `tmpfs`'tir (RAM + takas): dump boyutunda geçici dosya veritabanı büyüdükçe
+  belleği tüketir. Büyük çalışma dosyaları yapılandırılabilir, kalıcı diskteki
+  bir köke (0700); `/tmp`'de yalnız küçük, sır taşıyan ve hemen silinen
+  dosyalar kalır. Öldürülen süreçten kalan geçici klasörleri bir sonraki
+  açılışta (önek + yaş + sahip, bağlantı atlanarak) temizle: `finally` SIGKILL /
+  OOM'da çalışmaz.
+  *(Fable incelemesi YF-28: kopya, şifreli dosyayı ve geri okunan kopyayı
+  `/tmp`'ye yazıyordu; kesilen `yedek:sifre-coz` özel anahtarı orada bırakıyordu.)*
 
 ## 5. Tasarım dokümanları
 
@@ -746,6 +781,10 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   değildir. Modelde (güncelleme / silme engeli), veritabanında (kısıt) ya da
   tek giriş noktasında zorla ve ihlalini sına; zorlanmayacaksa öyle yazma.
   *(Fable incelemesi F10: "salt eklemeli" denetim kaydı `update()` ile değişiyordu.)*
+  Belgedeki bir davranış ("başarısız kopya yeniden denenir") için onu çağıran
+  ÜRETİM kodu var mı, `grep` ile doğrula: testin kendisinin çağırması kanıt
+  değildir.
+  *(Fable incelemesi YF-04: yeniden denemeyi yalnız test çağırıyordu.)*
 - **K4 — Veritabanı varsayılanı yeni model nesnesinde yoktur.** `create()` /
   `firstOrCreate()` sonrası, migration'daki `default(…)` kolonları nesnede
   `null`'dır (kayıt doğrudur). Varsayılana hemen ihtiyaç varsa modelde

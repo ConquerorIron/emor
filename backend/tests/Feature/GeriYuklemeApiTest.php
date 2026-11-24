@@ -128,4 +128,20 @@ final class GeriYuklemeApiTest extends TestCase
         $istek = json_decode((string) file_get_contents(app(IstekKutusu::class)->bekleyenler()[0]), true);
         $this->assertSame(['kopya_sil', ['veritabani' => 'erp_geri_20261120_100000_inceleme']], [$istek['tur'], $istek['parametreler']]);
     }
+
+    /** YF-11: yanıtı kaybolan kopya silmenin aynı anahtarla yeniden denemesi ikinci iş bırakmaz */
+    public function test_ayni_istek_anahtariyla_iki_kopya_silme_ayni_istegi_doner_tek_dosya_yazar(): void
+    {
+        $kopya = $this->kopya('erp_geri_20261120_100000_inceleme');
+        $anahtar = (string) Str::uuid();
+        $this->actingAs($this->izinli('yedekler.goruntule', 'geri_yukleme.kopya'));
+
+        $ilk = $this->deleteJson(self::K.'/geri-yuklemeler/'.$kopya->kimlik.'/kopya', [], ['Idempotency-Key' => $anahtar])
+            ->assertStatus(202)->json('data.istek_kimligi');
+        $tekrar = $this->deleteJson(self::K.'/geri-yuklemeler/'.$kopya->kimlik.'/kopya', [], ['Idempotency-Key' => $anahtar])
+            ->assertStatus(202)->json('data.istek_kimligi');
+
+        $this->assertSame($ilk, $tekrar);
+        $this->assertSame([$ilk.'.json'], array_map('basename', app(IstekKutusu::class)->bekleyenler()));
+    }
 }

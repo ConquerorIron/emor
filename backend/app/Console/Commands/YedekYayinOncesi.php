@@ -37,8 +37,16 @@ use Throwable;
 #[Description('Yayın öncesi veritabanı yedeğini alır (deploy.sh)')]
 final class YedekYayinOncesi extends Command
 {
-    /** Servis çalıştırıcısının yedeği bitirmesi için en uzun bekleme (sn) */
+    /** Servis çalıştırıcısının üstlendiği yedeği bitirmesi için en uzun bekleme (sn) */
     private const SERVIS_BEKLEME = 1800;
+
+    /**
+     * Çalıştırıcının isteği üstlenmesi için en uzun bekleme (sn; YF-68, D9).
+     * Boştaki çalıştırıcı 2 sn'de bir yoklar; bu sürede alınmayan istek geri
+     * çekilir, yayın kilidi yarım saat tutulmaz. Çalıştırıcı başka bir işle
+     * meşgulse de yayın durur (zararsız: henüz hiçbir şey değişmedi).
+     */
+    private const SERVIS_USTLENME = 90;
 
     public function handle(YedeklemeYapilandirmasi $yapilandirma, YedekAlici $alici, IstekKutusu $kutu, PgAraclari $pg): int
     {
@@ -76,7 +84,7 @@ final class YedekYayinOncesi extends Command
                 $this->warn('Yayın öncesi yedek isteğinin diske eşitlendiği doğrulanamadı; istek görünür, sonucu bekleniyor.');
             }
             $this->line('Yayın öncesi yedek istendi; çalıştırıcı bekleniyor…');
-            $sonuc = $kutu->bekle($kimlik, self::SERVIS_BEKLEME);
+            $sonuc = $kutu->bekle($kimlik, self::SERVIS_BEKLEME, self::SERVIS_USTLENME);
         } catch (Throwable $hata) {
             $this->error('Yayın öncesi yedek alınamadı: '.$hata->getMessage());
 

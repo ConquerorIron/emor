@@ -137,6 +137,10 @@ final class UstuneGeriYuklemeApiTest extends TestCase
         $uc = self::ISLEM.$kayit->kimlik.'/durum';
 
         $this->getJson($uc)->assertUnauthorized()->assertJsonPath('kod', GeriYuklemeHatasi::ERISIM_ANAHTARI_YOK);
+        // Karar uçları da anahtarsız 401 (YF-16)
+        foreach (['onayla', 'geri-don'] as $karar) {
+            $this->postJson(self::ISLEM.$kayit->kimlik.'/'.$karar, [])->assertUnauthorized()->assertJsonPath('kod', GeriYuklemeHatasi::ERISIM_ANAHTARI_YOK);
+        }
         $this->getJson($uc, ['X-Erisim-Anahtari' => ErisimAnahtari::uret()])->assertForbidden()->assertJsonPath('kod', GeriYuklemeHatasi::ERISIM_ANAHTARI_GECERSIZ);
         $this->getJson($uc, ['X-Erisim-Anahtari' => 'kisa'])->assertForbidden();
         $this->getJson($uc, ['X-Erisim-Anahtari' => $anahtar])->assertOk()

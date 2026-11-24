@@ -583,6 +583,8 @@
     "YEDEK_YAPILANDIRMA_HATASI": "Yedekleme sunucuda doğru yapılandırılmamış.",
     "YEDEK_DEPO_ISARETI_YOK": "Yedek klasörü depo olarak doğrulanamadı; yedek diski bağlı olmayabilir. Yedek alınmadı.",
     "YEDEK_YARIDA_KALDI": "Yedeği alan süreç işi bitirmeden durdu; yedek tamamlanmadı.",
+    "KOPYA_BEKLENMEYEN_HATA": "Kopyalama beklenmeyen bir hatayla durdu; kopya tamamlanmadı. Ayrıntı için sunucu günlüğüne bakın.",
+    "KOPYA_YARIDA_KALDI": "Kopyalayan süreç işi bitirmeden durdu; kopya tamamlanmadı. Sonraki planlı yedekte yeniden denenir.",
     "YEDEK_ANAHTAR_GECERSIZ": "Anahtar okunamadı: geçerli bir ASCII zırhlı OpenPGP açık anahtarı yapıştırın.",
     "YEDEK_ANAHTAR_OZEL": "Bu bir ÖZEL anahtar. Sunucuya yalnız açık anahtar yüklenir; özel anahtarı kendi güvenli yerinde saklayın.",
     "YEDEK_ANAHTAR_SURESI_DOLMUS": "Anahtarın süresi dolmuş; geçerli bir açık anahtar yükleyin.",
@@ -595,6 +597,8 @@
     "HEDEF_ERISILEMEDI": "Hedefe ulaşılamadı (adres, port ya da ağ).",
     "HEDEF_KONUMU_DEGISMEZ": "Bu hedefte kopyalar var; kopyaların durduğu yeri belirleyen alanlar (sunucu, port, klasör, kova, bağlı hesap…) değiştirilemez. Başka bir yer için yeni bir hedef ekleyin; parola / anahtar yenilenebilir.",
     "HEDEF_SINAMA_SURESI_DOLDU": "Sınamanın süresi doldu; bu adım çalıştırılmadı.",
+    "HEDEF_SINAMA_CALISTIRICIDA": "Servis kipinde bu klasöre çalıştırıcının hesabı yazar; yazma sınaması web isteğinde yapılmadı. Kopyanın sonucunu yedek listesinde görürsünüz.",
+    "GOOGLE_IPTAL_EDILEMEDI": "Google bağlantı anahtarı Google tarafında iptal edilemedi; Google hesabının güvenlik ayarlarından (üçüncü taraf erişimi) elle kaldırın.",
     "YEDEK_IMZA_ANAHTARI_YOK": "Yedekleme imza anahtarı bulunamadı ya da okunamıyor; ayarlar kaydedilmedi. Sunucu kurulumunu denetleyin.",
     "HEDEF_KIMLIK_HATALI": "Hedefin kullanıcı adı, parolası ya da anahtarı hatalı.",
     "HEDEF_YAZILAMADI": "Hedefe yazılamadı (izin ya da klasör).",
@@ -628,7 +632,7 @@
     "GERI_YUKLEME_OZET_TUTMUYOR": "Yedek dosyasının özeti manifestle tutmuyor.",
     "GERI_YUKLEME_YEDEK_DOSYASI_YOK": "Yedek dosyası diskte yok.",
     "GERI_YUKLEME_OZEL_ANAHTAR_GEREKLI": "Bu yedek yalnız şifreli sunucu dışı kopyada var; özel anahtar gerektiği için ekrandan geri yüklenemez. Komut satırı yolunu izleyin (docs/yedekleme/kurtarma.md).",
-    "GERI_YUKLEME_VERITABANI_OZELLIGI": "Veritabanı özellikleri okunamadı.",
+    "GERI_YUKLEME_VERITABANI_OZELLIGI": "Veritabanı özellikleri okunamadı ya da bu geri yükleme onları taşıyamaz (liste türü ayar, rol düzeyi ayar, bağlantı sınırı, libc dışı sıralama sağlayıcısı). Ayrıntı işlem kaydındaki mesajda.",
     "GERI_YUKLEME_VERITABANI_OLUSTURULAMADI": "Veritabanı oluşturulamadı.",
     "GERI_YUKLEME_PG_RESTORE_HATASI": "Geri yükleme (pg_restore) başarısız oldu.",
     "GERI_YUKLEME_KARSILASTIRMA_TUTMADI": "Geri yüklenen veri manifestle tutmadı.",
@@ -658,6 +662,10 @@
     "GERI_YUKLEME_BAGLANTI_KAPATILAMADI": "Canlı veritabanının bağlantıları kapatılamadı.",
     "GERI_YUKLEME_YER_DEGISTIRILEMEDI": "Veritabanlarının yeri değiştirilemedi; adlar değişmedi.",
     "GERI_YUKLEME_ADLAR_TUTARSIZ": "Veritabanı adları beklenen durumda değil; acil durum komutuyla durumu inceleyin.",
+    "GERI_YUKLEME_ADLAR_OKUNAMADI": "Veritabanı adları okunamadı (PostgreSQL erişilemiyor); uygulama bakım modunda, işlem otomatik olarak yeniden denenecek.",
+    "GERI_YUKLEME_PG_SURUMU_UYUMSUZ": "Yedek bu sunucudakinden yeni bir PostgreSQL sürümüyle alınmış (ya da sürüm okunamadı); geri yüklenmedi.",
+    "GERI_YUKLEME_APP_KEY_UYUMSUZ": "Yedek bugünkü uygulama anahtarı (APP_KEY) ve önceki anahtarlar dışındaki bir anahtarla alınmış; şifreli alanlar çözülemeyeceği için üstüne geri yüklenmedi.",
+    "GERI_YUKLEME_KOPYA_SINIRI": "Bekleyen geri yükleme kopyası sayısı sınırda; yenisi için önce gerekmeyen kopyaları silin.",
     "GERI_YUKLEME_DIZIN_KURULAMADI": "Yer değiştirmeden sonra yedek dizini kurulamadı.",
     "GERI_YUKLEME_AYAR_UZLASTIRILAMADI": "Yer değiştirmeden sonra ayarlar uzlaştırılamadı.",
     "GERI_YUKLEME_YONETICI_GERI_DONDU": "Yönetici geri dönmeyi seçti; eski veritabanıyla açıldı.",
@@ -1524,7 +1532,8 @@
         "sil": "Yedek silme",
         "plan_calistir": "Planı çalıştırma",
         "kopya_geri_yukle": "Farklı adla geri yükleme",
-        "kopya_sil": "Kopya silme"
+        "kopya_sil": "Kopya silme",
+        "ustune_geri_yukle": "Üstüne geri yükleme"
       },
       "durum": {
         "kuyrukta": "kuyrukta",
@@ -1623,6 +1632,7 @@
       "kaydedildi": "Hedef kaydedildi.",
       "sina": "Bağlantıyı Sına",
       "sirKayitli": "kayıtlı — değiştirmek için yazın",
+      "kayitliDegeriSil": "Kayıtlı değeri sil ({{alan}})",
       "sirNotu": "Parola ve anahtar alanları güvenlik için gösterilmez; boş bırakılırsa kayıtlı değer korunur. Sunucu, port ya da kullanıcı değişirse yeniden girilmelidir.",
       "konumKilitli": "Bu hedefte kopyalar var: kopyaların durduğu yeri belirleyen alanlar kilitli. Başka bir yer için yeni bir hedef ekleyin; parola / anahtar yenilenebilir.",
       "sunucuDisiNotu": "Sunucu dışı hedef: kopyalar Yedekleme Ayarları'ndaki açık anahtarla şifrelenerek gönderilir. Açık anahtar yoksa bu hedefe kopya gönderilmez.",
@@ -1664,6 +1674,7 @@
       "sinama": {
         "basarili": "Bağlantı sınaması başarılı.",
         "basarisiz": "Bağlantı sınaması başarısız.",
+        "kismen": "Klasör bulundu; yazma sınaması çalıştırıcının hesabıyla yapılır (servis kipi).",
         "gecti": "geçti",
         "atlandi": "atlandı",
         "adim": {
@@ -1886,6 +1897,7 @@
         "hedef_sunucu_anahtari_sifirla": "Sunucu anahtarını sıfırlama",
         "hedef_google_baglan": "Google bağlantısı",
         "hedef_google_kes": "Google bağlantısını kesme",
+        "hedef_google_iptal": "Google anahtarını iptal etme",
         "plan_ekle": "Plan ekleme",
         "plan_guncelle": "Plan güncelleme",
         "plan_sil": "Plan silme",
@@ -1897,13 +1909,16 @@
         "sabitle": "Sabitleme",
         "sabit_coz": "Sabitlemeyi kaldırma",
         "aciklama": "Not kaydı",
-        "sil": "Yedek silme",
         "tara": "Klasör tarama",
         "dogrula": "Doğrulama",
         "kopya_geri_yukle": "Farklı adla geri yükleme",
-        "ustune_geri_yukle": "Üstüne geri yükleme",
-        "onayla": "Üstüne geri yükleme onayı",
-        "geri_don": "Üstüne geri yüklemeden geri dönüş"
+        "yedek_sil": "Yedek silme",
+        "geri_yukle_ustune": "Üstüne geri yükleme",
+        "geri_yukle_ustune_onay": "Üstüne geri yükleme onayı",
+        "geri_yukle_ustune_geri_don": "Üstüne geri yüklemeden geri dönüş",
+        "geri_yukle_ustune_ayar_secimi": "Üstüne geri yükleme ayar seçimi",
+        "hedef_google_klasor": "Google Drive klasör seçimi",
+        "hedef_google_secici": "Google Drive klasör seçme penceresi"
       }
     },
     "ayarlar": {

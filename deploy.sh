@@ -61,6 +61,70 @@ fi
 
 echo "==> Deploy başladı (branch: $BRANCH)"
 
+# Çıkışta (başarı, hata ya da öldürülme): yayının açtığı bakım modu kapanır,
+# özel görünüm klasörü silinir. Değişkenler aşağıdaki adımlarda dolar.
+BAKIM_BIZIM=0
+GORUNUM_KLASORU=""
+cleanup() {
+  if [[ "$BAKIM_BIZIM" -eq 1 ]]; then
+    php backend/artisan up || true
+  fi
+  if [[ -n "$GORUNUM_KLASORU" ]]; then
+    rm -rf -- "$GORUNUM_KLASORU"
+  fi
+}
+trap cleanup EXIT
+
+# --------- Web'in yazabildiği PHP yüklenmez (YF-03; Dikkat_Edilecekler D7) ---------
+# Bu betiğin her `php backend/artisan` çağrısı yayın kullanıcısıyla (admin)
+# çalışır ve backend/bootstrap/cache/*.php'yi (config, services, packages,
+# routes, events) `require` eder. Klasör web'e yazılabilir olsaydı ele
+# geçirilmiş bir web süreci oraya PHP koyar, bir sonraki yayında admin olarak
+# çalıştırırdı (oradan backend kodu → yedekleme servis hesabı). Bu yüzden ilk
+# php çağrısından ÖNCE:
+#   - klasörün sahibi yayın kullanıcısı olmalı (değilse dur: chmod yapılamaz);
+#   - klasöre grup / başkaları yazamaz, ek ACL girdisi yok (varsayılan ACL
+#     umask'ı geçersiz kılardı — G5);
+#   - içindeki bütün *.php (bağlantılar dahil) silinir: web'in daha önce
+#     yazmış olabileceği hiçbir dosya yüklenmez. Sonraki ilk php çağrısı
+#     packages.php / services.php'yi admin olarak yeniden üretir;
+#     `optimize:clear` onları da siler, ardından `optimize` süreci açılışta
+#     yeniden üretir ve config / routes / events önbelleklerini yazar. Web
+#     çalışma zamanında bu klasöre yazmaz (yalnız silme ile sonraki çağrı
+#     arasındaki anlık boşlukta önbelleksiz açılır).
+#   - umask 022: admin'in ürettiği önbellek dosyaları da grup yazılabilir olmaz.
+#     Önceki umask yalnız web ile ORTAK günlük dosyalarına yazan yayın öncesi
+#     yedek için korunur (aşağıda).
+# Derlenmiş Blade görünümleri (storage/framework/views) de web'e yazılabilir ve
+# admin süreci bir görünüm çizerse (ör. yayın öncesi yedeğin hata maili)
+# derlenmiş PHP'yi yükler: cache adımına kadar admin'in artisan çağrıları özel
+# bir klasör kullanır (VIEW_COMPILED_PATH; config önbelleği silindiği için
+# .env yerine ortam okunur). `optimize` normal yolu önbelleğe yazsın diye
+# cache adımından hemen önce kaldırılır.
+ESKI_UMASK="$(umask)"
+umask 022
+ONBELLEK=backend/bootstrap/cache
+if [[ -L "$ONBELLEK" || ! -d "$ONBELLEK" ]]; then
+  echo "HATA: $ONBELLEK klasör değil (ya da bağlantı); yayın yapılmadı."
+  exit 1
+fi
+ONBELLEK_SAHIBI="$(stat -c %U "$ONBELLEK")"
+if [[ "$ONBELLEK_SAHIBI" != "$(id -un)" ]]; then
+  echo "HATA: $ONBELLEK'in sahibi '$ONBELLEK_SAHIBI'; yayını çalıştıran kullanıcı ($(id -un)) olmalı. Web'in yazamadığından emin olunamıyor, yayın yapılmadı."
+  echo "Düzeltmek için (bir kez): sudo chown $(id -un) $ONBELLEK"
+  exit 1
+fi
+chmod g-w,o-w "$ONBELLEK"
+if command -v getfacl >/dev/null 2>&1 && [[ -n "$(getfacl -cps "$ONBELLEK" 2>/dev/null)" ]]; then
+  setfacl -b "$ONBELLEK"
+fi
+if ! find "$ONBELLEK" -maxdepth 1 -name '*.php' ! -type d -delete; then
+  echo "HATA: $ONBELLEK içindeki önbellek dosyaları silinemedi; yayın yapılmadı."
+  exit 1
+fi
+GORUNUM_KLASORU="$(mktemp -d)"
+export VIEW_COMPILED_PATH="$GORUNUM_KLASORU"
+
 # --------- 0. Yayın koruması (BY-013-R1, BY-029-R1) ---------
 # Yedekleme modülü açıksa yayın, betik bitene kadar YAYIN KİLİDİNİ tutar
 # (fd 9; süreç bitince — öldürülse de — çekirdek bırakır). Üstüne geri yükleme
@@ -101,9 +165,13 @@ fi
 # $BACKUP_DIR'e <vt>_predeploy_<zaman>.dump. Bağlantı bilgisi Laravel'in
 # yapılandırmasından, parola PGPASSFILE ile gelir; bu betik .env okumaz.
 # Yedek alınamazsa yayın burada durur: bakım modu, kod çekme, migration yok.
+# Önceki umask ile (YF-03): yedek, web ile ortak günlük dosyalarına
+# (storage/logs/yedekleme-*.log, gün başına açılır) yazar; 022 ile açtığı gün
+# dosyasına web o gün yazamazdı. bootstrap/cache'e yazmaz: önbellek dosyaları
+# yukarıdaki ilk çağrıda (022 ile) üretildi.
 if [[ "$WITH_BACKUP" -eq 1 ]]; then
   echo "==> PostgreSQL yedeği (yayın öncesi)"
-  if ! php backend/artisan yedek:yayin-oncesi --eski-klasor="$BACKUP_DIR"; then
+  if ! (umask "$ESKI_UMASK" && php backend/artisan yedek:yayin-oncesi --eski-klasor="$BACKUP_DIR"); then
     echo "HATA: Yayın öncesi yedek alınamadı; yayın yapılmadı. (Yedeksiz yayın için: --no-backup)"
     exit 1
   fi
@@ -112,7 +180,8 @@ fi
 # --------- 2. Bakım modu ---------
 # Yayın yalnız KENDİ açtığı bakım modunu kapatır: uygulama zaten bakım
 # modundaysa (elle ya da bir geri yükleme açmış) down / up çağrılmaz.
-BAKIM_BIZIM=0
+# Kapatma çıkış tuzağında (cleanup) da yapılır: yarıda kalan yayın siteyi
+# bakımda bırakmaz.
 if [[ "$WITH_DOWN" -eq 1 ]]; then
   if [[ -e backend/storage/framework/down ]]; then
     echo "==> NOT: Uygulama zaten bakım modunda (bu yayın açmadı); yayın bakım modunu açıp kapatmayacak."
@@ -120,13 +189,6 @@ if [[ "$WITH_DOWN" -eq 1 ]]; then
     BAKIM_BIZIM=1
   fi
 fi
-
-cleanup() {
-  if [[ "$BAKIM_BIZIM" -eq 1 ]]; then
-    php backend/artisan up || true
-  fi
-}
-trap cleanup EXIT
 
 if [[ "$BAKIM_BIZIM" -eq 1 ]]; then
   php backend/artisan down || true
@@ -164,6 +226,12 @@ fi
 
 php backend/artisan storage:link || true
 
+# Özel görünüm klasörü burada biter: `optimize` config önbelleğine normal yolu
+# (storage/framework/views) yazmalı, `view:cache` görünümleri oraya derlemeli (YF-03)
+unset VIEW_COMPILED_PATH
+rm -rf -- "$GORUNUM_KLASORU"
+GORUNUM_KLASORU=""
+
 echo "==> Cache yenileme"
 php backend/artisan optimize:clear
 php backend/artisan optimize
@@ -171,4 +239,26 @@ php backend/artisan optimize
 echo "==> Queue worker restart"
 php backend/artisan queue:restart || true
 
-echo "==> Deploy tamamlandı. (nginx frontend/dist'i doğrudan sunar; yeni build anında yayındadır)"
+# Yayının açtığı bakım modu son satırdan ÖNCE kapanır: son satır sitenin
+# gerçek durumunu söyler (YF-65)
+if [[ "$BAKIM_BIZIM" -eq 1 ]]; then
+  BAKIM_BIZIM=0
+  php backend/artisan up || true
+fi
+
+# Yayın damgası (YF-24): yedekleme çalıştırıcısı (emor-yedek.service) uzun
+# süren bir döngüdür ve yayından sonra bellekteki eski kodla çalışırdı; bu
+# betik servisi yeniden başlatamaz (admin'in parolasız sudo'su yok).
+# Çalıştırıcı damgayı her boş turun başında okur, değiştiyse çıkar; systemd
+# yeni kodla başlatır. İçerik yalnız karşılaştırılır (sürüm + zaman). Geçici
+# ada yazılıp tek adımda yerine konur (D3); .gitignore'dadır.
+printf '%s %s\n' "$(git rev-parse HEAD 2>/dev/null || echo bilinmiyor)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .yayin-damgasi.yeni
+mv -f .yayin-damgasi.yeni .yayin-damgasi
+
+if [[ -e backend/storage/framework/down ]]; then
+  echo "==> UYARI: Uygulama HÂLÂ bakım modunda (bu yayın açmadı ya da kapatamadı); site 503 veriyor."
+  echo "    Bakım modunu açan iş bittiyse (geri yükleme değilse): php backend/artisan up"
+  echo "==> Deploy tamamlandı (bakım modu AÇIK)."
+else
+  echo "==> Deploy tamamlandı. (nginx frontend/dist'i doğrudan sunar; yeni build anında yayındadır)"
+fi

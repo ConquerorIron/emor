@@ -64,14 +64,6 @@ final class YedekIslemKaydi extends Model
     }
 
     /**
-     * @return BelongsTo<GeriYukleme, $this>
-     */
-    public function geriYukleme(): BelongsTo
-    {
-        return $this->belongsTo(GeriYukleme::class, 'geri_yukleme_id');
-    }
-
-    /**
      * @return array<string, string>
      */
     protected function casts(): array

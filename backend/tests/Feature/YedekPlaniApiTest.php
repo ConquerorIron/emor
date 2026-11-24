@@ -19,7 +19,9 @@ use App\Services\Yedekleme\YedekKaynagi;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 use Tests\Yedekleme\YedeklemeOrtami;
 
@@ -101,6 +103,38 @@ final class YedekPlaniApiTest extends TestCase
 
         $kayit = $this->postJson(self::K, $govde)->assertCreated()->json('data');
         $this->assertSame($onizleme['siradakiler'][0], $kayit['sonraki_calisma']);
+    }
+
+    /**
+     * YF-31 (G10): saatlik planın günleri metin olarak gelse de ("1") tam sayı
+     * saklanır; takvim onları yok sayıp planı her gün çalıştırmaz.
+     */
+    public function test_saatlik_plan_metin_gunlerle_kaydedilince_yalniz_o_gunlerde_calisir(): void
+    {
+        $hedef = YedekHedefi::factory()->create();
+        $govde = $this->govde('Pazartesi', 'saatlik', '08:00', ['aralik' => 4, 'saat_baslangic' => '08:00', 'saat_bitis' => '20:00', 'gunler' => ['1']], [['hedef_id' => $hedef->id, 'sakla_son_adet' => 10]]);
+
+        $kayit = $this->postJson(self::K, $govde)->assertCreated()->json('data');
+
+        // Cumartesi: ilk çalışma pazartesi 08:00 İstanbul
+        $this->assertSame('2026-11-23T05:00:00+00:00', $kayit['sonraki_calisma']);
+        $this->assertSame([1], YedekPlani::query()->sole()->siklik['gunler']);
+    }
+
+    /**
+     * YF-33 (G1, BY-014-R1): denetim günlüğü yazılamazsa plan değişikliği geri
+     * alınır; kayıtsız silme / değişiklik olmaz.
+     */
+    public function test_denetim_gunlugu_yazilamazsa_plan_silinmez_500(): void
+    {
+        $plan = YedekPlani::factory()->create();
+        touch($this->yedekKoku.'/dosya');
+        config(['logging.channels.yedekleme.path' => $this->yedekKoku.'/dosya/yedekleme.log']);
+        Log::forgetChannel('yedekleme');
+
+        $this->deleteJson(self::K.'/'.$plan->id)->assertStatus(500);
+
+        $this->assertModelExists($plan);
     }
 
     public function test_onizlemedeki_silinecekler_kayittan_sonra_saklamanin_hesabiyla_ayni(): void
@@ -224,14 +258,15 @@ final class YedekPlaniApiTest extends TestCase
     {
         $this->sahtePgAraclari();
         Sleep::fake();
-        $disk = YedekHedefi::factory()->create(['ad' => 'Disk', 'baglanti' => ['klasor' => '/proc/yedek-yazilamaz']]);
-        [$a, $b] = [$this->calismisPlan('A', [$disk], null), $this->calismisPlan('B', [$disk], null)];
+        $disk = YedekHedefi::factory()->create(['ad' => 'Disk', 'baglanti' => ['klasor' => $this->yedekKoku.'/disk-yok']]);
+        mkdir($this->yedekKoku.'/disk-b', 0750, true);
+        $diskB = YedekHedefi::factory()->create(['ad' => 'Disk B', 'baglanti' => ['klasor' => $this->yedekKoku.'/disk-b']]);
+        [$a, $b] = [$this->calismisPlan('A', [$disk], null), $this->calismisPlan('B', [$diskB], null)];
         $kilit = $this->kilitAl();
 
-        // A: disk yazılamaz → hedef hatası. B: aynı saniyede, disk düzeltilmiş → başarılı
+        // A: disk yok → hedef hatası. B: aynı saniyede, kendi (sağlam) hedefiyle → başarılı.
+        // B ayrı hedefte: aynı hedef düzelseydi A'nın kopyası yeniden denenip tamamlanırdı (YF-04)
         $yedekA = app(PlanliYedek::class)->calistir(YedekPlani::query()->whereKey($a->id)->get(), $kilit);
-        mkdir($this->yedekKoku.'/disk', 0750, true);
-        $disk->update(['baglanti' => ['klasor' => $this->yedekKoku.'/disk']]);
         app(PlanliYedek::class)->calistir(YedekPlani::query()->whereKey($b->id)->get(), $kilit);
 
         $sonuclar = collect($this->getJson(self::K)->assertOk()->json('data'))->pluck('son_sonuc', 'ad')->all();
@@ -318,5 +353,20 @@ final class YedekPlaniApiTest extends TestCase
 
         $istek = json_decode((string) file_get_contents(app(IstekKutusu::class)->bekleyenler()[0]), true);
         $this->assertSame(['plan_calistir', ['plan_id' => $plan->id]], [$istek['tur'], $istek['parametreler']]);
+    }
+
+    /** YF-11: yanıtı kaybolan "Şimdi Çalıştır"ın aynı anahtarla yeniden denemesi ikinci iş bırakmaz */
+    public function test_ayni_istek_anahtariyla_iki_calistir_ayni_istegi_doner_tek_dosya_yazar(): void
+    {
+        $plan = YedekPlani::factory()->create();
+        $anahtar = (string) Str::uuid();
+
+        $ilk = $this->postJson(self::K.'/'.$plan->id.'/calistir', [], ['Idempotency-Key' => $anahtar])
+            ->assertStatus(202)->json('data.istek_kimligi');
+        $tekrar = $this->postJson(self::K.'/'.$plan->id.'/calistir', [], ['Idempotency-Key' => $anahtar])
+            ->assertStatus(202)->json('data.istek_kimligi');
+
+        $this->assertSame($ilk, $tekrar);
+        $this->assertSame([$ilk.'.json'], array_map('basename', app(IstekKutusu::class)->bekleyenler()));
     }
 }

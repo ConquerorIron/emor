@@ -68,6 +68,9 @@ use Throwable;
  */
 final class SaklamaPolitikasi
 {
+    /** Kararın beklenmeyen (HedefHatasi dışı) hatası; denetim ayrıntısında (YF-35) */
+    public const BEKLENMEYEN_HATA = 'SAKLAMA_BEKLENMEYEN_HATA';
+
     /** Plan yedeğinin yerel (aktarım) dosyasını tutan korumalar — bkz. hesapla() */
     private const YEREL_AKTARIM_KORUMALARI = ['sabit', 'kullanimda', 'uzak_kopya_dogrulanmadi', 'kurtarma_paketi_eksik'];
 
@@ -120,7 +123,9 @@ final class SaklamaPolitikasi
         // kopyası kalan yedek geçmişte başarılıdır (durum `tamam`, temkin onu
         // sayar) ama korumayı daha eski kullanılabilir yedekten almaz (BY-028 notu)
         $kopyasiOlan = array_fill_keys($kopyalar->pluck('yedek_id')->map(fn ($id): int => (int) $id)->all(), true);
-        $kullanilabilir = $yedekler->filter(fn (Yedek $y): bool => $y->yerel_silinme_zamani === null || isset($kopyasiOlan[$y->id]));
+        // İmzasız (güvenilmeyen) yedek geri yüklenemez: "son başarılı", "doğrulanmış en
+        // yeni" ve en az sayı yalnız imzalı yedeklerden sayılır (D4, YF-06)
+        $kullanilabilir = $yedekler->filter(fn (Yedek $y): bool => $y->imzali && ($y->yerel_silinme_zamani === null || isset($kopyasiOlan[$y->id])));
         $sonBasarili = $kullanilabilir->sortByDesc(fn (Yedek $y) => $y->alinma_zamani?->getTimestamp() ?? 0)->first();
         $dogrulanmis = $kullanilabilir->filter(fn (Yedek $y): bool => $y->dogrulama_durumu === DogrulamaDurumu::SinamaGecti)
             ->sortByDesc(fn (Yedek $y) => $y->alinma_zamani?->getTimestamp() ?? 0)->first();
@@ -207,7 +212,7 @@ final class SaklamaPolitikasi
             // sayısı başka grubun kararına sızmaz; sonuç grupların işlenme
             // sırasına bağlı değildir. Nedenler yalnız rapora birleşir.
             $grupKorunan = isset($anaHedefler[$hedefId]) ? $yerelKorunan : $korunan;
-            $secilen = $this->suz($adaylar, $grup->count(), $yedekler, $grupKorunan, $ayar->enaz_adet);
+            $secilen = $this->suz($adaylar, $grup->filter(fn (YedekKopyasi $k): bool => $yedekler[$k->yedek_id]->imzali)->count(), $yedekler, $grupKorunan, $ayar->enaz_adet);
             $rapor = $this->birlestir($rapor, $grupKorunan);
             // Aynı dosyayı başka bir hedefin kopyası da tutuyor (BY-010-R7): silinmez,
             // uygula() görünür hata yazar
@@ -271,9 +276,17 @@ final class SaklamaPolitikasi
         // silinecek kopya dayanak değildir (BY-010-R4; kurtarmaDayanagiYok).
         $adaylar = [];
         $klasorKorunan = $yerelKorunan;
-        $zamanlanmamis = $klasorGrubu->filter(fn (Yedek $y): bool => $y->kaynak !== YedekKaynagi::Plan)->values();
+        // Hiç kopya kaydı olmayan plan yedeği (planın bütün hedefleri pasifti):
+        // uzak kopya hiç olmayacağı için yerel dosyası elle yedek kuralıyla
+        // yönetilir; yoksa süresiz birikirdi (YF-04)
+        $kopyasizPlan = array_fill_keys(array_map('intval', $yedekler
+            ->filter(fn (Yedek $y): bool => $y->kaynak === YedekKaynagi::Plan)
+            ->keys()
+            ->diff(YedekKopyasi::query()->whereIn('yedek_id', $yedekler->keys())->distinct()->pluck('yedek_id'))
+            ->all()), true);
+        $zamanlanmamis = $klasorGrubu->filter(fn (Yedek $y): bool => $y->kaynak !== YedekKaynagi::Plan || isset($kopyasizPlan[$y->id]))->values();
         foreach ($klasorGrubu as $yedek) {
-            if ($yedek->kaynak === YedekKaynagi::Plan) {
+            if ($yedek->kaynak === YedekKaynagi::Plan && ! isset($kopyasizPlan[$yedek->id])) {
                 $uzakVar = $uzakKopyalar->has($yedek->id);
                 if ($this->kurtarmaDayanagiYok($kalanUzak($yedek->id))) {
                     $klasorKorunan[$yedek->id][] = 'kurtarma_paketi_eksik';
@@ -291,7 +304,7 @@ final class SaklamaPolitikasi
                 $adaylar[] = new SilmeKarari(SilmeKarari::DOSYA, $yedek->id, null, null, null, $neden);
             }
         }
-        array_push($kararlar, ...$this->suz($adaylar, $zamanlanmamis->count(), $yedekler, $klasorKorunan, $ayar->enaz_adet));
+        array_push($kararlar, ...$this->suz($adaylar, $zamanlanmamis->filter(fn (Yedek $y): bool => $y->imzali)->count(), $yedekler, $klasorKorunan, $ayar->enaz_adet));
         $rapor = $this->birlestir($rapor, $klasorKorunan);
 
         return ['silinecek' => $kararlar, 'korunan' => $rapor, 'temkin' => null, 'engellenen' => $engellenen];
@@ -390,7 +403,7 @@ final class SaklamaPolitikasi
 
     /**
      * Hesaplanan kararları uygular. Erişilemeyen hedef atlanır, diğerleri
-     * sürer. Her silme denetim kaydına ve olay günlüğüne nedeniyle yazılır.
+     * sürer; bir kararın beklenmeyen hatası da yalnız o grubu keser (YF-35). Her silme denetim kaydına ve olay günlüğüne nedeniyle yazılır.
      * Uzak silmeler önce uygulanır; plan yedeğinin yerel dosyası, ardından
      * fiilen kalan uzak kopyalardan hiçbiri kurtarmaya hazır değilse silinmez
      * (denetim kaydı `basarisiz`, kod `kurtarma_paketi_eksik`; `bilgi` satırı).
@@ -428,14 +441,20 @@ final class SaklamaPolitikasi
                 continue;
             }
 
-            DB::table('yedek_kopya_planlari')->where('yedek_kopyasi_id', $karar->kopyaId)->where('yedek_plani_id', $karar->planId)->delete();
-            $kopya = YedekKopyasi::query()->with(['yedek', 'hedef'])->find($karar->kopyaId);
-            if ($kopya !== null) {
-                $this->kopyaOlayi($kopya);
+            try {
+                DB::table('yedek_kopya_planlari')->where('yedek_kopyasi_id', $karar->kopyaId)->where('yedek_plani_id', $karar->planId)->delete();
+                $kopya = YedekKopyasi::query()->with(['yedek', 'hedef'])->find($karar->kopyaId);
+                if ($kopya !== null) {
+                    $this->kopyaOlayi($kopya);
+                }
+                $sonuc['bag']++;
+                $sonuc['kararlar'][] = $karar;
+                $this->denetim->kaydet('saklama_bag', IslemSonucu::Basarili, $karar->yedekId, $kullaniciId, null, $karar->diziye());
+            } catch (Throwable $hata) {
+                // Tek kararın beklenmeyen hatası (disk dolu → olay günlüğü) turu
+                // kesmez: yer açacak yerel silmelere sıra gelmeli (YF-35)
+                $this->beklenmeyenHata('saklama_bag', $karar, $hata, $kullaniciId);
             }
-            $sonuc['bag']++;
-            $sonuc['kararlar'][] = $karar;
-            $this->denetim->kaydet('saklama_bag', IslemSonucu::Basarili, $karar->yedekId, $kullaniciId, null, $karar->diziye());
         }
 
         $dosyaKararlari = array_values(array_filter($hesap['silinecek'], fn (SilmeKarari $k): bool => $k->tur === SilmeKarari::DOSYA));
@@ -506,6 +525,11 @@ final class SaklamaPolitikasi
                     $sonuc['atlanan_hedefler'][] = (int) $hedefId;
                     $this->denetim->kaydet('saklama_sil', IslemSonucu::Basarisiz, $yedek->id, $kullaniciId, null, [...$karar->diziye(), 'kod' => $hata->kod], $hata->getMessage());
                     break;
+                } catch (Throwable $hata) {
+                    // Beklenmeyen hata o grubu keser, sonraki grupları değil (YF-35)
+                    $sonuc['atlanan_hedefler'][] = (int) $hedefId;
+                    $this->beklenmeyenHata('saklama_sil', $karar, $hata, $kullaniciId);
+                    break;
                 }
             }
         }
@@ -517,6 +541,22 @@ final class SaklamaPolitikasi
         }
 
         return $sonuc;
+    }
+
+    /**
+     * Kararın beklenmeyen hatası: raporlanır, denetim kaydına yalnız sınıf adıyla
+     * yazılır (hata metni yol / sır taşıyabilir — D2). Denetim kaydının kendisi
+     * düşerse de tur sürer.
+     */
+    private function beklenmeyenHata(string $islem, SilmeKarari $karar, Throwable $hata, ?int $kullaniciId): void
+    {
+        report($hata);
+
+        try {
+            $this->denetim->kaydet($islem, IslemSonucu::Basarisiz, $karar->yedekId, $kullaniciId, null, [...$karar->diziye(), 'kod' => self::BEKLENMEYEN_HATA], $hata::class);
+        } catch (Throwable $denetimHatasi) {
+            report($denetimHatasi);
+        }
     }
 
     private function dosyaSil(Yedek $yedek, SilmeKarari $karar, mixed $baglayici): void
@@ -561,7 +601,8 @@ final class SaklamaPolitikasi
         }
 
         return match ($yedek->kaynak) {
-            YedekKaynagi::Elle => $alinma->lessThan($simdi->subDays($ayar->elle_gun)) ? SilmeKarari::NEDEN_ELLE_GUN : null,
+            // Plan yedeği buraya yalnız hiç kopya kaydı yokken gelir (hesapla(); YF-04)
+            YedekKaynagi::Elle, YedekKaynagi::Plan => $alinma->lessThan($simdi->subDays($ayar->elle_gun)) ? SilmeKarari::NEDEN_ELLE_GUN : null,
             YedekKaynagi::YayinOncesi => (function () use ($yedek, $grup, $ayar, $simdi, $alinma): ?string {
                 $sira = $grup->filter(fn (Yedek $y): bool => $y->kaynak === YedekKaynagi::YayinOncesi)
                     ->sortByDesc(fn (Yedek $y) => $y->alinma_zamani?->getTimestamp() ?? 0)
@@ -574,7 +615,6 @@ final class SaklamaPolitikasi
             YedekKaynagi::GeriYuklemeOncesi => $alinma->lessThan($simdi->subDays($ayar->geri_yukleme_oncesi_gun))
                 && ! GeriYukleme::query()->where('oncesi_yedek_id', $yedek->id)->whereNotNull('onceki_veritabani')->whereNull('veritabani_silinme_zamani')->exists()
                 ? SilmeKarari::NEDEN_GERI_YUKLEME_ONCESI : null,
-            YedekKaynagi::Plan => null,
         };
     }
 
@@ -582,6 +622,7 @@ final class SaklamaPolitikasi
      * Korunanları çıkarır, en az sayıyı uygular (en eskiler önce silinir).
      *
      * @param  list<SilmeKarari>  $adaylar
+     * @param  int  $grupSayisi  Gruptaki İMZALI yedek sayısı: en az sayıyı geri yüklenemeyen yedek doldurmaz (YF-06)
      * @param  Collection<int, Yedek>  $yedekler
      * @param  array<int, list<string>>  $korunan
      * @return list<SilmeKarari>

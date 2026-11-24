@@ -35,6 +35,9 @@ final class BellekHedefi implements HedefBaglayicisi
     /** Google Drive gibi: her yazım aynı adla da olsa yeni kimlikli dosya açar (üstüne yazmaz) */
     public static bool $herYazimdaYeniKimlik = false;
 
+    /** Son `oku` çağrısının yerel yolu (çalışma klasörünün yeri) */
+    public static ?string $sonOkumaYolu = null;
+
     /** Adı bu metinle biten dosyanın yazımı hata verir (çok dosyalı işin ara adımı) */
     public static ?string $yazilamayanAdSonu = null;
 
@@ -52,6 +55,7 @@ final class BellekHedefi implements HedefBaglayicisi
         self::$sunucuDisi = false;
         self::$yazmaSayisi = 0;
         self::$herYazimdaYeniKimlik = false;
+        self::$sonOkumaYolu = null;
         self::$yazilamayanAdSonu = null;
         self::$silinemeyenAdSonu = null;
     }
@@ -81,6 +85,7 @@ final class BellekHedefi implements HedefBaglayicisi
 
     public function oku(string $uzakKimlik, string $yerelYol): void
     {
+        self::$sonOkumaYolu = $yerelYol;
         $this->hata('oku', HedefHatasi::OKUNAMADI);
         if (! isset(self::$dosyalar[$uzakKimlik])) {
             throw new HedefHatasi(HedefHatasi::OKUNAMADI, 'yok');

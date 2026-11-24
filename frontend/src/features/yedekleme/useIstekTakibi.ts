@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { apiErrorKey } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
+import { useAuth } from '@/hooks/useAuth'
 
 import { istekDurumuGetir, type IstekDurumu, type IstekKabulu } from './yedekApi'
 
@@ -71,17 +73,27 @@ export interface TakipEdilenIstek {
 /** Yoklama aralığı (ms) */
 const YOKLAMA_ARALIGI = 2000
 
+/** Ağ hatası ya da 5xx'ten sonra yoklama aralığı (ms): geçici arıza beklenir, sunucu yorulmaz */
+const HATA_SONRASI_ARALIK = 10000
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-const depoAnahtari = (sayfa: string) => `erp.yedekleme.istekler.v1.${sayfa}`
+type TakipSayfasi = 'yedekler' | 'planlar' | 'geri_yuklemeler'
+
+/**
+ * Depo kullanıcı başınadır (YF-09): aynı sekmede giren sonraki kullanıcı
+ * öncekinin işlerini devralmaz, yetkisi olmayan isteği yoklamaz.
+ */
+const depoAnahtari = (kapsam: string, sayfa: TakipSayfasi) =>
+  `erp.yedekleme.istekler.v2.${kapsam}.${sayfa}`
 
 /**
  * Sayfadan ayrılıp dönülünce yoklama kaldığı yerden sürer (README §4.10).
  * Depo erişilemezse (gizli pencere, kota) takip yalnız bu çizimde yaşar.
  */
-function oku(sayfa: string): TakipEdilenIstek[] {
+function oku(kapsam: string, sayfa: TakipSayfasi): TakipEdilenIstek[] {
   try {
-    const ham = sessionStorage.getItem(depoAnahtari(sayfa))
+    const ham = sessionStorage.getItem(depoAnahtari(kapsam, sayfa))
     const deger: unknown = ham === null ? [] : JSON.parse(ham)
     if (!Array.isArray(deger)) {
       return []
@@ -100,12 +112,12 @@ function oku(sayfa: string): TakipEdilenIstek[] {
   }
 }
 
-function yaz(sayfa: string, kayitlar: TakipEdilenIstek[]): void {
+function yaz(kapsam: string, sayfa: TakipSayfasi, kayitlar: TakipEdilenIstek[]): void {
   try {
     if (kayitlar.length === 0) {
-      sessionStorage.removeItem(depoAnahtari(sayfa))
+      sessionStorage.removeItem(depoAnahtari(kapsam, sayfa))
     } else {
-      sessionStorage.setItem(depoAnahtari(sayfa), JSON.stringify(kayitlar))
+      sessionStorage.setItem(depoAnahtari(kapsam, sayfa), JSON.stringify(kayitlar))
     }
   } catch {
     // depo kapalıysa takip yalnız bu çizimde yaşar
@@ -115,20 +127,32 @@ function yaz(sayfa: string, kayitlar: TakipEdilenIstek[]): void {
 const bittiMi = (durum: IstekDurumu | undefined) =>
   durum?.durum === 'tamam' || durum?.durum === 'basarisiz'
 
-/** İstek dosyası yok (süresi geçti / temizlendi): beklemeye değmez */
-const bulunamadi = (hata: unknown) => isAxiosError(hata) && hata.response?.status === 404
+/**
+ * Yanıtı olan 4xx (408 / 429 hariç) kalıcıdır (YF-09): istek dosyası yok
+ * (404), yetki yok (403), modül kapalı (409 YEDEKLEME_KAPALI)… Girdi
+ * değişmeden düzelmez; yeniden yoklamak yalnız hata biriktirir (D8). Ağ
+ * hatası, 408, 429 ve 5xx geçicidir: yoklama seyrekleşerek sürer.
+ */
+function kaliciHata(hata: unknown): boolean {
+  const durum = isAxiosError(hata) ? hata.response?.status : undefined
+
+  return durum !== undefined && durum >= 400 && durum < 500 && durum !== 408 && durum !== 429
+}
 
 /**
  * Yedekleme işlerinin (yedek al, doğrula, sil, planı çalıştır…) durumunu
  * yoklar. İş sürerken `calisiyor` true'dur: ekran işlem düğmelerini kapatır.
  * Bitince sonucu bildirir ve yedekleme listelerini (['yedekleme']) tazeler.
+ * Durum ucu kalıcı hata verirse (kaliciHata) iş bir kez bildirilir ve takipten
+ * düşer.
  *
- * `sayfa`: takip listesinin deposu (ekran başına ayrı).
+ * `sayfa`: takip listesinin deposu (ekran ve kullanıcı başına ayrı).
  */
-export function useIstekTakibi(sayfa: 'yedekler' | 'planlar' | 'geri_yuklemeler') {
+export function useIstekTakibi(sayfa: TakipSayfasi) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [kayitlar, setKayitlar] = useState<TakipEdilenIstek[]>(() => oku(sayfa))
+  const kapsam = `kullanici.${useAuth().user?.id ?? 'yok'}`
+  const [kayitlar, setKayitlar] = useState<TakipEdilenIstek[]>(() => oku(kapsam, sayfa))
   // StrictMode'da etki iki kez çalışabilir: aynı istek iki kez bildirilmesin
   const bildirilenler = useRef(new Set<string>())
 
@@ -138,16 +162,20 @@ export function useIstekTakibi(sayfa: 'yedekler' | 'planlar' | 'geri_yuklemeler'
       queryFn: () => istekDurumuGetir(kayit.kimlik),
       staleTime: 0,
       retry: false,
-      // Ağ hatasında yoklama sürer; bitmiş ya da bulunamayan istekte durur
+      // Bitmiş istekte ve kalıcı hatada durur; geçici hatada seyrekleşerek sürer
       refetchInterval: (sorgu: { state: { data?: IstekDurumu; error: unknown } }) =>
-        bittiMi(sorgu.state.data) || bulunamadi(sorgu.state.error) ? false : YOKLAMA_ARALIGI,
+        bittiMi(sorgu.state.data) || kaliciHata(sorgu.state.error)
+          ? false
+          : sorgu.state.error
+            ? HATA_SONRASI_ARALIK
+            : YOKLAMA_ARALIGI,
       refetchIntervalInBackground: true,
     })),
   })
 
   useEffect(() => {
-    yaz(sayfa, kayitlar)
-  }, [sayfa, kayitlar])
+    yaz(kapsam, sayfa, kayitlar)
+  }, [kapsam, sayfa, kayitlar])
 
   useEffect(() => {
     const bitenler: string[] = []
@@ -169,8 +197,8 @@ export function useIstekTakibi(sayfa: 'yedekler' | 'planlar' | 'geri_yuklemeler'
             neden: kod ? t(`hata.${kod}`, { defaultValue: kod }) : t('hata.BILINMEYEN'),
           }),
         )
-      } else if (bulunamadi(sonuc.error)) {
-        toast.error(t('yedekleme.istek.basarisiz', { islem, neden: t('hata.ISTEK_BULUNAMADI') }))
+      } else if (kaliciHata(sonuc.error)) {
+        toast.error(t('yedekleme.istek.basarisiz', { islem, neden: t(apiErrorKey(sonuc.error)) }))
       } else {
         return
       }

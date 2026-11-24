@@ -15,6 +15,7 @@ import { hataGovdesi, istanbulZamani } from '@/features/yedekleme/bicim'
 import { hedefleriGetir } from '@/features/yedekleme/hedefApi'
 import { IstekSeridi } from '@/features/yedekleme/IstekSeridi'
 import { Rozet, type RozetRengi } from '@/features/yedekleme/Rozet'
+import { useIsBirakma } from '@/features/yedekleme/useIsBirakma'
 import { useIstekTakibi } from '@/features/yedekleme/useIstekTakibi'
 import { useIzin } from '@/hooks/useIzin'
 
@@ -67,11 +68,15 @@ export function YedekPlanlariPage() {
   const planlar = useQuery({ queryKey: queryKeys.yedekleme.planlar, queryFn: planlariGetir })
   const hedefler = useQuery({ queryKey: queryKeys.yedekleme.hedefler, queryFn: hedefleriGetir })
 
-  const calistir = useMutation({
-    mutationFn: (plan: Plan) => planCalistir(plan.id),
-    onSuccess: (kabul) => baslat(kabul, 'plan_calistir'),
-    onError: (error: unknown) => toast.error(t(apiErrorKey(error))),
-  })
+  // Çift tıklama (ya da A yanıt beklerken B) ikinci tam yedek bırakmaz; yanıtı
+  // kaybolan isteğin yeniden denemesi aynı istek anahtarını taşır (YF-11)
+  const calistir = useIsBirakma(
+    (eylem: { tur: 'plan_calistir'; plan_id: number }, anahtar) =>
+      planCalistir(eylem.plan_id, anahtar),
+    (kabul) => baslat(kabul, 'plan_calistir'),
+  )
+  // Hedef listesi okunamazsa plan formu açılamaz: aynı hata kutusu (YF-64)
+  const listeHatasi = planlar.error ?? hedefler.error
 
   const sil = useMutation({
     mutationFn: (plan: Plan) => planSil(plan.id),
@@ -163,13 +168,13 @@ export function YedekPlanlariPage() {
         <div className="flex flex-wrap justify-end gap-2">
           <Button
             variant="secondary"
-            disabled={calisiyor}
-            yukleniyor={calistir.isPending && calistir.variables.id === plan.id}
-            onClick={() => calistir.mutate(plan)}
+            disabled={calisiyor || calistir.gonderiliyor}
+            yukleniyor={calistir.gonderilen?.plan_id === plan.id}
+            onClick={() => calistir.birak({ tur: 'plan_calistir', plan_id: plan.id })}
           >
             {t('yedekleme.plan.simdiCalistir')}
           </Button>
-          <Button variant="turuncu" onClick={() => setFormdaki(plan)}>
+          <Button variant="turuncu" disabled={!hedefler.data} onClick={() => setFormdaki(plan)}>
             {t('ortak.duzenle')}
           </Button>
           <Button variant="danger" onClick={() => setSilinecek(plan)}>
@@ -202,10 +207,17 @@ export function YedekPlanlariPage() {
       <IstekSeridi calisanlar={calisanlar} />
 
       <div className="mt-4">
-        {planlar.isError ? (
+        {listeHatasi ? (
           <ErrorState
-            mesaj={t(apiErrorKey(planlar.error))}
-            tekrarDene={() => void planlar.refetch()}
+            mesaj={t(apiErrorKey(listeHatasi))}
+            tekrarDene={() => {
+              if (planlar.isError) {
+                void planlar.refetch()
+              }
+              if (hedefler.isError) {
+                void hedefler.refetch()
+              }
+            }}
           />
         ) : (
           <DataTable

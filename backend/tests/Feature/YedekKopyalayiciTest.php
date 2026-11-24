@@ -17,6 +17,7 @@ use App\Services\Yedekleme\KullanimDenetimi;
 use App\Services\Yedekleme\OlayGunlugu;
 use App\Services\Yedekleme\YedekDurumu;
 use App\Services\Yedekleme\YedekKopyalayici;
+use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Sleep;
@@ -134,15 +135,65 @@ final class YedekKopyalayiciTest extends TestCase
         $this->assertSame('PGDMP-yedek-icerigi', file_get_contents($dosya));
     }
 
-    public function test_hedeften_okunan_kopyanin_ozeti_tutmazsa_kopya_basarisiz(): void
+    /**
+     * YF-08: doğrulanamayan yükleme hedefte kayıtsız kalmaz — kimliği hiçbir
+     * kayda yazılmaz; her yazımda yeni kimlik açan hedefte (Drive) her deneme
+     * bir tam kopya bırakırdı.
+     */
+    public function test_hedeften_okunan_kopyanin_ozeti_tutmazsa_kopya_basarisiz_yuklenen_dosyalar_silinir(): void
     {
         $yedek = $this->yedek();
         BellekHedefi::$bozukOku = true;
+        BellekHedefi::$herYazimdaYeniKimlik = true;
 
         $kopya = $this->kopyalayici()->kopyala($yedek, $this->bellekHedefi());
 
         $this->assertSame(KopyaDurumu::Basarisiz, $kopya->durum);
         $this->assertSame(HedefHatasi::OKUNAMADI, $kopya->hata_kodu);
+        $this->assertSame(3, BellekHedefi::$yazmaSayisi);
+        $this->assertSame([], BellekHedefi::$dosyalar);
+    }
+
+    /** YF-08: silme hatası asıl hatayı gizlemez */
+    public function test_dogrulanamayan_yukleme_silinemezse_asil_okuma_hatasi_bildirilir(): void
+    {
+        $yedek = $this->yedek();
+        BellekHedefi::$bozukOku = true;
+        BellekHedefi::$silinemeyenAdSonu = '.dump';
+
+        $kopya = $this->kopyalayici()->kopyala($yedek, $this->bellekHedefi());
+
+        $this->assertSame([KopyaDurumu::Basarisiz, HedefHatasi::OKUNAMADI], [$kopya->durum, $kopya->hata_kodu]);
+    }
+
+    /**
+     * YF-28: kopyanın şifreli dosyası ve geri okunan hâli döküm boyutundadır;
+     * bellekteki /tmp'ye değil yapılandırılan çalışma köküne (0700) yazılır.
+     * Öldürülmüş bir kopyadan kalan eski klasör silinir, yenisine dokunulmaz.
+     */
+    public function test_calisma_klasoru_yapilandirilan_kokte_acilir_eski_artiklar_silinir(): void
+    {
+        $kok = config('yedekleme.calisma_klasoru');
+        $hedef = $this->bellekHedefi();
+
+        $kopya = $this->kopyalayici()->kopyala($this->yedek(), $hedef);
+
+        $this->assertSame(KopyaDurumu::Tamam, $kopya->durum);
+        $this->assertStringStartsWith($kok.'/emor-kopya-', (string) BellekHedefi::$sonOkumaYolu);
+        $this->assertDirectoryDoesNotExist(dirname((string) BellekHedefi::$sonOkumaYolu));
+        $this->assertSame(0700, fileperms($kok) & 0777);
+
+        $eski = $kok.'/emor-kopya-'.str_repeat('a', 12);
+        $yeni = $kok.'/emor-kopya-'.str_repeat('b', 12);
+        mkdir($eski, 0700);
+        file_put_contents($eski.'/yedek.dump.gpg', 'artik');
+        mkdir($yeni, 0700);
+        touch($eski, time() - app(YedeklemeYapilandirmasi::class)->artikKlasorYasi() - 60);
+
+        $this->kopyalayici()->kopyala($this->yedek('PGDMP-ikinci'), $hedef);
+
+        $this->assertDirectoryDoesNotExist($eski);
+        $this->assertDirectoryExists($yeni);
     }
 
     /**

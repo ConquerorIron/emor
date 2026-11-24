@@ -14,7 +14,8 @@ namespace App\Services\Yedekleme;
  * - `calisiyor`: adımlar yürüyor (ya da yarıda kalmış, çalıştırıcı sürdürecek)
  * - `onay_bekliyor`: yer değiştirme bitti, yöneticinin onayı / geri dönüşü bekleniyor
  * - `hata`: işlem açık ve hatayla durmuş; yer değiştirmeden sonraysa karar
- *   yöneticinin (onayla / geri dön), geri sarma hatasıysa çalıştırıcı yeniden dener
+ *   yöneticinin (onayla / geri dön), geri sarma hatasıysa ya da adlar
+ *   okunamadıysa (`GERI_YUKLEME_ADLAR_OKUNAMADI`, YF-41) çalıştırıcı yeniden dener
  * - `onaylandi`, `geri_donuldu`, `basarisiz` (geri sarıldı; canlıya dokunulmadı): kapandı
  * - `bilinmiyor`: adım bu sürümün bildiği bir adım değil (elle incelenmeli)
  */

@@ -17,7 +17,7 @@
 #   4. Gizli dosyalar              veritabanı parola dosyası; imza anahtarının yeri
 #   5. PostgreSQL rolleri           emor_yedek (yedek / geri yükleme), emor_inceleme (salt okunur)
 #   6. Servis tanımı                emor-yedek.service — KURULUR, ETKİNLEŞTİRİLMEZ
-#   7. Dar sudo kuralı              yalnız kuyruk servisini durdur / başlat / sorgula
+#   7. Dar sudo kuralı              yalnız kuyruk servisini durdur / başlat
 #
 # Tekrar çalıştırılabilir: ikinci çalıştırmada hiçbir şeyi değiştirmez
 # ("0 değişiklik"). Var olan hiçbir şeyi silmez (tek istisna: taşınan parola
@@ -38,7 +38,11 @@
 # Bütün ad ve yollar EMOR_* ortam değişkenleriyle değiştirilebilir (lokal
 # deneme için; bkz. sunucu-kurulumu.md). Sunucuda varsayılanlar kullanılır.
 #
-set -euo pipefail
+set -Eeuo pipefail
+# Beklenmeyen hata sessiz kalmasın (YF-66): `set -e` komut ikamesindeki ya da
+# fonksiyondaki bir hatada betiği mesajsız bitirirdi; -E tuzağı fonksiyonlara
+# ve alt kabuklara da geçirir.
+trap 'echo "HATA: beklenmeyen hata (satır $LINENO): $BASH_COMMAND" >&2' ERR
 
 KIP=kur
 case "${1:-}" in
@@ -175,6 +179,15 @@ tur_denetle() { # $1 yol, $2 f (düz dosya) | d (klasör)
   return 1
 }
 
+# İki satır kümesinin farkı ($1: comm seçeneği, -23 yalnız ilkinde, -13 yalnız
+# ikincide). sort ve comm AYNI sırayı kullanmalı: Ubuntu 26.04'ün uutils
+# araçlarında sort yerel dilin harf sırasını (en_US: ":" yok sayılır), comm
+# bayt sırasını kullanır; "user:admin:--x" iki araçta farklı yere düşer ve
+# comm "not in sorted order" ile durur. İkisi de C sırasıyla çalışır.
+satir_farki() {
+  LC_ALL=C comm "$1" <(LC_ALL=C sort <<<"$2") <(LC_ALL=C sort <<<"$3") | paste -sd ' '
+}
+
 # Komutu nesnenin sahibi olarak çalıştırır (root'a ait nesnede root olarak)
 sahibi_olarak() { # $1 kullanıcı, sonra komut
   local kullanici="$1"; shift
@@ -282,8 +295,30 @@ for cift in "$WEB_KULLANICI:$YEDEK_KULLANICI" "$YEDEK_KULLANICI:$WEB_KULLANICI";
     duzelt "$kullanici → $grup grubuna eklendi" usermod -aG "$grup" "$kullanici"
   fi
 done
-if uye_mi "$YAYIN_KULLANICI" "$YEDEK_KULLANICI"; then
-  eksik "$YAYIN_KULLANICI, $YEDEK_KULLANICI grubunda (§5.5: yedek klasörüne erişmemeli) — betik çıkarmaz, elle inceleyin"
+# Üyelikler TAM kümeyle karşılaştırılır (G5; YF-27): yedekler/ ve bekleyen/
+# grup üzerinden açıktır; servis grubuna eklenen her hesap bütün dökümleri
+# okur. Servis hesabının fazladan grubu (sudo, adm, postgres, docker…) da
+# yetkisini genişletir. Fazlası betikçe çıkarılmaz (betiğin verdiği bir şey
+# değil), elle bakılır.
+if getent group "$YEDEK_KULLANICI" >/dev/null; then
+  grup_uyeleri="$(getent group "$YEDEK_KULLANICI" | cut -d: -f4 | tr ',' '\n' | sed '/^$/d')"
+  grup_gid="$(getent group "$YEDEK_KULLANICI" | cut -d: -f3)"
+  # Birincil grubu servis grubu olan hesaplar da grup üyesidir (getent group onları listelemez)
+  birincil="$(getent passwd | awk -F: -v g="$grup_gid" -v s="$YEDEK_KULLANICI" '$4 == g && $1 != s { print $1 }')"
+  fazla="$(satir_farki -23 "$(printf '%s\n%s' "$grup_uyeleri" "$birincil" | sed '/^$/d')" "$WEB_KULLANICI")"
+  if [[ -n "$fazla" ]]; then
+    eksik "$YEDEK_KULLANICI grubunda beklenmeyen hesap: $fazla (yalnız $WEB_KULLANICI olmalı; yedekleri okur) — betik çıkarmaz, elle inceleyin (gpasswd -d <hesap> $YEDEK_KULLANICI)"
+  else
+    tamam "$YEDEK_KULLANICI grubunda yalnız beklenen hesap var"
+  fi
+fi
+if getent passwd "$YEDEK_KULLANICI" >/dev/null; then
+  fazla="$(satir_farki -23 "$(id -nG "$YEDEK_KULLANICI" | tr ' ' '\n')" "$(printf '%s\n%s' "$YEDEK_KULLANICI" "$WEB_KULLANICI")")"
+  if [[ -n "$fazla" ]]; then
+    eksik "$YEDEK_KULLANICI beklenmeyen gruplarda: $fazla (yalnız $YEDEK_KULLANICI, $WEB_KULLANICI olmalı) — betik çıkarmaz, elle inceleyin (gpasswd -d $YEDEK_KULLANICI <grup>)"
+  else
+    tamam "$YEDEK_KULLANICI yalnız beklenen gruplarda"
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -327,6 +362,8 @@ baslik "3. Klasörler ve izinler"
 izin_denetle() { # $1 yol, $2 beklenen izin (ör. 2750), $3 beklenen sahip (varsayılan servis)
   local yol="$1" kip="$2" sahip="${3:-$YEDEK_KULLANICI}" mevcut beklenen
   if [[ -n "${REDDEDILEN[$yol]:-}" ]]; then return 0; fi
+  # Yoksa (denetimde) zaten "eksik" yazıldı; stat'ın hatası betiği kesmesin (YF-66)
+  [[ -e "$yol" ]] || return 0
   mevcut="$(stat -c '%U:%G %a' "$yol")"
   beklenen="$sahip:$YEDEK_KULLANICI ${kip#0}"
   if [[ "$mevcut" == "$beklenen" ]]; then
@@ -385,17 +422,10 @@ acl_tanimi() {
     ACL_TANIMI+=",d:u::$u,d:u:$adli,d:g::$g,d:m::$g,d:o::$o"
   fi
 }
-# İki satır kümesinin farkı ($1: comm seçeneği, -23 yalnız ilkinde, -13 yalnız
-# ikincide). sort ve comm AYNI sırayı kullanmalı: Ubuntu 26.04'ün uutils
-# araçlarında sort yerel dilin harf sırasını (en_US: ":" yok sayılır), comm
-# bayt sırasını kullanır; "user:admin:--x" iki araçta farklı yere düşer ve
-# comm "not in sorted order" ile durur. İkisi de C sırasıyla çalışır.
-satir_farki() {
-  LC_ALL=C comm "$1" <(LC_ALL=C sort <<<"$2") <(LC_ALL=C sort <<<"$3") | paste -sd ' '
-}
 acl_denetle() { # $1 yol, $2 izin, $3 yayın izni ya da "", $4 "varsayilan" ya da "", $5 sahip (varsayılan servis)
   local yol="$1" sahip="${5:-$YEDEK_KULLANICI}" mevcut fazla eksikler fark komut
   if [[ -n "${REDDEDILEN[$yol]:-}" ]]; then return 0; fi
+  [[ -e "$yol" ]] || return 0   # yok: yukarıda "eksik" yazıldı (YF-66)
   acl_tanimi "$2" "$3" "${4:-}"
   mevcut="$(getfacl -cpE "$yol" 2>/dev/null | sed '/^$/d')"
   if [[ "$mevcut" == "$ACL_BEKLENEN" ]]; then
@@ -512,10 +542,13 @@ fi
 #                  Hiçbir yerde yoksa bölüm 5 yeni parola üretir, role yazar,
 #                  dosyayı ancak ondan sonra yazar (yarım kalan kurulumda rol
 #                  ile dosya birbirini tutmaz hâle gelmesin).
-#    imza.anahtar  manifest imza anahtarının YERİ. Betik anahtar ÜRETMEZ:
-#                  biçimi BY-006'da belirlenir, geçiş döneminde uygulamada
-#                  durur ve BY-025'te buraya taşınır. Yeni anahtar üretmek eski
-#                  yedeklerin imzasını geçersiz kılar.
+#    imza.anahtar  manifest imza anahtarının YERİ. Betik anahtar ÜRETMEZ ve
+#                  taşımaz: geçiş kipinde çalışmış kurulumda anahtar
+#                  uygulamadadır (storage/app/yedek-imza.key) ve servis hesabı
+#                  standart girdiden buraya yazar; boş kurulumda servis olarak
+#                  `yedek:imza-anahtari` üretir (docs/yedekleme/isletim.md §2).
+#                  Var olan anahtarın yerine yeni üretmek eski yedeklerin
+#                  imzasını geçersiz kılar.
 # ---------------------------------------------------------------------------
 baslik "4. Gizli dosyalar"
 YENI_PAROLA_GEREK=0
@@ -565,7 +598,7 @@ else
       izin_denetle "$IMZA_ANAHTARI" 0600
       acl_denetle "$IMZA_ANAHTARI" 0600 ""
     else
-      bilgi "imza anahtarı henüz yok: $IMZA_ANAHTARI (BY-025'te uygulamadan taşınır; betik üretmez)"
+      bilgi "imza anahtarı henüz yok: $IMZA_ANAHTARI (betik üretmez / taşımaz: isletim.md §2)"
     fi
   fi
 fi
@@ -585,6 +618,7 @@ fi
 #                   denetim bildirir, kurulum kapatır.
 #    Fazla rol üyeliği (ör. emor_inceleme → erp, emor_yedek → pg_write_all_data)
 #    yetkiyi genişletir: bildirilir, betik geri almaz (betiğin verdiği bir şey değil).
+#    Bu iki role ÜYE olan roller de bildirilir (onların yetkisini devralırlar).
 #    Parola hiçbir komut satırına yazılmaz: psql'e standart girdiden verilir.
 # ---------------------------------------------------------------------------
 baslik "5. PostgreSQL rolleri"
@@ -610,6 +644,17 @@ uyelik_denetle() { # $1 rol, $2 beklenen tek üyelik (yoksa "")
     tamam "$1 başka rollere üye değil"
   else
     eksik "$1 başka rollere üye: $fazla — yetkisini genişletir; betik geri almaz, elle inceleyin (revoke <rol> from $1)"
+  fi
+}
+# Tersi de (YF-27; G5): bu role ÜYE olan roller onun yetkisini devralır
+# (emor_yedek'e üye bir rol veritabanı açar, erp adına yazar). Beklenen üye yok.
+uyeleri_denetle() { # $1 rol
+  local uyeler
+  uyeler="$(pg_yonetici -c "select coalesce(string_agg(u.rolname, ', ' order by u.rolname), '') from pg_auth_members m join pg_roles r on r.oid = m.roleid join pg_roles u on u.oid = m.member where r.rolname = '$1'")"
+  if [[ -z "$uyeler" ]]; then
+    tamam "$1 rolüne başka rol üye değil"
+  else
+    eksik "$1 rolüne üye roller: $uyeler — onun yetkilerini devralır; betik geri almaz, elle inceleyin (revoke $1 from <rol>)"
   fi
 }
 pgpass_kacir() { local d="${1//\\/\\\\}"; printf '%s' "${d//:/\\:}"; }
@@ -682,6 +727,7 @@ if [[ -n "$(rol_ozellikleri "$VT_YEDEK_ROLU")" ]]; then
       pg_yonetici -c "grant connect on database postgres to $VT_YEDEK_ROLU"
   fi
   uyelik_denetle "$VT_YEDEK_ROLU" "$VT_UYGULAMA_ROLU"
+  uyeleri_denetle "$VT_YEDEK_ROLU"
 fi
 
 OZ="$(rol_ozellikleri "$VT_INCELEME_ROLU")"
@@ -700,6 +746,7 @@ else
     bilgi "rol $VT_INCELEME_ROLU: giriş açık (elle açılmış olabilir; ayrı karar, dokunulmadı)"
   fi
   uyelik_denetle "$VT_INCELEME_ROLU" ""
+  uyeleri_denetle "$VT_INCELEME_ROLU"
 fi
 
 # Servis hesabı, parola dosyasıyla gerçekten bağlanabiliyor mu
@@ -747,11 +794,16 @@ fi
 #    uygulamanın storage/framework'ünde olmalıdır (bölüm 2). Oradan PHP
 #    dosyası yüklenmez. O dosya web'in yazabildiği yerde olduğu için onu
 #    yazan kod bağlantı izlememelidir (BY-028 kabul ölçütü).
-#    Çalıştırdığı komut BY-025'te yazılır: tanım şimdi KURULUR ama
-#    etkinleştirilmez, başlatılmaz (komut adı değişirse betik tanımı günceller).
-#    Durdurulunca çalıştırıcı o anki işi bitirip çıkar (SIGTERM); geri yükleme
-#    `sure_siniri.geri_yukleme` (3600 sn) sürebilir. systemd'nin 90 sn'lik
-#    varsayılanı işi yarıda öldürürdü: TimeoutStopSec bu sınırın üstündedir.
+#    Tanım KURULUR ama etkinleştirilmez, başlatılmaz: servis kipine geçiş
+#    kullanıcı talimatıyla yapılır (isletim.md §2). Komut adı değişirse betik
+#    tanımı günceller.
+#    Durdurulunca çalıştırıcı o anki işi bitirip çıkar: KillMode=mixed ile
+#    SIGTERM yalnız ana sürece (PHP) gider; pg_dump / pg_restore / gpg / sftp
+#    alt süreçleri işlerini bitirir (systemd'nin varsayılanı control-group
+#    SIGTERM'ü bütün sürece gönderip süren yedeği / geri yüklemeyi yarıda
+#    öldürürdü — YF-23). Geri yükleme `sure_siniri.geri_yukleme` (3600 sn)
+#    sürebilir: durdurma / yeniden başlatma TimeoutStopSec (4000 sn) kadar
+#    bekleyebilir; iş bu süreyi aşarsa yine bütün süreçler SIGKILL ile öldürülür.
 #    YEDEKLEME_WEB_UID / YEDEKLEME_YAYIN_UID: çalıştırıcı istek dosyasının
 #    göndereni dosyanın sahibiyle doğrular (BY-025-R1) — kullanıcılı istekler
 #    yalnız web kullanıcısının, kullanıcısız yayın öncesi yedek yalnız yayın
@@ -774,7 +826,6 @@ Group=$YEDEK_KULLANICI
 UMask=0027
 WorkingDirectory=$UYGULAMA_KOKU/backend
 Environment=PGPASSFILE=$PGPASS_DOSYASI
-Environment=EMOR_YEDEK_KOKU=$YEDEK_KOKU
 Environment=APP_CONFIG_CACHE=$YEDEK_KOKU/onbellek/config.php
 Environment=APP_SERVICES_CACHE=$YEDEK_KOKU/onbellek/services.php
 Environment=APP_PACKAGES_CACHE=$YEDEK_KOKU/onbellek/packages.php
@@ -789,6 +840,7 @@ Environment=YEDEKLEME_YAYIN_UID=$YAYIN_UID
 ExecStart=/usr/bin/php $UYGULAMA_KOKU/backend/artisan yedek:calistir
 Restart=always
 RestartSec=5
+KillMode=mixed
 TimeoutStopSec=4000
 
 [Install]
@@ -816,13 +868,14 @@ else
   fi
 fi
 if (( GERCEK_SISTEM )); then
-  bilgi "$SERVIS_ADI etkin mi: $(systemctl is-enabled "$SERVIS_ADI" 2>/dev/null || true) (BY-025'e kadar 'disabled' beklenir)"
+  bilgi "$SERVIS_ADI etkin mi: $(systemctl is-enabled "$SERVIS_ADI" 2>/dev/null || true) (servis kipine geçilene kadar 'disabled' beklenir)"
 fi
 
 # ---------------------------------------------------------------------------
 # 7. Dar sudo kuralı (README §9 madde 1, §6.4 adım 2)
 #    Üstüne geri yüklemede kuyruk işçisi durdurulur. Servis hesabı YALNIZ şu
-#    üç komutu şifresiz çalıştırabilir; başka hiçbir şeyi.
+#    iki komutu (stop / start; KuyrukServisi yalnız bunları çağırır)
+#    şifresiz çalıştırabilir; başka hiçbir şeyi.
 #    Zamanlayıcı (cron, www-data) için sudo gerekmez: uygulama bakım
 #    modundayken zamanlanmış işler çalışmaz (Laravel Scheduling\Event;
 #    bakım modu dosya sürücüsüyle, veritabanına dayanmaz). Ayrıca işler açık
@@ -830,7 +883,7 @@ fi
 # ---------------------------------------------------------------------------
 baslik "7. Dar sudo kuralı"
 SUDOERS_ICERIGI="# emor yedekleme (scripts/sunucu-yedekleme-kurulumu.sh) - yalniz kuyruk servisi
-$YEDEK_KULLANICI ALL=(root) NOPASSWD: $SYSTEMCTL stop $KUYRUK_SERVISI, $SYSTEMCTL start $KUYRUK_SERVISI, $SYSTEMCTL is-active $KUYRUK_SERVISI"
+$YEDEK_KULLANICI ALL=(root) NOPASSWD: $SYSTEMCTL stop $KUYRUK_SERVISI, $SYSTEMCTL start $KUYRUK_SERVISI"
 neden="$(sistem_dosyasi_durumu "$SUDOERS_DOSYASI" "$SUDOERS_ICERIGI" 440)"
 if [[ -z "$neden" ]]; then
   tamam "$SUDOERS_DOSYASI güncel (root:root 440)"
@@ -861,7 +914,12 @@ Otomatik yapılmayanlar:
   - Grup üyelikleri ilgili süreçler yeniden başlayınca etkinleşir:
       sudo systemctl restart php8.5-fpm $KUYRUK_SERVISI
     Kısa bir kesinti olur; kullanıcıya haber verilmeden yapılmaz.
-  - Servisi etkinleştirmek BY-025'in işidir: sudo systemctl enable --now $SERVIS_ADI
+  - Servisi etkinleştirmek servis kipine geçişin işidir (isletim.md §2):
+      sudo systemctl enable --now $SERVIS_ADI
+    Servis zaten çalışıyorsa ve tanımı değiştiyse yeni ortam yeniden başlatınca
+    geçerli olur (o anki işi bitirip çıkar): sudo systemctl restart $SERVIS_ADI
 EOF
 fi
-(( SORUN == 0 ))
+# `(( ))` 0 sonucunda 1 döner: ERR tuzağı "beklenmeyen hata" demesin
+if (( SORUN == 0 )); then exit 0; fi
+exit 1

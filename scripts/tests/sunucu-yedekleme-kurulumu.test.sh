@@ -45,6 +45,8 @@ temizle() {
   psqlp "drop role if exists $EMOR_VT_YEDEK_ROLU" >/dev/null 2>&1
   psqlp "drop role if exists $EMOR_VT_INCELEME_ROLU" >/dev/null 2>&1
   gpasswd -d www-data emor-yedek-deneme >/dev/null 2>&1
+  gpasswd -d nobody emor-yedek-deneme >/dev/null 2>&1
+  gpasswd -d emor-yedek-deneme nogroup >/dev/null 2>&1
   id emor-yedek-deneme >/dev/null 2>&1 && userdel emor-yedek-deneme
   getent group emor-yedek-deneme >/dev/null && groupdel emor-yedek-deneme
   rm -rf "$D"
@@ -147,6 +149,11 @@ bekle "sudoers visudo'dan geçer"    visudo -cf "$EMOR_SUDOERS_DOSYASI"
 bekle "sudoers root:root 440"       bash -c "[[ \$(stat -c '%U:%G %a' $EMOR_SUDOERS_DOSYASI) == 'root:root 440' ]]"
 bekle "servis tanımı yazıldı"       grep -q "^User=emor-yedek-deneme$" "$EMOR_SYSTEMD_DIZINI/emor-yedek.service"
 bekle "servis uzun geri yüklemeyi bekler"  grep -qx "TimeoutStopSec=4000" "$EMOR_SYSTEMD_DIZINI/emor-yedek.service"
+# YF-23: durdurmada SIGTERM yalnız PHP'ye; pg_dump / pg_restore işini bitirir
+bekle "servis durdurulunca alt süreçlere SIGTERM gitmez (KillMode=mixed)" grep -qx "KillMode=mixed" "$EMOR_SYSTEMD_DIZINI/emor-yedek.service"
+# YF-71: okuyanı olmayan ortam değişkeni ve kullanılmayan sudo komutu yok
+bekle "servis tanımında okuyanı olmayan EMOR_YEDEK_KOKU yok" bash -c "! grep -q EMOR_YEDEK_KOKU '$EMOR_SYSTEMD_DIZINI/emor-yedek.service'"
+bekle "sudoers yalnız stop / start (is-active yok)" bash -c "! grep -q is-active '$EMOR_SUDOERS_DOSYASI' && grep -q 'systemctl start $EMOR_KUYRUK_SERVISI' '$EMOR_SUDOERS_DOSYASI'"
 bekle "servis kuyruk servisini sudoers ile aynı adla yönetir" bash -c "grep -qx \"Environment=YEDEKLEME_KUYRUK_SERVISI=$EMOR_KUYRUK_SERVISI\" \"$EMOR_SYSTEMD_DIZINI/emor-yedek.service\" && grep -q \"systemctl stop $EMOR_KUYRUK_SERVISI\" \"$EMOR_SUDOERS_DOSYASI\""
 # BY-025-R1: çalıştırıcı istek göndereni dosya sahibiyle doğrular
 bekle "servis tanımında web kullanıcısının uid'si" grep -qx "Environment=YEDEKLEME_WEB_UID=$(id -u www-data)" "$EMOR_SYSTEMD_DIZINI/emor-yedek.service"
@@ -260,6 +267,20 @@ calistir "fazla üyelikte kurulum geri almaz, elle bakılacak der" 1
 bekle "üyelik duruyor" bash -c "[[ -n \$(runuser -u postgres -- psql -X -A -t -c \"select 1 from pg_auth_members m join pg_roles r on r.oid=m.roleid join pg_roles u on u.oid=m.member where r.rolname='erp' and u.rolname='emor_inceleme_deneme'\") ]]"
 psqlp "revoke erp from emor_inceleme_deneme" >/dev/null
 psqlp "revoke pg_write_all_data from emor_yedek_deneme" >/dev/null
+# YF-27: Linux grup üyelikleri ve role ÜYE olanlar da tam kümeyle
+usermod -aG emor-yedek-deneme nobody
+usermod -aG nogroup emor-yedek-deneme
+psqlp "grant emor_yedek_deneme to emor_inceleme_deneme" >/dev/null
+calistir "fazla grup / rol üyesinde denetim eksik" 1 --denetle
+bekle "denetim yakaladı: servis grubundaki başka hesap" grep -q "emor-yedek-deneme grubunda beklenmeyen hesap: nobody" "$D/son.txt"
+bekle "denetim yakaladı: servis hesabının fazladan grubu" grep -q "emor-yedek-deneme beklenmeyen gruplarda: nogroup" "$D/son.txt"
+bekle "denetim yakaladı: servis rolüne üye rol" grep -q "emor_yedek_deneme rolüne üye roller: emor_inceleme_deneme" "$D/son.txt"
+calistir "fazla üyelikte kurulum çıkarmaz, elle bakılacak der" 1
+bekle "kurulum grup üyeliğine dokunmadı" bash -c "id -nG nobody | tr ' ' '\n' | grep -qx emor-yedek-deneme"
+gpasswd -d nobody emor-yedek-deneme >/dev/null
+gpasswd -d emor-yedek-deneme nogroup >/dev/null
+psqlp "revoke emor_yedek_deneme from emor_inceleme_deneme" >/dev/null
+calistir "üyelikler geri alınınca denetim temiz" 0 --denetle
 chown nobody "$SERVIS_DOSYASI"
 calistir "servis dosyasının sahibi farklı: denetim eksik" 1 --denetle
 calistir "kurulum sahibi düzeltir" 0
@@ -328,6 +349,21 @@ calistir "işaretsiz yedekler/: denetim eksik" 1 --denetle
 bekle "denetim işareti açmadı" test ! -e $ISARET
 calistir "kurulum işareti yeniden açar" 0
 bekle "yeni işaret uygulamanın biçiminde" grep -Eqx 'emor-yedek-deposu [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' $ISARET
+calistir "ardından denetim temiz" 0 --denetle
+
+echo "== F5. Beklenmeyen durumda denetim sessizce kesilmez (YF-66)"
+# Bir alt klasör yokken ACL / izin denetimi betiği mesajsız bitiriyordu
+mv $K/gunluk $D/gunluk.asil
+calistir "gunluk/ yokken denetim eksik" 1 --denetle
+bekle "gunluk/ yokken denetim sonuna kadar gider (özet satırı var)" grep -q "^DENETİM:" "$D/son.txt"
+bekle "gunluk/ yokken sonraki bölümler de denetlendi" grep -q "7. Dar sudo kuralı" "$D/son.txt"
+mv $D/gunluk.asil $K/gunluk
+# Gerçekten beklenmeyen bir hata (okunamayan ACL) mesajsız kalmaz
+mkdir -m 755 "$D/bozuk-arac"
+printf '#!/bin/sh\nexit 1\n' > "$D/bozuk-arac/getfacl"; chmod 755 "$D/bozuk-arac/getfacl"
+PATH="$D/bozuk-arac:$PATH" calistir "araç beklenmedik hata verince denetim 1 ile durur" 1 --denetle
+bekle "beklenmeyen hata satırıyla söylendi" grep -q "HATA: beklenmeyen hata (satır [0-9]*)" "$D/son.txt"
+rm -rf "$D/bozuk-arac"
 calistir "ardından denetim temiz" 0 --denetle
 
 echo "== G. Eski yerdeki parola dosyası: yeni yer doğrulanmadan silinmez (BY-003-R1)"

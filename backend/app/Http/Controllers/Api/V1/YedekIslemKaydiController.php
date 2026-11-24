@@ -43,6 +43,12 @@ final class YedekIslemKaydiController extends Controller
             ->paginate($veri['sayfa_boyutu'] ?? 50)
             ->withQueryString();
 
+        // Serbest hata metni yol / komut çıktısı (pg_dump stderr: sunucu, rol)
+        // taşıyabilir: kardeş uçlar (Yedekler listesi, istek durumu) onu hiç
+        // döndürmez; burada yalnız sistem yöneticisine döner, diğerleri kodu
+        // `ayrinti.kod`'dan okur (D2, YF-30)
+        $hataMetniGorur = $request->user()?->sistem_yoneticisi === true;
+
         return response()->json([
             'data' => $sayfa->getCollection()->map(fn (YedekIslemKaydi $k): array => [
                 'id' => $k->id,
@@ -53,7 +59,7 @@ final class YedekIslemKaydiController extends Controller
                 'sure_ms' => $k->sure_ms,
                 'yedek' => $k->yedek === null ? null : ['kimlik' => $k->yedek->kimlik, 'dosya_adi' => $k->yedek->dosya_adi],
                 'ayrinti' => (object) ($k->ayrinti ?? []),
-                'hata_mesaji' => $k->hata_mesaji,
+                'hata_mesaji' => $hataMetniGorur ? $k->hata_mesaji : null,
             ])->values(),
             'meta' => ['current_page' => $sayfa->currentPage(), 'last_page' => $sayfa->lastPage(), 'per_page' => $sayfa->perPage(), 'total' => $sayfa->total()],
         ]);

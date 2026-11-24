@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Services\Yedekleme\Hedefler;
 
 use App\Models\YedekHedefi;
+use App\Services\Yedekleme\GeciciKlasor;
 use App\Services\Yedekleme\HedefTuru;
 use App\Services\Yedekleme\SureButcesi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Process\Exceptions\ProcessTimedOutException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Process;
 
 /**
@@ -339,16 +341,24 @@ final class SftpBaglayicisi implements HedefBaglayicisi
             throw new HedefHatasi(HedefHatasi::ERISILEMEDI, 'SFTP sunucu anahtarı alınamadı.');
         }
 
-        $this->hedef->baglanti = [
-            ...$this->hedef->baglanti,
+        $anahtar = [
             'sunucu_anahtari' => $secilen,
             'sunucu_parmak_izi' => self::parmakIzi((string) $this->anahtarCoz($secilen)),
             'sunucu_anahtari_icin' => $sunucu.':'.$port,
         ];
+        $this->hedef->baglanti = [...$this->hedef->baglanti, ...$anahtar];
 
-        // Kaydedilmemiş hedef (formda sınama) yeni satır olarak eklenmez; anahtar modelde kalır
+        // Kaydedilmemiş hedef (formda sınama) yeni satır olarak eklenmez; anahtar modelde kalır.
+        // Kayıtlı hedefte satır kilidi altında taze kayda yalnız bu üç anahtar yazılır: araya giren
+        // güncellemenin değişikliği eski kopyayla ezilmez (YF-55, G18)
         if ($this->hedef->exists) {
-            $this->hedef->save();
+            DB::transaction(function () use ($anahtar): void {
+                $taze = YedekHedefi::query()->whereKey($this->hedef->getKey())->lockForUpdate()->first();
+                if ($taze !== null) {
+                    $taze->baglanti = [...($taze->baglanti ?? []), ...$anahtar];
+                    $taze->save();
+                }
+            });
         }
     }
 
@@ -531,7 +541,8 @@ final class SftpBaglayicisi implements HedefBaglayicisi
      */
     private function geciciKlasor(): string
     {
-        $this->artikKlasorleriSil();
+        // Hiçbir işlemin kullanıyor olamayacağı kadar eski (en uzun aktarım süresi + 1 saat) klasörler
+        GeciciKlasor::artiklariSil(sys_get_temp_dir(), 'emor-sftp-', 16, $this->yapilandirma->sureSiniri('kopya') + 3600);
         $yol = rtrim(sys_get_temp_dir(), '/').'/emor-sftp-'.bin2hex(random_bytes(8));
 
         if (preg_match('#^/[A-Za-z0-9._/-]+$#D', $yol) !== 1 || ! @mkdir($yol, 0700) || ! chmod($yol, 0700)) {
@@ -556,29 +567,6 @@ final class SftpBaglayicisi implements HedefBaglayicisi
             }
         } finally {
             fclose($tutamac);
-        }
-    }
-
-    /**
-     * Hiçbir işlemin kullanıyor olamayacağı kadar eski (en uzun aktarım
-     * süresi + 1 saat) `emor-sftp-<16 hex>` klasörleri. Sembolik bağlantı ve
-     * bu sürecin kullanıcısına ait olmayan klasör atlanır.
-     */
-    private function artikKlasorleriSil(): void
-    {
-        $kok = rtrim(sys_get_temp_dir(), '/');
-        $sinir = time() - $this->yapilandirma->sureSiniri('kopya') - 3600;
-
-        foreach (@scandir($kok) ?: [] as $ad) {
-            $yol = $kok.'/'.$ad;
-            $bilgi = preg_match('/^emor-sftp-[0-9a-f]{16}$/D', $ad) === 1 ? @lstat($yol) : false;
-
-            if ($bilgi === false || ($bilgi['mode'] & 0170000) !== 0040000 || $bilgi['mtime'] >= $sinir
-                || (function_exists('posix_geteuid') && $bilgi['uid'] !== posix_geteuid())) {
-                continue;
-            }
-
-            $this->klasoruSil($yol);
         }
     }
 

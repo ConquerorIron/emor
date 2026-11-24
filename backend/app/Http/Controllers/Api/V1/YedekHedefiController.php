@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\YedekHedefiResource;
 use App\Models\YedekHedefi;
 use App\Services\Yedekleme\HedefKonumu;
+use App\Services\Yedekleme\Hedefler\DosyaSistemiHedefi;
 use App\Services\Yedekleme\Hedefler\GoogleDriveBaglayicisi;
 use App\Services\Yedekleme\Hedefler\HedefAlani;
 use App\Services\Yedekleme\Hedefler\HedefHatasi;
@@ -19,6 +20,7 @@ use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\KanonikJson;
 use App\Services\Yedekleme\KopyaDurumu;
 use App\Services\Yedekleme\YedekDenetimi;
+use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use Closure;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
@@ -36,7 +38,8 @@ use Illuminate\Validation\ValidationException;
  * bağlayıcının tanımından gelir (`turler`): yeni tür ekranda kod istemez.
  *
  * - Sırlar (`gizli` alanlar) yalnız yazılır; düzenlemede boş bırakılırsa
- *   değişmez. Sır olmayan bir bağlantı alanı (sunucu, kullanıcı…) değişirken
+ *   değişmez. Zorunlu olmayan kayıtlı sır `silinecek_sirlar` ile silinir
+ *   (YF-49). Sır olmayan bir bağlantı alanı (sunucu, kullanıcı…) değişirken
  *   sır boş bırakılırsa kayıt reddedilir: kayıtlı parola yeni sunucuya
  *   gönderilmez (SQL bağlantısındaki kural; Dikkat_Edilecekler K8).
  * - Bağlayıcının kendi yazdığı alanlar (SFTP sunucu anahtarı, Google klasör
@@ -58,7 +61,10 @@ use Illuminate\Validation\ValidationException;
  *   ikinci hedef kaydedilmez: 409 `HEDEF_AYNI_DEPO` (HedefKonumu::ayniDepoMu;
  *   BY-010-R7, R8).
  * - "Sına" web isteğinde çalışır; bütün adımlar tek toplam süre bütçesini
- *   paylaşır (`HedefSinayici`, D9).
+ *   paylaşır (`HedefSinayici`, D9). Servis kipinde Yerel / NAS hedefinde
+ *   yalnız klasörün varlığı denetlenir (YF-21).
+ * - Ekleme ve silmenin denetim kaydı değişiklikle aynı işlemdedir: günlük
+ *   yazılamazsa değişiklik geri alınır (YF-33).
  */
 final class YedekHedefiController extends Controller
 {
@@ -91,7 +97,8 @@ final class YedekHedefiController extends Controller
     {
         [$tanim, $acik, $gizli] = $this->dogrula($request, null);
 
-        $hedef = $this->depoKilidiAltinda(function () use ($request, $tanim, $acik, $gizli): YedekHedefi {
+        // Denetim kaydı kayıtla aynı işlemde: günlük yazılamazsa hedef de eklenmez (YF-33, BY-014-R1)
+        $hedef = $this->depoKilidiAltinda(fn (): YedekHedefi => DB::transaction(function () use ($request, $tanim, $acik, $gizli): YedekHedefi {
             $hedef = new YedekHedefi([
                 'ad' => $request->string('ad')->trim()->value(),
                 'tur' => $tanim->tur,
@@ -101,10 +108,10 @@ final class YedekHedefiController extends Controller
             ]);
             $this->ayniDepoyuReddet($hedef);
             $hedef->save();
+            $this->denetle('hedef_ekle', $request, $hedef);
 
             return $hedef;
-        });
-        $this->denetle('hedef_ekle', $request, $hedef);
+        }));
 
         return (new YedekHedefiResource($hedef->loadCount('planlar')))->response()->setStatusCode(201);
     }
@@ -124,7 +131,7 @@ final class YedekHedefiController extends Controller
     {
         $hedef = $this->depoKilidiAltinda(fn (): YedekHedefi => DB::transaction(function () use ($request, $hedef): YedekHedefi {
             $hedef = YedekHedefi::query()->whereKey($hedef->getKey())->lockForUpdate()->firstOrFail();
-            [, $acik, $gizli] = $this->dogrula($request, $hedef, konumKilidi: true);
+            [, $acik, $gizli, $silinen] = $this->dogrula($request, $hedef, konumKilidi: true);
             $onceki = clone $hedef;
             $oncekiIz = $this->konum->iz($onceki);
 
@@ -138,7 +145,10 @@ final class YedekHedefiController extends Controller
                 $this->ayniDepoyuReddet($hedef);
             }
             $hedef->save();
-            $this->denetle('hedef_guncelle', $request, $hedef, ['sir_degisti' => $request->collect('alanlar')->only($this->gizliAdlar($hedef->tur))->filter(fn ($d) => $d !== null && $d !== '')->keys()->all()]);
+            $this->denetle('hedef_guncelle', $request, $hedef, [
+                'sir_degisti' => $request->collect('alanlar')->only($this->gizliAdlar($hedef->tur))->filter(fn ($d) => $d !== null && $d !== '')->keys()->all(),
+                ...($silinen === [] ? [] : ['sir_silindi' => $silinen]),
+            ]);
 
             return $hedef;
         }));
@@ -161,8 +171,15 @@ final class YedekHedefiController extends Controller
             ], 409);
         }
 
-        $hedef->delete();
-        $this->denetle('hedef_sil', $request, $hedef);
+        // Denetim kaydı silmeyle aynı işlemde: günlük yazılamazsa hedef silinmez (YF-33, BY-014-R1)
+        DB::transaction(function () use ($request, $hedef): void {
+            $hedef->delete();
+            $this->denetle('hedef_sil', $request, $hedef);
+        });
+
+        if ($hedef->tur === HedefTuru::GoogleDrive) {
+            $this->googleAnahtariniIptalEt($request, $hedef, $hedef->gizli_bilgiler['yenileme_anahtari'] ?? null, $hedef->baglanti['eposta'] ?? null, 'sil');
+        }
 
         return response()->json(null, 204);
     }
@@ -172,9 +189,15 @@ final class YedekHedefiController extends Controller
      * toplam süre bütçesiyle (D9). S3'te silinme koruması da bildirilir.
      * `id` verilip form değiştirilmediyse kayıtlı hedefin kendisi sınanır (SFTP
      * sunucu anahtarı ilk bağlantıda ona yazılır); değiştirildiyse kaydedilmemiş
-     * kopyası sınanır, hiçbir şey kaydedilmez.
+     * kopyası sınanır, hiçbir şey kaydedilmez. `silinecek_sirlar` kayıttaki gibi
+     * doğrulanır; silinecek sır kayıtlı değerle doldurulmaz (YF-49).
+     *
+     * Servis kipinde dosya sistemi hedeflerinde (Yerel, NAS) web hesabı yalnız
+     * klasörün varlığını / paylaşımın bağlı olduğunu denetler; yazma adımları o
+     * klasöre yazan çalıştırıcının iznine bağlıdır, web'de çalıştırılmaz
+     * (`HEDEF_SINAMA_CALISTIRICIDA`, sonuç `basarili: null` — YF-21).
      */
-    public function sina(Request $request, HedefSinayici $sinayici): JsonResponse
+    public function sina(Request $request, HedefSinayici $sinayici, YedeklemeYapilandirmasi $yapilandirma): JsonResponse
     {
         $kayitli = $request->filled('id') ? YedekHedefi::query()->findOrFail($request->integer('id')) : null;
         [$tanim, $acik, $gizli] = $this->dogrula($request, $kayitli, adGerekli: false);
@@ -185,7 +208,10 @@ final class YedekHedefiController extends Controller
             : new YedekHedefi(['ad' => $kayitli->ad ?? 'sinama', 'tur' => $tanim->tur, 'aktif' => true, 'baglanti' => $acik, 'gizli_bilgiler' => $gizli]);
 
         try {
-            $sonuc = $sinayici->sonuc($this->katalog->olustur($hedef));
+            $baglayici = $this->katalog->olustur($hedef);
+            $sonuc = $baglayici instanceof DosyaSistemiHedefi && $yapilandirma->servisCalistiricisi()
+                ? $sinayici->varlikSonucu($baglayici)
+                : $sinayici->sonuc($baglayici);
         } catch (HedefHatasi $hata) {
             $sonuc = [
                 'basarili' => false,
@@ -196,7 +222,8 @@ final class YedekHedefiController extends Controller
         }
 
         $adimlar = $sonuc['adimlar'];
-        $hataKodu = $sonuc['basarili'] ? null : (array_values(array_filter(array_column($adimlar, 'kod')))[0] ?? null);
+        // Yalnız başarısız sonuç hata koduyla yazılır; bilgi kodu (silme yetkisi yok) ve kısmi sınama (null) hata değildir
+        $hataKodu = $sonuc['basarili'] === false ? (array_values(array_filter(array_column($adimlar, 'kod')))[0] ?? null) : null;
         $this->denetle('hedef_sina', $request, $kayitli, ['tur' => $tanim->tur->value, 'basarili' => $sonuc['basarili']], $hataKodu);
 
         return response()->json(['data' => [
@@ -209,8 +236,14 @@ final class YedekHedefiController extends Controller
     /** SFTP: kayıtlı sunucu anahtarını unut; sonraki "Sına" yenisini kaydeder */
     public function sunucuAnahtariniSifirla(Request $request, YedekHedefi $hedef): YedekHedefiResource
     {
-        $hedef->baglanti = array_diff_key($hedef->baglanti ?? [], array_flip(['sunucu_anahtari', 'sunucu_parmak_izi', 'sunucu_anahtari_icin']));
-        $hedef->save();
+        // Satır kilidi altında taze kayıttan: araya giren güncellemenin değişikliği eski kopyayla ezilmesin (YF-55, G18)
+        $hedef = DB::transaction(function () use ($hedef): YedekHedefi {
+            $hedef = YedekHedefi::query()->whereKey($hedef->getKey())->lockForUpdate()->firstOrFail();
+            $hedef->baglanti = array_diff_key($hedef->baglanti ?? [], array_flip(['sunucu_anahtari', 'sunucu_parmak_izi', 'sunucu_anahtari_icin']));
+            $hedef->save();
+
+            return $hedef;
+        });
         $this->denetle('hedef_sunucu_anahtari_sifirla', $request, $hedef);
 
         return new YedekHedefiResource($hedef->loadCount('planlar'));
@@ -296,9 +329,11 @@ final class YedekHedefiController extends Controller
             return response()->json(['kod' => $hata->kod, 'mesaj' => __($mesaj)], 422);
         }
 
-        $red = DB::transaction(function () use ($hedef, $sonuc, $kayitliKopya): ?string {
+        /** @var array{red: string|null, eski_anahtar: string|null, eski_hesap: string|null} $kayit */
+        $kayit = DB::transaction(function () use ($hedef, $sonuc, $kayitliKopya): array {
             $hedef = YedekHedefi::query()->whereKey($hedef->getKey())->lockForUpdate()->firstOrFail();
             $oncekiHesap = $hedef->baglanti['eposta'] ?? null;
+            $eskiAnahtar = $hedef->gizli_bilgiler['yenileme_anahtari'] ?? null;
             // Kayıtlı hesap bilinmiyorsa: yeni bağlantı kayıtlı klasörün ve kayıtlı kopyanın sahibiyse
             // aynı hesaptır; yalnız erişim yetmez (paylaşılmış klasör — BY-021-R4). Kanıt kilit altında
             // yeniden eşlenir: klasör ve en son fiziksel kopya, sahipliği sorulanlarla aynı olmalı (BY-021-R5)
@@ -310,7 +345,7 @@ final class YedekHedefiController extends Controller
             // Dosya kimlikleri bağlı hesaptadır: hesabın aynı olduğu DOĞRULANMADIKÇA
             // (kayıtlı hesap bilinmiyor, kanıt yok) kopyası duran hedefte eski bağlantı aynen kalır
             if (! $ayniHesap && ($this->konum->kilitliAlanlar($hedef) !== [] || $this->geridekiKopyaVarMi($hedef, $sonuc['eposta']))) {
-                return $oncekiHesap === null ? 'GOOGLE_HESAP_DOGRULANAMADI' : 'HEDEF_KONUMU_DEGISMEZ';
+                return ['red' => $oncekiHesap === null ? 'GOOGLE_HESAP_DOGRULANAMADI' : 'HEDEF_KONUMU_DEGISMEZ', 'eski_anahtar' => null, 'eski_hesap' => null];
             }
 
             $baglanti = $hedef->baglanti ?? [];
@@ -324,11 +359,17 @@ final class YedekHedefiController extends Controller
             $hedef->gizli_bilgiler = [...($hedef->gizli_bilgiler ?? []), 'yenileme_anahtari' => $sonuc['yenileme_anahtari']];
             $hedef->save();
 
-            return null;
+            // Eski anahtar yalnız BAŞKA bir hesabınsa iptal edilir: aynı hesabın iptali yeni bağlantıyı da düşürebilir
+            $baskaHesap = is_string($oncekiHesap) && $oncekiHesap !== $sonuc['eposta'];
+
+            return ['red' => null, 'eski_anahtar' => $baskaHesap ? $eskiAnahtar : null, 'eski_hesap' => $oncekiHesap];
         });
+        $red = $kayit['red'];
 
         if ($red !== null) {
             $this->denetle('hedef_google_baglan', $request, $hedef, [], $red);
+            // Kaydedilmeyen yeni bağlantının anahtarı Google'da geçerli kalmasın (YF-48)
+            $this->googleAnahtariniIptalEt($request, $hedef, $sonuc['yenileme_anahtari'], $sonuc['eposta'], 'reddedilen_baglanti');
 
             return $red === 'HEDEF_KONUMU_DEGISMEZ'
                 ? $this->konumDegismez(['eposta'])
@@ -336,6 +377,7 @@ final class YedekHedefiController extends Controller
         }
 
         $this->denetle('hedef_google_baglan', $request, $hedef);
+        $this->googleAnahtariniIptalEt($request, $hedef, $kayit['eski_anahtar'], $kayit['eski_hesap'], 'yeniden_baglan');
 
         return response()->json(['data' => new YedekHedefiResource($hedef->refresh()->loadCount('planlar'))]);
     }
@@ -464,17 +506,54 @@ final class YedekHedefiController extends Controller
             || $hedef->kopyalar()->whereIn('durum', KopyaDurumu::yedegiTutanlar())->exists();
     }
 
-    /** "Bağlantıyı kes": yenileme anahtarı silinir; kopyalar "yeniden bağlanın" ile durur */
+    /**
+     * "Bağlantıyı kes": yenileme anahtarı silinir (ve Google'da iptal edilir —
+     * googleAnahtariniIptalEt); kopyalar "yeniden bağlanın" ile durur. Satır
+     * kilidi altında taze kayıttan yalnız ilgili anahtarlar değişir: araya
+     * giren güncellemenin değişikliği (seçilen klasör) eski kopyayla ezilmez
+     * (YF-55, G18).
+     */
     public function googleKes(Request $request, YedekHedefi $hedef): YedekHedefiResource
     {
-        $gizli = $hedef->gizli_bilgiler ?? [];
-        unset($gizli['yenileme_anahtari']);
-        $hedef->gizli_bilgiler = $gizli === [] ? null : $gizli;
-        $hedef->baglanti = [...($hedef->baglanti ?? []), 'durum' => GoogleDriveBaglayicisi::DURUM_YENIDEN_BAGLAN];
-        $hedef->save();
+        [$hedef, $anahtar] = DB::transaction(function () use ($hedef): array {
+            $hedef = YedekHedefi::query()->whereKey($hedef->getKey())->lockForUpdate()->firstOrFail();
+            $gizli = $hedef->gizli_bilgiler ?? [];
+            $anahtar = $gizli['yenileme_anahtari'] ?? null;
+            unset($gizli['yenileme_anahtari']);
+            $hedef->gizli_bilgiler = $gizli === [] ? null : $gizli;
+            $hedef->baglanti = [...($hedef->baglanti ?? []), 'durum' => GoogleDriveBaglayicisi::DURUM_YENIDEN_BAGLAN];
+            $hedef->save();
+
+            return [$hedef, $anahtar];
+        });
         $this->denetle('hedef_google_kes', $request, $hedef);
+        $this->googleAnahtariniIptalEt($request, $hedef, $anahtar, $hedef->baglanti['eposta'] ?? null, 'kes');
 
         return new YedekHedefiResource($hedef->loadCount('planlar'));
+    }
+
+    /**
+     * Artık kullanılmayan Google yenileme anahtarını en iyi çabayla iptal eder
+     * (YF-48): "kesilmiş" bağlantının anahtarı eski veritabanı yedeklerinde
+     * (`gizli_bilgiler`, APP_KEY ile) durur, iptal edilmezse kullanılabilir.
+     * İptal başarısızlığı işlemi düşürmez; denetime `hedef_google_iptal`
+     * olarak yazılır.
+     *
+     * Google'da iptal kullanıcının bu uygulamaya verdiği izni bütünüyle
+     * kaldırabilir: aynı hesapla bağlı başka bir hedefin (ya da hesabı
+     * bilinmeyen bağlı hedefin) anahtarı varken iptal edilmez — o hedefin
+     * kopyaları sessizce "yeniden bağlanın"a düşerdi (GoogleDriveBaglayicisi::iptalGuvenliMi).
+     *
+     * @param  'kes'|'yeniden_baglan'|'reddedilen_baglanti'|'sil'  $neden
+     */
+    private function googleAnahtariniIptalEt(Request $request, YedekHedefi $hedef, mixed $anahtar, mixed $hesap, string $neden): void
+    {
+        if (! is_string($anahtar) || $anahtar === '' || ! GoogleDriveBaglayicisi::iptalGuvenliMi(is_string($hesap) ? $hesap : null)) {
+            return;
+        }
+
+        $iptal = GoogleDriveBaglayicisi::iptalEt($anahtar);
+        $this->denetle('hedef_google_iptal', $request, $hedef, ['neden' => $neden], $iptal ? null : 'GOOGLE_IPTAL_EDILEMEDI');
     }
 
     private static function googleDurumAnahtari(string $durum): string
@@ -575,10 +654,19 @@ final class YedekHedefiController extends Controller
     }
 
     /**
-     * İstek gövdesi: `ad`, `aktif`, `tur` (yalnız eklemede), `alanlar` {ad: değer}.
+     * İstek gövdesi: `ad`, `aktif`, `tur` (yalnız eklemede), `alanlar` {ad: değer},
+     * `silinecek_sirlar` (isteğe bağlı): kayıtlı sırrı silinecek alanların adları —
+     * yalnız türün ZORUNLU OLMAYAN gizli alanları (SFTP'de parola ya da özel
+     * anahtar). Boş sır "değişmedi" demektir; silmenin tek yolu budur (YF-49).
+     * Silmeden sonra hedefte en az bir sır kalmalı (SFTP: kimliksiz kalmaz);
+     * aynı alana hem değer hem silme verilemez (422).
+     *
+     * Evet / hayır alanları yalnız boolean değer alır ve gerçek `bool` olarak
+     * saklanır (`1` → `true`; YF-50): bağlayıcı ve konum izi yalnız `=== true`'yu
+     * açık sayar.
      *
      * @param  bool  $konumKilidi  Kayıtta (sınamada değil) kopyalı hedefin konumu değişmez (409)
-     * @return array{0: HedefTuruTanimi, 1: array<string, mixed>, 2: array<string, string>} [tanım, açık alanlar, sırlar]
+     * @return array{0: HedefTuruTanimi, 1: array<string, mixed>, 2: array<string, string>, 3: list<string>} [tanım, açık alanlar, sırlar, silinen kayıtlı sırların adları]
      */
     private function dogrula(Request $request, ?YedekHedefi $kayitli, bool $adGerekli = true, bool $konumKilidi = false): array
     {
@@ -596,10 +684,21 @@ final class YedekHedefiController extends Controller
         }
 
         $tanim = $this->katalog->tanim($tur);
+        $silinebilir = array_values(array_map(fn (HedefAlani $a): string => $a->ad, array_filter($tanim->alanlar, fn (HedefAlani $a): bool => $a->gizli && ! $a->zorunlu)));
+        /** @var list<string> $silinecek */
+        $silinecek = $request->validate([
+            'silinecek_sirlar' => ['sometimes', 'array', 'list'],
+            'silinecek_sirlar.*' => ['string', 'distinct', Rule::in($silinebilir)],
+        ])['silinecek_sirlar'] ?? [];
+
         $kurallar = [];
         foreach ($tanim->alanlar as $alan) {
             $sirKayitli = $alan->gizli && ($kayitli?->gizli_bilgiler[$alan->ad] ?? '') !== '';
-            $kurallar[$alan->ad] = [($alan->zorunlu && ! $sirKayitli) ? 'required' : 'nullable', ...$alan->kurallar];
+            $kurallar[$alan->ad] = [
+                ($alan->zorunlu && ! $sirKayitli) ? 'required' : 'nullable',
+                ...$alan->kurallar,
+                ...($alan->tur === HedefAlani::EVET_HAYIR && ! in_array('boolean', $alan->kurallar, true) ? ['boolean'] : []),
+            ];
         }
 
         $girdi = (array) $request->input('alanlar', []);
@@ -624,7 +723,23 @@ final class YedekHedefiController extends Controller
 
                 continue;
             }
-            $acik[$alan->ad] = $deger ?? $alan->varsayilan;
+            $acik[$alan->ad] = match (true) {
+                $deger === null || $deger === '' => $alan->varsayilan,
+                $alan->tur === HedefAlani::EVET_HAYIR => filter_var($deger, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE),
+                default => $deger,
+            };
+        }
+
+        // Kayıtlı sırrı silme (YF-49): yeni değerle birlikte istenemez; hedef sırsız kalamaz
+        $celiski = array_values(array_filter($silinecek, fn (string $ad): bool => ($gecerli[$ad] ?? null) !== null && $gecerli[$ad] !== ''));
+        if ($celiski !== []) {
+            throw ValidationException::withMessages(['silinecek_sirlar' => __('hata.yedek_hedefi_sir_celiski', ['alanlar' => implode(', ', $celiski)])]);
+        }
+        $silinen = array_values(array_filter($silinecek, fn (string $ad): bool => ($gizli[$ad] ?? '') !== ''));
+        $gizli = array_diff_key($gizli, array_flip($silinecek));
+        $gizliAdlar = array_map(fn (HedefAlani $a): string => $a->ad, array_filter($tanim->alanlar, fn (HedefAlani $a): bool => $a->gizli));
+        if ($silinecek !== [] && array_filter(array_intersect_key($gizli, array_flip($gizliAdlar)), fn (mixed $s): bool => $s !== '') === []) {
+            throw ValidationException::withMessages(['silinecek_sirlar' => __('hata.yedek_hedefi_kimlik_kalmali')]);
         }
 
         // Konum kilidi sır kuralından önce: kilitli alanı değiştiren önce parolayı yeniden girmeye yönlenmesin
@@ -635,17 +750,17 @@ final class YedekHedefiController extends Controller
             }
         }
 
-        // Bağlantı hedefi değişirken kayıtlı sır yeni yere gönderilmez (K8)
+        // Bağlantı hedefi değişirken kayıtlı sır yeni yere gönderilmez (K8); silinen sır gönderilmez
         if ($kayitli !== null && $this->konum->adresDegistiMi($kayitli, $acik)) {
             foreach ($tanim->alanlar as $alan) {
                 $bos = ($gecerli[$alan->ad] ?? null) === null || $gecerli[$alan->ad] === '';
-                if ($alan->gizli && $bos && ($kayitli->gizli_bilgiler[$alan->ad] ?? '') !== '') {
+                if ($alan->gizli && $bos && ! in_array($alan->ad, $silinecek, true) && ($kayitli->gizli_bilgiler[$alan->ad] ?? '') !== '') {
                     throw ValidationException::withMessages(['alanlar.'.$alan->ad => __('hata.yedek_hedefi_sir_yeniden')]);
                 }
             }
         }
 
-        return [$tanim, $acik, $gizli];
+        return [$tanim, $acik, $gizli, $silinen];
     }
 
     /**

@@ -112,7 +112,8 @@ final class S3BaglayicisiTest extends TestCase
         $this->assertSame('34b48302e7b5fa45bde8084f4b7868a86f0a534bc59db6670ed5711ef69dc6f7', $imza);
     }
 
-    public function test_yukleme_sigv4_ile_imzalanir_ve_gizli_anahtar_hicbir_istege_girmez(): void
+    /** YF-19: nesne kilidi varsayılan saklamalı kova PUT'ta bütünlük başlığı ister; Content-MD5 imzalı başlıklardadır */
+    public function test_yukleme_sigv4_ile_imzalanir_content_md5_tasir_ve_gizli_anahtar_hicbir_istege_girmez(): void
     {
         Http::preventStrayRequests();
         $this->travelTo(CarbonImmutable::parse('2026-11-21 10:15:30', 'UTC'));
@@ -129,15 +130,17 @@ final class S3BaglayicisiTest extends TestCase
         [$istek] = $istekler[0];
         $ozet = hash('sha256', 'PGDMP-yedek-icerigi');
         $uri = $istek->toPsrRequest()->getUri();
+        $md5 = base64_encode(md5('PGDMP-yedek-icerigi', true));
         $beklenenImza = self::referansImza(self::GIZLI, 'PUT', $uri->getPath(), $uri->getQuery(), [
-            'host' => 'emor-yedek.s3.eu-central-1.amazonaws.com', 'x-amz-content-sha256' => $ozet, 'x-amz-date' => '20261121T101530Z',
+            'content-md5' => $md5, 'host' => 'emor-yedek.s3.eu-central-1.amazonaws.com', 'x-amz-content-sha256' => $ozet, 'x-amz-date' => '20261121T101530Z',
         ], $ozet, '20261121T101530Z', 'eu-central-1');
         $this->assertSame('PUT', $istek->method());
         $this->assertSame('PGDMP-yedek-icerigi', $istek->body());
         $this->assertSame([$ozet], $istek->header('x-amz-content-sha256'));
         $this->assertSame(['20261121T101530Z'], $istek->header('x-amz-date'));
+        $this->assertSame([$md5], $istek->header('Content-MD5'));
         $this->assertSame(
-            ["AWS4-HMAC-SHA256 Credential=AKIDORNEK123/20261121/eu-central-1/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature={$beklenenImza}"],
+            ["AWS4-HMAC-SHA256 Credential=AKIDORNEK123/20261121/eu-central-1/s3/aws4_request, SignedHeaders=content-md5;host;x-amz-content-sha256;x-amz-date, Signature={$beklenenImza}"],
             $istek->header('Authorization'),
         );
         $ham = $istek->url()."\n".json_encode($istek->headers())."\n".$istek->body();
@@ -192,17 +195,64 @@ final class S3BaglayicisiTest extends TestCase
         Http::assertSent(fn (Request $istek): bool => $istek->header('Authorization') !== [] && str_starts_with($istek->header('Authorization')[0], 'AWS4-HMAC-SHA256 Credential=AKIDORNEK123/'));
     }
 
-    public function test_503_yanitinda_yeniden_denenir_ve_dosya_indirilir(): void
+    public function test_503_yanitinda_dosya_tasimayan_istek_yeniden_denenir(): void
     {
         Http::preventStrayRequests();
         Sleep::fake();
-        Http::fake([self::SANAL.'/sunucu1/erp_a.dump' => Http::sequence()->push('', 503)->push('', 503)->push('YEDEK-ICERIGI', 200)]);
-        $yerel = $this->klasor.'/geri';
+        Http::fake([self::SANAL.'/' => Http::sequence()->push('', 503)->push('', 503)->push('', 200)]);
 
-        $this->baglayici()->oku('sunucu1/erp_a.dump', $yerel);
+        $this->baglayici()->baglan();
 
-        $this->assertSame('YEDEK-ICERIGI', file_get_contents($yerel));
         Http::assertSentCount(3);
+    }
+
+    /**
+     * YF-22: dosya taşıyan istek (PUT, indirme) HTTP düzeyinde yeniden
+     * denenmez — imza bir kez üretilir, süre sınırı dolduktan sonraki deneme
+     * bayat imzayla gider ve süre sınırı katlanır. Kopyalayıcı yeni imzayla dener.
+     *
+     * @return iterable<string, array{Closure(S3Baglayicisi, string): mixed, bool}>
+     */
+    public static function dosyaTasiyanIstekler(): iterable
+    {
+        $yaz = fn (S3Baglayicisi $b, string $klasor) => $b->yaz($klasor.'/yedek', 'erp_a.dump');
+        $oku = fn (S3Baglayicisi $b, string $klasor) => $b->oku('sunucu1/erp_a.dump', $klasor.'/geri');
+
+        yield 'yükleme, 503' => [$yaz, false];
+        yield 'yükleme, bağlantı hatası' => [$yaz, true];
+        yield 'indirme, 503' => [$oku, false];
+        yield 'indirme, bağlantı hatası' => [$oku, true];
+    }
+
+    #[DataProvider('dosyaTasiyanIstekler')]
+    public function test_dosya_tasiyan_istek_5xx_ya_da_baglanti_hatasinda_yeniden_denenmez(Closure $islem, bool $baglantiHatasi): void
+    {
+        Http::preventStrayRequests();
+        Sleep::fake();
+        file_put_contents($this->klasor.'/yedek', 'PGDMP-yedek-icerigi');
+        $sira = Http::sequence();
+        $baglantiHatasi ? $sira->pushFailedConnection() : $sira->push('', 503);
+        Http::fake([self::SANAL.'/sunucu1/erp_a.dump' => $sira->push('YEDEK', 200)]);
+
+        $hata = $this->hataBekle(fn () => $islem($this->baglayici(), $this->klasor));
+
+        $this->assertSame(HedefHatasi::ERISILEMEDI, $hata->kod);
+        Sleep::assertNeverSlept();
+        // Sıradaki (başarılı) yanıt tüketilmedi: ikinci istek gitmedi; sonraki çağrı onu alır
+        $islem($this->baglayici(), $this->klasor);
+        $this->assertTrue($sira->isEmpty());
+    }
+
+    /** YF-22: imzanın zamanı geçti (yavaş aktarım) — kimlik hatası değil, yeni imzayla denenebilir */
+    public function test_request_time_too_skewed_kimlik_hatasi_sayilmaz_erisilemedi_olur(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([self::SANAL.'/sunucu1/erp_a.dump' => Http::response('<Error><Code>RequestTimeTooSkewed</Code></Error>', 403)]);
+        file_put_contents($this->klasor.'/yedek', 'PGDMP-yedek-icerigi');
+
+        $hata = $this->hataBekle(fn () => $this->baglayici()->yaz($this->klasor.'/yedek', 'erp_a.dump'));
+
+        $this->assertSame(HedefHatasi::ERISILEMEDI, $hata->kod);
     }
 
     public function test_403_yanitinda_yeniden_denenmez(): void

@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $id
  * @property string $kimlik
  * @property int $yedek_id
+ * @property int|null $oncesi_yedek_id Üstüne geri yüklemenin aldığı "geri yükleme öncesi" yedek
  * @property GeriYuklemeTuru $tur
  * @property string $hedef_veritabani
  * @property string|null $onceki_veritabani

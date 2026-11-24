@@ -29,7 +29,11 @@ use Throwable;
  *    dosya yoksa ŞİFRESİZ bir kopyadan (ör. ikinci yerel disk) indirilip
  *    aynı denetimden geçer. Yalnız şifreli kopya varsa özel anahtar gerekir;
  *    ekrandan yapılamaz.
- * 4. Hedef ad sistemce üretilir (VeritabaniAdi); varsa dokunulmaz.
+ * 4. Hedef ad sistemce üretilir (VeritabaniAdi); varsa dokunulmaz. Yedeği
+ *    alan pg_dump bu sunucunun araçlarından yeniyse açılmaz (README §7.7).
+ *    Farklı ad kopyası ayrıca bekleyen kopya sınırına ve boş disk alanına
+ *    bakar (YF-43); başka APP_KEY ile alınmış yedek yüklenir, denetim kaydı
+ *    uyarır (YF-13).
  * 5. Veritabanı manifestteki kodlama / sıralama / ayarlarla, sahibi uygulama
  *    rolü olarak açılır; bağlanma yetkileri (CONNECT / TEMP …) manifestteki
  *    ACL'ye eşdeğer yapılır, yapılamazsa (rol yok) açık hata (BY-026-R1);
@@ -61,11 +65,19 @@ final class GeriYukleyici
      * @param  YedekKilidi  $kilit  Durum klasörünün tutulan kilidi
      *
      * @throws LogicException Kilit tutulmuyor
-     * @throws GeriYuklemeHatasi İşlem başlamadı, kayıt açılmadı (ek kalıp dışı, yedek geri yüklenemez, açık üstüne geri yükleme)
+     * @throws GeriYuklemeHatasi İşlem başlamadı, kayıt açılmadı (ek kalıp dışı, yedek geri yüklenemez, açık üstüne geri yükleme, bekleyen kopya sınırı)
      */
     public function kopyaya(YedekKilidi $kilit, Yedek $yedek, ?string $ek = null, ?int $kullaniciId = null): GeriYukleme
     {
         $this->onDenetim($kilit, $yedek);
+
+        // Her kopya veri diskinde canlı kadar yer tutar ve günlerce kalır (YF-43)
+        $bekleyen = GeriYukleme::query()->where('tur', GeriYuklemeTuru::Kopya->value)->where('durum', GeriYuklemeDurumu::Tamam->value)->whereNull('veritabani_silinme_zamani')->count();
+        $sinir = $this->yapilandirma->bekleyenKopyaSiniri();
+        if ($bekleyen >= $sinir) {
+            throw new GeriYuklemeHatasi(GeriYuklemeHatasi::KOPYA_SINIRI, "Bekleyen {$bekleyen} farklı ad kopyası var (sınır {$sinir}); yenisi açılmadı. Gerekmeyen kopyaları silin.");
+        }
+
         $zaman = CarbonImmutable::now('UTC');
         $ad = VeritabaniAdi::kopya($zaman, $ek);
 
@@ -91,12 +103,15 @@ final class GeriYukleyici
 
         try {
             $durumYaz(GeriYuklemeAdimi::Basladi);
-            $this->vt->parolaylaCalis(fn () => $this->yukle($yedek, $ad, $adim, herDurumdaSil: false));
+            $manifest = $this->vt->parolaylaCalis(fn (): YedekManifesti => $this->yukle($yedek, $ad, $adim, herDurumdaSil: false, diskDenetimi: true));
 
             $geri->update(['durum' => GeriYuklemeDurumu::Tamam, 'bitti' => CarbonImmutable::now()]);
             $durumYaz(GeriYuklemeAdimi::Bitti);
+            // Kopya canlıya dokunmaz: başka APP_KEY ile alınmış yedek yine yüklenir,
+            // ama içindeki şifreli alanların çözülemeyeceği kayda geçer (YF-13)
+            $uyarilar = AppKeyParmakIzi::bilinenMi($manifest->appKeyParmakIzi) ? [] : ['uyarilar' => [GeriYuklemeHatasi::APP_KEY_UYUMSUZ]];
             $this->denetim->kaydet('geri_yukle_kopya', IslemSonucu::Basarili, $yedek->id, $kullaniciId, $this->sureMs($baslangic), [
-                'hedef' => $ad, 'yedek' => $yedek->dosya_adi,
+                'hedef' => $ad, 'yedek' => $yedek->dosya_adi, ...$uyarilar,
             ], geriYuklemeId: $geri->id);
         } catch (Throwable $hata) {
             [$kod, $mesaj] = $this->hataBilgisi($hata);
@@ -190,10 +205,13 @@ final class GeriYukleyici
     /**
      * parolaylaCalis() içinde çağrılır. Hata yolunda (ve sınamada her
      * durumda) açılan veritabanı silinir, indirilen geçici dosya kalmaz (T8).
+     * Veritabanı açılmadan önce: araç / sunucu sürümü (README §7.7) ve —
+     * kalıcı kopyada — boş disk alanı (YF-43).
      *
      * @param  Closure(GeriYuklemeAdimi, string): void  $adim
+     * @return YedekManifesti Yüklenen yedeğin doğrulanmış manifesti
      */
-    private function yukle(Yedek $yedek, string $ad, Closure $adim, bool $herDurumdaSil): void
+    private function yukle(Yedek $yedek, string $ad, Closure $adim, bool $herDurumdaSil, bool $diskDenetimi = false): YedekManifesti
     {
         $gecici = null;
         $olusturuldu = false;
@@ -203,6 +221,10 @@ final class GeriYukleyici
             [$manifest, $dosya, $gecici] = $this->dosyaHazirla($yedek);
             $ozellikler = $manifest->veritabaniOzellikleri ?? $this->vt->kaynakOzellikleri();
             $ayarlar = GeriYuklemeVeritabani::ozellikleriDenetle($ozellikler);
+            $this->vt->surumDenetle($manifest->pgDumpSurumu);
+            if ($diskDenetimi) {
+                $this->vt->diskDenetle($manifest->boyut);
+            }
 
             if ($this->vt->varMi($ad)) {
                 throw new GeriYuklemeHatasi(GeriYuklemeHatasi::HEDEF_VAR, "{$ad} adlı veritabanı zaten var; ona dokunulmadı.");
@@ -236,6 +258,8 @@ final class GeriYukleyici
                 $this->karsilastir($manifest, $this->vt->icerik($ad));
                 $adim(GeriYuklemeAdimi::Karsilastirma, 'tamam');
             }
+
+            return $manifest;
         } catch (Throwable $hata) {
             if ($olusturuldu) {
                 $this->sil($ad, $adim);
@@ -438,15 +462,15 @@ final class GeriYukleyici
         };
     }
 
+    /**
+     * Uzak kopyadan inen döküm için: bellekteki /tmp'de değil yedek diskindeki
+     * çalışma kökünde; öldürülen süreçlerin artıkları açmadan önce silinir (YF-28).
+     *
+     * @throws RuntimeException
+     */
     private function geciciKlasor(): string
     {
-        $klasor = sys_get_temp_dir().'/emor-geri-'.bin2hex(random_bytes(6));
-
-        if (! @mkdir($klasor, 0700)) {
-            throw new RuntimeException('Geri yükleme için geçici klasör açılamadı.');
-        }
-
-        return $klasor;
+        return GeciciKlasor::ac($this->yapilandirma->calismaKlasoru(), 'emor-geri-', $this->yapilandirma->artikKlasorYasi());
     }
 
     public function geciciSil(string $klasor): void

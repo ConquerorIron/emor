@@ -12,9 +12,14 @@
 #   source ~/.cache/emor-yedek-deneme/ortam.sh
 #   php artisan test --compact tests/Feature/FtpBaglayicisiGercekSunucuTest.php tests/Feature/SftpBaglayicisiGercekSunucuTest.php
 #
-# Sunucular yalnız 127.0.0.1'i dinler. Sistemin kendi vsftpd / ssh servisleri
-# kapatılır; bu betiğin örnekleri /opt/emor-yedek-deneme altındaki
-# yapılandırmayla elle başlatılır (sistem yapılandırması değişmez).
+# Sunucular yalnız 127.0.0.1'i dinler; bu betiğin örnekleri
+# /opt/emor-yedek-deneme altındaki yapılandırmayla elle başlatılır (sistem
+# yapılandırması değişmez). Sistemin kendi vsftpd / ssh servislerine yalnız
+# paketi BU çalıştırma kurduysa dokunulur (paketin kendiliğinden açtığı 21 / 22
+# kapatılır). Paket önceden kuruluysa ve servisi açıksa betik ona dokunmadan
+# durur (YF-70): uzaktan erişilen bir makinede SSH'ı kapatmak oturumu keser;
+# açık bırakmak da parolalı deneme kullanıcılarını o servise açardı.
+# Ortam koruması: WSL dışında yalnız EMOR_DENEME_ZORLA=1 ile çalışır.
 #   2121 düz FTP (TLS yok)              2122 FTPS, kendinden imzalı sertifika
 #   2123 FTPS, deneme CA'sı (localhost) 2124 düz FTP, 2 MB/sn sınırlı (kesinti testi)
 #   2222 SFTP                           2223 SFTP, 2 MB/sn sınırlı (kesinti testi)
@@ -34,16 +39,39 @@ rastgele_parola() {
     printf 'Dnm "%s"; $x ğüşİ %s' "$(openssl rand -hex 6)" "$(openssl rand -hex 4)"
 }
 
+# Paketin sistem servisleri
+paket_servisleri() {
+    case "$1" in
+        vsftpd) echo vsftpd.service ;;
+        openssh-server) echo ssh.socket ssh.service ;;
+    esac
+}
+
 paketler() {
-    local eksik=()
+    local eksik=() p s
     for p in vsftpd openssh-server pv; do
-        dpkg -s "$p" >/dev/null 2>&1 || eksik+=("$p")
+        if dpkg -s "$p" >/dev/null 2>&1; then
+            # Önceden kurulu: servisi açıksa (ya da açılışta açılıyorsa) dokunmadan dur
+            for s in $(paket_servisleri "$p"); do
+                if systemctl is-active --quiet "$s" || systemctl is-enabled --quiet "$s" 2>/dev/null; then
+                    echo "HATA: $s önceden açık ($p bu betikten önce kurulmuş). Betik sistem servisine dokunmaz;" >&2
+                    echo "parolalı deneme kullanıcıları ona da açık olurdu. Bu makinede gerekmiyorsa kendiniz kapatıp yeniden deneyin." >&2
+                    exit 1
+                fi
+            done
+        else
+            eksik+=("$p")
+        fi
     done
     if [ "${#eksik[@]}" -gt 0 ]; then
         kok env DEBIAN_FRONTEND=noninteractive apt-get install -y -q "${eksik[@]}"
+        # Yalnız bu çalıştırmada kurulan paketlerin kendiliğinden açtığı servisler (21 / 22) kapatılır
+        for p in "${eksik[@]}"; do
+            for s in $(paket_servisleri "$p"); do
+                kok systemctl disable --now "$s" >/dev/null 2>&1 || true
+            done
+        done
     fi
-    # Paketin açtığı sistem servisleri (21 / 22) kapalı kalır
-    kok systemctl disable --now vsftpd.service ssh.socket ssh.service >/dev/null 2>&1 || true
 }
 
 kullanicilar() {
@@ -269,6 +297,12 @@ kaldir() {
     kok rm -rf "$KOK" "$PAM_DOSYASI"
     rm -rf "$ORTAM_KLASORU"
 }
+
+if ! grep -qi microsoft /proc/sys/kernel/osrelease 2>/dev/null && [ "${EMOR_DENEME_ZORLA:-}" != 1 ]; then
+    echo "HATA: Bu betik yalnız yerel WSL'de çalışır (kullanıcı, paket ve servis değiştirir)." >&2
+    echo "Başka bir atılabilir makinede bilerek çalıştırmak için: EMOR_DENEME_ZORLA=1 $0 ${1:-}" >&2
+    exit 1
+fi
 
 case "${1:-}" in
     kur)

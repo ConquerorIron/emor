@@ -14,8 +14,10 @@ use App\Services\Yedekleme\KopyaDurumu;
 use App\Services\Yedekleme\KopyaSifreleyici;
 use App\Services\Yedekleme\SifrelemeHatasi;
 use App\Services\Yedekleme\YedekKopyalayici;
+use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use Closure;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Sleep;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -314,5 +316,80 @@ final class KopyaSifreleyiciTest extends TestCase
             'cikis' => $this->yedekKoku.'/yanlis.dump',
             '--anahtar' => $this->ozelAnahtarDosyasi('b', $this->yedekKoku),
         ])->expectsOutputToContain(SifrelemeHatasi::COZULEMEDI)->assertFailed();
+    }
+
+    /**
+     * YF-28: öldürülen bir işlemden (SIGKILL) kalan anahtarlıkta içe alınmış
+     * özel anahtar durabilir; sonraki işlem açılırken eski anahtarlıklar
+     * silinir, yenisine (süren başka bir işlem) dokunulmaz.
+     */
+    public function test_eski_gecici_anahtarlik_sonraki_islemde_silinir_yenisi_korunur(): void
+    {
+        $kok = rtrim(sys_get_temp_dir(), '/');
+        $eski = $kok.'/emor-gpg-'.bin2hex(random_bytes(8));
+        $yeni = $kok.'/emor-gpg-'.bin2hex(random_bytes(8));
+        mkdir($eski.'/private-keys-v1.d', 0700, true);
+        file_put_contents($eski.'/private-keys-v1.d/anahtar.key', 'ozel');
+        mkdir($yeni, 0700);
+        touch($eski, time() - app(YedeklemeYapilandirmasi::class)->artikKlasorYasi() - 60);
+
+        try {
+            $this->sifreleyici()->acikAnahtarBilgisi(self::$anahtarlar['a']['acik']);
+
+            $this->assertDirectoryDoesNotExist($eski);
+            $this->assertDirectoryExists($yeni);
+        } finally {
+            File::deleteDirectory($eski);
+            File::deleteDirectory($yeni);
+        }
+    }
+
+    /**
+     * YF-28: `yedek:sifre-coz` Ctrl-C / SIGTERM ile kesilirse `finally`
+     * çalışmaz; özel anahtarın alındığı geçici anahtarlık sinyal
+     * yakalayıcısında silinir. Gerçek alt süreç: test ortamında sinyaller
+     * yakalanmaz (Signals). gpg yerine uzun süren sahte bir araç.
+     */
+    public function test_sifre_coz_komutu_kesilince_gecici_anahtarligi_siler(): void
+    {
+        if (! extension_loaded('pcntl')) {
+            $this->markTestSkipped('pcntl yok: komut sinyal yakalayamaz (T11).');
+        }
+
+        $tmp = $this->yedekKoku.'/tmp';
+        mkdir($tmp, 0700);
+        $gpg = $this->yedekKoku.'/sahte-gpg';
+        file_put_contents($gpg, "#!/bin/sh\nexec sleep 30\n");
+        chmod($gpg, 0700);
+        file_put_contents($this->yedekKoku.'/anahtar.asc', 'ozel');
+        file_put_contents($this->yedekKoku.'/yedek.gpg', 'sifreli');
+
+        $surec = new Process(
+            [PHP_BINARY, base_path('artisan'), 'yedek:sifre-coz', $this->yedekKoku.'/yedek.gpg', $this->yedekKoku.'/cikis.dump', '--anahtar='.$this->yedekKoku.'/anahtar.asc'],
+            base_path(),
+            // APP_ENV testing'de çerçeve sinyal yakalamayı kapatır (Signals): canlıdaki gibi açık olsun
+            ['APP_ENV' => 'local', 'TMPDIR' => $tmp, 'YEDEKLEME_GPG' => $gpg, 'YEDEKLEME_GPGCONF' => '/bin/true'],
+        );
+        $surec->setTimeout(60)->start();
+
+        try {
+            $bitis = microtime(true) + 20;
+            while ((glob($tmp.'/emor-gpg-*') ?: []) === [] && $surec->isRunning() && microtime(true) < $bitis) {
+                usleep(50_000);
+            }
+            $this->assertNotSame([], glob($tmp.'/emor-gpg-*') ?: [], 'Anahtarlık açılmadı: '.$surec->getErrorOutput());
+
+            $surec->signal(SIGINT);
+            $surec->wait();
+
+            // Sinyalle öldürülmedi: yakalayıcı temizleyip kendisi çıktı
+            $this->assertFalse($surec->hasBeenSignaled(), $surec->getErrorOutput());
+            $this->assertSame(128 + SIGINT, $surec->getExitCode(), $surec->getErrorOutput());
+            $this->assertSame([], glob($tmp.'/emor-gpg-*') ?: []);
+        } finally {
+            if ($surec->isRunning()) {
+                $surec->stop(0);
+            }
+        }
     }
 }

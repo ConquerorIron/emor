@@ -286,6 +286,112 @@ final class GeriYuklemeVeritabaniPostgresTest extends TestCase
     }
 
     /**
+     * YF-15 (README §6.4 6–7. adım, 10. adım geri dönüş; kesif.md §5, §6):
+     * bağlantıya kapatma açık istemci oturumunu koparır ve yenisini engeller;
+     * iki ad değişikliği tek işlemde ileri ve geri yapılır; adlar hangi
+     * tarafta kalındığını gösterir; açma yeniden bağlanmaya izin verir.
+     */
+    public function test_canli_kapatilir_adlar_tek_islemde_ileri_ve_geri_degisir_yeniden_acilir(): void
+    {
+        $canli = $this->canliAc(ozelYetki: false);
+        $ek = (string) random_int(100000, 999999);
+        [$hedef, $onceki] = ["erp_geri_19990101_{$ek}", "erp_onceki_19990101_{$ek}"];
+        array_push($this->veritabanlari, $hedef, $onceki);
+        $this->yonetici("CREATE DATABASE {$hedef} OWNER {$this->rolApp};");
+        $yeni = $this->baglan($hedef, $this->rolApp);
+        $yeni->exec('CREATE TABLE geri_yuklenen (x int)');
+        $yeni = null;
+        $vt = app(GeriYuklemeVeritabani::class);
+        $tablo = fn (string $ad, string $t): mixed => $this->baglan($ad, $this->rolApp)->query("SELECT to_regclass('public.{$t}')")->fetchColumn();
+
+        $acik = $this->baglan($canli, $this->rolApp);
+        $acik->exec('BEGIN');
+        $acik->exec('INSERT INTO t VALUES (1)');
+
+        // İleri: canlı kapatılır, canlı → önceki, geri yüklenen → canlı
+        $vt->parolaylaCalis(function () use ($vt, $canli, $hedef, $onceki): void {
+            $this->assertSame([$canli, $hedef], $vt->mevcutlar([$canli, $hedef, $onceki]));
+            $vt->baglantilariKapat($canli);
+        });
+        $this->assertBaglantiKoptu($acik);
+        $this->assertBaglantiyiKabulEtmez($canli);
+
+        $vt->parolaylaCalis(fn () => $vt->yerDegistir([$canli, $onceki], [$hedef, $canli]));
+
+        $this->assertSame([$canli, $onceki], $vt->parolaylaCalis(fn (): array => $vt->mevcutlar([$canli, $hedef, $onceki])));
+        // Canlı ad artık geri yüklenen veritabanı ve bağlantıya açık; eski canlı önceki adla kapalı
+        $this->assertNotNull($tablo($canli, 'geri_yuklenen'));
+        $this->assertBaglantiyiKabulEtmez($onceki);
+
+        // Geri dönüş: canlı → geri yüklenenin adı, önceki → canlı, açılır
+        $vt->parolaylaCalis(function () use ($vt, $canli, $hedef, $onceki): void {
+            $vt->baglantilariKapat($canli);
+            $vt->yerDegistir([$canli, $hedef], [$onceki, $canli]);
+            $vt->baglantiyaAc($canli);
+        });
+
+        $this->assertSame([$canli, $hedef], $vt->parolaylaCalis(fn (): array => $vt->mevcutlar([$canli, $hedef, $onceki])));
+        $this->assertNotNull($tablo($canli, 't'));
+        $this->assertNull($tablo($canli, 'geri_yuklenen'));
+        // Sonlandırılan oturumun yazısı kabul edilmemişti
+        $this->assertSame(0, (int) $this->baglan($canli, $this->rolApp)->query('SELECT count(*) FROM t')->fetchColumn());
+        // Geri yüklenen kopya kendi adıyla, hâlâ bağlantıya kapalı (silinmeden bekler)
+        $this->assertBaglantiyiKabulEtmez($hedef);
+    }
+
+    /**
+     * YF-14: ön denetim manifestteki bağlanma yetkilerini hiçbir şeye
+     * dokunmadan çözümler (rol yoksa ret); sunucunun ana sürümünü okur.
+     */
+    public function test_manifest_yetkisi_yalniz_cozumlenir_olmayan_rol_reddedilir_sunucu_ana_surumu_okunur(): void
+    {
+        $canli = $this->canliAc(ozelYetki: false);
+        $vt = app(GeriYuklemeVeritabani::class);
+        $once = $vt->parolaylaCalis(fn (): ?string => $vt->yetkileriOku($canli));
+
+        $vt->parolaylaCalis(fn () => $vt->yetkileriCoz('{'.$this->rolApp.'=CTc/'.$this->rolApp.','.$this->rolDiger.'=c/'.$this->rolApp.'}'));
+
+        try {
+            $vt->parolaylaCalis(fn () => $vt->yetkileriCoz('{'.$this->rolApp.'=CTc/'.$this->rolApp.',emor_olmayan_'.bin2hex(random_bytes(3)).'=c/'.$this->rolApp.'}'));
+            $this->fail('Olmayan rolü taşıyan yetki çözümlendi.');
+        } catch (GeriYuklemeHatasi $hata) {
+            $this->assertSame(GeriYuklemeHatasi::VERITABANI_YETKILERI, $hata->kod);
+        }
+        $this->assertSame($once, $vt->parolaylaCalis(fn (): ?string => $vt->yetkileriOku($canli)));
+
+        $surumNo = (int) $this->baglan($canli, $this->rolApp)->query('SHOW server_version_num')->fetchColumn();
+        $this->assertSame(intdiv($surumNo, 10000), $vt->parolaylaCalis(fn (): int => $vt->sunucuAnaSurumu()));
+    }
+
+    /**
+     * YF-45: veritabanı kimliğine (OID) bağlı özellikler ad değiştirmeyle
+     * yeni canlıya geçmez; ön denetim onları görünce reddeder.
+     */
+    public function test_canlida_rol_duzeyi_ayar_ya_da_baglanti_siniri_varsa_reddedilir(): void
+    {
+        $canli = $this->canliAc(ozelYetki: false);
+        $vt = app(GeriYuklemeVeritabani::class);
+        $denetle = fn () => $vt->parolaylaCalis(fn () => $vt->kimligeBagliOzellikleriDenetle($canli));
+        $denetle();
+
+        foreach ([
+            "ALTER ROLE {$this->rolDiger} IN DATABASE {$canli} SET work_mem = '8MB';",
+            "ALTER ROLE {$this->rolDiger} IN DATABASE {$canli} RESET ALL; ALTER DATABASE {$canli} CONNECTION LIMIT 50;",
+        ] as $sql) {
+            $this->yonetici($sql);
+            try {
+                $denetle();
+                $this->fail("Kimliğe bağlı özellik kabul edildi: {$sql}");
+            } catch (GeriYuklemeHatasi $hata) {
+                $this->assertSame(GeriYuklemeHatasi::VERITABANI_OZELLIGI, $hata->kod);
+            }
+        }
+
+        $this->yonetici("ALTER DATABASE {$canli} CONNECTION LIMIT -1;");
+        $denetle();
+    }
+
+    /**
      * "Canlı": sahibi uygulama rolü; özel yetkide PUBLIC'in bağlanması kaldırılıp
      * yalnız belirli bir role (DIGER) verilmiş.
      */
@@ -320,6 +426,17 @@ final class GeriYuklemeVeritabaniPostgresTest extends TestCase
             $this->fail("{$rol} {$vt} veritabanına bağlanabildi.");
         } catch (PDOException $hata) {
             $this->assertStringContainsString('permission denied for database', $hata->getMessage());
+        }
+    }
+
+    /** ALLOW_CONNECTIONS false: yetkisi olan rol de bağlanamaz */
+    private function assertBaglantiyiKabulEtmez(string $vt): void
+    {
+        try {
+            $this->baglan($vt, $this->rolApp);
+            $this->fail("{$vt} veritabanı bağlantı kabul etti.");
+        } catch (PDOException $hata) {
+            $this->assertStringContainsString('is not currently accepting connections', $hata->getMessage());
         }
     }
 

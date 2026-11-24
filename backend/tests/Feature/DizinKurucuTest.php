@@ -26,6 +26,7 @@ use App\Services\Yedekleme\Istekler\IstekReddi;
 use App\Services\Yedekleme\Istekler\SilIsleyicisi;
 use App\Services\Yedekleme\KopyaDurumu;
 use App\Services\Yedekleme\KopyaSilmeKaydi;
+use App\Services\Yedekleme\KullanimDenetimi;
 use App\Services\Yedekleme\ManifestDeposu;
 use App\Services\Yedekleme\OlayGunlugu;
 use App\Services\Yedekleme\OlayTuru;
@@ -108,6 +109,59 @@ final class DizinKurucuTest extends TestCase
         $this->assertTrue($kurulan->imzali);
         $this->assertSame('Yıl sonu', $kurulan->aciklama);
         $this->assertSame(YedekDurumu::Tamam, $kurulan->durum);
+        // Manifest `+03:00` taşır; kayıttaki an manifestteki anla aynı olmalı (G17, YF-01)
+        $manifest = app(ManifestDeposu::class)->oku(ManifestDeposu::jsonYolu(config('yedekleme.klasor').'/'.$yedek->dosya_adi))->manifest;
+        $this->assertSame($manifest->alinmaZamani->utc()->format('Y-m-d H:i:s'), $kurulan->alinma_zamani->utc()->format('Y-m-d H:i:s'));
+    }
+
+    /**
+     * YF-18 (G21): manifest önce güvenilmezken (`.json` henüz yok) güvenilmeyen
+     * kaydedilen dosya, manifest gelince aynı kayıtla imzalı olur; tarama
+     * "bozuk" saymaz, kayıt çoğalmaz.
+     */
+    public function test_once_guvenilmeyen_kaydedilen_yedek_manifest_gelince_imzali_olur(): void
+    {
+        $yedek = $this->gercekYedek();
+        $json = ManifestDeposu::jsonYolu(config('yedekleme.klasor').'/'.$yedek->dosya_adi);
+        $this->dizinleriBosalt();
+        rename($json, $json.'.bekle');
+
+        $this->assertSame(1, $this->tara()['guvenilmeyen']);
+        $guvenilmeyenId = Yedek::query()->sole()->id;
+
+        rename($json.'.bekle', $json);
+        $sonuc = $this->tara();
+
+        $this->assertSame(0, $sonuc['bozuk']);
+        $kayit = Yedek::query()->sole();
+        $this->assertSame([$guvenilmeyenId, $yedek->kimlik, true], [$kayit->id, $kayit->kimlik, $kayit->imzali]);
+        $this->assertTrue($kayit->geriYuklenebilirMi());
+    }
+
+    /**
+     * YF-53: tarama hedefleri, kullanıcıları ve plan-hedef bağlarını bir kez
+     * okur; manifest ve kopya olayı sayısıyla sorgu sayısı artmaz.
+     */
+    public function test_tarama_tanim_tablolarini_manifest_sayisindan_bagimsiz_bir_kez_okur(): void
+    {
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Disk 2', 'baglanti' => ['klasor' => $this->yedekKoku.'/disk2']]);
+        mkdir($this->yedekKoku.'/disk2');
+        $plan = YedekPlani::factory()->create();
+        $plan->hedefler()->attach($hedef, ['sakla_son_adet' => 10]);
+        foreach (range(1, 3) as $_) {
+            $this->planYedegi($hedef, $plan);
+            $this->travel(1)->minutes();
+        }
+        $this->dizinleriBosalt();
+
+        DB::enableQueryLog();
+        $this->tara();
+        $sorgular = array_column(DB::getQueryLog(), 'query');
+
+        foreach (['yedek_hedefleri', 'users', 'yedek_plan_hedefleri'] as $tablo) {
+            $this->assertCount(1, array_filter($sorgular, fn (string $s): bool => preg_match('/from "'.$tablo.'"/', $s) === 1), $tablo);
+        }
+        $this->assertSame(3, YedekKopyasi::query()->where('yedek_hedefi_id', $hedef->id)->count());
     }
 
     public function test_imzasiz_dosya_guvenilmeyen_olarak_listelenir_geri_yuklenemez(): void
@@ -294,6 +348,28 @@ final class DizinKurucuTest extends TestCase
         $this->assertSame(1, $sonuc['sahipsiz']);
         $this->assertSame([YedekDurumu::Basarisiz, SahipsizYedekler::YARIDA_KALDI], [$sahipsiz->refresh()->durum, $sahipsiz->hata_kodu]);
         $this->assertFileDoesNotExist($gecici);
+    }
+
+    /**
+     * YF-04: ölen süreçten kalan `kopyalaniyor` / `bekliyor` kopyalar kilitli
+     * taramada `basarisiz` olur; yedek artık "kullanımda" sayılmaz.
+     */
+    public function test_kilitli_tarama_yarida_kalan_kopyalari_basarisiz_yapar_yedek_kullanimdan_cikar(): void
+    {
+        $yedek = $this->gercekYedek();
+        $kopyalar = collect([KopyaDurumu::Kopyalaniyor, KopyaDurumu::Bekliyor])->map(fn (KopyaDurumu $durum, int $i): YedekKopyasi => YedekKopyasi::query()->create([
+            'yedek_id' => $yedek->id,
+            'yedek_hedefi_id' => YedekHedefi::factory()->create(['ad' => "Hedef {$i}", 'baglanti' => ['klasor' => $this->yedekKoku."/disk-{$i}"]])->id,
+            'durum' => $durum,
+        ]));
+        $this->assertTrue(app(KullanimDenetimi::class)->kullanimdaMi($yedek));
+
+        app(DizinKurucu::class)->tara($this->kilitAl());
+
+        foreach ($kopyalar as $kopya) {
+            $this->assertSame([KopyaDurumu::Basarisiz, SahipsizYedekler::KOPYA_YARIDA_KALDI], [$kopya->refresh()->durum, $kopya->hata_kodu]);
+        }
+        $this->assertFalse(app(KullanimDenetimi::class)->kullanimdaMi($yedek));
     }
 
     /** BY-023-R1: silme yetkisi reddedilen (mantıksal silinen) kopya boş katalogdan yeniden kurulunca geri gelmez. */

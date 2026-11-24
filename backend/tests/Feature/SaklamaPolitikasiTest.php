@@ -163,6 +163,49 @@ final class SaklamaPolitikasiTest extends TestCase
         $this->assertContains('son_basarili', app(SaklamaPolitikasi::class)->hesapla()['korunan'][$son->id]);
     }
 
+    /**
+     * YF-06 (D4): geri yüklenemeyen imzasız yedekler "son başarılı" ve en az
+     * sayıyı doldurmaz; imzalı yedekler en az sayının altına silinmez.
+     */
+    public function test_imzasiz_yedekler_son_basarili_ve_en_az_sayiyi_doldurmaz(): void
+    {
+        YedekAyari::query()->update(['enaz_adet' => 3, 'elle_gun' => 30]);
+        $this->yedek(60);
+        $yeniImzali = $this->yedek(50);
+        foreach ([3, 2, 1] as $gun) {
+            $this->yedek($gun, ek: ['imzali' => false]);
+        }
+
+        $this->assertSame([], $this->silinecekYedekler());
+        $this->assertContains('son_basarili', app(SaklamaPolitikasi::class)->hesapla()['korunan'][$yeniImzali->id]);
+    }
+
+    /**
+     * YF-35: bir kararın beklenmeyen hatası (disk dolu → olay günlüğü
+     * yazılamıyor) turu kesmez: sonraki yerel silme yine uygulanır ve hata
+     * denetim kaydında görünür.
+     */
+    public function test_bag_kararinda_beklenmeyen_hata_turu_kesmez_yerel_silme_uygulanir(): void
+    {
+        $uzak = $this->bellekHedefi('Uzak');
+        $plan = $this->plan($uzak, 1);
+        foreach ([5, 1] as $gun) {
+            $this->kopya($this->yedek($gun, YedekKaynagi::Plan), $uzak, [$plan]);
+        }
+        $elle = $this->yedek(9);
+        $this->yedek(8);
+        // Olay günlüğünün yerinde klasör: her olay eklemesi hata verir
+        $olaylar = config('yedekleme.klasor').'/olaylar.jsonl';
+        @unlink($olaylar);
+        mkdir($olaylar);
+
+        app(SaklamaPolitikasi::class)->uygula();
+
+        $this->assertFileDoesNotExist(config('yedekleme.klasor').'/'.$elle->dosya_adi);
+        $this->assertTrue(YedekIslemKaydi::query()->where('islem', 'saklama_bag')->where('sonuc', IslemSonucu::Basarisiz->value)
+            ->get()->contains(fn (YedekIslemKaydi $k): bool => $k->ayrinti['kod'] === SaklamaPolitikasi::BEKLENMEYEN_HATA));
+    }
+
     public function test_bir_hedefteki_silme_ayni_yedegin_diger_hedefteki_kopyasina_dokunmaz(): void
     {
         $hedef1 = $this->bellekHedefi('Bir');
@@ -379,6 +422,18 @@ final class SaklamaPolitikasiTest extends TestCase
     }
 
     /** BY-004-R9: bağsız plan yedeğine zamanlanmamışların kuralı uygulanmaz (kural kaynaktan seçilir). */
+    /**
+     * YF-04: hiç kopya kaydı olmayan plan yedeğinin (planın bütün hedefleri
+     * pasifti) yerel dosyası elle yedek kuralıyla silinir; süresiz birikmez.
+     */
+    public function test_kopya_kaydi_olmayan_plan_yedegine_elle_yedek_kurali_uygulanir(): void
+    {
+        $eski = $this->yedek(5, YedekKaynagi::Plan);
+        $this->yedek(1, YedekKaynagi::Plan);
+
+        $this->assertSame([$eski->id], $this->silinecekYedekler());
+    }
+
     public function test_bagsiz_plan_yedegine_elle_yedek_kurali_uygulanmaz(): void
     {
         YedekAyari::query()->update(['elle_gun' => 1000]);

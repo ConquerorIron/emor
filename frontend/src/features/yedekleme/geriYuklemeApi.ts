@@ -60,11 +60,11 @@ export function kopyaGeriYukle(
   )
 }
 
-/** Bekleyen kopyayı siler (409 GERI_YUKLEME_KOPYA_YOK) */
-export async function kopyaSil(geriYuklemeKimligi: string): Promise<IstekKabulu> {
-  const yanit = await api.delete<{ data: IstekKabulu }>(
+/** Bekleyen kopyayı siler (409 GERI_YUKLEME_KOPYA_YOK); yeniden denemede aynı istek anahtarı */
+export function kopyaSil(geriYuklemeKimligi: string, istekAnahtari: string): Promise<IstekKabulu> {
+  return istekBirak(
+    'delete',
     `/api/v1/ayarlar/geri-yuklemeler/${geriYuklemeKimligi}/kopya`,
+    istekAnahtari,
   )
-
-  return yanit.data.data
 }

@@ -117,6 +117,30 @@ final class YedekZamanlaTest extends TestCase
         $this->assertSame('2026-11-22 02:00', $plan->refresh()->sonraki_calisma?->setTimezone('Europe/Istanbul')->format('Y-m-d H:i'));
     }
 
+    /**
+     * YF-37 (G18): planlar kilitten önce okunur; kilit beklenirken başka süreç
+     * planı çalıştırıp vadesini ilerletirse karar kilit altında yeniden okunan
+     * vadeden verilir: ikinci yedek alınmaz.
+     */
+    public function test_kilit_beklenirken_baska_surec_plani_calistirdiysa_yedek_alinmaz(): void
+    {
+        $this->sahtePgAraclari();
+        $plan = $this->vadesiGelenPlan('Günlük', $this->hedef('Ana'));
+        $ilerletildi = false;
+        // İlk okumada (kilitten önce) başka sürecin çalıştırması taklit edilir
+        YedekPlani::retrieved(function (YedekPlani $okunan) use ($plan, &$ilerletildi): void {
+            if (! $ilerletildi && $okunan->is($plan)) {
+                $ilerletildi = true;
+                YedekPlani::query()->whereKey($plan->id)->update(['sonraki_calisma' => CarbonImmutable::now()->addDay()]);
+            }
+        });
+
+        $this->artisan('yedek:zamanla')->assertSuccessful();
+
+        $this->assertTrue($ilerletildi);
+        $this->pgDumpCalisti(0);
+    }
+
     public function test_pasif_plan_atlanir(): void
     {
         $this->sahtePgAraclari();
@@ -179,6 +203,32 @@ final class YedekZamanlaTest extends TestCase
         $this->assertFileDoesNotExist($yerel);
         $this->assertNotNull($yedek->refresh()->yerel_silinme_zamani);
         $this->assertSame(YedekDurumu::Tamam, $yedek->durum);
+    }
+
+    /**
+     * YF-04: başarısız kopya üretimde de yeniden denenir. Hedef bir sonraki
+     * planlı çalışmada ulaşılabilir olunca önceki yedeğin kopyası da
+     * tamamlanır; testin kendisi kopyalayıcıyı çağırmaz.
+     */
+    public function test_hedef_duzelince_sonraki_planli_calisma_onceki_yedegin_basarisiz_kopyasini_tamamlar(): void
+    {
+        $this->sahtePgAraclari();
+        $klasor = $this->yedekKoku.'/disk-gec';
+        // Klasör henüz yok: ilk çalışmada kopya başarısız
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Geç bağlanan disk', 'baglanti' => ['klasor' => $klasor]]);
+        $plan = $this->vadesiGelenPlan('Günlük', $hedef);
+
+        $this->artisan('yedek:zamanla')->assertSuccessful();
+        $ilk = Yedek::query()->sole();
+        $this->assertSame(KopyaDurumu::Basarisiz, YedekKopyasi::query()->where('yedek_id', $ilk->id)->sole()->durum);
+
+        mkdir($klasor, 0750, true);
+        $this->travel(1)->days();
+        $plan->forceFill(['sonraki_calisma' => CarbonImmutable::now()->subSeconds(30)])->save();
+        $this->artisan('yedek:zamanla')->assertSuccessful();
+
+        $this->assertSame(KopyaDurumu::Tamam, YedekKopyasi::query()->where('yedek_id', $ilk->id)->sole()->durum);
+        $this->assertFileExists($klasor.'/'.$ilk->dosya_adi);
     }
 
     /**

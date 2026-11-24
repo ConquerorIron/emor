@@ -13,6 +13,7 @@ use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
 use App\Services\Yedekleme\GeriYuklemeDurumu;
 use App\Services\Yedekleme\GeriYuklemeTuru;
+use App\Services\Yedekleme\HedefKonumu;
 use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\YedekKaynagi;
 use App\Support\KayitSilme;
@@ -220,6 +221,12 @@ final class YedeklemeVeriModeliTest extends TestCase
 
         $this->assertSame(YedekKaynagi::Elle, $plansiz->yedek?->kaynak);
         $this->assertFalse($plansiz->planlar()->exists());
+
+        // T10, YF-56: varsayılan tamam kopya kopyalayıcının ürettiği gibidir —
+        // uzak kimliği ve hedefin bugünkü konum izi var, yeri doğrulanmış
+        $this->assertSame($kopya->yedek->dosya_adi, $kopya->uzak_kimlik);
+        $this->assertTrue(app(HedefKonumu::class)->konumdaMi($kopya->hedef, $kopya->konum_izi));
+        $this->assertNull(YedekKopyasi::factory()->izsiz()->create()->konum_izi);
     }
 
     /**

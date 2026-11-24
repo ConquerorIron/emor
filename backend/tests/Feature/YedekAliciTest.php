@@ -21,6 +21,7 @@ use App\Services\Yedekleme\YedekKaynagi;
 use App\Services\Yedekleme\YedekKilidi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use App\Services\Yedekleme\YedekManifesti;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Process;
@@ -57,6 +58,7 @@ final class YedekAliciTest extends TestCase
     public function test_basarili_yedek_dump_ve_imzali_manifest_uretir_kayit_tamam(): void
     {
         $this->sahtePgAraclari();
+        $this->travelTo(CarbonImmutable::parse('2026-11-21 00:40:07', 'UTC'));
 
         $yedek = $this->al();
 
@@ -64,7 +66,9 @@ final class YedekAliciTest extends TestCase
         $this->assertSame(DogrulamaDurumu::OzetTamam, $yedek->dogrulama_durumu);
         $this->assertTrue($yedek->imzali);
         $dump = config('yedekleme.klasor').'/'.$yedek->dosya_adi;
-        $this->assertMatchesRegularExpression('/^erp_elle_\d{4}-\d{2}-\d{2}_\d{6}\+0300\.dump$/D', $yedek->dosya_adi);
+        // Dosya adı İstanbul saatini taşır; veritabanındaki an UTC ile aynıdır (G17, YF-01)
+        $this->assertSame('erp_elle_2026-11-21_034007+0300.dump', $yedek->dosya_adi);
+        $this->assertSame('2026-11-21 00:40:07', $yedek->refresh()->alinma_zamani->utc()->format('Y-m-d H:i:s'));
         $sonuc = app(ManifestDeposu::class)->oku(ManifestDeposu::jsonYolu($dump));
         $this->assertTrue($sonuc->guvenilirMi());
         $this->assertTrue(ManifestDeposu::dosyaTutuyorMu($sonuc->manifest, $dump));
@@ -253,6 +257,31 @@ final class YedekAliciTest extends TestCase
         $this->assertSame(DogrulamaDurumu::OzetTamam, $olen->dogrulama_durumu);
         $this->assertSame(hash_file('sha256', $dump), $olen->sha256);
         $this->assertFileExists(ManifestDeposu::jsonYolu($dump));
+    }
+
+    /**
+     * YF-05 (D3): dump ve imzalı manifest yayımlandıktan sonra olay günlüğü
+     * yazılamazsa yedek geçerlidir: kayıt `tamam`, dosyalar yerinde, denetim
+     * kaydı başarılı ve uyarıyı taşır; "yedek başarısız" kaydı yok.
+     */
+    public function test_yayimlandiktan_sonra_olay_gunlugu_yazilamazsa_yedek_tamam_kalir_denetim_uyarir(): void
+    {
+        $this->sahtePgAraclari();
+        $klasor = config('yedekleme.klasor');
+        // Olay günlüğünün yerinde klasör: ekleme hata verir
+        mkdir($klasor.'/olaylar.jsonl', 0750, true);
+
+        $yedek = $this->al();
+
+        $this->assertSame(YedekDurumu::Tamam, $yedek->durum);
+        $this->assertTrue($yedek->imzali);
+        $dump = $klasor.'/'.$yedek->dosya_adi;
+        $this->assertFileExists($dump);
+        $this->assertFileExists(ManifestDeposu::jsonYolu($dump));
+        $kayit = YedekIslemKaydi::query()->where('islem', 'yedek_al')->sole();
+        $this->assertSame(IslemSonucu::Basarili, $kayit->sonuc);
+        $this->assertSame(YedekAlici::YAYIM_SONRASI_UYARI, $kayit->ayrinti['kod']);
+        $this->assertSame(['olay_gunlugu'], $kayit->ayrinti['uyarilar']);
     }
 
     /**

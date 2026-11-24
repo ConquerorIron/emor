@@ -37,6 +37,10 @@ final class GoogleDriveBaglayicisiTest extends TestCase
 
     private const TOKEN = 'https://oauth2.googleapis.com/token';
 
+    private const IPTAL = 'https://oauth2.googleapis.com/revoke';
+
+    private const DOSYA = 'https://www.googleapis.com/drive/v3/files/dosya789';
+
     private const KLASOR = 'https://www.googleapis.com/drive/v3/files/klasor123?fields=id%2CmimeType%2Ctrashed';
 
     private const OTURUM_AC = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id';
@@ -516,7 +520,7 @@ final class GoogleDriveBaglayicisiTest extends TestCase
             'scope' => 'https://www.googleapis.com/auth/drive.file',
             'access_type' => 'offline',
             'prompt' => 'consent',
-            'include_granted_scopes' => 'true',
+            // YF-47: include_granted_scopes yok — önceki izinler anahtara katılmaz
             'state' => $durum,
         ], $sorgu);
     }
@@ -563,14 +567,130 @@ final class GoogleDriveBaglayicisiTest extends TestCase
             && $istek->hasHeader('Authorization', 'Bearer '.self::ERISIM));
     }
 
-    public function test_drive_izni_verilmeyen_kod_degisimi_reddedilir(): void
+    /**
+     * Kapsam kümesi tam olarak drive.file değilse bağlantı kurulmaz (YF-47: fazlası
+     * anahtarı genişletir); alınan anahtar kaydedilmeyeceği için Google'da iptal
+     * edilir (YF-48) — bağlı başka Drive hedefi yokken.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function uygunsuzKapsamlar(): iterable
+    {
+        yield 'Drive yetkisi verilmemiş' => ['openid'];
+        yield 'drive.file ile birlikte başka kapsam' => [GoogleDriveBaglayicisi::KAPSAM.' https://www.googleapis.com/auth/gmail.readonly'];
+    }
+
+    #[DataProvider('uygunsuzKapsamlar')]
+    public function test_kapsami_tam_drive_file_olmayan_kod_degisimi_reddedilir_alinan_anahtar_iptal_edilir(string $kapsam): void
     {
         Http::preventStrayRequests();
-        Http::fake([self::TOKEN => Http::response(['access_token' => self::ERISIM, 'refresh_token' => self::YENILEME, 'scope' => 'openid', 'token_type' => 'Bearer'])]);
+        Http::fake([
+            self::TOKEN => Http::response(['access_token' => self::ERISIM, 'refresh_token' => self::YENILEME, 'scope' => $kapsam, 'token_type' => 'Bearer']),
+            self::IPTAL => Http::response('', 200),
+        ]);
 
         $hata = $this->hataBekle(fn () => GoogleDriveBaglayicisi::kodDegistir('4/izin-kodu', 'https://erp.ornek.test/donus'));
 
         $this->assertSame(HedefHatasi::KIMLIK, $hata->kod);
-        Http::assertSentCount(1);
+        Http::assertSentCount(2);
+        Http::assertSent(fn (Request $istek): bool => $istek->url() === self::IPTAL && $istek->data() === ['token' => self::YENILEME]);
+    }
+
+    /**
+     * YF-48: Google'da iptal izni bütünüyle kaldırabilir — aynı hesapla (ya da
+     * hesabı bilinmeyen) bağlı başka bir hedef varken kaydedilmeyen anahtar iptal
+     * edilmez, o hedefin bağlantısı düşmesin.
+     */
+    public function test_bagli_baska_drive_hedefi_varken_kaydedilmeyen_anahtar_iptal_edilmez(): void
+    {
+        Http::preventStrayRequests();
+        Sleep::fake();
+        $this->hedef(['eposta' => 'yedek@ornek.test', 'klasor_kimligi' => 'klasor123']);
+        Http::fake([
+            self::TOKEN => Http::response(['access_token' => self::ERISIM, 'refresh_token' => 'yeni-yenileme', 'scope' => GoogleDriveBaglayicisi::KAPSAM, 'token_type' => 'Bearer']),
+            'https://www.googleapis.com/drive/v3/about?fields=*' => Http::response('', 500),
+        ]);
+
+        $hata = $this->hataBekle(fn () => GoogleDriveBaglayicisi::kodDegistir('4/izin-kodu', 'https://erp.ornek.test/donus'));
+
+        $this->assertSame(GoogleDriveBaglayicisi::HESAP_OKUNAMADI, $hata->kod);
+        Http::assertNotSent(fn (Request $istek): bool => $istek->url() === self::IPTAL);
+    }
+
+    /** YF-52: indirme geçici ada yapılıp yerine taşınır; kimlik doğrulanmış erişim anahtarıyla */
+    public function test_oku_dosyayi_indirir_yerine_tasir_gecici_dosya_kalmaz(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([self::TOKEN => self::tokenYaniti(), self::DOSYA.'?alt=media' => Http::response('GPG-sifreli-yedek', 200)]);
+
+        $this->baglayici($this->hedef())->oku('dosya789', $this->klasor.'/geri');
+
+        $this->assertSame('GPG-sifreli-yedek', file_get_contents($this->klasor.'/geri'));
+        $this->assertSame(['.', '..', 'geri'], scandir($this->klasor));
+        Http::assertSent(fn (Request $istek): bool => $istek->url() === self::DOSYA.'?alt=media' && $istek->hasHeader('Authorization', 'Bearer '.self::ERISIM));
+    }
+
+    public function test_oku_404te_okunamadi_yerel_ve_gecici_dosya_kalmaz(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([self::TOKEN => self::tokenYaniti(), self::DOSYA.'?alt=media' => Http::response(['error' => ['code' => 404]], 404)]);
+
+        $hata = $this->hataBekle(fn () => $this->baglayici($this->hedef())->oku('dosya789', $this->klasor.'/geri'));
+
+        $this->assertSame(HedefHatasi::OKUNAMADI, $hata->kod);
+        $this->assertSame(['.', '..'], scandir($this->klasor));
+    }
+
+    public function test_oku_503te_yeniden_denenir_ve_indirir(): void
+    {
+        Http::preventStrayRequests();
+        Sleep::fake();
+        Http::fake([self::TOKEN => self::tokenYaniti(), self::DOSYA.'?alt=media' => Http::sequence()->push('', 503)->push('GPG-sifreli-yedek', 200)]);
+
+        $this->baglayici($this->hedef())->oku('dosya789', $this->klasor.'/geri');
+
+        $this->assertSame('GPG-sifreli-yedek', file_get_contents($this->klasor.'/geri'));
+        $this->assertCount(2, Http::recorded(fn (Request $istek): bool => $istek->url() === self::DOSYA.'?alt=media'));
+    }
+
+    public function test_oku_401de_erisim_anahtari_yenilenip_bir_kez_tekrarlanir(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            self::TOKEN => Http::sequence()->push(['access_token' => 'eski-erisim', 'scope' => GoogleDriveBaglayicisi::KAPSAM])->push(['access_token' => self::ERISIM, 'scope' => GoogleDriveBaglayicisi::KAPSAM]),
+            self::DOSYA.'?alt=media' => Http::sequence()->push('', 401)->push('GPG-sifreli-yedek', 200),
+        ]);
+
+        $this->baglayici($this->hedef())->oku('dosya789', $this->klasor.'/geri');
+
+        $this->assertSame('GPG-sifreli-yedek', file_get_contents($this->klasor.'/geri'));
+        Http::assertSent(fn (Request $istek): bool => $istek->url() === self::DOSYA.'?alt=media' && $istek->hasHeader('Authorization', 'Bearer '.self::ERISIM));
+        $this->assertSame(2, count(Http::recorded(fn (Request $istek): bool => $istek->url() === self::TOKEN)));
+    }
+
+    /** @return iterable<string, array{int, string|null}> */
+    public static function silmeYanitlari(): iterable
+    {
+        yield '204 silindi' => [204, null];
+        yield '404 zaten yok' => [404, null];
+        yield '403 yetki yok' => [403, HedefHatasi::KIMLIK];
+    }
+
+    /** YF-52: Drive silmesi — yok olan dosya başarı, yetki reddi hata */
+    #[DataProvider('silmeYanitlari')]
+    public function test_sil_yanitina_gore_sonuclanir(int $durum, ?string $beklenenKod): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([self::TOKEN => self::tokenYaniti(), self::DOSYA => Http::response($durum === 204 ? '' : ['error' => ['code' => $durum]], $durum)]);
+
+        $kod = null;
+        try {
+            $this->baglayici($this->hedef())->sil('dosya789');
+        } catch (HedefHatasi $hata) {
+            $kod = $hata->kod;
+        }
+
+        $this->assertSame($beklenenKod, $kod);
+        Http::assertSent(fn (Request $istek): bool => $istek->url() === self::DOSYA && $istek->method() === 'DELETE');
     }
 }

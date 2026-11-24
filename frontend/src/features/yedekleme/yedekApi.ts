@@ -105,6 +105,8 @@ export interface YedekOzeti {
   toplam_alan: number | null
   /** Üstüne geri yükleme onayında aynen yazılacak canlı veritabanı adı (BY-030) */
   canli_veritabani?: string | null
+  /** false: üstüne geri yükleme başlatılamaz (servis çalıştırıcısı yok; 409 GERI_YUKLEME_SERVIS_GEREKLI) */
+  ustune_geri_yukleme_hazir: boolean
 }
 
 /** 202 yanıtı: iş çalıştırıcıya bırakıldı; durum `istekDurumuGetir` ile yoklanır */

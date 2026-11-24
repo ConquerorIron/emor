@@ -282,7 +282,7 @@ final class GeriYukleyiciTest extends TestCase
             'uzak_kimlik' => $hedef->id.'/'.$yedek->dosya_adi, 'sifreli' => false,
         ]);
         unlink($yerel);
-        $geciciOnce = glob(sys_get_temp_dir().'/emor-geri-*') ?: [];
+        $geciciOnce = glob(config('yedekleme.calisma_klasoru').'/emor-geri-*') ?: [];
         $kullanilan = null;
         $this->sahtePostgres(['*pg_restore*--single-transaction*' => function (PendingProcess $p) use (&$kullanilan): string {
             $komut = (array) $p->command;
@@ -296,9 +296,9 @@ final class GeriYukleyiciTest extends TestCase
 
         $this->assertSame(GeriYuklemeDurumu::Tamam, $geri->durum, (string) $geri->hata_mesaji);
         $this->assertNotNull($kullanilan);
-        $this->assertStringStartsWith(sys_get_temp_dir().'/emor-geri-', $kullanilan);
+        $this->assertStringStartsWith(config('yedekleme.calisma_klasoru').'/emor-geri-', $kullanilan);
         $this->assertFileDoesNotExist($kullanilan);
-        $this->assertSame($geciciOnce, glob(sys_get_temp_dir().'/emor-geri-*') ?: []);
+        $this->assertSame($geciciOnce, glob(config('yedekleme.calisma_klasoru').'/emor-geri-*') ?: []);
     }
 
     public function test_kopyadan_inen_dosya_bozuksa_kullanilmaz(): void
@@ -491,6 +491,95 @@ final class GeriYukleyiciTest extends TestCase
 
         $this->assertSame(GeriYuklemeHatasi::VERITABANI_OZELLIGI, $geri->hata_kodu);
         $this->assertFalse($this->psqlCalisti('CREATE DATABASE'));
+    }
+
+    /**
+     * YF-43: her kopya veri diskinde canlı kadar yer tutar ve günlerce kalır.
+     * Sınır kadar bekleyen kopya varken yenisi başlamaz (kayıt açılmaz);
+     * silinmiş ya da başarısız kopya sayılmaz.
+     */
+    public function test_bekleyen_kopya_siniri_doluysa_yeni_kopya_baslamaz(): void
+    {
+        config(['yedekleme.bekleyen_kopya_siniri' => 2]);
+        $yedek = $this->yedekAl();
+        $kayit = fn (string $ad, GeriYuklemeDurumu $durum, ?CarbonImmutable $silindi = null): GeriYukleme => GeriYukleme::query()->create([
+            'kimlik' => (string) Str::uuid(), 'yedek_id' => $yedek->id, 'tur' => GeriYuklemeTuru::Kopya, 'hedef_veritabani' => $ad,
+            'durum' => $durum, 'bitti' => CarbonImmutable::now(), 'veritabani_silinme_zamani' => $silindi,
+        ]);
+        $kayit('erp_geri_20261120_100000', GeriYuklemeDurumu::Tamam);
+        $kayit('erp_geri_20261120_110000', GeriYuklemeDurumu::Tamam, CarbonImmutable::now());
+        $kayit('erp_geri_20261120_120000', GeriYuklemeDurumu::Basarisiz);
+
+        // Sınırın altında: başlar
+        $ilk = app(GeriYukleyici::class)->kopyaya($this->kilit, $yedek, 'bir', null);
+        $this->assertSame(GeriYuklemeDurumu::Tamam, $ilk->durum, (string) $ilk->hata_mesaji);
+
+        try {
+            app(GeriYukleyici::class)->kopyaya($this->kilit, $yedek, 'iki', null);
+            $this->fail('Sınırdayken yeni kopya başladı.');
+        } catch (GeriYuklemeHatasi $hata) {
+            $this->assertSame(GeriYuklemeHatasi::KOPYA_SINIRI, $hata->kod);
+        }
+
+        $this->assertSame(4, GeriYukleme::query()->count());
+        $this->assertNotContains(self::AD.'_iki', $this->veritabanlari);
+        $this->assertFalse($this->psqlCalisti('CREATE DATABASE', self::AD.'_iki'));
+    }
+
+    /** YF-43: boş alan üstüne geri yüklemedeki ölçütle yetmezse veritabanı açılmaz */
+    public function test_disk_yetmezse_kopya_veritabani_acilmaz(): void
+    {
+        $yedek = $this->yedekAl();
+        $this->canliBoyutu = '9000000000000000000';
+
+        $geri = app(GeriYukleyici::class)->kopyaya($this->kilit, $yedek, null, null);
+
+        $this->assertSame(GeriYuklemeDurumu::Basarisiz, $geri->durum);
+        $this->assertSame(GeriYuklemeHatasi::DISK_YETERSIZ, $geri->hata_kodu);
+        $this->assertFalse($this->psqlCalisti('CREATE DATABASE'));
+        $this->assertNotContains(self::AD, $this->veritabanlari);
+    }
+
+    /**
+     * YF-14 (README §7.7): yeni sürüm araçla alınan yedek eski sürüm
+     * sunucuya / pg_restore'a verilmez; veritabanı hiç açılmaz. Sürümü
+     * bilinmeyen (içe alınmış, eski) manifest denetlenmez.
+     */
+    public function test_yedegi_alan_pg_dump_sunucudan_ya_da_pg_restoredan_yeniyse_kopya_acilmaz(): void
+    {
+        $yedek = $this->yedekAl();
+
+        $this->sunucuSurumNo = '170004';
+        $geri = app(GeriYukleyici::class)->kopyaya($this->kilit, $yedek, 'bir', null);
+        $this->assertSame(GeriYuklemeHatasi::PG_SURUMU, $geri->hata_kodu);
+
+        $this->sunucuSurumNo = '180006';
+        $this->sahtePostgres(['*pg_restore*--version*' => 'pg_restore (PostgreSQL) 17.2']);
+        $ikinci = app(GeriYukleyici::class)->kopyaya($this->kilit, $yedek, 'iki', null);
+        $this->assertSame(GeriYuklemeHatasi::PG_SURUMU, $ikinci->hata_kodu);
+        $this->assertFalse($this->psqlCalisti('CREATE DATABASE'));
+
+        // Manifest sürümü bilmiyor: denetim atlanır
+        $eski = $this->manifestliYedek(['kodlama' => 'UTF8', 'siralama' => 'en_US.UTF-8', 'karakter_turu' => 'en_US.UTF-8', 'ayarlar' => [], 'baglanma_yetkileri' => null]);
+        $this->assertSame(GeriYuklemeDurumu::Tamam, app(GeriYukleyici::class)->kopyaya($this->kilit, $eski, 'uc', null)->durum);
+    }
+
+    /**
+     * YF-13: farklı ada kopya canlıya dokunmaz; başka APP_KEY ile alınmış
+     * yedek yine yüklenir ama denetim kaydı şifreli alanların çözülemeyeceğini söyler.
+     */
+    public function test_baska_app_key_ile_alinmis_yedegin_kopyasi_yuklenir_denetim_kaydi_uyarir(): void
+    {
+        $yedek = $this->yedekAl();
+        $ayni = app(GeriYukleyici::class)->kopyaya($this->kilit, $yedek, 'bir', null);
+        config(['app.key' => 'base64:'.base64_encode(random_bytes(32)), 'app.previous_keys' => []]);
+
+        $geri = app(GeriYukleyici::class)->kopyaya($this->kilit, $yedek, 'iki', null);
+
+        $this->assertSame(GeriYuklemeDurumu::Tamam, $geri->durum, (string) $geri->hata_mesaji);
+        $ayrinti = fn (GeriYukleme $g): array => (array) YedekIslemKaydi::query()->where('islem', 'geri_yukle_kopya')->where('geri_yukleme_id', $g->id)->sole()->ayrinti;
+        $this->assertSame([GeriYuklemeHatasi::APP_KEY_UYUMSUZ], $ayrinti($geri)['uyarilar'] ?? null);
+        $this->assertArrayNotHasKey('uyarilar', $ayrinti($ayni));
     }
 
     public function test_silme_yalniz_kopya_ve_sinama_kalibindaki_adlarda_calisir(): void

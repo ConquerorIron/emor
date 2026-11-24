@@ -23,6 +23,39 @@ final class YedeklemeYapilandirmasi
         return $this->yol('klasor');
     }
 
+    /**
+     * Büyük dosya taşıyan geçici çalışma klasörlerinin kökü (YF-28):
+     * tanımsızsa yedek klasörünün diskinde `<klasor>/.calisma`. Nokta önekli
+     * girdileri dizin taraması ve sahipsiz yedek temizliği yok sayar.
+     *
+     * @throws YapilandirmaHatasi Tanımlı ama mutlak yol değil
+     */
+    public function calismaKlasoru(): string
+    {
+        $yol = config('yedekleme.calisma_klasoru');
+
+        return $yol === null || $yol === '' ? $this->klasor().'/.calisma' : $this->yol('calisma_klasoru');
+    }
+
+    /**
+     * Geçici çalışma klasörünün "artık" sayılacağı yaş (sn): o klasörü
+     * kullanan en uzun işin (yedek, geri yükleme, şifreleme, kopyalama ve
+     * yeniden denemeleri) bile bitmiş olacağı süre — bütün süre sınırlarının
+     * üç katı + 1 saat. Etkin süre bütçesine (sınama) göre kısaltılmaz:
+     * başka bir süreçteki uzun işin klasörü silinmesin.
+     *
+     * @throws YapilandirmaHatasi
+     */
+    public function artikKlasorYasi(): int
+    {
+        $toplam = 0;
+        foreach (['yedek', 'geri_yukleme', 'kopya', 'sifreleme', 'baglanti', 'kilit_bekleme'] as $ad) {
+            $toplam += $this->pozitifTamSayi("sure_siniri.{$ad}");
+        }
+
+        return 3 * $toplam + 3600;
+    }
+
     public function durumKlasoru(): string
     {
         return $this->yol('durum_klasoru');
@@ -112,6 +145,28 @@ final class YedeklemeYapilandirmasi
     public function kopyaBeklemeGunu(): int
     {
         return $this->pozitifTamSayi('kopya_bekleme_gun');
+    }
+
+    /**
+     * Kuyruktaki "üstüne geri yükle" isteğinin en çok kaç dakikalık olabileceği
+     * (YF-02): çalıştırıcı geç kalınca bayat istek saatler sonra kesinti başlatmasın.
+     *
+     * @throws YapilandirmaHatasi
+     */
+    public function ustuneIstekOmruDakika(): int
+    {
+        return $this->pozitifTamSayi('ustune_istek_omru_dk');
+    }
+
+    /**
+     * Aynı anda bekleyebilecek farklı ad kopyası (`erp_geri_*`) sayısı (YF-43):
+     * her kopya veri diskinde canlı kadar yer tutar.
+     *
+     * @throws YapilandirmaHatasi
+     */
+    public function bekleyenKopyaSiniri(): int
+    {
+        return $this->pozitifTamSayi('bekleyen_kopya_siniri');
     }
 
     /** İşleri ayrı servis hesabının çalıştırıcısı mı yapıyor (BY-025) */

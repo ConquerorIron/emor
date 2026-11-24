@@ -1,6 +1,6 @@
 import { api } from '@/api/client'
 
-import type { IstekKabulu } from '@/features/yedekleme/yedekApi'
+import { istekBirak, type IstekKabulu } from '@/features/yedekleme/yedekApi'
 
 export type SiklikTuru = 'saatlik' | 'gunluk' | 'n_gunluk' | 'haftalik' | 'aylik'
 
@@ -100,10 +100,9 @@ export async function planSil(id: number): Promise<void> {
   await api.delete(`${KOK}/${id}`)
 }
 
-export async function planCalistir(id: number): Promise<IstekKabulu> {
-  const yanit = await api.post<{ data: IstekKabulu }>(`${KOK}/${id}/calistir`)
-
-  return yanit.data.data
+/** `istekAnahtari`: yanıtı kaybolan isteğin yeniden denemesinde aynı (useIsBirakma) */
+export function planCalistir(id: number, istekAnahtari: string): Promise<IstekKabulu> {
+  return istekBirak('post', `${KOK}/${id}/calistir`, istekAnahtari)
 }
 
 /** Kaydetmeden: sıradaki çalışmalar, uyarılar ve bu kuralla silinecekler (hiçbir şey kaydedilmez) */

@@ -28,6 +28,18 @@ trait SahtePostgres
 
     protected ?string $silmeHatasi = null;
 
+    /** `SHOW server_version_num` yanıtı (sunucu 18.6) */
+    protected string $sunucuSurumNo = '180006';
+
+    /** Canlı veritabanının boyutu (bayt; `pg_database_size`) */
+    protected string $canliBoyutu = '1048576';
+
+    /** Canlıdaki kimliğe bağlı özellikler: rol düzeyi ayar sayısı, bağlantı sınırı, sıralama sağlayıcısı (CSV) */
+    protected string $canliOzellikleri = "0,-1,c\n";
+
+    /** Bu rol adını taşıyan ACL çözülemez (rol sunucuda yok) */
+    protected string $olmayanRol = 'emekli_rol';
+
     /**
      * @param  array<string, mixed>  $ozel
      */
@@ -128,6 +140,28 @@ trait SahtePostgres
 
         if (str_contains($sql, 'erp\\_sinama\\_')) {
             return implode("\n", array_filter($this->veritabanlari, fn (string $v): bool => str_starts_with($v, 'erp_sinama_')))."\n";
+        }
+
+        if (str_contains($sql, 'erp\\_geri\\_')) {
+            return implode("\n", array_filter($this->veritabanlari, fn (string $v): bool => str_starts_with($v, 'erp_geri_')))."\n";
+        }
+
+        if (str_contains($sql, 'server_version_num')) {
+            return $this->sunucuSurumNo."\n";
+        }
+
+        if (str_contains($sql, 'pg_database_size')) {
+            return $this->canliBoyutu."\n";
+        }
+
+        if (str_contains($sql, 'datconnlimit')) {
+            return $this->canliOzellikleri;
+        }
+
+        if (str_contains($sql, '::aclitem[]')) {
+            return str_contains($this->psqlDegiskenleri($p)['acl'] ?? '', $this->olmayanRol)
+                ? Process::result(errorOutput: 'ERROR:  role "'.$this->olmayanRol.'" does not exist', exitCode: 3)
+                : '';
         }
 
         if (str_contains($sql, 'current_database()')) {

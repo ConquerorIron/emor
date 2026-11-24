@@ -274,6 +274,144 @@ final class GeriYuklemeVeritabani
     }
 
     /**
+     * Boş disk ön denetimi (üstüne ve farklı ada geri yükleme; BY-028, YF-43):
+     * yedek klasörünün diskinde yeni veritabanı (≈ canlı kadar) + iki yedek
+     * dosyası (öncesi yedek ya da indirilen geçici kopya) kadar yer aranır.
+     * PostgreSQL veri klasörünün diskini uygulama ölçemez (yetki yok); aynı
+     * diskte olduğu varsayılır, yetmezse pg_restore düşer ve geri sarılır.
+     * parolaylaCalis() içinde çağrılır.
+     *
+     * @throws GeriYuklemeHatasi DISK_YETERSIZ
+     */
+    public function diskDenetle(int $yedekBoyutu): void
+    {
+        $gerekli = $this->boyut($this->pg->baglanti()->veritabani) + 2 * $yedekBoyutu;
+        $bos = @disk_free_space($this->yapilandirma->klasor());
+
+        if ($bos === false || $bos < $gerekli) {
+            throw new GeriYuklemeHatasi(GeriYuklemeHatasi::DISK_YETERSIZ, sprintf('Boş disk alanı yetersiz: gereken yaklaşık %d MB, boş %s MB.', intdiv($gerekli, 1_048_576), $bos === false ? '?' : (string) intdiv((int) $bos, 1_048_576)));
+        }
+    }
+
+    /**
+     * Sunucunun ana sürümü (`server_version_num`; 18.6 → 18).
+     *
+     * @throws GeriYuklemeHatasi PG_SURUMU: okunamadı ya da 10'dan eski
+     */
+    public function sunucuAnaSurumu(): int
+    {
+        $cikti = trim($this->psql(self::YONETIM_VERITABANI, 'SHOW server_version_num;', [], GeriYuklemeHatasi::PG_SURUMU));
+
+        if (preg_match('/^[1-9][0-9]{5,6}$/D', $cikti) !== 1) {
+            throw new GeriYuklemeHatasi(GeriYuklemeHatasi::PG_SURUMU, 'PostgreSQL sunucusunun sürümü okunamadı.');
+        }
+
+        return intdiv((int) $cikti, 10_000);
+    }
+
+    /**
+     * Yeni sürüm araçla alınan yedek eski sürüm sunucuya her zaman geri
+     * yüklenemez (README §7.7: ör. 17+ `transaction_timeout` yazar). Yedeği
+     * alan pg_dump'ın ana sürümü bu sunucunun pg_restore'undan ve
+     * PostgreSQL'inden büyük olamaz. Manifest sürümü bilmiyorsa (içe
+     * alınmış ya da eski yedek) denetlenemez, atlanır. parolaylaCalis() içinde.
+     *
+     * @param  string|null  $pgDumpSurumu  Manifestteki `pg_dump --version` satırı
+     *
+     * @throws GeriYuklemeHatasi PG_SURUMU
+     */
+    public function surumDenetle(?string $pgDumpSurumu): void
+    {
+        $yedek = self::anaSurum($pgDumpSurumu);
+        if ($yedek === null) {
+            return;
+        }
+
+        $arac = self::anaSurum($this->pg->surum('pg_restore'))
+            ?? throw new GeriYuklemeHatasi(GeriYuklemeHatasi::PG_SURUMU, 'pg_restore sürümü okunamadı; yedeğin araç sürümüyle uyumu denetlenemedi.');
+        $sunucu = $this->sunucuAnaSurumu();
+
+        if ($yedek > $arac || $yedek > $sunucu) {
+            throw new GeriYuklemeHatasi(GeriYuklemeHatasi::PG_SURUMU, "Yedek PostgreSQL {$yedek} araçlarıyla alınmış; bu sunucuda pg_restore {$arac}, sunucu {$sunucu}. Yeni sürüm araçla alınan yedek eski sürüme geri yüklenmez (README §7.7).");
+        }
+    }
+
+    /**
+     * Bağlanma yetkilerindeki rolleri yalnız ÇÖZÜMLER (`aclitem[]` girdisi rol
+     * adını rol kimliğine çevirir; rol yoksa hata): hiçbir şey değişmez.
+     * Üstüne geri yüklemenin ön denetimi manifestin ACL'sini kesintiden önce
+     * böyle sınar (YF-14); uygulama yetkileriUygula()'dadır.
+     *
+     * @throws GeriYuklemeHatasi VERITABANI_YETKILERI
+     */
+    public function yetkileriCoz(string $acl): void
+    {
+        $this->psql(self::YONETIM_VERITABANI, "SELECT :'acl'::aclitem[] \\g /dev/null", ['acl' => $acl], GeriYuklemeHatasi::VERITABANI_YETKILERI);
+    }
+
+    /**
+     * Canlının veritabanı KİMLİĞİNE (OID) bağlı özellikleri: rol düzeyi
+     * ayarlar (`ALTER ROLE … IN DATABASE … SET`), bağlantı sınırı ve libc dışı
+     * sıralama sağlayıcısı manifestte yoktur; ad değiştirmeyle yeni canlıya
+     * geçmez, sessizce kaybolurdu (YF-45). Varsa üstüne geri yükleme başlamaz;
+     * yönetici kaldırır ya da elle taşır. Sağlayıcı sütunu PostgreSQL 15'ten
+     * önce yoktur: satır JSON'a çevrilip okunur (yoksa libc).
+     *
+     * @throws GeriYuklemeHatasi VERITABANI_OZELLIGI
+     */
+    public function kimligeBagliOzellikleriDenetle(string $canli): void
+    {
+        $this->canliOlmali($canli);
+        $satirlar = $this->csvSatirlari($this->psql(self::YONETIM_VERITABANI, <<<'SQL'
+            SELECT (SELECT count(*) FROM pg_db_role_setting s WHERE s.setdatabase = d.oid AND s.setrole <> 0),
+                   d.datconnlimit,
+                   coalesce(to_jsonb(d) ->> 'datlocprovider', 'c')
+              FROM pg_database d WHERE d.datname = :'ad';
+            SQL, ['ad' => $canli], GeriYuklemeHatasi::VERITABANI_OZELLIGI, csv: true));
+
+        if (count($satirlar) !== 1 || count($satirlar[0]) !== 3 || preg_match('/^[0-9]+$/D', $satirlar[0][0]) !== 1 || preg_match('/^-?[0-9]+$/D', $satirlar[0][1]) !== 1) {
+            throw new GeriYuklemeHatasi(GeriYuklemeHatasi::VERITABANI_OZELLIGI, 'Canlı veritabanının özellikleri okunamadı.');
+        }
+
+        [$rolAyari, $sinir, $saglayici] = $satirlar[0];
+        $sorunlar = array_keys(array_filter([
+            'rol düzeyi veritabanı ayarı (ALTER ROLE … IN DATABASE)' => $rolAyari !== '0',
+            'bağlantı sınırı (CONNECTION LIMIT)' => $sinir !== '-1',
+            'libc dışı sıralama sağlayıcısı' => $saglayici !== 'c',
+        ]));
+
+        if ($sorunlar !== []) {
+            throw new GeriYuklemeHatasi(GeriYuklemeHatasi::VERITABANI_OZELLIGI, 'Canlı veritabanında geri yüklemeyle taşınmayan özellik var: '.implode(', ', $sorunlar).'. Kaldırın ya da geri yüklemeden sonra elle uygulayın.');
+        }
+    }
+
+    /**
+     * Sunucudaki farklı ad kopyaları (`erp_geri_*`): üstüne geri yüklemeden
+     * sonra kayıtları uzlaştırılır (YF-42).
+     *
+     * @return list<string>
+     */
+    public function kopyaAdlari(): array
+    {
+        $cikti = $this->psql(self::YONETIM_VERITABANI, "SELECT datname FROM pg_database WHERE datname LIKE 'erp\\_geri\\_%' ORDER BY 1;", [], GeriYuklemeHatasi::DIZIN_KURULAMADI);
+
+        return array_values(array_filter(array_map('trim', explode("\n", $cikti)), VeritabaniAdi::kopyaMi(...)));
+    }
+
+    /**
+     * Araç sürüm satırından ana sürüm ("pg_dump (PostgreSQL) 18.6 (Ubuntu …)" → 18).
+     * 10'dan eskiler (iki parçalı ana sürüm) ve tanınmayan metin: null.
+     */
+    private static function anaSurum(?string $metin): ?int
+    {
+        if ($metin === null || preg_match('/\(PostgreSQL\) ([1-9][0-9]{1,2})(?![0-9])/', $metin, $m) !== 1) {
+            return null;
+        }
+
+        return (int) $m[1];
+    }
+
+    /**
      * Verilen adlardan sunucuda var olanlar. Üstüne geri yüklemede "hangi
      * tarafta kalındı" kararı adlara bakarak verilir (README §6.4 yarıda kalan
      * işlem): yer değiştirme tek işlemdir, adlar ya eski ya yeni hâlindedir.
@@ -304,6 +442,11 @@ final class GeriYuklemeVeritabani
      * değiştirmeyi bozar (README §6.4 6. adım; kesif.md §6). Koparılamayan
      * bağlantı (ör. yönetici oturumu) istisnadır; çağıran geri sarar.
      *
+     * Yalnız istemci oturumları sonlandırılır ve sayılır (YF-40; bariyerKur()
+     * ile aynı süzgeç): otomatik vakum işçisini yönetici olmayan rol
+     * sinyalleyemez (`pg_terminate_backend` hata verir); ad değiştirme onu
+     * kendisi sonlandırır (PostgreSQL `CountOtherDBBackends`).
+     *
      * @throws GeriYuklemeHatasi BAGLANTI_KAPATILAMADI
      */
     public function baglantilariKapat(string $ad, int $saniye = 15): void
@@ -311,7 +454,7 @@ final class GeriYuklemeVeritabani
         $this->ustuneAdOlmali($ad);
         $this->psql(
             self::YONETIM_VERITABANI,
-            "ALTER DATABASE :\"ad\" WITH ALLOW_CONNECTIONS false;\nSELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname = :'ad' AND pid <> pg_backend_pid();",
+            "ALTER DATABASE :\"ad\" WITH ALLOW_CONNECTIONS false;\nSELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname = :'ad' AND backend_type = 'client backend' AND pid <> pg_backend_pid();",
             ['ad' => $ad],
             GeriYuklemeHatasi::BAGLANTI_KAPATILAMADI,
         );
@@ -320,7 +463,7 @@ final class GeriYuklemeVeritabani
         // Süre monoton saatle ölçülür (D1).
         $son = hrtime(true) + $saniye * 1_000_000_000;
         while (true) {
-            $acik = trim($this->psql(self::YONETIM_VERITABANI, "SELECT count(*) FROM pg_stat_activity WHERE datname = :'ad';", ['ad' => $ad], GeriYuklemeHatasi::BAGLANTI_KAPATILAMADI));
+            $acik = trim($this->psql(self::YONETIM_VERITABANI, "SELECT count(*) FROM pg_stat_activity WHERE datname = :'ad' AND backend_type = 'client backend';", ['ad' => $ad], GeriYuklemeHatasi::BAGLANTI_KAPATILAMADI));
             if ($acik === '0') {
                 return;
             }

@@ -203,7 +203,12 @@ final class YedekAyariController extends Controller
         $fark = [];
         foreach ($sonra as $alan => $deger) {
             if (($once[$alan] ?? null) != $deger) {
-                $fark[$alan] = ['once' => $once[$alan] ?? null, 'sonra' => $deger];
+                // Yaşam sinyali adresi fiilen sırdır: bilen sahte "yaşıyorum" gönderip
+                // sessizlik alarmını susturur. Denetim kaydına (Yedekler izniyle
+                // okunur) değeri değil yalnız değiştiği yazılır (D2, YF-30)
+                $fark[$alan] = str_starts_with($alan, 'sinyal_')
+                    ? ['degisti' => true]
+                    : ['once' => $once[$alan] ?? null, 'sonra' => $deger];
             }
         }
 

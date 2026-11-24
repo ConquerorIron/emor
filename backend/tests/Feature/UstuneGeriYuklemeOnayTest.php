@@ -188,6 +188,112 @@ final class UstuneGeriYuklemeOnayTest extends TestCase
     }
 
     /**
+     * YF-02: çalıştırıcı geç kalınca kuyruktaki bayat istek kesinti
+     * başlatmaz. Kısa ömür (yapılandırma) yayın kilidinden önce; ömür uzun
+     * ayarlansa da erişim anahtarı dolmuşsa işlem durumu hiç yazılmaz.
+     *
+     * @return array<string, array{0: int|null, 1: int, 2: string}>
+     */
+    public static function bayatIstekler(): array
+    {
+        return [
+            'istek 20 dakikalık (sınır 15)' => [null, 20, 'ISTEK_SURESI_DOLDU'],
+            'istek 9 saatlik, sınır uzun ama anahtar 8 saatte doldu' => [600, 9 * 60, GeriYuklemeHatasi::ERISIM_ANAHTARI_SURESI_DOLDU],
+        ];
+    }
+
+    #[DataProvider('bayatIstekler')]
+    public function test_bayat_ustune_geri_yukleme_istegi_hicbir_sey_baslatmaz(?int $omur, int $dakika, string $kod): void
+    {
+        if ($omur !== null) {
+            config(['yedekleme.ustune_istek_omru_dk' => $omur]);
+        }
+        $yedek = $this->ustuneYedekAl();
+        $istek = app(IstekKutusu::class)->yaz('ustune_geri_yukle', ['yedek_kimligi' => $yedek->kimlik, 'onay_metni' => 'erp', 'erisim_anahtari_ozeti' => ErisimAnahtari::ozet(ErisimAnahtari::uret())], $this->yonetici->id);
+        $psql = 0;
+        $this->sahteUstune(['*psql*' => function (PendingProcess $p) use (&$psql) {
+            $psql++;
+
+            return $this->psqlUstune($p);
+        }]);
+
+        $oncekiDurum = $this->durumOku()?->kimlik;
+
+        $this->travel($dakika)->minutes();
+        app(IstekCalistiricisi::class)->tur();
+
+        $sonuc = app(IstekKutusu::class)->durum($istek);
+        $this->assertSame('basarisiz', $sonuc['durum'] ?? null);
+        $this->assertSame($kod, $sonuc['kod'] ?? null);
+        // İşlem durumu dosyası hâlâ yedeğin kaydı: üstüne geri yükleme hiç yazılmadı
+        $this->assertSame($oncekiDurum, $this->durumOku()?->kimlik);
+        $this->assertFileDoesNotExist(storage_path('framework/down'));
+        $this->assertSame([], $this->komutlar);
+        $this->assertSame(0, $psql);
+        $this->assertSame(0, GeriYukleme::query()->count());
+    }
+
+    /**
+     * YF-42: yedekten sonra açılmış farklı ad kopyasının kaydı geri yüklenen
+     * veritabanında yoktur. Veritabanı sunucuda durduğu için kaydı donmuş
+     * canlının özetinden geri kurulur: listede bekleyen kopya olarak görünür,
+     * temizliğe ve elle silmeye girer.
+     */
+    public function test_yedekten_sonra_acilan_kopyanin_kaydi_onaydan_sonra_bekleyen_kopya_olarak_gorunur(): void
+    {
+        $yedek = $this->ustuneYedekAl();
+        $kopyaAdi = 'erp_geri_20261121_090000';
+        $this->veritabanlari[] = $kopyaAdi;
+        $kopya = GeriYukleme::query()->create([
+            'kimlik' => (string) Str::uuid(), 'yedek_id' => $yedek->id, 'tur' => 'kopya', 'hedef_veritabani' => $kopyaAdi,
+            'isteyen_kullanici_id' => $this->yonetici->id, 'durum' => GeriYuklemeDurumu::Tamam, 'adimlar' => [],
+            'basladi' => CarbonImmutable::now()->subHour(), 'bitti' => CarbonImmutable::now()->subMinutes(50),
+        ]);
+        // Geri yüklenen veritabanı yedeğin anındadır: kopyanın kaydı onda yok
+        $this->yerDegistirmeSonrasi = fn () => GeriYukleme::query()->whereKey($kopya->id)->delete();
+
+        [$kayit] = $this->ustuneBaslat($yedek, $this->yonetici->id);
+        $this->assertNull($this->kancaHatasi);
+        app(UstuneGeriYukleyici::class)->onayla($this->kilitAl(), $kayit->kimlik);
+
+        $geri = GeriYukleme::query()->where('hedef_veritabani', $kopyaAdi)->sole();
+        $this->assertSame($kopya->kimlik, $geri->kimlik);
+        $this->assertSame($yedek->id, $geri->yedek_id);
+        $this->assertSame(GeriYuklemeDurumu::Tamam, $geri->durum);
+        $this->assertNull($geri->veritabani_silinme_zamani);
+        // Bekleme süresi kopyanın açıldığı andan sayılır
+        $this->assertSame($kopya->bitti?->toIso8601String(), $geri->bitti?->toIso8601String());
+
+        $liste = $this->actingAs($this->yonetici)->getJson('/api/v1/ayarlar/geri-yuklemeler')->assertOk()->json('data');
+        $this->assertTrue(collect($liste)->firstWhere('hedef_veritabani', $kopyaAdi)['bekleyen_kopya'] ?? false);
+    }
+
+    /**
+     * YF-42: öncesi yedeğin içinde kalmış, o anda süren eski üstüne geri
+     * yüklemenin satırı geri yüklenince sonsuza dek "sürüyor" görünmez.
+     */
+    public function test_geri_yuklenen_veritabanindan_gelen_acik_ustune_kaydi_basarisiz_kapatilir(): void
+    {
+        $yedek = $this->ustuneYedekAl();
+        $eskiKimlik = (string) Str::uuid();
+        $this->yerDegistirmeSonrasi = fn () => GeriYukleme::query()->create([
+            'kimlik' => $eskiKimlik, 'yedek_id' => $yedek->id, 'tur' => 'ustune', 'hedef_veritabani' => 'erp_geri_20261120_080000',
+            'onceki_veritabani' => 'erp_onceki_20261120_080000', 'durum' => GeriYuklemeDurumu::Calisiyor, 'adimlar' => [], 'basladi' => CarbonImmutable::now()->subDay(),
+        ]);
+
+        [$kayit] = $this->ustuneBaslat($yedek, $this->yonetici->id);
+
+        $this->assertNull($this->kancaHatasi);
+        $this->assertSame(UstuneGeriYuklemeAdimi::OnayBekliyor->value, $kayit->adim);
+        $eski = GeriYukleme::query()->where('kimlik', $eskiKimlik)->sole();
+        $this->assertSame(GeriYuklemeDurumu::Basarisiz, $eski->durum);
+        $this->assertSame(GeriYuklemeHatasi::YARIDA_KALDI, $eski->hata_kodu);
+        $this->assertNotNull($eski->bitti);
+        // Bu işlemin kendi satırı kapanmadı
+        $this->assertSame(GeriYuklemeDurumu::OnayBekliyor, GeriYukleme::query()->where('kimlik', $kayit->kimlik)->sole()->durum);
+    }
+
+    /**
      * @return array<string, array{0: string, 1: string}>
      */
     public static function anahtarReddi(): array
@@ -400,6 +506,34 @@ final class UstuneGeriYuklemeOnayTest extends TestCase
         $this->assertSame(['parola' => 'eski-hedef-gizli'], $eski->refresh()->gizli_bilgiler);
         $ayrinti = json_decode((string) DB::table('yedek_islem_kayitlari')->where('islem', 'geri_yukle_ustune_ayar_secimi')->value('ayrinti'), true);
         $this->assertStringContainsString('"Drive" yedekten sonra eklenmiş', implode(' ', $ayrinti['uyarilar'] ?? []));
+    }
+
+    /**
+     * YF-44: adlar tekil; yedekte #1 "Gece", #2 "Gündüz", bugün #1 "Gündüz",
+     * #2 "Öğlen". Kimlik sırasıyla yazılırken #1'in yeni adı henüz işlenmemiş
+     * #2'nin eski adına çarpmamalı (planlarda ve hedeflerde).
+     */
+    public function test_guncel_plan_ve_hedef_adlari_capraz_degisse_de_onay_dosyadaki_adlari_yazar(): void
+    {
+        $plan1 = YedekPlani::factory()->create(['ad' => 'Gündüz']);
+        $plan2 = YedekPlani::factory()->create(['ad' => 'Öğlen']);
+        $hedef1 = YedekHedefi::factory()->create(['ad' => 'Gündüz']);
+        $hedef2 = YedekHedefi::factory()->create(['ad' => 'Öğlen']);
+        $yedek = $this->ustuneYedekAl();
+        // Geri yüklenen veritabanı yedeğin anında
+        $this->yerDegistirmeSonrasi = function () use ($plan1, $plan2, $hedef1, $hedef2): void {
+            foreach ([[$plan1, 'Gece'], [$plan2, 'Gündüz'], [$hedef1, 'Gece'], [$hedef2, 'Gündüz']] as [$kayit, $ad]) {
+                $kayit->forceFill(['ad' => $ad])->save();
+            }
+        };
+        [$kayit] = $this->ustuneBaslat($yedek, $this->yonetici->id);
+        $this->assertNull($this->kancaHatasi, 'Kanca çalışmadı: '.$this->kancaHatasi?->getMessage());
+
+        $son = app(UstuneGeriYukleyici::class)->onayla($this->kilitAl(), $kayit->kimlik, ['planlar' => 'guncel', 'hedefler' => 'guncel']);
+
+        $this->assertSame(UstuneGeriYuklemeAdimi::Onaylandi->value, $son->adim, (string) json_encode($son->hata));
+        $this->assertSame(['Gündüz', 'Öğlen'], [$plan1->refresh()->ad, $plan2->refresh()->ad]);
+        $this->assertSame(['Gündüz', 'Öğlen'], [$hedef1->refresh()->ad, $hedef2->refresh()->ad]);
     }
 
     /** BY-028-R3: "güncel" hedef uzlaştırması normal güncellemenin konum ve sır kurallarını uygular */

@@ -288,6 +288,33 @@ describe('YedekHedefleriPage', () => {
     expect(sonuc).toHaveTextContent('Oku: atlandı')
   })
 
+  it('kısmi sınamayı (servis kipi) başarısız göstermez; çalıştırılmayan adımın ve başarılı adımın kodunu yazar (YF-20, YF-21)', async () => {
+    api.sina.mockResolvedValue({
+      basarili: null,
+      adimlar: [
+        { adim: 'baglan', basarili: true, kod: null, mesaj: null },
+        { adim: 'yaz', basarili: null, kod: 'HEDEF_SINAMA_CALISTIRICIDA', mesaj: null },
+        { adim: 'sil', basarili: true, kod: 'HEDEF_SILME_YETKISI_YOK', mesaj: null },
+      ],
+      kalan_alan: null,
+      silinme_korumasi: null,
+      kaydedildi: true,
+      sunucu_parmak_izi: null,
+    })
+    ciz()
+    const dialog = await duzenle('Ofis FTP')
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Bağlantıyı Sına' }))
+
+    const sonuc = await within(dialog).findByRole('status')
+    expect(sonuc).toHaveTextContent(
+      'Klasör bulundu; yazma sınaması çalıştırıcının hesabıyla yapılır',
+    )
+    expect(sonuc).not.toHaveTextContent('Bağlantı sınaması başarısız')
+    expect(sonuc).toHaveTextContent('Yaz: Servis kipinde bu klasöre çalıştırıcının hesabı yazar')
+    expect(sonuc).toHaveTextContent('Sil: geçti — Hedef silmeye izin vermiyor')
+  })
+
   it('kopyası olan hedefte konum alanları (port dahil) salt okunur ve nedeni yazılı; parola yenilenerek kaydedilir (BY-016-R1, R3)', async () => {
     api.hedefler.mockResolvedValue([
       { ...FTP_HEDEFI, konum_kilitli_alanlar: ['sunucu', 'port', 'kullanici_adi', 'klasor'] },
@@ -466,6 +493,119 @@ describe('YedekHedefleriPage', () => {
     } finally {
       Object.defineProperty(window, 'location', { configurable: true, value: asil })
     }
+  })
+
+  it('"Sına" yanıtı beklenirken ikinci tıklama ikinci sınama göndermez (F5, YF-11)', async () => {
+    let bitir: (sonuc: unknown) => void = () => undefined
+    api.sina.mockReturnValue(new Promise((coz) => (bitir = coz)))
+    ciz()
+    const dialog = await duzenle('Ofis FTP')
+
+    const sina = within(dialog).getByRole('button', { name: 'Bağlantıyı Sına' })
+    fireEvent.click(sina)
+    fireEvent.click(sina)
+
+    await waitFor(() => expect(api.sina).toHaveBeenCalledTimes(1))
+    bitir({
+      basarili: true,
+      adimlar: [{ adim: 'baglan', basarili: true, kod: null, mesaj: null }],
+      kalan_alan: null,
+      silinme_korumasi: null,
+      kaydedildi: false,
+      sunucu_parmak_izi: null,
+    })
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('Bağlan: geçti')
+    expect(api.sina).toHaveBeenCalledTimes(1)
+  })
+
+  it('kayıtlı hedefin kendisi sınanınca (sunucu anahtarı yazıldı) liste tazelenir; kaydedilmemiş sınamada tazelenmez (YF-61)', async () => {
+    const sonuc = (kaydedildi: boolean) => ({
+      basarili: true,
+      adimlar: [{ adim: 'baglan', basarili: true, kod: null, mesaj: null }],
+      kalan_alan: null,
+      silinme_korumasi: null,
+      kaydedildi,
+      sunucu_parmak_izi: kaydedildi ? 'SHA256:abc' : null,
+    })
+    api.sina.mockResolvedValueOnce(sonuc(false)).mockResolvedValueOnce(sonuc(true))
+    ciz()
+    const dialog = await duzenle('Ofis FTP')
+    const listeIstegi = api.hedefler.mock.calls.length
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Bağlantıyı Sına' }))
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('Bağlan: geçti')
+    expect(api.hedefler).toHaveBeenCalledTimes(listeIstegi)
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Bağlantıyı Sına' }))
+    await waitFor(() => expect(api.hedefler).toHaveBeenCalledTimes(listeIstegi + 1))
+  })
+
+  it('zorunlu olmayan kayıtlı sır "Kayıtlı değeri sil" ile silinir: alan kapanır, adı silinecek_sirlar ile gider; zorunlu sırda seçenek yoktur (YF-49)', async () => {
+    const sftp: HedefTuruTanimi = {
+      tur: 'sftp',
+      alanlar: [
+        FTP.alanlar[0],
+        {
+          ad: 'sifre',
+          etiket: 'yedekleme.hedef.alan.sifre',
+          tur: 'parola',
+          zorunlu: false,
+          gizli: true,
+          varsayilan: null,
+        },
+        {
+          ad: 'ozel_anahtar',
+          etiket: 'yedekleme.hedef.alan.ozel_anahtar',
+          tur: 'uzun_metin',
+          zorunlu: false,
+          gizli: true,
+          varsayilan: null,
+        },
+      ],
+      sunucu_disi: true,
+      uyari: null,
+      oauth: false,
+      oauth_hazir: false,
+    }
+    const sftpHedefi: Hedef = {
+      ...FTP_HEDEFI,
+      id: 7,
+      ad: 'Uzak SFTP',
+      tur: 'sftp',
+      baglanti: { sunucu: 'sftp.ornek.test' },
+      gizli_kayitli: { sifre: true, ozel_anahtar: false },
+    }
+    api.turler.mockResolvedValue([FTP, sftp])
+    api.hedefler.mockResolvedValue([FTP_HEDEFI, sftpHedefi])
+    api.kaydet.mockResolvedValue(sftpHedefi)
+    ciz()
+
+    // FTP'de parola zorunlu: kayıtlı olsa da silinemez
+    const ftp = await duzenle('Ofis FTP')
+    expect(within(ftp).queryByRole('switch', { name: /Kayıtlı değeri sil/ })).toBeNull()
+    fireEvent.click(within(ftp).getByRole('button', { name: 'İptal' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+    const dialog = await duzenle('Uzak SFTP')
+    // Yalnız kayıtlı sırda (özel anahtar kayıtlı değil)
+    expect(within(dialog).getAllByRole('switch', { name: /Kayıtlı değeri sil/ })).toHaveLength(1)
+    const sifre = within(dialog).getByLabelText('Parola')
+    fireEvent.change(sifre, { target: { value: 'yazilan' } })
+    fireEvent.click(within(dialog).getByRole('switch', { name: 'Kayıtlı değeri sil (Parola)' }))
+    expect(sifre).toBeDisabled()
+    fireEvent.change(within(dialog).getByLabelText('Özel anahtar (SSH)'), {
+      target: { value: 'ANAHTAR' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+
+    await waitFor(() =>
+      expect(api.kaydet).toHaveBeenCalledWith(7, {
+        ad: 'Uzak SFTP',
+        aktif: true,
+        alanlar: { sunucu: 'sftp.ornek.test', ozel_anahtar: 'ANAHTAR' },
+        silinecek_sirlar: ['sifre'],
+      }),
+    )
   })
 
   it('yalnız görüntüleme izninde ekleme / düzenleme / silme düğmesi yoktur', async () => {

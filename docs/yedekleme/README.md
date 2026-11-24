@@ -370,8 +370,11 @@ yönetici komutuyla içeri alınır (YDK-09). Tarayıcıdan yedek yükleme yok
     klasörün baştaki ve sondaki "/"'ı yok sayılır (chroot'lu hesapta `/x` =
     `x`, `/` = giriş klasörü). Başka sunucu, kullanıcı ya da alt klasör ayrı
     depodur.
-  - Google Drive denetlenmez: her yükleme yeni dosya kimliği açar, okuma ve
-    silme o kimlikle yapılır; iki hedefin kopyası iki ayrı dosyadır.
+  - Google Drive: seçilen klasörün kimliği (Drive'da tektir). Her yükleme
+    yeni dosya kimliği açar, okuma ve silme o kimlikle yapılır; ama aynı
+    klasörü gösteren iki hedefte aynı yedeğin iki kopyası aynı klasörde (aynı
+    hesap, aynı silinme riski) durur, bağımsız iki kopya değildir: iki hedef
+    aynı klasörü gösteremez. Klasörü seçilmemiş hedefin kimliği yoktur.
   - Bilinen sınır (kanıtlanamaz, ağ çağrısı yapılmaz): alan adı / IP takma
     adı, S3 uç nokta takma adı (`s3.amazonaws.com` ↔ bölgesel uç nokta),
     türler arası aynı yer (NAS bağlama noktası ↔ aynı sunucunun SFTP'si),

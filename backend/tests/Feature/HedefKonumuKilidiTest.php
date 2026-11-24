@@ -90,6 +90,29 @@ final class HedefKonumuKilidiTest extends TestCase
         $this->assertSame('/eski', YedekHedefi::query()->findOrFail($this->hedef->id)->baglanti['klasor']);
     }
 
+    /**
+     * YF-55: "Bağlantıyı kes" satırı kilit altında yeniden okur: kilitli bir
+     * güncelleme (klasör seçimi) sürerken bekler, onun değişikliğini eski
+     * kopyayla ezmez.
+     */
+    public function test_google_baglantisi_kesilirken_klasor_secimini_bekler_ezmez(): void
+    {
+        $this->hedef->forceFill(['tur' => 'google_drive', 'baglanti' => ['eposta' => 'yedek@ornek.test'], 'gizli_bilgiler' => ['yenileme_anahtari' => 'y']])->save();
+        // Klasör seçiminin işlemi: klasör yazılmış, henüz kaydedilmemiş
+        $this->ikinci->beginTransaction();
+        $this->ikinci->table('yedek_hedefleri')->where('id', $this->hedef->id)->update(['baglanti' => json_encode(['eposta' => 'yedek@ornek.test', 'klasor_kimligi' => 'secilen'])]);
+
+        Exceptions::fake();
+        $this->actingAs(User::factory()->yonetici()->create())
+            ->postJson('/api/v1/ayarlar/yedek-hedefleri/'.$this->hedef->id.'/google/kes')
+            ->assertServerError();
+        // 55P03 lock_not_available: satır kilidini bekledi
+        Exceptions::assertReported(fn (QueryException $hata): bool => $hata->getCode() === '55P03');
+
+        $this->ikinci->commit();
+        $this->assertSame('secilen', YedekHedefi::query()->findOrFail($this->hedef->id)->baglanti['klasor_kimligi']);
+    }
+
     public function test_hedef_guncellenirken_kopya_baslamaz_bekler(): void
     {
         // Güncellemenin işlemi: konum yazılmış, henüz kaydedilmemiş

@@ -455,6 +455,39 @@ final class YedekCalistiriciTest extends TestCase
     }
 
     /**
+     * YF-38 (D8): yarıda kalan isteğin sonucu yazılamazsa (disk dolu, izin)
+     * servis döngüsü her turda denetim satırı üretmez; aynı süreçte yeniden
+     * deneme seyrektir. Sonuç yazılabilince tek kayıt düşer.
+     */
+    public function test_yarida_kalan_istegin_sonucu_yazilamazsa_her_turda_denetim_kaydi_uretilmez(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('root klasör iznini aşar (T11).');
+        }
+        $kimlik = (string) Str::uuid();
+        $kok = config('yedekleme.istek_klasoru');
+        mkdir($kok.'/isleniyor', 0750, true);
+        file_put_contents($kok.'/isleniyor/'.$kimlik.'.json', json_encode($this->gecerliIstek($kimlik)));
+        @mkdir($kok.'/sonuc', 0750, true);
+        chmod($kok.'/sonuc', 0500);
+        $calistirici = app(IstekCalistiricisi::class);
+
+        try {
+            foreach (range(1, 3) as $_) {
+                $calistirici->tur();
+            }
+            $this->assertSame(0, YedekIslemKaydi::query()->where('islem', 'istek')->count());
+        } finally {
+            chmod($kok.'/sonuc', 0750);
+        }
+
+        // Yeni süreç (servis yeniden başladı): sonuç yazılır, tek kayıt
+        app(IstekCalistiricisi::class)->tur();
+        $this->reddedildi($kimlik, 'ISTEK_YARIDA_KALDI');
+        $this->assertSame(1, YedekIslemKaydi::query()->where('islem', 'istek')->count());
+    }
+
+    /**
      * G1 / BY-014-R2: sonuç yerine taşınıp yalnız klasör eşitlemesi
      * doğrulanamadıysa sonuç yazılmış sayılır; üstlenilen dosya kalıp
      * sonraki turda gerçek sonucu "yarıda kaldı" ile ezmez.
@@ -735,6 +768,47 @@ final class YedekCalistiriciTest extends TestCase
         $this->assertSame('tamam', $this->sonuc($kimlik)['durum']);
         Sleep::assertSleptTimes(3);
         $this->artisan('yedek:calistir', ['--en-cok-tur' => '0'])->assertExitCode(2);
+    }
+
+    /**
+     * @return array<string, array{?string, ?string, int}>
+     */
+    public static function yayinDamgalari(): array
+    {
+        return [
+            'damga değişti: ilk boş turda çıkar' => ["abc123 2026-11-24T10:00:00Z\n", "def456 2026-11-24T11:00:00Z\n", 1],
+            'damga ilk kez yazıldı (ilk yayın): çıkar' => [null, "def456 2026-11-24T11:00:00Z\n", 1],
+            'damga aynı: tur sınırına kadar çalışır' => ["abc123 2026-11-24T10:00:00Z\n", "abc123 2026-11-24T10:00:00Z\n", 3],
+            'damga okunamaz oldu: etkisiz' => ["abc123 2026-11-24T10:00:00Z\n", null, 3],
+            'damga hiç yok: etkisiz' => [null, null, 3],
+        ];
+    }
+
+    /**
+     * YF-24: yayın (deploy.sh) sonunda damga yazılır; servis döngüsü bellekteki
+     * eski kodla sürmesin diye damga değişince tur sınırı dolmadan çıkar
+     * (systemd yeni kodla başlatır). Damga yoksa / okunamıyorsa etkisizdir.
+     */
+    #[DataProvider('yayinDamgalari')]
+    public function test_servis_dongusu_yayin_damgasi_degisince_tur_siniri_dolmadan_cikar(?string $once, ?string $sonra, int $beklenenUyku): void
+    {
+        Sleep::fake();
+        $damga = $this->yedekKoku.'/.yayin-damgasi';
+        config(['yedekleme.yayin_damgasi' => $damga]);
+        if ($once !== null) {
+            file_put_contents($damga, $once);
+        }
+        // İlk turdan sonra (beklerken) yayın biter
+        Sleep::whenFakingSleep(function () use ($damga, $sonra): void {
+            @unlink($damga);
+            if ($sonra !== null) {
+                file_put_contents($damga, $sonra);
+            }
+        });
+
+        $this->artisan('yedek:calistir', ['--en-cok-tur' => 3])->assertSuccessful();
+
+        Sleep::assertSleptTimes($beklenenUyku);
     }
 
     public function test_zamanlayici_tek_turu_yalniz_modul_acik_ve_gecis_donemindeyken_calistirir(): void

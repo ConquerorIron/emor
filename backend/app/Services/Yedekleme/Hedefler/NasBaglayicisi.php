@@ -23,20 +23,30 @@ use RuntimeException;
  * onun altında olduğunu (bağlantıları çözülmüş yolla) denetler; değilse
  * BAGLI_DEGIL. Yazımdan sonra dosyanın paylaşımın aygıtında durduğu da
  * denetlenir: denetimle yazım arasında paylaşım düşerse kopya sayılmaz.
+ * Bağlantı noktası bellek ya da çekirdek dosya sistemiyse (`tmpfs`, `proc`,
+ * `overlay`…; `/dev/shm`, `/run`) paylaşım sayılmaz: kopya "sunucu dışı"
+ * sanılır, yeniden başlatmada gider (YF-07).
  *
  * Asılı kalan bir ağ paylaşımı dosya çağrılarını süresiz bekletebilir (PHP'de
  * süre sınırı konamaz): paylaşım `soft` + `timeo` seçenekleriyle bağlanmalı
  * (kurulum dokümanı, BY-024).
  */
-final class NasBaglayicisi implements HedefBaglayicisi
+final class NasBaglayicisi implements DosyaSistemiHedefi
 {
-    private const BAGLANTI_TABLOSU = '/proc/self/mountinfo';
+    public const BAGLANTI_TABLOSU = '/proc/self/mountinfo';
 
     private const MUTLAK_YOL = '#^(/[^/\0]+)+$#D';
 
+    /** Paylaşım olamayan (bellekte ya da çekirdekte duran) dosya sistemi türleri */
+    private const YEREL_DOSYA_SISTEMLERI = ['tmpfs', 'devtmpfs', 'proc', 'sysfs', 'overlay', 'ramfs'];
+
+    /**
+     * @param  string  $baglantiTablosu  mountinfo(5) biçiminde tablo (testte sahtesi verilir)
+     */
     public function __construct(
         private readonly YedekHedefi $hedef,
         private readonly YedeklemeYapilandirmasi $yapilandirma,
+        private readonly string $baglantiTablosu = self::BAGLANTI_TABLOSU,
     ) {}
 
     public static function tanim(HedefTuru $tur = HedefTuru::Nas): HedefTuruTanimi
@@ -54,6 +64,11 @@ final class NasBaglayicisi implements HedefBaglayicisi
         if (! is_writable($klasor)) {
             throw new HedefHatasi(HedefHatasi::ERISILEMEDI, "NAS klasörü yazılamıyor: {$klasor}");
         }
+    }
+
+    public function varlikDenetle(): void
+    {
+        $this->dogrula();
     }
 
     public function yaz(string $yerelYol, string $ad): string
@@ -200,8 +215,14 @@ final class NasBaglayicisi implements HedefBaglayicisi
         clearstatcache(true);
         $gercekNokta = realpath($nokta);
 
-        if ($gercekNokta === false || $gercekNokta === '/' || ! $this->baglantiNoktasiMi($gercekNokta)) {
+        $tur = $gercekNokta === false || $gercekNokta === '/' ? false : $this->baglantiTuru($gercekNokta);
+
+        if ($tur === false) {
             throw new HedefHatasi(HedefHatasi::BAGLI_DEGIL, "NAS bağlı değil: {$nokta} bir bağlantı noktası değil.");
+        }
+
+        if ($tur !== null && in_array($tur, self::YEREL_DOSYA_SISTEMLERI, true)) {
+            throw new HedefHatasi(HedefHatasi::BAGLI_DEGIL, "NAS bağlı değil: {$nokta} bir ağ paylaşımı değil ({$tur}; bellekte ya da çekirdekte duran dosya sistemi).");
         }
 
         $gercekKlasor = realpath($klasor);
@@ -225,30 +246,37 @@ final class NasBaglayicisi implements HedefBaglayicisi
     }
 
     /**
-     * Çekirdeğin bağlantı tablosunda bu yol bir bağlantı noktası mı. Tablo
-     * okunamıyorsa: aygıt numarası üst klasörünkinden farklı mı.
+     * Çekirdeğin bağlantı tablosunda bu yol bir bağlantı noktası mı; öyleyse
+     * dosya sistemi türü. Aynı noktaya üst üste bağlamada en son satır (en
+     * üstteki bağlama) geçerlidir. Tablo okunamıyorsa: aygıt numarası üst
+     * klasörünkinden farklı mı (tür bilinmez: null).
+     *
+     * @return string|false|null Tür; bağlantı noktası değilse false; tür bilinmiyorsa null
      */
-    private function baglantiNoktasiMi(string $yol): bool
+    private function baglantiTuru(string $yol): string|false|null
     {
-        $tablo = @file(self::BAGLANTI_TABLOSU, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        $tablo = @file($this->baglantiTablosu, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 
         if ($tablo === false) {
             $kendi = @stat($yol);
             $ust = @stat(dirname($yol));
 
-            return $kendi !== false && $ust !== false && $kendi['dev'] !== $ust['dev'];
+            return $kendi !== false && $ust !== false && $kendi['dev'] !== $ust['dev'] ? null : false;
         }
 
+        $tur = false;
         foreach ($tablo as $satir) {
             $alanlar = explode(' ', $satir);
 
-            // mountinfo(5): 5. alan bağlantı noktası; boşluk vb. sekizlik kaçışla (\040)
+            // mountinfo(5): 5. alan bağlantı noktası (boşluk vb. sekizlik kaçışla: \040);
+            // isteğe bağlı alanlar "-" ile biter, ardından dosya sistemi türü gelir
             if (isset($alanlar[4]) && $this->kacisCoz($alanlar[4]) === $yol) {
-                return true;
+                $ayirac = array_search('-', array_slice($alanlar, 6), true);
+                $tur = $ayirac === false ? null : $this->kacisCoz($alanlar[6 + $ayirac + 1] ?? '');
             }
         }
 
-        return false;
+        return $tur === '' ? null : $tur;
     }
 
     private function kacisCoz(string $alan): string

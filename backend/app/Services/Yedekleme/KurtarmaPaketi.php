@@ -150,10 +150,8 @@ final class KurtarmaPaketi
         $hataMesaji = null;
 
         try {
-            $calisma = sys_get_temp_dir().'/emor-kurtarma-'.bin2hex(random_bytes(6));
-            if (! @mkdir($calisma, 0700)) {
-                throw new RuntimeException('Geçici çalışma klasörü açılamadı.');
-            }
+            // Öldürülmüş bir işlemden kalan (günlüklerin düz hâlini tutan) eski klasörler önce silinir (YF-28)
+            $calisma = GeciciKlasor::ac(sys_get_temp_dir(), 'emor-kurtarma-', $this->yapilandirma->artikKlasorYasi());
 
             $baglayici = $this->katalog->olustur($hedef);
 

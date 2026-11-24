@@ -16,7 +16,8 @@ use Illuminate\Console\Command;
  * Sunucu dışından indirilen şifreli kopyayı (ya da kurtarma dosyasını)
  * çözer (README §4.7, §9; BY-019, kurtarma.md). Özel anahtar o anda dosya
  * olarak verilir; sunucuda saklanmaz, uygulama klasörlerine kopyalanmaz.
- * Parola komut satırında verilmez, yalnız dosyasının yolu (D2).
+ * Parola komut satırında verilmez, yalnız dosyasının yolu (D2). Kesilirse
+ * (Ctrl-C, SIGTERM) özel anahtarın alındığı geçici anahtarlık silinir.
  */
 #[Signature('yedek:sifre-coz
     {sifreli : İndirilen şifreli dosya (.gpg)}
@@ -39,6 +40,14 @@ final class YedekSifreCoz extends Command
 
         $sifreli = (string) $this->argument('sifreli');
         $cikis = (string) $this->argument('cikis');
+
+        // Ctrl-C / SIGTERM'de `finally` çalışmaz: içe alınmış özel anahtarlı geçici anahtarlık silinip çıkılır (YF-28)
+        // Sinyal sabitleri pcntl ister: liste ancak sinyaller kullanılabilirken üretilir
+        $this->trap(fn (): array => [SIGINT, SIGTERM], function (int $sinyal) use ($sifreleyici): never {
+            $sifreleyici->acikAnahtarliklariSil();
+
+            exit(128 + $sinyal);
+        });
 
         try {
             $sifreleyici->coz($sifreli, $cikis, $anahtar, is_string($parola) && $parola !== '' ? $parola : null);

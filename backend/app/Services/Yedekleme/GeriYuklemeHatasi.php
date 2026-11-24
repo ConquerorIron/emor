@@ -90,6 +90,18 @@ final class GeriYuklemeHatasi extends RuntimeException
     /** Veritabanı adları işlem durumuyla tutmuyor; otomatik karar verilmedi, yönetici bakmalı */
     public const ADLAR_TUTARSIZ = 'GERI_YUKLEME_ADLAR_TUTARSIZ';
 
+    /** Veritabanı adları okunamadı (PostgreSQL erişilemiyor); adım değişmedi, çalıştırıcı yeniden dener (YF-41) */
+    public const ADLAR_OKUNAMADI = 'GERI_YUKLEME_ADLAR_OKUNAMADI';
+
+    /** Yedeği alan pg_dump'ın ana sürümü bu sunucunun pg_restore'undan ya da PostgreSQL'inden yeni (README §7.7; YF-14) */
+    public const PG_SURUMU = 'GERI_YUKLEME_PG_SURUMU_UYUMSUZ';
+
+    /** Yedek bugünkü APP_KEY ve APP_PREVIOUS_KEYS dışındaki bir anahtarla alınmış: şifreli alanlar çözülemez (README §7.5; YF-13) */
+    public const APP_KEY_UYUMSUZ = 'GERI_YUKLEME_APP_KEY_UYUMSUZ';
+
+    /** Bekleyen farklı ad kopyası sayısı sınırda (yedekleme.bekleyen_kopya_siniri; YF-43) */
+    public const KOPYA_SINIRI = 'GERI_YUKLEME_KOPYA_SINIRI';
+
     public const DIZIN_KURULAMADI = 'GERI_YUKLEME_DIZIN_KURULAMADI';
 
     public const AYAR_UZLASTIRILAMADI = 'GERI_YUKLEME_AYAR_UZLASTIRILAMADI';

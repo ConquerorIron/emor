@@ -141,7 +141,14 @@ sunucu-kurulumu.md §3). Ortam, kurulum betiğinin yazdığı
 Bu belgede kısaltma olarak (admin'in kabuğunda bir kez tanımlanır):
 
 ```bash
-servis() { sudo -u emor-yedek env $(systemctl show emor-yedek -p Environment --value) "$@"; }
+# Tanım okunamazsa (boş ortam) komut çalıştırılmaz: ortamsız komut uygulamanın
+# ortak önbelleğini ve günlüklerini kullanırdı (isletim.md §1)
+servis() {
+  local ortam
+  ortam="$(systemctl show emor-yedek -p Environment --value)"
+  if [ -z "$ortam" ]; then echo "HATA: emor-yedek servis tanımı okunamadı; komut çalıştırılmadı." >&2; return 1; fi
+  sudo -u emor-yedek env $ortam "$@"
+}
 ```
 
 ### 4.1 Sunucu bileşenleri — root

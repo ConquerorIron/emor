@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\IstekAnahtari;
 use App\Http\Resources\YedekResource;
 use App\Models\Yedek;
+use App\Rules\GecerliUtf8;
 use App\Services\Yedekleme\DogrulamaDurumu;
 use App\Services\Yedekleme\GeriYuklemeKaynaklari;
 use App\Services\Yedekleme\IstekKutusu;
@@ -16,6 +17,7 @@ use App\Services\Yedekleme\PgAraclari;
 use App\Services\Yedekleme\YedekDurumu;
 use App\Services\Yedekleme\YedekIstekServisi;
 use App\Services\Yedekleme\YedekKaynagi;
+use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use App\Services\Yedekleme\YedekOzeti;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -57,9 +59,19 @@ final class YedekController extends Controller
             ->when($veri['dogrulama'] ?? null, fn ($q, string $d) => $q->where('dogrulama_durumu', $d))
             ->when(isset($veri['sabit']), fn ($q) => $q->where('sabit', (bool) $veri['sabit']))
             ->when(isset($veri['guvenilmeyen']), fn ($q) => $q->where('imzali', ! $veri['guvenilmeyen']))
-            ->when(! ($veri['silinenler'] ?? false), fn ($q) => $q->where('durum', '!=', YedekDurumu::Silindi->value))
-            ->orderBy($veri['siralama'] ?? 'alinma_zamani', $veri['yon'] ?? 'desc')
-            ->orderByDesc('id');
+            ->when(! ($veri['silinenler'] ?? false), fn ($q) => $q->where('durum', '!=', YedekDurumu::Silindi->value));
+
+        // Başarısız / çalışan yedeğin alınma zamanı ve boyutu yoktur (NULL).
+        // PostgreSQL DESC'te NULL'ları başa, SQLite sona koyar: deneme yapıldığı
+        // ana göre sıralanır, boyutsuzlar iki yönde de sondadır (T6, YF-17).
+        // Yön Rule::in ile doğrulandı.
+        $yon = $veri['yon'] ?? 'desc';
+        if (($veri['siralama'] ?? 'alinma_zamani') === 'boyut') {
+            $sorgu->orderByRaw('boyut is null')->orderBy('boyut', $yon);
+        } else {
+            $sorgu->orderByRaw('coalesce(alinma_zamani, created_at) '.$yon);
+        }
+        $sorgu->orderByDesc('id');
 
         return YedekResource::collection($sorgu->paginate($veri['sayfa_boyutu'] ?? 25)->withQueryString());
     }
@@ -67,10 +79,17 @@ final class YedekController extends Controller
     /**
      * Özet şeridi: son yerel / uzak / sınama zamanları, sıradaki, boyut, boş
      * alan. `canli_veritabani`: üstüne geri yükleme onayında yazılacak ad (BY-030).
+     * `ustune_geri_yukleme_hazir`: üstüne geri yükleme yalnız servis
+     * çalıştırıcısında başlatılabilir (geçiş kipinde 409
+     * GERI_YUKLEME_SERVIS_GEREKLI); ekran düğmeyi buna göre kapatır (YF-63).
      */
-    public function ozet(YedekOzeti $ozet, PgAraclari $pg): JsonResponse
+    public function ozet(YedekOzeti $ozet, PgAraclari $pg, YedeklemeYapilandirmasi $yapilandirma): JsonResponse
     {
-        return response()->json(['data' => [...$ozet->hesapla(), 'canli_veritabani' => $pg->baglanti()->veritabani]]);
+        return response()->json(['data' => [
+            ...$ozet->hesapla(),
+            'canli_veritabani' => $pg->baglanti()->veritabani,
+            'ustune_geri_yukleme_hazir' => $yapilandirma->servisCalistiricisi(),
+        ]]);
     }
 
     /** Bırakılan isteğin durumu (ekran yoklar): kuyrukta / calisiyor / tamam / basarisiz */
@@ -89,7 +108,7 @@ final class YedekController extends Controller
     public function store(Request $request): JsonResponse
     {
         /** @var array{aciklama?: string|null} $veri */
-        $veri = $request->validate(['aciklama' => ['nullable', 'string', 'max:500']]);
+        $veri = $request->validate(['aciklama' => ['nullable', 'string', new GecerliUtf8, 'max:500']]);
 
         return $this->kabul($this->istekler->birak('yedek_al', [
             'kaynak' => YedekKaynagi::Elle->value,
@@ -130,7 +149,7 @@ final class YedekController extends Controller
     public function aciklama(Request $request, string $kimlik): JsonResponse
     {
         /** @var array{aciklama?: string|null} $veri */
-        $veri = $request->validate(['aciklama' => ['present', 'nullable', 'string', 'max:500']]);
+        $veri = $request->validate(['aciklama' => ['present', 'nullable', 'string', new GecerliUtf8, 'max:500']]);
         $yedek = $this->bul($kimlik);
 
         if ($yedek->durum === YedekDurumu::Silindi) {

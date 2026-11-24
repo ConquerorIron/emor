@@ -54,16 +54,20 @@ export interface HedefGovdesi {
   tur?: string
   /** Boş sır gönderilmez: kayıtlı değer korunur */
   alanlar: Record<string, HedefDegeri>
+  /** Kayıtlı değeri silinecek, zorunlu olmayan sır alanları (SFTP'de en az bir kimlik kalmalı: 422); boşsa gönderilmez */
+  silinecek_sirlar?: string[]
 }
 
 export type SinamaAdimi = 'baglan' | 'yaz' | 'oku' | 'dogrula' | 'sil'
 
 export interface HedefSinamaSonucu {
-  basarili: boolean
+  /** null: kısmen sınandı — servis kipinde Yerel / NAS hedefinde yazma adımları çalıştırıcının hesabına bağlı, web'de çalıştırılmadı */
+  basarili: boolean | null
   adimlar: {
     adim: SinamaAdimi
-    /** null: önceki adım düştüğü için atlandı */
+    /** null: çalıştırılmadı — önceki adım düştü ya da nedeni `kod`da (HEDEF_SINAMA_CALISTIRICIDA) */
     basarili: boolean | null
+    /** Başarılı adımda bilgi olabilir (HEDEF_SILME_YETKISI_YOK) */
     kod: string | null
     mesaj: string | null
   }[]

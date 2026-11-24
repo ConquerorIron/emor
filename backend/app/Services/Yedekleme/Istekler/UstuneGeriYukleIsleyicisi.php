@@ -19,6 +19,10 @@ use App\Yetki\Izin;
  * İşleyici onay adımında DÖNER: kilit bırakılır, onay / geri dön istekleri
  * sonraki turlarda işlenir.
  *
+ * Ömür (YF-02): istek `yedekleme.ustune_istek_omru_dk`'dan (15 dk) eskiyse
+ * yayın kilidinden ve ilk durum yazımından önce reddedilir
+ * (`ISTEK_SURESI_DOLDU`); diğer istek türleri kutunun 24 saatlik sınırında kalır.
+ *
  * Yayın kilidi (BY-013-R1): ilk durum yazılmadan önce beklemeden alınır;
  * `deploy.sh` tutuyorsa işlem başlamaz (`GERI_YUKLEME_YAYIN_SURUYOR`). İşleyici
  * dönene kadar tutulur; sonra yayın açık işlemi durum dosyasından görür.
@@ -41,6 +45,13 @@ final class UstuneGeriYukleIsleyicisi implements IstekIsleyicisi
 
     public function isle(Istek $istek, YedekKilidi $kilit): IstekSonucu
     {
+        // Bayat istek kesinti başlatmasın (YF-02): çalıştırıcı geç kaldıysa
+        // (servis durmuş, sunucu kapalı, uzun iş) yönetici çoktan vazgeçmiş olabilir
+        $omur = $this->yapilandirma->ustuneIstekOmruDakika();
+        if ($istek->zaman->addMinutes($omur)->isPast()) {
+            throw new IstekReddi('ISTEK_SURESI_DOLDU', "Üstüne geri yükleme isteği {$omur} dakikadan eski; başlatılmadı. Yeniden isteyin.");
+        }
+
         $yedek = $this->yedegiBul($istek);
 
         $yayin = $this->yapilandirma->yayinKilidi();

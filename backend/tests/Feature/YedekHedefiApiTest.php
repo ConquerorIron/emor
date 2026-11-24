@@ -13,16 +13,22 @@ use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
 use App\Services\Yedekleme\HedefKonumu;
 use App\Services\Yedekleme\Hedefler\GoogleDriveBaglayicisi;
+use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use App\Services\Yedekleme\Hedefler\S3Baglayicisi;
 use App\Services\Yedekleme\HedefTuru;
 use App\Services\Yedekleme\KopyaDurumu;
+use App\Services\Yedekleme\YedekDeposu;
+use Closure;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Sleep;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -1020,5 +1026,272 @@ final class YedekHedefiApiTest extends TestCase
         $this->postJson(self::K, ['ad' => 'Drive', 'tur' => 'google_drive', 'alanlar' => []])->assertCreated()
             ->assertJsonPath('data.baglanti', []);
         $this->postJson(self::K, ['ad' => 'Drive 2', 'tur' => 'google_drive', 'alanlar' => ['klasor_adi' => 'X']])->assertStatus(422);
+    }
+
+    /**
+     * YF-07: Yerel kopya şifresiz yazılır; uygulama ağacı (web'den sunulan
+     * storage/app/public dahil) ve sistem klasörleri hedef olamaz. Gerçek
+     * konuma bakılır: bağlantıyla oraya giden ve henüz olmayan alt klasör de.
+     *
+     * @return iterable<string, array{Closure(string): string}>
+     */
+    public static function yasakYerelKlasorler(): iterable
+    {
+        yield 'web\'den sunulan storage/app/public' => [fn (string $kok): string => storage_path('app/public')];
+        yield 'uygulama ağacında henüz olmayan klasör' => [fn (string $kok): string => base_path('henuz-olmayan/alt')];
+        yield 'uygulama ağacına giden bağlantının altı' => [function (string $kok): string {
+            symlink(storage_path('app'), $kok.'/bag');
+
+            return $kok.'/bag/public/yeni';
+        }];
+        yield '/proc' => [fn (string $kok): string => '/proc/emor-yedek'];
+        yield '/run' => [fn (string $kok): string => '/run/emor-yedek'];
+    }
+
+    #[DataProvider('yasakYerelKlasorler')]
+    public function test_uygulama_agacinda_ya_da_sistem_klasorunde_yerel_hedef_kaydedilmez(Closure $klasor): void
+    {
+        $this->postJson(self::K, ['ad' => 'Yasak', 'tur' => 'yerel', 'alanlar' => ['klasor' => $klasor($this->yedekKoku)]])
+            ->assertStatus(422)->assertJsonValidationErrors('klasor', 'hatalar');
+
+        $this->assertSame(0, YedekHedefi::query()->count());
+    }
+
+    public function test_uygulama_agacindaki_yedek_klasorunun_alti_ve_uygulama_disi_klasor_yerel_hedef_olabilir(): void
+    {
+        // Geçiş dönemindeki gibi yedek klasörü storage/app altında (dosya sistemine dokunulmaz)
+        config(['yedekleme.klasor' => storage_path('app/yedekler-yf07-'.bin2hex(random_bytes(3)))]);
+
+        $this->postJson(self::K, ['ad' => 'Alt', 'tur' => 'yerel', 'alanlar' => ['klasor' => config('yedekleme.klasor').'/ikinci']])->assertCreated();
+        $this->postJson(self::K, ['ad' => 'Disk 2', 'tur' => 'yerel', 'alanlar' => ['klasor' => $this->yedekKoku.'/disk2']])->assertCreated();
+    }
+
+    /** YF-07: eskiden kaydedilmiş yasak klasörlü hedefe kopya yazılmaz (kalıcı hata, dosya bırakılmaz) */
+    public function test_eskiden_kaydedilmis_uygulama_agacindaki_yerel_hedefe_yazilmaz(): void
+    {
+        $klasor = storage_path('framework/testing/emor-yf07-'.bin2hex(random_bytes(4)));
+        mkdir($klasor, 0750, true);
+        $kaynak = $this->yedekKoku.'/kaynak.dump';
+        file_put_contents($kaynak, 'PGDMP-sifresiz');
+
+        try {
+            $hedef = YedekHedefi::factory()->create(['ad' => 'Eski', 'baglanti' => ['klasor' => $klasor]]);
+            $baglayici = app(HedefKatalogu::class)->olustur($hedef);
+
+            $hata = null;
+            try {
+                $baglayici->yaz($kaynak, 'erp_20261124.dump');
+            } catch (HedefHatasi $e) {
+                $hata = $e->kod;
+            }
+
+            $this->assertSame(HedefHatasi::YAPILANDIRMA, $hata);
+            $this->assertSame(['.', '..'], scandir($klasor));
+        } finally {
+            File::deleteDirectory($klasor);
+        }
+    }
+
+    /**
+     * YF-21: servis kipinde yedek klasörüne çalıştırıcının hesabı yazar, web
+     * yalnız okur. Web'deki "Sına" yazma iznini kendi hesabıyla sınamaz:
+     * yalnız varlık denetlenir, kalan adımlar "çalıştırıcıda" olarak döner.
+     */
+    public function test_servis_kipinde_yerel_hedef_sinamasi_yalniz_varligi_denetler_yazma_adimlarini_calistirmaz(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('root her klasöre yazabilir; yazılamayan klasör kurgusu kurulamaz (T11).');
+        }
+
+        config(['yedekleme.calistirici' => 'servis']);
+        $klasor = config('yedekleme.klasor');
+        chmod($klasor, 0550);
+
+        try {
+            $yanit = $this->postJson(self::K.'/sina', ['tur' => 'yerel', 'alanlar' => ['klasor' => null]])->assertOk();
+
+            $yanit->assertJsonPath('data.basarili', null);
+            $this->assertSame(
+                [['baglan', true, null], ['yaz', null, 'HEDEF_SINAMA_CALISTIRICIDA'], ['oku', null, 'HEDEF_SINAMA_CALISTIRICIDA'], ['dogrula', null, 'HEDEF_SINAMA_CALISTIRICIDA'], ['sil', null, 'HEDEF_SINAMA_CALISTIRICIDA']],
+                array_map(fn (array $a): array => [$a['adim'], $a['basarili'], $a['kod']], $yanit->json('data.adimlar')),
+            );
+            $this->assertSame(['.', '..', YedekDeposu::ISARET], scandir($klasor));
+            $this->assertNull(YedekIslemKaydi::query()->where('islem', 'hedef_sina')->sole()->hata_mesaji);
+
+            // Klasör yoksa yine başarısız
+            $this->postJson(self::K.'/sina', ['tur' => 'yerel', 'alanlar' => ['klasor' => $this->yedekKoku.'/yok']])
+                ->assertOk()->assertJsonPath('data.basarili', false)->assertJsonPath('data.adimlar.0.kod', 'HEDEF_ERISILEMEDI');
+        } finally {
+            chmod($klasor, 0750);
+        }
+    }
+
+    /** YF-50: evet / hayır alanı gerçek bool saklanır; boolean olmayan değer reddedilir */
+    public function test_evet_hayir_alanlari_bool_saklanir_gecersiz_deger_reddedilir(): void
+    {
+        app(HedefKatalogu::class)->kaydet(HedefTuru::S3, S3Baglayicisi::class);
+        $s3 = ['ad' => 'S3', 'tur' => 's3', 'alanlar' => [
+            'uc_nokta' => 'https://minio.ornek.test', 'bolge' => 'us-east-1', 'kova' => 'emor', 'erisim_anahtari' => 'AKID123', 'gizli_anahtar' => 'gizli', 'yol_stili' => 1,
+        ]];
+
+        $id = $this->postJson(self::K, $s3)->assertCreated()->json('data.id');
+        $this->assertTrue(YedekHedefi::query()->findOrFail($id)->baglanti['yol_stili']);
+
+        $ftp = $this->postJson(self::K, $this->ftpGovdesi(['pasif' => '0']))->assertCreated()->json('data.id');
+        $this->assertFalse(YedekHedefi::query()->findOrFail($ftp)->baglanti['pasif']);
+
+        $this->postJson(self::K, [...$this->ftpGovdesi(['pasif' => ['a' => 1]]), 'ad' => 'FTP 2'])
+            ->assertStatus(422)->assertJsonValidationErrors('pasif', 'hatalar');
+        $this->postJson(self::K, [...$s3, 'ad' => 'S3 2', 'alanlar' => [...$s3['alanlar'], 'kova' => 'emor2', 'yol_stili' => 'evet']])
+            ->assertStatus(422)->assertJsonValidationErrors('yol_stili', 'hatalar');
+    }
+
+    /** @return array<string, mixed> */
+    private function sftpGovdesi(array $alanlar = []): array
+    {
+        return ['ad' => 'SFTP', 'tur' => 'sftp', 'alanlar' => [
+            'sunucu' => 'sftp.ornek.test', 'port' => 22, 'kullanici_adi' => 'yedekci', 'klasor' => '/emor', ...$alanlar,
+        ]];
+    }
+
+    /**
+     * YF-49: kayıtlı isteğe bağlı sır yalnız `silinecek_sirlar` ile silinir
+     * (boş alan "değişmedi"dir); SFTP'de en az bir kimlik kalmalı.
+     */
+    public function test_kayitli_istege_bagli_sir_silinebilir_en_az_bir_kimlik_kalmali(): void
+    {
+        $id = $this->postJson(self::K, $this->sftpGovdesi(['sifre' => 'Eski-Parola-1', 'ozel_anahtar' => 'ANAHTAR']))->assertCreated()->json('data.id');
+
+        $this->putJson(self::K.'/'.$id, [...$this->sftpGovdesi(), 'silinecek_sirlar' => ['sifre']])
+            ->assertOk()->assertJsonPath('data.gizli_kayitli.sifre', false)->assertJsonPath('data.gizli_kayitli.ozel_anahtar', true);
+
+        $this->assertSame(['ozel_anahtar' => 'ANAHTAR'], YedekHedefi::query()->findOrFail($id)->gizli_bilgiler);
+        $this->assertSame(['sifre'], YedekIslemKaydi::query()->where('islem', 'hedef_guncelle')->sole()->ayrinti['sir_silindi']);
+
+        // Son kimlik silinemez; sır olmayan / zorunlu alan silinemez; aynı alana değer + silme çelişir
+        $this->putJson(self::K.'/'.$id, [...$this->sftpGovdesi(), 'silinecek_sirlar' => ['ozel_anahtar']])
+            ->assertStatus(422)->assertJsonValidationErrors('silinecek_sirlar', 'hatalar');
+        $this->putJson(self::K.'/'.$id, [...$this->sftpGovdesi(), 'silinecek_sirlar' => ['sunucu']])->assertStatus(422);
+        $this->putJson(self::K.'/'.$id, [...$this->sftpGovdesi(['ozel_anahtar' => 'YENI']), 'silinecek_sirlar' => ['ozel_anahtar']])
+            ->assertStatus(422)->assertJsonValidationErrors('silinecek_sirlar', 'hatalar');
+        $ftp = $this->postJson(self::K, $this->ftpGovdesi())->json('data.id');
+        $this->putJson(self::K.'/'.$ftp, [...$this->ftpGovdesi(['sifre' => '']), 'silinecek_sirlar' => ['sifre']])->assertStatus(422);
+
+        $this->assertSame(['ozel_anahtar' => 'ANAHTAR'], YedekHedefi::query()->findOrFail($id)->gizli_bilgiler);
+        $this->assertSame('Gizli-Parola-1', YedekHedefi::query()->findOrFail($ftp)->gizli_bilgiler['sifre']);
+    }
+
+    /**
+     * YF-49: "Sına" da `silinecek_sirlar`'ı kayıtla aynı kuralla alır ve silinecek
+     * sırrın kayıtlı değerine düşmez — sınanan, kaydedilecek olandır.
+     */
+    public function test_sina_silinecek_sirri_kayitli_degerle_doldurmaz_ayni_kuralla_dogrular(): void
+    {
+        $hedef = YedekHedefi::factory()->create(['ad' => 'SFTP', 'tur' => HedefTuru::Sftp, 'baglanti' => [
+            'sunucu' => 'sftp.ornek.test', 'port' => 22, 'kullanici_adi' => 'yedekci', 'klasor' => '/emor',
+            'sunucu_anahtari' => 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMe0NgRXiRgIHEKi16ZxwBWlZnAgh5lzMpXqkOF+T8Aq',
+            'sunucu_parmak_izi' => 'SHA256:deneme', 'sunucu_anahtari_icin' => 'sftp.ornek.test:22',
+        ], 'gizli_bilgiler' => ['sifre' => 'Eski-Parola-1', 'ozel_anahtar' => 'ANAHTAR']]);
+        Process::fake(['*' => '']);
+
+        $this->postJson(self::K.'/sina', [...$this->sftpGovdesi(), 'id' => $hedef->id, 'silinecek_sirlar' => ['sifre']])
+            ->assertOk()->assertJsonPath('data.kaydedildi', false);
+
+        // Parola gönderilmedi: ssh'e parola kimliği kapalı, askpass yok
+        Process::assertRan(fn ($surec): bool => in_array('PasswordAuthentication=no', (array) $surec->command, true));
+        Process::assertDidntRun(fn ($surec): bool => in_array('PasswordAuthentication=yes', (array) $surec->command, true));
+        $this->assertSame(['sifre' => 'Eski-Parola-1', 'ozel_anahtar' => 'ANAHTAR'], $hedef->refresh()->gizli_bilgiler);
+
+        $this->postJson(self::K.'/sina', [...$this->sftpGovdesi(), 'id' => $hedef->id, 'silinecek_sirlar' => ['sifre', 'ozel_anahtar']])
+            ->assertStatus(422)->assertJsonValidationErrors('silinecek_sirlar', 'hatalar');
+    }
+
+    /** YF-33: denetim kaydı değişiklikle aynı işlemde — günlük yazılamazsa hedef eklenmez / silinmez */
+    public function test_denetim_gunlugu_yazilamazsa_hedef_eklenmez_ve_silinmez_500(): void
+    {
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Duran']);
+        // Günlük klasörü düz bir dosyanın altında: kanal yazamaz (YedekApiTest ile aynı kurgu)
+        touch($this->yedekKoku.'/dosya');
+        config(['logging.channels.yedekleme.path' => $this->yedekKoku.'/dosya/yedekleme.log']);
+        Log::forgetChannel('yedekleme');
+
+        $this->postJson(self::K, $this->ftpGovdesi())->assertStatus(500);
+        $this->deleteJson(self::K.'/'.$hedef->id)->assertStatus(500);
+
+        $this->assertSame([$hedef->id], YedekHedefi::query()->pluck('id')->all());
+        $this->assertSame(0, YedekIslemKaydi::query()->count());
+    }
+
+    /**
+     * YF-48 + YF-55: "Bağlantıyı kes" yenileme anahtarını siler ve Google'da
+     * iptal eder; iptal başarısız olsa da bağlantı kesilir, denetime yazılır.
+     */
+    public function test_google_baglantisi_kesilince_yenileme_anahtari_googleda_iptal_edilir_iptal_hatasi_kesmeyi_engellemez(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['https://oauth2.googleapis.com/revoke' => Http::sequence()->push('', 200)->push(['error' => 'invalid_token'], 400)]);
+        $ilk = $this->bagliDriveHedefi('Drive 1', ['klasor_kimligi' => 'k1']);
+        $ikinci = $this->bagliDriveHedefi('Drive 2', ['klasor_kimligi' => 'k2', 'eposta' => 'baska@ornek.test']);
+
+        $this->postJson(self::K.'/'.$ilk->id.'/google/kes')->assertOk();
+        $this->postJson(self::K.'/'.$ikinci->id.'/google/kes')->assertOk();
+
+        Http::assertSent(fn (Request $istek): bool => $istek->url() === 'https://oauth2.googleapis.com/revoke' && $istek->data() === ['token' => 'yenileme-GIZLI']);
+        $this->assertNull($ilk->refresh()->gizli_bilgiler);
+        $this->assertNull($ikinci->refresh()->gizli_bilgiler);
+        $this->assertEquals(['eposta' => 'baska@ornek.test', 'klasor_kimligi' => 'k2', 'durum' => 'yeniden_baglan'], $ikinci->baglanti);
+        $iptaller = YedekIslemKaydi::query()->where('islem', 'hedef_google_iptal')->orderBy('id')->get();
+        $this->assertSame([null, 'GOOGLE_IPTAL_EDILEMEDI'], $iptaller->pluck('hata_mesaji')->all());
+    }
+
+    /**
+     * YF-55: "Bağlantıyı kes" ve "sunucu anahtarını sıfırla" satırı yeniden ve
+     * kilit altında okur; rota bağlamasının okuduğu ile yazım arasında kaydedilen
+     * değişiklik (ör. seçilen klasör) eski kopyayla ezilmez.
+     *
+     * @return iterable<string, array{string, array<string, mixed>}>
+     */
+    public static function kilitliYenidenOkuyanUclar(): iterable
+    {
+        yield 'Google bağlantısını kes' => ['google/kes', ['eposta' => 'yedek@ornek.test', 'klasor_kimligi' => 'eski']];
+        yield 'SFTP sunucu anahtarını sıfırla' => ['sunucu-anahtari-sifirla', ['sunucu_parmak_izi' => 'SHA256:x', 'klasor_kimligi' => 'eski']];
+    }
+
+    /** @param  array<string, mixed>  $baglanti */
+    #[DataProvider('kilitliYenidenOkuyanUclar')]
+    public function test_baglanti_alanini_yazan_uc_araya_giren_degisikligi_ezmez(string $uc, array $baglanti): void
+    {
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Hedef', 'tur' => HedefTuru::GoogleDrive, 'baglanti' => $baglanti, 'gizli_bilgiler' => ['yenileme_anahtari' => 'y']]);
+        Http::preventStrayRequests();
+        Http::fake(['https://oauth2.googleapis.com/revoke' => Http::response('', 200)]);
+        // Rota bağlaması hedefi okuduktan hemen sonra başka bir istek klasörü değiştirip kaydediyor
+        $araya = false;
+        YedekHedefi::retrieved(function (YedekHedefi $okunan) use (&$araya, $hedef): void {
+            if (! $araya && $okunan->id === $hedef->id) {
+                $araya = true;
+                DB::table('yedek_hedefleri')->where('id', $hedef->id)->update(['baglanti' => json_encode([...$okunan->baglanti, 'klasor_kimligi' => 'yeni'])]);
+            }
+        });
+
+        $this->postJson(self::K.'/'.$hedef->id.'/'.$uc)->assertOk();
+
+        $this->assertTrue($araya);
+        $this->assertSame('yeni', $hedef->refresh()->baglanti['klasor_kimligi']);
+    }
+
+    /** YF-48: aynı hesapla bağlı başka hedef varken iptal edilmez (Google izni bütünüyle kaldırabilir); silinen hedefin anahtarı iptal edilir */
+    public function test_ayni_hesapla_bagli_baska_hedef_varken_anahtar_iptal_edilmez_son_hedef_silinince_iptal_edilir(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['https://oauth2.googleapis.com/revoke' => Http::response('', 200)]);
+        $ilk = $this->bagliDriveHedefi('Drive 1', ['klasor_kimligi' => 'k1']);
+        $ikinci = $this->bagliDriveHedefi('Drive 2', ['klasor_kimligi' => 'k2']);
+
+        $this->postJson(self::K.'/'.$ilk->id.'/google/kes')->assertOk();
+        Http::assertNothingSent();
+
+        $this->deleteJson(self::K.'/'.$ikinci->id)->assertNoContent();
+        Http::assertSentCount(1);
+        Http::assertSent(fn (Request $istek): bool => $istek->url() === 'https://oauth2.googleapis.com/revoke' && $istek->data() === ['token' => 'yenileme-GIZLI']);
     }
 }

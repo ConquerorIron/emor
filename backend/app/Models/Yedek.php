@@ -73,14 +73,6 @@ final class Yedek extends Model
     }
 
     /**
-     * @return HasMany<GeriYukleme, $this>
-     */
-    public function geriYuklemeler(): HasMany
-    {
-        return $this->hasMany(GeriYukleme::class, 'yedek_id');
-    }
-
-    /**
      * @return BelongsTo<User, $this>
      */
     public function alanKullanici(): BelongsTo

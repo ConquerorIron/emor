@@ -93,10 +93,14 @@ function baslangicDegerleri(
   return { ad: hedef?.ad ?? varsayilanAd, aktif: hedef?.aktif ?? true, alanlar }
 }
 
-/** Boş sır gönderilmez (kayıtlı korunur); boş metin null, sayı sayı olarak gider */
+/**
+ * Boş sır gönderilmez (kayıtlı korunur); silinmek üzere işaretlenen sır da
+ * (`silinecek_sirlar` ile ayrıca gider). Boş metin null, sayı sayı olarak gider.
+ */
 function alanlariGovdeye(
   tanim: HedefTuruTanimi,
   alanlar: Record<string, AlanDegeri>,
+  silinecekSirlar: readonly string[],
 ): Record<string, HedefDegeri> {
   const govde: Record<string, HedefDegeri> = {}
   for (const alan of tanim.alanlar) {
@@ -107,7 +111,7 @@ function alanlariGovdeye(
     }
     const metin = typeof deger === 'string' ? deger : ''
     if (alan.gizli) {
-      if (metin !== '') {
+      if (metin !== '' && !silinecekSirlar.includes(alan.ad)) {
         govde[alan.ad] = metin
       }
       continue
@@ -126,13 +130,21 @@ function SinamaSonucuPaneli({ sonuc }: { sonuc: HedefSinamaSonucu }) {
     <div
       role="status"
       className={`rounded-lg px-3 py-2 text-sm ${
-        sonuc.basarili
+        sonuc.basarili === true
           ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
-          : 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300'
+          : sonuc.basarili === null
+            ? 'bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200'
+            : 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300'
       }`}
     >
       <p className="font-semibold">
-        {t(sonuc.basarili ? 'yedekleme.hedef.sinama.basarili' : 'yedekleme.hedef.sinama.basarisiz')}
+        {t(
+          sonuc.basarili === true
+            ? 'yedekleme.hedef.sinama.basarili'
+            : sonuc.basarili === null
+              ? 'yedekleme.hedef.sinama.kismen'
+              : 'yedekleme.hedef.sinama.basarisiz',
+        )}
       </p>
       <ol className="mt-2 space-y-1">
         {sonuc.adimlar.map((adim) => (
@@ -143,9 +155,13 @@ function SinamaSonucuPaneli({ sonuc }: { sonuc: HedefSinamaSonucu }) {
             <span>
               <span className="font-semibold">{t(`yedekleme.hedef.sinama.adim.${adim.adim}`)}</span>
               {': '}
+              {/* Başarılı adımın kodu bilgidir (silme yetkisi yok); çalışmayan adımın kodu nedenidir (çalıştırıcıda) */}
               {adim.basarili === true
-                ? t('yedekleme.hedef.sinama.gecti')
-                : adim.basarili === null
+                ? t('yedekleme.hedef.sinama.gecti') +
+                  (adim.kod
+                    ? ` — ${t(`hata.${adim.kod}`, { defaultValue: adim.mesaj ?? adim.kod })}`
+                    : '')
+                : adim.basarili === null && !adim.kod
                   ? t('yedekleme.hedef.sinama.atlandi')
                   : adim.kod
                     ? t(`hata.${adim.kod}`, { defaultValue: adim.mesaj ?? adim.kod })
@@ -181,7 +197,8 @@ function SinamaSonucuPaneli({ sonuc }: { sonuc: HedefSinamaSonucu }) {
 /**
  * Hedef formu: alanlar bağlayıcının tanımından çizilir (BY-016 — yeni tür
  * ekranda kod istemez). Sırlar önceden doldurulmaz; boş bırakılırsa kayıtlı
- * değer korunur. "Bağlantıyı Sına" formdaki (kaydedilmemiş) değerlerle çalışır.
+ * değer korunur, zorunlu olmayan kayıtlı sır "Kayıtlı değeri sil" ile silinir
+ * (YF-49). "Bağlantıyı Sına" formdaki (kaydedilmemiş) değerlerle çalışır.
  */
 export function HedefFormu({
   tanim,
@@ -197,6 +214,9 @@ export function HedefFormu({
   const [sinamaSonucu, setSinamaSonucu] = useState<HedefSinamaSonucu | null>(null)
   const [sinamaHatasi, setSinamaHatasi] = useState<string | null>(null)
   const sinamaSurumu = useRef(0)
+  // Kayıtlı, zorunlu olmayan sırlardan silinmek üzere işaretlenenler (YF-49;
+  // ör. SFTP'de paroladan anahtara geçiş)
+  const [silinecekSirlar, setSilinecekSirlar] = useState<string[]>([])
 
   const {
     register,
@@ -242,7 +262,8 @@ export function HedefFormu({
         ad: girdi.ad.trim(),
         aktif: girdi.aktif,
         ...(hedef === null ? { tur: tanim.tur } : {}),
-        alanlar: alanlariGovdeye(tanim, girdi.alanlar),
+        alanlar: alanlariGovdeye(tanim, girdi.alanlar, silinecekSirlar),
+        ...(silinecekSirlar.length > 0 ? { silinecek_sirlar: silinecekSirlar } : {}),
       }),
     onSuccess: async (kaydedilen) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.yedekleme.hedefler })
@@ -262,14 +283,22 @@ export function HedefFormu({
     onError: sunucuHatalariniDagit,
   })
 
+  // Eşzamanlı kilit (F5, YF-11): ikinci tıklama hedefe ikinci kez yazıp siler
+  // ve dakikalık sınama sınırını tüketir
+  const sinaniyor = useRef(false)
   const sina = useMutation({
     mutationFn: (_surum: number) =>
       hedefSina({
         ...(hedef === null ? {} : { id: hedef.id }),
         tur: tanim.tur,
-        alanlar: alanlariGovdeye(tanim, getValues('alanlar')),
+        alanlar: alanlariGovdeye(tanim, getValues('alanlar'), silinecekSirlar),
       }),
     onSuccess: (sonuc, surum) => {
+      // Kayıtlı hedefin kendisi sınandı (SFTP sunucu anahtarı ona yazıldı):
+      // listedeki parmak izi ve "anahtarı sıfırla" düğmesi tazelenir (YF-61)
+      if (sonuc.kaydedildi) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.yedekleme.hedefler })
+      }
       if (surum !== sinamaSurumu.current) return
       setSinamaHatasi(null)
       setSinamaSonucu(sonuc)
@@ -279,7 +308,17 @@ export function HedefFormu({
       setSinamaSonucu(null)
       setSinamaHatasi(dogrulamaMesaji(error) ?? t(apiErrorKey(error)))
     },
+    onSettled: () => {
+      sinaniyor.current = false
+    },
   })
+  const sinamayiBaslat = () => {
+    if (sinaniyor.current) {
+      return
+    }
+    sinaniyor.current = true
+    sina.mutate(sinamaSurumu.current)
+  }
 
   // Form değişince önceki sınama sonucu artık bu değerlere ait değildir
   const sinamayiTemizle = () => {
@@ -306,6 +345,28 @@ export function HedefFormu({
     const yerTutucu = sirKayitli ? t('yedekleme.hedef.sirKayitli') : undefined
     // Kopyası duran hedefin konum alanı değiştirilemez (BY-016-R1/R3; ör. port, S3 yol stili)
     const konumKilitli = kilitliAlanlar.has(alan.ad)
+    // Zorunlu olmayan kayıtlı sır silinebilir (YF-49): boş bırakmak "değişmedi" demektir
+    const silinecek = silinecekSirlar.includes(alan.ad)
+    const sirSilme =
+      sirKayitli && !alan.zorunlu ? (
+        <div className="mt-2">
+          <Switch
+            id={`${id}-sil`}
+            vurgulu={false}
+            label={t('yedekleme.hedef.kayitliDegeriSil', {
+              alan: t(alan.etiket, { defaultValue: alan.ad }),
+            })}
+            checked={silinecek}
+            disabled={isSubmitting}
+            onChange={(sil) => {
+              setSilinecekSirlar((onceki) =>
+                sil ? [...onceki, alan.ad] : onceki.filter((ad) => ad !== alan.ad),
+              )
+              sinamayiTemizle()
+            }}
+          />
+        </div>
+      ) : null
 
     if (alan.tur === 'evet_hayir') {
       return (
@@ -346,19 +407,21 @@ export function HedefFormu({
                 limit={UZUN_METIN_SINIRI}
                 rows={4}
                 hata={hata}
-                disabled={isSubmitting}
+                disabled={isSubmitting || silinecek}
               />
             )}
           />
           {sirKayitli ? (
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{yerTutucu}</p>
           ) : null}
+          {sirSilme}
         </div>
       )
     }
 
-    // Kopyası duran hedefin konum alanı salt okunur (disabled değil: değer gövdede kalmalı)
-    return (
+    // Kopyası duran hedefin konum alanı salt okunur (disabled değil: değer gövdede kalmalı).
+    // Silinecek sır kapalıdır: değeri gönderilmez (alanlariGovdeye)
+    const girdi = (
       <Input
         key={alan.ad}
         id={id}
@@ -369,6 +432,7 @@ export function HedefFormu({
         placeholder={yerTutucu}
         hata={hata}
         readOnly={isSubmitting || konumKilitli}
+        disabled={silinecek}
         title={konumKilitli ? t('yedekleme.hedef.konumKilitli') : undefined}
         className={
           konumKilitli
@@ -377,6 +441,15 @@ export function HedefFormu({
         }
         {...register(`alanlar.${alan.ad}`)}
       />
+    )
+
+    return sirSilme === null ? (
+      girdi
+    ) : (
+      <div key={alan.ad}>
+        {girdi}
+        {sirSilme}
+      </div>
     )
   }
 
@@ -503,7 +576,7 @@ export function HedefFormu({
             variant="secondary"
             yukleniyor={sina.isPending}
             disabled={isSubmitting}
-            onClick={() => sina.mutate(sinamaSurumu.current)}
+            onClick={sinamayiBaslat}
           >
             {t('yedekleme.hedef.sina')}
           </Button>

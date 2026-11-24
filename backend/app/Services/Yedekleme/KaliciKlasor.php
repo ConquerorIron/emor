@@ -14,7 +14,9 @@ use RuntimeException;
  * açan hangisi olursa olsun üst girdiler eşitlensin (BY-005-R8).
  *
  * Kalıcı kök: kurulumun açıp diske eşitlediği klasör (sunucuda
- * `/var/lib/emor-yedek/durum` — BY-003). Eşitleme zinciri orada durur. Kökün
+ * `/var/lib/emor-yedek` — BY-003; kurulum kökü ve `durum/`, `gunluk/`,
+ * `yedekler/`, `istekler/` girdilerini kendisi eşitler). Eşitleme zinciri
+ * orada durur. Kökün
  * üstü uygulamanın işi değildir; yalnız geçilebilir (okumaya kapalı) olabilir
  * ve o zaman eşitleme için açılamaz (BY-005-R11). Kökün altı ise uygulamanın
  * açtığı girdilerdir ve her seferinde eşitlenir.

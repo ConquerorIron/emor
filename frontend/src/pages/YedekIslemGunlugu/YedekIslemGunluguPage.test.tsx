@@ -5,12 +5,18 @@ import '@/i18n/i18n'
 import { AppProviders } from '@/providers/AppProviders'
 import { SahteOturum } from '@/test/SahteOturum'
 
-import type { IslemKaydi } from './islemGunluguApi'
+import en from '@/i18n/en.json'
+import tr from '@/i18n/tr.json'
+
+import { BILINEN_ISLEMLER, type IslemKaydi } from './islemGunluguApi'
 import { YedekIslemGunluguPage } from './YedekIslemGunluguPage'
 
 const api = vi.hoisted(() => ({ kayitlar: vi.fn() }))
 
-vi.mock('./islemGunluguApi', () => ({ islemKayitlariniGetir: api.kayitlar }))
+vi.mock('./islemGunluguApi', async (asil) => ({
+  ...(await asil<typeof import('./islemGunluguApi')>()),
+  islemKayitlariniGetir: api.kayitlar,
+}))
 
 const kayit = (ek: Partial<IslemKaydi>): IslemKaydi => ({
   id: 1,
@@ -44,6 +50,7 @@ describe('YedekIslemGunluguPage', () => {
       data: [
         kayit({ id: 1, islem: 'istek', ayrinti: { tur: 'sil', istek: 'abc' } }),
         kayit({ id: 2, islem: 'yeni_bir_islem', kullanici: null, sonuc: 'basarisiz' }),
+        kayit({ id: 3, islem: 'geri_yukle_ustune_onay' }),
       ],
       meta: { current_page: 1, last_page: 1, per_page: 50, total: 2 },
     })
@@ -66,6 +73,8 @@ describe('YedekIslemGunluguPage', () => {
     )
     const istek = (await screen.findByText('İstek: Yedek silme')).closest('tr') as HTMLElement
     expect(within(istek).getByText('Başarılı')).toBeInTheDocument()
+    // Üstüne geri yükleme kayıtları da çevrilir (YF-58)
+    expect(screen.getByText('Üstüne geri yükleme onayı')).toBeInTheDocument()
     const bilinmeyen = screen.getByText('yeni_bir_islem').closest('tr') as HTMLElement
     expect(within(bilinmeyen).getByText('Sistem')).toBeInTheDocument()
     // Günlük ekrandan değiştirilemez / silinemez
@@ -89,5 +98,13 @@ describe('YedekIslemGunluguPage', () => {
     fireEvent.change(screen.getByLabelText('Başlangıç'), { target: { value: '01.12.2026' } })
     expect(await screen.findByText('Başlangıç bitişten sonra olamaz.')).toBeInTheDocument()
     expect(api.kayitlar).toHaveBeenCalledTimes(istekSayisi)
+  })
+
+  it('süzgeçteki her işlemin iki dilde de çevirisi var (YF-58)', () => {
+    const eksik = (ceviriler: Record<string, unknown>) =>
+      BILINEN_ISLEMLER.filter((islem) => typeof ceviriler[islem] !== 'string')
+
+    expect(eksik(tr.yedekleme.gunluk.islem)).toEqual([])
+    expect(eksik(en.yedekleme.gunluk.islem)).toEqual([])
   })
 })

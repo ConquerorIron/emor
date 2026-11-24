@@ -19,6 +19,10 @@
 # Araç çıktıları
 /.ai-review/
 
+# deploy.sh'ın sunucuda yazdığı yayın damgası ve geçici kopyası (YF-24)
+/.yayin-damgasi
+/.yayin-damgasi.yeni
+
 # Kökte skill kurulumunun bıraktığı Composer artıkları (laravel/boost).
 # Uygulamanın Composer dosyaları backend/ altındadır; bunlar etkilenmez.
 /vendor/

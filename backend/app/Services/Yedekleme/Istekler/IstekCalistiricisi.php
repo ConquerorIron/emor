@@ -73,6 +73,9 @@ final class IstekCalistiricisi
 
     private ?int $sonSurdurme = null;
 
+    /** Yarıda kalan isteğin sonucu en son ne zaman yazılamadı (hrtime; YF-38) */
+    private ?int $sonYarimHatasi = null;
+
     public function __construct(
         private readonly YedeklemeYapilandirmasi $yapilandirma,
         private readonly IstekKutusu $kutu,
@@ -93,9 +96,7 @@ final class IstekCalistiricisi
         }
 
         try {
-            foreach ($this->kutu->isleniyorlar() as $yol) {
-                $this->sonuclandir($yol, IstekSonucu::basarisiz('ISTEK_YARIDA_KALDI', 'Çalıştırıcı bu isteği işlerken durdu; sonucu bilinmiyor. Durumu listeden denetleyip yeniden isteyin.'), null, []);
-            }
+            $this->yaridaKalanIstekleriSonuclandir();
 
             $this->yaridaKalanGeriYuklemeyiSurdur();
             $this->kutu->eskiSonuclariSil(self::SONUC_SAKLAMA_GUN);
@@ -296,15 +297,18 @@ final class IstekCalistiricisi
      *
      * @param  int|null  $kullaniciId  Yetkisi doğrulanmış kullanıcı (denetim kaydının sahibi)
      * @param  array{tur?: string, istekteki_kullanici?: int|null, gonderen_uid?: int}  $baglam
+     * @param  bool  $denetimSonra  Reddi denetim kaydına yalnız sonuç yazılabildiyse geçir (yarıda kalan isteğin her turda yeniden sonuçlandırılması — YF-38)
+     * @return bool Sonuç yazıldı mı
      */
-    private function sonuclandir(string $yol, IstekSonucu $sonuc, ?int $kullaniciId, array $baglam): void
+    private function sonuclandir(string $yol, IstekSonucu $sonuc, ?int $kullaniciId, array $baglam, bool $denetimSonra = false): bool
     {
         $kimlik = basename($yol, '.json');
+        $denetle = fn () => $this->denetim->kaydet('istek', IslemSonucu::Basarisiz, kullaniciId: $kullaniciId, ayrinti: [
+            'istek' => $kimlik, ...$baglam, 'kod' => $sonuc->kod,
+        ], hata: $sonuc->mesaj);
 
-        if ($sonuc->durum === IstekSonucu::BASARISIZ) {
-            $this->denetim->kaydet('istek', IslemSonucu::Basarisiz, kullaniciId: $kullaniciId, ayrinti: [
-                'istek' => $kimlik, ...$baglam, 'kod' => $sonuc->kod,
-            ], hata: $sonuc->mesaj);
+        if ($sonuc->durum === IstekSonucu::BASARISIZ && ! $denetimSonra) {
+            $denetle();
         }
 
         try {
@@ -319,6 +323,36 @@ final class IstekCalistiricisi
             $this->kutu->sil($yol);
         } catch (Throwable $hata) {
             Log::channel('yedekleme')->error('İstek sonucu yazılamadı', ['istek' => $kimlik, 'hata' => $hata::class]);
+
+            return false;
+        }
+
+        if ($sonuc->durum === IstekSonucu::BASARISIZ && $denetimSonra) {
+            $denetle();
+        }
+
+        return true;
+    }
+
+    /**
+     * Ölen süreçten `isleniyor/`'da kalan istekler "yarıda kaldı" olur. Sonuç
+     * yazılamıyorsa (disk dolu, izin) denetim kaydı yazılmaz ve aynı süreçte
+     * en çok TEMIZLIK_ARALIGI_SN'de bir yeniden denenir: servis döngüsü her
+     * 2 saniyede denetim satırı ve hata günlüğü üretmesin (D8, YF-38).
+     */
+    private function yaridaKalanIstekleriSonuclandir(): void
+    {
+        $simdi = hrtime(true);
+        if ($this->sonYarimHatasi !== null && $simdi - $this->sonYarimHatasi < self::TEMIZLIK_ARALIGI_SN * 1_000_000_000) {
+            return;
+        }
+        $this->sonYarimHatasi = null;
+
+        foreach ($this->kutu->isleniyorlar() as $yol) {
+            $yazildi = $this->sonuclandir($yol, IstekSonucu::basarisiz('ISTEK_YARIDA_KALDI', 'Çalıştırıcı bu isteği işlerken durdu; sonucu bilinmiyor. Durumu listeden denetleyip yeniden isteyin.'), null, [], denetimSonra: true);
+            if (! $yazildi) {
+                $this->sonYarimHatasi = $simdi;
+            }
         }
     }
 

@@ -160,10 +160,11 @@ final class HedefKonumu
      * - Zorunlu bileşeni (sunucu, kullanıcı, uç nokta, kova) eksik hedefin
      *   kimliği yoktur: bağlayıcısı hiçbir yere yazamaz.
      * - Google Drive: seçilen klasörün kimliği (Drive'da bütün hesaplarda
-     *   tektir). Her yükleme yeni dosya kimliği açar, ama klasör taraması ve
-     *   dizin kurma klasördeki bütün yedek dosyalarını görür: iki hedef aynı
-     *   klasörü gösterirse biri ötekinin dosyasını kendi kopyası sayardı.
-     *   Klasörü seçilmemiş hedefin kimliği yoktur.
+     *   tektir). Her yükleme yeni dosya kimliği açar ve okuma / silme o
+     *   kimlikle yapılır; yine de iki hedef aynı klasörü gösterirse aynı
+     *   yedeğin iki "kopyası" aynı klasörde (aynı hesap, aynı silinme / izin
+     *   kaldırılma riski) durur ve bağımsız iki kopya sayılırdı — saklama yerel
+     *   arşivi buna göre silebilirdi. Klasörü seçilmemiş hedefin kimliği yoktur.
      * Kanıtlanamayan eşdeğerlikler bilinen sınırdır (README §4.6): alan adı /
      * IP takma adı (ağ çağrısı yapılmaz), türler arası (NAS bağlama noktası ↔
      * aynı sunucunun SFTP'si), chroot'u farklı iki hesap, S3 uç nokta takma adı

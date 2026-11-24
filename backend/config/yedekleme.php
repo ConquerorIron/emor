@@ -20,9 +20,21 @@ return [
     // (BY-025) /var/lib/emor-yedek/yedekler olur (sunucu-kurulumu.md).
     'klasor' => env('YEDEKLEME_KLASORU') ?: storage_path('app/yedekler'),
 
-    // İşlem durumu dosyası ve kilidin klasörü (BY-005 "Dosyaların yeri") ve
-    // kurulumun açıp diske eşitlediği kalıcı kök (KaliciKlasor). Sunucu
-    // düzeninde ikisi de /var/lib/emor-yedek/durum (BY-003); geçiş döneminde
+    // Büyük dosya taşıyan geçici çalışma klasörlerinin kökü (YF-28): kopyanın
+    // şifreli dosyası ve geri okunan hâli, uzak kopyadan geri yüklemede inen
+    // dosya. Sistem geçici klasörü (/tmp) sunucuda tmpfs'tir (bellek). Boşsa
+    // yedek klasörünün diskinde `<klasor>/.calisma` (0700): her iki kipte de
+    // işi yapan hesap yazabilir; nokta önekli olduğu için tarama onu yedek
+    // saymaz. Küçük, sır taşıyan geçici klasörler (gpg anahtarlığı, askpass,
+    // parola dosyası) sistem geçici klasöründe kalır.
+    'calisma_klasoru' => env('YEDEKLEME_CALISMA_KLASORU') ?: null,
+
+    // İşlem durumu dosyası ve kilidin klasörü (BY-005 "Dosyaların yeri"):
+    // sunucu düzeninde /var/lib/emor-yedek/durum (BY-003). Kalıcı kök
+    // (KaliciKlasor): kurulumun açıp diske eşitlediği, uygulamanın klasör
+    // eşitlemesinin durduğu kök; durum, ayar kopyası (gunluk/) ve kilit
+    // klasörleri onun altında olmalı. Sunucu düzeninde /var/lib/emor-yedek
+    // (durum/ DEĞİL: gunluk/ onun altında değildir); geçiş döneminde ikisi de
     // storage/app altı. Kök kurulmuş olmalı: yoksa durum "bilinmiyor" sayılır.
     'durum_klasoru' => env('YEDEKLEME_DURUM_KLASORU') ?: storage_path('app/yedek-durum'),
     'kalici_kok' => env('YEDEKLEME_KALICI_KOK') ?: storage_path('app'),
@@ -56,6 +68,12 @@ return [
     // işi kendisi yapar. Tanınmayan değer `dogrudan`.
     'calistirici' => env('YEDEKLEME_CALISTIRICI') === 'servis' ? 'servis' : 'dogrudan',
 
+    // Yayın damgası (YF-24): deploy.sh başarılı yayının sonunda proje kökündeki
+    // bu dosyayı yazar (yayın kullanıcısının; .gitignore'da). Servis döngüsü
+    // (yedek:calistir) damga değişince çıkar, systemd yeni kodla başlatır.
+    // Yoksa ya da okunamıyorsa etkisiz; içerik yalnız karşılaştırılır.
+    'yayin_damgasi' => dirname(base_path()).'/.yayin-damgasi',
+
     // İstek dosyasının SAHİBİ (çekirdeğin verdiği uid) ile göndereni doğrulama
     // (BY-025-R1): kullanıcılı istekler yalnız web kullanıcısının, kullanıcısız
     // yayın öncesi yedek yalnız yayın kullanıcısının dosyasıysa işlenir. Servis
@@ -66,7 +84,8 @@ return [
     'yayin_uid' => env('YEDEKLEME_YAYIN_UID') ?: null,
 
     // Ayar kopyası ve denetim günlüğünün dosyası (README §5.3, §4.9): geri
-    // yüklemeyle eskimeyen kayıt. Sunucu düzeninde /var/lib/emor-yedek/durum altında.
+    // yüklemeyle eskimeyen kayıt. Sunucu düzeninde /var/lib/emor-yedek/gunluk/ayarlar.json
+    // (web okur, yalnız servis yazar — sunucu-kurulumu.md §2).
     'ayar_kopyasi' => env('YEDEKLEME_AYAR_KOPYASI') ?: storage_path('app/yedek-durum/ayarlar.json'),
 
     // Bir kopyanın en çok kaç kez deneneceği (her denemede yeniden bağlanılır)
@@ -85,6 +104,14 @@ return [
     // bekleme süresi (gün; README §4.5, §13 karar 10 — öneri 7)
     'kopya_bekleme_gun' => env('YEDEKLEME_KOPYA_BEKLEME_GUN') ?: 7,
 
+    // Aynı anda bekleyebilecek farklı ad kopyası sayısı: her kopya veri diskinde
+    // canlı kadar yer tutar (YF-43). Değeri YedeklemeYapilandirmasi doğrular (G9).
+    'bekleyen_kopya_siniri' => env('YEDEKLEME_BEKLEYEN_KOPYA_SINIRI') ?: 3,
+
+    // Kuyruktaki "üstüne geri yükle" isteği bundan (dakika) eskiyse işlenmez:
+    // çalıştırıcı geç kalınca bayat istek saatler sonra kesinti başlatmasın (YF-02)
+    'ustune_istek_omru_dk' => env('YEDEKLEME_USTUNE_ISTEK_OMRU_DK') ?: 15,
+
     // Şifreleme ve uzak hedef araçları (BY-019, BY-022)
     'gpg' => env('YEDEKLEME_GPG') ?: '/usr/bin/gpg',
     // Geçici anahtarlığın ajanını kapatmak için (gpgconf --kill all)
@@ -96,8 +123,8 @@ return [
 
     // Üstüne geri yüklemede durdurulup onayla / geri dönüşle başlatılan kuyruk
     // servisi (README §6.4 2. ve 10. adım). Servis hesabı yalnız bu servisin
-    // stop / start / is-active komutlarını şifresiz çalıştırabilir (kurulum
-    // betiği bölüm 7, sudoers). Boşsa servis yönetilmez: kuyruk işçisi bakım
+    // stop / start komutlarını şifresiz çalıştırabilir (kurulum betiği
+    // bölüm 7, sudoers; KuyrukServisi yalnız bu ikisini çağırır). Boşsa servis yönetilmez: kuyruk işçisi bakım
     // modunda ve açık geri yüklemede zaten iş almaz (BY-029), ama o anda
     // çalışan iş bitmeden geri yükleme öncesi yedek alınabilir.
     'kuyruk_servisi' => env('YEDEKLEME_KUYRUK_SERVISI') ?: null,

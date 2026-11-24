@@ -14,7 +14,9 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use Throwable;
 
@@ -60,6 +62,8 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
     private const YETKI_ADRESI = 'https://accounts.google.com/o/oauth2/v2/auth';
 
     private const TOKEN_ADRESI = 'https://oauth2.googleapis.com/token';
+
+    private const IPTAL_ADRESI = 'https://oauth2.googleapis.com/revoke';
 
     private const API = 'https://www.googleapis.com/drive/v3';
 
@@ -131,7 +135,8 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
             'scope' => self::KAPSAM,
             'access_type' => 'offline',
             'prompt' => 'consent',
-            'include_granted_scopes' => 'true',
+            // `include_granted_scopes` YOK: artımlı yetkide Google bu istemciye daha önce verilmiş
+            // bütün kapsamları yeni anahtara katardı; anahtar `drive.file`'dan geniş olabilirdi (YF-47)
             'state' => $durum,
         ], '', '&', PHP_QUERY_RFC3986);
     }
@@ -186,12 +191,23 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
             throw new HedefHatasi(HedefHatasi::KIMLIK, 'Google kalıcı yenileme anahtarı vermedi; yeniden bağlanın.');
         }
 
-        if (! in_array(self::KAPSAM, explode(' ', (string) $yanit->json('scope')), true)) {
-            throw new HedefHatasi(HedefHatasi::KIMLIK, 'Google izninde Drive yetkisi verilmedi; izin ekranında Drive kutusu işaretlenmeli.');
+        // Kapsam kümesi TAM OLARAK `drive.file` olmalı: fazlası (başka bir kapsam için de kullanılan
+        // istemci) anahtarı genişletir, eksiği Drive'a yazdırmaz (G5, YF-47)
+        $kapsamlar = array_values(array_unique(array_filter(explode(' ', (string) $yanit->json('scope')), fn (string $k): bool => $k !== '')));
+        if ($kapsamlar !== [self::KAPSAM]) {
+            self::kullanilmayaniIptalEt($yenileme);
+
+            throw in_array(self::KAPSAM, $kapsamlar, true)
+                ? new HedefHatasi(HedefHatasi::KIMLIK, 'Google izni Drive yetkisinden (drive.file) geniş; bağlantı kaydedilmedi. Bu uygulamanın Google istemcisi yalnız yedekleme için kullanılmalı.')
+                : new HedefHatasi(HedefHatasi::KIMLIK, 'Google izninde Drive yetkisi verilmedi; izin ekranında Drive kutusu işaretlenmeli.');
         }
 
-        $eposta = self::eposta($erisim)
-            ?? throw new HedefHatasi(self::HESAP_OKUNAMADI, 'Bağlanan Google hesabının kimliği (e-posta) okunamadı; bağlantı kaydedilmedi. Yeniden deneyin.');
+        $eposta = self::eposta($erisim);
+        if ($eposta === null) {
+            self::kullanilmayaniIptalEt($yenileme);
+
+            throw new HedefHatasi(self::HESAP_OKUNAMADI, 'Bağlanan Google hesabının kimliği (e-posta) okunamadı; bağlantı kaydedilmedi. Yeniden deneyin.');
+        }
 
         return [
             'yenileme_anahtari' => $yenileme,
@@ -199,6 +215,50 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
             'dogrulanan_klasor' => $klasorKimligi !== null && self::klasorunSahibi($erisim, $klasorKimligi)
                 && ($kopyaKimligi === null || self::kopyaninSahibi($erisim, $kopyaKimligi)) ? $klasorKimligi : null,
         ];
+    }
+
+    /**
+     * Yenileme anahtarını Google'da iptal eder (YF-48): "kesilen", değiştirilen
+     * ya da kaydedilmeyen bağlantının anahtarı eski veritabanı yedeklerinde
+     * (APP_KEY ile) durabilir. En iyi çaba: kısa süre, yeniden deneme yok;
+     * her hata false (çağıran denetime yazar). Anahtar hiçbir mesaja girmez (D2).
+     */
+    public static function iptalEt(string $anahtar): bool
+    {
+        try {
+            return Http::asForm()->connectTimeout(5)->timeout(10)->withoutRedirecting()
+                ->post(self::IPTAL_ADRESI, ['token' => $anahtar])
+                ->successful();
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Bu hesabın anahtarı iptal edilebilir mi. Google'da iptal kullanıcının bu
+     * istemciye verdiği izni bütünüyle kaldırabilir; aynı hesapla bağlı başka
+     * bir hedefin anahtarı da geçersiz olur ve onun kopyaları sessizce
+     * "yeniden bağlanın"a düşerdi. Hesabı bilinmeyen (`null`) anahtar ya da
+     * hesabı bilinmeyen bağlı bir hedef varken iptal edilmez: aynı hesap
+     * olmadığı kanıtlanamaz.
+     */
+    public static function iptalGuvenliMi(?string $hesap): bool
+    {
+        return ! YedekHedefi::query()->where('tur', HedefTuru::GoogleDrive->value)->get()
+            ->contains(function (YedekHedefi $h) use ($hesap): bool {
+                $bagli = is_string($h->gizli_bilgiler['yenileme_anahtari'] ?? null) && $h->gizli_bilgiler['yenileme_anahtari'] !== '';
+                $hHesap = $h->baglanti['eposta'] ?? null;
+
+                return $bagli && ($hesap === null || ! is_string($hHesap) || $hHesap === $hesap);
+            });
+    }
+
+    /** Kaydedilmeyecek yeni bağlantının anahtarı (hesabı bilinmez): güvenliyse iptal, olmazsa günlüğe */
+    private static function kullanilmayaniIptalEt(string $anahtar): void
+    {
+        if (self::iptalGuvenliMi(null) && ! self::iptalEt($anahtar)) {
+            Log::channel('yedekleme')->warning('Kaydedilmeyen Google bağlantısının yenileme anahtarı iptal edilemedi');
+        }
     }
 
     /** Kimlik doğrulaması ve seçilen yedek klasörünün kullanılabilirliği. */
@@ -661,10 +721,11 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
     }
 
     /**
-     * `baglanti`'ya alan yazar. Kayıt veritabanından taze okunup yalnız bu
-     * alanlar değiştirilir: bellekteki modelin kaydedilmemiş değişiklikleri
-     * (ör. formdaki değerlerle sınama) kalıcı olmaz. Kaydedilmemiş hedefte
-     * yalnız bellekteki model değişir.
+     * `baglanti`'ya alan yazar. Kayıt veritabanından satır kilidi altında taze
+     * okunup yalnız bu alanlar değiştirilir: bellekteki modelin kaydedilmemiş
+     * değişiklikleri (ör. formdaki değerlerle sınama) kalıcı olmaz, araya
+     * giren kilitli güncellemenin değişikliği (seçilen klasör) eski kopyayla
+     * ezilmez (YF-55, G18). Kaydedilmemiş hedefte yalnız bellekteki model değişir.
      *
      * @param  array<string, string>  $degisiklik
      */
@@ -676,15 +737,17 @@ final class GoogleDriveBaglayicisi implements HedefBaglayicisi
             return;
         }
 
-        $taze = YedekHedefi::query()->find($this->hedef->getKey());
-        $kayitliYenileme = $taze?->gizli_bilgiler['yenileme_anahtari'] ?? null;
+        DB::transaction(function () use ($degisiklik, $yenilemeKosulu): void {
+            $taze = YedekHedefi::query()->whereKey($this->hedef->getKey())->lockForUpdate()->first();
+            $kayitliYenileme = $taze?->gizli_bilgiler['yenileme_anahtari'] ?? null;
 
-        if ($taze === null || ($yenilemeKosulu !== null && (! is_string($kayitliYenileme) || ! hash_equals($kayitliYenileme, $yenilemeKosulu)))) {
-            return;
-        }
+            if ($taze === null || ($yenilemeKosulu !== null && (! is_string($kayitliYenileme) || ! hash_equals($kayitliYenileme, $yenilemeKosulu)))) {
+                return;
+            }
 
-        $taze->baglanti = array_merge($taze->baglanti ?? [], $degisiklik);
-        $taze->save();
+            $taze->baglanti = array_merge($taze->baglanti ?? [], $degisiklik);
+            $taze->save();
+        });
     }
 
     private function istemci(bool $dosyaTasir, bool $yenidenDene): PendingRequest

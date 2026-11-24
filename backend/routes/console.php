@@ -58,6 +58,8 @@ Schedule::command('efatura:senkron --saglayici=protel --gun=45')
 // Yedekleme (docs/yedekleme). YEDEKLEME_AKTIF kapalıyken komutlar hiçbir şey
 // yapmadan çıkar. Asıl çakışma koruması dosya kilididir (YedekKilidi);
 // zamanlayıcının kilidi veritabanındaki önbellektedir, geri yüklemede kaybolur.
+// Bu yüzden zamanlayıcı kilidinin ömrü kısadır (10 dk): öldürülen süreçten
+// kalan kilit planlı yedeği saatlerce sessizce durdurmasın (YF-37).
 // Yedek, yayın sırasında (bakım modu) da alınabilmeli (README §4.2).
 // Planlı yedek ve günlük temizlik zamanlayıcıda YALNIZ geçiş kipinde
 // (`calistirici=dogrudan`): servis kipinde yedek klasörüne yazma ve imza
@@ -68,7 +70,7 @@ $gecisKipi = fn (): bool => ! app(YedeklemeYapilandirmasi::class)->servisCalisti
 Schedule::command('yedek:zamanla')
     ->everyMinute()
     ->evenInMaintenanceMode()
-    ->withoutOverlapping(120)
+    ->withoutOverlapping(10)
     ->when($gecisKipi);
 
 // Ekranın istekleri (BY-025). Servis hesabı kurulduysa (`calistirici=servis`)
@@ -77,7 +79,7 @@ Schedule::command('yedek:zamanla')
 Schedule::command('yedek:calistir --tek-tur')
     ->everyMinute()
     ->evenInMaintenanceMode()
-    ->withoutOverlapping(120)
+    ->withoutOverlapping(10)
     ->when(fn (): bool => app(YedeklemeYapilandirmasi::class)->aktif() && ! app(YedeklemeYapilandirmasi::class)->servisCalistiricisi());
 
 // Temizlik her yedekten sonra da çalışır; günlük çalışma elle alınan ve

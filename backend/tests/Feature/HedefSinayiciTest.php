@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Sleep;
 use Tests\TestCase;
+use Tests\Yedekleme\BellekHedefi;
 
 /**
  * BY-016-R2, R4: "Bağlantıyı Sına" tek toplam süre bütçesiyle çalışır (D9);
@@ -305,5 +306,51 @@ final class HedefSinayiciTest extends TestCase
         });
 
         $this->assertSame([true, 123_456, null], [$sonuc['basarili'], $sonuc['kalan_alan'], $sonuc['silinme_korumasi']]);
+    }
+
+    /**
+     * YF-20: önerilen kurulumda (silme yetkisi yok) sınama başarılıdır; silme
+     * adımı bilgi kodunu taşır. Silinemeyip kalan sınama dosyasının adı yedek
+     * kalıbında (`erp_`) değildir: felaket anında yedek sanılmaz.
+     */
+    public function test_silme_yetkisi_yoksa_sinama_basarili_bilgi_kodu_korunur_kalan_dosya_yedek_sanilmaz(): void
+    {
+        BellekHedefi::sifirla();
+        BellekHedefi::$hataAdimi = 'sil';
+        BellekHedefi::$hataKodu = HedefHatasi::SILME_YETKISI_YOK;
+        $baglayici = new BellekHedefi(YedekHedefi::factory()->make(['id' => 7, 'tur' => HedefTuru::S3]));
+
+        $adimlar = app(HedefSinayici::class)->sina($baglayici);
+
+        $this->assertTrue(HedefSinayici::basariliMi($adimlar));
+        $this->assertSame(['adim' => 'sil', 'basarili' => true, 'kod' => HedefHatasi::SILME_YETKISI_YOK], array_intersect_key($adimlar[4], array_flip(['adim', 'basarili', 'kod'])));
+        $kalan = array_keys(BellekHedefi::$dosyalar);
+        $this->assertCount(1, $kalan);
+        $this->assertMatchesRegularExpression('#^7/emor-sinama-[0-9a-f]{12}\.tmp$#D', $kalan[0]);
+        BellekHedefi::sifirla();
+    }
+
+    /** YF-28: öldürülmüş bir sınamadan kalan eski geçici klasör sonraki sınamada silinir, yenisine dokunulmaz */
+    public function test_eski_sinama_gecici_klasoru_sonraki_sinamada_silinir(): void
+    {
+        BellekHedefi::sifirla();
+        $kok = rtrim(sys_get_temp_dir(), '/');
+        $eski = $kok.'/emor-hedef-sinama-'.bin2hex(random_bytes(6));
+        $yeni = $kok.'/emor-hedef-sinama-'.bin2hex(random_bytes(6));
+        mkdir($eski, 0700);
+        file_put_contents($eski.'/kaynak', 'artik');
+        mkdir($yeni, 0700);
+        touch($eski, time() - app(YedeklemeYapilandirmasi::class)->artikKlasorYasi() - 60);
+
+        try {
+            app(HedefSinayici::class)->sina(new BellekHedefi(YedekHedefi::factory()->make(['id' => 7, 'tur' => HedefTuru::S3])));
+
+            $this->assertDirectoryDoesNotExist($eski);
+            $this->assertDirectoryExists($yeni);
+        } finally {
+            @unlink($eski.'/kaynak');
+            @rmdir($eski);
+            @rmdir($yeni);
+        }
     }
 }

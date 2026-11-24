@@ -24,8 +24,12 @@ use Throwable;
  *
  * 1. Ön denetim: servis çalıştırıcısı, onay metni = canlı veritabanı adı,
  *    imzalı + tamamlanmış yedek, manifest imzası ve dosya özeti dosyadan
- *    yeniden, şema uyumu (yedeğin TAM migration listesi kodda olmalı), disk,
- *    adların boşluğu, uygulama bakım modunda değil.
+ *    yeniden, şema uyumu (yedeğin TAM migration listesi kodda olmalı),
+ *    APP_KEY parmak izi (YF-13), manifestten bilinen retler — veritabanı
+ *    özellikleri, araç / sunucu ana sürümü, bağlanma yetkilerindeki rollerin
+ *    varlığı (YF-14) —, canlının kimliğine bağlı özellikleri (YF-45), disk,
+ *    adların boşluğu, uygulama bakım modunda değil. Bunlar hiçbir şeye
+ *    dokunmadan bilinir: kesinti başlamadan reddedilir.
  * 2. Bakım modu (BakimModu), kuyruk servisi durur (KuyrukServisi);
  *    zamanlayıcı ve işçi açık işlemi dosyadan da görür (AcikGeriYuklemeKorumasi).
  *    Yazıcı bariyeri (BY-028-R1): canlının özgün bağlanma yetkileri durum
@@ -42,7 +46,8 @@ use Throwable;
  * 6. Canlıyı yeni bağlantılara kapat, mevcutları kopar.
  * 7. Adları tek işlemde değiştir (canlı → `erp_onceki_*`, yeni → canlı).
  * 8. `erp_onceki_*`'e özgün yetkiler geri konur (bağlantıya kapalı kalır);
- *    dizini klasörden kur; geçmiş kaydını dosyadan yeniden yaz; ayar /
+ *    dizini klasörden kur; `geri_yuklemeler`'i uzlaştır (kaydı olmayan
+ *    bekleyen kopya, kapanmamış eski işlem — YF-42); geçmiş kaydını dosyadan yeniden yaz; ayar /
  *    kullanıcı / rol farkını hesapla.
  * 9. "Onay bekliyor": bakım modu sürer. İşleyici burada DÖNER (tek
  *    çalıştırıcı kilidi: dönmezse onay isteği hiç işlenemezdi).
@@ -60,6 +65,9 @@ use Throwable;
 final class UstuneGeriYukleyici
 {
     private const BEKLENMEYEN_HATA = 'GERI_YUKLEME_BEKLENMEYEN_HATA';
+
+    /** Önceki özetteki (OnayBilgisi) bekleyen kopya kayıtlarının anahtarı (YF-42) */
+    private const KOPYA_KAYITLARI = 'bekleyen_kopya_kayitlari';
 
     public function __construct(
         private readonly YedeklemeYapilandirmasi $yapilandirma,
@@ -87,11 +95,18 @@ final class UstuneGeriYukleyici
      * @return IslemKaydi Son durum: onay_bekliyor, basarisiz (geri sarıldı) ya da yer değiştirmeden sonra hatalı
      *
      * @throws LogicException Kilit tutulmuyor
-     * @throws GeriYuklemeHatasi İşlem başlamadı: açık işlem var ya da durum okunamadı (durum dosyasına dokunulmadı)
+     * @throws GeriYuklemeHatasi İşlem başlamadı: erişim anahtarının süresi dolmuş, açık işlem var ya da durum okunamadı (durum dosyasına dokunulmadı)
      */
     public function baslat(YedekKilidi $kilit, Yedek $yedek, string $onayMetni, int $kullaniciId, string $islemKimligi, string $anahtarOzeti, CarbonImmutable $anahtarBitis): IslemKaydi
     {
         $this->kilitDenetle($kilit);
+
+        // Dolmuş anahtarla başlayan işlemin ilerlemesi, onayı ve geri dönüşü
+        // ekrandan yapılamazdı (YF-02): ilk yazımdan önce reddedilir
+        if (! $anahtarBitis->isFuture()) {
+            throw new GeriYuklemeHatasi(GeriYuklemeHatasi::ERISIM_ANAHTARI_SURESI_DOLDU, 'Erişim anahtarının süresi dolmuş; üstüne geri yükleme başlamadı. Yeniden isteyin.');
+        }
+
         $durum = $this->yapilandirma->islemDurumu();
 
         try {
@@ -397,8 +412,10 @@ final class UstuneGeriYukleyici
             // "Güncel" ayar seçiminin kaynağı (README §5.3): dosya kopyası donmuş canlıdan
             // tazelenir; yazılamazsa yer değiştirmeden önce durulur
             $this->ayarKopyasi->guncelDegilseYaz();
-            // Onay ekranının "önceki" yanı: bağlantılar kesilmeden önce, donmuş canlıdan
-            $this->onayBilgisi->oncekiYaz($kayit->kimlik, $this->onayBilgisi->ozet());
+            // Onay ekranının "önceki" yanı: bağlantılar kesilmeden önce, donmuş canlıdan.
+            // Bekleyen kopyaların kayıtları da: geri yüklenen veritabanında olmayanlar
+            // 8. adımda bundan geri kurulur (YF-42)
+            $this->onayBilgisi->oncekiYaz($kayit->kimlik, [...$this->onayBilgisi->ozet(), self::KOPYA_KAYITLARI => $this->bekleyenKopyaKayitlari()]);
 
             // Buradan yer değiştirme bitene kadar canlıya (Eloquent) dokunulmaz
             $adim(UstuneGeriYuklemeAdimi::BaglantiKapatma);
@@ -435,6 +452,7 @@ final class UstuneGeriYukleyici
                 $this->pgIle(fn () => $this->ozgunYetkileriGeriKoy($kayit, (string) $kayit->oncekiVeritabani));
                 // Geri yüklenen veritabanındaki dizin yedeğin anındadır (§7.3)
                 $this->dizin->tara($kilit);
+                $uzlastirma = $this->kayitlariUzlastir($kayit);
             }
 
             $kayit = $this->yaz($kilit, $kayit, UstuneGeriYuklemeAdimi::AyarUzlastirma, true);
@@ -450,9 +468,13 @@ final class UstuneGeriYukleyici
             return $kayit;
         }
 
+        $uzlastirma ??= [];
         $kayit = $this->yaz($kilit, $kayit, UstuneGeriYuklemeAdimi::OnayBekliyor, true);
-        $this->denetle('geri_yukle_ustune', IslemSonucu::Basarili, $kayit, ['adim' => $kayit->adim]);
-        $this->bildir('geri_yukleme_onay', $kayit, ["{$this->canli()} geri yüklendi; eski veritabanı {$kayit->oncekiVeritabani} adıyla bekliyor. Onaylayın ya da geri dönün."]);
+        $this->denetle('geri_yukle_ustune', IslemSonucu::Basarili, $kayit, ['adim' => $kayit->adim, ...$uzlastirma]);
+        $this->bildir('geri_yukleme_onay', $kayit, [
+            "{$this->canli()} geri yüklendi; eski veritabanı {$kayit->oncekiVeritabani} adıyla bekliyor. Onaylayın ya da geri dönün.",
+            ...(($uzlastirma['kaydi_olmayan_kopyalar'] ?? []) === [] ? [] : ['Sunucuda kaydı olmayan geri yükleme kopyası var (kaynağı bilinmiyor; elle inceleyin): '.implode(', ', $uzlastirma['kaydi_olmayan_kopyalar'])]),
+        ]);
 
         return $kayit;
     }
@@ -522,6 +544,7 @@ final class UstuneGeriYukleyici
         return match ($this->adlar($kayit)) {
             'yer_degisti' => $this->yerDegistirmedenSonra($kilit, $kayit, UstuneGeriYuklemeAdimi::DizinKurma),
             'yerinde' => $this->geriSar($kilit, $kayit, $hata),
+            'okunamadi' => $this->adlarOkunamadi($kilit, $kayit, $hata),
             default => $this->adlarTutarsiz($kilit, $kayit),
         };
     }
@@ -534,6 +557,7 @@ final class UstuneGeriYukleyici
         return match ($this->adlar($kayit)) {
             'yer_degisti' => $this->geriDonusuTamamla($kilit, $kayit),
             'yerinde' => $this->geriSar($kilit, $kayit, $hata),
+            'okunamadi' => $this->adlarOkunamadi($kilit, $kayit, $hata),
             default => $this->adlarTutarsiz($kilit, $kayit),
         };
     }
@@ -544,6 +568,7 @@ final class UstuneGeriYukleyici
         // 8. adım hatayla durmuş olabilir: eski veritabanının yetkileri ve dizin en iyi çabayla
         $this->sessiz(fn () => $this->pgIle(fn () => $this->ozgunYetkileriGeriKoy($kayit, (string) $kayit->oncekiVeritabani)));
         $this->sessiz(fn () => $this->dizin->tara($kilit));
+        $this->sessiz(fn () => $this->kayitlariUzlastir($kayit));
         $this->sessiz(fn () => $this->gecmisiYenidenYaz($kayit, GeriYuklemeDurumu::Tamam));
 
         try {
@@ -577,6 +602,9 @@ final class UstuneGeriYukleyici
             $durum = $this->adlar($kayit);
             if ($durum === 'tutarsiz') {
                 throw new GeriYuklemeHatasi(GeriYuklemeHatasi::ADLAR_TUTARSIZ, 'Veritabanı adları işlem durumuyla tutmuyor; geri dönülmedi.');
+            }
+            if ($durum === 'okunamadi') {
+                throw new GeriYuklemeHatasi(GeriYuklemeHatasi::ADLAR_OKUNAMADI, 'Veritabanı adları okunamadı (PostgreSQL erişilemiyor); geri dönüş çalıştırıcıda yeniden denenecek.');
             }
 
             if ($durum === 'yer_degisti') {
@@ -682,7 +710,18 @@ final class UstuneGeriYukleyici
                 throw new GeriYuklemeHatasi(GeriYuklemeHatasi::SEMA_UYUMSUZ, 'Yedekte olup kodda bulunmayan migration var (kod geri alınmış ya da yedek başka bir daldan): '.implode(', ', array_slice($eksik, 0, 5)).(count($eksik) > 5 ? ' …' : ''));
             }
 
-            $gerekli = $this->pgIle(function () use ($kayit): int {
+            // Şifreli alanlar (ERP bağlantı parolaları, mail, entegratör) bugünkü
+            // anahtarlarla çözülemezse uygulama açılır ama kimse giremez (YF-13)
+            if (! AppKeyParmakIzi::bilinenMi($manifest->appKeyParmakIzi)) {
+                throw new GeriYuklemeHatasi(GeriYuklemeHatasi::APP_KEY_UYUMSUZ, 'Yedek bugünkü APP_KEY ve APP_PREVIOUS_KEYS dışındaki bir anahtarla alınmış; şifreli alanlar çözülemez. Yedeği alan anahtarı APP_PREVIOUS_KEYS\'e ekleyin (README §7.5).');
+            }
+
+            // İmzalı manifestten bilinen retler kesintiden (bakım modu, bariyer, öncesi yedek) önce (YF-14)
+            if ($manifest->veritabaniOzellikleri !== null) {
+                GeriYuklemeVeritabani::ozellikleriDenetle($manifest->veritabaniOzellikleri);
+            }
+
+            $this->pgIle(function () use ($kayit, $manifest): void {
                 $mevcut = $this->vt->mevcutlar([$this->canli(), (string) $kayit->hedefVeritabani, (string) $kayit->oncekiVeritabani]);
                 if (! in_array($this->canli(), $mevcut, true)) {
                     throw new GeriYuklemeHatasi(GeriYuklemeHatasi::ADLAR_TUTARSIZ, 'Canlı veritabanı bulunamadı.');
@@ -691,17 +730,17 @@ final class UstuneGeriYukleyici
                     throw new GeriYuklemeHatasi(GeriYuklemeHatasi::HEDEF_VAR, 'Hedef ya da önceki veritabanı adı zaten var; geri yükleme başlamadı.');
                 }
 
-                return $this->vt->boyut($this->canli());
+                $this->vt->surumDenetle($manifest->pgDumpSurumu);
+                // Manifest yetkisindeki rol artık yoksa 4. adımda düşülürdü: yalnız çözümlenir
+                $acl = $manifest->veritabaniOzellikleri['baglanma_yetkileri'] ?? null;
+                if ($acl !== null) {
+                    $this->vt->yetkileriCoz($acl);
+                }
+                // Canlının kimliğine bağlı özellikleri ad değiştirmeyle kaybolurdu (YF-45)
+                $this->vt->kimligeBagliOzellikleriDenetle($this->canli());
+                // Yeni veritabanı (≈ canlı) + geri yükleme öncesi yedek (≈ yedek dosyası) + pay
+                $this->vt->diskDenetle($manifest->boyut);
             });
-
-            // Yeni veritabanı (≈ canlı kadar) + geri yükleme öncesi yedek (≈ yedek dosyası
-            // kadar) + pay. PostgreSQL veri klasörünün diskini uygulama ölçemez (yetki yok);
-            // aynı diskte olduğu varsayılır, yetmezse pg_restore 4. adımda düşer → geri sarma.
-            $gerekli += 2 * $manifest->boyut;
-            $bos = @disk_free_space($this->yapilandirma->klasor());
-            if ($bos === false || $bos < $gerekli) {
-                throw new GeriYuklemeHatasi(GeriYuklemeHatasi::DISK_YETERSIZ, sprintf('Boş disk alanı yetersiz: gereken yaklaşık %d MB, boş %s MB.', intdiv($gerekli, 1_048_576), $bos === false ? '?' : (string) intdiv((int) $bos, 1_048_576)));
-            }
         } catch (Throwable $hata) {
             if ($gecici !== null) {
                 $this->geriYukleyici->geciciSil($gecici);
@@ -752,9 +791,11 @@ final class UstuneGeriYukleyici
 
     /**
      * Adlar hangi tarafı gösteriyor: `yer_degisti` (önceki ad var, hedef yok),
-     * `yerinde` (hedef var, önceki yok), `tutarsiz` (diğer her durum ya da okunamadı).
+     * `yerinde` (hedef var, önceki yok), `tutarsiz` (diğer her durum),
+     * `okunamadi` (sorgu başarısız: PostgreSQL o an erişilemiyor — "yok"
+     * değil "bilinmiyor"; YF-41, D6).
      *
-     * @return 'yer_degisti'|'yerinde'|'tutarsiz'
+     * @return 'yer_degisti'|'yerinde'|'tutarsiz'|'okunamadi'
      */
     private function adlar(IslemKaydi $kayit): string
     {
@@ -763,7 +804,7 @@ final class UstuneGeriYukleyici
         } catch (Throwable $hata) {
             report($hata);
 
-            return 'tutarsiz';
+            return 'okunamadi';
         }
 
         $var = fn (?string $ad): bool => in_array($ad, $mevcut, true);
@@ -775,11 +816,29 @@ final class UstuneGeriYukleyici
         };
     }
 
+    /**
+     * Adlar okunamadı: adım değişmez, kod yeniden denenebilirdir
+     * (surdurulecekMi) — çalıştırıcı sonraki turda adlara yeniden bakar.
+     *
+     * @param  array{kod: string, mesaj: string}  $hata  Adlara bakmayı gerektiren ilk hata
+     */
+    private function adlarOkunamadi(YedekKilidi $kilit, IslemKaydi $kayit, array $hata): IslemKaydi
+    {
+        // Yeniden denemede ilk hatanın izi korunur
+        $mesaj = $hata['kod'] === GeriYuklemeHatasi::ADLAR_OKUNAMADI
+            ? $hata['mesaj']
+            : "Veritabanı adları okunamadı (ilk hata: {$hata['kod']}); çalıştırıcı yeniden deneyecek.";
+        $kayit = $this->yaz($kilit, $kayit, UstuneGeriYuklemeAdimi::from($kayit->adim), true, ['kod' => GeriYuklemeHatasi::ADLAR_OKUNAMADI, 'mesaj' => Str::limit($mesaj, 500)]);
+        $this->bildir('geri_yukleme_basarisiz', $kayit, [GeriYuklemeHatasi::ADLAR_OKUNAMADI.': PostgreSQL erişilemiyor; uygulama bakım modunda, çalıştırıcı yeniden deneyecek.']);
+
+        return $kayit;
+    }
+
     private function adlarTutarsiz(YedekKilidi $kilit, IslemKaydi $kayit): IslemKaydi
     {
         $kayit = $this->yaz($kilit, $kayit, UstuneGeriYuklemeAdimi::from($kayit->adim), true, [
             'kod' => GeriYuklemeHatasi::ADLAR_TUTARSIZ,
-            'mesaj' => 'Veritabanı adları işlem durumuyla tutmuyor (ya da okunamadı); otomatik karar verilmedi. Adları elle inceleyin.',
+            'mesaj' => 'Veritabanı adları işlem durumuyla tutmuyor; otomatik karar verilmedi. Adları elle inceleyin.',
         ]);
         $this->bildir('geri_yukleme_basarisiz', $kayit, [GeriYuklemeHatasi::ADLAR_TUTARSIZ.': veritabanı adları elle incelenmeli; uygulama bakım modunda.']);
 
@@ -801,7 +860,9 @@ final class UstuneGeriYukleyici
     /**
      * Otomatik sürdürülecek mi: açık bir üstüne geri yükleme, bilinen bir
      * adımda, onay beklemiyor ve kararı yöneticiye bırakılmamış (yer
-     * değiştirmeden sonraki hata, tutarsız adlar).
+     * değiştirmeden sonraki hata, tutarsız adlar). Adların OKUNAMAMASI geçici
+     * bir hatadır: hangi adımda olursa olsun yeniden denenir (YF-41) — karar
+     * yine adlara bakılarak verilir, uygulama yalnız geri sarmada açılır.
      */
     private function surdurulecekMi(?IslemKaydi $kayit): bool
     {
@@ -814,7 +875,7 @@ final class UstuneGeriYukleyici
             return false;
         }
 
-        if ($kayit->hata === null) {
+        if ($kayit->hata === null || $kayit->hata['kod'] === GeriYuklemeHatasi::ADLAR_OKUNAMADI) {
             return true;
         }
 
@@ -911,6 +972,105 @@ final class UstuneGeriYukleyici
         }
 
         return null;
+    }
+
+    /**
+     * Donmuş canlıdaki bekleyen farklı ad kopyalarının kayıtları (5. adım).
+     * Yedek kimliği (manifest UUID'si) taşınır: dizin klasörden yeniden
+     * kurulunca satır kimliği değişse de aynı yedeği gösterir (G21).
+     *
+     * @return list<array{kimlik: string, yedek_kimligi: string, hedef_veritabani: string, isteyen_kullanici_id: int|null, basladi: string|null, bitti: string|null}>
+     */
+    private function bekleyenKopyaKayitlari(): array
+    {
+        return GeriYukleme::query()->with('yedek:id,kimlik')
+            ->where('tur', GeriYuklemeTuru::Kopya->value)->where('durum', GeriYuklemeDurumu::Tamam->value)->whereNull('veritabani_silinme_zamani')
+            ->orderBy('id')->get()
+            ->filter(fn (GeriYukleme $g): bool => $g->yedek !== null)
+            ->map(fn (GeriYukleme $g): array => [
+                'kimlik' => $g->kimlik,
+                'yedek_kimligi' => (string) $g->yedek?->kimlik,
+                'hedef_veritabani' => $g->hedef_veritabani,
+                'isteyen_kullanici_id' => $g->isteyen_kullanici_id,
+                'basladi' => $g->basladi?->utc()->toIso8601String(),
+                'bitti' => $g->bitti?->utc()->toIso8601String(),
+            ])->values()->all();
+    }
+
+    /**
+     * `geri_yuklemeler`'i geri yüklenen veritabanında uzlaştırır (YF-42; README
+     * §7.3). Dizin kurulduktan sonra çağrılır; yeniden çalıştırmak aynı sonucu verir.
+     *
+     * - Sunucuda duran ama kaydı olmayan `erp_geri_*` kopyası (yedekten sonra
+     *   açılmış): kaydı donmuş canlının özetinden aynı kimlik, yedek ve
+     *   zamanlarla geri kurulur — ekranda görünür, bekleme süresi dolunca
+     *   silinir, elle silinebilir. Özette yoksa ya da yedeği dizinde yoksa
+     *   kaynağı bilinmez: uydurma kayıt açılmaz (yedek_id zorunlu), yöneticiye bildirilir.
+     * - Bu işlemden başka, kapanmamış üstüne geri yükleme satırı (öncesi
+     *   yedeğin içinde kalmış eski işlem) `basarisiz` kapatılır.
+     *
+     * @return array{kurulan_kopya_kayitlari?: list<string>, kaydi_olmayan_kopyalar?: list<string>, kapatilan_islemler?: list<string>}
+     */
+    private function kayitlariUzlastir(IslemKaydi $kayit): array
+    {
+        $sonuc = [];
+        $kapatilan = GeriYukleme::query()->where('tur', GeriYuklemeTuru::Ustune->value)
+            ->whereIn('durum', [GeriYuklemeDurumu::Calisiyor->value, GeriYuklemeDurumu::OnayBekliyor->value])
+            ->where('kimlik', '!=', $kayit->kimlik)->pluck('kimlik')->all();
+        if ($kapatilan !== []) {
+            GeriYukleme::query()->whereIn('kimlik', $kapatilan)->update([
+                'durum' => GeriYuklemeDurumu::Basarisiz->value,
+                'hata_kodu' => GeriYuklemeHatasi::YARIDA_KALDI,
+                'hata_mesaji' => 'Kayıt geri yüklenen veritabanından geldi; işlem o anda sürüyordu ve orada kapanmamıştı.',
+                'bitti' => CarbonImmutable::now(),
+            ]);
+            $sonuc['kapatilan_islemler'] = array_values($kapatilan);
+        }
+
+        $adlar = $this->pgIle(fn (): array => $this->vt->kopyaAdlari());
+        $kayitli = GeriYukleme::query()->whereIn('hedef_veritabani', $adlar)->whereNull('veritabani_silinme_zamani')->pluck('hedef_veritabani')->all();
+        $eksik = array_values(array_diff($adlar, $kayitli));
+        if ($eksik === []) {
+            return $sonuc;
+        }
+
+        $ozet = $this->onayBilgisi->oncekiOku($kayit->kimlik)[self::KOPYA_KAYITLARI] ?? [];
+        $bilinen = [];
+        foreach (is_array($ozet) ? $ozet : [] as $k) {
+            // Dosyadan okunan değer veritabanına yazılmadan önce biçimce doğrulanır (G15)
+            if (is_array($k) && is_string($k['hedef_veritabani'] ?? null) && VeritabaniAdi::kopyaMi($k['hedef_veritabani'])
+                && is_string($k['kimlik'] ?? null) && Str::isUuid($k['kimlik']) && is_string($k['yedek_kimligi'] ?? null)) {
+                $bilinen[$k['hedef_veritabani']] = $k;
+            }
+        }
+
+        $zaman = fn (mixed $deger): ?CarbonImmutable => is_string($deger) && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/D', $deger) === 1 ? CarbonImmutable::parse($deger)->utc() : null;
+        foreach ($eksik as $ad) {
+            $k = $bilinen[$ad] ?? null;
+            $yedekId = $k === null ? null : Yedek::query()->where('kimlik', $k['yedek_kimligi'])->value('id');
+            if ($k === null || $yedekId === null || GeriYukleme::query()->where('kimlik', $k['kimlik'])->exists()) {
+                $sonuc['kaydi_olmayan_kopyalar'][] = $ad;
+
+                continue;
+            }
+
+            $isteyen = is_int($k['isteyen_kullanici_id'] ?? null) && User::query()->whereKey($k['isteyen_kullanici_id'])->exists() ? $k['isteyen_kullanici_id'] : null;
+            GeriYukleme::query()->create([
+                'kimlik' => $k['kimlik'],
+                'yedek_id' => $yedekId,
+                'tur' => GeriYuklemeTuru::Kopya,
+                'hedef_veritabani' => $ad,
+                'isteyen_kullanici_id' => $isteyen,
+                'durum' => GeriYuklemeDurumu::Tamam,
+                'adimlar' => [],
+                'basladi' => $zaman($k['basladi'] ?? null),
+                // Bekleme süresi kopyanın açıldığı andan sayılır; bilinmiyorsa şimdiden
+                'bitti' => $zaman($k['bitti'] ?? null) ?? CarbonImmutable::now(),
+            ]);
+            $sonuc['kurulan_kopya_kayitlari'][] = $ad;
+        }
+
+        return $sonuc;
     }
 
     /**

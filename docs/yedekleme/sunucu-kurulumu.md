@@ -7,9 +7,11 @@ Betik yedekleme / geri yükleme işlerini yapacak **servis hesabını** ve onun
 çevresini kurar. Tekrar çalıştırılabilir: ikinci çalıştırma hiçbir şeyi
 değiştirmez. `--denetle` kipi hiçbir şeyi değiştirmeden durumu raporlar.
 
-**Sunucuda ne zaman çalıştırılır:** BY-025'te, onu kullanacak kodla birlikte ve
-yalnız kullanıcı talimatıyla (Backup-Jira §1.3 madde 8). BY-003'te yazıldı ve
-lokalde denendi; sunucuda çalıştırılmadı.
+**Sunucuda ne zaman çalıştırılır:** yalnız kullanıcı talimatıyla (Backup-Jira
+§1.3 madde 8). Canlıda ilk kez 2026-11-22'de çalıştı (servis etkinleştirilmedi,
+modül geçiş kipinde). Betik değiştiğinde (ör. servis tanımına `KillMode=mixed`,
+sudo kuralından `is-active` çıkarıldı — YF-23, YF-71) yeniden çalıştırılır;
+`--denetle` önce farkı gösterir. Servis kipine geçiş: isletim.md §2.
 
 ## 1. README §9 maddelerinin karşılığı
 
@@ -19,9 +21,9 @@ lokalde denendi; sunucuda çalıştırılmadı.
 | 1. … veritabanı rolü, `CREATEDB` | Bölüm 5 | `emor_yedek` (BY-002'de açıldı; betik denetler, eksikse düzeltir) |
 | 1. … uygulama rolüne üyelik | Bölüm 5 | `INHERIT`, `SET` evet; `ADMIN` hayır |
 | 1. … `postgres` veritabanına bağlanma | Bölüm 5 | Yetki yoksa verilir; parola dosyasıyla gerçek bağlantı denenir |
-| 1. … kuyruk ve zamanlayıcıyı durdurup başlatma | Bölüm 7 | Kuyruk: dar `sudo` kuralı (`systemctl stop/start/is-active emor-queue`, başka hiçbir şey). Zamanlayıcı: yetki gerekmez, bakım modunda zamanlanmış işler çalışmaz (README §6.4) |
+| 1. … kuyruk ve zamanlayıcıyı durdurup başlatma | Bölüm 7 | Kuyruk: dar `sudo` kuralı (`systemctl stop/start emor-queue`, başka hiçbir şey). Zamanlayıcı: yetki gerekmez, bakım modunda zamanlanmış işler çalışmaz (README §6.4) |
 | 2. Web dışı yedek klasörü | Bölüm 3 | `/var/lib/emor-yedek` |
-| 3. Ayrı servis tanımı | Bölüm 6 | `emor-yedek.service` kurulur, **etkinleştirilmez**; komutu (`yedek:calistir`) BY-025'te yazılır |
+| 3. Ayrı servis tanımı | Bölüm 6 | `emor-yedek.service` (`yedek:calistir`) kurulur, **etkinleştirilmez**; servis kipine geçişte etkinleştirilir (isletim.md §2) |
 | 4. Sunucu dışı hedef ve erişim | — | Betikte değil: hedefler ve erişim bilgileri ekrandan tanımlanır (BY-016, BY-020…BY-023) |
 | 5. Uygulama dışı sessizlik izleyicisi | — | Betikte değil: yaşam sinyali BY-012; izleyicinin kim / nerede olacağı açık karar (README §13, madde 11) |
 | 6. Salt okunur inceleme rolü | Bölüm 5 | `emor_inceleme`, `NOLOGIN`; geri yüklenen kopyalarda okuma yetkisini çalıştırıcı verir. `NOLOGIN` salt okunur yapmaz: yönetici / veritabanı açma / rol açma / çoğaltma / RLS atlama açıksa denetim bildirir, kurulum kapatır; başka bir role üyeliği bildirilir |
@@ -29,9 +31,10 @@ lokalde denendi; sunucuda çalıştırılmadı.
 | 8. Sanal makine yedeği var mı | — | Betikle öğrenilemez; açık soru (README §13, madde 9) |
 
 Ayrıca: `emor_yedek` parola dosyası `/home/admin`'den servis hesabına taşınır
-(bölüm 4); imza anahtarının yeri hazırlanır ama anahtar **üretilmez** —
-biçimi BY-006'da belirlenir, BY-025'te uygulamadan buraya taşınır (yeni anahtar
-eski yedeklerin imzasını geçersiz kılardı).
+(bölüm 4); imza anahtarının yeri hazırlanır ama betik anahtarı **üretmez ve
+taşımaz**: geçiş kipinde çalışmış kurulumda anahtarı servis hesabı uygulamadan
+kopyalar, boş kurulumda `.env`'den sonra üretir (isletim.md §2). Var olan bir
+anahtarın yerine yenisini üretmek eski yedeklerin imzasını geçersiz kılar.
 
 ## 2. Dosya yetkileri (README §5.5)
 
@@ -43,7 +46,10 @@ Web kullanıcısı (`www-data`) `emor-yedek` grubuna alınır; yayın kullanıc�
 |---|---|---|---|---|
 | `/var/lib/emor-yedek` (sahibi root) | 0750 | geçer | geçer | yalnız geçer |
 | `yedekler/` — yedek, manifest, olay günlüğü | 2750 | okur, yazar | okur | erişmez |
-| `istekler/` | 2770 | okur, siler | yazar | yazar |
+| `istekler/` (kendisi web'e / yayına yazılamaz: D5) | 2750 | okur, yazar | geçer | yalnız geçer |
+| `istekler/bekleyen/` — yeni istekler | 2770 | okur, taşır | yazar | yazar |
+| `istekler/isleniyor/` — çalıştırıcının aldıkları | 2750 | okur, yazar | okur | erişmez |
+| `istekler/sonuc/` — sonuçlar | 2750 | okur, yazar | okur | okur (`deploy.sh` sonucu bekler) |
 | `durum/` — işlem durumu | 2750 | okur, yazar | okur | okur (sonradan açılan dosyalar dahil: varsayılan ACL) |
 | `durum/kilit` | 0640 | alır | alır | alır (salt okunur açıp `flock`) |
 | `durum/yayin.kilit` — yayın kilidi (BY-013-R1) | 0640 | alır | alır | alır (`deploy.sh` yayın boyunca tutar) |
@@ -53,6 +59,20 @@ Web kullanıcısı (`www-data`) `emor-yedek` grubuna alınır; yayın kullanıc�
 
 Servis hesabı da web grubuna alınır: geri yüklemede uygulamayı bakım moduna
 almak ve önbelleği temizlemek, uygulamanın `storage/` klasörüne yazmayı ister.
+
+**Grup üyelikleri tam kümeyle denetlenir (YF-27).** `emor-yedek` grubunda
+yalnız web kullanıcısı (birincil grubu `emor-yedek` olan başka hesap da yok),
+servis hesabı yalnız `emor-yedek` ve web grubunda olmalı. Fazlası (ör.
+`usermod -aG emor-yedek <hesap>` → o hesap bütün dökümleri okur; servis
+hesabında `sudo`, `adm`, `docker`…) denetimde `[EKSİK]` çıkar; betik
+çıkarmaz, elle bakılır. PostgreSQL'de `emor_yedek` / `emor_inceleme` rollerine
+ÜYE olan roller de bildirilir (onların yetkisini devralırlar).
+
+**Servis durdurulunca iş yarıda kalmaz (YF-23).** Servis tanımında
+`KillMode=mixed`: `systemctl stop|restart` SIGTERM'ü yalnız PHP sürecine
+gönderir; çalıştırıcı o anki işi bitirip çıkar, `pg_dump` / `pg_restore` /
+`gpg` / `sftp` alt süreçleri sinyal almaz. Durdurma `TimeoutStopSec` (4000 sn)
+kadar bekleyebilir; iş bu süreyi aşarsa bütün süreçler yine öldürülür.
 
 **Depo işareti (BY-011-R3).** Betik `yedekler/.emor-yedek-deposu` dosyasını
 açar (servis hesabı yazar, 0640; içerik tek satır `emor-yedek-deposu <uuid>`,
@@ -163,23 +183,27 @@ Betiğin **yapmadıkları** (sonunda hatırlatır):
 - Grup üyelikleri süreç yeniden başlayınca etkinleşir:
   `sudo systemctl restart php8.5-fpm emor-queue` — kısa kesinti; kullanıcıya
   haber verilmeden yapılmaz.
-- Servisi etkinleştirmek: `sudo systemctl enable --now emor-yedek` (BY-025,
-  komut yazıldıktan sonra).
+- Servisi etkinleştirmek: `sudo systemctl enable --now emor-yedek` — servis
+  kipine geçişin bir adımıdır, sırası isletim.md §2'de.
 
-**Modül açıldıktan sonra bir kez** (BY-013): `deploy.sh`'ın bugüne kadar
-`/var/backups/emor`'a aldığı imzasız yedekler içeri alınır. Komut yedek
-klasörüne ve imza anahtarına yazdığı için servis hesabıyla ve servis tanımının
-ortamıyla (kendi önbellek / günlük yolları, parola dosyası — README §5.5, D7)
-çalışır; iki kez çalıştırmak yedeği çoğaltmaz, kaynak dosyalara dokunmaz:
+**Servis kipine geçtikten sonra bir kez** (BY-013): `deploy.sh`'ın modül
+kapalıyken `/var/backups/emor`'a aldığı imzasız yedekler içeri alınır. Komut
+yedek klasörüne ve imza anahtarına yazdığı için servis hesabıyla ve servis
+tanımının ortamıyla (kendi önbellek / günlük yolları, parola dosyası — README
+§5.5, D7) çalışır; iki kez çalıştırmak yedeği çoğaltmaz, kaynak dosyalara
+dokunmaz. Klasör `admin`'in olduğu için servis hesabına önce okuma izni verilir
+(okuyamadığı klasörde komut çıkış 1 ile durur — YF-67):
 
 ```bash
-cd /var/www/emor/backend
-sudo -u emor-yedek env $(systemctl show emor-yedek -p Environment --value) \
-  php artisan yedek:eski-yedekleri-al --klasor=/var/backups/emor
+sudo setfacl -m u:emor-yedek:r-x /var/backups/emor   # dosyalar başkalarına okunur değilse: -R … r-X
+servis php artisan yedek:eski-yedekleri-al --klasor=/var/backups/emor   # servis(): isletim.md §1
+sudo setfacl -x u:emor-yedek /var/backups/emor        # iş bitince izin geri alınır
 ```
 
 Servis hesabıyla elle çalıştırılan her yedekleme komutu (`yedek:tara`,
-`yedek:acil` …) aynı kalıpla çalıştırılır.
+`yedek:acil` …) aynı kalıpla (`servis` — isletim.md §1) çalıştırılır. Kalıp
+servis tanımını okuyamazsa (boş ortam) komutu çalıştırmadan durur: ortam
+olmadan komut uygulamanın ortak önbelleğini ve günlüklerini kullanırdı.
 
 Parola hiçbir komut satırına, ortam değişkenine ya da çıktıya yazılmaz; yeni
 parola gerekirse psql'e standart girdiden verilir, parola dosyası rol
@@ -210,32 +234,64 @@ sudo EMOR_UYGULAMA_KOKU=$PWD EMOR_YEDEK_KOKU=/tmp/ey/kok \
 
 ## 5. Geri alma (kurulumu kaldırma)
 
-Sırası önemlidir: önce servis durur, sonra yetkiler, en son hesap. **Yedekler
-silinmeden önce başka yere taşınır.**
+Sırası önemlidir (YF-25): önce açık işlem olmadığı görülür, modül kapanır,
+sonra servis, yetkiler, dosyalar, en son hesap. **Yedekler, imza anahtarı ve
+denetim günlüğü birlikte taşınır**: anahtar sunucudaki tek kopyadır; o
+gidince taşınan bütün yedekler kalıcı olarak "güvenilmeyen" olur, ekrandan
+geri yüklenemez. Hiçbir adımda klasör toptan silinmez (`rm -rf` yok); yalnız
+boşaldığı görülen klasörler kaldırılır.
 
 ```bash
-# 1. Servis
+cd /var/www/emor/backend
+
+# 0. Açık işlem yok (servis kipinde; servis(): isletim.md §1)
+servis php artisan yedek:acil durum          # "Üstüne geri yükleme işlemi yok." olmalı
+sudo ls -A /var/lib/emor-yedek/istekler/bekleyen /var/lib/emor-yedek/istekler/isleniyor   # boş olmalı
+
+# 1. Modülü kapat — .env servis yollarında kalıp o klasörler kaldırılırsa durum
+#    "bilinmiyor" sayılır: kuyruk ve zamanlayıcı HİÇBİR iş çalıştırmaz (e-Fatura,
+#    alarm mailleri dahil), deploy.sh yayın korumasında durur.
+#    .env: YEDEKLEME_AKTIF=false (ya da YEDEKLEME_* servis satırlarını silip geçiş yollarına dön)
+php artisan config:cache && php artisan queue:restart
+
+# 2. Servis (o anki iş biter: KillMode=mixed, en çok TimeoutStopSec)
 sudo systemctl disable --now emor-yedek
 sudo rm /etc/systemd/system/emor-yedek.service && sudo systemctl daemon-reload
 
-# 2. sudo kuralı (ardından sudo yapılandırmasını doğrula)
+# 3. sudo kuralı (ardından sudo yapılandırmasını doğrula)
 sudo rm /etc/sudoers.d/emor-yedek && sudo visudo -c
 
-# 3. Veritabanı rolleri
+# 4. Veritabanı rolleri
 #    Önce emor_inceleme'ye geri yüklenen kopyalarda verilmiş yetkiler kaldırılır
 #    (ya da o kopyalar silinir): her biri için  DROP OWNED BY emor_inceleme;
 sudo -u postgres psql -c "revoke connect on database postgres from emor_yedek" \
   -c "revoke erp from emor_yedek" -c "drop role emor_yedek" -c "drop role emor_inceleme"
 
-# 4. Dosyalar — yedekler önce başka yere
-sudo mv /var/lib/emor-yedek/yedekler /var/backups/emor-yedek-eski   # ya da başka bir yere
-sudo rm -rf /var/lib/emor-yedek
+# 5. Dosyalar — servis hesabı bağlantı koymuş olabilir: root bağlantı izlemesin (D5)
+sudo find /var/lib/emor-yedek -type l            # çıktı BOŞ olmalı; değilse dur, elle incele
+H=/var/backups/emor-yedek-eski
+sudo install -d -o root -g root -m 0700 "$H" "$H/gizli"
+sudo mv /var/lib/emor-yedek/yedekler /var/lib/emor-yedek/gunluk /var/lib/emor-yedek/durum "$H/"
+sudo mv /var/lib/emor-yedek/gizli/imza.anahtar "$H/gizli/"   # yedeklerle birlikte saklanır
+sudo chown -hR root:root "$H" && sudo chmod 0600 "$H/gizli/imza.anahtar"
+#    Kalanlar: geçersiz parola dosyası (rol silindi), servisin önbelleği, istek klasörleri
+sudo find /var/lib/emor-yedek -mindepth 1 -ls    # yalnız gizli/pgpass, onbellek/…, istekler/… beklenir
+sudo rm -f /var/lib/emor-yedek/gizli/pgpass
+sudo find /var/lib/emor-yedek/onbellek /var/lib/emor-yedek/istekler -type f -delete
+sudo find /var/lib/emor-yedek -mindepth 1 -depth -type d -empty -delete
+sudo rmdir /var/lib/emor-yedek                   # boş değilse hata verir: kalanı elle incele
 
-# 5. Hesap ve grup
+# 6. Hesap ve grup
 sudo gpasswd -d www-data emor-yedek
 sudo userdel emor-yedek          # emor-yedek www-data grubundan da çıkar
 sudo groupdel emor-yedek 2>/dev/null || true   # userdel silmediyse
 sudo systemctl restart php8.5-fpm emor-queue   # üyelik değişikliği (kısa kesinti)
 ```
+
+Taşınan yedekler geçiş kipinde yeniden kullanılacaksa yedek dosyaları
+`backend/storage/app/yedekler/`'e, imza anahtarı `backend/storage/app/yedek-imza.key`'e
+(sahibi `www-data`, 0600) konur, sonra `php artisan yedek:tara` (web kullanıcısıyla)
+"N imzalı, 0 güvenilmeyen" demelidir. Anahtarın ayrı saklanan kopyası
+(kurtarma.md §2) da güncel kalmalıdır.
 
 Kaldırmanın sonucu `--denetle` ile görülür: bütün maddeler `[EKSİK]` olmalı.
