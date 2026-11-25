@@ -11,6 +11,7 @@ use App\Models\YedekPlani;
 use App\Services\Yedekleme\Hedefler\HedefHatasi;
 use App\Services\Yedekleme\KopyaDurumu;
 use App\Services\Yedekleme\ManifestDeposu;
+use App\Services\Yedekleme\PlanliYedek;
 use App\Services\Yedekleme\SaklamaPolitikasi;
 use App\Services\Yedekleme\SiklikTuru;
 use App\Services\Yedekleme\YedekAlici;
@@ -229,6 +230,29 @@ final class YedekZamanlaTest extends TestCase
 
         $this->assertSame(KopyaDurumu::Tamam, YedekKopyasi::query()->where('yedek_id', $ilk->id)->sole()->durum);
         $this->assertFileExists($klasor.'/'.$ilk->dosya_adi);
+    }
+
+    /**
+     * Fable ikinci tur (D8): deneme sınırını dolduran başarısız kopya (kalıcı
+     * olarak düşüyor) sonraki çalışmalarda yeniden yüklenmez.
+     */
+    public function test_deneme_siniri_dolan_basarisiz_kopya_yeniden_denenmez(): void
+    {
+        $this->sahtePgAraclari();
+        $klasor = $this->yedekKoku.'/disk-gec';
+        $hedef = YedekHedefi::factory()->create(['ad' => 'Geç bağlanan disk', 'baglanti' => ['klasor' => $klasor]]);
+        $plan = $this->vadesiGelenPlan('Günlük', $hedef);
+        $this->artisan('yedek:zamanla')->assertSuccessful();
+        $kopya = YedekKopyasi::query()->sole();
+        $kopya->forceFill(['deneme' => app(YedeklemeYapilandirmasi::class)->kopyaDenemeSayisi() * PlanliYedek::EN_COK_TUR])->save();
+
+        mkdir($klasor, 0750, true);
+        $this->travel(1)->days();
+        $plan->forceFill(['sonraki_calisma' => CarbonImmutable::now()->subSeconds(30)])->save();
+        $this->artisan('yedek:zamanla')->assertSuccessful();
+
+        $this->assertSame(KopyaDurumu::Basarisiz, $kopya->refresh()->durum);
+        $this->assertFileDoesNotExist($klasor.'/'.$kopya->yedek->dosya_adi);
     }
 
     /**

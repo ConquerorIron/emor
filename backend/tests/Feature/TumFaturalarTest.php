@@ -10,6 +10,7 @@ use App\Models\EntegratorBaglanti;
 use App\Models\Rol;
 use App\Models\User;
 use App\Services\ErpBelgeArsivi;
+use App\Services\Kesinti\ErpFirmaKaynagi;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -216,10 +217,18 @@ final class TumFaturalarTest extends TestCase
     {
         [$izibiz, $protel] = $this->tanimlar();
         EFatura::factory()->create(['entegrator_baglanti_id' => $izibiz->id, 'belge_no' => 'INS1', 'erp_okundu' => true, 'sap_islendi' => true]);
-        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTL1', 'emor_durumu' => 'elle_islendi', 'sap_islendi' => false]);
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTL1', 'emor_durumu' => 'elle_islendi', 'sap_islendi' => false, 'gonderici_vkn' => '1112223333']);
         // Portalda reddedilmiş: daha önce İşlendi işaretlenmiş olsa da "Red"
         EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTL2', 'durum' => 'RejectAnswerCompleted', 'sap_islendi' => true]);
-        $kolonlar = ['entegrator' => 'Entegratör', 'belge_no' => 'Fatura No', 'erp_okundu' => 'eMOR Okudu', 'emor' => 'eMOR', 'sap' => 'SAP'];
+        // "eMOR VKN Var": yalnız OTL1'in göndericisi eMOR'da kayıtlı (kullanıcı isteği 2026-11-25)
+        $this->app->instance(ErpFirmaKaynagi::class, new class implements ErpFirmaKaynagi
+        {
+            public function firmalar(): array
+            {
+                return [['kod' => 'K1', 'ad' => 'Kayıtlı Cari', 'guid' => 'g1', 'vergi_kimlik_no' => '1112223333', 'vergi_dairesi' => null, 'eposta' => null, 'gsm_no' => null]];
+            }
+        });
+        $kolonlar = ['entegrator' => 'Entegratör', 'belge_no' => 'Fatura No', 'erp_okundu' => 'eMOR Okudu', 'emor' => 'eMOR', 'sap' => 'SAP', 'emor_vkn' => 'eMOR VKN Var'];
         $sorgu = http_build_query(['kolonlar' => array_keys($kolonlar), 'basliklar' => array_values($kolonlar), 'sirala' => 'belge_no', 'yon' => 'asc']);
 
         $yanit = $this->actingAs($this->izinli('tum_faturalar.goruntule', 'tum_faturalar.disari_aktar'))
@@ -231,11 +240,11 @@ final class TumFaturalarTest extends TestCase
         unlink($yol);
 
         $sayfa = $kitap->getSheet(0);
-        $this->assertSame(array_values($kolonlar), $sayfa->rangeToArray('A1:E1')[0]);
-        $this->assertSame(['İzibiz', 'INS1', 'Evet', null, 'İşlendi'], $sayfa->rangeToArray('A2:E2')[0]);
+        $this->assertSame(array_values($kolonlar), $sayfa->rangeToArray('A1:F1')[0]);
+        $this->assertSame(['İzibiz', 'INS1', 'Evet', null, 'İşlendi', 'Hayır'], $sayfa->rangeToArray('A2:F2')[0]);
         // Protel faturasını eMOR okumaz (otelin ERP bayrağı ayrı kolonda); elle işlenmiş olabilir
-        $this->assertSame(['Protel', 'OTL1', null, 'İşlendi (elle)', 'Hayır'], $sayfa->rangeToArray('A3:E3')[0]);
-        $this->assertSame(['Protel', 'OTL2', null, null, 'Red'], $sayfa->rangeToArray('A4:E4')[0]);
+        $this->assertSame(['Protel', 'OTL1', null, 'İşlendi (elle)', 'Hayır', 'Evet'], $sayfa->rangeToArray('A3:F3')[0]);
+        $this->assertSame(['Protel', 'OTL2', null, null, 'Red', 'Hayır'], $sayfa->rangeToArray('A4:F4')[0]);
         $this->assertSame(['Liste', 'Tüm Faturalar (İzibiz + Protel)'], $kitap->getSheet(1)->rangeToArray('A1:B1')[0]);
         $this->assertSame(['Ortam', 'Canlı'], $kitap->getSheet(1)->rangeToArray('A2:B2')[0]);
     }

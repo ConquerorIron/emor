@@ -10,6 +10,8 @@ use App\Models\EntegratorBaglanti;
 use App\Models\Rol;
 use App\Models\User;
 use App\Services\ErpBelgeArsivi;
+use App\Services\ErpOkumaHatasi;
+use App\Services\Kesinti\ErpFirmaKaynagi;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +19,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Tests\TestCase;
 
 /**
@@ -49,6 +52,80 @@ final class ProtelEkranTest extends TestCase
         return EntegratorBaglanti::factory()->protel()->aktif()->create();
     }
 
+    /**
+     * Canlı ERP'nin kurum kartları (WEB_ERP_TASERON_LISTESI) yerine sahte kaynak.
+     *
+     * @param  array<string, string>|null  $kurumlar  VKN => ad; null: ERP okunamaz
+     */
+    private function erpKurumlari(?array $kurumlar): ErpFirmaKaynagi
+    {
+        $kaynak = new class($kurumlar) implements ErpFirmaKaynagi
+        {
+            public int $okuma = 0;
+
+            /** @param  array<string, string>|null  $kurumlar */
+            public function __construct(private readonly ?array $kurumlar) {}
+
+            public function firmalar(): array
+            {
+                $this->okuma++;
+                if ($this->kurumlar === null) {
+                    throw ErpOkumaHatasi::sorgudan(new RuntimeException('bağlantı yok'));
+                }
+
+                return array_map(fn (string $vkn, string $ad): array => [
+                    'kod' => 'K-'.$vkn, 'ad' => $ad, 'guid' => md5($vkn), 'vergi_kimlik_no' => $vkn,
+                    'vergi_dairesi' => null, 'eposta' => null, 'gsm_no' => null,
+                ], array_keys($this->kurumlar), $this->kurumlar);
+            }
+        };
+        $this->app->instance(ErpFirmaKaynagi::class, $kaynak);
+
+        return $kaynak;
+    }
+
+    /**
+     * "eMOR VKN Var" (kullanıcı isteği 2026-11-25): gönderici VKN'si eMOR'daki
+     * bir kurum kartında olan fatura işaretlenir, kartın kodu ve adı döner;
+     * hızlı filtre iki yönde süzer. ERP'deki boşluklu VKN de eşleşir. Liste
+     * önbellekte: ikinci istek ERP'ye gitmez.
+     */
+    public function test_emor_vkn_var_kolonu_ve_suzgeci_gonderici_vknsini_erp_kurum_kartlariyla_karsilastirir(): void
+    {
+        $kaynak = $this->erpKurumlari(['111 222 3333' => 'Yanlış Kutuya Kesen A.Ş.']);
+        $protel = $this->protelTanimi();
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTLCARI', 'gonderici_vkn' => '1112223333']);
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTLDIS', 'gonderici_vkn' => '9998887777']);
+        $this->actingAs($this->izinli('protel_faturalari.goruntule'));
+        $liste = fn (string $ek = ''): array => collect($this->getJson('/api/v1/protel/gelen/faturalar?'.self::ARALIK.$ek)->assertOk()->json('data'))
+            ->mapWithKeys(fn (array $f): array => [$f['belge_no'] => $f['emor_kurum']])->all();
+
+        $this->assertEquals([
+            'OTLCARI' => ['var' => true, 'kod' => 'K-111 222 3333', 'ad' => 'Yanlış Kutuya Kesen A.Ş.'],
+            'OTLDIS' => ['var' => false, 'kod' => null, 'ad' => null],
+        ], $liste());
+        $this->assertSame(['OTLCARI'], array_keys($liste('&emor_vkn=evet')));
+        $this->assertSame(['OTLDIS'], array_keys($liste('&emor_vkn=hayir')));
+        $this->assertSame(1, $kaynak->okuma);
+    }
+
+    /**
+     * ERP okunamazsa liste yine açılır, kolon "bilinmiyor" (var=null); süzgeç
+     * sessizce boş ya da tam liste dönmez, ERP hatasını söyler.
+     */
+    public function test_erp_okunamazsa_emor_vkn_bilinmiyor_suzgec_hata_verir(): void
+    {
+        $this->erpKurumlari(null);
+        $protel = $this->protelTanimi();
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id]);
+        $this->actingAs($this->izinli('protel_faturalari.goruntule'));
+
+        $this->getJson('/api/v1/protel/gelen/faturalar?'.self::ARALIK)->assertOk()
+            ->assertJsonPath('data.0.emor_kurum', ['var' => null, 'kod' => null, 'ad' => null]);
+        $this->getJson('/api/v1/protel/gelen/faturalar?'.self::ARALIK.'&emor_vkn=evet')
+            ->assertStatus(502)->assertJsonPath('kod', ErpOkumaHatasi::OKUNAMADI);
+    }
+
     public function test_protel_listesi_yalniz_protel_tanimini_izibiz_listesi_yalniz_izibizi_gosterir(): void
     {
         $protel = $this->protelTanimi();
@@ -63,10 +140,14 @@ final class ProtelEkranTest extends TestCase
             ->assertJsonPath('data.0.belge_no', 'OTEL0000000000001')
             ->assertJsonPath('data.0.erp_durumu', 'New')
             ->assertJsonPath('data.0.yazdirildi', true);
+        // İzibiz ekranı "eMOR VKN Var" kolonunu taşımaz, ERP'ye de gitmez
+        $kaynak = $this->erpKurumlari([]);
         $this->actingAs($kullanici)->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK)
             ->assertOk()
             ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.belge_no', 'INSA0000000000001');
+            ->assertJsonPath('data.0.belge_no', 'INSA0000000000001')
+            ->assertJsonMissingPath('data.0.emor_kurum');
+        $this->assertSame(0, $kaynak->okuma);
     }
 
     /**
@@ -106,15 +187,18 @@ final class ProtelEkranTest extends TestCase
     {
         Http::preventStrayRequests();
         Http::fake();
+        $this->erpKurumlari(['0123456789' => 'Kayıtlı Cari']);
         $protel = $this->protelTanimi();
         $fatura = EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTEL0000000000001']);
         $kullanici = $this->izinli('protel_faturalari.goruntule', 'protel_faturalari.isle');
         $adres = "/api/v1/protel/faturalar/{$fatura->id}/islendi";
 
+        // Ekran satırı bu yanıtla yerinde günceller: "eMOR VKN Var" de gelir
         $this->actingAs($kullanici)->putJson($adres, ['islendi' => true])
             ->assertOk()
             ->assertJsonPath('data.belge_no', 'OTEL0000000000001')
-            ->assertJsonPath('data.sap_islendi', true);
+            ->assertJsonPath('data.sap_islendi', true)
+            ->assertJsonPath('data.emor_kurum.var', true);
         $this->assertTrue($fatura->fresh()->sap_islendi);
 
         // Kaldırılınca hiç işaretlenmemiş hâle döner (Tüm Faturalar'da "—")

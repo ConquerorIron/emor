@@ -70,7 +70,11 @@ final class EFaturaExcelAktarici
         'otel_erp_okundu' => ['metin', 12],
         // Tüm Faturalar: hangi sisteme girildi — kaynak uçlar gelene kadar boş (null)
         'sap' => ['metin', 10],
+        // Protel ve Tüm Faturalar: karşı tarafın VKN'si eMOR'daki bir kurum kartında mı
+        'emor_vkn' => ['metin', 12],
     ];
+
+    public function __construct(private readonly ErpKurumVknleri $kurumlar) {}
 
     /**
      * @param  Builder<EFatura>  $sorgu  filtrelenmiş ve sıralanmış sorgu
@@ -187,6 +191,8 @@ final class EFaturaExcelAktarici
             }],
             'emor' => ['metin', $f->emor_durumu === null ? null : __('efatura.emor.'.$f->emor_durumu->value)],
             'otel_erp_okundu' => ['metin', $this->evetHayir($f->otel_erp_okundu)],
+            // ERP okunamazsa boş (bilinmiyor); ekrandaki gibi
+            'emor_vkn' => ['metin', $this->kurumlar->harita() === null ? null : $this->evetHayir($this->kurumlar->kurum($f->getAttribute($karsi.'_vkn')) !== null)],
             // Ekrandaki gibi: portalda reddedilen Protel faturası "Red" (önce gelir),
             // işlenen "İşlendi" (Protel'de anahtarla işaretlenir)
             'sap' => ['metin', match (true) {

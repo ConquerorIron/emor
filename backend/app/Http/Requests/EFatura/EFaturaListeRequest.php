@@ -44,6 +44,8 @@ final class EFaturaListeRequest extends FormRequest
             'tip' => ['nullable', 'string', 'max:64'],
             'istisna_kodu' => ['nullable', 'string', 'max:50'],
             'istisnali' => ['nullable', Rule::in(['evet'])],
+            // Karşı tarafın VKN'si eMOR'daki bir kurum kartında mı (ErpKurumVknleri)
+            'emor_vkn' => ['nullable', Rule::in(['evet', 'hayir'])],
             // Gizlenen faturalar varsayılan listede yok; 'dahil' ile onlar da gelir
             'gizlenenler' => ['nullable', Rule::in(['dahil'])],
             'para_birimi' => ['nullable', 'string', 'size:3'],
@@ -87,12 +89,12 @@ final class EFaturaListeRequest extends FormRequest
     }
 
     /**
-     * @return array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, otel_erp_okundu?: string|null, entegrator?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null}
+     * @return array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, otel_erp_okundu?: string|null, entegrator?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null, emor_vkn?: string|null}
      */
     public function filtre(): array
     {
-        /** @var array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, otel_erp_okundu?: string|null, entegrator?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null} */
-        return $this->safe()->only(['baslangic', 'bitis', 'ara', 'durum', 'erp_okundu', 'otel_erp_okundu', 'entegrator', 'emor', 'para_birimi', 'tip', 'istisna_kodu', 'istisnali', 'gizlenenler']);
+        /** @var array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, otel_erp_okundu?: string|null, entegrator?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null, emor_vkn?: string|null} */
+        return $this->safe()->only(['baslangic', 'bitis', 'ara', 'durum', 'erp_okundu', 'otel_erp_okundu', 'entegrator', 'emor', 'para_birimi', 'tip', 'istisna_kodu', 'istisnali', 'gizlenenler', 'emor_vkn']);
     }
 
     /**

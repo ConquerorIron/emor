@@ -38,6 +38,8 @@ import {
   senkronDurumuGetir,
   xmlIndir,
 } from '@/features/efatura/efaturaApi'
+import { EmorVknRozeti } from '@/features/efatura/EmorVknRozeti'
+import { HizliFiltre } from '@/features/efatura/HizliFiltre'
 import {
   DetayDugmesi,
   EvetHayirRozeti,
@@ -72,6 +74,7 @@ const BOS_FILTRE: Omit<EFaturaFiltresi, 'baslangic' | 'bitis'> = {
   istisna_kodu: '',
   istisnali: '',
   gizlenenler: '',
+  emor_vkn: '',
 }
 
 /** Gizlenen fatura "Gizlenenleri de göster" açıkken soluk görünür */
@@ -144,32 +147,6 @@ function IstisnaKodu({ deger, farkli }: { deger: string | null; farkli: boolean 
     </span>
   ) : (
     <span className="whitespace-nowrap">{deger}</span>
-  )
-}
-
-/** Hızlı filtre düğmesi: basılıyken dolu mavi, tekrar basınca kapanır. */
-function HizliFiltre({
-  aktif,
-  onClick,
-  children,
-}: {
-  aktif: boolean
-  onClick: () => void
-  children: string
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={aktif}
-      onClick={onClick}
-      className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
-        aktif
-          ? 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700 dark:border-blue-500 dark:bg-blue-600'
-          : 'border-slate-300 text-slate-700 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-blue-950 dark:hover:text-blue-300'
-      }`}
-    >
-      {children}
-    </button>
   )
 }
 
@@ -355,6 +332,13 @@ export function EFaturalarPage({
             siralamaAnahtari: 'sap',
             hizala: 'orta' as const,
             render: (f: EFatura) => <SapDurumu fatura={f} />,
+          },
+          // Göndericinin VKN'si eMOR'daki bir kurum kartında mı (kullanıcı isteği 2026-11-25)
+          {
+            anahtar: 'emor_vkn',
+            baslik: t('efatura.kolon.emorVkn'),
+            hizala: 'orta' as const,
+            render: (f: EFatura) => <EmorVknRozeti kurum={f.emor_kurum} />,
           },
         ]
       : []),
@@ -683,6 +667,14 @@ export function EFaturalarPage({
             onClick={() => filtreDegistir('istisnali', filtre.istisnali === 'evet' ? '' : 'evet')}
           >
             {t('efatura.hizliFiltre.istisnalilar')}
+          </HizliFiltre>
+        ) : null}
+        {tum ? (
+          <HizliFiltre
+            aktif={filtre.emor_vkn === 'evet'}
+            onClick={() => filtreDegistir('emor_vkn', filtre.emor_vkn === 'evet' ? '' : 'evet')}
+          >
+            {t('efatura.hizliFiltre.emorVknVar')}
           </HizliFiltre>
         ) : null}
         {gelen ? (

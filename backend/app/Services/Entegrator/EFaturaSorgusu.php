@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Builder;
  * Faturalar'da sağlayıcı başına aktif tanım) + yöndür (test ve canlı hesabın
  * faturaları karışmaz). Sıralama kolonları allow-list'tir.
  *
- * @phpstan-type Filtre array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, otel_erp_okundu?: string|null, entegrator?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null}
+ * @phpstan-type Filtre array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, otel_erp_okundu?: string|null, entegrator?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null, emor_vkn?: string|null}
  */
 final class EFaturaSorgusu
 {
@@ -32,6 +32,8 @@ final class EFaturaSorgusu
 
     /** Satırın sağlayıcısı (Tüm Faturalar'ın Entegratör kolonu) — sabit ifade, girdi içermez */
     private const SAGLAYICI_IFADESI = '(SELECT saglayici FROM entegrator_baglantilari WHERE entegrator_baglantilari.id = efatura_faturalari.entegrator_baglanti_id)';
+
+    public function __construct(private readonly ErpKurumVknleri $kurumlar) {}
 
     /**
      * @param  EntegratorBaglanti|list<EntegratorBaglanti>  $tanimlar
@@ -131,6 +133,17 @@ final class EFaturaSorgusu
         // Hızlı filtre: iki kaynaktan birinde vergi istisna kodu olanlar
         if (($filtre['istisnali'] ?? null) === 'evet') {
             $sorgu->where(fn (Builder $q) => $q->whereNotNull('vergi_istisna_kodu')->orWhereNotNull('izibiz_istisna_kodu'));
+        }
+
+        // "eMOR VKN Var": karşı tarafın VKN'si eMOR'daki bir kurum kartında. Liste
+        // ERP'den gelir; okunamazsa süzgeç sessizce boş / tam dönmez, hata verir
+        $emorVkn = $filtre['emor_vkn'] ?? null;
+        if ($emorVkn !== null) {
+            $vknler = array_map('strval', array_keys($this->kurumlar->gerekli()));
+            [$karsiVkn] = $this->karsiKolonlar($yon);
+            $emorVkn === 'evet'
+                ? $sorgu->whereIn($karsiVkn, $vknler)
+                : $sorgu->where(fn (Builder $q) => $q->whereNull($karsiVkn)->orWhereNotIn($karsiVkn, $vknler));
         }
 
         return $sorgu;

@@ -83,6 +83,11 @@ export interface EFatura {
   sap_islendi: boolean | null
   /** Protel portalında reddedilmiş: "İşlendi" işaretlenemez, SAP kolonunda "Red" */
   protel_red: boolean
+  /**
+   * Yalnız Protel Gelen Faturalar ve Tüm Faturalar: karşı tarafın VKN'si eMOR'daki
+   * bir kurum kartında mı (var=null: ERP okunamadı)
+   */
+  emor_kurum?: EmorKurumu
   /** Yalnız Tüm Faturalar: satırın posta kutusu (XML yalnız İzibiz'de) */
   saglayici?: 'izibiz' | 'protel'
 }
@@ -125,6 +130,16 @@ export interface SaglayiciTazeligi {
 
 export type ErpOkunduFiltresi = '' | 'evet' | 'hayir' | 'bilinmiyor'
 
+/** "eMOR VKN Var" süzgeci */
+export type EmorVknFiltresi = '' | 'evet' | 'hayir'
+
+/** Karşı tarafın eMOR'daki (canlı ERP) kurum kartı; var=null: ERP okunamadı */
+export interface EmorKurumu {
+  var: boolean | null
+  kod: string | null
+  ad: string | null
+}
+
 /**
  * eMOR: islendi = muhasebeleşmiş (gelen: TOHOM_FATURA / TOHOM_HARCAMA_BELGESI,
  * ETTN ile), elle_islendi = e-fatura eşleştirilmeden elle girilmiş (fatura no +
@@ -152,6 +167,8 @@ export interface EFaturaFiltresi {
   istisnali: '' | 'evet'
   /** Boş: gizlenenler listede yok; dahil: onlar da gelir */
   gizlenenler: '' | 'dahil'
+  /** Hızlı filtre: karşı tarafın VKN'si eMOR'daki bir kurum kartında olanlar / olmayanlar */
+  emor_vkn: EmorVknFiltresi
 }
 
 export interface Siralama {
@@ -205,6 +222,7 @@ function parametreler(filtre: EFaturaFiltresi, siralama: Siralama | null): Recor
     'istisna_kodu',
     'istisnali',
     'gizlenenler',
+    'emor_vkn',
   ] as const) {
     const deger = filtre[anahtar].trim()
     if (deger !== '') {

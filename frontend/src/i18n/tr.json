@@ -869,7 +869,8 @@
       "sistemBekleniyor": "Bu bilgi, SAP servisi açıldığında gelecek.",
       "sapProtelde": "Protel Gelen Faturalar ekranında \"İşlendi\" işaretlenmedi.",
       "entegrator": "Entegratör",
-      "siraNo": "Sıra No"
+      "siraNo": "Sıra No",
+      "emorVkn": "eMOR VKN Var"
     },
     "erpSenkron": {
       "ac": "ERP Senkronla",
@@ -902,7 +903,8 @@
       "erpIslenmeyenler": "ERP İşlenmeyenler",
       "erpIslenenler": "ERP İşlenenler",
       "istisnalilar": "Vergi İstisnası Olanlar",
-      "havuzdaOlmayanlar": "Havuzda Olmayanlar"
+      "havuzdaOlmayanlar": "Havuzda Olmayanlar",
+      "emorVknVar": "eMOR'da Kayıtlı Firmalar"
     },
     "istisnaFarkli": "Entegratördeki ve ERP'deki istisna kodu farklı",
     "gizleme": {
@@ -924,6 +926,9 @@
     "saglayici": {
       "izibiz": "İzibiz",
       "protel": "Protel"
+    },
+    "emorVkn": {
+      "bilinmiyor": "eMOR'daki kurum kartları şu an okunamadı; biraz sonra sayfayı yenileyin."
     }
   },
   "protel": {

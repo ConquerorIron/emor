@@ -869,7 +869,8 @@
       "sistemBekleniyor": "This will be filled once the SAP service is available.",
       "sapProtelde": "Not marked as \"Processed\" on the Protel Incoming Invoices screen.",
       "entegrator": "Integrator",
-      "siraNo": "No."
+      "siraNo": "No.",
+      "emorVkn": "eMOR VKN Exists"
     },
     "erpSenkron": {
       "ac": "Sync with ERP",
@@ -902,7 +903,8 @@
       "erpIslenmeyenler": "Not processed in ERP",
       "erpIslenenler": "Processed in ERP",
       "istisnalilar": "With tax exemption",
-      "havuzdaOlmayanlar": "Not in ERP pool"
+      "havuzdaOlmayanlar": "Not in ERP pool",
+      "emorVknVar": "Registered in eMOR"
     },
     "istisnaFarkli": "Exemption code differs between the integrator and the ERP",
     "gizleme": {
@@ -924,6 +926,9 @@
     "saglayici": {
       "izibiz": "İzibiz",
       "protel": "Protel"
+    },
+    "emorVkn": {
+      "bilinmiyor": "eMOR company cards could not be read right now; refresh the page shortly."
     }
   },
   "protel": {

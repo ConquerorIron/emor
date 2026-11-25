@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\EFatura;
+use App\Services\Entegrator\ErpKurumVknleri;
+use App\Services\Entegrator\FaturaYonu;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -16,6 +18,14 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 final class EFaturaResource extends JsonResource
 {
+    /**
+     * İstek özniteliği: "eMOR VKN Var" kolonu hesaplansın (Protel Gelen
+     * Faturalar ve Tüm Faturalar). Diğer ekranlar ERP'ye boşuna gitmesin.
+     * Asıl isteğe yazılır (`request()`): FormRequest ayrı bir nesnedir,
+     * resource çerçevenin isteğini okur.
+     */
+    public const EMOR_KURUMU = 'efatura.emor_kurumu';
+
     /**
      * @return array<string, mixed>
      */
@@ -74,6 +84,9 @@ final class EFaturaResource extends JsonResource
             'sap_islendi' => $this->getAttribute('sap_islendi'),
             // Protel portalında reddedilmiş: "İşlendi" yerine "Red" (anahtar kapalı)
             'protel_red' => $this->protelReddedildi(),
+            // "eMOR VKN Var": karşı tarafın VKN'si eMOR'daki bir kurum kartında mı;
+            // var=null: ERP okunamadı (bilinmiyor)
+            'emor_kurum' => $this->when($request->attributes->getBoolean(self::EMOR_KURUMU), fn (): array => $this->emorKurumu()),
             'son_gorulme' => $this->getAttribute('son_gorulme')?->toIso8601String(),
             'gizli' => $this->gizlenme_zamani !== null,
             'gizlenme_zamani' => $this->gizlenme_zamani?->toIso8601String(),
@@ -82,5 +95,22 @@ final class EFaturaResource extends JsonResource
             // Yalnız Tüm Faturalar (iki sağlayıcı birlikte): satırın posta kutusu
             'saglayici' => $this->whenLoaded('entegratorBaglanti', fn (): string => $this->entegratorBaglanti->saglayici),
         ];
+    }
+
+    /**
+     * @return array{var: bool|null, kod: string|null, ad: string|null}
+     */
+    private function emorKurumu(): array
+    {
+        $kurumlar = app(ErpKurumVknleri::class);
+        $vkn = $this->yon === FaturaYonu::Gelen->value ? $this->getAttribute('gonderici_vkn') : $this->getAttribute('alici_vkn');
+
+        if ($kurumlar->harita() === null) {
+            return ['var' => null, 'kod' => null, 'ad' => null];
+        }
+
+        $kurum = $kurumlar->kurum($vkn);
+
+        return ['var' => $kurum !== null, 'kod' => $kurum['kod'] ?? null, 'ad' => $kurum['ad'] ?? null];
     }
 }

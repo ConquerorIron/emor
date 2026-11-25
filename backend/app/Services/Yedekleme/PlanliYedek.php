@@ -37,6 +37,12 @@ final class PlanliYedek
     /** Bir çalışmada hedef başına yeniden denenecek önceki başarısız kopya sayısı (YF-04) */
     public const YENIDEN_DENEME_ADET = 3;
 
+    /**
+     * Bir kopya için en çok kaç kopyalama çağrısı (ilk çağrı dahil; her çağrı
+     * `kopya_deneme` kez dener). Sonra yeniden denenmez, elle bakılır.
+     */
+    public const EN_COK_TUR = 3;
+
     public function __construct(
         private readonly YedeklemeYapilandirmasi $yapilandirma,
         private readonly YedekAlici $alici,
@@ -160,6 +166,9 @@ final class PlanliYedek
                 ->where('yedek_hedefi_id', $hedef->id)
                 ->where('durum', KopyaDurumu::Basarisiz->value)
                 ->where('yedek_id', '!=', $yeni->id)
+                // Kalıcı olarak düşen kopya (ör. yerel dosya bozuk) her çalışmada
+                // yeniden yüklenmesin: ilk çağrı dahil en çok EN_COK_TUR çağrı (D8)
+                ->where('deneme', '<', $this->yapilandirma->kopyaDenemeSayisi() * self::EN_COK_TUR)
                 ->whereHas('yedek', fn ($q) => $q->where('durum', YedekDurumu::Tamam->value)->where('imzali', true)->whereNull('yerel_silinme_zamani'))
                 ->with('yedek')
                 ->get()

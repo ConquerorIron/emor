@@ -22,6 +22,8 @@ import {
 } from '@/features/efatura/bicim'
 import { durumIsaretSinifi, durumSatirSinifi } from '@/features/efatura/durumRenkleri'
 import type { EFatura, ErpOkunduFiltresi, ExcelKolonu } from '@/features/efatura/efaturaApi'
+import { EmorVknRozeti } from '@/features/efatura/EmorVknRozeti'
+import { HizliFiltre } from '@/features/efatura/HizliFiltre'
 import {
   EvetHayirRozeti,
   Metin,
@@ -75,6 +77,7 @@ export function ProtelFaturalariPage() {
     otel_erp_okundu: '',
     para_birimi: '',
     tip: '',
+    emor_vkn: '',
   }))
   const [sayfa, setSayfa] = useState(1)
   const [pdf, setPdf] = useState<AcikPdf>(null)
@@ -132,6 +135,13 @@ export function ProtelFaturalariPage() {
   }
 
   const secilebilirKolonlar: DataTableKolonu<EFatura>[] = [
+    {
+      // Gönderici eMOR'da kayıtlı bir cari mi: yanlışlıkla otele kesilen fatura (kullanıcı isteği 2026-11-25)
+      anahtar: 'emor_vkn',
+      baslik: t('efatura.kolon.emorVkn'),
+      hizala: 'orta' as const,
+      render: (f) => <EmorVknRozeti kurum={f.emor_kurum} />,
+    },
     {
       anahtar: 'belge_no',
       baslik: t('efatura.kolon.faturaNo'),
@@ -456,6 +466,22 @@ export function ProtelFaturalariPage() {
             isClearable
           />
         </div>
+      </div>
+
+      <div
+        className="mt-3 flex flex-wrap items-center gap-2"
+        role="group"
+        aria-label={t('efatura.hizliFiltre.baslik')}
+      >
+        <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+          {t('efatura.hizliFiltre.baslik')}
+        </span>
+        <HizliFiltre
+          aktif={filtre.emor_vkn === 'evet'}
+          onClick={() => filtreDegistir('emor_vkn', filtre.emor_vkn === 'evet' ? '' : 'evet')}
+        >
+          {t('efatura.hizliFiltre.emorVknVar')}
+        </HizliFiltre>
       </div>
 
       {tarihHatasi !== null ? (

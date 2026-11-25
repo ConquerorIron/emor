@@ -47,6 +47,7 @@ final class TumFaturalarController extends Controller
         $sayfa = $this->sorgu->sirala($sorgu->clone(), FaturaYonu::Gelen, $request->input('sirala'), $request->input('yon'))
             ->with(['gizleyen:id,ad', 'entegratorBaglanti:id,saglayici'])
             ->paginate($request->sayfaBoyutu());
+        request()->attributes->set(EFaturaResource::EMOR_KURUMU, true);
 
         return EFaturaResource::collection($sayfa)
             ->additional([

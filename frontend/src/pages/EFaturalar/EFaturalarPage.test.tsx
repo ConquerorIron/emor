@@ -1039,7 +1039,7 @@ describe('EFaturalarPage', () => {
     }
     const IZINLER = ['tum_faturalar.goruntule', 'tum_faturalar.pdf', 'tum_faturalar.disari_aktar']
 
-    it('birleşik listeyi ister; en solda Entegratör, sonra eMOR Okudu, eMOR ve boş SAP kolonu; senkron paneli yok', async () => {
+    it('birleşik listeyi ister; en solda Entegratör, sonra eMOR Okudu, eMOR, boş SAP ve eMOR VKN Var kolonu; senkron paneli yok', async () => {
       api.faturalar.mockResolvedValue(BIRLESIK)
       ciz(IZINLER, 'tum')
       await screen.findByText('Otel Tedarik A.Ş.')
@@ -1055,11 +1055,12 @@ describe('EFaturalarPage', () => {
       const basliklar = screen
         .getAllByRole('columnheader')
         .map((th) => th.textContent?.replace(/[↕▲▼]/g, ''))
-      expect(basliklar.slice(2, 7)).toEqual([
+      expect(basliklar.slice(2, 8)).toEqual([
         'Entegratör',
         'eMOR Okudu',
         'eMOR',
         'SAP',
+        'eMOR VKN Var',
         'Fatura No',
       ])
       // İşaretlenmemiş SAP boş ve açıklamalı: Protel'de ekranın anahtarı, İzibiz'de SAP ucu bekleniyor
@@ -1078,6 +1079,24 @@ describe('EFaturalarPage', () => {
       // Senkron sağlayıcı ekranlarında: durum istenmez
       expect(api.durum).not.toHaveBeenCalled()
       expect(screen.queryByRole('button', { name: 'Entegratör Senkronla' })).not.toBeInTheDocument()
+    })
+
+    it('"eMOR’da Kayıtlı Firmalar" hızlı filtresi emor_vkn=evet ister', async () => {
+      api.faturalar.mockResolvedValue(BIRLESIK)
+      ciz(IZINLER, 'tum')
+      await screen.findByText('Otel Tedarik A.Ş.')
+
+      fireEvent.click(screen.getByRole('button', { name: "eMOR'da Kayıtlı Firmalar" }))
+
+      await waitFor(() =>
+        expect(api.faturalar).toHaveBeenLastCalledWith(
+          'gelen',
+          expect.objectContaining({ emor_vkn: 'evet' }),
+          VARSAYILAN_SIRALAMA,
+          1,
+          'tum',
+        ),
+      )
     })
 
     it('Entegratör ve SAP kolonlarına göre sıralanır; işlenen fatura "İşlendi", reddedilen Protel faturası "Red" görünür', async () => {

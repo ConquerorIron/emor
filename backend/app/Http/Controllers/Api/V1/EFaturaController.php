@@ -51,6 +51,8 @@ final class EFaturaController extends Controller
         $sayfa = $this->sorgu->sirala($sorgu->clone(), $faturaYonu, $request->input('sirala'), $request->input('yon'))
             ->with('gizleyen:id,ad')
             ->paginate($request->sayfaBoyutu());
+        // Protel Gelen Faturalar'da "eMOR VKN Var" kolonu (ERP'deki kurum kartları)
+        request()->attributes->set(EFaturaResource::EMOR_KURUMU, $tanim->saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL);
 
         return EFaturaResource::collection($sayfa)
             ->additional([
@@ -97,7 +99,10 @@ final class EFaturaController extends Controller
      */
     public function gizle(EFaturaGizlemeRequest $request, int $fatura): EFaturaResource
     {
-        $kayit = $this->aktifHesabinFaturasi($this->aktifTanim($request), $fatura);
+        $tanim = $this->aktifTanim($request);
+        $kayit = $this->aktifHesabinFaturasi($tanim, $fatura);
+        // Ekran satırı bu yanıtla yerinde günceller: liste yanıtıyla aynı alanlar
+        request()->attributes->set(EFaturaResource::EMOR_KURUMU, $tanim->saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL);
 
         // Yanlış posta kutusu yalnız gelen faturada olur; giden gizlenmez
         if ($kayit->yon !== FaturaYonu::Gelen->value) {
@@ -131,6 +136,8 @@ final class EFaturaController extends Controller
     public function islendi(ProtelIslendiRequest $request, int $fatura): EFaturaResource
     {
         $kayit = $this->aktifHesabinFaturasi($this->aktifTanim($request), $fatura);
+        // Ekran satırı bu yanıtla yerinde günceller: liste yanıtıyla aynı alanlar
+        request()->attributes->set(EFaturaResource::EMOR_KURUMU, true);
         $islendi = $request->boolean('islendi');
 
         if ($kayit->protelReddedildi()) {

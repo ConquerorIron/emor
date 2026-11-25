@@ -152,7 +152,7 @@ describe('ProtelFaturalariPage', () => {
     expect(satir.querySelector('td')).toHaveTextContent('1')
     expect(within(satir).getByText('Muhasebeleşti')).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: /Otel ERP Durumu/ })).toBeInTheDocument()
-    expect(screen.queryByRole('columnheader', { name: /eMOR/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /^eMOR$/ })).not.toBeInTheDocument()
     // PDF izni yoksa düğme de yok
     expect(screen.queryByRole('button', { name: 'PDF' })).not.toBeInTheDocument()
   })
@@ -242,6 +242,58 @@ describe('ProtelFaturalariPage', () => {
     expect(screen.getByRole('switch', { name: 'OTL2026000000001 işlendi' })).toBeEnabled()
   })
 
+  it('eMOR VKN Var kolonu kurum kartını gösterir; hızlı filtre emor_vkn=evet ister, tekrar basınca kalkar', async () => {
+    api.faturalar.mockResolvedValue(
+      liste([
+        { ...FATURA, emor_kurum: { var: true, kod: '120.01.001', ad: 'Deniz İletişim A.Ş.' } },
+        {
+          ...FATURA,
+          id: 22,
+          belge_no: 'OTL2026000000002',
+          emor_kurum: { var: false, kod: null, ad: null },
+        },
+        {
+          ...FATURA,
+          id: 23,
+          belge_no: 'OTL2026000000003',
+          emor_kurum: { var: null, kod: null, ad: null },
+        },
+      ]),
+    )
+    ciz(['protel_faturalari.goruntule'])
+
+    const hucre = async (belgeNo: string) => {
+      const satir = (await screen.findByText(belgeNo)).closest('tr') as HTMLElement
+      const sira = screen
+        .getAllByRole('columnheader')
+        .findIndex((th) => th.textContent?.startsWith('eMOR VKN Var'))
+
+      return satir.querySelectorAll('td')[sira]
+    }
+    expect(await hucre('OTL2026000000001')).toHaveTextContent(/^Evet$/)
+    expect(
+      within(await hucre('OTL2026000000001')).getByTitle('120.01.001 — Deniz İletişim A.Ş.'),
+    ).toBeInTheDocument()
+    expect(await hucre('OTL2026000000002')).toHaveTextContent(/^Hayır$/)
+    // ERP okunamadı: bilinmiyor
+    expect(within(await hucre('OTL2026000000003')).getByTitle(/okunamadı/)).toHaveTextContent('—')
+
+    const dugme = screen.getByRole('button', { name: "eMOR'da Kayıtlı Firmalar" })
+    expect(dugme).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(dugme)
+    await waitFor(() =>
+      expect(api.faturalar).toHaveBeenLastCalledWith(
+        expect.objectContaining({ emor_vkn: 'evet' }),
+        expect.anything(),
+        1,
+      ),
+    )
+    expect(dugme).toHaveAttribute('aria-pressed', 'true')
+    // Tekrar basınca kalkar (önceki sonuç önbellekten gelir)
+    fireEvent.click(dugme)
+    expect(dugme).toHaveAttribute('aria-pressed', 'false')
+  })
+
   it('PDF portalda yazdırılmamış faturada da açılır ve Protel PDF ucu doğru id ile çağrılır', async () => {
     api.faturalar.mockResolvedValue(
       liste([FATURA, { ...FATURA, id: 22, belge_no: 'OTL2026000000002', yazdirildi: false }]),
@@ -284,7 +336,7 @@ describe('ProtelFaturalariPage', () => {
     expect(siralama).toEqual({ anahtar: 'olusturma_zamani', yon: 'desc' })
     expect(sayfa).toBe(1)
     expect(kolonlar.map((k) => k.anahtar)).toEqual(
-      expect.arrayContaining(['belge_no', 'erp_durumu', 'yazdirildi']),
+      expect.arrayContaining(['emor_vkn', 'belge_no', 'erp_durumu', 'yazdirildi']),
     )
     expect(kolonlar.find((k) => k.anahtar === 'erp_durumu')?.baslik).toBe('Otel ERP Durumu')
   })
