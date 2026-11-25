@@ -52,7 +52,59 @@ export const router = createBrowserRouter([
         ],
       },
       {
-        // Tüm Faturalar — İzibiz + Protel gelen faturaların birleşik listesi; ayrı izin
+        // e-Fatura panosu (EK-09): portal bazında sayılar; ayrı izin
+        element: <IzinAlani izin="efatura_panosu.goruntule" />,
+        children: [
+          {
+            path: 'efatura/pano',
+            lazy: async () => ({
+              Component: (await import('@/pages/EFaturaPanosu/EFaturaPanosuPage'))
+                .EFaturaPanosuPage,
+            }),
+          },
+        ],
+      },
+      {
+        // e-Fatura işlem geçmişi (EK-03): elle işlemlerin kullanıcı bazlı kaydı
+        element: <IzinAlani izin="efatura_islem_gecmisi.goruntule" />,
+        children: [
+          {
+            path: 'efatura/islem-gecmisi',
+            lazy: async () => ({
+              Component: (await import('@/pages/EFaturaIslemGecmisi/EFaturaIslemGecmisiPage'))
+                .EFaturaIslemGecmisiPage,
+            }),
+          },
+        ],
+      },
+      {
+        // Logo Gelen Faturalar (EK-07): kapanan portalın statik listesi
+        element: <IzinAlani izin="logo_faturalari.goruntule" />,
+        children: [
+          {
+            path: 'efatura/logo',
+            lazy: async () => ({
+              Component: (await import('@/pages/LogoFaturalari/LogoFaturalariPage'))
+                .LogoFaturalariPage,
+            }),
+          },
+        ],
+      },
+      {
+        // e-Arşiv / e-SMM Gelen Faturalar / Makbuzlar (EK-08): aylık statik liste
+        element: <IzinAlani izin="earsiv_faturalari.goruntule" />,
+        children: [
+          {
+            path: 'efatura/earsiv',
+            lazy: async () => ({
+              Component: (await import('@/pages/EarsivFaturalari/EarsivFaturalariPage'))
+                .EarsivFaturalariPage,
+            }),
+          },
+        ],
+      },
+      {
+        // Tüm Faturalar — bütün kaynakların birleşik gelen listesi; ayrı izin
         element: <IzinAlani izin="tum_faturalar.goruntule" />,
         children: [
           {

@@ -228,21 +228,32 @@ final class EFaturaEmorTest extends TestCase
         $this->assertSame(EmorDurumu::Yok, $baskaFirma->fresh()->emor_durumu);
     }
 
-    public function test_islenmeyenler_ve_islenenler_filtreleri_elle_islenenleri_islenmis_sayar(): void
+    /**
+     * Hızlı filtreler (EK-01, kullanıcı isteği 2026-11-25): entegratörde ya da
+     * harici RED olmuş fatura "ERP İşlenmeyenler" / "ERP İşlenenler"e gelmez;
+     * "RED" süzgecinde ve filtresiz listede vardır.
+     */
+    public function test_islenmeyenler_ve_islenenler_filtreleri_elle_islenenleri_islenmis_sayar_red_faturayi_getirmez(): void
     {
         $tanim = $this->tanim();
         $yok = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'yok']);
         $havuzda = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'havuzda']);
         $elle = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'elle_islendi']);
         $islendi = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'islendi']);
+        $entegratordeRed = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'yok', 'durum' => 'REJECTED']);
+        $hariciRed = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'havuzda', 'harici_red_zamani' => '2026-01-12 08:00:00']);
+        $redAmaIslenmis = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'islendi', 'durum' => 'REJECTED']);
         $kullanici = User::factory()->yonetici()->create();
         $idler = fn (string $filtre): array => array_column(
-            $this->actingAs($kullanici)->getJson('/api/v1/efatura/gelen/faturalar?baslangic=2026-01-01&bitis=2026-01-31&emor='.$filtre)->assertOk()->json('data'),
+            $this->actingAs($kullanici)->getJson('/api/v1/efatura/gelen/faturalar?baslangic=2026-01-01&bitis=2026-01-31'.$filtre)->assertOk()->json('data'),
             'id',
         );
 
-        $this->assertEqualsCanonicalizing([$yok->id, $havuzda->id], $idler('islenmemis'));
-        $this->assertEqualsCanonicalizing([$elle->id, $islendi->id], $idler('islenmis'));
+        $this->assertEqualsCanonicalizing([$yok->id, $havuzda->id], $idler('&sinif=islenecek'));
+        $this->assertEqualsCanonicalizing([$elle->id, $islendi->id], $idler('&sinif=islendi'));
+        $this->assertEqualsCanonicalizing([$entegratordeRed->id, $hariciRed->id, $redAmaIslenmis->id], $idler('&sinif=red'));
+        $this->assertSame([$redAmaIslenmis->id], $idler('&sinif=red_islenmis'));
+        $this->assertCount(7, $idler(''));
     }
 
     /**

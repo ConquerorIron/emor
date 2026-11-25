@@ -26,6 +26,9 @@ final class EFaturaResource extends JsonResource
      */
     public const EMOR_KURUMU = 'efatura.emor_kurumu';
 
+    /** Satır başına sorgu olmasın: liste ve işlem uçları bunları yükler */
+    public const ILISKILER = ['gizleyen:id,ad', 'hariciRedEden:id,ad'];
+
     /**
      * @return array<string, mixed>
      */
@@ -80,10 +83,15 @@ final class EFaturaResource extends JsonResource
             'erp_durumu' => $this->getAttribute('erp_durumu'),
             'yazdirildi' => $this->getAttribute('yazdirildi'),
             'otel_erp_okundu' => $this->getAttribute('otel_erp_okundu'),
-            // Tüm Faturalar: SAP'ye işlendi mi (kaynak uç gelene kadar null)
+            // SAP'ye işlendi mi: Protel / statik kaynakta elle işaret, İzibiz'de kaynak uç bekleniyor
             'sap_islendi' => $this->getAttribute('sap_islendi'),
-            // Protel portalında reddedilmiş: "İşlendi" yerine "Red" (anahtar kapalı)
-            'protel_red' => $this->protelReddedildi(),
+            // RED (EK-01, EK-04): kaynakta reddedilmiş ya da yetkili kullanıcının RED'e
+            // çektiği fatura — "İşlendi" yerine "Red", hızlı filtrelerde görünmez
+            'red' => $this->red(),
+            // Statik kaynaklar (EK-05): e-Arşiv tanımında belge türü, e-SMM makbuzunda brüt ve stopaj
+            'belge_turu' => $this->getAttribute('belge_turu'),
+            'brut_tutar' => $this->getAttribute('brut_tutar'),
+            'stopaj_tutari' => $this->getAttribute('stopaj_tutari'),
             // "eMOR VKN Var": karşı tarafın VKN'si eMOR'daki bir kurum kartında mı;
             // var=null: ERP okunamadı (bilinmiyor)
             'emor_kurum' => $this->when($request->attributes->getBoolean(self::EMOR_KURUMU), fn (): array => $this->emorKurumu()),
@@ -94,6 +102,29 @@ final class EFaturaResource extends JsonResource
             'gizleyen' => $this->relationLoaded('gizleyen') ? $this->gizleyen?->ad : null,
             // Yalnız Tüm Faturalar (iki sağlayıcı birlikte): satırın posta kutusu
             'saglayici' => $this->whenLoaded('entegratorBaglanti', fn (): string => $this->entegratorBaglanti->saglayici),
+        ];
+    }
+
+    /**
+     * Harici RED'in kim / ne zaman / neden bilgisi yalnız yüklendiyse (liste ve
+     * işlem uçları `ILISKILER`'i yükler).
+     *
+     * @return array{var: bool, kaynak: 'kaynak'|'harici'|null, zaman: string|null, eden: string|null, neden: string|null}
+     */
+    private function red(): array
+    {
+        $harici = $this->harici_red_zamani !== null;
+
+        return [
+            'var' => $this->reddedildi(),
+            'kaynak' => match (true) {
+                $this->kaynaktaReddedildi() => 'kaynak',
+                $harici => 'harici',
+                default => null,
+            },
+            'zaman' => $this->harici_red_zamani?->toIso8601String(),
+            'eden' => $harici && $this->relationLoaded('hariciRedEden') ? $this->hariciRedEden?->ad : null,
+            'neden' => $this->harici_red_nedeni,
         ];
     }
 

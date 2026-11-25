@@ -137,8 +137,10 @@ final class EFaturaSenkronTest extends TestCase
         $tanim = EntegratorBaglanti::factory()->create();
         $this->sahteIzibiz([$this->kayit(1), $this->kayit(2)]);
         $this->servis()->senkronEt($tanim, FaturaYonu::Gelen, $this->gun('2026-01-01'), $this->gun('2026-01-31'), 'manuel');
-        // Ekrandan gizlenmiş, "İşlendi" işaretlenmiş: senkron bu alanlara dokunmaz
+        // Ekrandan gizlenmiş, "İşlendi" işaretlenmiş, harici RED'e çekilmiş (EK-04):
+        // senkron bu alanlara dokunmaz
         EFatura::query()->where('kaynak_id', 1)->update(['gizlenme_zamani' => now(), 'sap_islendi' => true]);
+        EFatura::query()->where('kaynak_id', 2)->update(['harici_red_zamani' => now(), 'harici_red_nedeni' => 'Noter kanalıyla iptal']);
 
         $this->travelTo('2026-09-23 12:00:00');
         $this->sahteIzibiz([$this->kayit(1, ['documentStatus' => ['value' => 'ACCEPTED', 'label' => 'Kabul Edildi'], 'erpReadFlag' => true]), $this->kayit(2), $this->kayit(3)]);
@@ -153,6 +155,9 @@ final class EFaturaSenkronTest extends TestCase
         $this->assertSame('2026-09-23 12:00:00', $fatura->son_gorulme->utc()->format('Y-m-d H:i:s'));
         $this->assertSame('2026-09-23 11:24:41', $fatura->gizlenme_zamani?->utc()->format('Y-m-d H:i:s'));
         $this->assertTrue($fatura->sap_islendi);
+        $red = EFatura::query()->where('kaynak_id', 2)->firstOrFail();
+        $this->assertSame('2026-09-23 11:24:41', $red->harici_red_zamani?->utc()->format('Y-m-d H:i:s'));
+        $this->assertSame('Noter kanalıyla iptal', $red->harici_red_nedeni);
     }
 
     public function test_aralik_takvim_aylarina_bolunur(): void
@@ -212,7 +217,9 @@ final class EFaturaSenkronTest extends TestCase
         $this->travelTo('2026-09-23 11:24:41');
         $tanim = EntegratorBaglanti::factory()->create();
         $this->sahteIzibiz([$this->kayit(1, ['accountingCustomer' => ['identifier' => '9876543210', 'name' => 'Gizli Alıcı Unvanı']])]);
-        // Yazma hatası üret (PostgreSQL'de ör. kolon uzunluğu aşımı)
+        // Yazma hatası üret (PostgreSQL'de ör. kolon uzunluğu aşımı). Bağımlı tablo
+        // (işlem geçmişi) önce düşer: PostgreSQL bağımlısı olan tabloyu düşürmez (T14)
+        Schema::drop('efatura_islem_gecmisi');
         Schema::drop('efatura_faturalari');
 
         try {

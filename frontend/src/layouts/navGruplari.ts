@@ -29,9 +29,22 @@ export const NAV_GRUPLARI: NavGrubu[] = [
     ],
   },
   {
-    // İki posta kutusunun (İzibiz + Protel) birleşik listesi, sağlayıcı gruplarının üstünde
+    // Bütün kaynakların panosu, birleşik listesi ve elle işlemlerin geçmişi; kaynak gruplarının üstünde
     baslikAnahtari: 'nav.efatura',
-    ogeler: [{ to: '/efatura/tum', ad: 'tumFaturalar', izin: 'tum_faturalar.goruntule' }],
+    ogeler: [
+      { to: '/efatura/pano', ad: 'efaturaPanosu', izin: 'efatura_panosu.goruntule' },
+      { to: '/efatura/tum', ad: 'tumFaturalar', izin: 'tum_faturalar.goruntule' },
+      {
+        to: '/efatura/islem-gecmisi',
+        ad: 'efaturaIslemGecmisi',
+        izin: 'efatura_islem_gecmisi.goruntule',
+      },
+    ],
+  },
+  {
+    // Kapanan Logo portalının statik listesi (EK-07)
+    baslikAnahtari: 'nav.logo',
+    ogeler: [{ to: '/efatura/logo', ad: 'logoGelenFaturalar', izin: 'logo_faturalari.goruntule' }],
   },
   {
     // e-Fatura posta kutuları sağlayıcıya göre ayrı grup (kullanıcı kararı 2026-11-20)
@@ -46,6 +59,13 @@ export const NAV_GRUPLARI: NavGrubu[] = [
     baslikAnahtari: 'nav.protel',
     ogeler: [
       { to: '/efatura/protel', ad: 'protelGelenFaturalar', izin: 'protel_faturalari.goruntule' },
+    ],
+  },
+  {
+    // GİB'den alınan e-Arşiv faturaları ve e-SMM makbuzları, aylık statik liste (EK-08)
+    baslikAnahtari: 'nav.earsiv',
+    ogeler: [
+      { to: '/efatura/earsiv', ad: 'earsivGelenFaturalar', izin: 'earsiv_faturalari.goruntule' },
     ],
   },
   {

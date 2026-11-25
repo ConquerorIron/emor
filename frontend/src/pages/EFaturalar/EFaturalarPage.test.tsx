@@ -25,7 +25,9 @@ const api = vi.hoisted(() => ({
 const toastlar = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 vi.mock('sonner', () => ({ toast: toastlar }))
 
-vi.mock('@/features/efatura/efaturaApi', () => ({
+vi.mock('@/features/efatura/efaturaApi', async (asil) => ({
+  // Sabitler (kaynak sırası, işlem türleri) gerçek modülden
+  ...(await asil<typeof import('@/features/efatura/efaturaApi')>()),
   faturalariGetir: api.faturalar,
   senkronDurumuGetir: api.durum,
   senkronBaslat: api.senkron,
@@ -87,7 +89,10 @@ const FATURA: EFatura = {
   gizleyen: null,
   otel_erp_okundu: null,
   sap_islendi: null,
-  protel_red: false,
+  red: { var: false, kaynak: null, zaman: null, eden: null, neden: null },
+  belge_turu: null,
+  brut_tutar: null,
+  stopaj_tutari: null,
 }
 
 /** Gelen faturalar kullanıcı henüz sıralamadıysa en son alınan üstte açılır */
@@ -506,7 +511,7 @@ describe('EFaturalarPage', () => {
     await waitFor(() =>
       expect(api.faturalar).toHaveBeenLastCalledWith(
         'gelen',
-        expect.objectContaining({ emor: 'islenmemis', istisnali: 'evet' }),
+        expect.objectContaining({ sinif: 'islenecek', istisnali: 'evet' }),
         VARSAYILAN_SIRALAMA,
         1,
         'izibiz',
@@ -518,7 +523,7 @@ describe('EFaturalarPage', () => {
     await waitFor(() =>
       expect(api.faturalar).toHaveBeenLastCalledWith(
         'gelen',
-        expect.objectContaining({ emor: '', istisnali: 'evet' }),
+        expect.objectContaining({ sinif: '', istisnali: 'evet' }),
         VARSAYILAN_SIRALAMA,
         1,
         'izibiz',
@@ -527,7 +532,7 @@ describe('EFaturalarPage', () => {
     expect(islenmeyenler).toHaveAttribute('aria-pressed', 'false')
   })
 
-  it('Havuzda Olmayanlar eMOR "ERP’de yok" ister; ERP İşlenmeyenler ile birlikte basılı kalmaz', async () => {
+  it('Havuzda Olmayanlar eMOR "ERP’de yok" ister; sınıf süzgeciyle birlikte uygulanır', async () => {
     ciz(['efatura.goruntule'])
     await screen.findByText('Deniz Boya Ltd.')
     const grup = screen.getByRole('group', { name: 'Hızlı filtreler' })
@@ -540,22 +545,23 @@ describe('EFaturalarPage', () => {
     await waitFor(() =>
       expect(api.faturalar).toHaveBeenLastCalledWith(
         'gelen',
-        expect.objectContaining({ emor: 'yok' }),
+        expect.objectContaining({ emor: 'yok', sinif: 'islenecek' }),
         VARSAYILAN_SIRALAMA,
         1,
         'izibiz',
       ),
     )
     expect(havuzdaOlmayanlar).toHaveAttribute('aria-pressed', 'true')
-    expect(islenmeyenler).toHaveAttribute('aria-pressed', 'false')
+    expect(islenmeyenler).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('ERP İşlenenler eMOR "işlenenler" ister; ERP İşlenmeyenler ile birlikte basılı kalmaz', async () => {
+  it('ERP İşlenenler, İşlenmeyenler ve RED aynı sınıf alanını paylaşır: biri basılınca diğeri kalkar', async () => {
     ciz(['efatura.goruntule'])
     await screen.findByText('Deniz Boya Ltd.')
     const grup = screen.getByRole('group', { name: 'Hızlı filtreler' })
     const islenenler = within(grup).getByRole('button', { name: 'ERP İşlenenler' })
     const islenmeyenler = within(grup).getByRole('button', { name: 'ERP İşlenmeyenler' })
+    const red = within(grup).getByRole('button', { name: 'RED Faturalar' })
 
     fireEvent.click(islenmeyenler)
     fireEvent.click(islenenler)
@@ -563,7 +569,7 @@ describe('EFaturalarPage', () => {
     await waitFor(() =>
       expect(api.faturalar).toHaveBeenLastCalledWith(
         'gelen',
-        expect.objectContaining({ emor: 'islenmis' }),
+        expect.objectContaining({ sinif: 'islendi' }),
         VARSAYILAN_SIRALAMA,
         1,
         'izibiz',
@@ -571,6 +577,18 @@ describe('EFaturalarPage', () => {
     )
     expect(islenenler).toHaveAttribute('aria-pressed', 'true')
     expect(islenmeyenler).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(red)
+    await waitFor(() =>
+      expect(api.faturalar).toHaveBeenLastCalledWith(
+        'gelen',
+        expect.objectContaining({ sinif: 'red' }),
+        VARSAYILAN_SIRALAMA,
+        1,
+        'izibiz',
+      ),
+    )
+    expect(islenenler).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('tip ve vergi istisna kodu seçenekleri listedeki değerlerden gelir', async () => {
@@ -708,7 +726,7 @@ describe('EFaturalarPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Detay' }))
     const dialog = await screen.findByRole('dialog')
 
-    expect(within(dialog).getByText(FATURA.ettn)).toBeInTheDocument()
+    expect(within(dialog).getByText(String(FATURA.ettn))).toBeInTheDocument()
     expect(within(dialog).getByText('185664')).toBeInTheDocument()
     expect(within(dialog).getByText(/Bu ekran yalnız gösterir, değiştirmez/)).toBeInTheDocument()
   })
@@ -1081,6 +1099,46 @@ describe('EFaturalarPage', () => {
       expect(screen.queryByRole('button', { name: 'Entegratör Senkronla' })).not.toBeInTheDocument()
     })
 
+    it('panodaki sayının bağlantısı listeyi aynı süzgeçle açar; uyarı süzgeci görünür ve kaldırılabilir', async () => {
+      window.history.pushState(
+        {},
+        '',
+        '/efatura/tum?baslangic=2026-02-01&bitis=2026-02-28&entegrator=logo&sinif=red_islenmis',
+      )
+      api.faturalar.mockResolvedValue(BIRLESIK)
+      try {
+        ciz(IZINLER, 'tum')
+        await screen.findByText('Otel Tedarik A.Ş.')
+
+        expect(api.faturalar).toHaveBeenCalledWith(
+          'gelen',
+          expect.objectContaining({
+            baslangic: '2026-02-01',
+            bitis: '2026-02-28',
+            entegrator: 'logo',
+            sinif: 'red_islenmis',
+          }),
+          VARSAYILAN_SIRALAMA,
+          1,
+          'tum',
+        )
+        const uyari = screen.getByRole('button', { name: 'RED ama İşlenmiş' })
+        expect(uyari).toHaveAttribute('aria-pressed', 'true')
+        fireEvent.click(uyari)
+        await waitFor(() =>
+          expect(api.faturalar).toHaveBeenLastCalledWith(
+            'gelen',
+            expect.objectContaining({ sinif: '' }),
+            VARSAYILAN_SIRALAMA,
+            1,
+            'tum',
+          ),
+        )
+      } finally {
+        window.history.pushState({}, '', '/')
+      }
+    })
+
     it('"eMOR’da Kayıtlı Firmalar" hızlı filtresi emor_vkn=evet ister', async () => {
       api.faturalar.mockResolvedValue(BIRLESIK)
       ciz(IZINLER, 'tum')
@@ -1111,7 +1169,7 @@ describe('EFaturalarPage', () => {
             id: 13,
             belge_no: 'OTL2026000000003',
             sap_islendi: true,
-            protel_red: true,
+            red: { var: true, kaynak: 'kaynak', zaman: null, eden: null, neden: null },
           },
         ],
       })

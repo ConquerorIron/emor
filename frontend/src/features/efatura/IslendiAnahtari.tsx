@@ -4,33 +4,38 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { apiErrorKey } from '@/api/errors'
-import { queryKeys } from '@/api/queryKeys'
 import { Switch } from '@/components/Switch'
-import type { EFatura, EFaturaListesi } from '@/features/efatura/efaturaApi'
-import { protelIslendiDegistir } from '@/features/efatura/protelApi'
-import { ProtelRedRozeti } from '@/features/efatura/ProtelRedRozeti'
+
+import type { EFatura } from './efaturaApi'
+import { faturaSatiriniGuncelle } from './faturaOnbellegi'
+import { faturaIslendiDegistir, type IslenebilirEkran } from './faturaIslemApi'
+import { RedRozeti } from './RedRozeti'
 
 /**
- * Satırdaki "İşlendi" anahtarı (kullanıcı isteği 2026-11-23): tıklanınca hemen
- * kaydedilir. İşaret yalnız eMOR'da tutulur ve Tüm Faturalar'ın SAP kolonunda
- * "İşlendi" görünür; Protel'de hiçbir şey değişmez. Satır sunucunun döndürdüğü
- * faturayla yerinde güncellenir (liste yeniden çekilmez).
+ * Satırdaki "İşlendi" (SAP) anahtarı (Protel: kullanıcı isteği 2026-11-23;
+ * statik kaynaklar: EK-07): tıklanınca hemen kaydedilir. İşaret yalnız eMOR'da
+ * tutulur; kaynağın kendisinde hiçbir şey değişmez. Satır sunucunun döndürdüğü
+ * faturayla yerinde güncellenir (liste yeniden çekilmez). RED faturada anahtar
+ * yerine "Red" yazar.
  */
-export function IslendiAnahtari({ fatura, izinli }: { fatura: EFatura; izinli: boolean }) {
+export function IslendiAnahtari({
+  fatura,
+  izinli,
+  ekran,
+}: {
+  fatura: EFatura
+  izinli: boolean
+  ekran: IslenebilirEkran
+}) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   // Bekleme durumu bir sonraki çizimde gelir: art arda iki tıklama tek istek (F5)
   const suruyor = useRef(false)
 
   const degistir = useMutation({
-    mutationFn: (islendi: boolean) => protelIslendiDegistir(fatura.id, islendi),
+    mutationFn: (islendi: boolean) => faturaIslendiDegistir(ekran, fatura.id, islendi),
     onSuccess: (guncel) => {
-      queryClient.setQueriesData<EFaturaListesi>({ queryKey: queryKeys.protel.listeler }, (eski) =>
-        eski === undefined
-          ? eski
-          : { ...eski, data: eski.data.map((f) => (f.id === guncel.id ? guncel : f)) },
-      )
-      void queryClient.invalidateQueries({ queryKey: queryKeys.tumFaturalar.hepsi })
+      faturaSatiriniGuncelle(queryClient, guncel)
       toast.success(
         t(
           guncel.sap_islendi === true ? 'protel.islendi.isaretlendi' : 'protel.islendi.kaldirildi',
@@ -46,9 +51,8 @@ export function IslendiAnahtari({ fatura, izinli }: { fatura: EFatura; izinli: b
     },
   })
 
-  // Portalda reddedilen fatura İşlendi'ye çevrilemez: anahtar yerine yalnız "Red"
-  if (fatura.protel_red) {
-    return <ProtelRedRozeti />
+  if (fatura.red.var) {
+    return <RedRozeti red={fatura.red} />
   }
 
   return (

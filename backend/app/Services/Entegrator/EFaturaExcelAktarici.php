@@ -72,6 +72,10 @@ final class EFaturaExcelAktarici
         'sap' => ['metin', 10],
         // Protel ve Tüm Faturalar: karşı tarafın VKN'si eMOR'daki bir kurum kartında mı
         'emor_vkn' => ['metin', 12],
+        // e-Arşiv / e-SMM ekranı (EK-08): belge türü, makbuzun brüt ücreti ve stopajı
+        'belge_turu' => ['metin', 10],
+        'brut_tutar' => ['tutar', 16],
+        'stopaj_tutari' => ['tutar', 14],
     ];
 
     public function __construct(private readonly ErpKurumVknleri $kurumlar) {}
@@ -193,10 +197,10 @@ final class EFaturaExcelAktarici
             'otel_erp_okundu' => ['metin', $this->evetHayir($f->otel_erp_okundu)],
             // ERP okunamazsa boş (bilinmiyor); ekrandaki gibi
             'emor_vkn' => ['metin', $this->kurumlar->harita() === null ? null : $this->evetHayir($this->kurumlar->kurum($f->getAttribute($karsi.'_vkn')) !== null)],
-            // Ekrandaki gibi: portalda reddedilen Protel faturası "Red" (önce gelir),
-            // işlenen "İşlendi" (Protel'de anahtarla işaretlenir)
+            // Ekrandaki gibi: RED fatura (kaynakta ya da harici) "Red" (önce gelir),
+            // işlenen "İşlendi" (Protel / statik kaynakta anahtarla işaretlenir)
             'sap' => ['metin', match (true) {
-                $f->protelReddedildi() => __('efatura.sap_red'),
+                $f->reddedildi() => __('efatura.sap_red'),
                 $f->sap_islendi === true => __('efatura.sap_islendi'),
                 default => $this->evetHayir($f->sap_islendi),
             }],
@@ -211,6 +215,9 @@ final class EFaturaExcelAktarici
             'karsi_ad_soyad' => ['metin', $f->getAttribute($karsi.'_ad_soyad')],
             'tutar' => ['tutar', $f->tutar],
             'vergi_tutari' => ['tutar', $f->getAttribute('vergi_tutari')],
+            'brut_tutar' => ['tutar', $f->getAttribute('brut_tutar')],
+            'stopaj_tutari' => ['tutar', $f->getAttribute('stopaj_tutari')],
+            'belge_turu' => ['metin', $f->belge_turu === null ? null : __('efatura.belge_turu.'.$f->belge_turu)],
             'olusturma_zamani' => ['zaman', $f->getAttribute('olusturma_zamani')],
             'durum' => ['metin', $f->getAttribute('durum_aciklamasi') ?? $f->getAttribute('durum')],
             'zarf_durumu' => ['metin', $kod === null

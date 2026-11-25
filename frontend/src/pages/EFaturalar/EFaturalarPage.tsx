@@ -25,20 +25,25 @@ import { durumIsaretSinifi, durumSatirSinifi } from '@/features/efatura/durumRen
 import {
   type EFatura,
   type EFaturaFiltresi,
-  type EmorDurumu,
   type EmorFiltresi,
   type ErpOkunduFiltresi,
   type FaturaKapsami,
+  type FaturaSinifi,
   type FaturaYonu,
   excelIndir,
   type ExcelKolonu,
   faturalariGetir,
+  GELEN_SAGLAYICILARI,
+  type GizlenenlerFiltresi,
   pdfGetir,
+  type Saglayici,
   senkronBaslat,
   senkronDurumuGetir,
   xmlIndir,
 } from '@/features/efatura/efaturaApi'
+import { EmorRozeti } from '@/features/efatura/EmorRozeti'
 import { EmorVknRozeti } from '@/features/efatura/EmorVknRozeti'
+import { GecmisDugmesi } from '@/features/efatura/GecmisPenceresi'
 import { HizliFiltre } from '@/features/efatura/HizliFiltre'
 import {
   DetayDugmesi,
@@ -49,7 +54,8 @@ import {
   SiraNo,
 } from '@/features/efatura/ListeParcalari'
 import { PdfGoruntuleyici } from '@/features/efatura/PdfGoruntuleyici'
-import { ProtelRedRozeti } from '@/features/efatura/ProtelRedRozeti'
+import { RedDugmesi } from '@/features/efatura/RedIslemi'
+import { RedRozeti } from '@/features/efatura/RedRozeti'
 import { SenkronDurumuPaneli } from '@/features/efatura/SenkronDurumuPaneli'
 import { useDurumlaTazele, useFaturaListesi } from '@/features/efatura/useFaturaListesi'
 import { useDebounce } from '@/hooks/useDebounce'
@@ -68,6 +74,7 @@ const BOS_FILTRE: Omit<EFaturaFiltresi, 'baslangic' | 'bitis'> = {
   durum: '',
   erp_okundu: '',
   emor: '',
+  sinif: '',
   entegrator: '',
   para_birimi: '',
   tip: '',
@@ -85,49 +92,47 @@ const ERP_FILTRELERI: readonly ErpOkunduFiltresi[] = ['evet', 'hayir', 'bilinmiy
 const EMOR_FILTRELERI: readonly EmorFiltresi[] = [
   'islendi',
   'elle_islendi',
-  'islenmemis',
-  'islenmis',
   'havuzda',
   'yok',
   'bilinmiyor',
 ]
 
-/** Alarm mailindeki bağlantı (?erp_okundu=hayir) listeyi o filtreyle açar. */
-function adrestekiErpFiltresi(): ErpOkunduFiltresi {
-  const deger = new URLSearchParams(window.location.search).get('erp_okundu') ?? ''
+const SINIFLAR: readonly FaturaSinifi[] = ['islendi', 'islenecek', 'red', 'red_islenmis']
 
-  return (ERP_FILTRELERI as readonly string[]).includes(deger) ? (deger as ErpOkunduFiltresi) : ''
-}
+const TARIH_BICIMI = /^\d{4}-\d{2}-\d{2}$/
 
-const EMOR_ROZETLERI: Record<Exclude<EmorDurumu, 'yok'>, string> = {
-  islendi: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
-  elle_islendi: 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
-  havuzda: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+/** Adresteki değer izinli kümedeyse o, değilse boş (elle yazılan adres süzgeci bozmaz) */
+function adrestekiDeger<T extends string>(
+  parametreler: URLSearchParams,
+  ad: string,
+  izinli: readonly T[],
+): T | '' {
+  const deger = parametreler.get(ad) ?? ''
+
+  return (izinli as readonly string[]).includes(deger) ? (deger as T) : ''
 }
 
 /**
- * eMOR: İşlendi (muhasebeleşmiş) yeşil, elle işlendi (ETTN'siz, no + VKN ile)
- * mavi, Havuzda (ERP almış, muhasebeleşmemiş) sarı; ERP'de yoksa boş; henüz kontrol edilmediyse (null) soluk tire.
+ * Adresteki süzgeç: alarm mailindeki bağlantı (?erp_okundu=hayir) ve panodaki
+ * sayılar (?baslangic, bitis, entegrator, sinif, gizlenenler) listeyi o
+ * süzgeçle açar; panodaki sayı ile listenin toplamı aynıdır.
  */
-function EmorRozeti({ deger }: { deger: EmorDurumu | null }) {
-  const { t } = useTranslation()
+function adrestekiFiltre(varsayilan: EFaturaFiltresi): EFaturaFiltresi {
+  const parametreler = new URLSearchParams(window.location.search)
+  const baslangic = parametreler.get('baslangic') ?? ''
+  const bitis = parametreler.get('bitis') ?? ''
 
-  if (deger === null) {
-    return (
-      <span className="text-slate-400" title={t('efatura.emor.bilinmiyor')}>
-        —
-      </span>
-    )
+  return {
+    ...varsayilan,
+    ...(TARIH_BICIMI.test(baslangic) && TARIH_BICIMI.test(bitis) ? { baslangic, bitis } : {}),
+    erp_okundu: adrestekiDeger(parametreler, 'erp_okundu', ERP_FILTRELERI),
+    entegrator: adrestekiDeger<Saglayici>(parametreler, 'entegrator', GELEN_SAGLAYICILARI),
+    sinif: adrestekiDeger(parametreler, 'sinif', SINIFLAR),
+    gizlenenler: adrestekiDeger<GizlenenlerFiltresi>(parametreler, 'gizlenenler', [
+      'dahil',
+      'yalniz',
+    ]),
   }
-
-  return deger === 'yok' ? null : (
-    <span
-      className={`rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${EMOR_ROZETLERI[deger]}`}
-      title={t(`efatura.emor.aciklama.${deger}`)}
-    >
-      {t(`efatura.emor.${deger}`)}
-    </span>
-  )
 }
 
 /** İstisna kodu hücresi; iki kaynak farklıysa kırmızı ve açıklamalı. */
@@ -151,30 +156,28 @@ function IstisnaKodu({ deger, farkli }: { deger: string | null; farkli: boolean 
 }
 
 /**
- * Sistem kolonu (SAP): değer gelince Evet/Hayır; kaynak uç (SAP servisi) gelene
- * kadar boş ve açıklamalı.
- */
-/**
- * SAP kolonu: işlenen "İşlendi". Protel faturası Protel Gelen Faturalar
- * ekranındaki anahtarla işaretlenir (kullanıcı isteği 2026-11-23); İzibiz
- * için SAP ucu bekleniyor. Portalda reddedilen Protel faturası "Red" (önce gelir).
+ * SAP kolonu: işlenen "İşlendi". Protel ve statik kaynakların (Logo, e-Arşiv)
+ * faturası kendi ekranındaki anahtarla işaretlenir; İzibiz için SAP ucu
+ * bekleniyor. RED fatura (kaynakta ya da elle) "Red" (önce gelir).
  */
 function SapDurumu({ fatura }: { fatura: EFatura }) {
   const { t } = useTranslation()
 
-  if (fatura.protel_red) {
-    return <ProtelRedRozeti />
+  if (fatura.red.var) {
+    return <RedRozeti red={fatura.red} />
   }
 
   if (fatura.sap_islendi === null) {
     return (
       <span
         className="text-slate-400"
-        title={t(
-          fatura.saglayici === 'protel'
-            ? 'efatura.kolon.sapProtelde'
-            : 'efatura.kolon.sistemBekleniyor',
-        )}
+        title={
+          fatura.saglayici === undefined || fatura.saglayici === 'izibiz'
+            ? t('efatura.kolon.sistemBekleniyor')
+            : t('efatura.kolon.sapKaynakEkraninda', {
+                kaynak: t(`efatura.saglayici.${fatura.saglayici}`),
+              })
+        }
       >
         —
       </span>
@@ -215,15 +218,19 @@ export function EFaturalarPage({
   const gizlemeIzin = useIzin('efatura.gizle')
   const gizlemeIzni = !tum && gizlemeIzin
   const senkronIzni = useIzin('efatura.senkron')
+  const redIzni = useIzin(`${izinOneki}.red`)
+  // RED ve işlem geçmişi uçları ekranın kapsamıyla (Tüm Faturalar / İzibiz)
+  const islemEkrani = tum ? 'tum' : 'efatura'
   // Kalıcı sıralama / kolon seçimi ekran başına
   const ekranAnahtari = tum ? 'tum-faturalar' : `efatura-${yon}`
 
-  const [filtre, setFiltre] = useState<EFaturaFiltresi>(() => ({
-    ...BOS_FILTRE,
-    baslangic: varsayilanBaslangic(bugunIso()),
-    bitis: bugunIso(),
-    erp_okundu: adrestekiErpFiltresi(),
-  }))
+  const [filtre, setFiltre] = useState<EFaturaFiltresi>(() =>
+    adrestekiFiltre({
+      ...BOS_FILTRE,
+      baslangic: varsayilanBaslangic(bugunIso()),
+      bitis: bugunIso(),
+    }),
+  )
   const [sayfa, setSayfa] = useState(1)
   const [pencere, setPencere] = useState<AcikPencere>(null)
   const [excelSuruyor, setExcelSuruyor] = useState(false)
@@ -243,6 +250,9 @@ export function EFaturalarPage({
     setFiltre((onceki) => ({ ...onceki, [alan]: deger }))
     setSayfa(1)
   }
+  // Sınıf hızlı filtreleri aynı alanı paylaşır: biri basılıyken diğeri kalkar
+  const sinifDegistir = (sinif: FaturaSinifi) =>
+    filtreDegistir('sinif', filtre.sinif === sinif ? '' : sinif)
 
   // Senkron durumu sağlayıcı ekranlarında; birleşik listede istenmez
   const durum = useQuery({
@@ -537,6 +547,8 @@ export function EFaturalarPage({
         <div className="flex items-center gap-1">
           <DetayDugmesi onClick={() => setPencere({ tur: 'detay', fatura: f })} />
           {pdfIzni ? <PdfDugmesi onClick={() => setPencere({ tur: 'pdf', fatura: f })} /> : null}
+          {redIzni && gelen ? <RedDugmesi fatura={f} ekran={islemEkrani} /> : null}
+          <GecmisDugmesi fatura={f} ekran={islemEkrani} />
           {f.gizli ? (
             <span
               className="self-center rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200"
@@ -583,7 +595,7 @@ export function EFaturalarPage({
     value: d,
     label: t(`efatura.${d}`),
   }))
-  const entegratorSecenekleri: SecenekOgesi[] = (['izibiz', 'protel'] as const).map((d) => ({
+  const entegratorSecenekleri: SecenekOgesi[] = GELEN_SAGLAYICILARI.map((d) => ({
     value: d,
     label: t(`efatura.saglayici.${d}`),
   }))
@@ -638,22 +650,35 @@ export function EFaturalarPage({
         <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">
           {t('efatura.hizliFiltre.baslik')}
         </span>
+        {/* Faturanın sınıfı (EK-01): RED faturalar işlenen / işlenmeyen süzgecine gelmez
+            (kullanıcı isteği 2026-11-25); üçü aynı alanı paylaşır */}
         <HizliFiltre
-          aktif={filtre.emor === 'islenmemis'}
-          onClick={() => filtreDegistir('emor', filtre.emor === 'islenmemis' ? '' : 'islenmemis')}
+          aktif={filtre.sinif === 'islenecek'}
+          onClick={() => sinifDegistir('islenecek')}
         >
           {t('efatura.hizliFiltre.erpIslenmeyenler')}
         </HizliFiltre>
-        {/* eMOR alanını paylaşır: "ERP İşlenmeyenler" ile birlikte basılı olamaz */}
-        <HizliFiltre
-          aktif={filtre.emor === 'islenmis'}
-          onClick={() => filtreDegistir('emor', filtre.emor === 'islenmis' ? '' : 'islenmis')}
-        >
+        <HizliFiltre aktif={filtre.sinif === 'islendi'} onClick={() => sinifDegistir('islendi')}>
           {t('efatura.hizliFiltre.erpIslenenler')}
         </HizliFiltre>
         {gelen ? (
-          // Entegratörde olup ERP havuzunda (TOHOM_E_FATURA) olmayanlar = eMOR "ERP'de yok";
-          // eMOR alanını paylaştığı için "ERP İşlenmeyenler" ile birlikte basılı olamaz
+          <HizliFiltre aktif={filtre.sinif === 'red'} onClick={() => sinifDegistir('red')}>
+            {t('efatura.hizliFiltre.red')}
+          </HizliFiltre>
+        ) : null}
+        {/* Panonun uyarı sayısından gelinmişse görünür; basınca kalkar */}
+        {filtre.sinif === 'red_islenmis' ? (
+          <HizliFiltre aktif onClick={() => sinifDegistir('red_islenmis')}>
+            {t('efatura.hizliFiltre.redIslenmis')}
+          </HizliFiltre>
+        ) : null}
+        {filtre.gizlenenler === 'yalniz' ? (
+          <HizliFiltre aktif onClick={() => filtreDegistir('gizlenenler', '')}>
+            {t('efatura.hizliFiltre.yalnizGizlenenler')}
+          </HizliFiltre>
+        ) : null}
+        {gelen ? (
+          // Entegratörde olup ERP havuzunda (TOHOM_E_FATURA) olmayanlar = eMOR "ERP'de yok"
           <HizliFiltre
             aktif={filtre.emor === 'yok'}
             onClick={() => filtreDegistir('emor', filtre.emor === 'yok' ? '' : 'yok')}
@@ -952,11 +977,11 @@ export function EFaturalarPage({
           <PdfGoruntuleyici
             fatura={pencere.fatura}
             pdfGetir={(faturaId) => pdfGetir(faturaId, kapsam)}
-            // Protel'de XML yok (yalnız PDF)
+            // XML yalnız İzibiz faturasında (Protel ve statik kaynaklarda yalnız PDF)
             xmlIndir={
-              pencere.fatura.saglayici === 'protel'
-                ? undefined
-                : (fatura) => xmlIndir(fatura, kapsam)
+              pencere.fatura.saglayici === undefined || pencere.fatura.saglayici === 'izibiz'
+                ? (fatura) => xmlIndir(fatura, kapsam)
+                : undefined
             }
           />
         ) : null}

@@ -399,6 +399,11 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   `DB::transaction`); testi gerçek bir sorgu hatasıyla PostgreSQL'de koş.
   *(Fable incelemesi YF-17: başarısız yedekler listenin hep tepesindeydi.
   YF-12: denetim kaydı hatası ayar değişikliğini sessizce geri alıyordu.)*
+  SQLite `date` kolonunu metin saklar; Eloquent `date` cast'i yazarken saat de
+  ekler (`2026-11-22 00:00:00`): `where('tarih', '<=', '2026-11-22')` o günü
+  SQLite'ta dışarıda bırakır, PostgreSQL'de bırakmaz. Gün sınırını
+  `< ertesi gün` diye yaz; testte sınır gününe denk gelen kayıt koy.
+  *(EK-10 hatırlatması: eşik günündeki fatura yalnız SQLite'ta sayılmıyordu.)*
 - **T7 — Testin varsayımını da doğrula.** "Kütüphane bu girdiyi reddeder"
   diye yazmadan önce gerçekten reddettiğini dene.
   *(BY-001: kapanmayan tırnak ayrıştırıcıda hata sanıldı, oysa kabul ediliyordu.)*
@@ -448,6 +453,11 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   gerekçeyle geçer ya da düşer. Kancanın istisnasını yakalayıp sakla, testte
   `assertNull($kancaHatasi)` ile kurgunun gerçekten kurulduğunu sına.
   *(BY-028: 8. adım hata kancası yalnız PostgreSQL'de çalışmıyordu.)*
+  Bir tabloya yabancı anahtarla bağlanan YENİ tablo eklerken o tabloyu
+  `Schema::drop` ile düşüren testleri tara (G1): PostgreSQL bağımlısı olanı
+  düşürmez, kanca sessizce başka hata üretir. Çocuğu önce düşür.
+  *(EK-03: `efatura_islem_gecmisi` gelince senkron yazma-hatası testi yalnız
+  PostgreSQL'de düştü.)*
   Aynı işte: bağlantı bırakma (`DB::purge`) yalnız etkilenen veritabanına
   bağlı bağlantılara uygulanır; hepsini bırakmak testi saran işlemi de koparır.
 - **T15 — Yeniden başlatmayı taklit eden test bellekteki durumu sıfırlasın.**

@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Builder;
  * Faturalar'da sağlayıcı başına aktif tanım) + yöndür (test ve canlı hesabın
  * faturaları karışmaz). Sıralama kolonları allow-list'tir.
  *
- * @phpstan-type Filtre array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, otel_erp_okundu?: string|null, entegrator?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null, emor_vkn?: string|null}
+ * @phpstan-type Filtre array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, otel_erp_okundu?: string|null, entegrator?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null, emor_vkn?: string|null, sinif?: string|null, belge_turu?: string|null}
  */
 final class EFaturaSorgusu
 {
@@ -28,6 +28,8 @@ final class EFaturaSorgusu
         'senaryo', 'vergi_tutari', 'erp_durumu', 'yazdirildi', 'otel_erp_okundu',
         // Tüm Faturalar
         'entegrator', 'sap',
+        // e-Arşiv / e-SMM
+        'belge_turu', 'brut_tutar', 'stopaj_tutari',
     ];
 
     /** Satırın sağlayıcısı (Tüm Faturalar'ın Entegratör kolonu) — sabit ifade, girdi içermez */
@@ -47,8 +49,10 @@ final class EFaturaSorgusu
             ->whereIn('entegrator_baglanti_id', $this->tanimIdleri($tanimlar))
             ->where('yon', $yon->value)
             ->whereBetween('belge_tarihi', [$filtre['baslangic'], $filtre['bitis']])
-            // Gizlenen (bize ait olmayan) faturalar istenmedikçe gelmez; özet ve Excel de
-            ->when(($filtre['gizlenenler'] ?? null) !== 'dahil', fn (Builder $q) => $q->whereNull('gizlenme_zamani'));
+            // Gizlenen (bize ait olmayan) faturalar istenmedikçe gelmez; özet ve Excel de.
+            // 'yalniz': yalnız gizlenenler (pano)
+            ->when(($filtre['gizlenenler'] ?? null) === null, fn (Builder $q) => $q->whereNull('gizlenme_zamani'))
+            ->when(($filtre['gizlenenler'] ?? null) === 'yalniz', fn (Builder $q) => $q->whereNotNull('gizlenme_zamani'));
 
         $ara = trim((string) ($filtre['ara'] ?? ''));
         if ($ara !== '') {
@@ -75,7 +79,7 @@ final class EFaturaSorgusu
             });
         }
 
-        // Tüm Faturalar: yalnız bir sağlayıcının (İzibiz / Protel) faturaları
+        // Tüm Faturalar: yalnız bir sağlayıcının (İzibiz / Protel / Logo / e-Arşiv) faturaları
         if (($filtre['entegrator'] ?? null) !== null) {
             $sorgu->whereIn('entegrator_baglanti_id', array_map(
                 fn (EntegratorBaglanti $t): int => $t->id,
@@ -101,17 +105,28 @@ final class EFaturaSorgusu
             };
         }
 
-        // eMOR: islendi | elle_islendi | havuzda | yok (EmorDurumu), bilinmiyor = henüz
-        // kontrol edilmedi, islenmemis = işlendi (elle dahil) olmayanların hepsi,
-        // islenmis = işlendi (elle dahil) — ikisi de hızlı filtre
+        // eMOR: islendi | elle_islendi | havuzda | yok (EmorDurumu), bilinmiyor = henüz kontrol edilmedi
         match ($filtre['emor'] ?? null) {
             null => null,
             'bilinmiyor' => $sorgu->whereNull('emor_durumu'),
-            'islenmis' => $sorgu->whereIn('emor_durumu', [EmorDurumu::Islendi->value, EmorDurumu::ElleIslendi->value]),
-            'islenmemis' => $sorgu->where(fn (Builder $q) => $q->whereNull('emor_durumu')
-                ->orWhereNotIn('emor_durumu', [EmorDurumu::Islendi->value, EmorDurumu::ElleIslendi->value])),
             default => $sorgu->where('emor_durumu', $filtre['emor']),
         };
+
+        // Faturanın sınıfı (EK-01; tanım EFatura kapsamlarında, pano ve hatırlatma
+        // da onu kullanır): hızlı filtreler "ERP İşlenmeyenler / İşlenenler" RED
+        // faturayı getirmez (kullanıcı isteği 2026-11-25)
+        match ($filtre['sinif'] ?? null) {
+            'islendi' => $sorgu->islenen(),
+            'islenecek' => $sorgu->islenecek(),
+            'red' => $sorgu->reddedilen(),
+            'red_islenmis' => $sorgu->redAmaIslenen(),
+            default => null,
+        };
+
+        // e-Arşiv / e-SMM ekranı: fatura ya da makbuz
+        if (($filtre['belge_turu'] ?? null) !== null) {
+            $sorgu->where('belge_turu', $filtre['belge_turu']);
+        }
 
         if (($filtre['tip'] ?? null) !== null) {
             $sorgu->where('fatura_tipi', $filtre['tip']);
@@ -163,7 +178,7 @@ final class EFaturaSorgusu
         $sutun = match ($kolon) {
             'belge_no', 'tutar', 'olusturma_zamani', 'erp_okundu', 'fatura_tipi', 'para_birimi',
             'irsaliye_no', 'siparis_no', 'yanit_aciklamasi', 'senaryo', 'vergi_tutari',
-            'erp_durumu', 'yazdirildi', 'otel_erp_okundu' => $kolon,
+            'erp_durumu', 'yazdirildi', 'otel_erp_okundu', 'belge_turu', 'brut_tutar', 'stopaj_tutari' => $kolon,
             'karsi_unvan' => $karsiUnvan,
             'karsi_vkn' => $karsiVkn,
             'karsi_ad_soyad' => $yon === FaturaYonu::Gelen ? 'gonderici_ad_soyad' : 'alici_ad_soyad',
@@ -256,9 +271,9 @@ final class EFaturaSorgusu
         /** @var list<string> $tipler */
         $tipler = $taban->clone()->whereNotNull('fatura_tipi')->distinct()->orderBy('fatura_tipi')->pluck('fatura_tipi')->all();
         // İki kaynağın kodları birleşik; her ikisindeki virgüllü değerler ayrılır.
-        // Protel ekranı istisna kodu kullanmaz: sorgu hiç çalışmaz (PRT-R7)
-        $yalnizProtel = collect($tanimlar)->every(fn (EntegratorBaglanti $t): bool => $t->saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL);
-        $istisnaKodlari = $yalnizProtel ? [] : collect([
+        // İstisna kodu yalnız İzibiz faturalarında var: diğer ekranlarda sorgu hiç çalışmaz (PRT-R7)
+        $izibizYok = collect($tanimlar)->every(fn (EntegratorBaglanti $t): bool => $t->saglayici !== EntegratorBaglanti::SAGLAYICI_IZIBIZ);
+        $istisnaKodlari = $izibizYok ? [] : collect([
             ...$taban->clone()->whereNotNull('vergi_istisna_kodu')->distinct()->pluck('vergi_istisna_kodu'),
             ...$taban->clone()->whereNotNull('izibiz_istisna_kodu')->distinct()->pluck('izibiz_istisna_kodu'),
         ])->flatMap(fn (string $kodlar): array => explode(',', $kodlar))

@@ -5,6 +5,9 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\AlarmKuraliController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\EFaturaController;
+use App\Http\Controllers\Api\V1\EFaturaIceAktarimController;
+use App\Http\Controllers\Api\V1\EFaturaIslemGecmisiController;
+use App\Http\Controllers\Api\V1\EFaturaPanosuController;
 use App\Http\Controllers\Api\V1\EFaturaSenkronController;
 use App\Http\Controllers\Api\V1\EkranTasarimController;
 use App\Http\Controllers\Api\V1\EntegratorBaglantiController;
@@ -175,7 +178,30 @@ Route::prefix('v1')->group(function (): void {
                 ->whereNumber('fatura')
                 ->middleware(['can:tum_faturalar.pdf', 'throttle:efatura-pdf'])
                 ->name('tum_faturalar.faturalar.xml');
+            Route::put('/tum-faturalar/faturalar/{fatura}/red', [TumFaturalarController::class, 'red'])
+                ->whereNumber('fatura')
+                ->middleware('can:tum_faturalar.red')
+                ->name('tum_faturalar.faturalar.red');
+            Route::get('/tum-faturalar/faturalar/{fatura}/gecmis', [TumFaturalarController::class, 'gecmis'])
+                ->whereNumber('fatura')
+                ->name('tum_faturalar.faturalar.gecmis');
         });
+
+        // e-Fatura panosu (EK-09): portal bazında sayılar; kapsam Tüm Faturalar'la aynı
+        Route::middleware('can:efatura_panosu.goruntule')->group(function (): void {
+            Route::get('/efatura/pano', [EFaturaPanosuController::class, 'index'])
+                ->name('efatura.pano');
+            Route::get('/efatura/pano/firmalar', [EFaturaPanosuController::class, 'firmalar'])
+                ->name('efatura.pano.firmalar');
+            Route::get('/efatura/pano/firmalar/excel', [EFaturaPanosuController::class, 'firmalarExcel'])
+                ->middleware('throttle:efatura-excel')
+                ->name('efatura.pano.firmalar.excel');
+        });
+
+        // e-Fatura işlem geçmişi (EK-03): elle işlemlerin kullanıcı bazlı listesi
+        Route::get('/efatura/islem-gecmisi', [EFaturaIslemGecmisiController::class, 'index'])
+            ->middleware('can:efatura_islem_gecmisi.goruntule')
+            ->name('efatura.islem-gecmisi');
 
         // e-Fatura ekranları (EFAT-11) — kapsam aktif entegratör hesabı; izinler EFAT-18.
         // Her uç önce görüntüleme iznini ister: PDF/Excel/senkron izni tek başına
@@ -202,6 +228,13 @@ Route::prefix('v1')->group(function (): void {
                 ->whereNumber('fatura')
                 ->middleware('can:efatura.gizle')
                 ->name('efatura.faturalar.gizle');
+            Route::put('/efatura/faturalar/{fatura}/red', [EFaturaController::class, 'red'])
+                ->whereNumber('fatura')
+                ->middleware('can:efatura.red')
+                ->name('efatura.faturalar.red');
+            Route::get('/efatura/faturalar/{fatura}/gecmis', [EFaturaController::class, 'gecmis'])
+                ->whereNumber('fatura')
+                ->name('efatura.faturalar.gecmis');
             Route::post('/efatura/senkron', [EFaturaSenkronController::class, 'baslat'])
                 ->middleware('can:efatura.senkron')
                 ->name('efatura.senkron');
@@ -238,11 +271,73 @@ Route::prefix('v1')->group(function (): void {
                 ->defaults('saglayici', 'protel')
                 ->middleware('can:protel_faturalari.isle')
                 ->name('protel.faturalar.islendi');
+            Route::put('/protel/faturalar/{fatura}/red', [EFaturaController::class, 'red'])
+                ->whereNumber('fatura')
+                ->defaults('saglayici', 'protel')
+                ->middleware('can:protel_faturalari.red')
+                ->name('protel.faturalar.red');
+            Route::get('/protel/faturalar/{fatura}/gecmis', [EFaturaController::class, 'gecmis'])
+                ->whereNumber('fatura')
+                ->defaults('saglayici', 'protel')
+                ->name('protel.faturalar.gecmis');
             Route::post('/protel/senkron', [EFaturaSenkronController::class, 'baslat'])
                 ->defaults('saglayici', 'protel')
                 ->middleware('can:protel_faturalari.senkron')
                 ->name('protel.senkron');
         });
+
+        // Statik kaynaklar (EK-07, EK-08): Logo Gelen Faturalar ve e-Arşiv / e-SMM.
+        // Aynı denetleyiciler, `saglayici` varsayılanıyla: kapsam statik tanım.
+        // Senkron ve XML yok; veri Excel içe aktarımıyla gelir (EK-06).
+        foreach (['logo' => 'logo_faturalari', 'earsiv' => 'earsiv_faturalari'] as $onEk => $izin) {
+            Route::middleware("can:{$izin}.goruntule")->group(function () use ($onEk, $izin): void {
+                Route::get("/{$onEk}/{yon}/faturalar", [EFaturaController::class, 'index'])
+                    ->whereIn('yon', ['gelen'])
+                    ->defaults('saglayici', $onEk)
+                    ->name("{$onEk}.faturalar");
+                Route::get("/{$onEk}/{yon}/faturalar/excel", [EFaturaController::class, 'excel'])
+                    ->whereIn('yon', ['gelen'])
+                    ->defaults('saglayici', $onEk)
+                    ->middleware(["can:{$izin}.disari_aktar", 'throttle:efatura-excel'])
+                    ->name("{$onEk}.faturalar.excel");
+                Route::get("/{$onEk}/faturalar/{fatura}/pdf", [EFaturaController::class, 'pdf'])
+                    ->whereNumber('fatura')
+                    ->defaults('saglayici', $onEk)
+                    ->middleware(["can:{$izin}.pdf", 'throttle:efatura-pdf'])
+                    ->name("{$onEk}.faturalar.pdf");
+                Route::put("/{$onEk}/faturalar/{fatura}/islendi", [EFaturaController::class, 'islendi'])
+                    ->whereNumber('fatura')
+                    ->defaults('saglayici', $onEk)
+                    ->middleware("can:{$izin}.isle")
+                    ->name("{$onEk}.faturalar.islendi");
+                Route::put("/{$onEk}/faturalar/{fatura}/red", [EFaturaController::class, 'red'])
+                    ->whereNumber('fatura')
+                    ->defaults('saglayici', $onEk)
+                    ->middleware("can:{$izin}.red")
+                    ->name("{$onEk}.faturalar.red");
+                Route::get("/{$onEk}/faturalar/{fatura}/gecmis", [EFaturaController::class, 'gecmis'])
+                    ->whereNumber('fatura')
+                    ->defaults('saglayici', $onEk)
+                    ->name("{$onEk}.faturalar.gecmis");
+                // Excel içe aktarımı (EK-06): kontrol → kaydet; partiler ve geri alma
+                Route::post("/{$onEk}/ice-aktar/kontrol", [EFaturaIceAktarimController::class, 'kontrol'])
+                    ->defaults('saglayici', $onEk)
+                    ->middleware("can:{$izin}.ice_aktar")
+                    ->name("{$onEk}.ice-aktar.kontrol");
+                Route::post("/{$onEk}/ice-aktar", [EFaturaIceAktarimController::class, 'kaydet'])
+                    ->defaults('saglayici', $onEk)
+                    ->middleware("can:{$izin}.ice_aktar")
+                    ->name("{$onEk}.ice-aktar");
+                Route::get("/{$onEk}/yuklemeler", [EFaturaIceAktarimController::class, 'index'])
+                    ->defaults('saglayici', $onEk)
+                    ->name("{$onEk}.yuklemeler");
+                Route::delete("/{$onEk}/yuklemeler/{yukleme}", [EFaturaIceAktarimController::class, 'geriAl'])
+                    ->whereNumber('yukleme')
+                    ->defaults('saglayici', $onEk)
+                    ->middleware("can:{$izin}.ice_aktar")
+                    ->name("{$onEk}.yuklemeler.geri-al");
+            });
+        }
 
         // Kesinti Yönetimi → Kesinti Türleri. Modülün verisi ERP'de değil,
         // uygulamanın PostgreSQL'indedir

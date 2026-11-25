@@ -52,6 +52,11 @@ final class FaturaBelgeServisi
             return ['icerik' => $erpdeki, 'kaynak' => 'erp'];
         }
 
+        // Statik kaynağın (Logo, e-Arşiv) entegratörü yok: PDF yalnız eMOR arşivinden (EK-05 §4.5)
+        if ($tanim->statikMi()) {
+            throw EFaturaIslemHatasi::belgeYok();
+        }
+
         $kutu = FaturaYonu::from($fatura->yon)->izibizKutusu();
 
         return [
@@ -68,7 +73,7 @@ final class FaturaBelgeServisi
      */
     public function xml(EntegratorBaglanti $tanim, EFatura $fatura): array
     {
-        if ($tanim->saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL) {
+        if ($tanim->saglayici === EntegratorBaglanti::SAGLAYICI_PROTEL || $tanim->statikMi()) {
             throw new NotFoundHttpException;
         }
 
@@ -112,8 +117,9 @@ final class FaturaBelgeServisi
      */
     private function erpden(EFatura $fatura, Closure $oku): ?string
     {
-        // ERP havuzu yalnız gelen faturaları tutar: giden için sorgu atılmaz
-        if ($fatura->yon !== FaturaYonu::Gelen->value) {
+        // ERP havuzu yalnız gelen faturaları ETTN ile tutar: giden ve ETTN'siz
+        // (e-Arşiv / e-SMM listesi) belge için sorgu atılmaz
+        if ($fatura->yon !== FaturaYonu::Gelen->value || $fatura->ettn === null) {
             return null;
         }
 

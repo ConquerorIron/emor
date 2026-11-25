@@ -20,6 +20,7 @@ import {
   alarmKuraliKaydet,
   alarmKurallariniGetir,
 } from '@/features/ayarlar/alarmApi'
+import { GELEN_SAGLAYICILARI } from '@/features/efatura/efaturaApi'
 import { useIzin } from '@/hooks/useIzin'
 import { zamanGoster } from '@/utils/tarih'
 
@@ -33,20 +34,29 @@ function alicilariAyir(metin: string): string[] {
     .filter((adres) => adres !== '')
 }
 
-const PARAMETRELER: Record<
-  AlarmTuru,
-  readonly ('ardisik_hata' | 'gecikme_saat' | 'gun' | 'saat')[]
-> = {
+type SayiAlani = 'ardisik_hata' | 'gecikme_saat' | 'gun' | 'aralik_gun'
+
+const PARAMETRELER: Record<AlarmTuru, readonly (SayiAlani | 'saat' | 'portallar')[]> = {
   senkron_arizasi: ['ardisik_hata', 'gecikme_saat'],
   gunluk_ozet: ['saat'],
   erp_okumadi: ['gun', 'saat'],
+  // EK-10: N günden eski işlenecek faturalar, her M günde bir, seçili portallar
+  islenmemis_hatirlatma: ['gun', 'aralik_gun', 'saat', 'portallar'],
 }
 
-const ARALIKLAR = {
-  ardisik_hata: [1, 20],
-  gecikme_saat: [1, 72],
-  gun: [1, 30],
-} as const
+/** Sunucudaki sınırlarla aynı (AlarmKuraliGuncelleRequest); hatırlatmanın bekleme günü daha geniş */
+function aralik(tur: AlarmTuru, alan: SayiAlani): readonly [number, number] {
+  switch (alan) {
+    case 'ardisik_hata':
+      return [1, 20]
+    case 'gecikme_saat':
+      return [1, 72]
+    case 'aralik_gun':
+      return [1, 30]
+    case 'gun':
+      return tur === 'islenmemis_hatirlatma' ? [1, 60] : [1, 30]
+  }
+}
 
 function kuralSemasi(tur: AlarmTuru) {
   return z
@@ -56,7 +66,9 @@ function kuralSemasi(tur: AlarmTuru) {
       ardisik_hata: z.number(),
       gecikme_saat: z.number(),
       gun: z.number(),
+      aralik_gun: z.number(),
       saat: z.string(),
+      portallar: z.array(z.string()),
     })
     .superRefine((deger, ctx) => {
       const alicilar = alicilariAyir(deger.alicilar)
@@ -85,7 +97,17 @@ function kuralSemasi(tur: AlarmTuru) {
           }
           continue
         }
-        const [en, cok] = ARALIKLAR[alan]
+        if (alan === 'portallar') {
+          if (deger.portallar.length === 0) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['portallar'],
+              message: 'ayarlar.alarm.dogrulama.portalZorunlu',
+            })
+          }
+          continue
+        }
+        const [en, cok] = aralik(tur, alan)
         const sayi = deger[alan]
         if (!Number.isInteger(sayi) || sayi < en || sayi > cok) {
           ctx.addIssue({ code: 'custom', path: [alan], message: 'ayarlar.alarm.dogrulama.aralik' })
@@ -105,8 +127,20 @@ function formDegerleri(kural: AlarmKurali): KuralGirdisi {
     ardisik_hata: Number(p['ardisik_hata'] ?? 3),
     gecikme_saat: Number(p['gecikme_saat'] ?? 2),
     gun: Number(p['gun'] ?? 2),
+    aralik_gun: Number(p['aralik_gun'] ?? 3),
     saat: String(p['saat'] ?? '08:00'),
+    portallar: String(p['portallar'] ?? '')
+      .split(',')
+      .filter((portal) => portal !== ''),
   }
+}
+
+/** Formdaki değer → sunucu parametresi (portallar virgüllü metin) */
+function parametreDegeri(
+  girdi: KuralGirdisi,
+  alan: SayiAlani | 'saat' | 'portallar',
+): number | string {
+  return alan === 'portallar' ? girdi.portallar.join(',') : girdi[alan]
 }
 
 function SayiParametresi({
@@ -116,12 +150,12 @@ function SayiParametresi({
   hata,
 }: {
   tur: AlarmTuru
-  alan: 'ardisik_hata' | 'gecikme_saat' | 'gun'
+  alan: SayiAlani
   register: UseFormRegister<KuralGirdisi>
   hata?: string
 }) {
   const { t } = useTranslation()
-  const [en, cok] = ARALIKLAR[alan]
+  const [en, cok] = aralik(tur, alan)
 
   return (
     <Input
@@ -129,7 +163,10 @@ function SayiParametresi({
       type="number"
       min={en}
       max={cok}
-      label={t(`ayarlar.alarm.parametre.${alan}`)}
+      // Hatırlatmanın günü belge tarihinden sayılır (ERP uyarısında İzibiz'e ulaşmadan)
+      label={t(
+        `ayarlar.alarm.parametre.${tur === 'islenmemis_hatirlatma' && alan === 'gun' ? 'hatirlatmaGun' : alan}`,
+      )}
       hata={hata ? t(hata, { en, cok }) : undefined}
       {...register(alan, { valueAsNumber: true })}
     />
@@ -158,7 +195,7 @@ function KuralKarti({ kural }: { kural: AlarmKurali }) {
         aktif: girdi.aktif,
         alicilar: alicilariAyir(girdi.alicilar),
         parametreler: Object.fromEntries(
-          PARAMETRELER[kural.tur].map((alan) => [alan, girdi[alan]]),
+          PARAMETRELER[kural.tur].map((alan) => [alan, parametreDegeri(girdi, alan)]),
         ),
       }),
     onSuccess: async (kaydedilen) => {
@@ -214,7 +251,46 @@ function KuralKarti({ kural }: { kural: AlarmKurali }) {
 
       <div className="grid gap-4 sm:grid-cols-2">
         {PARAMETRELER[kural.tur].map((alan) =>
-          alan === 'saat' ? (
+          alan === 'portallar' ? (
+            <Controller
+              key={alan}
+              control={control}
+              name="portallar"
+              render={({ field }) => (
+                <fieldset className="sm:col-span-2">
+                  <legend className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    {t('ayarlar.alarm.parametre.portallar')}
+                  </legend>
+                  <div className="mt-2 flex flex-wrap gap-4">
+                    {GELEN_SAGLAYICILARI.map((portal) => (
+                      <label key={portal} className="inline-flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className="size-4 rounded border-slate-300"
+                          checked={field.value.includes(portal)}
+                          onChange={(olay) =>
+                            field.onChange(
+                              olay.target.checked
+                                ? GELEN_SAGLAYICILARI.filter(
+                                    (p) => p === portal || field.value.includes(p),
+                                  )
+                                : field.value.filter((p) => p !== portal),
+                            )
+                          }
+                        />
+                        {t(`efatura.pano.portal.${portal}`)}
+                      </label>
+                    ))}
+                  </div>
+                  {errors.portallar?.message ? (
+                    <p role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                      {t(errors.portallar.message)}
+                    </p>
+                  ) : null}
+                </fieldset>
+              )}
+            />
+          ) : alan === 'saat' ? (
             <Input
               key={alan}
               id={`${kural.tur}-saat`}

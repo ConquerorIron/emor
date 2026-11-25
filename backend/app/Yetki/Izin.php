@@ -26,12 +26,24 @@ enum Izin: string
     case TumFaturalarGoruntule = 'tum_faturalar.goruntule';
     case TumFaturalarPdf = 'tum_faturalar.pdf';
     case TumFaturalarDisariAktar = 'tum_faturalar.disari_aktar';
+    /** Gelen faturayı RED'e çekme / RED'i geri alma (EK-04) — her gelen fatura ekranının kendi izni */
+    case TumFaturalarRed = 'tum_faturalar.red';
+
+    /**
+     * e-Fatura panosu (EK-09): portal bazında gelen / işlenen / iptal /
+     * işlenecek sayıları. Sayıya tıklayınca Tüm Faturalar açılır (onun izni gerekir).
+     */
+    case EfaturaPanosuGoruntule = 'efatura_panosu.goruntule';
+
+    /** e-Fatura işlem geçmişi (EK-03): elle işlemlerin kullanıcı bazlı kaydı */
+    case EfaturaIslemGecmisiGoruntule = 'efatura_islem_gecmisi.goruntule';
 
     case EfaturaGoruntule = 'efatura.goruntule';
     case EfaturaPdf = 'efatura.pdf';
     case EfaturaDisariAktar = 'efatura.disari_aktar';
     case EfaturaSenkron = 'efatura.senkron';
     case EfaturaGizle = 'efatura.gizle';
+    case EfaturaRed = 'efatura.red';
 
     /**
      * Protel Gelen Faturalar — otelin posta kutusu (PRT-10). e-Fatura'dan ayrı
@@ -43,6 +55,25 @@ enum Izin: string
     case ProtelFaturalariDisariAktar = 'protel_faturalari.disari_aktar';
     /** Faturayı "İşlendi" işaretleme — yalnız eMOR'da tutulur (Tüm Faturalar → SAP) */
     case ProtelFaturalariIsle = 'protel_faturalari.isle';
+    case ProtelFaturalariRed = 'protel_faturalari.red';
+
+    /**
+     * Statik kaynak ekranları (EK-07, EK-08): Logo Gelen Faturalar ve e-Arşiv /
+     * e-SMM Gelen Faturalar / Makbuzlar. "Güncelle"si Excel listesini içe aktarmaktır.
+     */
+    case LogoFaturalariGoruntule = 'logo_faturalari.goruntule';
+    case LogoFaturalariIceAktar = 'logo_faturalari.ice_aktar';
+    case LogoFaturalariPdf = 'logo_faturalari.pdf';
+    case LogoFaturalariDisariAktar = 'logo_faturalari.disari_aktar';
+    case LogoFaturalariIsle = 'logo_faturalari.isle';
+    case LogoFaturalariRed = 'logo_faturalari.red';
+
+    case EarsivFaturalariGoruntule = 'earsiv_faturalari.goruntule';
+    case EarsivFaturalariIceAktar = 'earsiv_faturalari.ice_aktar';
+    case EarsivFaturalariPdf = 'earsiv_faturalari.pdf';
+    case EarsivFaturalariDisariAktar = 'earsiv_faturalari.disari_aktar';
+    case EarsivFaturalariIsle = 'earsiv_faturalari.isle';
+    case EarsivFaturalariRed = 'earsiv_faturalari.red';
 
     case KesintiTurleriGoruntule = 'kesinti_turleri.goruntule';
     case KesintiTurleriGuncelle = 'kesinti_turleri.guncelle';
@@ -170,9 +201,13 @@ enum Izin: string
 
         return [
             $ekran('satinalma_talebi', self::SatinalmaTalebiGoruntule, self::SatinalmaTalebiGuncelle),
-            $ekran('tum_faturalar', self::TumFaturalarGoruntule, null, self::TumFaturalarPdf, self::TumFaturalarDisariAktar),
-            $ekran('efatura', self::EfaturaGoruntule, self::EfaturaSenkron, self::EfaturaPdf, self::EfaturaDisariAktar, self::EfaturaGizle),
-            $ekran('protel_faturalari', self::ProtelFaturalariGoruntule, self::ProtelFaturalariSenkron, self::ProtelFaturalariPdf, self::ProtelFaturalariDisariAktar, self::ProtelFaturalariIsle),
+            $ekran('efatura_panosu', self::EfaturaPanosuGoruntule, null),
+            $ekran('tum_faturalar', self::TumFaturalarGoruntule, null, self::TumFaturalarPdf, self::TumFaturalarDisariAktar, self::TumFaturalarRed),
+            $ekran('efatura_islem_gecmisi', self::EfaturaIslemGecmisiGoruntule, null),
+            $ekran('efatura', self::EfaturaGoruntule, self::EfaturaSenkron, self::EfaturaPdf, self::EfaturaDisariAktar, self::EfaturaGizle, self::EfaturaRed),
+            $ekran('protel_faturalari', self::ProtelFaturalariGoruntule, self::ProtelFaturalariSenkron, self::ProtelFaturalariPdf, self::ProtelFaturalariDisariAktar, self::ProtelFaturalariIsle, self::ProtelFaturalariRed),
+            $ekran('logo_faturalari', self::LogoFaturalariGoruntule, self::LogoFaturalariIceAktar, self::LogoFaturalariPdf, self::LogoFaturalariDisariAktar, self::LogoFaturalariIsle, self::LogoFaturalariRed),
+            $ekran('earsiv_faturalari', self::EarsivFaturalariGoruntule, self::EarsivFaturalariIceAktar, self::EarsivFaturalariPdf, self::EarsivFaturalariDisariAktar, self::EarsivFaturalariIsle, self::EarsivFaturalariRed),
             // Kesinti Yönetimi grubu: menüdeki gibi önce raporlar
             $ekran('kesinti_ozeti', self::KesintiOzetiGoruntule, null),
             $ekran('pivot', self::PivotGoruntule, null),

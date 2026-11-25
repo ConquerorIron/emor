@@ -81,7 +81,13 @@
     "yedekHedefleri": "Yedek Hedefleri",
     "yedekIslemGunlugu": "Yedek İşlem Günlüğü",
     "yedeklemeAyarlari": "Yedekleme Ayarları",
-    "geriYuklemeler": "Geri Yüklemeler"
+    "geriYuklemeler": "Geri Yüklemeler",
+    "efaturaPanosu": "Pano",
+    "efaturaIslemGecmisi": "İşlem Geçmişi",
+    "logo": "Logo",
+    "logoGelenFaturalar": "Gelen Faturalar",
+    "earsiv": "E-Arşiv / E-SMM",
+    "earsivGelenFaturalar": "Gelen Faturalar / Makbuzlar"
   },
   "tasarim": {
     "baslik": "Ekran Tasarım Ayarları",
@@ -466,7 +472,10 @@
         "ardisik_hata": "Art arda hatalı çalışma sayısı",
         "gecikme_saat": "Güncellenmeden geçen en uzun süre (saat)",
         "gun": "İzibiz'e ulaştıktan sonra beklenecek gün",
-        "saat": "Gönderim saati (SS:DD)"
+        "saat": "Gönderim saati (SS:DD)",
+        "aralik_gun": "Kaç günde bir gönderilsin",
+        "hatirlatmaGun": "Fatura tarihinden sonra beklenecek gün",
+        "portallar": "Portallar"
       },
       "kural": {
         "senkron_arizasi": {
@@ -480,13 +489,18 @@
         "erp_okumadi": {
           "ad": "ERP okumadı uyarısı",
           "aciklama": "Gelen fatura İzibiz'e ulaşalı belirtilen günden fazla olduğu hâlde ERP okumadıysa, günde bir kez yeni olanlar bildirilir. Veri güncel değilse uyarı üretilmez."
+        },
+        "islenmemis_hatirlatma": {
+          "ad": "İşlenmemiş fatura hatırlatması",
+          "aciklama": "Fatura tarihi belirtilen günden eski, RED olmayan ve eMOR'a ya da SAP'ye işlenmemiş faturalar seçilen portallarda sayılır; ayarlanan aralıkla portal bazında özet gönderilir. Bekleyen fatura yoksa mail gitmez."
         }
       },
       "dogrulama": {
         "aliciZorunlu": "Aktif kural için en az bir alıcı gerekir.",
         "aliciGecersiz": "Alıcılardan biri geçerli bir e-posta adresi değil.",
         "saatBicimi": "Saat SS:DD biçiminde olmalı (ör. 08:30).",
-        "aralik": "{{en}} ile {{cok}} arasında tam sayı girin."
+        "aralik": "{{en}} ile {{cok}} arasında tam sayı girin.",
+        "portalZorunlu": "En az bir portal seçin."
       },
       "bildirim": {
         "baslik": "Son bildirimler",
@@ -540,7 +554,6 @@
     "ENTEGRATOR_AKTIF_YOK": "Aktif entegratör ortamı seçilmemiş.",
     "ENTEGRATOR_ORTAM_DEGISTI": "Aktif entegratör ortamı değişti; ekrandaki liste eski ortama ait. Liste yenilendikten sonra Excel'i tekrar alın.",
     "PROTEL_KAPALI": "Protel bağlantısı sunucuda kapalı (PROTEL_AKTIF); Protel'e istek gönderilmedi.",
-    "PROTEL_FATURA_REDDEDILDI": "Bu fatura Protel portalında reddedilmiş; İşlendi işaretlenemez.",
     "guncellendiBaslik": "Uygulama güncellendi",
     "guncellendiOtomatik": "Yeni sürüm yüklendi; sayfa yenilenince geçerli olur.",
     "guncellendiElle": "Sayfayı yenileyerek yeni sürüme geçebilirsiniz.",
@@ -555,7 +568,7 @@
     "ERP_OKUMA_YETKISI_YOK": "ERP veritabanı kullanıcısının bu veriyi okuma yetkisi yok. Veritabanı yöneticisinden okuma (SELECT) yetkisi isteyin.",
     "ERP_OKUMA_HATASI": "ERP okunamadı. Biraz sonra tekrar deneyin.",
     "KAYIT_KULLANILIYOR": "Bu kayıt başka kayıtlarda kullanıldığı için silinemez.",
-    "ICE_AKTARIM_HATALI": "Hatalı satırlar var; hiçbir satır kaydedilmedi. Aşağıdaki hataları düzeltip tekrar kontrol edin.",
+    "ICE_AKTARIM_HATALI": "Dosyada hatalı satırlar var; hiçbir satır kaydedilmedi.",
     "KESINTI_EXCEL_COK_BUYUK": "Seçilen filtrede Excel sınırından fazla satır var. Filtreyi daraltın.",
     "YEDEKLEME_KAPALI": "Yedekleme modülü sunucuda kapalı (YEDEKLEME_AKTIF).",
     "ISTEK_BULUNAMADI": "İşlem isteği bulunamadı (süresi geçmiş ya da temizlenmiş olabilir).",
@@ -682,7 +695,13 @@
     "GERI_YUKLEME_AYAR_SECIMI_UYGULANAMADI": "Güncel ayarlar yazılamadı; hiçbir ayar değişmedi, uygulama bakım modunda. Seçimi değiştirip yeniden onaylayın ya da geri dönün.",
     "GERI_YUKLEME_KARAR_SURESI_DOLDU": "Kararın süresi geçti (5 dakika); uygulanmadı. Yeniden karar verin.",
     "GERI_YUKLEME_KARAR_KANITI_KULLANILDI": "Bu karar daha önce işlendi; yeniden uygulanmadı.",
-    "GERI_YUKLEME_KARAR_KAPASITESI_DOLU": "Kısa sürede çok fazla karar işlendi; bu karar uygulanmadı. Birkaç dakika sonra yeniden deneyin."
+    "GERI_YUKLEME_KARAR_KAPASITESI_DOLU": "Kısa sürede çok fazla karar işlendi; bu karar uygulanmadı. Birkaç dakika sonra yeniden deneyin.",
+    "FATURA_REDDEDILDI": "Bu fatura RED; İşlendi işaretlenemez.",
+    "FATURA_KAYNAKTA_REDDEDILMIS": "Bu fatura kaynağında zaten reddedilmiş; ayrıca RED'e çekilmez.",
+    "FATURA_ISLENDI_ISARETLI": "Bu fatura İşlendi işaretli; RED'e çekmeden önce İşlendi işaretini kaldırın.",
+    "FATURA_BELGESI_YOK": "Bu faturanın aslı eMOR arşivinde yok; PDF gösterilemiyor.",
+    "YUKLEME_ELLE_ISLENMIS": "Bu yüklemenin eklediği faturalardan bazılarında elle işlem (RED, İşlendi ya da gizleme) var; yükleme geri alınamaz.",
+    "ICE_AKTARIM_SURUYOR": "Bu kaynak için başka bir içe aktarım ya da geri alma sürüyor. Biraz sonra tekrar deneyin."
   },
   "yetki": {
     "goruntule": "Görüntüle",
@@ -729,10 +748,14 @@
       "roller": "Roller",
       "ekran_tasarimi": "Ekran Tasarımı",
       "yedekler": "Yedekler (görüntüle / yedek al)",
-      "yedek_planlari": "Yedek Planları ve Hedefleri"
+      "yedek_planlari": "Yedek Planları ve Hedefleri",
+      "efatura_panosu": "e-Fatura Panosu",
+      "efatura_islem_gecmisi": "e-Fatura İşlem Geçmişi",
+      "logo_faturalari": "Logo Gelen Faturalar",
+      "earsiv_faturalari": "E-Arşiv / E-SMM Gelen Faturalar / Makbuzlar"
     },
     "izin": {
-      "tum_faturalar_goruntule": "Tüm faturaları (İzibiz + Protel) görüntüleme",
+      "tum_faturalar_goruntule": "Tüm faturaları (bütün kaynaklar) görüntüleme",
       "tum_faturalar_pdf": "Tüm Faturalar'da PDF/XML görüntüleme",
       "tum_faturalar_disari_aktar": "Tüm Faturalar listesini Excel'e aktarma",
       "efatura_goruntule": "e-Fatura listelerini görüntüleme",
@@ -747,7 +770,24 @@
       "protel_faturalari_isle": "Protel faturasını \"İşlendi\" işaretleme / işareti kaldırma",
       "yedekler_sil": "Yedek silme / sabitleme",
       "yedekler_indir": "Yedek dosyasını indirme (bütün veri)",
-      "geri_yukleme_kopya": "Yedeği farklı adla geri yükleme (kopya)"
+      "geri_yukleme_kopya": "Yedeği farklı adla geri yükleme (kopya)",
+      "tum_faturalar_red": "Tüm Faturalar'da faturayı RED'e çekme / geri alma",
+      "efatura_red": "İzibiz faturasını RED'e çekme / geri alma",
+      "protel_faturalari_red": "Protel faturasını RED'e çekme / geri alma",
+      "efatura_panosu_goruntule": "e-Fatura panosunu görüntüleme",
+      "efatura_islem_gecmisi_goruntule": "e-Fatura işlem geçmişini görüntüleme",
+      "logo_faturalari_goruntule": "Logo gelen faturalarını görüntüleme",
+      "logo_faturalari_ice_aktar": "Logo listesini Excel'den içe aktarma / geri alma",
+      "logo_faturalari_pdf": "Logo fatura PDF'i görüntüleme",
+      "logo_faturalari_disari_aktar": "Logo listesini Excel'e aktarma",
+      "logo_faturalari_isle": "Logo faturasını \"İşlendi\" işaretleme",
+      "logo_faturalari_red": "Logo faturasını RED'e çekme / geri alma",
+      "earsiv_faturalari_goruntule": "E-Arşiv / E-SMM belgelerini görüntüleme",
+      "earsiv_faturalari_ice_aktar": "E-Arşiv / E-SMM listesini Excel'den içe aktarma / geri alma",
+      "earsiv_faturalari_pdf": "E-Arşiv / E-SMM PDF'i görüntüleme",
+      "earsiv_faturalari_disari_aktar": "E-Arşiv / E-SMM listesini Excel'e aktarma",
+      "earsiv_faturalari_isle": "E-Arşiv / E-SMM belgesini \"İşlendi\" işaretleme",
+      "earsiv_faturalari_red": "E-Arşiv / E-SMM belgesini RED'e çekme / geri alma"
     }
   },
   "efatura": {
@@ -867,10 +907,13 @@
       "istisnaKoduErp": "İstisna Kodu (ERP)",
       "sap": "SAP",
       "sistemBekleniyor": "Bu bilgi, SAP servisi açıldığında gelecek.",
-      "sapProtelde": "Protel Gelen Faturalar ekranında \"İşlendi\" işaretlenmedi.",
       "entegrator": "Entegratör",
       "siraNo": "Sıra No",
-      "emorVkn": "eMOR VKN Var"
+      "emorVkn": "eMOR VKN Var",
+      "belgeTuru": "Belge Türü",
+      "brutTutar": "Brüt / Toplam",
+      "stopajTutari": "Stopaj",
+      "sapKaynakEkraninda": "{{kaynak}} ekranında \"İşlendi\" işaretlenmedi."
     },
     "erpSenkron": {
       "ac": "ERP Senkronla",
@@ -904,7 +947,10 @@
       "erpIslenenler": "ERP İşlenenler",
       "istisnalilar": "Vergi İstisnası Olanlar",
       "havuzdaOlmayanlar": "Havuzda Olmayanlar",
-      "emorVknVar": "eMOR'da Kayıtlı Firmalar"
+      "emorVknVar": "eMOR'da Kayıtlı Firmalar",
+      "red": "RED Faturalar",
+      "redIslenmis": "RED ama İşlenmiş",
+      "yalnizGizlenenler": "Yalnız Gizlenenler"
     },
     "istisnaFarkli": "Entegratördeki ve ERP'deki istisna kodu farklı",
     "gizleme": {
@@ -919,16 +965,184 @@
       "rozetAciklama": "Listede gizlendi — {{kisi}}",
       "alan": "Gizlendi"
     },
-    "tumAciklama": "İzibiz ve Protel'e gelen faturalar tek listede. Senkron ve gizleme sağlayıcı ekranlarından yapılır.",
+    "tumAciklama": "Bütün kaynakların (İzibiz, Protel, Logo, E-Arşiv) gelen faturaları tek listede. Senkron ve içe aktarım kaynak ekranlarından yapılır.",
     "sapIslendi": "İşlendi",
     "sapRed": "Red",
-    "protelRedAciklama": "Protel portalında reddedildi; İşlendi işaretlenemez.",
     "saglayici": {
       "izibiz": "İzibiz",
-      "protel": "Protel"
+      "protel": "Protel",
+      "logo": "Logo",
+      "earsiv": "E-Arşiv"
     },
     "emorVkn": {
       "bilinmiyor": "eMOR'daki kurum kartları şu an okunamadı; biraz sonra sayfayı yenileyin."
+    },
+    "belgeTuru": {
+      "fatura": "Fatura",
+      "makbuz": "Makbuz"
+    },
+    "red": {
+      "harici": "Red (elle)",
+      "kaynakAciklama": "Fatura kaynağında (entegratör ya da liste) reddedilmiş / iptal edilmiş; İşlendi işaretlenemez.",
+      "hariciAciklama": "{{eden}}, {{zaman}} tarihinde RED'e çekti. Neden: {{neden}}",
+      "cek": "RED'e Çek",
+      "geriAl": "RED'i Geri Al",
+      "cekBaslik": "Fatura {{no}} — RED'e Çek",
+      "geriAlBaslik": "Fatura {{no}} — RED'i Geri Al",
+      "aciklama": "Entegratör dışında (noter kanalı, iptal/itiraz portalı…) iptal edilen faturayı RED'e çekin. Fatura hızlı filtrelerden düşer, İşlendi işaretlenemez; işlem geçmişe yazılır.",
+      "islenmisUyari": "Bu fatura eMOR'da işlenmiş görünüyor. RED'e çekmek eMOR'daki kaydı değiştirmez; panoda uyarı olarak sayılır.",
+      "neden": "Neden",
+      "nedenZorunlu": "RED'e çekme nedeni yazılmalı.",
+      "geriAlSorusu": "{{eden}}, {{zaman}} tarihinde RED'e çekmiş (neden: {{neden}}). RED geri alınsın mı?",
+      "cekildi": "{{no}} nolu fatura RED'e çekildi.",
+      "geriAlindi": "{{no}} nolu faturanın RED'i geri alındı."
+    },
+    "islem": {
+      "gecmis": "İşlem geçmişi",
+      "gecmisBaslik": "Fatura {{no}} — İşlem Geçmişi",
+      "zaman": "Zaman",
+      "kullanici": "Kullanıcı",
+      "islem": "İşlem",
+      "ayrinti": "Ayrıntı",
+      "ara": "Belge no / neden ara",
+      "ekranBaslik": "e-Fatura İşlem Geçmişi",
+      "ekranAciklama": "e-Fatura ekranlarında yapılan elle işlemler (RED, İşlendi, gizleme, içe aktarım) kullanıcı bazında. Kayıtlar değiştirilemez, silinemez.",
+      "oncekiNeden": "RED nedeni: {{neden}}",
+      "yuklemeAyrintisi": "{{dosya}} — {{yeni}} yeni, {{guncellenen}} güncellenen, {{degismeyen}} değişmeyen",
+      "geriAlmaAyrintisi": "{{dosya}} — {{silinen}} fatura silindi",
+      "tur": {
+        "red_cekildi": "RED'e çekildi",
+        "red_geri_alindi": "RED'i geri alındı",
+        "islendi_isaretlendi": "İşlendi işaretlendi",
+        "islendi_kaldirildi": "İşlendi işareti kaldırıldı",
+        "gizlendi": "Gizlendi",
+        "gizleme_kaldirildi": "Listeye geri alındı",
+        "ice_aktarildi": "Excel içe aktarıldı",
+        "ice_aktarim_geri_alindi": "İçe aktarım geri alındı"
+      }
+    },
+    "iceAktarim": {
+      "dugme": "Excel'den İçe Aktar",
+      "baslik": "Excel Listesini İçe Aktar",
+      "aciklama": {
+        "logo": "Logo portalının gelen e-Fatura listesi (.xlsx). Satırlar ETTN ile eşleşir; yeniden yüklemede var olanlar güncellenir, elle verilen RED ve İşlendi bilgileri korunur.",
+        "earsiv": "GİB'den alınan e-Arşiv fatura listesi ya da e-SMM makbuz listesi (.xlsx). Türü başlıklardan tanınır; belgeler gönderen + belge no ile eşleşir. Yeniden yüklemede var olanlar güncellenir."
+      },
+      "dosya": "Excel dosyası (.xlsx)",
+      "kontrolEt": "Kontrol Et",
+      "hatasiz": "{{sayi}} satır hatasız okundu.",
+      "hatasizTurlu": "{{sayi}} satır hatasız okundu ({{tur}}).",
+      "ozet": "Yeni: {{yeni}} · Güncellenecek: {{guncellenecek}} · Değişmeyen: {{degismeyen}} · RED / iptal: {{red}}",
+      "hataliDosya": "Dosyada hatalı satırlar var; düzeltip yeniden kontrol edin. Hatalar giderilmeden hiçbir satır kaydedilmez.",
+      "eksikKolonlar": "Dosyada şu kolonlar bulunamadı: {{kolonlar}}. Bu ekrana ait listeyi yüklediğinizden emin olun.",
+      "alanBaslik": "Kolon",
+      "degerBaslik": "Değer",
+      "nedenBaslik": "Neden",
+      "adetBaslik": "Satır",
+      "satirlarBaslik": "Örnek Excel satırları",
+      "kaydedildi": "Liste kaydedildi: {{yeni}} yeni, {{guncellenen}} güncellenen, {{degismeyen}} değişmeyen.",
+      "dosyaHatasi": {
+        "dosya_okunamadi": "Dosya okunamadı. Excel (.xlsx) dosyası olduğundan emin olun.",
+        "baslik_bulunamadi": "Dosyada bu ekranın listesine ait başlık satırı bulunamadı.",
+        "satir_yok": "Başlık satırının altında belge yok."
+      },
+      "hataKodu": {
+        "zorunlu": "Boş olamaz",
+        "ettn_gecersiz": "ETTN geçerli değil",
+        "tarih_gecersiz": "Tarih geçerli değil",
+        "zaman_gecersiz": "Tarih-saat geçerli değil (GG.AA.YYYY SS:DD:SS)",
+        "vkn_gecersiz": "VKN / TCKN 10 ya da 11 haneli olmalı",
+        "tutar_gecersiz": "Tutar geçerli değil",
+        "para_birimi_gecersiz": "Para birimi 3 harfli kod olmalı (TRY, USD…)",
+        "cok_uzun": "Çok uzun",
+        "alici_sirket_degil": "Alıcı şirketimizin VKN'si değil",
+        "tekrar_eden": "Dosyada aynı belge birden çok kez var"
+      },
+      "alan": {
+        "ettn": "ETTN",
+        "belge_no": "Fatura / Makbuz No",
+        "belge_tarihi": "Belge Tarihi",
+        "olusturma_zamani": "Oluşturma Tarihi",
+        "gonderici_vkn": "Gönderici VKN / TCKN",
+        "gonderici_unvan": "Gönderici Unvanı",
+        "alici_vkn": "Alıcı VKN",
+        "alici_unvan": "Alıcı Adı",
+        "senaryo": "Senaryo",
+        "fatura_tipi": "Tür",
+        "tutar": "Ödenecek / Tahsilat Tutarı",
+        "vergi_tutari": "Vergi Tutarı",
+        "brut_tutar": "Brüt / Toplam Tutar",
+        "stopaj_tutari": "Stopaj Tutarı",
+        "para_birimi": "Para Birimi",
+        "durum": "Durum",
+        "uygulama_yaniti": "Uygulama Yanıtı",
+        "yanit_aciklamasi": "Uygulama Yanıt Açıklaması",
+        "gib_durum_kodu": "Zarf Yanıt Kodu",
+        "gib_durum_aciklamasi": "Zarf Yanıt Açıklaması",
+        "iptal": "İptal / İtiraz Durumu",
+        "iptal_tarihi": "İptal / İtiraz Tarihi"
+      }
+    },
+    "yuklemeler": {
+      "dugme": "Yüklemeler",
+      "baslik": "İçe Aktarım Yüklemeleri",
+      "aciklama": "Her içe aktarım bir yüklemedir. Geri alınan yüklemenin eklediği belgeler silinir; güncellediği belgeler eski hâline dönmez.",
+      "dosya": "Dosya",
+      "sayilar": "Sonuç",
+      "sayiMetni": "{{yeni}} yeni · {{guncellenen}} güncellenen · {{degismeyen}} değişmeyen",
+      "geriAl": "Geri Al",
+      "geriAlBaslik": "Yüklemeyi Geri Al",
+      "geriAlSorusu": "\"{{dosya}}\" yüklemesinin eklediği {{yeni}} belge silinecek. Güncellediği belgeler eski hâline dönmez. Devam edilsin mi?",
+      "geriAlindi": "Yükleme geri alındı."
+    },
+    "pano": {
+      "baslik": "e-Fatura Panosu",
+      "aciklama": "Portal bazında gelen, işlenen, iptal (RED) ve işlenecek fatura sayıları. Sayıya tıklayınca Tüm Faturalar aynı süzgeçle açılır. Gizlenen (bize ait olmayan) faturalar sayılara girmez.",
+      "sayi": {
+        "gelen": "Gelen",
+        "islenen": "İşlenen",
+        "red": "İptal (RED)",
+        "islenecek": "İşlenecek"
+      },
+      "portal": {
+        "logo": "Logo",
+        "protel": "Portal Plus (Protel)",
+        "izibiz": "İzibiz",
+        "earsiv": "E-Arşiv / E-SMM"
+      },
+      "dagilimBaslik": "Fatura Dağılımı",
+      "portalBaslik": "Portal",
+      "digerBaslik": "Diğer",
+      "gizlenen": "gizlenen",
+      "redIslenmis": "RED ama işlenmiş",
+      "redIslenmisUyari": "{{adet}} RED fatura eMOR'da ya da SAP'de işlenmiş görünüyor.",
+      "toplam": "Toplam",
+      "aylikBaslik": "İşlenmemiş Faturaların Aylara Göre Dağılımı",
+      "aylikGrafik": "İşlenecek faturaların aylara göre adedi",
+      "aylikIpucu": "{{ay}}: {{adet}} fatura",
+      "ay": {
+        "10": "Eki",
+        "11": "Kas",
+        "12": "Ara",
+        "01": "Oca",
+        "02": "Şub",
+        "03": "Mar",
+        "04": "Nis",
+        "05": "May",
+        "06": "Haz",
+        "07": "Tem",
+        "08": "Ağu",
+        "09": "Eyl"
+      },
+      "firmaBaslik": "Gönderen Firma Dökümü",
+      "sinifBaslik": "Durum",
+      "sinif": {
+        "islenecek": "İşlenecek",
+        "islendi": "İşlenen",
+        "red": "İptal (RED)"
+      },
+      "adet": "Adet",
+      "cubukEtiketi": "{{portal}}: {{islenen}} işlenen, {{red}} RED, {{islenecek}} işlenecek"
     }
   },
   "protel": {
@@ -942,7 +1156,6 @@
       "izinYok": "İşaretleme izniniz yok."
     },
     "kolon": {
-      "islendi": "İşlendi",
       "erpAldi": "Otel ERP Aldı",
       "erpDurumu": "Otel ERP Durumu",
       "yazdirildi": "Yazdırıldı"
@@ -2173,5 +2386,13 @@
         }
       }
     }
+  },
+  "logo": {
+    "baslik": "Logo Gelen Faturalar",
+    "aciklama": "Kapanan Logo portalının 2026 gelen faturaları. Portal kapalı olduğu için yeni fatura gelmez; liste Excel'den içe aktarılır. RED olanlar \"Red\" görünür; eMOR'a ve SAP'ye işlenip işlenmediği izlenir."
+  },
+  "earsiv": {
+    "baslik": "E-Arşiv / E-SMM Gelen Faturalar / Makbuzlar",
+    "aciklama": "GİB'den alınan, adımıza düzenlenmiş e-Arşiv faturaları ve e-Serbest Meslek Makbuzları. Aylık liste Excel'den içe aktarılır; aynı liste yeniden yüklenirse var olanlar güncellenir."
   }
 }

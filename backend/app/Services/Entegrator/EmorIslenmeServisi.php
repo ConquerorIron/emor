@@ -24,6 +24,9 @@ use App\Services\ErpFaturaKaynagi;
  *   Aynı ETTN ve fatura no + gönderen VKN kuralları uygulanır; havuz
  *   (TOHOM_E_FATURA) İzibiz'indir — Protel faturası "havuzda" olmaz ve
  *   havuz bilgileri (istisna kodu, etiketler) Protel satırına yazılmaz.
+ * - Gelen, statik kaynaklar (Logo, e-Arşiv / e-SMM — EK-07, EK-08): Protel ile
+ *   aynı kurallar. ETTN'siz belge (e-Arşiv / e-SMM listesi) yalnız fatura no +
+ *   gönderen VKN ile eşleşir ("elle işlendi").
  * - Giden: ERP_GONDERILEN_E_FATURA_LISTESI; önce ETTN, ERP satırında ETTN
  *   yoksa (gider yansıtma) belge no + alıcı VKN'si. İki tarafta da ETTN varsa
  *   belge no ile eşleştirilmez (kullanıcı kuralı: yalnız fatura no ile olmaz).
@@ -73,9 +76,15 @@ final class EmorIslenmeServisi
     {
         $gelen = $yon === FaturaYonu::Gelen;
         $tanim = $this->baglantilar->aktif();
-        // Protel posta kutusu yalnız gelen fatura alır
-        $protel = $gelen ? $this->baglantilar->aktif(EntegratorBaglanti::SAGLAYICI_PROTEL) : null;
-        if ($tanim === null && $protel === null) {
+        // Protel posta kutusu ve statik kaynaklar (Logo, e-Arşiv — EK-07, EK-08)
+        // yalnız gelen fatura tutar. Havuz (TOHOM_E_FATURA) İzibiz'indir: bunların
+        // faturası "havuzda" olmaz. Statik tanım burada oluşturulmaz (yoksa faturası da yok)
+        $havuzsuzlar = $gelen ? array_values(array_filter([
+            $this->baglantilar->aktif(EntegratorBaglanti::SAGLAYICI_PROTEL),
+            ...EntegratorBaglanti::query()->whereIn('saglayici', EntegratorBaglanti::STATIK_SAGLAYICILAR)->get()->all(),
+        ])) : [];
+        $havuzsuzIdler = array_fill_keys(array_map(fn (EntegratorBaglanti $t): int => $t->id, $havuzsuzlar), true);
+        if ($tanim === null && $havuzsuzlar === []) {
             return ['islendi' => 0, 'elle_islendi' => 0, 'havuzda' => 0, 'yok' => 0, 'degisen' => 0];
         }
 
@@ -93,21 +102,22 @@ final class EmorIslenmeServisi
         $sayac = ['islendi' => 0, 'elle_islendi' => 0, 'havuzda' => 0, 'yok' => 0];
 
         EFatura::query()
-            ->whereIn('entegrator_baglanti_id', array_filter([$tanim?->id, $protel?->id]))
+            ->whereIn('entegrator_baglanti_id', array_filter([$tanim?->id, ...array_keys($havuzsuzIdler)]))
             ->where('yon', $yon->value)
             ->select(['id', 'entegrator_baglanti_id', 'ettn', 'belge_no', 'gonderici_vkn', 'alici_vkn', 'emor_durumu', ...array_keys(self::HAVUZ_KOLONLARI)])
             ->lazyById(self::PARCA)
-            ->each(function (EFatura $fatura) use ($islenmis, $elleIslenmis, $havuz, $gidenIslendiMi, $protel, &$degisenler, &$sayac): void {
-                $ettn = $this->ettn($fatura->ettn);
-                $protelde = $fatura->entegrator_baglanti_id === $protel?->id;
+            ->each(function (EFatura $fatura) use ($islenmis, $elleIslenmis, $havuz, $gidenIslendiMi, $havuzsuzIdler, &$degisenler, &$sayac): void {
+                // ETTN'siz belge (e-Arşiv / e-SMM listesi) yalnız fatura no + VKN ile eşleşir
+                $ettn = $fatura->ettn === null ? null : $this->ettn($fatura->ettn);
+                $protelde = isset($havuzsuzIdler[$fatura->entegrator_baglanti_id]);
 
                 if ($gidenIslendiMi !== null) {
                     $durum = $gidenIslendiMi($fatura) ? EmorDurumu::Islendi : EmorDurumu::Yok;
                 } else {
                     $durum = match (true) {
-                        isset($islenmis[$ettn]) => EmorDurumu::Islendi,
+                        $ettn !== null && isset($islenmis[$ettn]) => EmorDurumu::Islendi,
                         isset($elleIslenmis[$this->noVkn($fatura->belge_no, (string) $fatura->getAttribute('gonderici_vkn'))]) => EmorDurumu::ElleIslendi,
-                        ! $protelde && array_key_exists($ettn, $havuz ?? []) => EmorDurumu::Havuzda,
+                        ! $protelde && $ettn !== null && array_key_exists($ettn, $havuz ?? []) => EmorDurumu::Havuzda,
                         default => EmorDurumu::Yok,
                     };
 
@@ -194,7 +204,7 @@ final class EmorIslenmeServisi
             }
         }
 
-        return fn (EFatura $fatura): bool => isset($ettnler[$this->ettn($fatura->ettn)])
+        return fn (EFatura $fatura): bool => ($fatura->ettn !== null && isset($ettnler[$this->ettn($fatura->ettn)]))
             || isset($ettnsizler[$this->noVkn($fatura->belge_no, (string) $fatura->getAttribute('alici_vkn'))]);
     }
 

@@ -3,8 +3,34 @@ import { blobHatasiniCoz, dosyayiIndir } from '@/api/indirme'
 
 export type FaturaYonu = 'gelen' | 'giden'
 
-/** Listenin kaynağı: İzibiz ekranları ya da İzibiz + Protel birleşik liste (Tüm Faturalar, yalnız gelen) */
+/** Listenin kaynağı: İzibiz ekranları ya da bütün kaynakların birleşik listesi (Tüm Faturalar, yalnız gelen) */
 export type FaturaKapsami = 'izibiz' | 'tum'
+
+/**
+ * Faturanın geldiği kaynak: entegratörler (İzibiz, Protel) ve statik kaynaklar
+ * (Logo, e-Arşiv / e-SMM — Excel içe aktarımıyla gelir).
+ */
+export type Saglayici = 'izibiz' | 'protel' | 'logo' | 'earsiv'
+
+/** Pano ve Tüm Faturalar sırası (kullanıcının örneği: Logo, Portal Plus, İzibiz, E-Arşiv) */
+export const GELEN_SAGLAYICILARI: readonly Saglayici[] = ['logo', 'protel', 'izibiz', 'earsiv']
+
+/**
+ * Faturanın sınıfı (sunucudaki tek tanım): işlendi = eMOR'da ya da SAP'de
+ * işlendi; islenecek = RED değil, işlenmemiş; red = kaynakta ya da elle RED;
+ * red_islenmis = RED olduğu hâlde işlenmiş (pano uyarısı).
+ */
+export type FaturaSinifi = '' | 'islendi' | 'islenecek' | 'red' | 'red_islenmis'
+
+/** RED bilgisi: kaynakta (entegratör / liste) ya da yetkili kullanıcının çektiği (harici) */
+export interface FaturaRed {
+  var: boolean
+  kaynak: 'kaynak' | 'harici' | null
+  /** Yalnız harici RED: ne zaman, kim, neden */
+  zaman: string | null
+  eden: string | null
+  neden: string | null
+}
 
 function listeYolu(kapsam: FaturaKapsami, yon: FaturaYonu): string {
   return kapsam === 'tum' ? '/api/v1/tum-faturalar/faturalar' : `/api/v1/efatura/${yon}/faturalar`
@@ -19,9 +45,10 @@ function faturaYolu(kapsam: FaturaKapsami, faturaId: number): string {
 export interface EFatura {
   id: number
   yon: FaturaYonu
-  /** İzibiz iç kimliği (ETTN değil) */
-  kaynak_id: number
-  ettn: string
+  /** Entegratörün iç kimliği (ETTN değil); statik kaynakta null */
+  kaynak_id: number | null
+  /** e-Arşiv / e-SMM listesinde ETTN yok */
+  ettn: string | null
   belge_no: string
   belge_tarihi: string
   belge_saati: string | null
@@ -79,18 +106,61 @@ export interface EFatura {
   gizleyen: string | null
   /** Protel `isErpRecieved` — otelin ERP'si aldı mı (İzibiz'de null; eMOR okuması `erp_okundu`) */
   otel_erp_okundu: boolean | null
-  /** Tüm Faturalar: SAP'ye işlendi mi — kaynak uç (SAP) gelene kadar null */
+  /** SAP'ye işlendi mi: Protel / statik kaynakta "İşlendi" anahtarı; İzibiz için SAP ucu bekleniyor */
   sap_islendi: boolean | null
-  /** Protel portalında reddedilmiş: "İşlendi" işaretlenemez, SAP kolonunda "Red" */
-  protel_red: boolean
+  /** RED fatura "İşlendi" işaretlenemez; SAP kolonunda "Red"; hızlı filtrelerde görünmez */
+  red: FaturaRed
+  /** e-Arşiv tanımında belge türü; diğer kaynaklarda null */
+  belge_turu: 'fatura' | 'makbuz' | null
+  /** e-SMM makbuzu: brüt ücret ve stopaj (tutar = tahsilat); e-Arşiv faturasında brüt = toplam */
+  brut_tutar: string | null
+  stopaj_tutari: string | null
   /**
-   * Yalnız Protel Gelen Faturalar ve Tüm Faturalar: karşı tarafın VKN'si eMOR'daki
-   * bir kurum kartında mı (var=null: ERP okunamadı)
+   * Protel, statik kaynak ve Tüm Faturalar ekranları: karşı tarafın VKN'si
+   * eMOR'daki bir kurum kartında mı (var=null: ERP okunamadı)
    */
   emor_kurum?: EmorKurumu
-  /** Yalnız Tüm Faturalar: satırın posta kutusu (XML yalnız İzibiz'de) */
-  saglayici?: 'izibiz' | 'protel'
+  /** Yalnız Tüm Faturalar: satırın kaynağı (XML yalnız İzibiz'de) */
+  saglayici?: Saglayici
 }
+
+/** İşlem geçmişi kaydı (EK-03): kullanıcı adı ve belge kimliği kayıt anındaki kopyadır */
+export interface EFaturaIslemi {
+  id: number
+  fatura_id: number | null
+  yukleme_id: number | null
+  saglayici: Saglayici | ''
+  belge_no: string | null
+  belge_kimligi: string | null
+  islem: EFaturaIslemTuru
+  onceki: string | null
+  yeni: string | null
+  neden: string | null
+  ayrinti: Record<string, string | number | null> | null
+  kullanici_adi: string
+  zaman: string
+}
+
+export type EFaturaIslemTuru =
+  | 'red_cekildi'
+  | 'red_geri_alindi'
+  | 'islendi_isaretlendi'
+  | 'islendi_kaldirildi'
+  | 'gizlendi'
+  | 'gizleme_kaldirildi'
+  | 'ice_aktarildi'
+  | 'ice_aktarim_geri_alindi'
+
+export const ISLEM_TURLERI: readonly EFaturaIslemTuru[] = [
+  'red_cekildi',
+  'red_geri_alindi',
+  'islendi_isaretlendi',
+  'islendi_kaldirildi',
+  'gizlendi',
+  'gizleme_kaldirildi',
+  'ice_aktarildi',
+  'ice_aktarim_geri_alindi',
+]
 
 export interface ParaBirimiOzeti {
   para_birimi: string
@@ -121,7 +191,7 @@ export interface EFaturaListesi {
 }
 
 export interface SaglayiciTazeligi {
-  saglayici: 'izibiz' | 'protel'
+  saglayici: Saglayici
   ortam: string
   /** Bugünü kapsayan son tam senkronun bitişi; hiç yoksa null */
   veri_zamani: string | null
@@ -148,8 +218,10 @@ export interface EmorKurumu {
  */
 export type EmorDurumu = 'islendi' | 'elle_islendi' | 'havuzda' | 'yok'
 
-/** islenmemis / islenmis: işlendi (elle dahil) olmayanların / olanların hepsi (hızlı filtre) */
-export type EmorFiltresi = '' | EmorDurumu | 'bilinmiyor' | 'islenmemis' | 'islenmis'
+export type EmorFiltresi = '' | EmorDurumu | 'bilinmiyor'
+
+/** Boş: gizlenenler listede yok; dahil: onlar da gelir; yalniz: yalnız gizlenenler (pano) */
+export type GizlenenlerFiltresi = '' | 'dahil' | 'yalniz'
 
 export interface EFaturaFiltresi {
   baslangic: string
@@ -158,15 +230,16 @@ export interface EFaturaFiltresi {
   durum: string
   erp_okundu: ErpOkunduFiltresi
   emor: EmorFiltresi
-  /** Yalnız Tüm Faturalar: tek sağlayıcının faturaları */
-  entegrator: '' | 'izibiz' | 'protel'
+  /** Hızlı filtreler ve pano: faturanın sınıfı (RED faturalar işlendi / işlenecek süzgeçlerine gelmez) */
+  sinif: FaturaSinifi
+  /** Yalnız Tüm Faturalar: tek kaynağın faturaları */
+  entegrator: '' | Saglayici
   para_birimi: string
   tip: string
   istisna_kodu: string
   /** Hızlı filtre: vergi istisna kodu olanlar */
   istisnali: '' | 'evet'
-  /** Boş: gizlenenler listede yok; dahil: onlar da gelir */
-  gizlenenler: '' | 'dahil'
+  gizlenenler: GizlenenlerFiltresi
   /** Hızlı filtre: karşı tarafın VKN'si eMOR'daki bir kurum kartında olanlar / olmayanlar */
   emor_vkn: EmorVknFiltresi
 }
@@ -216,6 +289,7 @@ function parametreler(filtre: EFaturaFiltresi, siralama: Siralama | null): Recor
     'durum',
     'erp_okundu',
     'emor',
+    'sinif',
     'entegrator',
     'para_birimi',
     'tip',

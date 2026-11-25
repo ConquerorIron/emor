@@ -59,6 +59,19 @@ final class AlarmMaili extends Mailable
                 $this->ozetSatirlari($ayrinti),
                 '/efatura/gelen',
             ],
+            // EK-10: portal bazında adet ve en eski tarih; fatura satırı yok
+            AlarmKurali::ISLENMEMIS_HATIRLATMA => [
+                __('mail.alarm.islenmemis_baslik', ['adet' => $ayrinti['toplam'], 'gun' => $ayrinti['esik_gun']]),
+                [
+                    ...array_map(fn (array $p): string => __('mail.alarm.islenmemis_portal', [
+                        'portal' => __('mail.alarm.portal_'.$p['saglayici']),
+                        'adet' => $p['adet'],
+                        'tarih' => CarbonImmutable::parse($p['en_eski'])->format('d.m.Y'),
+                    ]), $ayrinti['portallar']),
+                    __('mail.alarm.islenmemis_not', ['tarih' => CarbonImmutable::parse($ayrinti['kesim'])->format('d.m.Y')]),
+                ],
+                '/efatura/pano',
+            ],
             default => [
                 __('mail.alarm.erp_baslik', ['adet' => $ayrinti['yeni_adet']]),
                 [

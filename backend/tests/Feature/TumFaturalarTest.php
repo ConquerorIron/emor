@@ -62,7 +62,8 @@ final class TumFaturalarTest extends TestCase
         $yanit = $this->actingAs($this->izinli('tum_faturalar.goruntule'))
             ->getJson('/api/v1/tum-faturalar/faturalar?'.self::ARALIK.'&sirala=belge_no&yon=asc')
             ->assertOk()
-            ->assertJsonPath('kapsam.ortam', 'izibiz:canli,protel:canli')
+            // Statik kaynaklar (Logo, e-Arşiv) her zaman kapsamda (EK-07, EK-08)
+            ->assertJsonPath('kapsam.ortam', 'izibiz:canli,protel:canli,logo:canli,earsiv:canli')
             ->assertJsonPath('ozet.0.adet', 2)
             ->assertJsonPath('ozet.0.tutar', '300.75');
 
@@ -146,20 +147,27 @@ final class TumFaturalarTest extends TestCase
         $this->assertNull($yanit->json('tazelik.1.veri_zamani'));
     }
 
-    public function test_yalniz_bir_saglayici_aktifse_onun_faturalari_hicbiri_yoksa_hata_doner(): void
+    /**
+     * Entegratör tanımı hiç yokken de liste açılır: statik kaynaklar (Logo,
+     * e-Arşiv) her zaman kapsamdadır; tazelik yalnız senkronlu sağlayıcılar için.
+     */
+    public function test_yalniz_bir_saglayici_aktifse_onun_ve_statik_kaynaklarin_faturalari_listelenir(): void
     {
         $kullanici = $this->izinli('tum_faturalar.goruntule');
 
         $this->actingAs($kullanici)->getJson('/api/v1/tum-faturalar/faturalar?'.self::ARALIK)
-            ->assertStatus(422)
-            ->assertJsonPath('kod', 'ENTEGRATOR_AKTIF_YOK');
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonPath('kapsam.ortam', 'logo:canli,earsiv:canli')
+            ->assertJsonCount(0, 'tazelik');
 
         EFatura::factory()->protel()->create(['belge_no' => 'OTL1']);
 
         $this->actingAs($kullanici)->getJson('/api/v1/tum-faturalar/faturalar?'.self::ARALIK)
             ->assertOk()
             ->assertJsonCount(1, 'data')
-            ->assertJsonPath('kapsam.ortam', 'protel:test');
+            ->assertJsonPath('kapsam.ortam', 'protel:test,logo:canli,earsiv:canli')
+            ->assertJsonCount(1, 'tazelik');
     }
 
     /**
@@ -232,7 +240,7 @@ final class TumFaturalarTest extends TestCase
         $sorgu = http_build_query(['kolonlar' => array_keys($kolonlar), 'basliklar' => array_values($kolonlar), 'sirala' => 'belge_no', 'yon' => 'asc']);
 
         $yanit = $this->actingAs($this->izinli('tum_faturalar.goruntule', 'tum_faturalar.disari_aktar'))
-            ->get('/api/v1/tum-faturalar/faturalar/excel?'.self::ARALIK.'&'.$sorgu.'&ortam=izibiz:canli,protel:canli');
+            ->get('/api/v1/tum-faturalar/faturalar/excel?'.self::ARALIK.'&'.$sorgu.'&ortam=izibiz:canli,protel:canli,logo:canli,earsiv:canli');
 
         $yanit->assertOk()->assertDownload('tum-faturalar-2026-01-01-2026-01-31.xlsx');
         $yol = $yanit->baseResponse->getFile()->getPathname();
@@ -245,7 +253,7 @@ final class TumFaturalarTest extends TestCase
         // Protel faturasını eMOR okumaz (otelin ERP bayrağı ayrı kolonda); elle işlenmiş olabilir
         $this->assertSame(['Protel', 'OTL1', null, 'İşlendi (elle)', 'Hayır', 'Evet'], $sayfa->rangeToArray('A3:F3')[0]);
         $this->assertSame(['Protel', 'OTL2', null, null, 'Red', 'Hayır'], $sayfa->rangeToArray('A4:F4')[0]);
-        $this->assertSame(['Liste', 'Tüm Faturalar (İzibiz + Protel)'], $kitap->getSheet(1)->rangeToArray('A1:B1')[0]);
+        $this->assertSame(['Liste', 'Tüm Faturalar'], $kitap->getSheet(1)->rangeToArray('A1:B1')[0]);
         $this->assertSame(['Ortam', 'Canlı'], $kitap->getSheet(1)->rangeToArray('A2:B2')[0]);
     }
 

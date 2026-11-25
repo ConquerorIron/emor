@@ -79,7 +79,7 @@ export function SiraNo({ deger }: { deger: number }) {
  * Tablo işlem düğmesi: yalnız ikon (satır yüksekliği küçük kalır); erişilebilir
  * ad ve üzerine gelince ipucu etiketten.
  */
-function IkonDugmesi({
+export function IkonDugmesi({
   etiket,
   onClick,
   children,

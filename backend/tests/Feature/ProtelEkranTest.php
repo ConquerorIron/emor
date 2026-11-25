@@ -219,19 +219,20 @@ final class ProtelEkranTest extends TestCase
         EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTLOK']);
         $kullanici = $this->izinli('protel_faturalari.goruntule', 'protel_faturalari.isle');
 
-        foreach ([true, false] as $deger) {
-            $this->actingAs($kullanici)->putJson("/api/v1/protel/faturalar/{$red->id}/islendi", ['islendi' => $deger])
-                ->assertConflict()
-                ->assertJsonPath('kod', 'PROTEL_FATURA_REDDEDILDI');
-        }
+        $this->actingAs($kullanici)->putJson("/api/v1/protel/faturalar/{$red->id}/islendi", ['islendi' => true])
+            ->assertConflict()
+            ->assertJsonPath('kod', 'FATURA_REDDEDILDI');
         $this->assertNull($red->fresh()->sap_islendi);
+        // İşaret kaldırmak RED'de de serbest (portal sonradan red verirse eski işaret silinebilsin)
+        $this->actingAs($kullanici)->putJson("/api/v1/protel/faturalar/{$red->id}/islendi", ['islendi' => false])->assertOk();
+        $this->assertDatabaseCount('efatura_islem_gecmisi', 0);
 
         $liste = $this->actingAs($kullanici)
             ->getJson('/api/v1/protel/gelen/faturalar?'.self::ARALIK)
             ->assertOk()->json('data');
         $this->assertEqualsCanonicalizing(
-            [['OTLRED', true], ['OTLOK', false]],
-            array_map(fn (array $f): array => [$f['belge_no'], $f['protel_red']], $liste),
+            [['OTLRED', true, 'kaynak'], ['OTLOK', false, null]],
+            array_map(fn (array $f): array => [$f['belge_no'], $f['red']['var'], $f['red']['kaynak']], $liste),
         );
         Http::assertNothingSent();
     }

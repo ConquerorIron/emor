@@ -339,9 +339,9 @@ final class EFaturaEkranTest extends TestCase
         );
 
         // "İşlendi" yazmayanların hepsi (kontrol edilmemiş dahil)
-        $this->assertEqualsCanonicalizing([$havuzda->id, $yok->id, $bilinmiyor->id], $idler('emor=islenmemis'));
+        $this->assertEqualsCanonicalizing([$havuzda->id, $yok->id, $bilinmiyor->id], $idler('sinif=islenecek'));
         $this->assertSame([$havuzda->id], $idler('istisnali=evet'));
-        $this->assertSame([$havuzda->id], $idler('emor=islenmemis&istisnali=evet'));
+        $this->assertSame([$havuzda->id], $idler('sinif=islenecek&istisnali=evet'));
     }
 
     public function test_tip_ve_istisna_kodu_filtreleri_ve_secenekleri(): void

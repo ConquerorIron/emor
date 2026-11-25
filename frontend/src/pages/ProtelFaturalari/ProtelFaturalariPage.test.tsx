@@ -16,16 +16,28 @@ const api = vi.hoisted(() => ({
   pdf: vi.fn(),
   excel: vi.fn(),
   islendi: vi.fn(),
+  red: vi.fn(),
+  gecmis: vi.fn(),
 }))
 
 vi.mock('@/features/efatura/protelApi', () => ({
-  protelFaturalariGetir: api.faturalar,
   protelDurumuGetir: api.durum,
   protelSenkronBaslat: api.senkron,
-  protelPdfGetir: api.pdf,
-  protelExcelIndir: api.excel,
-  protelIslendiDegistir: api.islendi,
 }))
+
+vi.mock('@/features/efatura/kaynakApi', () => ({
+  kaynakFaturalariGetir: api.faturalar,
+  kaynakPdfGetir: api.pdf,
+  kaynakExcelIndir: api.excel,
+}))
+
+vi.mock('@/features/efatura/faturaIslemApi', () => ({
+  faturaIslendiDegistir: api.islendi,
+  faturaRedDegistir: api.red,
+  faturaGecmisiGetir: api.gecmis,
+}))
+
+const RED_YOK: EFatura['red'] = { var: false, kaynak: null, zaman: null, eden: null, neden: null }
 
 const FATURA: EFatura = {
   id: 21,
@@ -78,7 +90,10 @@ const FATURA: EFatura = {
   gizleyen: null,
   otel_erp_okundu: true,
   sap_islendi: null,
-  protel_red: false,
+  red: RED_YOK,
+  belge_turu: null,
+  brut_tutar: null,
+  stopaj_tutari: null,
 }
 
 function liste(faturalar: EFatura[]): EFaturaListesi {
@@ -127,6 +142,15 @@ function ciz(izinler: string[]) {
   )
 }
 
+/** Satırın, başlığı verilen kolondaki hücresi */
+function hucre(satir: HTMLElement, baslik: string): HTMLElement {
+  const sira = screen
+    .getAllByRole('columnheader')
+    .findIndex((th) => th.textContent?.startsWith(baslik))
+
+  return satir.querySelectorAll('td')[sira] as HTMLElement
+}
+
 describe('ProtelFaturalariPage', () => {
   beforeEach(() => {
     // Varsayılan tarih aralığı bugüne bağlı: saat sabit (PRT-R10)
@@ -143,21 +167,61 @@ describe('ProtelFaturalariPage', () => {
     onlineManager.setOnline(true)
   })
 
-  it('en solda Sıra No; Protel durum kolonlarını gösterir; eMOR ve gizleme yoktur', async () => {
-    api.faturalar.mockResolvedValue(liste([FATURA]))
+  it('en solda Sıra No, sonra işlemler ve SAP; eMOR kolonu ve Protel durum kolonları var; gizleme yok', async () => {
+    api.faturalar.mockResolvedValue(liste([{ ...FATURA, emor_durumu: 'elle_islendi' }]))
     ciz(['protel_faturalari.goruntule'])
 
     const satir = (await screen.findByText('OTL2026000000001')).closest('tr') as HTMLElement
-    expect(screen.getAllByRole('columnheader')[0]).toHaveTextContent('Sıra No')
+    const basliklar = screen.getAllByRole('columnheader').map((th) => th.textContent)
+    expect(basliklar[0]).toBe('Sıra No')
+    expect(basliklar[2]).toBe('SAP')
+    expect(basliklar[3]).toMatch(/^eMOR/)
     expect(satir.querySelector('td')).toHaveTextContent('1')
+    expect(hucre(satir, 'eMOR')).toHaveTextContent('İşlendi (elle)')
     expect(within(satir).getByText('Muhasebeleşti')).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: /Otel ERP Durumu/ })).toBeInTheDocument()
-    expect(screen.queryByRole('columnheader', { name: /^eMOR$/ })).not.toBeInTheDocument()
-    // PDF izni yoksa düğme de yok
+    // PDF ve RED izni yoksa düğmeleri yok; işlem geçmişi herkese açık
     expect(screen.queryByRole('button', { name: 'PDF' })).not.toBeInTheDocument()
+    expect(within(satir).queryByRole('button', { name: "RED'e Çek" })).not.toBeInTheDocument()
+    expect(within(satir).getByRole('button', { name: 'İşlem geçmişi' })).toBeInTheDocument()
+    expect(screen.queryByText(/Gizlenenleri de göster/)).not.toBeInTheDocument()
   })
 
-  it('İşlendi anahtarı PDF’in sağında; tıklanınca hemen kaydeder, bildirir, satırı yerinde günceller; art arda tıklama tek istek', async () => {
+  it('hızlı filtre çubuğu başlığın altında, senkron panelinin ve filtre alanlarının üstünde (Tüm Faturalar hizası)', async () => {
+    api.faturalar.mockResolvedValue(liste([FATURA]))
+    ciz(['protel_faturalari.goruntule'])
+    await screen.findByText('OTL2026000000001')
+
+    const cubuk = screen.getByRole('group', { name: 'Hızlı filtreler' })
+    const panel = screen.getByText(/Son başarılı güncelleme/)
+    const ara = screen.getByLabelText('Ara')
+    expect(cubuk.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(cubuk.compareDocumentPosition(ara) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('sınıf hızlı filtreleri (işlenmeyen, işlenen, RED) aynı alanı paylaşır; doğru süzgeci ister', async () => {
+    api.faturalar.mockResolvedValue(liste([FATURA]))
+    ciz(['protel_faturalari.goruntule'])
+    await screen.findByText('OTL2026000000001')
+    const sonSinif = () =>
+      (api.faturalar.mock.lastCall?.[1] as { sinif: string } | undefined)?.sinif
+
+    fireEvent.click(screen.getByRole('button', { name: 'ERP İşlenmeyenler' }))
+    await waitFor(() => expect(sonSinif()).toBe('islenecek'))
+    expect(api.faturalar.mock.lastCall?.[0]).toBe('protel')
+
+    fireEvent.click(screen.getByRole('button', { name: 'ERP İşlenenler' }))
+    await waitFor(() => expect(sonSinif()).toBe('islendi'))
+    expect(screen.getByRole('button', { name: 'ERP İşlenmeyenler' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'RED Faturalar' }))
+    await waitFor(() => expect(sonSinif()).toBe('red'))
+  })
+
+  it('İşlendi (SAP) anahtarı tıklanınca hemen kaydeder, bildirir, satırı yerinde günceller; art arda tıklama tek istek', async () => {
     api.faturalar.mockResolvedValue(liste([FATURA]))
     let bitir: (fatura: EFatura) => void = () => undefined
     api.islendi.mockImplementation(
@@ -169,7 +233,6 @@ describe('ProtelFaturalariPage', () => {
     ciz(['protel_faturalari.goruntule', 'protel_faturalari.pdf', 'protel_faturalari.isle'])
 
     const satir = (await screen.findByText('OTL2026000000001')).closest('tr') as HTMLElement
-    expect(screen.getAllByRole('columnheader')[2]).toHaveTextContent('İşlendi')
     const hucreler = satir.querySelectorAll('td')
     expect(within(hucreler[1]).getByRole('button', { name: 'PDF' })).toBeInTheDocument()
     const anahtar = within(hucreler[2]).getByRole('switch', { name: 'OTL2026000000001 işlendi' })
@@ -179,7 +242,7 @@ describe('ProtelFaturalariPage', () => {
     fireEvent.click(anahtar)
     await waitFor(() => expect(api.islendi).toHaveBeenCalled())
     expect(api.islendi).toHaveBeenCalledTimes(1)
-    expect(api.islendi).toHaveBeenCalledWith(21, true)
+    expect(api.islendi).toHaveBeenCalledWith('protel', 21, true)
 
     bitir({ ...FATURA, sap_islendi: true })
     expect(
@@ -190,24 +253,10 @@ describe('ProtelFaturalariPage', () => {
     expect(api.faturalar).toHaveBeenCalledTimes(1)
   })
 
-  it('işaret kaldırılınca "işlenmedi" bildirilir; işleme izni yoksa anahtar durumu gösterir ama değiştirilemez', async () => {
+  it('işleme izni yoksa anahtar durumu gösterir ama değiştirilemez', async () => {
     api.faturalar.mockResolvedValue(liste([{ ...FATURA, sap_islendi: true }]))
-    api.islendi.mockResolvedValue({ ...FATURA, sap_islendi: null })
-    ciz(['protel_faturalari.goruntule', 'protel_faturalari.isle'])
-
-    const anahtar = await screen.findByRole('switch', { name: 'OTL2026000000001 işlendi' })
-    expect(anahtar).toBeChecked()
-    fireEvent.click(anahtar)
-
-    await waitFor(() => expect(api.islendi).toHaveBeenCalledWith(21, false))
-    expect(
-      await screen.findByText('OTL2026000000001 nolu fatura işlenmedi olarak güncellendi.'),
-    ).toBeInTheDocument()
-    await waitFor(() => expect(anahtar).not.toBeChecked())
-
-    cleanup()
-    api.islendi.mockClear()
     ciz(['protel_faturalari.goruntule'])
+
     const salt = await screen.findByRole('switch', { name: 'OTL2026000000001 işlendi' })
     expect(salt).toBeChecked()
     expect(salt).toBeDisabled()
@@ -215,7 +264,7 @@ describe('ProtelFaturalariPage', () => {
     expect(api.islendi).not.toHaveBeenCalled()
   })
 
-  it('portalda reddedilen faturada İşlendi anahtarı yok, yalnız "Red" yazar', async () => {
+  it('RED faturada SAP kolonunda anahtar yok, yalnız "Red"; kaynakta RED olanın RED düğmesi de yok', async () => {
     api.faturalar.mockResolvedValue(
       liste([
         {
@@ -223,23 +272,57 @@ describe('ProtelFaturalariPage', () => {
           id: 22,
           belge_no: 'OTL2026000000002',
           durum: 'RejectAnswered',
-          protel_red: true,
+          red: { ...RED_YOK, var: true, kaynak: 'kaynak' },
         },
         FATURA,
       ]),
     )
-    ciz(['protel_faturalari.goruntule', 'protel_faturalari.pdf', 'protel_faturalari.isle'])
+    ciz(['protel_faturalari.goruntule', 'protel_faturalari.isle', 'protel_faturalari.red'])
 
     const redSatiri = (await screen.findByText('OTL2026000000002')).closest('tr') as HTMLElement
-    // İşlendi kolonu (PDF'in sağı) yalnız "Red" içerir
-    const islendiHucresi = redSatiri.querySelectorAll('td')[2]
-    expect(islendiHucresi).toHaveTextContent(/^Red$/)
-    expect(
-      within(islendiHucresi).getByTitle(/reddedildi; İşlendi işaretlenemez/),
-    ).toBeInTheDocument()
+    const sap = hucre(redSatiri, 'SAP')
+    expect(sap).toHaveTextContent(/^Red$/)
+    expect(within(sap).getByTitle(/kaynağında .* reddedilmiş/)).toBeInTheDocument()
     expect(within(redSatiri).queryByRole('switch')).not.toBeInTheDocument()
-    // Reddedilmemiş satırın anahtarı yerinde
+    expect(within(redSatiri).queryByRole('button', { name: "RED'e Çek" })).not.toBeInTheDocument()
+    // Reddedilmemiş satırın anahtarı ve RED düğmesi yerinde
     expect(screen.getByRole('switch', { name: 'OTL2026000000001 işlendi' })).toBeEnabled()
+  })
+
+  it("RED'e çekme nedensiz gönderilmez; nedenle istek atılır, liste tazelenir ve bildirilir", async () => {
+    api.faturalar.mockResolvedValue(liste([FATURA]))
+    api.red.mockResolvedValue({
+      ...FATURA,
+      red: {
+        var: true,
+        kaynak: 'harici',
+        zaman: '2026-11-19T06:00:00+00:00',
+        eden: 'Ayşe',
+        neden: 'Noter',
+      },
+    })
+    ciz(['protel_faturalari.goruntule', 'protel_faturalari.red'])
+    const satir = (await screen.findByText('OTL2026000000001')).closest('tr') as HTMLElement
+
+    fireEvent.click(within(satir).getByRole('button', { name: "RED'e Çek" }))
+    const pencere = await screen.findByRole('dialog')
+    fireEvent.click(within(pencere).getByRole('button', { name: "RED'e Çek" }))
+    expect(await within(pencere).findByText("RED'e çekme nedeni yazılmalı.")).toBeInTheDocument()
+    expect(api.red).not.toHaveBeenCalled()
+
+    fireEvent.change(within(pencere).getByLabelText('Neden'), {
+      target: { value: 'Noter kanalıyla iptal' },
+    })
+    fireEvent.click(within(pencere).getByRole('button', { name: "RED'e Çek" }))
+
+    await waitFor(() =>
+      expect(api.red).toHaveBeenCalledWith('protel', 21, true, 'Noter kanalıyla iptal'),
+    )
+    expect(
+      await screen.findByText("OTL2026000000001 nolu fatura RED'e çekildi."),
+    ).toBeInTheDocument()
+    // Sınıf değişti: süzülmüş listede kalmayabilir, liste yeniden istenir
+    await waitFor(() => expect(api.faturalar).toHaveBeenCalledTimes(2))
   })
 
   it('eMOR VKN Var kolonu kurum kartını gösterir; hızlı filtre emor_vkn=evet ister, tekrar basınca kalkar', async () => {
@@ -262,34 +345,31 @@ describe('ProtelFaturalariPage', () => {
     )
     ciz(['protel_faturalari.goruntule'])
 
-    const hucre = async (belgeNo: string) => {
-      const satir = (await screen.findByText(belgeNo)).closest('tr') as HTMLElement
-      const sira = screen
-        .getAllByRole('columnheader')
-        .findIndex((th) => th.textContent?.startsWith('eMOR VKN Var'))
-
-      return satir.querySelectorAll('td')[sira]
-    }
-    expect(await hucre('OTL2026000000001')).toHaveTextContent(/^Evet$/)
+    const satir = async (belgeNo: string) =>
+      (await screen.findByText(belgeNo)).closest('tr') as HTMLElement
+    expect(hucre(await satir('OTL2026000000001'), 'eMOR VKN Var')).toHaveTextContent(/^Evet$/)
     expect(
-      within(await hucre('OTL2026000000001')).getByTitle('120.01.001 — Deniz İletişim A.Ş.'),
+      within(hucre(await satir('OTL2026000000001'), 'eMOR VKN Var')).getByTitle(
+        '120.01.001 — Deniz İletişim A.Ş.',
+      ),
     ).toBeInTheDocument()
-    expect(await hucre('OTL2026000000002')).toHaveTextContent(/^Hayır$/)
+    expect(hucre(await satir('OTL2026000000002'), 'eMOR VKN Var')).toHaveTextContent(/^Hayır$/)
     // ERP okunamadı: bilinmiyor
-    expect(within(await hucre('OTL2026000000003')).getByTitle(/okunamadı/)).toHaveTextContent('—')
+    expect(
+      within(hucre(await satir('OTL2026000000003'), 'eMOR VKN Var')).getByTitle(/okunamadı/),
+    ).toHaveTextContent('—')
 
     const dugme = screen.getByRole('button', { name: "eMOR'da Kayıtlı Firmalar" })
-    expect(dugme).toHaveAttribute('aria-pressed', 'false')
     fireEvent.click(dugme)
     await waitFor(() =>
       expect(api.faturalar).toHaveBeenLastCalledWith(
+        'protel',
         expect.objectContaining({ emor_vkn: 'evet' }),
         expect.anything(),
         1,
       ),
     )
     expect(dugme).toHaveAttribute('aria-pressed', 'true')
-    // Tekrar basınca kalkar (önceki sonuç önbellekten gelir)
     fireEvent.click(dugme)
     expect(dugme).toHaveAttribute('aria-pressed', 'false')
   })
@@ -304,13 +384,13 @@ describe('ProtelFaturalariPage', () => {
     const yazdirilmamis = (await screen.findByText('OTL2026000000002')).closest('tr') as HTMLElement
     fireEvent.click(within(yazdirilmamis).getByRole('button', { name: 'PDF' }))
 
-    await waitFor(() => expect(api.pdf).toHaveBeenCalledWith(22))
+    await waitFor(() => expect(api.pdf).toHaveBeenCalledWith('protel', 22))
     expect(api.pdf).toHaveBeenCalledTimes(1)
     // Protel'de XML yok
     expect(screen.queryByRole('button', { name: /XML/ })).not.toBeInTheDocument()
   })
 
-  it('Excel tablonun hâlini ister: filtre, sıralama, sayfa ve görünen kolonlar', async () => {
+  it('Excel tablonun hâlini ister: filtre, sıralama, sayfa, SAP ve görünen kolonlar', async () => {
     api.faturalar.mockResolvedValue(liste([FATURA]))
     api.excel.mockResolvedValue(undefined)
     ciz(['protel_faturalari.goruntule', 'protel_faturalari.disari_aktar'])
@@ -319,13 +399,15 @@ describe('ProtelFaturalariPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
 
     await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
-    const [filtre, siralama, sayfa, kolonlar, ortam] = api.excel.mock.calls[0] as [
+    const [onEk, filtre, siralama, sayfa, kolonlar, ortam] = api.excel.mock.calls[0] as [
+      string,
       { baslangic: string; otel_erp_okundu: string },
       { anahtar: string; yon: string },
       number,
       { anahtar: string; baslik: string }[],
       string,
     ]
+    expect(onEk).toBe('protel')
     // Ekrandaki listenin ortamı (kapsam) — sunucuda farklıysa 409 (PRT-R3)
     expect(ortam).toBe('canli')
     expect(filtre).toMatchObject({
@@ -335,8 +417,9 @@ describe('ProtelFaturalariPage', () => {
     })
     expect(siralama).toEqual({ anahtar: 'olusturma_zamani', yon: 'desc' })
     expect(sayfa).toBe(1)
+    expect(kolonlar[0]).toEqual({ anahtar: 'sap', baslik: 'SAP' })
     expect(kolonlar.map((k) => k.anahtar)).toEqual(
-      expect.arrayContaining(['emor_vkn', 'belge_no', 'erp_durumu', 'yazdirildi']),
+      expect.arrayContaining(['emor', 'emor_vkn', 'belge_no', 'erp_durumu', 'yazdirildi']),
     )
     expect(kolonlar.find((k) => k.anahtar === 'erp_durumu')?.baslik).toBe('Otel ERP Durumu')
   })
@@ -356,7 +439,7 @@ describe('ProtelFaturalariPage', () => {
     ciz(['protel_faturalari.goruntule'])
 
     await waitFor(() => expect(api.faturalar).toHaveBeenCalled())
-    expect(api.faturalar.mock.calls[0][0]).toMatchObject({
+    expect(api.faturalar.mock.calls[0][1]).toMatchObject({
       baslangic: '2026-01-02',
       bitis: '2027-01-02',
     })
@@ -381,6 +464,7 @@ describe('ProtelFaturalariPage', () => {
     onlineManager.setOnline(true)
     await waitFor(() =>
       expect(api.faturalar).toHaveBeenLastCalledWith(
+        'protel',
         expect.objectContaining({ ara: 'deniz' }),
         expect.anything(),
         1,
@@ -390,7 +474,7 @@ describe('ProtelFaturalariPage', () => {
     fireEvent.click(excel)
 
     await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
-    expect(api.excel.mock.calls[0][0]).toMatchObject({ ara: 'deniz' })
-    expect(api.excel.mock.calls[0][4]).toBe('canli')
+    expect(api.excel.mock.calls[0][1]).toMatchObject({ ara: 'deniz' })
+    expect(api.excel.mock.calls[0][5]).toBe('canli')
   })
 })

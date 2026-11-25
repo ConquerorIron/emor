@@ -57,40 +57,55 @@ final class RolTest extends TestCase
 
         $this->getJson('/api/v1/ayarlar/izinler')
             ->assertOk()
-            ->assertJsonCount(34, 'data')
+            ->assertJsonCount(38, 'data')
             ->assertJsonPath('data.0', [
                 'ekran' => 'satinalma_talebi',
                 'goruntule' => 'satinalma_talebi.goruntule',
                 'guncelle' => 'satinalma_talebi.guncelle',
                 'ekler' => [],
             ])
-            // Tüm Faturalar menüde İzibiz ve Protel gruplarının üstünde; senkronu yok
+            // e-Fatura grubu: Pano, Tüm Faturalar, İşlem Geçmişi (EK-09, EK-03); Tüm Faturalar'ın senkronu yok
             ->assertJsonPath('data.1', [
+                'ekran' => 'efatura_panosu',
+                'goruntule' => 'efatura_panosu.goruntule',
+                'guncelle' => null,
+                'ekler' => [],
+            ])
+            ->assertJsonPath('data.2', [
                 'ekran' => 'tum_faturalar',
                 'goruntule' => 'tum_faturalar.goruntule',
                 'guncelle' => null,
-                'ekler' => ['tum_faturalar.pdf', 'tum_faturalar.disari_aktar'],
+                'ekler' => ['tum_faturalar.pdf', 'tum_faturalar.disari_aktar', 'tum_faturalar.red'],
             ])
-            ->assertJsonPath('data.2', [
+            ->assertJsonPath('data.3.ekran', 'efatura_islem_gecmisi')
+            ->assertJsonPath('data.4', [
                 'ekran' => 'efatura',
                 'goruntule' => 'efatura.goruntule',
                 'guncelle' => 'efatura.senkron',
-                'ekler' => ['efatura.pdf', 'efatura.disari_aktar', 'efatura.gizle'],
+                'ekler' => ['efatura.pdf', 'efatura.disari_aktar', 'efatura.gizle', 'efatura.red'],
             ])
             // Protel Gelen Faturalar menüde e-Fatura'nın hemen altında (PRT-10)
-            ->assertJsonPath('data.3', [
+            ->assertJsonPath('data.5', [
                 'ekran' => 'protel_faturalari',
                 'goruntule' => 'protel_faturalari.goruntule',
                 'guncelle' => 'protel_faturalari.senkron',
-                'ekler' => ['protel_faturalari.pdf', 'protel_faturalari.disari_aktar', 'protel_faturalari.isle'],
+                'ekler' => ['protel_faturalari.pdf', 'protel_faturalari.disari_aktar', 'protel_faturalari.isle', 'protel_faturalari.red'],
             ])
-            ->assertJsonPath('data.32', [
+            // Statik kaynaklar (EK-07, EK-08): "güncelle"si içe aktarım
+            ->assertJsonPath('data.6', [
+                'ekran' => 'logo_faturalari',
+                'goruntule' => 'logo_faturalari.goruntule',
+                'guncelle' => 'logo_faturalari.ice_aktar',
+                'ekler' => ['logo_faturalari.pdf', 'logo_faturalari.disari_aktar', 'logo_faturalari.isle', 'logo_faturalari.red'],
+            ])
+            ->assertJsonPath('data.7.ekran', 'earsiv_faturalari')
+            ->assertJsonPath('data.36', [
                 'ekran' => 'yedekler',
                 'goruntule' => 'yedekler.goruntule',
                 'guncelle' => 'yedekler.al',
                 'ekler' => ['yedekler.sil', 'yedekler.indir', 'geri_yukleme.kopya'],
             ])
-            ->assertJsonPath('data.33', [
+            ->assertJsonPath('data.37', [
                 'ekran' => 'yedek_planlari',
                 'goruntule' => 'yedek_planlari.goruntule',
                 'guncelle' => 'yedek_planlari.guncelle',

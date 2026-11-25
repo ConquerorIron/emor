@@ -57,6 +57,7 @@ final class AlarmDegerlendirici
                 AlarmKurali::SENKRON_ARIZASI => $this->senkronArizasi($kural, $tanim, $simdi),
                 AlarmKurali::GUNLUK_OZET => $this->gunlukOzet($kural, $tanim, $simdi),
                 AlarmKurali::ERP_OKUMADI => $this->erpOkumadi($kural, $tanim, $simdi),
+                AlarmKurali::ISLENMEMIS_HATIRLATMA => $this->islenmemisHatirlatma($kural, $tanim, $simdi),
                 default => [],
             };
 
@@ -292,6 +293,96 @@ final class AlarmDegerlendirici
             });
         } catch (UniqueConstraintViolationException) {
             // Eşzamanlı başka değerlendirme aynı günü işledi; hepsi geri alındı
+            return [];
+        }
+
+        return [$bildirim];
+    }
+
+    /**
+     * İşlenmemiş fatura hatırlatması (EK-10): ayarlanan saatten sonra, son
+     * gönderilen hatırlatmadan `aralik_gun` gün geçtiyse; belge tarihi `gun`
+     * günden eski ve hâlâ "İşlenecek" (EFatura::islenecek — panoyla aynı tanım)
+     * gizlenmemiş gelen faturaların portal bazında adedi ve en eski tarihi.
+     * Mailde fatura satırı, unvan, VKN yok; panoya bağlantı verilir. Bekleyen
+     * fatura yoksa mail gitmez (kayıt "atlandı"), ertesi gün yeniden bakılır.
+     *
+     * Bildirim, değerlendiricinin hesabına (aktif İzibiz tanımı) bağlanır;
+     * sayılar Tüm Faturalar'ın bütün kaynaklarından gelir.
+     *
+     * @return list<AlarmBildirimi>
+     */
+    private function islenmemisHatirlatma(AlarmKurali $kural, EntegratorBaglanti $tanim, CarbonImmutable $simdi): array
+    {
+        $saatDilimi = (string) config('entegrator.izibiz.saat_dilimi');
+        $yerel = $simdi->setTimezone($saatDilimi);
+
+        if ($yerel->format('H:i') < (string) $kural->parametre('saat')) {
+            return [];
+        }
+
+        $anahtar = "islenmemis:{$kural->id}:{$yerel->toDateString()}";
+        if (AlarmBildirimi::query()->where('anahtar', $anahtar)->exists()) {
+            return [];
+        }
+
+        // Sıklık: son gönderilen (ya da gönderilmeyi bekleyen) hatırlatmadan bu yana gün
+        $son = AlarmBildirimi::query()
+            ->where('alarm_kurali_id', $kural->id)
+            ->whereIn('durum', [AlarmBildirimi::BEKLIYOR, AlarmBildirimi::GONDERILDI])
+            ->latest('id')
+            ->value('created_at');
+        $aralik = (int) $kural->parametre('aralik_gun');
+        if ($son !== null && CarbonImmutable::parse($son)->setTimezone($saatDilimi)->startOfDay()->diffInDays($yerel->startOfDay()) < $aralik) {
+            return [];
+        }
+
+        $esikGun = (int) $kural->parametre('gun');
+        $kesim = $yerel->subDays($esikGun)->toDateString();
+        $istenen = explode(',', (string) $kural->parametre('portallar'));
+        $tanimlar = array_values(array_filter(
+            $this->baglantilar->gelenTanimlari(),
+            fn (EntegratorBaglanti $t): bool => in_array($t->saglayici, $istenen, true),
+        ));
+        $saglayicilar = array_column(array_map(fn (EntegratorBaglanti $t): array => [$t->id, $t->saglayici], $tanimlar), 1, 0);
+
+        $satirlar = EFatura::query()
+            ->whereIn('entegrator_baglanti_id', array_keys($saglayicilar))
+            ->where('yon', FaturaYonu::Gelen->value)
+            ->whereNull('gizlenme_zamani')
+            // Ertesi günden küçük: SQLite tarihi saatle saklar, '<= gün' o günü dışarıda bırakırdı
+            ->where('belge_tarihi', '<', CarbonImmutable::parse($kesim)->addDay()->toDateString())
+            ->where('belge_tarihi', '>=', (string) config('entegrator.izibiz.ilk_tarama_tarihi'))
+            ->islenecek()
+            ->toBase()
+            ->selectRaw('entegrator_baglanti_id, count(*) as adet, min(belge_tarihi) as en_eski')
+            ->groupBy('entegrator_baglanti_id')
+            ->get()
+            ->keyBy('entegrator_baglanti_id');
+
+        $portallar = [];
+        foreach (EntegratorBaglanti::GELEN_SAGLAYICILARI as $saglayici) {
+            $id = array_search($saglayici, $saglayicilar, true);
+            $satir = $id === false ? null : $satirlar->get($id);
+            if ($satir !== null) {
+                $portallar[] = ['saglayici' => $saglayici, 'adet' => (int) $satir->adet, 'en_eski' => substr((string) $satir->en_eski, 0, 10)];
+            }
+        }
+        $toplam = array_sum(array_column($portallar, 'adet'));
+        $ayrinti = ['esik_gun' => $esikGun, 'kesim' => $kesim, 'toplam' => $toplam, 'portallar' => $portallar];
+
+        try {
+            $bildirim = DB::transaction(fn (): AlarmBildirimi => AlarmBildirimi::query()->create([
+                'alarm_kurali_id' => $kural->id,
+                'entegrator_baglanti_id' => $tanim->id,
+                'tur' => AlarmBildirimi::TUR_OZET,
+                'anahtar' => $anahtar,
+                'durum' => $toplam === 0 ? AlarmBildirimi::ATLANDI : AlarmBildirimi::BEKLIYOR,
+                'hata_kodu' => $toplam === 0 ? 'ISLENECEK_YOK' : null,
+                'ayrinti' => $ayrinti,
+            ]));
+        } catch (UniqueConstraintViolationException) {
+            // Eşzamanlı başka değerlendirme aynı günü işledi
             return [];
         }
 

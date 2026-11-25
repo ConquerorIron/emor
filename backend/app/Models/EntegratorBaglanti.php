@@ -47,6 +47,24 @@ final class EntegratorBaglanti extends Model
      */
     public const SAGLAYICI_PROTEL = 'protel';
 
+    /**
+     * Statik kaynaklar (docs/efatura/Ek-Isler-Jira.md EK-05): kapanan Logo
+     * portalının faturaları ve GİB'den alınan e-Arşiv faturaları / e-SMM
+     * makbuzları. Senkronu, sınaması, şifresi, token'ı yoktur; veri yalnız
+     * Excel içe aktarımıyla gelir. Tanım kaydı faturaların bağlandığı satırdır;
+     * ortamdan bağımsızdır, her zaman aktiftir ve Entegratör Bağlantıları
+     * ekranında görünmez (EntegratorBaglantiServisi::statikTanim).
+     */
+    public const SAGLAYICI_LOGO = 'logo';
+
+    public const SAGLAYICI_EARSIV = 'earsiv';
+
+    /** @var list<string> */
+    public const STATIK_SAGLAYICILAR = [self::SAGLAYICI_LOGO, self::SAGLAYICI_EARSIV];
+
+    /** Gelen faturaların bütün kaynakları (Tüm Faturalar ve pano sırası) */
+    public const GELEN_SAGLAYICILARI = [self::SAGLAYICI_LOGO, self::SAGLAYICI_PROTEL, self::SAGLAYICI_IZIBIZ, self::SAGLAYICI_EARSIV];
+
     public const ORTAM_TEST = 'test';
 
     public const ORTAM_CANLI = 'canli';
@@ -91,6 +109,11 @@ final class EntegratorBaglanti extends Model
 
     /** @var list<string> */
     protected $hidden = ['sifre'];
+
+    public function statikMi(): bool
+    {
+        return in_array($this->saglayici, self::STATIK_SAGLAYICILAR, true);
+    }
 
     /** Kullanılan adres: tanımlanmışsa o, değilse ortamın varsayılanı. */
     public function apiUrl(): string

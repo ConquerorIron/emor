@@ -39,27 +39,31 @@ final class EFaturaListeRequest extends FormRequest
             // Protel ekranı: otelin ERP'si aldı mı
             'otel_erp_okundu' => ['nullable', Rule::in(['evet', 'hayir', 'bilinmiyor'])],
             // Tüm Faturalar: yalnız bir sağlayıcının faturaları
-            'entegrator' => ['nullable', Rule::in([EntegratorBaglanti::SAGLAYICI_IZIBIZ, EntegratorBaglanti::SAGLAYICI_PROTEL])],
-            'emor' => ['nullable', Rule::in([...array_column(EmorDurumu::cases(), 'value'), 'bilinmiyor', 'islenmemis', 'islenmis'])],
+            'entegrator' => ['nullable', Rule::in(EntegratorBaglanti::GELEN_SAGLAYICILARI)],
+            'emor' => ['nullable', Rule::in([...array_column(EmorDurumu::cases(), 'value'), 'bilinmiyor'])],
+            // Faturanın sınıfı (EFatura kapsamları): hızlı filtreler ve pano
+            'sinif' => ['nullable', Rule::in(['islendi', 'islenecek', 'red', 'red_islenmis'])],
+            // e-Arşiv / e-SMM ekranı
+            'belge_turu' => ['nullable', Rule::in(['fatura', 'makbuz'])],
             'tip' => ['nullable', 'string', 'max:64'],
             'istisna_kodu' => ['nullable', 'string', 'max:50'],
             'istisnali' => ['nullable', Rule::in(['evet'])],
             // Karşı tarafın VKN'si eMOR'daki bir kurum kartında mı (ErpKurumVknleri)
             'emor_vkn' => ['nullable', Rule::in(['evet', 'hayir'])],
-            // Gizlenen faturalar varsayılan listede yok; 'dahil' ile onlar da gelir
-            'gizlenenler' => ['nullable', Rule::in(['dahil'])],
+            // Gizlenen faturalar varsayılan listede yok; 'dahil' ile onlar da gelir, 'yalniz' ile yalnız onlar (pano)
+            'gizlenenler' => ['nullable', Rule::in(['dahil', 'yalniz'])],
             'para_birimi' => ['nullable', 'string', 'size:3'],
             'sirala' => ['nullable', Rule::in(EFaturaSorgusu::SIRALAMALAR)],
             'yon' => ['nullable', Rule::in(['asc', 'desc'])],
             'page' => ['nullable', 'integer', 'min:1'],
             // Excel: ekrandaki listenin ortamı; sunucudaki aktif ortam farklıysa 409 (PRT-R3).
-            // Tüm Faturalar'da sağlayıcı başına ortam: `izibiz:canli,protel:canli`
+            // Tüm Faturalar'da sağlayıcı başına ortam: `izibiz:canli,protel:canli,logo:canli,…`
             'ortam' => ['nullable', $this->routeIs('tum_faturalar.faturalar.excel')
-                ? 'regex:/^(izibiz|protel):(test|canli)(,(izibiz|protel):(test|canli))?$/D'
+                ? 'regex:/^(izibiz|protel|logo|earsiv):(test|canli)(,(izibiz|protel|logo|earsiv):(test|canli)){0,3}$/D'
                 : Rule::in(EntegratorBaglanti::ORTAMLAR)],
             'sayfa_boyutu' => ['nullable', 'integer', Rule::in([0, 25, 50, 100, 200])],
             // Excel: ekrandaki görünür kolonlar ve başlıkları, aynı sırada
-            'kolonlar' => [Rule::requiredIf(fn (): bool => $this->routeIs('efatura.faturalar.excel', 'protel.faturalar.excel', 'tum_faturalar.faturalar.excel')), 'array', 'max:'.count(EFaturaExcelAktarici::KOLONLAR)],
+            'kolonlar' => [Rule::requiredIf(fn (): bool => $this->routeIs('*.faturalar.excel')), 'array', 'max:'.count(EFaturaExcelAktarici::KOLONLAR)],
             'kolonlar.*' => ['string', 'distinct', Rule::in(array_keys(EFaturaExcelAktarici::KOLONLAR))],
             'basliklar' => ['required_with:kolonlar', 'array', 'size:'.count((array) $this->input('kolonlar', []))],
             'basliklar.*' => ['required', 'string', 'max:100'],
@@ -89,12 +93,12 @@ final class EFaturaListeRequest extends FormRequest
     }
 
     /**
-     * @return array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, otel_erp_okundu?: string|null, entegrator?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null, emor_vkn?: string|null}
+     * @return array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, otel_erp_okundu?: string|null, entegrator?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null, emor_vkn?: string|null, sinif?: string|null, belge_turu?: string|null}
      */
     public function filtre(): array
     {
-        /** @var array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, otel_erp_okundu?: string|null, entegrator?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null, emor_vkn?: string|null} */
-        return $this->safe()->only(['baslangic', 'bitis', 'ara', 'durum', 'erp_okundu', 'otel_erp_okundu', 'entegrator', 'emor', 'para_birimi', 'tip', 'istisna_kodu', 'istisnali', 'gizlenenler', 'emor_vkn']);
+        /** @var array{baslangic: string, bitis: string, ara?: string|null, durum?: string|null, erp_okundu?: string|null, otel_erp_okundu?: string|null, entegrator?: string|null, emor?: string|null, para_birimi?: string|null, tip?: string|null, istisna_kodu?: string|null, istisnali?: string|null, gizlenenler?: string|null, emor_vkn?: string|null, sinif?: string|null, belge_turu?: string|null} */
+        return $this->safe()->only(['baslangic', 'bitis', 'ara', 'durum', 'erp_okundu', 'otel_erp_okundu', 'entegrator', 'emor', 'para_birimi', 'tip', 'istisna_kodu', 'istisnali', 'gizlenenler', 'emor_vkn', 'sinif', 'belge_turu']);
     }
 
     /**

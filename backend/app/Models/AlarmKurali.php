@@ -24,7 +24,14 @@ final class AlarmKurali extends Model
 
     public const ERP_OKUMADI = 'erp_okumadi';
 
-    public const TURLER = [self::SENKRON_ARIZASI, self::GUNLUK_OZET, self::ERP_OKUMADI];
+    /**
+     * İşlenmemiş fatura hatırlatması (EK-10): N günden eski, hâlâ "İşlenecek"
+     * sınıfındaki gelen faturaların portal bazında özeti; her M günde bir.
+     * Sınıf tanımı panoyla aynıdır (EFatura::islenecek).
+     */
+    public const ISLENMEMIS_HATIRLATMA = 'islenmemis_hatirlatma';
+
+    public const TURLER = [self::SENKRON_ARIZASI, self::GUNLUK_OZET, self::ERP_OKUMADI, self::ISLENMEMIS_HATIRLATMA];
 
     protected $table = 'alarm_kurallari';
 
@@ -43,6 +50,9 @@ final class AlarmKurali extends Model
             self::GUNLUK_OZET => ['saat' => '08:00'],
             // Gelen fatura İzibiz'e ulaşalı N gün oldu, ERP hâlâ okumadı
             self::ERP_OKUMADI => ['gun' => 2, 'saat' => '09:00'],
+            // Belge tarihi N günden eski işlenecek faturalar, her `aralik_gun` günde bir;
+            // portallar virgüllü (EntegratorBaglanti::GELEN_SAGLAYICILARI)
+            self::ISLENMEMIS_HATIRLATMA => ['gun' => 3, 'aralik_gun' => 3, 'saat' => '09:00', 'portallar' => implode(',', EntegratorBaglanti::GELEN_SAGLAYICILARI)],
             default => [],
         };
     }

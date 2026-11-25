@@ -27,7 +27,7 @@ export const queryKeys = {
       ['efatura', 'liste', yon, parametreler] as const,
     pdf: (faturaId: number) => ['efatura', 'pdf', faturaId] as const,
   },
-  // Tüm Faturalar — İzibiz + Protel gelen faturaların birleşik listesi
+  // Tüm Faturalar — bütün kaynakların (İzibiz, Protel, Logo, e-Arşiv) birleşik gelen listesi
   tumFaturalar: {
     hepsi: ['tumFaturalar'],
     liste: (parametreler: Record<string, unknown>) =>
@@ -37,8 +37,26 @@ export const queryKeys = {
   protel: {
     hepsi: ['protel'],
     durum: ['protel', 'durum'],
-    listeler: ['protel', 'liste'],
-    liste: (parametreler: Record<string, unknown>) => ['protel', 'liste', parametreler] as const,
+  },
+  // Tek kaynaklı gelen fatura ekranları (Protel, Logo, e-Arşiv): onEk başına listeler
+  kaynak: {
+    listeler: (onEk: string) => [onEk, 'liste'] as const,
+    liste: (onEk: string, parametreler: Record<string, unknown>) =>
+      [onEk, 'liste', parametreler] as const,
+    yuklemeler: (onEk: string) => [onEk, 'yuklemeler'] as const,
+  },
+  // e-Fatura işlem geçmişi (EK-03) ve pano (EK-09): elle işlemden sonra tazelenir
+  efaturaGecmis: {
+    hepsi: ['efaturaGecmis'],
+    fatura: (ekran: string, faturaId: number) => ['efaturaGecmis', ekran, faturaId] as const,
+    liste: (parametreler: Record<string, unknown>) =>
+      ['efaturaGecmis', 'liste', parametreler] as const,
+  },
+  efaturaPano: {
+    hepsi: ['efaturaPano'],
+    ozet: (parametreler: Record<string, unknown>) => ['efaturaPano', 'ozet', parametreler] as const,
+    firmalar: (parametreler: Record<string, unknown>) =>
+      ['efaturaPano', 'firmalar', parametreler] as const,
   },
   kesinti: {
     turler: ['kesinti', 'turler'],

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Middleware\AktifKullanici;
 use App\Http\Middleware\YedeklemeAcik;
+use App\Services\Entegrator\EFaturaIslemHatasi;
 use App\Services\Entegrator\EntegratorHatasi;
 use App\Services\ErpOkumaHatasi;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -80,6 +81,13 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Entegratör (İzibiz) hataları: kod + çevrilmiş mesaj; sağlayıcı gövdesi dönmez
         $exceptions->render(function (EntegratorHatasi $e, Request $request): ?JsonResponse {
+            return $request->is('api/*')
+                ? response()->json(['kod' => $e->kod, 'mesaj' => $e->getMessage()], $e->httpDurumu)
+                : null;
+        });
+
+        // e-Fatura elle işlem kuralları (RED, İşlendi, içe aktarım — docs/efatura)
+        $exceptions->render(function (EFaturaIslemHatasi $e, Request $request): ?JsonResponse {
             return $request->is('api/*')
                 ? response()->json(['kod' => $e->kod, 'mesaj' => $e->getMessage()], $e->httpDurumu)
                 : null;

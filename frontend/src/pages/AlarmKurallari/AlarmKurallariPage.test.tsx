@@ -41,6 +41,13 @@ const YANIT: AlarmKurallariYaniti = {
       parametreler: { gun: 2, saat: '09:00' },
       updated_at: '2026-09-23T10:00:00+00:00',
     },
+    {
+      tur: 'islenmemis_hatirlatma',
+      aktif: false,
+      alicilar: ['muhasebe@ornek.test'],
+      parametreler: { gun: 3, aralik_gun: 3, saat: '09:00', portallar: 'logo,protel' },
+      updated_at: '2026-11-25T10:00:00+00:00',
+    },
   ],
   bildirimler: [
     {
@@ -115,6 +122,37 @@ describe('AlarmKurallariPage', () => {
       aktif: true,
       alicilar: ['bt@ornek.test', 'muhasebe@ornek.test'],
       parametreler: { ardisik_hata: 5, gecikme_saat: 2 },
+    })
+  })
+
+  it('işlenmemiş fatura hatırlatması portalları virgüllü, günleri kendi etiketleriyle kaydeder; portalsız kaydetmez', async () => {
+    api.kaydet.mockResolvedValue(YANIT.data[3])
+    ciz()
+    const kural = await screen.findByRole('form', { name: 'İşlenmemiş fatura hatırlatması' })
+    // Hatırlatmanın günü fatura tarihinden sayılır (ERP uyarısının etiketi değil)
+    expect(within(kural).getByLabelText('Fatura tarihinden sonra beklenecek gün')).toHaveValue(3)
+    expect(within(kural).getByRole('checkbox', { name: 'Logo' })).toBeChecked()
+    expect(within(kural).getByRole('checkbox', { name: 'İzibiz' })).not.toBeChecked()
+
+    fireEvent.click(within(kural).getByRole('checkbox', { name: 'Logo' }))
+    fireEvent.click(within(kural).getByRole('checkbox', { name: 'Portal Plus (Protel)' }))
+    fireEvent.click(within(kural).getByRole('button', { name: 'Kaydet' }))
+    expect(await within(kural).findByText('En az bir portal seçin.')).toBeInTheDocument()
+    expect(api.kaydet).not.toHaveBeenCalled()
+
+    fireEvent.click(within(kural).getByRole('checkbox', { name: 'E-Arşiv / E-SMM' }))
+    fireEvent.click(within(kural).getByRole('checkbox', { name: 'İzibiz' }))
+    fireEvent.change(within(kural).getByLabelText('Kaç günde bir gönderilsin'), {
+      target: { value: '4' },
+    })
+    fireEvent.click(within(kural).getByRole('button', { name: 'Kaydet' }))
+
+    await waitFor(() => expect(api.kaydet).toHaveBeenCalledTimes(1))
+    expect(api.kaydet).toHaveBeenCalledWith('islenmemis_hatirlatma', {
+      aktif: false,
+      alicilar: ['muhasebe@ornek.test'],
+      // Pano sırasıyla, seçim sırasından bağımsız
+      parametreler: { gun: 3, aralik_gun: 4, saat: '09:00', portallar: 'izibiz,earsiv' },
     })
   })
 

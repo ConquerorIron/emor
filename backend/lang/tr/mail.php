@@ -36,5 +36,13 @@ return [
         'erp_yeni' => 'İzibiz\'e ulaşalı :gun günden fazla olduğu hâlde ERP\'nin okumadığı :adet yeni fatura var.',
         'erp_acik' => 'Hâlâ okunmamış toplam fatura: :adet',
         'erp_not' => 'Liste ekranında "ERP Okudu = Hayır" filtresiyle görülebilir. Bu uygulama ERP okundu bayrağını değiştirmez.',
+
+        'islenmemis_baslik' => ':gun günden eski :adet fatura henüz işlenmedi',
+        'islenmemis_portal' => ':portal: :adet fatura (en eskisi :tarih)',
+        'islenmemis_not' => 'Fatura tarihi :tarih ve öncesi olan, RED olmayan ve eMOR\'a ya da SAP\'ye işlenmemiş faturalar sayılır. Liste ve firma dökümü panodadır.',
+        'portal_logo' => 'Logo',
+        'portal_protel' => 'Portal Plus (Protel)',
+        'portal_izibiz' => 'İzibiz',
+        'portal_earsiv' => 'E-Arşiv',
     ],
 ];

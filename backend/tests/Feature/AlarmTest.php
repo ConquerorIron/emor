@@ -15,6 +15,7 @@ use App\Models\EntegratorBaglanti;
 use App\Models\MailAyari;
 use App\Models\User;
 use App\Services\Alarm\AlarmDegerlendirici;
+use App\Services\EntegratorBaglantiServisi;
 use App\Services\MailAyarServisi;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -591,6 +592,95 @@ final class AlarmTest extends TestCase
         $kural = AlarmKurali::query()->where('tur', 'erp_okumadi')->firstOrFail();
         $this->assertTrue($kural->aktif);
         $this->assertSame(['gun' => 3, 'saat' => '10:30'], $kural->parametreler);
+    }
+
+    /**
+     * İşlenmemiş fatura hatırlatması (EK-10): saatten sonra, yalnız N günden
+     * eski ve "İşlenecek" sınıfındaki faturaları seçili portallarda sayar
+     * (işlenmiş, RED, gizlenen ve yeni fatura sayılmaz); sonraki hatırlatma
+     * `aralik_gun` gün sonra. Bekleyen yoksa mail gitmez, ertesi gün yeniden bakılır.
+     */
+    public function test_islenmemis_hatirlatmasi_esigi_gecen_islenecekleri_portal_bazinda_aralikla_bildirir(): void
+    {
+        $this->travelTo('2026-11-25 05:00:00'); // 08:00 İstanbul
+        $izibiz = $this->tanim('canli');
+        $protel = EntegratorBaglanti::factory()->protel()->canli()->aktif()->create();
+        $kural = $this->kural(AlarmKurali::ISLENMEMIS_HATIRLATMA, ['gun' => 3, 'aralik_gun' => 3, 'saat' => '09:00', 'portallar' => 'izibiz,protel']);
+        $f = fn (EntegratorBaglanti $t, string $tarih, array $alanlar = []) => EFatura::factory()->create(['entegrator_baglanti_id' => $t->id, 'belge_tarihi' => $tarih, 'emor_durumu' => 'yok', ...$alanlar]);
+        $f($izibiz, '2026-11-10');
+        $f($izibiz, '2026-11-22');
+        $f($izibiz, '2026-11-23'); // eşikten yeni
+        $f($izibiz, '2026-11-01', ['emor_durumu' => 'islendi']);
+        $f($izibiz, '2026-11-01', ['durum' => 'REJECTED']);
+        $f($izibiz, '2026-11-01', ['gizlenme_zamani' => '2026-11-02 08:00:00']);
+        $f($protel, '2026-11-05', ['durum' => 'Received', 'erp_okundu' => null]);
+        $logo = app(EntegratorBaglantiServisi::class)->statikTanim('logo');
+        $f($logo, '2026-11-01', ['kaynak_id' => null, 'belge_anahtari' => 'x', 'durum' => 'Alındı']); // portal seçili değil
+
+        $this->assertSame([], $this->degerlendir()); // saatten önce
+
+        $this->travelTo('2026-11-25 06:30:00'); // 09:30 İstanbul
+        [$bildirim] = $this->degerlendir();
+        $this->assertSame(AlarmBildirimi::BEKLIYOR, $bildirim->durum);
+        $this->assertSame([
+            'esik_gun' => 3,
+            'kesim' => '2026-11-22',
+            'toplam' => 3,
+            'portallar' => [
+                ['saglayici' => 'protel', 'adet' => 1, 'en_eski' => '2026-11-05'],
+                ['saglayici' => 'izibiz', 'adet' => 2, 'en_eski' => '2026-11-10'],
+            ],
+        ], $bildirim->ayrinti);
+        $bildirim->update(['durum' => AlarmBildirimi::GONDERILDI]);
+
+        // Aynı gün ve iki gün sonra yeni hatırlatma yok; üçüncü gün var
+        $this->assertSame([], $this->degerlendir());
+        $this->travelTo('2026-11-27 07:00:00');
+        $this->assertSame([], $this->degerlendir());
+        $this->travelTo('2026-11-28 07:00:00');
+        $this->assertCount(1, $this->degerlendir());
+
+        // Bekleyen kalmadıysa mail gitmez (atlandı), ertesi gün yeniden bakılır
+        EFatura::query()->update(['emor_durumu' => 'islendi']);
+        $this->travelTo('2026-12-01 07:00:00');
+        $this->assertSame([], $this->degerlendir());
+        $this->assertSame('ISLENECEK_YOK', AlarmBildirimi::query()->where('alarm_kurali_id', $kural->id)->latest('id')->value('hata_kodu'));
+        $this->travelTo('2026-12-02 07:00:00');
+        $this->degerlendir();
+        $this->assertSame(2, AlarmBildirimi::query()->where('alarm_kurali_id', $kural->id)->where('durum', AlarmBildirimi::ATLANDI)->count());
+    }
+
+    public function test_islenmemis_hatirlatma_mailinde_portal_sayilari_var_fatura_bilgisi_yok(): void
+    {
+        $bildirim = new AlarmBildirimi([
+            'tur' => AlarmBildirimi::TUR_OZET,
+            'ayrinti' => [
+                'esik_gun' => 3,
+                'kesim' => '2026-11-22',
+                'toplam' => 3,
+                'portallar' => [['saglayici' => 'protel', 'adet' => 1, 'en_eski' => '2026-11-05'], ['saglayici' => 'izibiz', 'adet' => 2, 'en_eski' => '2026-11-10']],
+            ],
+        ]);
+
+        $mail = new AlarmMaili($bildirim, AlarmKurali::ISLENMEMIS_HATIRLATMA, 'canli');
+        $html = $mail->render();
+
+        $this->assertSame('eMOR ERP — 3 günden eski 3 fatura henüz işlenmedi', $mail->envelope()->subject);
+        $this->assertStringContainsString('Portal Plus (Protel): 1 fatura (en eskisi 05.11.2026)', $html);
+        $this->assertStringContainsString('İzibiz: 2 fatura (en eskisi 10.11.2026)', $html);
+        $this->assertStringContainsString(rtrim((string) config('app.url'), '/').'/efatura/pano', $html);
+    }
+
+    public function test_islenmemis_hatirlatmasi_portalsiz_kaydedilmez(): void
+    {
+        $this->actingAs(User::factory()->yonetici()->create())
+            ->putJson('/api/v1/ayarlar/alarm-kurallari/islenmemis_hatirlatma', [
+                'aktif' => true,
+                'alicilar' => ['muhasebe@ornek.test'],
+                'parametreler' => ['gun' => 3, 'aralik_gun' => 3, 'saat' => '09:00', 'portallar' => ''],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['parametreler.portallar' => 'En az bir portal seçilmeli.'], 'hatalar');
     }
 
     public function test_aktif_kural_alicisiz_ve_hatali_saatle_kaydedilmez(): void

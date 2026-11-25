@@ -81,7 +81,13 @@
     "yedekHedefleri": "Backup Targets",
     "yedekIslemGunlugu": "Backup Audit Log",
     "yedeklemeAyarlari": "Backup Settings",
-    "geriYuklemeler": "Restores"
+    "geriYuklemeler": "Restores",
+    "efaturaPanosu": "Dashboard",
+    "efaturaIslemGecmisi": "Action History",
+    "logo": "Logo",
+    "logoGelenFaturalar": "Incoming Invoices",
+    "earsiv": "E-Archive / E-SMM",
+    "earsivGelenFaturalar": "Incoming Invoices / Receipts"
   },
   "tasarim": {
     "baslik": "Screen Designer",
@@ -466,7 +472,10 @@
         "ardisik_hata": "Consecutive failed runs",
         "gecikme_saat": "Longest time without update (hours)",
         "gun": "Days to wait after arrival at İzibiz",
-        "saat": "Send time (HH:MM)"
+        "saat": "Send time (HH:MM)",
+        "aralik_gun": "Send every N days",
+        "hatirlatmaGun": "Days to wait after the invoice date",
+        "portallar": "Portals"
       },
       "kural": {
         "senkron_arizasi": {
@@ -480,13 +489,18 @@
         "erp_okumadi": {
           "ad": "Not read by ERP",
           "aciklama": "Once a day, newly found incoming invoices that the ERP has not read although they reached İzibiz more than the given days ago. No alert when data is stale."
+        },
+        "islenmemis_hatirlatma": {
+          "ad": "Unprocessed invoice reminder",
+          "aciklama": "Counts invoices older than the given days that are not rejected and not processed in eMOR or SAP, in the selected portals, and sends a per-portal summary at the set interval. No mail is sent if nothing is pending."
         }
       },
       "dogrulama": {
         "aliciZorunlu": "An active rule needs at least one recipient.",
         "aliciGecersiz": "One of the recipients is not a valid e-mail address.",
         "saatBicimi": "Time must be HH:MM (e.g. 08:30).",
-        "aralik": "Enter a whole number between {{en}} and {{cok}}."
+        "aralik": "Enter a whole number between {{en}} and {{cok}}.",
+        "portalZorunlu": "Select at least one portal."
       },
       "bildirim": {
         "baslik": "Recent notifications",
@@ -540,7 +554,6 @@
     "ENTEGRATOR_AKTIF_YOK": "No active integrator environment is selected.",
     "ENTEGRATOR_ORTAM_DEGISTI": "The active integrator environment changed; the list on screen belongs to the previous environment. Export again after the list refreshes.",
     "PROTEL_KAPALI": "The Protel connection is disabled on the server (PROTEL_AKTIF); no request was sent to Protel.",
-    "PROTEL_FATURA_REDDEDILDI": "This invoice was rejected on the Protel portal; it cannot be marked as processed.",
     "guncellendiBaslik": "Application updated",
     "guncellendiOtomatik": "A new version has been installed; it takes effect after a refresh.",
     "guncellendiElle": "Refresh the page to switch to the new version.",
@@ -555,7 +568,7 @@
     "ERP_OKUMA_YETKISI_YOK": "The ERP database user is not allowed to read this data. Ask the database administrator for SELECT permission.",
     "ERP_OKUMA_HATASI": "ERP could not be read. Please try again shortly.",
     "KAYIT_KULLANILIYOR": "This record is used by other records and cannot be deleted.",
-    "ICE_AKTARIM_HATALI": "There are invalid rows; nothing was saved. Fix the errors below and check again.",
+    "ICE_AKTARIM_HATALI": "The file has invalid rows; nothing was saved.",
     "KESINTI_EXCEL_COK_BUYUK": "The selected filter has more rows than the Excel limit. Narrow the filter.",
     "YEDEKLEME_KAPALI": "The backup module is disabled on the server (YEDEKLEME_AKTIF).",
     "ISTEK_BULUNAMADI": "The job request was not found (it may have expired or been cleaned up).",
@@ -682,7 +695,13 @@
     "GERI_YUKLEME_AYAR_SECIMI_UYGULANAMADI": "The current settings could not be written; no setting changed and the application is still in maintenance mode. Change the choice and approve again, or go back.",
     "GERI_YUKLEME_KARAR_SURESI_DOLDU": "The decision expired (5 minutes) and was not applied. Decide again.",
     "GERI_YUKLEME_KARAR_KANITI_KULLANILDI": "This decision was already processed; it was not applied again.",
-    "GERI_YUKLEME_KARAR_KAPASITESI_DOLU": "Too many decisions were processed in a short time; this decision was not applied. Try again in a few minutes."
+    "GERI_YUKLEME_KARAR_KAPASITESI_DOLU": "Too many decisions were processed in a short time; this decision was not applied. Try again in a few minutes.",
+    "FATURA_REDDEDILDI": "This invoice is rejected; it cannot be marked as processed.",
+    "FATURA_KAYNAKTA_REDDEDILMIS": "This invoice is already rejected at its source; it cannot be marked as rejected again.",
+    "FATURA_ISLENDI_ISARETLI": "This invoice is marked as processed; remove the mark before rejecting it.",
+    "FATURA_BELGESI_YOK": "The original of this invoice is not in the eMOR archive; the PDF cannot be shown.",
+    "YUKLEME_ELLE_ISLENMIS": "Some invoices added by this import have manual actions (rejection, processed or hidden); the import cannot be undone.",
+    "ICE_AKTARIM_SURUYOR": "Another import or undo is running for this source. Try again shortly."
   },
   "yetki": {
     "goruntule": "View",
@@ -729,10 +748,14 @@
       "roller": "Roles",
       "ekran_tasarimi": "Screen Design",
       "yedekler": "Backups (view / take backup)",
-      "yedek_planlari": "Backup Plans and Targets"
+      "yedek_planlari": "Backup Plans and Targets",
+      "efatura_panosu": "e-Invoice Dashboard",
+      "efatura_islem_gecmisi": "e-Invoice Action History",
+      "logo_faturalari": "Logo Incoming Invoices",
+      "earsiv_faturalari": "E-Archive / E-SMM Incoming Invoices / Receipts"
     },
     "izin": {
-      "tum_faturalar_goruntule": "View all invoices (İzibiz + Protel)",
+      "tum_faturalar_goruntule": "View all invoices (all sources)",
       "tum_faturalar_pdf": "View PDF/XML in All Invoices",
       "tum_faturalar_disari_aktar": "Export All Invoices to Excel",
       "efatura_goruntule": "View e-Invoice lists",
@@ -747,7 +770,24 @@
       "protel_faturalari_isle": "Mark / unmark Protel invoices as \"Processed\"",
       "yedekler_sil": "Delete / pin backups",
       "yedekler_indir": "Download backup files (all data)",
-      "geri_yukleme_kopya": "Restore a backup under a new name (copy)"
+      "geri_yukleme_kopya": "Restore a backup under a new name (copy)",
+      "tum_faturalar_red": "Mark / unmark invoices as rejected in All Invoices",
+      "efatura_red": "Mark / unmark İzibiz invoices as rejected",
+      "protel_faturalari_red": "Mark / unmark Protel invoices as rejected",
+      "efatura_panosu_goruntule": "View the e-invoice dashboard",
+      "efatura_islem_gecmisi_goruntule": "View the e-invoice action history",
+      "logo_faturalari_goruntule": "View Logo incoming invoices",
+      "logo_faturalari_ice_aktar": "Import / undo the Logo list from Excel",
+      "logo_faturalari_pdf": "View Logo invoice PDF",
+      "logo_faturalari_disari_aktar": "Export the Logo list to Excel",
+      "logo_faturalari_isle": "Mark Logo invoices as processed",
+      "logo_faturalari_red": "Mark / unmark Logo invoices as rejected",
+      "earsiv_faturalari_goruntule": "View E-Archive / E-SMM documents",
+      "earsiv_faturalari_ice_aktar": "Import / undo the E-Archive / E-SMM list from Excel",
+      "earsiv_faturalari_pdf": "View E-Archive / E-SMM PDF",
+      "earsiv_faturalari_disari_aktar": "Export the E-Archive / E-SMM list to Excel",
+      "earsiv_faturalari_isle": "Mark E-Archive / E-SMM documents as processed",
+      "earsiv_faturalari_red": "Mark / unmark E-Archive / E-SMM documents as rejected"
     }
   },
   "efatura": {
@@ -867,10 +907,13 @@
       "istisnaKoduErp": "Exemption Code (ERP)",
       "sap": "SAP",
       "sistemBekleniyor": "This will be filled once the SAP service is available.",
-      "sapProtelde": "Not marked as \"Processed\" on the Protel Incoming Invoices screen.",
       "entegrator": "Integrator",
       "siraNo": "No.",
-      "emorVkn": "eMOR VKN Exists"
+      "emorVkn": "eMOR VKN Exists",
+      "belgeTuru": "Document Type",
+      "brutTutar": "Gross / Total",
+      "stopajTutari": "Withholding",
+      "sapKaynakEkraninda": "Not marked as \"Processed\" on the {{kaynak}} screen."
     },
     "erpSenkron": {
       "ac": "Sync with ERP",
@@ -904,7 +947,10 @@
       "erpIslenenler": "Processed in ERP",
       "istisnalilar": "With tax exemption",
       "havuzdaOlmayanlar": "Not in ERP pool",
-      "emorVknVar": "Registered in eMOR"
+      "emorVknVar": "Registered in eMOR",
+      "red": "Rejected",
+      "redIslenmis": "Rejected but Processed",
+      "yalnizGizlenenler": "Hidden Only"
     },
     "istisnaFarkli": "Exemption code differs between the integrator and the ERP",
     "gizleme": {
@@ -919,16 +965,184 @@
       "rozetAciklama": "Hidden from the list — {{kisi}}",
       "alan": "Hidden"
     },
-    "tumAciklama": "Invoices received in İzibiz and Protel in one list. Sync and hiding are done on the provider screens.",
+    "tumAciklama": "Incoming invoices of all sources (İzibiz, Protel, Logo, E-Archive) in one list. Sync and import are done on the source screens.",
     "sapIslendi": "Processed",
     "sapRed": "Rejected",
-    "protelRedAciklama": "Rejected on the Protel portal; it cannot be marked as processed.",
     "saglayici": {
       "izibiz": "İzibiz",
-      "protel": "Protel"
+      "protel": "Protel",
+      "logo": "Logo",
+      "earsiv": "E-Archive"
     },
     "emorVkn": {
       "bilinmiyor": "eMOR company cards could not be read right now; refresh the page shortly."
+    },
+    "belgeTuru": {
+      "fatura": "Invoice",
+      "makbuz": "Receipt"
+    },
+    "red": {
+      "harici": "Rejected (manual)",
+      "kaynakAciklama": "Rejected / cancelled at its source (integrator or list); it cannot be marked as processed.",
+      "hariciAciklama": "{{eden}} marked it as rejected on {{zaman}}. Reason: {{neden}}",
+      "cek": "Mark as Rejected",
+      "geriAl": "Undo Rejection",
+      "cekBaslik": "Invoice {{no}} — Mark as Rejected",
+      "geriAlBaslik": "Invoice {{no}} — Undo Rejection",
+      "aciklama": "Mark an invoice cancelled outside the integrator (notary, cancellation/objection portal…) as rejected. It drops out of quick filters and cannot be marked as processed; the action is logged.",
+      "islenmisUyari": "This invoice appears processed in eMOR. Rejecting it does not change the eMOR record; the dashboard counts it as a warning.",
+      "neden": "Reason",
+      "nedenZorunlu": "A reason is required.",
+      "geriAlSorusu": "{{eden}} marked it as rejected on {{zaman}} (reason: {{neden}}). Undo the rejection?",
+      "cekildi": "Invoice {{no}} marked as rejected.",
+      "geriAlindi": "Rejection of invoice {{no}} undone."
+    },
+    "islem": {
+      "gecmis": "Action history",
+      "gecmisBaslik": "Invoice {{no}} — Action History",
+      "zaman": "Time",
+      "kullanici": "User",
+      "islem": "Action",
+      "ayrinti": "Details",
+      "ara": "Search document no / reason",
+      "ekranBaslik": "e-Invoice Action History",
+      "ekranAciklama": "Manual actions on e-invoice screens (rejection, processed, hiding, import) per user. Records cannot be changed or deleted.",
+      "oncekiNeden": "Rejection reason: {{neden}}",
+      "yuklemeAyrintisi": "{{dosya}} — {{yeni}} new, {{guncellenen}} updated, {{degismeyen}} unchanged",
+      "geriAlmaAyrintisi": "{{dosya}} — {{silinen}} invoices deleted",
+      "tur": {
+        "red_cekildi": "Marked as rejected",
+        "red_geri_alindi": "Rejection undone",
+        "islendi_isaretlendi": "Marked as processed",
+        "islendi_kaldirildi": "Processed mark removed",
+        "gizlendi": "Hidden",
+        "gizleme_kaldirildi": "Restored to list",
+        "ice_aktarildi": "Excel imported",
+        "ice_aktarim_geri_alindi": "Import undone"
+      }
+    },
+    "iceAktarim": {
+      "dugme": "Import from Excel",
+      "baslik": "Import Excel List",
+      "aciklama": {
+        "logo": "Incoming e-invoice list of the Logo portal (.xlsx). Rows match by ETTN; re-importing updates existing ones and keeps manual rejection and processed marks.",
+        "earsiv": "E-archive invoice list or e-SMM receipt list from GİB (.xlsx). The type is recognized from the headers; documents match by sender + document no. Re-importing updates existing ones."
+      },
+      "dosya": "Excel file (.xlsx)",
+      "kontrolEt": "Check",
+      "hatasiz": "{{sayi}} rows read without errors.",
+      "hatasizTurlu": "{{sayi}} rows read without errors ({{tur}}).",
+      "ozet": "New: {{yeni}} · To update: {{guncellenecek}} · Unchanged: {{degismeyen}} · Rejected / cancelled: {{red}}",
+      "hataliDosya": "The file has invalid rows; fix them and check again. Nothing is saved until all errors are fixed.",
+      "eksikKolonlar": "These columns were not found: {{kolonlar}}. Make sure you upload the list for this screen.",
+      "alanBaslik": "Column",
+      "degerBaslik": "Value",
+      "nedenBaslik": "Reason",
+      "adetBaslik": "Rows",
+      "satirlarBaslik": "Sample Excel rows",
+      "kaydedildi": "List saved: {{yeni}} new, {{guncellenen}} updated, {{degismeyen}} unchanged.",
+      "dosyaHatasi": {
+        "dosya_okunamadi": "The file could not be read. Make sure it is an Excel (.xlsx) file.",
+        "baslik_bulunamadi": "No header row of this screen's list was found in the file.",
+        "satir_yok": "There are no documents below the header row."
+      },
+      "hataKodu": {
+        "zorunlu": "Cannot be empty",
+        "ettn_gecersiz": "Invalid ETTN",
+        "tarih_gecersiz": "Invalid date",
+        "zaman_gecersiz": "Invalid date-time (DD.MM.YYYY HH:MM:SS)",
+        "vkn_gecersiz": "Tax / ID number must have 10 or 11 digits",
+        "tutar_gecersiz": "Invalid amount",
+        "para_birimi_gecersiz": "Currency must be a 3-letter code (TRY, USD…)",
+        "cok_uzun": "Too long",
+        "alici_sirket_degil": "Recipient is not our company's tax number",
+        "tekrar_eden": "The same document appears more than once in the file"
+      },
+      "alan": {
+        "ettn": "ETTN",
+        "belge_no": "Invoice / Receipt No",
+        "belge_tarihi": "Document Date",
+        "olusturma_zamani": "Created At",
+        "gonderici_vkn": "Sender Tax / ID No",
+        "gonderici_unvan": "Sender Name",
+        "alici_vkn": "Recipient Tax No",
+        "alici_unvan": "Recipient Name",
+        "senaryo": "Scenario",
+        "fatura_tipi": "Type",
+        "tutar": "Payable / Collected Amount",
+        "vergi_tutari": "Tax Amount",
+        "brut_tutar": "Gross / Total Amount",
+        "stopaj_tutari": "Withholding Amount",
+        "para_birimi": "Currency",
+        "durum": "Status",
+        "uygulama_yaniti": "Application Response",
+        "yanit_aciklamasi": "Response Note",
+        "gib_durum_kodu": "Envelope Response Code",
+        "gib_durum_aciklamasi": "Envelope Response Note",
+        "iptal": "Cancellation / Objection",
+        "iptal_tarihi": "Cancellation / Objection Date"
+      }
+    },
+    "yuklemeler": {
+      "dugme": "Imports",
+      "baslik": "Imports",
+      "aciklama": "Each import is a batch. Undoing a batch deletes the documents it added; documents it updated are not restored.",
+      "dosya": "File",
+      "sayilar": "Result",
+      "sayiMetni": "{{yeni}} new · {{guncellenen}} updated · {{degismeyen}} unchanged",
+      "geriAl": "Undo",
+      "geriAlBaslik": "Undo Import",
+      "geriAlSorusu": "The {{yeni}} documents added by \"{{dosya}}\" will be deleted. Updated documents are not restored. Continue?",
+      "geriAlindi": "Import undone."
+    },
+    "pano": {
+      "baslik": "e-Invoice Dashboard",
+      "aciklama": "Incoming, processed, cancelled (rejected) and pending invoice counts per portal. Clicking a number opens All Invoices with the same filter. Hidden invoices (not ours) are excluded.",
+      "sayi": {
+        "gelen": "Incoming",
+        "islenen": "Processed",
+        "red": "Cancelled (rejected)",
+        "islenecek": "Pending"
+      },
+      "portal": {
+        "logo": "Logo",
+        "protel": "Portal Plus (Protel)",
+        "izibiz": "İzibiz",
+        "earsiv": "E-Archive / E-SMM"
+      },
+      "dagilimBaslik": "Invoice Distribution",
+      "portalBaslik": "Portal",
+      "digerBaslik": "Other",
+      "gizlenen": "hidden",
+      "redIslenmis": "rejected but processed",
+      "redIslenmisUyari": "{{adet}} rejected invoices appear processed in eMOR or SAP.",
+      "toplam": "Total",
+      "aylikBaslik": "Pending Invoices by Month",
+      "aylikGrafik": "Number of pending invoices by month",
+      "aylikIpucu": "{{ay}}: {{adet}} invoices",
+      "ay": {
+        "10": "Oct",
+        "11": "Nov",
+        "12": "Dec",
+        "01": "Jan",
+        "02": "Feb",
+        "03": "Mar",
+        "04": "Apr",
+        "05": "May",
+        "06": "Jun",
+        "07": "Jul",
+        "08": "Aug",
+        "09": "Sep"
+      },
+      "firmaBaslik": "Breakdown by Sender",
+      "sinifBaslik": "Status",
+      "sinif": {
+        "islenecek": "Pending",
+        "islendi": "Processed",
+        "red": "Cancelled (rejected)"
+      },
+      "adet": "Count",
+      "cubukEtiketi": "{{portal}}: {{islenen}} processed, {{red}} rejected, {{islenecek}} pending"
     }
   },
   "protel": {
@@ -942,7 +1156,6 @@
       "izinYok": "You are not allowed to change this mark."
     },
     "kolon": {
-      "islendi": "Processed",
       "erpAldi": "Hotel ERP Received",
       "erpDurumu": "Hotel ERP Status",
       "yazdirildi": "Printed"
@@ -2173,5 +2386,13 @@
         }
       }
     }
+  },
+  "logo": {
+    "baslik": "Logo Incoming Invoices",
+    "aciklama": "Incoming 2026 invoices of the closed Logo portal. No new invoices arrive; the list is imported from Excel. Rejected ones show \"Rejected\"; whether they are processed in eMOR and SAP is tracked."
+  },
+  "earsiv": {
+    "baslik": "E-Archive / E-SMM Incoming Invoices / Receipts",
+    "aciklama": "E-archive invoices and e-self-employment receipts issued to us, from GİB. The monthly list is imported from Excel; re-importing the same list updates existing documents."
   }
 }

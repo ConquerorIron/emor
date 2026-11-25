@@ -18,6 +18,14 @@ return [
     'saglayici' => [
         'izibiz' => 'İzibiz',
         'protel' => 'Protel',
+        'logo' => 'Logo',
+        'earsiv' => 'E-Arşiv',
+    ],
+
+    // e-Arşiv / e-SMM ekranında belgenin türü (EK-08)
+    'belge_turu' => [
+        'fatura' => 'Fatura',
+        'makbuz' => 'Makbuz',
     ],
 
     'alan' => [
@@ -50,7 +58,7 @@ return [
     'excel' => [
         'baslik_gelen' => 'Gelen e-Faturalar',
         'baslik_giden' => 'Giden e-Faturalar',
-        'baslik_tum' => 'Tüm Faturalar (İzibiz + Protel)',
+        'baslik_tum' => 'Tüm Faturalar',
         'faturalar' => 'Faturalar',
         'ozet' => 'Özet',
         'liste' => 'Liste',
@@ -58,5 +66,10 @@ return [
         'tarih_araligi' => 'Fatura tarihi aralığı',
         'olusturuldu' => 'Oluşturulma',
         'adet' => 'Adet',
+    ],
+
+    // Pano (EK-09)
+    'pano' => [
+        'firmalar' => 'Firmalar',
     ],
 ];

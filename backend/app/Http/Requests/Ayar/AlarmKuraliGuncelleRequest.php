@@ -46,6 +46,13 @@ final class AlarmKuraliGuncelleRequest extends FormRequest
                 'parametreler.gun' => ['required', 'integer', 'min:1', 'max:30'],
                 'parametreler.saat' => ['required', 'string', self::SAAT],
             ],
+            AlarmKurali::ISLENMEMIS_HATIRLATMA => [
+                'parametreler.gun' => ['required', 'integer', 'min:1', 'max:60'],
+                'parametreler.aralik_gun' => ['required', 'integer', 'min:1', 'max:30'],
+                'parametreler.saat' => ['required', 'string', self::SAAT],
+                // En az bir portal; yalnız bilinen adlar, virgülle
+                'parametreler.portallar' => ['required', 'string', 'regex:/^(logo|protel|izibiz|earsiv)(,(logo|protel|izibiz|earsiv)){0,3}$/D'],
+            ],
             default => [],
         };
     }
@@ -57,6 +64,8 @@ final class AlarmKuraliGuncelleRequest extends FormRequest
     {
         return [
             'parametreler.saat.regex' => __('hata.alarm_saat_bicimi'),
+            'parametreler.portallar.required' => __('hata.alarm_portal_zorunlu'),
+            'parametreler.portallar.regex' => __('hata.alarm_portal_zorunlu'),
             'alicilar.*.email' => __('hata.alarm_alici_gecersiz'),
         ];
     }

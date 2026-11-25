@@ -36,8 +36,13 @@ final class EntegratorBaglantiServisi
             ->all();
     }
 
+    /** Statik kaynakta (Logo, e-Arşiv) tanım her zaman vardır ve aktiftir. */
     public function aktif(string $saglayici = self::SAGLAYICI): ?EntegratorBaglanti
     {
+        if (in_array($saglayici, EntegratorBaglanti::STATIK_SAGLAYICILAR, true)) {
+            return $this->statikTanim($saglayici);
+        }
+
         return EntegratorBaglanti::query()
             ->where('saglayici', $saglayici)
             ->where('aktif', true)
@@ -45,13 +50,45 @@ final class EntegratorBaglantiServisi
     }
 
     /**
-     * eFatura ekran uçlarının sağlayıcısı: Protel rotaları `saglayici`
-     * varsayılanını taşır (routes/api.php); diğer her durumda İzibiz.
+     * Gelen faturaların bütün kaynakları: sağlayıcı başına aktif tanım; statik
+     * kaynaklar (Logo, e-Arşiv) her zaman. Tüm Faturalar ve pano aynı kapsamı
+     * kullanır (sayılar ile liste ayrışmasın).
+     *
+     * @return list<EntegratorBaglanti>
+     */
+    public function gelenTanimlari(): array
+    {
+        return array_values(array_filter(array_map(
+            fn (string $saglayici): ?EntegratorBaglanti => $this->aktif($saglayici),
+            [EntegratorBaglanti::SAGLAYICI_IZIBIZ, EntegratorBaglanti::SAGLAYICI_PROTEL, ...EntegratorBaglanti::STATIK_SAGLAYICILAR],
+        )));
+    }
+
+    /**
+     * Statik kaynağın (EK-05) tanımı; ilk istenişte oluşturulur. Bağlantı
+     * alanları (kullanıcı, şifre, VKN) kullanılmaz ve boş kalır: statik tanım
+     * hiçbir dış sisteme istek çıkarmaz. Ortamdan bağımsızdır (`canli` satırı).
+     * Eşzamanlı ilk istekte tekil indeks çakışması mevcut satırı döndürür.
+     */
+    public function statikTanim(string $saglayici): EntegratorBaglanti
+    {
+        return EntegratorBaglanti::query()->createOrFirst(
+            ['saglayici' => $saglayici, 'ortam' => EntegratorBaglanti::ORTAM_CANLI],
+            ['kullanici_adi' => '', 'sifre' => '', 'vkn' => '', 'aktif' => true],
+        );
+    }
+
+    /**
+     * eFatura ekran uçlarının sağlayıcısı: Protel ve statik kaynak (Logo,
+     * e-Arşiv) rotaları `saglayici` varsayılanını taşır (routes/api.php);
+     * diğer her durumda İzibiz.
      */
     public static function rotaninSaglayicisi(Request $request): string
     {
-        return $request->route('saglayici') === EntegratorBaglanti::SAGLAYICI_PROTEL
-            ? EntegratorBaglanti::SAGLAYICI_PROTEL
+        $saglayici = $request->route('saglayici');
+
+        return in_array($saglayici, [EntegratorBaglanti::SAGLAYICI_PROTEL, ...EntegratorBaglanti::STATIK_SAGLAYICILAR], true)
+            ? $saglayici
             : self::SAGLAYICI;
     }
 

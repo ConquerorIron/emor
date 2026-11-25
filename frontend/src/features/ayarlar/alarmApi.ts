@@ -1,6 +1,6 @@
 import { api } from '@/api/client'
 
-export type AlarmTuru = 'senkron_arizasi' | 'gunluk_ozet' | 'erp_okumadi'
+export type AlarmTuru = 'senkron_arizasi' | 'gunluk_ozet' | 'erp_okumadi' | 'islenmemis_hatirlatma'
 
 export interface AlarmKurali {
   tur: AlarmTuru

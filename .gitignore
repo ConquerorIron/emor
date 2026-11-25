@@ -10,6 +10,9 @@
 /docs/izibiz/mail.md
 # Kesinti modülü örnek Excel'leri — gerçek personel adı, firma ve tutar içerir
 /excel/
+# Muhasebeden gelen fatura / makbuz listeleri (Logo, e-Arşiv, e-SMMM) — gerçek
+# fatura verisi ve şahıs TC kimlik numarası içerir (docs/efatura/Ek-Isler-Jira.md)
+/docs/excel/
 # Postman environment export'ları kullanıcı adı/şifre/token taşır
 *.postman_environment.json
 # Windows indirme artığı (WSL ':' karakterini özel karaktere çevirdiği için

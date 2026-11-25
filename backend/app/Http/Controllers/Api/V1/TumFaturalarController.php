@@ -6,17 +6,23 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\EFatura\EFaturaListeRequest;
+use App\Http\Requests\EFatura\EFaturaRedRequest;
+use App\Http\Resources\EFaturaIslemiResource;
 use App\Http\Resources\EFaturaResource;
 use App\Models\EFatura;
+use App\Models\EFaturaIslemi;
 use App\Models\EntegratorBaglanti;
+use App\Models\User;
 use App\Services\Entegrator\EFaturaCiktisi;
 use App\Services\Entegrator\EFaturaDurumServisi;
+use App\Services\Entegrator\EFaturaElleIslemleri;
 use App\Services\Entegrator\EFaturaSorgusu;
 use App\Services\Entegrator\EntegratorHatasi;
 use App\Services\Entegrator\FaturaBelgeServisi;
 use App\Services\Entegrator\FaturaYonu;
 use App\Services\EntegratorBaglantiServisi;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -45,7 +51,7 @@ final class TumFaturalarController extends Controller
 
         $sorgu = $this->sorgu->filtrele($tanimlar, FaturaYonu::Gelen, $filtre);
         $sayfa = $this->sorgu->sirala($sorgu->clone(), FaturaYonu::Gelen, $request->input('sirala'), $request->input('yon'))
-            ->with(['gizleyen:id,ad', 'entegratorBaglanti:id,saglayici'])
+            ->with([...EFaturaResource::ILISKILER, 'entegratorBaglanti:id,saglayici'])
             ->paginate($request->sayfaBoyutu());
         request()->attributes->set(EFaturaResource::EMOR_KURUMU, true);
 
@@ -69,6 +75,9 @@ final class TumFaturalarController extends Controller
      */
     private function tazelik(array $tanimlar, EFaturaDurumServisi $durum): array
     {
+        // Statik kaynağın (Logo, e-Arşiv) senkronu yok: verisi içe aktarımla gelir
+        $senkronlu = array_values(array_filter($tanimlar, fn (EntegratorBaglanti $t): bool => ! $t->statikMi()));
+
         return array_map(function (EntegratorBaglanti $tanim) use ($durum): array {
             $d = $durum->yonDurumu($tanim, FaturaYonu::Gelen);
 
@@ -78,7 +87,7 @@ final class TumFaturalarController extends Controller
                 'veri_zamani' => $d['veri_zamani']?->toIso8601String(),
                 'guncel' => $d['guncel'],
             ];
-        }, $tanimlar);
+        }, $senkronlu);
     }
 
     public function excel(EFaturaListeRequest $request, EFaturaCiktisi $cikti): BinaryFileResponse|JsonResponse
@@ -112,16 +121,38 @@ final class TumFaturalarController extends Controller
     }
 
     /**
-     * Sağlayıcı başına aktif tanım; hiçbiri yoksa hata (boş liste gibi görünmez).
+     * Yetkili kullanıcının gelen faturayı RED'e çekmesi / RED'i geri alması
+     * (EK-04) — sağlayıcı ekranlarıyla aynı kurallar.
+     */
+    public function red(EFaturaRedRequest $request, int $fatura, EFaturaElleIslemleri $islemler): EFaturaResource
+    {
+        /** @var User $kullanici */
+        $kullanici = $request->user();
+        $kayit = $islemler->redDegistir($this->kapsamdakiFatura($fatura), $request->boolean('red'), $request->neden(), $kullanici);
+        request()->attributes->set(EFaturaResource::EMOR_KURUMU, true);
+
+        return new EFaturaResource($kayit->load([...EFaturaResource::ILISKILER, 'entegratorBaglanti:id,saglayici']));
+    }
+
+    /** Satırdaki "Geçmiş" penceresi (EK-03). */
+    public function gecmis(int $fatura): AnonymousResourceCollection
+    {
+        $kayit = $this->kapsamdakiFatura($fatura);
+
+        return EFaturaIslemiResource::collection(
+            EFaturaIslemi::query()->where('fatura_id', $kayit->id)->orderByDesc('created_at')->orderByDesc('id')->limit(200)->get(),
+        );
+    }
+
+    /**
+     * Sağlayıcı başına aktif tanım; statik kaynaklar (Logo, e-Arşiv) her zaman
+     * kapsamdadır (EK-07, EK-08). Hiçbiri yoksa hata (boş liste gibi görünmez).
      *
      * @return list<EntegratorBaglanti>
      */
     private function aktifTanimlar(): array
     {
-        $tanimlar = array_values(array_filter([
-            $this->baglantilar->aktif(EntegratorBaglanti::SAGLAYICI_IZIBIZ),
-            $this->baglantilar->aktif(EntegratorBaglanti::SAGLAYICI_PROTEL),
-        ]));
+        $tanimlar = $this->baglantilar->gelenTanimlari();
 
         return $tanimlar !== [] ? $tanimlar : throw EntegratorHatasi::aktifYok();
     }
