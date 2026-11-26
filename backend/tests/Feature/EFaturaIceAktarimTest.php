@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\EFatura;
+use App\Models\EFaturaVergiKalemi;
 use App\Models\EFaturaYuklemesi;
 use App\Models\EntegratorBaglanti;
 use App\Models\Rol;
@@ -344,6 +345,46 @@ final class EFaturaIceAktarimTest extends TestCase
      * sayılır). Başlıkla yapıştırılan metin (Excel'in bütün kolonları) adlardan
      * tanınır. Kontrol ve kayıt dosyayla aynı kurallardan geçer.
      */
+    /**
+     * Rapor verileri (2026-11-26): Logo dosyasının oran bazında KDV / matrah,
+     * tevkifat (ilk kodu), ek vergi, tutar ve kur kolonları UBL'li kaynaklarla
+     * aynı tablolara yazılır; yeniden yükleme kalemleri çoğaltmaz, bu kolonları
+     * taşımayan eski biçimli liste mevcut kalemleri silmez.
+     */
+    public function test_logo_kdv_tevkifat_ve_kur_kolonlari_vergi_kalemlerine_yazilir_yeniden_yuklemede_cogalmaz(): void
+    {
+        $this->sirketTanimi();
+        $kullanici = $this->logocu();
+        $basliklar = ['ETTN', 'Fatura No', 'Fatura Tarihi', 'Gönderici VKN', 'Alıcı VKN', 'Toplam Tutar', 'Para Birimi',
+            'Vergi Hariç Tutar', 'İskonto Toplamı', 'Vergi Dahil Tutar', 'Kur', 'KDV %0', 'KDV %0 Matrah', 'KDV %10', 'KDV %10 Matrah',
+            'KDV %20', 'KDV %20 Matrah', 'KDV Diğer', 'Tevkifat Toplamı', 'Ek Vergiler', 'İlk Tevkifat Kodu'];
+        $satir = ['AAAAAAAA-1111-4111-8111-000000000021', 'LGO2026000000021', '05.01.2026', '1160417867', self::SIRKET_VKN, '1.180,00', 'USD',
+            '1.100,00', '50,00', '1.250,00', '43,9846', '0,00', '100,00', '50,00', '500,00', '100,00', '500,00', '0,00', '70,00', '0,00', '624'];
+        $metin = implode("\t", $basliklar)."\n".implode("\t", $satir);
+        $kalemler = fn (): array => EFaturaVergiKalemi::query()->orderBy('sira')->get()
+            ->map(fn (EFaturaVergiKalemi $k): array => [$k->tur, $k->vergi_kodu, $k->oran, $k->matrah, $k->tutar])->all();
+        $beklenen = [
+            ['vergi', '0015', '0.0000', '100.0000', '0.0000'],
+            ['vergi', '0015', '10.0000', '500.0000', '50.0000'],
+            ['vergi', '0015', '20.0000', '500.0000', '100.0000'],
+            ['tevkifat', '624', null, null, '70.0000'],
+        ];
+
+        $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar', ['metin' => $metin])->assertCreated();
+        $fatura = EFatura::query()->where('belge_no', 'LGO2026000000021')->sole();
+        $this->assertSame(['1100.0000', '50.0000', '1250.0000', '43.984600'], [$fatura->vergi_haric_tutar, $fatura->indirim_tutari, $fatura->vergi_dahil_tutar, $fatura->kur]);
+        $this->assertSame($beklenen, $kalemler());
+
+        // Aynı dosya yeniden: kalemler baştan yazılır, çoğalmaz
+        $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar', ['metin' => $metin])->assertCreated();
+        $this->assertSame($beklenen, $kalemler());
+
+        // KDV kolonları olmayan eski biçimli liste kalemleri silmez
+        $eski = implode("\t", array_slice($basliklar, 0, 7))."\n".implode("\t", array_slice($satir, 0, 7));
+        $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar', ['metin' => $eski])->assertCreated();
+        $this->assertSame($beklenen, $kalemler());
+    }
+
     public function test_logo_listesi_excelden_yapistirilinca_ayni_kontrol_ve_kayit_akisindan_gecer(): void
     {
         $this->sirketTanimi();

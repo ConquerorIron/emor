@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Entegrator\IceAktarim;
 
 use App\Models\EFatura;
+use App\Models\EFaturaVergiKalemi;
 use App\Models\EFaturaYuklemesi;
 use App\Models\EntegratorBaglanti;
 use App\Models\User;
@@ -350,8 +351,15 @@ final class EFaturaIceAktarimi
         $mevcut = $this->mevcutlar($tanim, array_column($kayitlar, 'belge_anahtari'));
         $yeniler = [];
         $sayac = ['yeni' => 0, 'guncellenen' => 0, 'degismeyen' => 0];
+        /** @var array<string, list<array<string, mixed>>> $kalemler belge anahtarı => kalemler */
+        $kalemler = [];
 
         foreach ($kayitlar as $kayit) {
+            if (array_key_exists(StatikBelgeTuru::VERGI_KALEMLERI, $kayit)) {
+                $kalemler[$kayit['belge_anahtari']] = $kayit[StatikBelgeTuru::VERGI_KALEMLERI];
+                unset($kayit[StatikBelgeTuru::VERGI_KALEMLERI]);
+            }
+
             $fatura = $mevcut[$kayit['belge_anahtari']] ?? null;
 
             if ($fatura === null) {
@@ -385,6 +393,8 @@ final class EFaturaIceAktarimi
             EFatura::query()->insert($parca);
         }
 
+        $this->kalemleriYaz($tanim, $kalemler);
+
         $parti->update($sayac);
         $this->islemler->gecmiseYaz(null, EFaturaIslemTuru::IceAktarildi, $kullanici, ayrinti: [
             'dosya_adi' => $parti->dosya_adi,
@@ -393,5 +403,36 @@ final class EFaturaIceAktarimi
         ], tanim: $tanim, yuklemeId: $parti->id);
 
         return $parti;
+    }
+
+    /**
+     * Dosyanın oran bazında vergileri (Logo): her faturanın kalemleri baştan
+     * yazılır — yeni, güncellenen ve değişmeyen faturada aynı (yeniden yükleme
+     * aynı sonucu verir). Aynı işlem içinde: yarım kalırsa parti de geri döner.
+     *
+     * @param  array<string, list<array<string, mixed>>>  $kalemler  belge anahtarı => kalemler
+     */
+    private function kalemleriYaz(EntegratorBaglanti $tanim, array $kalemler): void
+    {
+        if ($kalemler === []) {
+            return;
+        }
+
+        $kimlikler = array_map(fn (EFatura $f): int => $f->id, $this->mevcutlar($tanim, array_keys($kalemler)));
+
+        foreach (array_chunk(array_values($kimlikler), self::YAZMA_PARTISI) as $parca) {
+            EFaturaVergiKalemi::query()->whereIn('efatura_id', $parca)->delete();
+        }
+
+        $satirlar = [];
+        foreach ($kalemler as $anahtar => $liste) {
+            foreach (array_values($liste) as $sira => $kalem) {
+                $satirlar[] = ['efatura_id' => $kimlikler[$anahtar], 'sira' => $sira + 1, ...$kalem];
+            }
+        }
+
+        foreach (array_chunk($satirlar, self::YAZMA_PARTISI) as $parca) {
+            EFaturaVergiKalemi::query()->insert($parca);
+        }
     }
 }

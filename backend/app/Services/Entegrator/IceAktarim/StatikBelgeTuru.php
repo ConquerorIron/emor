@@ -30,7 +30,17 @@ abstract class StatikBelgeTuru
         'gonderici_vkn', 'gonderici_unvan', 'alici_vkn', 'alici_unvan', 'senaryo', 'fatura_tipi',
         'para_birimi', 'tutar', 'vergi_tutari', 'brut_tutar', 'stopaj_tutari',
         'durum', 'durum_aciklamasi', 'yanit_aciklamasi', 'gib_durum_kodu', 'gib_durum_aciklamasi',
+        // Rapor verileri (2026-11-26; UBL'li kaynaklarda UBL'den gelir, Logo'da dosyadan)
+        'indirim_tutari', 'vergi_haric_tutar', 'vergi_dahil_tutar', 'kur',
     ];
+
+    /**
+     * `donustur`'ün alanlarında isteğe bağlı vergi kalemleri listesi (kolon değil):
+     * verilirse kayıtta faturanın kalemleri bununla baştan yazılır
+     * (efatura_vergi_kalemleri; UblVerisi::$kalemler ile aynı şekil). Yalnız
+     * dosyası oran bazında vergi taşıyan tür (Logo) verir.
+     */
+    public const VERGI_KALEMLERI = 'vergi_kalemleri';
 
     /** decimal(20,4): en çok 16 tam basamak */
     private const TUTAR_SINIRI = '10000000000000000';
