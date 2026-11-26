@@ -12,9 +12,11 @@ use App\Models\EFaturaSenkronCalismasi;
 use App\Models\EntegratorBaglanti;
 use App\Services\Entegrator\EFaturaDurumServisi;
 use App\Services\Entegrator\EFaturaSorgusu;
+use App\Services\Entegrator\EmorDurumu;
 use App\Services\Entegrator\FaturaYonu;
 use App\Services\EntegratorBaglantiServisi;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
@@ -300,10 +302,18 @@ final class AlarmDegerlendirici
     }
 
     /**
-     * İşlenmemiş fatura hatırlatması (EK-10): ayarlanan saatten sonra, son
-     * gönderilen hatırlatmadan `aralik_gun` gün geçtiyse; belge tarihi `gun`
-     * günden eski ve hâlâ "İşlenecek" (EFatura::islenecek — panoyla aynı tanım)
-     * gizlenmemiş gelen faturaların portal bazında adedi ve en eski tarihi.
+     * İşlenmemiş fatura hatırlatması (EK-10, eşik 2026-11-26'dan beri alınma
+     * zamanına göre): ayarlanan saatten sonra, son gönderilen hatırlatmadan
+     * `aralik_gun` gün geçtiyse; entegratöre alınma GÜNÜ (İstanbul) bugün −
+     * `gun` ve öncesi olan, RED olmayan, `islendi_sayilanlar`'daki durumların
+     * hiçbirinde olmayan gizlenmemiş gelen faturaların portal bazında adedi
+     * ve en eski alınma günü. Ör. bugün 26.11, gun=3 → 23.11 23:59'da alınan
+     * sayılır, 24.11 00:00'da alınan sayılmaz.
+     *
+     * Alınma zamanı (`olusturma_zamani`) olmayan satırlarda — e-Arşiv / e-SMM
+     * listesi bu alanı taşımaz, Logo dosyasında kolon boş olabilir — belge
+     * tarihine bakılır.
+     *
      * Mailde fatura satırı, unvan, VKN yok; panoya bağlantı verilir. Bekleyen
      * fatura yoksa mail gitmez (kayıt "atlandı"), ertesi gün yeniden bakılır.
      *
@@ -338,7 +348,16 @@ final class AlarmDegerlendirici
         }
 
         $esikGun = (int) $kural->parametre('gun');
+        // Sayılan son alınma günü (İstanbul) ve ertesi günün başlangıç ANI (UTC).
+        // Karşılaştırma uygulamada hesaplanan anla: veritabanının tarih işlevleri
+        // SQLite ile PostgreSQL'de farklı, saat dilimi dönüşümü de onlara bırakılmaz
         $kesim = $yerel->subDays($esikGun)->toDateString();
+        $ertesiGun = CarbonImmutable::parse($kesim)->addDay()->toDateString();
+        $kesimAni = CarbonImmutable::parse($ertesiGun, $saatDilimi)->utc();
+        $islendiSayilanlar = array_values(array_intersect(
+            AlarmKurali::ISLENDI_SECENEKLERI,
+            explode(',', (string) $kural->parametre('islendi_sayilanlar')),
+        ));
         $istenen = explode(',', (string) $kural->parametre('portallar'));
         $tanimlar = array_values(array_filter(
             $this->baglantilar->gelenTanimlari(),
@@ -346,16 +365,20 @@ final class AlarmDegerlendirici
         ));
         $saglayicilar = array_column(array_map(fn (EntegratorBaglanti $t): array => [$t->id, $t->saglayici], $tanimlar), 1, 0);
 
-        $satirlar = EFatura::query()
+        $sorgu = EFatura::query()
             ->whereIn('entegrator_baglanti_id', array_keys($saglayicilar))
             ->where('yon', FaturaYonu::Gelen->value)
             ->whereNull('gizlenme_zamani')
-            // Ertesi günden küçük: SQLite tarihi saatle saklar, '<= gün' o günü dışarıda bırakırdı
-            ->where('belge_tarihi', '<', CarbonImmutable::parse($kesim)->addDay()->toDateString())
+            ->where(fn (Builder $q) => $q->where('olusturma_zamani', '<', $kesimAni)
+                // Alınma zamanı yoksa belge tarihi. Ertesi günden küçük: SQLite tarihi
+                // saatle saklar, '<= gün' o günü dışarıda bırakırdı
+                ->orWhere(fn (Builder $y) => $y->whereNull('olusturma_zamani')->where('belge_tarihi', '<', $ertesiGun)))
             ->where('belge_tarihi', '>=', (string) config('entegrator.izibiz.ilk_tarama_tarihi'))
-            ->islenecek()
-            ->toBase()
-            ->selectRaw('entegrator_baglanti_id, count(*) as adet, min(belge_tarihi) as en_eski')
+            ->reddedilmeyen();
+        $this->islenmemisKosulu($sorgu, $islendiSayilanlar);
+
+        $satirlar = $sorgu->toBase()
+            ->selectRaw('entegrator_baglanti_id, count(*) as adet, min(olusturma_zamani) as en_eski_alinma, min(case when olusturma_zamani is null then belge_tarihi end) as en_eski_belge')
             ->groupBy('entegrator_baglanti_id')
             ->get()
             ->keyBy('entegrator_baglanti_id');
@@ -365,11 +388,11 @@ final class AlarmDegerlendirici
             $id = array_search($saglayici, $saglayicilar, true);
             $satir = $id === false ? null : $satirlar->get($id);
             if ($satir !== null) {
-                $portallar[] = ['saglayici' => $saglayici, 'adet' => (int) $satir->adet, 'en_eski' => substr((string) $satir->en_eski, 0, 10)];
+                $portallar[] = ['saglayici' => $saglayici, 'adet' => (int) $satir->adet, 'en_eski' => $this->enEskiGun($satir->en_eski_alinma, $satir->en_eski_belge, $saatDilimi)];
             }
         }
         $toplam = array_sum(array_column($portallar, 'adet'));
-        $ayrinti = ['esik_gun' => $esikGun, 'kesim' => $kesim, 'toplam' => $toplam, 'portallar' => $portallar];
+        $ayrinti = ['esik_gun' => $esikGun, 'kesim' => $kesim, 'toplam' => $toplam, 'portallar' => $portallar, 'islendi_sayilanlar' => $islendiSayilanlar];
 
         try {
             $bildirim = DB::transaction(fn (): AlarmBildirimi => AlarmBildirimi::query()->create([
@@ -387,6 +410,52 @@ final class AlarmDegerlendirici
         }
 
         return [$bildirim];
+    }
+
+    /**
+     * Hatırlatmanın "işlenmemiş" koşulu: seçilen durumlardan hiçbiri değil.
+     * Panonun EFatura::islenecek kapsamı sabit tanımdır (varsayılan seçimle
+     * aynı); burada seçim kuraldan gelir. NULL "işlenmedi" sayılır.
+     *
+     * @param  Builder<EFatura>  $sorgu
+     * @param  list<string>  $islendiSayilanlar  AlarmKurali::ISLENDI_SECENEKLERI alt kümesi
+     */
+    private function islenmemisKosulu(Builder $sorgu, array $islendiSayilanlar): void
+    {
+        $emorDurumlari = array_values(array_filter(array_map(fn (string $secenek): ?string => match ($secenek) {
+            'emor_islendi' => EmorDurumu::Islendi->value,
+            'emor_elle_islendi' => EmorDurumu::ElleIslendi->value,
+            'emor_havuzda' => EmorDurumu::Havuzda->value,
+            default => null,
+        }, $islendiSayilanlar)));
+
+        if ($emorDurumlari !== []) {
+            $sorgu->where(fn (Builder $q) => $q->whereNull('emor_durumu')->orWhereNotIn('emor_durumu', $emorDurumlari));
+        }
+
+        if (in_array('sap_islendi', $islendiSayilanlar, true)) {
+            $sorgu->where(fn (Builder $q) => $q->whereNull('sap_islendi')->orWhere('sap_islendi', false));
+        }
+    }
+
+    /**
+     * Portalın en eski günü: alınma zamanının İstanbul günü ile alınma zamanı
+     * olmayan satırların belge tarihinden küçüğü. PostgreSQL zamanı ofsetle
+     * (`…+00`), SQLite ofsetsiz UTC metniyle döndürür; ikisi de UTC okunur.
+     */
+    private function enEskiGun(?string $alinma, ?string $belge, string $saatDilimi): string
+    {
+        $gunler = [];
+
+        if ($alinma !== null) {
+            $gunler[] = CarbonImmutable::parse($alinma, 'UTC')->setTimezone($saatDilimi)->toDateString();
+        }
+
+        if ($belge !== null) {
+            $gunler[] = substr($belge, 0, 10);
+        }
+
+        return min($gunler);
     }
 
     /**

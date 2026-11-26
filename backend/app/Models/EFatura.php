@@ -21,7 +21,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * Faturanın sınıfı (docs/efatura/Ek-Isler-Jira.md §4.3) TEK yerde, bu
  * modelin sorgu kapsamlarında tanımlıdır: Red / İşlendi / İşlenecek. Hızlı
- * filtreler, pano ve hatırlatma maili kendi koşulunu yazmaz, bunları çağırır.
+ * filtreler ve pano kendi koşulunu yazmaz, bunları çağırır. Hatırlatma maili
+ * (EK-10) 2026-11-26'dan beri "işlendi" sayılan durumları kuraldan alır
+ * (AlarmDegerlendirici::islenmemisKosulu; varsayılanı islenecek ile aynı).
  *
  * @property int $id
  * @property int $entegrator_baglanti_id
@@ -195,9 +197,14 @@ final class EFatura extends Model
             'yazdirildi' => 'boolean',
             'otel_erp_okundu' => 'boolean',
             'sap_islendi' => 'boolean',
-            'izibiz_ubl_okundu' => 'immutable_datetime',
-            'izibiz_ubl_son_deneme' => 'immutable_datetime',
-            'izibiz_ubl_hata' => 'integer',
+            'ubl_okundu' => 'immutable_datetime',
+            'ubl_son_deneme' => 'immutable_datetime',
+            'ubl_hata' => 'integer',
+            'satir_toplami' => 'decimal:4',
+            'indirim_tutari' => 'decimal:4',
+            'vergi_haric_tutar' => 'decimal:4',
+            'vergi_dahil_tutar' => 'decimal:4',
+            'kur' => 'decimal:6',
             'ilk_gorulme' => 'immutable_datetime',
             'son_gorulme' => 'immutable_datetime',
             'gizlenme_zamani' => 'immutable_datetime',

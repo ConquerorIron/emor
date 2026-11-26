@@ -473,6 +473,8 @@
       "aciklama": "e-Fatura için mail alarmları. Kurallar aktif entegratör hesabında değerlendirilir; test hesabının alarmları yalnız Mail (SMTP) ekranındaki yönlendirme adresine gider. Maillerde fatura ayrıntısı yoktur, yalnız sayılar ve ekran bağlantısı.",
       "aktif": "Aktif",
       "alicilar": "Alıcılar (virgülle ayırın)",
+      "alicilarCc": "Bilgi alıcıları — CC (virgülle ayırın)",
+      "alicilarBcc": "Gizli alıcılar — BCC (virgülle ayırın)",
       "kaydedildi": "{{ad}} kuralı kaydedildi.",
       "parametre": {
         "ardisik_hata": "Art arda hatalı çalışma sayısı",
@@ -480,8 +482,17 @@
         "gun": "İzibiz'e ulaştıktan sonra beklenecek gün",
         "saat": "Gönderim saati (SS:DD)",
         "aralik_gun": "Kaç günde bir gönderilsin",
-        "hatirlatmaGun": "Fatura tarihinden sonra beklenecek gün",
-        "portallar": "Portallar"
+        "hatirlatmaGun": "Alınma zamanından bu yana gün",
+        "portallar": "Portallar",
+        "islendi_sayilanlar": "İşlendi sayılacak durumlar"
+      },
+      "hatirlatmaGunYardim": "Entegratöre alınma gününden sayılır (alınma zamanı olmayan kaynaklarda fatura tarihinden). Ör. 3: bugün 26.11 ise 23.11 ve öncesinde alınanlar.",
+      "islendiYardim": "Seçilen durumlardan birindeki fatura hatırlatmaya girmez; RED faturalar her zaman hariçtir.",
+      "islendiSecenek": {
+        "emor_islendi": "eMOR: İşlendi",
+        "emor_elle_islendi": "eMOR: İşlendi (elle)",
+        "emor_havuzda": "eMOR: Havuzda",
+        "sap_islendi": "SAP: İşlendi (elle)"
       },
       "kural": {
         "senkron_arizasi": {
@@ -498,7 +509,7 @@
         },
         "islenmemis_hatirlatma": {
           "ad": "İşlenmemiş fatura hatırlatması",
-          "aciklama": "Fatura tarihi belirtilen günden eski, RED olmayan ve eMOR'a ya da SAP'ye işlenmemiş faturalar seçilen portallarda sayılır; ayarlanan aralıkla portal bazında özet gönderilir. Bekleyen fatura yoksa mail gitmez."
+          "aciklama": "Entegratöre alınalı belirtilen gün olmuş, RED olmayan ve işlendi sayılan durumların hiçbirinde olmayan faturalar seçilen portallarda sayılır; ayarlanan aralıkla portal bazında özet gönderilir. Bekleyen fatura yoksa mail gitmez."
         }
       },
       "dogrulama": {
@@ -506,7 +517,8 @@
         "aliciGecersiz": "Alıcılardan biri geçerli bir e-posta adresi değil.",
         "saatBicimi": "Saat SS:DD biçiminde olmalı (ör. 08:30).",
         "aralik": "{{en}} ile {{cok}} arasında tam sayı girin.",
-        "portalZorunlu": "En az bir portal seçin."
+        "portalZorunlu": "En az bir portal seçin.",
+        "islendiZorunlu": "İşlendi sayılacak en az bir durum seçin."
       },
       "bildirim": {
         "baslik": "Son bildirimler",
@@ -704,7 +716,8 @@
     "GERI_YUKLEME_KARAR_KAPASITESI_DOLU": "Kısa sürede çok fazla karar işlendi; bu karar uygulanmadı. Birkaç dakika sonra yeniden deneyin.",
     "FATURA_REDDEDILDI": "Bu fatura RED; İşlendi işaretlenemez.",
     "FATURA_KAYNAKTA_REDDEDILMIS": "Bu fatura kaynağında zaten reddedilmiş; ayrıca RED'e çekilmez.",
-    "FATURA_ISLENDI_ISARETLI": "Bu fatura İşlendi işaretli; RED'e çekmeden önce İşlendi işaretini kaldırın.",
+    "FATURA_ISLENDI_ISARETLI": "Bu fatura SAP'de elle işlendi; RED'e çekmeden önce \"SAP (Manuel İşle)\" işaretini kaldırın.",
+    "FATURA_EMOR_ISLENMIS": "Bu fatura eMOR'da işlenmiş; RED'e çekilemez.",
     "FATURA_BELGESI_YOK": "Bu faturanın aslı eMOR arşivinde yok; PDF gösterilemiyor.",
     "YUKLEME_ELLE_ISLENMIS": "Bu yüklemenin eklediği faturalardan bazılarında elle işlem (RED, İşlendi ya da gizleme) var; yükleme geri alınamaz.",
     "ICE_AKTARIM_SURUYOR": "Bu kaynak için başka bir içe aktarım ya da geri alma sürüyor. Biraz sonra tekrar deneyin."
@@ -773,26 +786,26 @@
       "protel_faturalari_senkron": "Protel senkronunu elle başlatma",
       "protel_faturalari_pdf": "Protel fatura PDF'i görüntüleme",
       "protel_faturalari_disari_aktar": "Protel listesini Excel'e aktarma",
-      "protel_faturalari_isle": "Protel faturasını \"İşlendi\" işaretleme / işareti kaldırma",
+      "protel_faturalari_isle": "Protel faturasını \"SAP (Manuel İşle)\" ile işlendi işaretleme / kaldırma",
       "yedekler_sil": "Yedek silme / sabitleme",
       "yedekler_indir": "Yedek dosyasını indirme (bütün veri)",
       "geri_yukleme_kopya": "Yedeği farklı adla geri yükleme (kopya)",
+      "tum_faturalar_isle": "Tüm Faturalar'da \"SAP (Manuel İşle)\" ile işlendi işaretleme / kaldırma",
       "tum_faturalar_red": "Tüm Faturalar'da faturayı RED'e çekme / geri alma",
+      "efatura_isle": "İzibiz faturasını \"SAP (Manuel İşle)\" ile işlendi işaretleme / kaldırma",
       "efatura_red": "İzibiz faturasını RED'e çekme / geri alma",
       "protel_faturalari_red": "Protel faturasını RED'e çekme / geri alma",
       "efatura_panosu_goruntule": "e-Fatura panosunu görüntüleme",
       "efatura_islem_gecmisi_goruntule": "e-Fatura işlem geçmişini görüntüleme",
       "logo_faturalari_goruntule": "Logo gelen faturalarını görüntüleme",
       "logo_faturalari_ice_aktar": "Logo listesini Excel'den içe aktarma / geri alma",
-      "logo_faturalari_pdf": "Logo fatura PDF'i görüntüleme",
       "logo_faturalari_disari_aktar": "Logo listesini Excel'e aktarma",
-      "logo_faturalari_isle": "Logo faturasını \"İşlendi\" işaretleme",
+      "logo_faturalari_isle": "Logo faturasını \"SAP (Manuel İşle)\" ile işlendi işaretleme / kaldırma",
       "logo_faturalari_red": "Logo faturasını RED'e çekme / geri alma",
       "earsiv_faturalari_goruntule": "E-Arşiv / E-SMM belgelerini görüntüleme",
       "earsiv_faturalari_ice_aktar": "E-Arşiv / E-SMM listesini Excel'den içe aktarma / geri alma",
-      "earsiv_faturalari_pdf": "E-Arşiv / E-SMM PDF'i görüntüleme",
       "earsiv_faturalari_disari_aktar": "E-Arşiv / E-SMM listesini Excel'e aktarma",
-      "earsiv_faturalari_isle": "E-Arşiv / E-SMM belgesini \"İşlendi\" işaretleme",
+      "earsiv_faturalari_isle": "E-Arşiv / E-SMM belgesini \"SAP (Manuel İşle)\" ile işlendi işaretleme / kaldırma",
       "earsiv_faturalari_red": "E-Arşiv / E-SMM belgesini RED'e çekme / geri alma"
     }
   },
@@ -912,14 +925,14 @@
       "istisnaKoduEntegrator": "İstisna Kodu (Entegratör)",
       "istisnaKoduErp": "İstisna Kodu (ERP)",
       "sap": "SAP",
-      "sistemBekleniyor": "Bu bilgi, SAP servisi açıldığında gelecek.",
+      "sapManuel": "SAP (Manuel İşle)",
+      "sapIsaretlenmedi": "\"SAP (Manuel İşle)\" ile işlendi işaretlenmedi.",
       "entegrator": "Entegratör",
       "siraNo": "Sıra No",
       "emorVkn": "eMOR VKN Var",
       "belgeTuru": "Belge Türü",
       "brutTutar": "Brüt / Toplam",
-      "stopajTutari": "Stopaj",
-      "sapKaynakEkraninda": "{{kaynak}} ekranında \"İşlendi\" işaretlenmedi."
+      "stopajTutari": "Stopaj"
     },
     "erpSenkron": {
       "ac": "ERP Senkronla",
@@ -972,7 +985,7 @@
       "alan": "Gizlendi"
     },
     "tumAciklama": "Bütün kaynakların (İzibiz, Protel, Logo, E-Arşiv) gelen faturaları tek listede. Senkron ve içe aktarım kaynak ekranlarından yapılır.",
-    "sapIslendi": "İşlendi",
+    "sapIslendi": "İşlendi (elle)",
     "sapRed": "Red",
     "saglayici": {
       "izibiz": "İzibiz",
@@ -996,14 +1009,14 @@
       "cekBaslik": "Fatura {{no}} — RED'e Çek",
       "geriAlBaslik": "Fatura {{no}} — RED'i Geri Al",
       "aciklama": "Entegratör dışında (noter kanalı, iptal/itiraz portalı…) iptal edilen faturayı RED'e çekin. Fatura hızlı filtrelerden düşer, İşlendi işaretlenemez; işlem geçmişe yazılır.",
-      "islenmisUyari": "Bu fatura eMOR'da işlenmiş görünüyor. RED'e çekmek eMOR'daki kaydı değiştirmez; panoda uyarı olarak sayılır.",
       "neden": "Neden",
       "nedenZorunlu": "RED'e çekme nedeni yazılmalı.",
       "izinYok": "RED'e çekme izniniz yok.",
       "geriAlSorusu": "{{eden}}, {{zaman}} tarihinde RED'e çekmiş (neden: {{neden}}). RED geri alınsın mı?",
       "cekildi": "{{no}} nolu fatura RED'e çekildi.",
       "geriAlindi": "{{no}} nolu faturanın RED'i geri alındı.",
-      "yalnizProtel": "Yalnız Protel faturaları RED'e çekilebilir; diğer kaynakların RED bilgisi kendi listesinden gelir."
+      "emorIslenmis": "eMOR'da işlenmiş (İşlendi / İşlendi (elle)) fatura RED'e çekilemez.",
+      "sapIslenmis": "\"SAP (Manuel İşle)\" işaretli fatura RED'e çekilemez; önce işareti kaldırın."
     },
     "islem": {
       "gecmis": "İşlem geçmişi",
@@ -1167,7 +1180,7 @@
       "etiket": "{{no}} işlendi",
       "isaretlendi": "{{no}} nolu fatura işlendi olarak güncellendi.",
       "kaldirildi": "{{no}} nolu fatura işlenmedi olarak güncellendi.",
-      "izinYok": "İşaretleme izniniz yok."
+      "izinYok": "\"SAP (Manuel İşle)\" izniniz yok."
     },
     "kolon": {
       "erpAldi": "Otel ERP Aldı",

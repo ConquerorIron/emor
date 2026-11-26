@@ -13,7 +13,8 @@ const api = vi.hoisted(() => ({
   kaydet: vi.fn(),
 }))
 
-vi.mock('@/features/ayarlar/alarmApi', () => ({
+vi.mock('@/features/ayarlar/alarmApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/ayarlar/alarmApi')>()),
   alarmKurallariniGetir: api.getir,
   alarmKuraliKaydet: api.kaydet,
 }))
@@ -24,6 +25,8 @@ const YANIT: AlarmKurallariYaniti = {
       tur: 'senkron_arizasi',
       aktif: false,
       alicilar: [],
+      alicilar_cc: [],
+      alicilar_bcc: [],
       parametreler: { ardisik_hata: 3, gecikme_saat: 2 },
       updated_at: '2026-09-23T10:00:00+00:00',
     },
@@ -31,6 +34,8 @@ const YANIT: AlarmKurallariYaniti = {
       tur: 'gunluk_ozet',
       aktif: false,
       alicilar: [],
+      alicilar_cc: [],
+      alicilar_bcc: [],
       parametreler: { saat: '08:00' },
       updated_at: '2026-09-23T10:00:00+00:00',
     },
@@ -38,6 +43,8 @@ const YANIT: AlarmKurallariYaniti = {
       tur: 'erp_okumadi',
       aktif: true,
       alicilar: ['muhasebe@ornek.test'],
+      alicilar_cc: [],
+      alicilar_bcc: [],
       parametreler: { gun: 2, saat: '09:00' },
       updated_at: '2026-09-23T10:00:00+00:00',
     },
@@ -45,7 +52,15 @@ const YANIT: AlarmKurallariYaniti = {
       tur: 'islenmemis_hatirlatma',
       aktif: false,
       alicilar: ['muhasebe@ornek.test'],
-      parametreler: { gun: 3, aralik_gun: 3, saat: '09:00', portallar: 'logo,protel' },
+      alicilar_cc: [],
+      alicilar_bcc: [],
+      parametreler: {
+        gun: 3,
+        aralik_gun: 3,
+        saat: '09:00',
+        portallar: 'logo,protel',
+        islendi_sayilanlar: 'emor_islendi,emor_elle_islendi,sap_islendi',
+      },
       updated_at: '2026-11-25T10:00:00+00:00',
     },
   ],
@@ -121,27 +136,37 @@ describe('AlarmKurallariPage', () => {
     expect(api.kaydet).toHaveBeenCalledWith('senkron_arizasi', {
       aktif: true,
       alicilar: ['bt@ornek.test', 'muhasebe@ornek.test'],
+      alicilar_cc: [],
+      alicilar_bcc: [],
       parametreler: { ardisik_hata: 5, gecikme_saat: 2 },
     })
   })
 
-  it('işlenmemiş fatura hatırlatması portalları virgüllü, günleri kendi etiketleriyle kaydeder; portalsız kaydetmez', async () => {
+  it('işlenmemiş fatura hatırlatması portalları ve işlendi sayılanları virgüllü, günü alınma etiketiyle kaydeder; boş seçimle kaydetmez', async () => {
     api.kaydet.mockResolvedValue(YANIT.data[3])
     ciz()
     const kural = await screen.findByRole('form', { name: 'İşlenmemiş fatura hatırlatması' })
-    // Hatırlatmanın günü fatura tarihinden sayılır (ERP uyarısının etiketi değil)
-    expect(within(kural).getByLabelText('Fatura tarihinden sonra beklenecek gün')).toHaveValue(3)
+    // Hatırlatmanın günü entegratöre alınma zamanından sayılır (ERP uyarısının etiketi değil)
+    expect(within(kural).getByLabelText('Alınma zamanından bu yana gün')).toHaveValue(3)
     expect(within(kural).getByRole('checkbox', { name: 'Logo' })).toBeChecked()
     expect(within(kural).getByRole('checkbox', { name: 'İzibiz' })).not.toBeChecked()
+    expect(within(kural).getByRole('checkbox', { name: 'eMOR: İşlendi (elle)' })).toBeChecked()
+    expect(within(kural).getByRole('checkbox', { name: 'eMOR: Havuzda' })).not.toBeChecked()
 
     fireEvent.click(within(kural).getByRole('checkbox', { name: 'Logo' }))
     fireEvent.click(within(kural).getByRole('checkbox', { name: 'Portal Plus (Protel)' }))
+    for (const durum of ['eMOR: İşlendi', 'eMOR: İşlendi (elle)', 'SAP: İşlendi (elle)']) {
+      fireEvent.click(within(kural).getByRole('checkbox', { name: durum }))
+    }
     fireEvent.click(within(kural).getByRole('button', { name: 'Kaydet' }))
     expect(await within(kural).findByText('En az bir portal seçin.')).toBeInTheDocument()
+    expect(within(kural).getByText('İşlendi sayılacak en az bir durum seçin.')).toBeInTheDocument()
     expect(api.kaydet).not.toHaveBeenCalled()
 
     fireEvent.click(within(kural).getByRole('checkbox', { name: 'E-Arşiv / E-SMM' }))
     fireEvent.click(within(kural).getByRole('checkbox', { name: 'İzibiz' }))
+    fireEvent.click(within(kural).getByRole('checkbox', { name: 'SAP: İşlendi (elle)' }))
+    fireEvent.click(within(kural).getByRole('checkbox', { name: 'eMOR: Havuzda' }))
     fireEvent.change(within(kural).getByLabelText('Kaç günde bir gönderilsin'), {
       target: { value: '4' },
     })
@@ -151,9 +176,69 @@ describe('AlarmKurallariPage', () => {
     expect(api.kaydet).toHaveBeenCalledWith('islenmemis_hatirlatma', {
       aktif: false,
       alicilar: ['muhasebe@ornek.test'],
-      // Pano sırasıyla, seçim sırasından bağımsız
-      parametreler: { gun: 3, aralik_gun: 4, saat: '09:00', portallar: 'izibiz,earsiv' },
+      alicilar_cc: [],
+      alicilar_bcc: [],
+      // Seçenek sırasıyla, seçim sırasından bağımsız
+      parametreler: {
+        gun: 3,
+        aralik_gun: 4,
+        saat: '09:00',
+        portallar: 'izibiz,earsiv',
+        islendi_sayilanlar: 'emor_havuzda,sap_islendi',
+      },
     })
+  })
+
+  it('kopya ve gizli alıcıları ayrıştırıp gönderir; geçersiz kopya adresiyle kaydetmez', async () => {
+    api.kaydet.mockResolvedValue(YANIT.data[2])
+    ciz()
+    const erp = await screen.findByRole('form', { name: 'ERP okumadı uyarısı' })
+
+    fireEvent.change(within(erp).getByLabelText('Bilgi alıcıları — CC (virgülle ayırın)'), {
+      target: { value: 'mudur-ornek.test' },
+    })
+    fireEvent.click(within(erp).getByRole('button', { name: 'Kaydet' }))
+    expect(
+      await within(erp).findByText('Alıcılardan biri geçerli bir e-posta adresi değil.'),
+    ).toBeInTheDocument()
+    expect(api.kaydet).not.toHaveBeenCalled()
+
+    fireEvent.change(within(erp).getByLabelText('Bilgi alıcıları — CC (virgülle ayırın)'), {
+      target: { value: 'mudur@ornek.test; finans@ornek.test' },
+    })
+    fireEvent.change(within(erp).getByLabelText('Gizli alıcılar — BCC (virgülle ayırın)'), {
+      target: { value: 'arsiv@ornek.test' },
+    })
+    fireEvent.click(within(erp).getByRole('button', { name: 'Kaydet' }))
+
+    await waitFor(() => expect(api.kaydet).toHaveBeenCalledTimes(1))
+    expect(api.kaydet).toHaveBeenCalledWith('erp_okumadi', {
+      aktif: true,
+      alicilar: ['muhasebe@ornek.test'],
+      alicilar_cc: ['mudur@ornek.test', 'finans@ornek.test'],
+      alicilar_bcc: ['arsiv@ornek.test'],
+      parametreler: { gun: 2, saat: '09:00' },
+    })
+  })
+
+  it('kayıt sürerken alıcı alanları salt okunur, yanıttan sonra açılır', async () => {
+    let yanitla: (kural: (typeof YANIT.data)[number]) => void = () => undefined
+    api.kaydet.mockReturnValue(
+      new Promise((resolve) => {
+        yanitla = resolve
+      }),
+    )
+    ciz()
+    const erp = await screen.findByRole('form', { name: 'ERP okumadı uyarısı' })
+    const kopya = within(erp).getByLabelText('Bilgi alıcıları — CC (virgülle ayırın)')
+
+    fireEvent.change(kopya, { target: { value: 'mudur@ornek.test' } })
+    fireEvent.click(within(erp).getByRole('button', { name: 'Kaydet' }))
+
+    await waitFor(() => expect(kopya).toHaveAttribute('readonly'))
+    yanitla({ ...YANIT.data[2], alicilar_cc: ['mudur@ornek.test'] })
+    await waitFor(() => expect(kopya).not.toHaveAttribute('readonly'))
+    expect(kopya).toHaveValue('mudur@ornek.test')
   })
 
   it('aktif kuralı alıcısız ve hatalı saatle kaydetmez', async () => {

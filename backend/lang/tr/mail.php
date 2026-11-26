@@ -39,7 +39,11 @@ return [
 
         'islenmemis_baslik' => ':gun günden eski :adet fatura henüz işlenmedi',
         'islenmemis_portal' => ':portal: :adet fatura (en eskisi :tarih)',
-        'islenmemis_not' => 'Fatura tarihi :tarih ve öncesi olan, RED olmayan ve eMOR\'a ya da SAP\'ye işlenmemiş faturalar sayılır. Liste ve firma dökümü panodadır.',
+        'islenmemis_not' => 'Entegratöre alınma tarihi :tarih ve öncesi olan (alınma zamanı olmayan kaynaklarda fatura tarihi), RED olmayan ve işlendi sayılan durumların (:durumlar) hiçbirinde olmayan faturalar sayılır. Liste ve firma dökümü panodadır.',
+        'islendi_emor_islendi' => 'eMOR: İşlendi',
+        'islendi_emor_elle_islendi' => 'eMOR: İşlendi (elle)',
+        'islendi_emor_havuzda' => 'eMOR: Havuzda',
+        'islendi_sap_islendi' => 'SAP: İşlendi (elle)',
         'portal_logo' => 'Logo',
         'portal_protel' => 'Portal Plus (Protel)',
         'portal_izibiz' => 'İzibiz',

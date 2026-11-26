@@ -79,23 +79,35 @@ final class MailAyarServisi
 
     /**
      * Maili tanımdaki SMTP ile gönderir. Yönlendirme adresi doluysa asıl
-     * alıcılar yerine yalnız o adrese gider; asıl alıcılar başlıkta belirtilir.
+     * alıcılar (To, CC, BCC) yerine yalnız o adrese To olarak gider; asıl
+     * alıcılar başlıklarda belirtilir, CC / BCC'ye hiçbir şey çıkmaz.
      *
-     * @param  list<string>  $alicilar
+     * @param  list<string>  $alicilar  To
+     * @param  list<string>  $kopya  CC
+     * @param  list<string>  $gizliKopya  BCC
      */
-    public function gonder(array $alicilar, Mailable $mail): void
+    public function gonder(array $alicilar, Mailable $mail, array $kopya = [], array $gizliKopya = []): void
     {
         $ayar = $this->kullanilabilirAyar();
         $this->uygula($ayar);
 
         if ($ayar->yonlendirme_adresi !== null) {
-            $asil = implode(', ', $alicilar);
-            $mail->withSymfonyMessage(fn (Email $mesaj) => $mesaj->getHeaders()
-                ->addTextHeader('X-Emor-Asil-Alicilar', $asil));
+            $basliklar = array_filter([
+                'X-Emor-Asil-Alicilar' => implode(', ', $alicilar),
+                'X-Emor-Asil-Cc' => implode(', ', $kopya),
+                'X-Emor-Asil-Bcc' => implode(', ', $gizliKopya),
+            ], fn (string $deger): bool => $deger !== '');
+            $mail->withSymfonyMessage(function (Email $mesaj) use ($basliklar): void {
+                foreach ($basliklar as $ad => $deger) {
+                    $mesaj->getHeaders()->addTextHeader($ad, $deger);
+                }
+            });
             $alicilar = [$ayar->yonlendirme_adresi];
+            $kopya = [];
+            $gizliKopya = [];
         }
 
-        Mail::mailer(self::MAILER)->to($alicilar)->send($mail);
+        Mail::mailer(self::MAILER)->to($alicilar)->cc($kopya)->bcc($gizliKopya)->send($mail);
     }
 
     private function kullanilabilirAyar(): MailAyari

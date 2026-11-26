@@ -626,3 +626,33 @@ olarak numaralanır.
     Yapıştırma tablosu `components/YapistirmaTablosu`'na taşındı (ortak); kolonlar
     `GET /{logo|earsiv}/ice-aktar/kolonlar`'dan gelir, e-Arşiv'de liste türü (fatura /
     makbuz) seçilir. Başlıkla yapıştırılan metin adlardan eşlenir.
+- 2026-11-26 — **Müşteri talepleri: RED, SAP kolonları, hatırlatma, UBL verileri (Opus).**
+  - **Karar değişikliği (EK-04, sabahki kararın yerine):** RED'e çekme yine her
+    kaynakta (İzibiz, Protel, Logo, e-Arşiv ekranları ve Tüm Faturalar), kendi
+    izniyle (`efatura.red`, `logo_faturalari.red`, `earsiv_faturalari.red` geri
+    geldi; rollere yeniden verilmeli). eMOR'da İşlendi / İşlendi (elle) ya da
+    "SAP (Manuel İşle)" işaretli fatura RED'e çekilemez: düğme kapalı ve nedenini
+    söyler, sunucu 409 `FATURA_EMOR_ISLENMIS` / `FATURA_ISLENDI_ISARETLI`.
+    `RED_YALNIZ_PROTEL` kaldırıldı. RED'i geri almak her zaman açık.
+  - **SAP kolonları:** anahtar kolonunun başlığı "SAP (Manuel İşle)"; yanında eMOR
+    gibi yazı kolonu "SAP" ("İşlendi (elle)" / "Red" / —). Anahtar bütün gelen
+    ekranlarında: İzibiz (`efatura.isle`) ve Tüm Faturalar (`tum_faturalar.isle`)
+    için yeni izin ve uç. Kolon sırası: SAP (Manuel İşle) | SAP | eMOR | eMOR Okudu
+    (Tüm Faturalar'da Entegratör en solda kalır). SAP ve eMOR VKN Var sıralanır
+    (eMOR VKN Var: ERP kurum listesi okunamazsa belge tarihiyle).
+  - **İçe aktarım izni:** Logo ve e-Arşiv'de `*.ice_aktar` Roller ekranında
+    "Güncelle" sütunu yerine adıyla görünen ek izin (izin adı aynı, verilmiş
+    yetkiler korunur).
+  - **EK-10 değişikliği:** hatırlatmanın eşiği belge tarihi yerine entegratöre
+    alınma zamanı (İstanbul günü; alınma zamanı olmayan e-Arşiv / e-SMM satırında
+    belge tarihi). "İşlendi" sayılan durumlar kuraldan seçilir
+    (`islendi_sayilanlar`: eMOR İşlendi, eMOR İşlendi (elle), eMOR Havuzda, SAP
+    İşlendi (elle); varsayılan eski tanımla aynı). Bütün alarm kurallarında To /
+    CC / BCC (`alicilar_cc`, `alicilar_bcc`); test yönlendirmesinde CC / BCC'ye
+    gitmez.
+  - **UBL verileri (rapor hazırlığı):** gelen İzibiz faturalarının UBL'i yalnız
+    İzibiz'den (ERP kopyasına bakılmaz, kullanıcı kararı) toplu indirmeyle okunur;
+    XML saklanmaz. Faturaya tutar / indirim / matrah / vergi dahil / kur / satıcı
+    vergi dairesi, `efatura_vergi_kalemleri`'ne oran bazında KDV ve tevkifat
+    kalemleri yazılır. Komut `efatura:ubl-oku` (eski `efatura:istisna-kodlari`).
+    Protel için aynı okuma kilit ölçümü bekliyor (kullanıcı kararı).

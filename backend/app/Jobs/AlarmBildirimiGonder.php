@@ -24,8 +24,9 @@ use Throwable;
  *   (failed_jobs'a fatura/kişi verisi düşmez).
  * - Göndermeden önce denetlenir: kayıt hâlâ bekliyor mu, kural hâlâ aktif
  *   mi, hesap hâlâ aktif ortam mı, açılış bildiriminin olayı hâlâ açık mı,
- *   alıcı var mı, TEST hesabıysa yönlendirme adresi tanımlı mı. Değilse
- *   `atlandi` + neden kodu.
+ *   alıcı (To) var mı, TEST hesabıysa yönlendirme adresi tanımlı mı. Değilse
+ *   `atlandi` + neden kodu. Kuralın CC / BCC listeleri de gönderilir;
+ *   yönlendirmede onlara da gitmez (MailAyarServisi::gonder).
  * - "gönderildi" yalnız SMTP kabulünden SONRA işaretlenir. Kabul ile işaret
  *   arasında süreç ölürse yeniden deneme maili ikinci kez gönderebilir
  *   (en az bir kez teslim; SMTP ile "tam bir kez" garanti edilemez).
@@ -101,6 +102,8 @@ final class AlarmBildirimiGonder implements ShouldBeUnique, ShouldQueue
             $mail->gonder(
                 $bildirim->kural->alicilar,
                 new AlarmMaili($bildirim, $bildirim->kural->tur, $bildirim->entegratorBaglanti->ortam),
+                $bildirim->kural->alicilar_cc,
+                $bildirim->kural->alicilar_bcc,
             );
         } catch (ValidationException $hata) {
             // SMTP tanımı eksik: tekrar denemek düzeltmez

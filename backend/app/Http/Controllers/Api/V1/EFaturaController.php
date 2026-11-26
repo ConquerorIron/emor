@@ -114,15 +114,15 @@ final class EFaturaController extends Controller
     }
 
     /**
-     * Faturayı "İşlendi" işaretler ya da işareti kaldırır (Protel: kullanıcı
-     * isteği 2026-11-23; statik kaynaklar: EK-07). Yalnız eMOR'da tutulur:
+     * "SAP (Manuel İşle)": faturayı işlendi işaretler ya da işareti kaldırır
+     * (Protel: 2026-11-23; statik kaynaklar: EK-07; İzibiz: 2026-11-26). Yalnız gelen fatura. Yalnız eMOR'da tutulur:
      * `sap_islendi` true, kaldırılınca NULL. Dış sisteme istek gitmez. RED
      * faturası işaretlenemez (409 FATURA_REDDEDILDI; ekranda "Red" yazar).
      */
     public function islendi(EFaturaIslendiRequest $request, int $fatura): EFaturaResource
     {
         $tanim = $this->aktifTanim($request);
-        $kayit = $this->aktifHesabinFaturasi($tanim, $fatura);
+        $kayit = $this->gelenFatura($tanim, $fatura);
 
         return $this->yanit($tanim, $this->islemler->islendiDegistir($kayit, $request->boolean('islendi'), $this->kullanici($request)));
     }

@@ -17,6 +17,7 @@ import {
   type AlarmBildirimi,
   type AlarmKurali,
   type AlarmTuru,
+  ISLENDI_SECENEKLERI,
   alarmKuraliKaydet,
   alarmKurallariniGetir,
 } from '@/features/ayarlar/alarmApi'
@@ -34,14 +35,48 @@ function alicilariAyir(metin: string): string[] {
     .filter((adres) => adres !== '')
 }
 
-type SayiAlani = 'ardisik_hata' | 'gecikme_saat' | 'gun' | 'aralik_gun'
+/** Sunucunun virgüllü liste parametresi → dizi */
+function virgulluListe(deger: number | string | undefined): string[] {
+  return String(deger ?? '')
+    .split(',')
+    .filter((oge) => oge !== '')
+}
 
-const PARAMETRELER: Record<AlarmTuru, readonly (SayiAlani | 'saat' | 'portallar')[]> = {
+/** Her kuralın üç alıcı listesi: To (aktif kuralda zorunlu), CC, BCC */
+const ALICI_ALANLARI = ['alicilar', 'alicilar_cc', 'alicilar_bcc'] as const
+
+const ALICI_ETIKETLERI: Record<(typeof ALICI_ALANLARI)[number], string> = {
+  alicilar: 'ayarlar.alarm.alicilar',
+  alicilar_cc: 'ayarlar.alarm.alicilarCc',
+  alicilar_bcc: 'ayarlar.alarm.alicilarBcc',
+}
+
+type SayiAlani = 'ardisik_hata' | 'gecikme_saat' | 'gun' | 'aralik_gun'
+type ListeAlani = 'portallar' | 'islendi_sayilanlar'
+type ParametreAlani = SayiAlani | ListeAlani | 'saat'
+
+const PARAMETRELER: Record<AlarmTuru, readonly ParametreAlani[]> = {
   senkron_arizasi: ['ardisik_hata', 'gecikme_saat'],
   gunluk_ozet: ['saat'],
   erp_okumadi: ['gun', 'saat'],
-  // EK-10: N günden eski işlenecek faturalar, her M günde bir, seçili portallar
-  islenmemis_hatirlatma: ['gun', 'aralik_gun', 'saat', 'portallar'],
+  // EK-10: alınalı N gün olmuş işlenmemiş faturalar, her M günde bir, seçili portallar;
+  // "işlendi" sayılan durumlar ekrandan seçilir
+  islenmemis_hatirlatma: ['gun', 'aralik_gun', 'saat', 'portallar', 'islendi_sayilanlar'],
+}
+
+/** Çoklu seçim parametreleri: seçenekler bu sırayla gösterilir ve kaydedilir */
+const LISTE_SECENEKLERI: Record<ListeAlani, readonly string[]> = {
+  portallar: GELEN_SAGLAYICILARI,
+  islendi_sayilanlar: ISLENDI_SECENEKLERI,
+}
+
+const LISTE_ZORUNLU: Record<ListeAlani, string> = {
+  portallar: 'ayarlar.alarm.dogrulama.portalZorunlu',
+  islendi_sayilanlar: 'ayarlar.alarm.dogrulama.islendiZorunlu',
+}
+
+function listeAlaniMi(alan: ParametreAlani): alan is ListeAlani {
+  return alan === 'portallar' || alan === 'islendi_sayilanlar'
 }
 
 /** Sunucudaki sınırlarla aynı (AlarmKuraliGuncelleRequest); hatırlatmanın bekleme günü daha geniş */
@@ -63,28 +98,32 @@ function kuralSemasi(tur: AlarmTuru) {
     .object({
       aktif: z.boolean(),
       alicilar: z.string(),
+      alicilar_cc: z.string(),
+      alicilar_bcc: z.string(),
       ardisik_hata: z.number(),
       gecikme_saat: z.number(),
       gun: z.number(),
       aralik_gun: z.number(),
       saat: z.string(),
       portallar: z.array(z.string()),
+      islendi_sayilanlar: z.array(z.string()),
     })
     .superRefine((deger, ctx) => {
-      const alicilar = alicilariAyir(deger.alicilar)
-      if (deger.aktif && alicilar.length === 0) {
+      if (deger.aktif && alicilariAyir(deger.alicilar).length === 0) {
         ctx.addIssue({
           code: 'custom',
           path: ['alicilar'],
           message: 'ayarlar.alarm.dogrulama.aliciZorunlu',
         })
       }
-      if (alicilar.some((adres) => !z.email().safeParse(adres).success)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['alicilar'],
-          message: 'ayarlar.alarm.dogrulama.aliciGecersiz',
-        })
+      for (const alan of ALICI_ALANLARI) {
+        if (alicilariAyir(deger[alan]).some((adres) => !z.email().safeParse(adres).success)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [alan],
+            message: 'ayarlar.alarm.dogrulama.aliciGecersiz',
+          })
+        }
       }
       for (const alan of PARAMETRELER[tur]) {
         if (alan === 'saat') {
@@ -97,13 +136,9 @@ function kuralSemasi(tur: AlarmTuru) {
           }
           continue
         }
-        if (alan === 'portallar') {
-          if (deger.portallar.length === 0) {
-            ctx.addIssue({
-              code: 'custom',
-              path: ['portallar'],
-              message: 'ayarlar.alarm.dogrulama.portalZorunlu',
-            })
+        if (listeAlaniMi(alan)) {
+          if (deger[alan].length === 0) {
+            ctx.addIssue({ code: 'custom', path: [alan], message: LISTE_ZORUNLU[alan] })
           }
           continue
         }
@@ -124,23 +159,21 @@ function formDegerleri(kural: AlarmKurali): KuralGirdisi {
   return {
     aktif: kural.aktif,
     alicilar: kural.alicilar.join(', '),
+    alicilar_cc: kural.alicilar_cc.join(', '),
+    alicilar_bcc: kural.alicilar_bcc.join(', '),
     ardisik_hata: Number(p['ardisik_hata'] ?? 3),
     gecikme_saat: Number(p['gecikme_saat'] ?? 2),
     gun: Number(p['gun'] ?? 2),
     aralik_gun: Number(p['aralik_gun'] ?? 3),
     saat: String(p['saat'] ?? '08:00'),
-    portallar: String(p['portallar'] ?? '')
-      .split(',')
-      .filter((portal) => portal !== ''),
+    portallar: virgulluListe(p['portallar']),
+    islendi_sayilanlar: virgulluListe(p['islendi_sayilanlar']),
   }
 }
 
-/** Formdaki değer → sunucu parametresi (portallar virgüllü metin) */
-function parametreDegeri(
-  girdi: KuralGirdisi,
-  alan: SayiAlani | 'saat' | 'portallar',
-): number | string {
-  return alan === 'portallar' ? girdi.portallar.join(',') : girdi[alan]
+/** Formdaki değer → sunucu parametresi (çoklu seçimler virgüllü metin) */
+function parametreDegeri(girdi: KuralGirdisi, alan: ParametreAlani): number | string {
+  return listeAlaniMi(alan) ? girdi[alan].join(',') : girdi[alan]
 }
 
 function SayiParametresi({
@@ -148,28 +181,92 @@ function SayiParametresi({
   alan,
   register,
   hata,
+  kilitli,
 }: {
   tur: AlarmTuru
   alan: SayiAlani
   register: UseFormRegister<KuralGirdisi>
   hata?: string
+  kilitli: boolean
 }) {
   const { t } = useTranslation()
   const [en, cok] = aralik(tur, alan)
+  // Hatırlatmanın günü entegratöre alınma gününden sayılır (ERP uyarısının etiketi değil)
+  const hatirlatmaGunu = tur === 'islenmemis_hatirlatma' && alan === 'gun'
+  const yardimId = `${tur}-${alan}-yardim`
 
   return (
-    <Input
-      id={`${tur}-${alan}`}
-      type="number"
-      min={en}
-      max={cok}
-      // Hatırlatmanın günü belge tarihinden sayılır (ERP uyarısında İzibiz'e ulaşmadan)
-      label={t(
-        `ayarlar.alarm.parametre.${tur === 'islenmemis_hatirlatma' && alan === 'gun' ? 'hatirlatmaGun' : alan}`,
-      )}
-      hata={hata ? t(hata, { en, cok }) : undefined}
-      {...register(alan, { valueAsNumber: true })}
-    />
+    <div>
+      <Input
+        id={`${tur}-${alan}`}
+        type="number"
+        min={en}
+        max={cok}
+        readOnly={kilitli}
+        label={t(`ayarlar.alarm.parametre.${hatirlatmaGunu ? 'hatirlatmaGun' : alan}`)}
+        hata={hata ? t(hata, { en, cok }) : undefined}
+        aria-describedby={hatirlatmaGunu ? yardimId : undefined}
+        {...register(alan, { valueAsNumber: true })}
+      />
+      {hatirlatmaGunu ? (
+        <p id={yardimId} className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          {t('ayarlar.alarm.hatirlatmaGunYardim')}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+/** Çoklu seçim parametresi (portallar, işlendi sayılanlar): seçim sırası değil seçenek sırası korunur */
+function SecimKutulari({
+  baslik,
+  yardim,
+  secenekler,
+  etiket,
+  secili,
+  degistir,
+  hata,
+  kilitli,
+}: {
+  baslik: string
+  yardim?: string
+  secenekler: readonly string[]
+  etiket: (secenek: string) => string
+  secili: string[]
+  degistir: (yeni: string[]) => void
+  hata?: string
+  kilitli: boolean
+}) {
+  return (
+    <fieldset className="sm:col-span-2">
+      <legend className="text-sm font-semibold text-slate-700 dark:text-slate-300">{baslik}</legend>
+      {yardim ? <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{yardim}</p> : null}
+      <div className="mt-2 flex flex-wrap gap-4">
+        {secenekler.map((secenek) => (
+          <label key={secenek} className="inline-flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="size-4 rounded border-slate-300"
+              checked={secili.includes(secenek)}
+              disabled={kilitli}
+              onChange={(olay) =>
+                degistir(
+                  olay.target.checked
+                    ? secenekler.filter((s) => s === secenek || secili.includes(s))
+                    : secili.filter((s) => s !== secenek),
+                )
+              }
+            />
+            {etiket(secenek)}
+          </label>
+        ))}
+      </div>
+      {hata ? (
+        <p role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">
+          {hata}
+        </p>
+      ) : null}
+    </fieldset>
   )
 }
 
@@ -194,13 +291,16 @@ function KuralKarti({ kural }: { kural: AlarmKurali }) {
       alarmKuraliKaydet(kural.tur, {
         aktif: girdi.aktif,
         alicilar: alicilariAyir(girdi.alicilar),
+        alicilar_cc: alicilariAyir(girdi.alicilar_cc),
+        alicilar_bcc: alicilariAyir(girdi.alicilar_bcc),
         parametreler: Object.fromEntries(
           PARAMETRELER[kural.tur].map((alan) => [alan, parametreDegeri(girdi, alan)]),
         ),
       }),
     onSuccess: async (kaydedilen) => {
       // Form sunucunun kaydettiği hâle döner (alıcılar tekilleştirilmiş olabilir);
-      // kart yeniden kurulmaz — periyodik yenileme yazılmakta olanı silmesin
+      // kart yeniden kurulmaz — periyodik yenileme yazılmakta olanı silmesin.
+      // Kayıt sürerken alanlar kilitli: sıfırlama, istek sırasında yazılanı silmesin
       reset(formDegerleri(kaydedilen))
       await queryClient.invalidateQueries({ queryKey: queryKeys.ayarlar.alarmKurallari })
       toast.success(t('ayarlar.alarm.kaydedildi', { ad: t(`ayarlar.alarm.kural.${kural.tur}.ad`) }))
@@ -237,66 +337,65 @@ function KuralKarti({ kural }: { kural: AlarmKurali }) {
             label={t('ayarlar.alarm.aktif')}
             checked={field.value}
             onChange={field.onChange}
+            disabled={isSubmitting}
           />
         )}
       />
 
-      <Input
-        id={`${kural.tur}-alicilar`}
-        label={t('ayarlar.alarm.alicilar')}
-        placeholder="muhasebe@firma.com.tr, finans@firma.com.tr"
-        hata={errors.alicilar?.message ? t(errors.alicilar.message) : undefined}
-        {...register('alicilar')}
-      />
+      {ALICI_ALANLARI.map((alan) => {
+        const hata = errors[alan]?.message
+
+        return (
+          <Input
+            key={alan}
+            id={`${kural.tur}-${alan}`}
+            label={t(ALICI_ETIKETLERI[alan])}
+            placeholder="muhasebe@firma.com.tr, finans@firma.com.tr"
+            readOnly={isSubmitting}
+            hata={hata ? t(hata) : undefined}
+            {...register(alan)}
+          />
+        )
+      })}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        {PARAMETRELER[kural.tur].map((alan) =>
-          alan === 'portallar' ? (
-            <Controller
-              key={alan}
-              control={control}
-              name="portallar"
-              render={({ field }) => (
-                <fieldset className="sm:col-span-2">
-                  <legend className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    {t('ayarlar.alarm.parametre.portallar')}
-                  </legend>
-                  <div className="mt-2 flex flex-wrap gap-4">
-                    {GELEN_SAGLAYICILARI.map((portal) => (
-                      <label key={portal} className="inline-flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          className="size-4 rounded border-slate-300"
-                          checked={field.value.includes(portal)}
-                          onChange={(olay) =>
-                            field.onChange(
-                              olay.target.checked
-                                ? GELEN_SAGLAYICILARI.filter(
-                                    (p) => p === portal || field.value.includes(p),
-                                  )
-                                : field.value.filter((p) => p !== portal),
-                            )
-                          }
-                        />
-                        {t(`efatura.pano.portal.${portal}`)}
-                      </label>
-                    ))}
-                  </div>
-                  {errors.portallar?.message ? (
-                    <p role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">
-                      {t(errors.portallar.message)}
-                    </p>
-                  ) : null}
-                </fieldset>
-              )}
-            />
-          ) : alan === 'saat' ? (
+        {PARAMETRELER[kural.tur].map((alan) => {
+          if (listeAlaniMi(alan)) {
+            return (
+              <Controller
+                key={alan}
+                control={control}
+                name={alan}
+                render={({ field }) => (
+                  <SecimKutulari
+                    baslik={t(`ayarlar.alarm.parametre.${alan}`)}
+                    yardim={
+                      alan === 'islendi_sayilanlar' ? t('ayarlar.alarm.islendiYardim') : undefined
+                    }
+                    secenekler={LISTE_SECENEKLERI[alan]}
+                    etiket={(secenek) =>
+                      alan === 'portallar'
+                        ? t(`efatura.pano.portal.${secenek}`)
+                        : t(`ayarlar.alarm.islendiSecenek.${secenek}`)
+                    }
+                    secili={field.value}
+                    degistir={field.onChange}
+                    hata={errors[alan]?.message ? t(errors[alan].message) : undefined}
+                    kilitli={isSubmitting}
+                  />
+                )}
+              />
+            )
+          }
+
+          return alan === 'saat' ? (
             <Input
               key={alan}
               id={`${kural.tur}-saat`}
               label={t('ayarlar.alarm.parametre.saat')}
               placeholder="08:00"
               inputMode="numeric"
+              readOnly={isSubmitting}
               hata={errors.saat?.message ? t(errors.saat.message) : undefined}
               {...register('saat')}
             />
@@ -307,9 +406,10 @@ function KuralKarti({ kural }: { kural: AlarmKurali }) {
               alan={alan}
               register={register}
               hata={errors[alan]?.message}
+              kilitli={isSubmitting}
             />
-          ),
-        )}
+          )
+        })}
       </div>
 
       {errors.root?.message ? (

@@ -7,9 +7,9 @@ namespace App\Http\Requests\EFatura;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Faturayı "İşlendi" (SAP) işaretleme / işareti kaldırma — Protel ve statik
- * kaynak (Logo, e-Arşiv) ekranları. Yetki rota middleware'indedir
- * (`can:protel_faturalari.isle`, `can:logo_faturalari.isle`, …).
+ * "SAP (Manuel İşle)": faturayı işlendi işaretleme / işareti kaldırma — bütün
+ * gelen fatura ekranları ve Tüm Faturalar. Yetki rota middleware'indedir
+ * (`can:efatura.isle`, `can:protel_faturalari.isle`, `can:tum_faturalar.isle`, …).
  */
 final class EFaturaIslendiRequest extends FormRequest
 {

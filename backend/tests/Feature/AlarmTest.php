@@ -21,6 +21,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -574,7 +575,10 @@ final class AlarmTest extends TestCase
             ->assertJsonPath('data.0.tur', 'senkron_arizasi')
             ->assertJsonPath('data.0.aktif', false)
             ->assertJsonPath('data.0.parametreler', ['ardisik_hata' => 3, 'gecikme_saat' => 2])
+            ->assertJsonPath('data.0.alicilar_cc', [])
+            ->assertJsonPath('data.0.alicilar_bcc', [])
             ->assertJsonPath('data.2.parametreler', ['gun' => 2, 'saat' => '09:00'])
+            ->assertJsonPath('data.3.parametreler.islendi_sayilanlar', 'emor_islendi,emor_elle_islendi,sap_islendi')
             ->assertJsonPath('bildirimler', []);
     }
 
@@ -595,8 +599,8 @@ final class AlarmTest extends TestCase
     }
 
     /**
-     * İşlenmemiş fatura hatırlatması (EK-10): saatten sonra, yalnız N günden
-     * eski ve "İşlenecek" sınıfındaki faturaları seçili portallarda sayar
+     * İşlenmemiş fatura hatırlatması (EK-10): saatten sonra, yalnız entegratöre
+     * N günden önce alınmış ve işlenmemiş faturaları seçili portallarda sayar
      * (işlenmiş, RED, gizlenen ve yeni fatura sayılmaz); sonraki hatırlatma
      * `aralik_gun` gün sonra. Bekleyen yoksa mail gitmez, ertesi gün yeniden bakılır.
      */
@@ -606,7 +610,8 @@ final class AlarmTest extends TestCase
         $izibiz = $this->tanim('canli');
         $protel = EntegratorBaglanti::factory()->protel()->canli()->aktif()->create();
         $kural = $this->kural(AlarmKurali::ISLENMEMIS_HATIRLATMA, ['gun' => 3, 'aralik_gun' => 3, 'saat' => '09:00', 'portallar' => 'izibiz,protel']);
-        $f = fn (EntegratorBaglanti $t, string $tarih, array $alanlar = []) => EFatura::factory()->create(['entegrator_baglanti_id' => $t->id, 'belge_tarihi' => $tarih, 'emor_durumu' => 'yok', ...$alanlar]);
+        // Alınma zamanı belge gününün öğleni (İstanbul 12:00 = 09:00 UTC)
+        $f = fn (EntegratorBaglanti $t, string $tarih, array $alanlar = []) => EFatura::factory()->create(['entegrator_baglanti_id' => $t->id, 'belge_tarihi' => $tarih, 'olusturma_zamani' => "{$tarih} 09:00:00", 'emor_durumu' => 'yok', ...$alanlar]);
         $f($izibiz, '2026-11-10');
         $f($izibiz, '2026-11-22');
         $f($izibiz, '2026-11-23'); // eşikten yeni
@@ -630,6 +635,7 @@ final class AlarmTest extends TestCase
                 ['saglayici' => 'protel', 'adet' => 1, 'en_eski' => '2026-11-05'],
                 ['saglayici' => 'izibiz', 'adet' => 2, 'en_eski' => '2026-11-10'],
             ],
+            'islendi_sayilanlar' => ['emor_islendi', 'emor_elle_islendi', 'sap_islendi'],
         ], $bildirim->ayrinti);
         $bildirim->update(['durum' => AlarmBildirimi::GONDERILDI]);
 
@@ -650,6 +656,78 @@ final class AlarmTest extends TestCase
         $this->assertSame(2, AlarmBildirimi::query()->where('alarm_kurali_id', $kural->id)->where('durum', AlarmBildirimi::ATLANDI)->count());
     }
 
+    /**
+     * Eşik alınma GÜNÜNE (İstanbul) göre: bugün 26.11, gun=3 → 23.11 23:59
+     * İstanbul'da alınan sayılır, 24.11 00:00'da alınan sayılmaz — belge
+     * tarihi ne olursa olsun. Alınma zamanı olmayan statik kaynakta (e-Arşiv)
+     * belge tarihine bakılır.
+     */
+    public function test_islenmemis_hatirlatmasi_esigi_istanbul_takvimiyle_alinma_gunune_gore_sayar(): void
+    {
+        $this->travelTo('2026-11-26 06:30:00'); // 09:30 İstanbul
+        $izibiz = $this->tanim('canli');
+        $earsiv = app(EntegratorBaglantiServisi::class)->statikTanim('earsiv');
+        $this->kural(AlarmKurali::ISLENMEMIS_HATIRLATMA, ['gun' => 3, 'portallar' => 'izibiz,earsiv']);
+        $f = fn (EntegratorBaglanti $t, array $alanlar) => EFatura::factory()->create(['entegrator_baglanti_id' => $t->id, 'emor_durumu' => null, ...$alanlar]);
+        $f($izibiz, ['belge_tarihi' => '2026-11-24', 'olusturma_zamani' => '2026-11-23 20:59:00']); // 23.11 23:59 İstanbul
+        $f($izibiz, ['belge_tarihi' => '2026-11-01', 'olusturma_zamani' => '2026-11-23 21:00:00']); // 24.11 00:00 İstanbul
+        $f($earsiv, ['kaynak_id' => null, 'belge_anahtari' => 'a', 'belge_tarihi' => '2026-11-23', 'olusturma_zamani' => null, 'durum' => null]);
+        $f($earsiv, ['kaynak_id' => null, 'belge_anahtari' => 'b', 'belge_tarihi' => '2026-11-24', 'olusturma_zamani' => null, 'durum' => null]);
+
+        [$bildirim] = $this->degerlendir();
+
+        $this->assertSame('2026-11-23', $bildirim->ayrinti['kesim']);
+        $this->assertSame([
+            ['saglayici' => 'izibiz', 'adet' => 1, 'en_eski' => '2026-11-23'],
+            ['saglayici' => 'earsiv', 'adet' => 1, 'en_eski' => '2026-11-23'],
+        ], $bildirim->ayrinti['portallar']);
+    }
+
+    /**
+     * "İşlendi sayılanlar" ekrandan seçilir; seçilen her durum faturayı
+     * sayımdan çıkarır, RED her durumda çıkar. Adetler durum başına farklı
+     * tutulur ki hangi durumun çıktığı toplamdan anlaşılsın.
+     *
+     * @param  string|null  $secim  null: parametre kayıtlı değil (eski kural) → varsayılan
+     */
+    #[DataProvider('islendiSecimleri')]
+    public function test_islenmemis_hatirlatmasi_secilen_islendi_durumlarini_saymaz(?string $secim, int $beklenen): void
+    {
+        $this->travelTo('2026-11-26 06:30:00');
+        $izibiz = $this->tanim('canli');
+        $kural = $this->kural(AlarmKurali::ISLENMEMIS_HATIRLATMA, ['portallar' => 'izibiz']);
+        $parametreler = $kural->parametreler;
+        unset($parametreler['islendi_sayilanlar']);
+        $kural->update(['parametreler' => $secim === null ? $parametreler : [...$parametreler, 'islendi_sayilanlar' => $secim]]);
+        $f = fn (int $adet, array $alanlar) => EFatura::factory()->count($adet)->create(['entegrator_baglanti_id' => $izibiz->id, 'olusturma_zamani' => '2026-11-10 09:00:00', 'belge_tarihi' => '2026-11-10', ...$alanlar]);
+        $f(1, ['emor_durumu' => 'islendi']);
+        $f(2, ['emor_durumu' => 'elle_islendi']);
+        $f(3, ['emor_durumu' => 'havuzda']);
+        $f(4, ['emor_durumu' => 'yok', 'sap_islendi' => true]);
+        $f(3, ['emor_durumu' => null, 'sap_islendi' => null]);
+        $f(2, ['emor_durumu' => 'yok', 'sap_islendi' => false]);
+        $f(1, ['emor_durumu' => null, 'durum' => 'REJECTED']);
+
+        [$bildirim] = $this->degerlendir();
+
+        $this->assertSame($beklenen, $bildirim->ayrinti['toplam']);
+    }
+
+    /**
+     * @return array<string, array{string|null, int}>
+     */
+    public static function islendiSecimleri(): array
+    {
+        return [
+            'eMOR işlendi' => ['emor_islendi', 14],
+            'eMOR elle işlendi' => ['emor_elle_islendi', 13],
+            'eMOR havuzda' => ['emor_havuzda', 12],
+            'SAP işlendi' => ['sap_islendi', 11],
+            'kayıtsız: varsayılan (havuz sayılır)' => [null, 8],
+            'hepsi' => ['emor_islendi,emor_elle_islendi,emor_havuzda,sap_islendi', 5],
+        ];
+    }
+
     public function test_islenmemis_hatirlatma_mailinde_portal_sayilari_var_fatura_bilgisi_yok(): void
     {
         $bildirim = new AlarmBildirimi([
@@ -659,6 +737,7 @@ final class AlarmTest extends TestCase
                 'kesim' => '2026-11-22',
                 'toplam' => 3,
                 'portallar' => [['saglayici' => 'protel', 'adet' => 1, 'en_eski' => '2026-11-05'], ['saglayici' => 'izibiz', 'adet' => 2, 'en_eski' => '2026-11-10']],
+                'islendi_sayilanlar' => ['emor_havuzda', 'sap_islendi'],
             ],
         ]);
 
@@ -668,7 +747,124 @@ final class AlarmTest extends TestCase
         $this->assertSame('eMOR ERP — 3 günden eski 3 fatura henüz işlenmedi', $mail->envelope()->subject);
         $this->assertStringContainsString('Portal Plus (Protel): 1 fatura (en eskisi 05.11.2026)', $html);
         $this->assertStringContainsString('İzibiz: 2 fatura (en eskisi 10.11.2026)', $html);
+        $this->assertStringContainsString('Entegratöre alınma tarihi 22.11.2026 ve öncesi', $html);
+        $this->assertStringContainsString('(eMOR: Havuzda, SAP: İşlendi (elle))', $html);
         $this->assertStringContainsString(rtrim((string) config('app.url'), '/').'/efatura/pano', $html);
+    }
+
+    public function test_alarm_maili_kopya_ve_gizli_alicilara_da_gonderilir(): void
+    {
+        $this->travelTo('2026-09-23 10:00:00');
+        Mail::fake();
+        $this->mailAyari(null);
+        $tanim = $this->tanim('canli');
+        $this->kural(AlarmKurali::SENKRON_ARIZASI, ['ardisik_hata' => 1])
+            ->update(['alicilar_cc' => ['mudur@ornek.test'], 'alicilar_bcc' => ['arsiv@ornek.test']]);
+        $this->calisma($tanim, 'giden');
+        $this->calisma($tanim, 'gelen', ['durum' => 'basarisiz', 'hata_kodu' => 'ENTEGRATOR_ERISILEMEDI']);
+        [$bildirim] = $this->degerlendir();
+
+        $this->gonder($bildirim);
+
+        Mail::assertSent(AlarmMaili::class, fn (AlarmMaili $mail): bool => $mail->hasTo('muhasebe@ornek.test')
+            && $mail->hasCc('mudur@ornek.test')
+            && $mail->hasBcc('arsiv@ornek.test'));
+    }
+
+    public function test_yonlendirmede_kopya_ve_gizli_alicilara_mail_gitmez(): void
+    {
+        $this->travelTo('2026-09-23 10:00:00');
+        Mail::fake();
+        $this->mailAyari();
+        $tanim = $this->tanim('canli');
+        $this->kural(AlarmKurali::SENKRON_ARIZASI, ['ardisik_hata' => 1])
+            ->update(['alicilar_cc' => ['mudur@ornek.test'], 'alicilar_bcc' => ['arsiv@ornek.test']]);
+        $this->calisma($tanim, 'giden');
+        $this->calisma($tanim, 'gelen', ['durum' => 'basarisiz', 'hata_kodu' => 'ENTEGRATOR_ERISILEMEDI']);
+        [$bildirim] = $this->degerlendir();
+
+        $this->gonder($bildirim);
+
+        Mail::assertSent(AlarmMaili::class, fn (AlarmMaili $mail): bool => $mail->hasTo('test-kutusu@ornek.test')
+            && $mail->cc === [] && $mail->bcc === []
+            && ! $mail->hasTo('muhasebe@ornek.test'));
+    }
+
+    public function test_kural_kopya_gizli_alicilar_ve_islendi_secenekleriyle_kaydedilir_gonderilmeyen_kopya_korunur(): void
+    {
+        $yonetici = User::factory()->yonetici()->create();
+
+        $this->actingAs($yonetici)
+            ->putJson('/api/v1/ayarlar/alarm-kurallari/islenmemis_hatirlatma', [
+                'aktif' => true,
+                'alicilar' => ['muhasebe@ornek.test'],
+                'alicilar_cc' => ['Mudur@Ornek.test', 'mudur@ornek.test'],
+                'alicilar_bcc' => ['arsiv@ornek.test'],
+                'parametreler' => ['gun' => 5, 'aralik_gun' => 3, 'saat' => '09:00', 'portallar' => 'izibiz', 'islendi_sayilanlar' => 'emor_havuzda,sap_islendi'],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.alicilar_cc', ['mudur@ornek.test'])
+            ->assertJsonPath('data.alicilar_bcc', ['arsiv@ornek.test'])
+            ->assertJsonPath('data.parametreler.islendi_sayilanlar', 'emor_havuzda,sap_islendi');
+        $this->actingAs($yonetici)
+            ->putJson('/api/v1/ayarlar/alarm-kurallari/islenmemis_hatirlatma', [
+                'aktif' => true,
+                'alicilar' => ['muhasebe@ornek.test'],
+                'parametreler' => ['gun' => 5, 'aralik_gun' => 3, 'saat' => '09:00', 'portallar' => 'izibiz', 'islendi_sayilanlar' => 'sap_islendi'],
+            ])
+            ->assertOk();
+
+        $kural = AlarmKurali::query()->where('tur', 'islenmemis_hatirlatma')->firstOrFail();
+        $this->assertSame(['mudur@ornek.test'], $kural->alicilar_cc);
+        $this->assertSame(['arsiv@ornek.test'], $kural->alicilar_bcc);
+        $this->assertSame('sap_islendi', $kural->parametreler['islendi_sayilanlar']);
+    }
+
+    #[DataProvider('gecersizIslendiSecimleri')]
+    public function test_islenmemis_hatirlatmasi_gecersiz_islendi_secimiyle_kaydedilmez(string $secim): void
+    {
+        $this->actingAs(User::factory()->yonetici()->create())
+            ->putJson('/api/v1/ayarlar/alarm-kurallari/islenmemis_hatirlatma', [
+                'aktif' => false,
+                'alicilar' => [],
+                'parametreler' => ['gun' => 3, 'aralik_gun' => 3, 'saat' => '09:00', 'portallar' => 'izibiz', 'islendi_sayilanlar' => $secim],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['parametreler.islendi_sayilanlar' => 'İşlendi sayılacak en az bir durum seçilmeli.'], 'hatalar');
+
+        $this->assertDatabaseMissing('alarm_kurallari', ['tur' => 'islenmemis_hatirlatma']);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function gecersizIslendiSecimleri(): array
+    {
+        return [
+            'boş' => [''],
+            'bilinmeyen durum' => ['emor_islendi,emor_red'],
+            'sonda virgül' => ['emor_islendi,'],
+            'yanlış ayraç' => ['emor_islendi;sap_islendi'],
+        ];
+    }
+
+    public function test_gecersiz_kopya_ya_da_gizli_alici_adresiyle_kaydedilmez(): void
+    {
+        $this->actingAs(User::factory()->yonetici()->create())
+            ->putJson('/api/v1/ayarlar/alarm-kurallari/gunluk_ozet', [
+                'aktif' => true,
+                'alicilar' => ['muhasebe@ornek.test'],
+                'alicilar_cc' => ['mudur-ornek.test'],
+                'alicilar_bcc' => ['arsiv@'],
+                'parametreler' => ['saat' => '08:00'],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'alicilar_cc.0' => 'Geçerli bir e-posta adresi girin.',
+                'alicilar_bcc.0' => 'Geçerli bir e-posta adresi girin.',
+            ], 'hatalar');
+
+        $this->assertDatabaseMissing('alarm_kurallari', ['tur' => 'gunluk_ozet']);
     }
 
     public function test_islenmemis_hatirlatmasi_portalsiz_kaydedilmez(): void

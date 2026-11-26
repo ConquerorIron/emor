@@ -38,14 +38,14 @@ return [
     // e-Fatura elle işlemleri (docs/efatura/Ek-Isler-Jira.md)
     'fatura_reddedildi' => 'Bu fatura RED; İşlendi işaretlenemez.',
     'fatura_kaynakta_reddedilmis' => 'Bu fatura kaynağında zaten reddedilmiş (entegratör ya da liste); ayrıca RED\'e çekilmez.',
-    'fatura_islendi_isaretli' => 'Bu fatura İşlendi işaretli; RED\'e çekmeden önce İşlendi işaretini kaldırın.',
+    'fatura_islendi_isaretli' => 'Bu fatura SAP\'de elle işlendi; RED\'e çekmeden önce "SAP (Manuel İşle)" işaretini kaldırın.',
     'red_nedeni_zorunlu' => 'RED\'e çekme nedeni yazılmalı.',
     'red_nedeni_uzun' => 'RED nedeni en fazla :azami karakter olabilir.',
     'fatura_belgesi_yok' => 'Bu faturanın aslı eMOR arşivinde yok; PDF gösterilemiyor.',
     'yukleme_elle_islenmis' => 'Bu yüklemenin eklediği :adet faturada elle işlem (RED, İşlendi ya da gizleme) var; yükleme geri alınamaz.',
     'ice_aktarim_hatali' => 'Dosyada hatalı satırlar var; hiçbir satır kaydedilmedi.',
     'ice_aktarim_suruyor' => 'Bu kaynak için başka bir içe aktarım ya da geri alma sürüyor. Biraz sonra tekrar deneyin.',
-    'red_yalniz_protel' => 'Yalnız Protel faturaları RED\'e çekilebilir; İzibiz, Logo ve e-Arşiv faturalarının RED bilgisi kaynağından gelir.',
+    'fatura_emor_islenmis' => 'Bu fatura eMOR\'da işlenmiş; RED\'e çekilemez.',
     'entegrator_erisilemedi' => 'Entegratöre ulaşılamadı. Ağ bağlantısını kontrol edip tekrar deneyin.',
     'entegrator_kimlik_hatali' => 'Entegratör kullanıcı adı veya şifresi hatalı.',
     'entegrator_giris_bekletiliyor' => 'Entegratör girişi reddedildiği için otomatik giriş :saat saat bekletiliyor (hesap kilitlenmesin diye). Şifreyi Ayarlar → Entegratör Bağlantıları\'nda güncelleyin ya da "Bağlantıyı Sına" ile yeniden deneyin.',
@@ -65,6 +65,7 @@ return [
     'alarm_portal_zorunlu' => 'En az bir portal seçilmeli.',
     'alarm_alici_gecersiz' => 'Geçerli bir e-posta adresi girin.',
     'alarm_alici_zorunlu' => 'Aktif kural için en az bir alıcı gerekir.',
+    'alarm_islendi_zorunlu' => 'İşlendi sayılacak en az bir durum seçilmeli.',
 
     // Kullanıcı ve rol yönetimi (EFAT-18)
     'erp_kullanici_denetlenemedi' => 'ERP\'ye ulaşılamadığı için kullanıcı ERP\'den okunamadı; tanımlama yapılmadı.',

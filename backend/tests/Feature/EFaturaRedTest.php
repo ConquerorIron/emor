@@ -17,7 +17,7 @@ use Tests\TestCase;
 
 /**
  * Yetkili kullanıcının gelen faturayı RED'e çekmesi / RED'i geri alması (EK-04):
- * yalnız Protel faturasında (kullanıcı kararı 2026-11-26), neden zorunlu,
+ * her kaynakta, işlenmiş (eMOR ya da SAP) fatura hariç (2026-11-26), neden zorunlu,
  * kaynakta RED ya da "İşlendi" işaretli fatura çekilemez, her değişiklik
  * işlem geçmişine yazılır, dış sisteme istek gitmez.
  */
@@ -196,40 +196,86 @@ final class EFaturaRedTest extends TestCase
     }
 
     /**
-     * RED'e çekme yalnız Protel faturasında (kullanıcı kararı 2026-11-26):
-     * Tüm Faturalar'da İzibiz ve Logo faturası 409 alır, hiçbir şey yazılmaz;
-     * İzibiz ve Logo ekranlarında RED ucu yoktur. Kuraldan önce çekilmiş bir
-     * RED ise geri alınabilir (kalıcı kalmasın).
+     * Her kaynağın gelen faturası kendi ekranından RED'e çekilir (kullanıcı
+     * isteği 2026-11-26); eMOR'da İşlendi / İşlendi (elle) fatura çekilemez,
+     * hiçbir şey yazılmaz. Havuzdaki fatura işlenmiş sayılmaz. Geri alma açıktır.
      */
-    public function test_red_yalniz_protel_faturasinda_diger_kaynaklarda_409_ve_ekran_ucu_yok(): void
+    public function test_her_kaynak_kendi_ekraninda_red_e_cekilir_emorda_islenmis_fatura_409(): void
     {
         $izibizTanimi = EntegratorBaglanti::factory()->aktif()->create();
-        $izibiz = EFatura::factory()->create(['entegrator_baglanti_id' => $izibizTanimi->id]);
-        $logoTanimi = app(EntegratorBaglantiServisi::class)->statikTanim(EntegratorBaglanti::SAGLAYICI_LOGO);
-        $logo = EFatura::factory()->create([
-            'entegrator_baglanti_id' => $logoTanimi->id,
+        $statik = fn (string $saglayici): array => [
+            'entegrator_baglanti_id' => app(EntegratorBaglantiServisi::class)->statikTanim($saglayici)->id,
             'kaynak_id' => null,
             'belge_anahtari' => (string) Str::uuid(),
-        ]);
-        $eskiRed = EFatura::factory()->create(['entegrator_baglanti_id' => $izibizTanimi->id, 'harici_red_zamani' => '2026-11-25 10:00:00', 'harici_red_nedeni' => 'Eski kural']);
-        $tum = $this->izinli('tum_faturalar.goruntule', 'tum_faturalar.red');
+        ];
+        $havuzda = EFatura::factory()->create(['entegrator_baglanti_id' => $izibizTanimi->id, 'emor_durumu' => 'havuzda']);
+        $logo = EFatura::factory()->create($statik(EntegratorBaglanti::SAGLAYICI_LOGO));
+        $earsiv = EFatura::factory()->create($statik(EntegratorBaglanti::SAGLAYICI_EARSIV));
+        $islendi = EFatura::factory()->create(['entegrator_baglanti_id' => $izibizTanimi->id, 'emor_durumu' => 'islendi']);
+        $elleIslendi = EFatura::factory()->create([...$statik(EntegratorBaglanti::SAGLAYICI_LOGO), 'emor_durumu' => 'elle_islendi']);
+        $eskiRed = EFatura::factory()->create(['entegrator_baglanti_id' => $izibizTanimi->id, 'emor_durumu' => 'islendi', 'harici_red_zamani' => '2026-11-25 10:00:00', 'harici_red_nedeni' => 'Eski']);
 
-        foreach ([$izibiz, $logo] as $fatura) {
+        foreach ([['efatura', $havuzda], ['logo', $logo], ['earsiv', $earsiv]] as [$ekran, $fatura]) {
+            $izin = ['efatura' => 'efatura', 'logo' => 'logo_faturalari', 'earsiv' => 'earsiv_faturalari'][$ekran];
+            $this->actingAs($this->izinli("{$izin}.goruntule", "{$izin}.red"))
+                ->putJson("/api/v1/{$ekran}/faturalar/{$fatura->id}/red", ['red' => true, 'neden' => 'Karşı taraf iptal etti'])
+                ->assertOk()
+                ->assertJsonPath('data.red.var', true);
+        }
+
+        $tum = $this->izinli('tum_faturalar.goruntule', 'tum_faturalar.red');
+        foreach ([$islendi, $elleIslendi] as $fatura) {
             $this->actingAs($tum)
                 ->putJson("/api/v1/tum-faturalar/faturalar/{$fatura->id}/red", ['red' => true, 'neden' => 'Deneme'])
                 ->assertConflict()
-                ->assertJsonPath('kod', 'RED_YALNIZ_PROTEL');
+                ->assertJsonPath('kod', 'FATURA_EMOR_ISLENMIS');
+            $this->assertNull($fatura->fresh()->harici_red_zamani);
         }
         $this->actingAs($tum)
             ->putJson("/api/v1/tum-faturalar/faturalar/{$eskiRed->id}/red", ['red' => false])
             ->assertOk()
             ->assertJsonPath('data.red.var', false);
 
-        $this->assertSame(0, EFatura::query()->whereNotNull('harici_red_zamani')->count());
-        $this->assertDatabaseCount('efatura_islem_gecmisi', 1);
+        $this->assertEqualsCanonicalizing(
+            [$havuzda->id, $logo->id, $earsiv->id],
+            EFatura::query()->whereNotNull('harici_red_zamani')->pluck('id')->all(),
+        );
+        $this->assertDatabaseCount('efatura_islem_gecmisi', 4);
+    }
 
-        $yonetici = User::factory()->create(['sistem_yoneticisi' => true]);
-        $this->actingAs($yonetici)->putJson("/api/v1/efatura/faturalar/{$izibiz->id}/red", ['red' => true, 'neden' => 'Deneme'])->assertNotFound();
-        $this->actingAs($yonetici)->putJson("/api/v1/logo/faturalar/{$logo->id}/red", ['red' => true, 'neden' => 'Deneme'])->assertNotFound();
+    /**
+     * "SAP (Manuel İşle)" İzibiz ekranında ve Tüm Faturalar'da da (kullanıcı
+     * isteği 2026-11-26): kendi izniyle; İzibiz'in giden faturası işaretlenmez.
+     */
+    public function test_sap_manuel_isle_izibiz_ve_tum_faturalarda_kendi_izniyle_giden_faturada_404(): void
+    {
+        Http::preventStrayRequests();
+        $izibizTanimi = EntegratorBaglanti::factory()->aktif()->create();
+        $gelen = EFatura::factory()->create(['entegrator_baglanti_id' => $izibizTanimi->id]);
+        $giden = EFatura::factory()->create(['entegrator_baglanti_id' => $izibizTanimi->id, 'yon' => 'giden']);
+        $izibizci = $this->izinli('efatura.goruntule', 'efatura.isle');
+
+        $this->actingAs($izibizci)
+            ->putJson("/api/v1/efatura/faturalar/{$gelen->id}/islendi", ['islendi' => true])
+            ->assertOk()
+            ->assertJsonPath('data.sap_islendi', true);
+        $this->actingAs($izibizci)
+            ->putJson("/api/v1/efatura/faturalar/{$giden->id}/islendi", ['islendi' => true])
+            ->assertNotFound();
+        $this->actingAs($this->izinli('efatura.goruntule'))
+            ->putJson("/api/v1/efatura/faturalar/{$gelen->id}/islendi", ['islendi' => false])
+            ->assertForbidden();
+
+        $tum = $this->izinli('tum_faturalar.goruntule', 'tum_faturalar.isle');
+        $this->actingAs($tum)
+            ->putJson("/api/v1/tum-faturalar/faturalar/{$gelen->id}/islendi", ['islendi' => false])
+            ->assertOk()
+            ->assertJsonPath('data.sap_islendi', null);
+        $this->actingAs($this->izinli('tum_faturalar.goruntule'))
+            ->putJson("/api/v1/tum-faturalar/faturalar/{$gelen->id}/islendi", ['islendi' => true])
+            ->assertForbidden();
+
+        $this->assertNull($giden->fresh()->sap_islendi);
+        $this->assertDatabaseCount('efatura_islem_gecmisi', 2);
     }
 }

@@ -20,6 +20,7 @@ const api = vi.hoisted(() => ({
   xml: vi.fn(),
   gizlilik: vi.fn(),
   erp: vi.fn(),
+  islendi: vi.fn(),
 }))
 
 const toastlar = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
@@ -36,6 +37,11 @@ vi.mock('@/features/efatura/efaturaApi', async (asil) => ({
   xmlIndir: api.xml,
   gizliligiDegistir: api.gizlilik,
   erpSenkronla: api.erp,
+}))
+
+vi.mock('@/features/efatura/faturaIslemApi', async (asil) => ({
+  ...(await asil<typeof import('@/features/efatura/faturaIslemApi')>()),
+  faturaIslendiDegistir: api.islendi,
 }))
 
 const FATURA: EFatura = {
@@ -350,9 +356,12 @@ describe('EFaturalarPage', () => {
     const ilkSatir = screen.getAllByRole('row')[1].querySelectorAll('td')
     expect(ilkSatir[0]).toHaveTextContent('1')
     expect(within(ilkSatir[1]).getByRole('button', { name: 'Detay' })).toBeInTheDocument()
-    expect(basliklar().slice(2, 15)).toEqual([
-      'ERP Okudu',
+    // Kolon sırası (kullanıcı isteği 2026-11-26): SAP (Manuel İşle) | SAP | eMOR | ERP Okudu
+    expect(basliklar().slice(2, 17)).toEqual([
+      'SAP (Manuel İşle)',
+      'SAP',
       'eMOR',
+      'ERP Okudu',
       'Fatura No',
       'Tarih',
       'VKN/TCKN',
@@ -711,12 +720,34 @@ describe('EFaturalarPage', () => {
     // Ekrandaki listenin ortamı: sunucuda aktif ortam değiştiyse indirme reddedilir
     expect(ortam).toBe('test')
     expect(filtre).toMatchObject({ baslangic: '2026-01-01', bitis: '2026-11-19' })
-    expect(kolonlar.slice(0, 3)).toEqual([
-      { anahtar: 'erp_okundu', baslik: 'ERP Okudu' },
+    // SAP (Manuel İşle) anahtarı tabloda kalır; Excel'e SAP yazı kolonu gider
+    expect(kolonlar.slice(0, 4)).toEqual([
+      { anahtar: 'sap', baslik: 'SAP' },
       { anahtar: 'emor', baslik: 'eMOR' },
+      { anahtar: 'erp_okundu', baslik: 'ERP Okudu' },
       { anahtar: 'belge_no', baslik: 'Fatura No' },
     ])
     expect(kolonlar.map((kolon) => kolon.anahtar)).not.toContain('karsi_ad_soyad')
+  })
+
+  it('İzibiz gelen ekranında "SAP (Manuel İşle)" kendi izniyle kaydeder, SAP kolonu "İşlendi (elle)" olur; izinsiz kapalı', async () => {
+    api.islendi.mockResolvedValue({ ...FATURA, sap_islendi: true })
+    ciz(['efatura.goruntule', 'efatura.isle'])
+    const satir = (await screen.findByText('Deniz Boya Ltd.')).closest('tr') as HTMLElement
+
+    fireEvent.click(within(satir).getByRole('switch'))
+
+    await waitFor(() => expect(api.islendi).toHaveBeenCalledWith('efatura', FATURA.id, true))
+    expect(
+      await within(screen.getByText('Deniz Boya Ltd.').closest('tr') as HTMLElement).findByText(
+        'İşlendi (elle)',
+      ),
+    ).toBeInTheDocument()
+
+    cleanup()
+    ciz(['efatura.goruntule'])
+    const izinsiz = (await screen.findByText('Deniz Boya Ltd.')).closest('tr') as HTMLElement
+    expect(within(izinsiz).getByRole('switch')).toBeDisabled()
   })
 
   it('detayda kaynak kimliklerini ve ERP bayrağının yalnız gösterildiğini belirtir', async () => {
@@ -838,6 +869,7 @@ describe('EFaturalarPage', () => {
     localStorage.setItem(
       'erp.kolonlar.efatura-gelen',
       JSON.stringify([
+        'sap',
         'erp_okundu',
         'emor',
         'belge_no',
@@ -1057,7 +1089,7 @@ describe('EFaturalarPage', () => {
     }
     const IZINLER = ['tum_faturalar.goruntule', 'tum_faturalar.pdf', 'tum_faturalar.disari_aktar']
 
-    it('birleşik listeyi ister; en solda Entegratör, sonra eMOR Okudu, eMOR, boş SAP ve eMOR VKN Var kolonu; senkron paneli yok', async () => {
+    it('birleşik listeyi ister; en solda Entegratör, sonra SAP (Manuel İşle), SAP, eMOR, eMOR Okudu ve eMOR VKN Var kolonu; senkron paneli yok', async () => {
       api.faturalar.mockResolvedValue(BIRLESIK)
       ciz(IZINLER, 'tum')
       await screen.findByText('Otel Tedarik A.Ş.')
@@ -1073,62 +1105,78 @@ describe('EFaturalarPage', () => {
       const basliklar = screen
         .getAllByRole('columnheader')
         .map((th) => th.textContent?.replace(/[↕▲▼]/g, ''))
-      expect(basliklar.slice(2, 8)).toEqual([
+      // Kolon sırası (kullanıcı isteği 2026-11-26): SAP (Manuel İşle) | SAP | eMOR | eMOR Okudu
+      expect(basliklar.slice(2, 9)).toEqual([
         'Entegratör',
-        'eMOR Okudu',
-        'eMOR',
+        'SAP (Manuel İşle)',
         'SAP',
+        'eMOR',
+        'eMOR Okudu',
         'eMOR VKN Var',
         'Fatura No',
       ])
-      // İşaretlenmemiş SAP boş ve açıklamalı: Protel'de ekranın anahtarı, İzibiz'de SAP ucu bekleniyor
+      // İşaretlenmemiş SAP boş ve açıklamalı — İzibiz'de de elle işaretlenebilir
       const satir = screen.getByText('OTL2026000000002').closest('tr') as HTMLElement
       expect(satir.querySelectorAll('td')[2]).toHaveTextContent('Protel')
       const izibizSatiri = screen.getByText('ABC2026000000001').closest('tr') as HTMLElement
       expect(izibizSatiri.querySelectorAll('td')[2]).toHaveTextContent('İzibiz')
-      expect(
-        within(satir.querySelectorAll('td')[5]).getByTitle(/"İşlendi" işaretlenmedi/),
-      ).toHaveTextContent('—')
-      expect(within(satir).queryByTitle(/servisi açıldığında gelecek/)).not.toBeInTheDocument()
-      expect(
-        within(izibizSatiri.querySelectorAll('td')[5]).getByTitle(/servisi açıldığında gelecek/),
-      ).toBeInTheDocument()
+      for (const s of [satir, izibizSatiri]) {
+        expect(
+          within(s.querySelectorAll('td')[4]).getByTitle(
+            /"SAP \(Manuel İşle\)" ile işlendi işaretlenmedi/,
+          ),
+        ).toHaveTextContent('—')
+      }
+      // İşaretleme izni yok: anahtar durumu gösterir ama kapalıdır
+      expect(within(satir.querySelectorAll('td')[3]).getByRole('switch')).toBeDisabled()
       expect(screen.queryByText('ERP Okudu')).not.toBeInTheDocument()
       // Senkron sağlayıcı ekranlarında: durum istenmez
       expect(api.durum).not.toHaveBeenCalled()
       expect(screen.queryByRole('button', { name: 'Entegratör Senkronla' })).not.toBeInTheDocument()
     })
 
-    it('RED yalnız Protel satırında açık; İzibiz ve Logo satırında kapalı ve nedenini söyler; Logo satırında PDF yok', async () => {
-      const LOGO_FATURASI: EFatura = {
+    it("RED her kaynakta açık; eMOR'da işlenmiş ya da SAP (Manuel İşle) işaretli satırda kapalı ve nedenini söyler; Logo satırında PDF yok", async () => {
+      const logo = (id: number, belgeNo: string, ek: Partial<EFatura> = {}): EFatura => ({
         ...FATURA,
-        id: 13,
-        belge_no: 'LGO2026000000003',
+        id,
+        belge_no: belgeNo,
         gonderici_unvan: 'Logo Tedarik A.Ş.',
         saglayici: 'logo',
-      }
+        emor_durumu: 'yok',
+        ...ek,
+      })
       api.faturalar.mockResolvedValue({
         ...BIRLESIK,
-        data: [...BIRLESIK.data, LOGO_FATURASI],
-        meta: { current_page: 1, last_page: 1, total: 3, from: 1 },
+        data: [
+          ...BIRLESIK.data,
+          logo(13, 'LGO2026000000003'),
+          logo(14, 'LGO2026000000004', { sap_islendi: true }),
+        ],
+        meta: { current_page: 1, last_page: 1, total: 4, from: 1 },
       })
       ciz([...IZINLER, 'tum_faturalar.red'], 'tum')
       await screen.findByText('Otel Tedarik A.Ş.')
       const satir = (belgeNo: string) => screen.getByText(belgeNo).closest('tr') as HTMLElement
+      const red = (belgeNo: string) =>
+        within(satir(belgeNo)).getByRole('button', { name: "RED'e Çek" })
 
-      expect(
-        within(satir('OTL2026000000002')).getByRole('button', { name: "RED'e Çek" }),
-      ).toBeEnabled()
-      for (const belgeNo of ['ABC2026000000001', 'LGO2026000000003']) {
-        const red = within(satir(belgeNo)).getByRole('button', { name: "RED'e Çek" })
-        expect(red).toBeDisabled()
-        expect(red.parentElement).toHaveAttribute(
-          'title',
-          expect.stringMatching(/^Yalnız Protel faturaları RED'e çekilebilir/),
-        )
-        fireEvent.click(red)
-      }
+      expect(red('OTL2026000000002')).toBeEnabled()
+      expect(red('LGO2026000000003')).toBeEnabled()
+      // İzibiz faturası eMOR'da işlendi
+      expect(red('ABC2026000000001')).toBeDisabled()
+      expect(red('ABC2026000000001').parentElement).toHaveAttribute(
+        'title',
+        expect.stringMatching(/^eMOR'da işlenmiş/),
+      )
+      expect(red('LGO2026000000004')).toBeDisabled()
+      expect(red('LGO2026000000004').parentElement).toHaveAttribute(
+        'title',
+        expect.stringMatching(/^"SAP \(Manuel İşle\)" işaretli fatura/),
+      )
+      fireEvent.click(red('ABC2026000000001'))
+      fireEvent.click(red('LGO2026000000004'))
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
       expect(
         within(satir('OTL2026000000002')).getByRole('button', { name: 'PDF' }),
       ).toBeInTheDocument()
@@ -1198,7 +1246,7 @@ describe('EFaturalarPage', () => {
       )
     })
 
-    it('Entegratör ve SAP kolonlarına göre sıralanır; işlenen fatura "İşlendi", reddedilen Protel faturası "Red" görünür', async () => {
+    it('Entegratör, SAP ve eMOR VKN Var kolonlarına göre sıralanır; elle işlenen fatura "İşlendi (elle)", reddedilen Protel faturası "Red" görünür', async () => {
       api.faturalar.mockResolvedValue({
         ...BIRLESIK,
         data: [
@@ -1218,18 +1266,17 @@ describe('EFaturalarPage', () => {
       await screen.findAllByText('Otel Tedarik A.Ş.')
 
       const protelSatiri = screen.getByText('OTL2026000000002').closest('tr') as HTMLElement
-      expect(protelSatiri.querySelectorAll('td')[5]).toHaveTextContent(/^İşlendi$/)
+      expect(protelSatiri.querySelectorAll('td')[4]).toHaveTextContent('İşlendi (elle)')
       const redSatiri = screen.getByText('OTL2026000000003').closest('tr') as HTMLElement
-      expect(redSatiri.querySelectorAll('td')[5]).toHaveTextContent(/^Red$/)
+      expect(redSatiri.querySelectorAll('td')[4]).toHaveTextContent(/^Red$/)
       const izibizSatiri = screen.getByText('ABC2026000000001').closest('tr') as HTMLElement
-      expect(izibizSatiri.querySelectorAll('td')[5]).toHaveTextContent(/^Hayır$/)
-      expect(
-        within(izibizSatiri).queryByTitle(/servisi açıldığında gelecek/),
-      ).not.toBeInTheDocument()
+      expect(izibizSatiri.querySelectorAll('td')[4]).toHaveTextContent(/^—$/)
 
       for (const [baslik, anahtar] of [
         [/^Entegratör/, 'entegrator'],
-        [/^SAP/, 'sap'],
+        // "SAP (Manuel İşle)" anahtar kolonu sıralanmaz; yazı kolonu sıralanır
+        [/^SAP(?! \()/, 'sap'],
+        [/^eMOR VKN Var/, 'emor_vkn'],
       ] as const) {
         fireEvent.click(
           within(screen.getByRole('columnheader', { name: baslik })).getByRole('button'),
@@ -1267,7 +1314,7 @@ describe('EFaturalarPage', () => {
       expect(api.excel.mock.calls[0][6]).toBe('tum')
       expect(
         (api.excel.mock.calls[0][4] as { anahtar: string }[]).map((k) => k.anahtar).slice(0, 4),
-      ).toEqual(['entegrator', 'erp_okundu', 'emor', 'sap'])
+      ).toEqual(['entegrator', 'sap', 'emor', 'erp_okundu'])
 
       const satir = screen.getByText('OTL2026000000002').closest('tr') as HTMLElement
       fireEvent.click(within(satir).getByRole('button', { name: 'PDF' }))

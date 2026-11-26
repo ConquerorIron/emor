@@ -37,6 +37,7 @@ import {
 import { Metin, OzetKartlari, PdfDugmesi, SiraNo } from './ListeParcalari'
 import { PdfGoruntuleyici } from './PdfGoruntuleyici'
 import { RedDugmesi } from './RedIslemi'
+import { SapDurumu } from './SapDurumu'
 import { useFaturaListesi } from './useFaturaListesi'
 
 export type FiltreDegistir = <K extends keyof KaynakFiltresi>(
@@ -46,9 +47,9 @@ export type FiltreDegistir = <K extends keyof KaynakFiltresi>(
 
 /**
  * Tek kaynaklı gelen fatura ekranı: Protel (PRT-12) ve statik kaynaklar
- * (Logo, e-Arşiv / e-SMM — EK-07, EK-08). Liste, hızlı filtreler, İşlendi
- * (SAP), işlem geçmişi ve Excel ortaktır; PDF ve RED'e çekme yalnız Protel'de
- * (statik kaynağın belgesi yok, RED'i listesinden gelir); kaynağa özgü kısımlar
+ * (Logo, e-Arşiv / e-SMM — EK-07, EK-08). Liste, hızlı filtreler, RED'e çekme,
+ * "SAP (Manuel İşle)", işlem geçmişi ve Excel ortaktır; PDF yalnız Protel'de
+ * (statik kaynağın belgesi yok); kaynağa özgü kısımlar
  * (senkron paneli, içe aktarım, özel kolon ve filtreler) sayfadan verilir.
  * Üç sayfa kopyalanmaz (Dikkat_Edilecekler K10).
  */
@@ -135,6 +136,14 @@ export function GelenFaturaEkrani({
   }
 
   const secilebilirKolonlar: DataTableKolonu<EFatura>[] = [
+    // SAP (yazı): "SAP (Manuel İşle)" anahtarının sonucu, eMOR gibi (2026-11-26)
+    {
+      anahtar: 'sap',
+      baslik: t('efatura.kolon.sap'),
+      siralamaAnahtari: 'sap',
+      hizala: 'orta',
+      render: (f) => <SapDurumu fatura={f} />,
+    },
     // eMOR'a (ERP) işlendi mi (kullanıcı isteği l, 2026-11-25)
     {
       anahtar: 'emor',
@@ -147,6 +156,7 @@ export function GelenFaturaEkrani({
     {
       anahtar: 'emor_vkn',
       baslik: t('efatura.kolon.emorVkn'),
+      siralamaAnahtari: 'emor_vkn',
       hizala: 'orta',
       render: (f) => <EmorVknRozeti kurum={f.emor_kurum} />,
     },
@@ -272,32 +282,28 @@ export function GelenFaturaEkrani({
       baslik: '',
       render: (f: EFatura) => (
         <div className="flex items-center gap-1">
-          {/* Logo / e-Arşiv Excel listesinden gelir: belgesi yok, RED kaynağın
-              listesinden gelir — iki düğme de yalnız Protel'de (2026-11-26) */}
+          {/* Logo / e-Arşiv Excel listesinden gelir: belgesi yok, PDF yalnız Protel'de (2026-11-26) */}
           {onEk === 'protel' && pdfIzni ? <PdfDugmesi onClick={() => setPdf(f)} /> : null}
-          {onEk === 'protel' ? <RedDugmesi fatura={f} ekran={onEk} izinli={redIzni} /> : null}
+          <RedDugmesi fatura={f} ekran={onEk} izinli={redIzni} />
           <GecmisDugmesi fatura={f} ekran={onEk} />
         </div>
       ),
     },
     {
-      // SAP: "İşlendi" anahtarı (Protel: 2026-11-23), her zaman görünür; izni
-      // olmayan durumu görür, değiştiremez; RED faturada "Red"
-      anahtar: 'sap',
-      baslik: t('efatura.kolon.sap'),
+      // "SAP (Manuel İşle)" anahtarı (Protel: 2026-11-23; başlık 2026-11-26), her
+      // zaman görünür; izni olmayan durumu görür, değiştiremez; RED faturada "Red"
+      anahtar: 'sap_isle',
+      baslik: t('efatura.kolon.sapManuel'),
       hizala: 'orta',
       render: (f: EFatura) => <IslendiAnahtari fatura={f} izinli={isleIzni} ekran={onEk} />,
     },
     ...secilebilirKolonlar.filter((kolon) => kolonGorunurlugu.gorunurMu(kolon.anahtar)),
   ]
 
-  // Excel tablonun aynısı: SAP (sabit kolon) + görünen kolonlar, ekrandaki başlık ve sırayla
-  const excelKolonlari: ExcelKolonu[] = [
-    { anahtar: 'sap', baslik: t('efatura.kolon.sap') },
-    ...secilebilirKolonlar
-      .filter((kolon) => kolonGorunurlugu.gorunurMu(kolon.anahtar))
-      .map((kolon) => ({ anahtar: kolon.anahtar, baslik: kolon.baslik })),
-  ]
+  // Excel tablonun aynısı: görünen kolonlar (SAP yazı kolonu dahil), ekrandaki başlık ve sırayla
+  const excelKolonlari: ExcelKolonu[] = secilebilirKolonlar
+    .filter((kolon) => kolonGorunurlugu.gorunurMu(kolon.anahtar))
+    .map((kolon) => ({ anahtar: kolon.anahtar, baslik: kolon.baslik }))
 
   const secenekler = liste.data?.secenekler
   const durumSecenekleri: SecenekOgesi[] = (secenekler?.durumlar ?? []).map((d) => ({

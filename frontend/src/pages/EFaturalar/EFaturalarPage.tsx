@@ -46,6 +46,7 @@ import { EmorRozeti } from '@/features/efatura/EmorRozeti'
 import { EmorVknRozeti } from '@/features/efatura/EmorVknRozeti'
 import { GecmisDugmesi } from '@/features/efatura/GecmisPenceresi'
 import { HizliFiltre } from '@/features/efatura/HizliFiltre'
+import { IslendiAnahtari } from '@/features/efatura/IslendiAnahtari'
 import {
   DetayDugmesi,
   EvetHayirRozeti,
@@ -56,7 +57,7 @@ import {
 } from '@/features/efatura/ListeParcalari'
 import { PdfGoruntuleyici } from '@/features/efatura/PdfGoruntuleyici'
 import { RedDugmesi } from '@/features/efatura/RedIslemi'
-import { RedRozeti } from '@/features/efatura/RedRozeti'
+import { SapDurumu } from '@/features/efatura/SapDurumu'
 import { SenkronDurumuPaneli } from '@/features/efatura/SenkronDurumuPaneli'
 import { useDurumlaTazele, useFaturaListesi } from '@/features/efatura/useFaturaListesi'
 import { useDebounce } from '@/hooks/useDebounce'
@@ -156,44 +157,6 @@ function IstisnaKodu({ deger, farkli }: { deger: string | null; farkli: boolean 
   )
 }
 
-/**
- * SAP kolonu: işlenen "İşlendi". Protel ve statik kaynakların (Logo, e-Arşiv)
- * faturası kendi ekranındaki anahtarla işaretlenir; İzibiz için SAP ucu
- * bekleniyor. RED fatura (kaynakta ya da elle) "Red" (önce gelir).
- */
-function SapDurumu({ fatura }: { fatura: EFatura }) {
-  const { t } = useTranslation()
-
-  if (fatura.red.var) {
-    return <RedRozeti red={fatura.red} />
-  }
-
-  if (fatura.sap_islendi === null) {
-    return (
-      <span
-        className="text-slate-400"
-        title={
-          fatura.saglayici === undefined || fatura.saglayici === 'izibiz'
-            ? t('efatura.kolon.sistemBekleniyor')
-            : t('efatura.kolon.sapKaynakEkraninda', {
-                kaynak: t(`efatura.saglayici.${fatura.saglayici}`),
-              })
-        }
-      >
-        —
-      </span>
-    )
-  }
-
-  return fatura.sap_islendi ? (
-    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-      {t('efatura.sapIslendi')}
-    </span>
-  ) : (
-    <EvetHayirRozeti deger={false} />
-  )
-}
-
 type AcikPencere = { tur: 'detay' | 'pdf'; fatura: EFatura } | null
 
 /**
@@ -220,6 +183,7 @@ export function EFaturalarPage({
   const gizlemeIzni = !tum && gizlemeIzin
   const senkronIzni = useIzin('efatura.senkron')
   const redIzni = useIzin(`${izinOneki}.red`)
+  const isleIzni = useIzin(`${izinOneki}.isle`)
   // RED ve işlem geçmişi uçları ekranın kapsamıyla (Tüm Faturalar / İzibiz)
   const islemEkrani = tum ? 'tum' : 'efatura'
   // Kalıcı sıralama / kolon seçimi ekran başına
@@ -317,25 +281,8 @@ export function EFaturalarPage({
           },
         ]
       : []),
-    {
-      anahtar: 'erp_okundu',
-      // Birleşik listede "eMOR Okudu" (kullanıcı isteği 2026-11-20)
-      baslik: t(tum ? 'efatura.alan.emorOkundu' : 'efatura.alan.erpOkundu'),
-      siralamaAnahtari: 'erp_okundu',
-      hizala: 'orta',
-      render: (f) => <EvetHayirRozeti deger={f.erp_okundu} />,
-    },
-    // ERP'deki aşama (gelen: havuz TOHOM_E_FATURA → muhasebe TOHOM_FATURA; giden: gönderilen listesi)
-    {
-      anahtar: 'emor',
-      baslik: t('efatura.kolon.emor'),
-      siralamaAnahtari: 'emor',
-      hizala: 'orta',
-      render: (f) => <EmorRozeti deger={f.emor_durumu} />,
-    },
-    // Birleşik liste: faturanın SAP'ye girilip girilmediği (kullanıcı isteği
-    // 2026-11-20). Protel'de ekrandaki anahtarla işaretlenir; İzibiz için SAP ucu bekleniyor
-    ...(tum
+    // SAP (yazı): "SAP (Manuel İşle)" anahtarının sonucu, eMOR gibi (2026-11-26)
+    ...(gelen
       ? [
           {
             anahtar: 'sap',
@@ -344,10 +291,31 @@ export function EFaturalarPage({
             hizala: 'orta' as const,
             render: (f: EFatura) => <SapDurumu fatura={f} />,
           },
+        ]
+      : []),
+    // ERP'deki aşama (gelen: havuz TOHOM_E_FATURA → muhasebe TOHOM_FATURA; giden: gönderilen listesi)
+    {
+      anahtar: 'emor',
+      baslik: t('efatura.kolon.emor'),
+      siralamaAnahtari: 'emor',
+      hizala: 'orta',
+      render: (f) => <EmorRozeti deger={f.emor_durumu} />,
+    },
+    {
+      anahtar: 'erp_okundu',
+      // Birleşik listede "eMOR Okudu" (kullanıcı isteği 2026-11-20)
+      baslik: t(tum ? 'efatura.alan.emorOkundu' : 'efatura.alan.erpOkundu'),
+      siralamaAnahtari: 'erp_okundu',
+      hizala: 'orta',
+      render: (f) => <EvetHayirRozeti deger={f.erp_okundu} />,
+    },
+    ...(tum
+      ? [
           // Göndericinin VKN'si eMOR'daki bir kurum kartında mı (kullanıcı isteği 2026-11-25)
           {
             anahtar: 'emor_vkn',
             baslik: t('efatura.kolon.emorVkn'),
+            siralamaAnahtari: 'emor_vkn',
             hizala: 'orta' as const,
             render: (f: EFatura) => <EmorVknRozeti kurum={f.emor_kurum} />,
           },
@@ -532,6 +500,9 @@ export function EFaturalarPage({
 
   // Sıra No sayfalar boyunca kesintisiz: sunucunun sayfa başlangıcından
   const ilkSira = liste.data?.meta.from ?? 1
+  const gorunenKolonlar = secilebilirKolonlar.filter((kolon) =>
+    kolonGorunurlugu.gorunurMu(kolon.anahtar),
+  )
   const kolonlar: DataTableKolonu<EFatura>[] = [
     {
       // Sıra No en solda, her zaman görünür (kullanıcı isteği 2026-11-20)
@@ -551,8 +522,7 @@ export function EFaturalarPage({
           {pdfIzni && !statikMi(f.saglayici) ? (
             <PdfDugmesi onClick={() => setPencere({ tur: 'pdf', fatura: f })} />
           ) : null}
-          {/* RED'e çekme yalnız Tüm Faturalar'da (Protel satırı); İzibiz ekranında yok (2026-11-26) */}
-          {tum && gelen ? <RedDugmesi fatura={f} ekran={islemEkrani} izinli={redIzni} /> : null}
+          {gelen ? <RedDugmesi fatura={f} ekran={islemEkrani} izinli={redIzni} /> : null}
           <GecmisDugmesi fatura={f} ekran={islemEkrani} />
           {f.gizli ? (
             <span
@@ -565,13 +535,29 @@ export function EFaturalarPage({
         </div>
       ),
     },
-    ...secilebilirKolonlar.filter((kolon) => kolonGorunurlugu.gorunurMu(kolon.anahtar)),
+    // Birleşik listede Entegratör en solda kalır (2026-11-20); ardından "SAP (Manuel
+    // İşle)" anahtarı her zaman görünür, sonra SAP | eMOR | eMOR Okudu (2026-11-26)
+    ...gorunenKolonlar.filter((kolon) => kolon.anahtar === 'entegrator'),
+    ...(gelen
+      ? [
+          {
+            anahtar: 'sap_isle',
+            baslik: t('efatura.kolon.sapManuel'),
+            hizala: 'orta' as const,
+            render: (f: EFatura) => (
+              <IslendiAnahtari fatura={f} izinli={isleIzni} ekran={islemEkrani} />
+            ),
+          },
+        ]
+      : []),
+    ...gorunenKolonlar.filter((kolon) => kolon.anahtar !== 'entegrator'),
   ]
 
   // Excel tablonun aynısı: görünen kolonlar, ekrandaki başlık ve sırayla
-  const excelKolonlari: ExcelKolonu[] = secilebilirKolonlar
-    .filter((kolon) => kolonGorunurlugu.gorunurMu(kolon.anahtar))
-    .map((kolon) => ({ anahtar: kolon.anahtar, baslik: kolon.baslik }))
+  const excelKolonlari: ExcelKolonu[] = gorunenKolonlar.map((kolon) => ({
+    anahtar: kolon.anahtar,
+    baslik: kolon.baslik,
+  }))
 
   const secenekler = liste.data?.secenekler
   // Türkçe açıklama, parantez içinde İzibiz kodu: "Kabul Edildi (ACCEPTED)"

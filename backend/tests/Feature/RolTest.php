@@ -75,14 +75,14 @@ final class RolTest extends TestCase
                 'ekran' => 'tum_faturalar',
                 'goruntule' => 'tum_faturalar.goruntule',
                 'guncelle' => null,
-                'ekler' => ['tum_faturalar.pdf', 'tum_faturalar.disari_aktar', 'tum_faturalar.red'],
+                'ekler' => ['tum_faturalar.pdf', 'tum_faturalar.disari_aktar', 'tum_faturalar.isle', 'tum_faturalar.red'],
             ])
             ->assertJsonPath('data.3.ekran', 'efatura_islem_gecmisi')
             ->assertJsonPath('data.4', [
                 'ekran' => 'efatura',
                 'goruntule' => 'efatura.goruntule',
                 'guncelle' => 'efatura.senkron',
-                'ekler' => ['efatura.pdf', 'efatura.disari_aktar', 'efatura.gizle'],
+                'ekler' => ['efatura.pdf', 'efatura.disari_aktar', 'efatura.gizle', 'efatura.isle', 'efatura.red'],
             ])
             // Protel Gelen Faturalar menüde e-Fatura'nın hemen altında (PRT-10)
             ->assertJsonPath('data.5', [
@@ -91,14 +91,19 @@ final class RolTest extends TestCase
                 'guncelle' => 'protel_faturalari.senkron',
                 'ekler' => ['protel_faturalari.pdf', 'protel_faturalari.disari_aktar', 'protel_faturalari.isle', 'protel_faturalari.red'],
             ])
-            // Statik kaynaklar (EK-07, EK-08): "güncelle"si içe aktarım; PDF ve RED yok (2026-11-26)
+            // Statik kaynaklar (EK-07, EK-08): içe aktarım adıyla görünen ek izin; PDF yok, RED var (2026-11-26)
             ->assertJsonPath('data.6', [
                 'ekran' => 'logo_faturalari',
                 'goruntule' => 'logo_faturalari.goruntule',
-                'guncelle' => 'logo_faturalari.ice_aktar',
-                'ekler' => ['logo_faturalari.disari_aktar', 'logo_faturalari.isle'],
+                'guncelle' => null,
+                'ekler' => ['logo_faturalari.ice_aktar', 'logo_faturalari.disari_aktar', 'logo_faturalari.isle', 'logo_faturalari.red'],
             ])
-            ->assertJsonPath('data.7.ekran', 'earsiv_faturalari')
+            ->assertJsonPath('data.7', [
+                'ekran' => 'earsiv_faturalari',
+                'goruntule' => 'earsiv_faturalari.goruntule',
+                'guncelle' => null,
+                'ekler' => ['earsiv_faturalari.ice_aktar', 'earsiv_faturalari.disari_aktar', 'earsiv_faturalari.isle', 'earsiv_faturalari.red'],
+            ])
             ->assertJsonPath('data.36', [
                 'ekran' => 'yedekler',
                 'goruntule' => 'yedekler.goruntule',

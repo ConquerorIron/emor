@@ -26,8 +26,8 @@ final class EFaturaSorgusu
         'emor', 'erp_okundu', 'karsi_vkn', 'karsi_ad_soyad', 'fatura_tipi', 'para_birimi',
         'irsaliye_no', 'siparis_no', 'durum', 'zarf_durumu', 'yanit_aciklamasi',
         'senaryo', 'vergi_tutari', 'erp_durumu', 'yazdirildi', 'otel_erp_okundu',
-        // Tüm Faturalar
-        'entegrator', 'sap',
+        // Tüm Faturalar; SAP ve eMOR VKN Var bütün gelen ekranlarında
+        'entegrator', 'sap', 'emor_vkn',
         // e-Arşiv / e-SMM
         'belge_turu', 'brut_tutar', 'stopaj_tutari',
     ];
@@ -112,9 +112,8 @@ final class EFaturaSorgusu
             default => $sorgu->where('emor_durumu', $filtre['emor']),
         };
 
-        // Faturanın sınıfı (EK-01; tanım EFatura kapsamlarında, pano ve hatırlatma
-        // da onu kullanır): hızlı filtreler "ERP İşlenmeyenler / İşlenenler" RED
-        // faturayı getirmez (kullanıcı isteği 2026-11-25)
+        // Faturanın sınıfı (EK-01; tanım EFatura kapsamlarında, pano da onu kullanır):
+        // hızlı filtreler "ERP İşlenmeyenler / İşlenenler" RED faturayı getirmez (kullanıcı isteği 2026-11-25)
         match ($filtre['sinif'] ?? null) {
             'islendi' => $sorgu->islenen(),
             'islenecek' => $sorgu->islenecek(),
@@ -174,6 +173,10 @@ final class EFaturaSorgusu
 
         [$karsiVkn, $karsiUnvan] = $this->karsiKolonlar($yon);
 
+        if ($kolon === 'emor_vkn') {
+            return $this->emorVknIleSirala($sorgu, $karsiVkn, $yonu);
+        }
+
         // Allow-list: ham ifadelere yalnız buradaki sabit kolon adları girer
         $sutun = match ($kolon) {
             'belge_no', 'tutar', 'olusturma_zamani', 'erp_okundu', 'fatura_tipi', 'para_birimi',
@@ -205,6 +208,29 @@ final class EFaturaSorgusu
 
         // id: eşit değerlerde sayfalar arası kararlı sıra
         return $sorgu->orderBy('id', $yonu);
+    }
+
+    /**
+     * "eMOR VKN Var" sıralaması (kullanıcı isteği 2026-11-26): karşı tarafın VKN'si
+     * eMOR kurum kartlarında olanlar bir grupta, sonra belge tarihi. Liste ERP'den;
+     * okunamazsa (bilinmiyor) yalnız belge tarihiyle sıralanır — kalıcı sıralama
+     * ERP erişilemezken ekranı kilitlemesin. VKN'ler bağlı parametredir (girdi
+     * sorgu metnine girmez).
+     *
+     * @param  Builder<EFatura>  $sorgu
+     * @param  'asc'|'desc'  $yonu
+     * @return Builder<EFatura>
+     */
+    private function emorVknIleSirala(Builder $sorgu, string $karsiVkn, string $yonu): Builder
+    {
+        $vknler = array_map('strval', array_keys($this->kurumlar->harita() ?? []));
+
+        if ($vknler !== []) {
+            $yerler = implode(',', array_fill(0, count($vknler), '?'));
+            $sorgu->orderByRaw("CASE WHEN {$karsiVkn} IN ({$yerler}) THEN 1 ELSE 0 END {$yonu}", $vknler);
+        }
+
+        return $sorgu->orderBy('belge_tarihi', $yonu)->orderBy('id', $yonu);
     }
 
     /**

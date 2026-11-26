@@ -37,15 +37,11 @@ return [
     // tazeler; 24 saat + pay)
     'erp_okundu_tazelik_saat' => 26,
 
-    // Vergi istisna kodu İzibiz UBL'inden (efatura:istisna-kodlari, 15 dk'da bir):
-    // istek başına fatura (İzibiz sınırı 100) ve çalışma başına azami istek.
-    // Birikmiş faturalar bu hızla (saatte ~800 fatura) yavaşça okunur.
-    'istisna_parti_boyutu' => 50,
-    'istisna_azami_istek' => 4,
-
-    // Kod önce ERP havuzundaki UBL'den (TOHOM_E_FATURA.XML_KODU) okunur. Havuzda
-    // olmayan faturaya ERP'nin çekmesi için bu kadar saat tanınır, sonra İzibiz'e gidilir.
-    'istisna_erp_bekleme_saat' => 24,
+    // UBL verileri İzibiz'den (efatura:ubl-oku, 15 dk'da bir): istek başına
+    // fatura (İzibiz sınırı 100) ve çalışma başına azami istek. Birikmiş
+    // faturalar bu hızla (saatte ~1200 fatura) yavaşça okunur.
+    'ubl_parti_boyutu' => 50,
+    'ubl_azami_istek' => 6,
 
     // ERP'de boş olan vergi istisna kodu entegratördekiyle doldurulsun mu
     // (TOHOM_E_FATURA'ya doğrudan UPDATE; yalnız boş koda). Varsayılan KAPALI:

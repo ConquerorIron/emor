@@ -473,6 +473,8 @@
       "aciklama": "Mail alerts for e-Invoices. Rules are evaluated on the active integrator account; alerts of the test account go only to the redirect address on the Mail (SMTP) screen. Mails carry no invoice details, only counts and a link.",
       "aktif": "Active",
       "alicilar": "Recipients (comma separated)",
+      "alicilarCc": "CC recipients (comma separated)",
+      "alicilarBcc": "BCC recipients (comma separated)",
       "kaydedildi": "{{ad}} rule saved.",
       "parametre": {
         "ardisik_hata": "Consecutive failed runs",
@@ -480,8 +482,17 @@
         "gun": "Days to wait after arrival at İzibiz",
         "saat": "Send time (HH:MM)",
         "aralik_gun": "Send every N days",
-        "hatirlatmaGun": "Days to wait after the invoice date",
-        "portallar": "Portals"
+        "hatirlatmaGun": "Days since receipt",
+        "portallar": "Portals",
+        "islendi_sayilanlar": "Statuses counted as processed"
+      },
+      "hatirlatmaGunYardim": "Counted from the day the integrator received the invoice (from the invoice date for sources without a receipt time). E.g. 3: if today is 26.11, invoices received on 23.11 or earlier.",
+      "islendiYardim": "An invoice in any selected status is left out of the reminder; rejected invoices are always left out.",
+      "islendiSecenek": {
+        "emor_islendi": "eMOR: Processed",
+        "emor_elle_islendi": "eMOR: Processed (manual)",
+        "emor_havuzda": "eMOR: In pool",
+        "sap_islendi": "SAP: Processed (manual)"
       },
       "kural": {
         "senkron_arizasi": {
@@ -498,7 +509,7 @@
         },
         "islenmemis_hatirlatma": {
           "ad": "Unprocessed invoice reminder",
-          "aciklama": "Counts invoices older than the given days that are not rejected and not processed in eMOR or SAP, in the selected portals, and sends a per-portal summary at the set interval. No mail is sent if nothing is pending."
+          "aciklama": "Counts invoices received by the integrator at least the given days ago that are not rejected and in none of the statuses counted as processed, in the selected portals, and sends a per-portal summary at the set interval. No mail is sent if nothing is pending."
         }
       },
       "dogrulama": {
@@ -506,7 +517,8 @@
         "aliciGecersiz": "One of the recipients is not a valid e-mail address.",
         "saatBicimi": "Time must be HH:MM (e.g. 08:30).",
         "aralik": "Enter a whole number between {{en}} and {{cok}}.",
-        "portalZorunlu": "Select at least one portal."
+        "portalZorunlu": "Select at least one portal.",
+        "islendiZorunlu": "Select at least one status counted as processed."
       },
       "bildirim": {
         "baslik": "Recent notifications",
@@ -704,7 +716,8 @@
     "GERI_YUKLEME_KARAR_KAPASITESI_DOLU": "Too many decisions were processed in a short time; this decision was not applied. Try again in a few minutes.",
     "FATURA_REDDEDILDI": "This invoice is rejected; it cannot be marked as processed.",
     "FATURA_KAYNAKTA_REDDEDILMIS": "This invoice is already rejected at its source; it cannot be marked as rejected again.",
-    "FATURA_ISLENDI_ISARETLI": "This invoice is marked as processed; remove the mark before rejecting it.",
+    "FATURA_ISLENDI_ISARETLI": "This invoice is marked as processed in SAP manually; remove the \"SAP (Manual)\" mark before rejecting it.",
+    "FATURA_EMOR_ISLENMIS": "This invoice is processed in eMOR; it cannot be marked as rejected.",
     "FATURA_BELGESI_YOK": "The original of this invoice is not in the eMOR archive; the PDF cannot be shown.",
     "YUKLEME_ELLE_ISLENMIS": "Some invoices added by this import have manual actions (rejection, processed or hidden); the import cannot be undone.",
     "ICE_AKTARIM_SURUYOR": "Another import or undo is running for this source. Try again shortly."
@@ -773,26 +786,26 @@
       "protel_faturalari_senkron": "Start Protel sync manually",
       "protel_faturalari_pdf": "View Protel invoice PDFs",
       "protel_faturalari_disari_aktar": "Export the Protel list to Excel",
-      "protel_faturalari_isle": "Mark / unmark Protel invoices as \"Processed\"",
+      "protel_faturalari_isle": "Mark / unmark Protel invoices as processed (\"SAP (Manual)\")",
       "yedekler_sil": "Delete / pin backups",
       "yedekler_indir": "Download backup files (all data)",
       "geri_yukleme_kopya": "Restore a backup under a new name (copy)",
+      "tum_faturalar_isle": "Mark / unmark invoices as processed in All Invoices (\"SAP (Manual)\")",
       "tum_faturalar_red": "Mark / unmark invoices as rejected in All Invoices",
+      "efatura_isle": "Mark / unmark İzibiz invoices as processed (\"SAP (Manual)\")",
       "efatura_red": "Mark / unmark İzibiz invoices as rejected",
       "protel_faturalari_red": "Mark / unmark Protel invoices as rejected",
       "efatura_panosu_goruntule": "View the e-invoice dashboard",
       "efatura_islem_gecmisi_goruntule": "View the e-invoice action history",
       "logo_faturalari_goruntule": "View Logo incoming invoices",
       "logo_faturalari_ice_aktar": "Import / undo the Logo list from Excel",
-      "logo_faturalari_pdf": "View Logo invoice PDF",
       "logo_faturalari_disari_aktar": "Export the Logo list to Excel",
-      "logo_faturalari_isle": "Mark Logo invoices as processed",
+      "logo_faturalari_isle": "Mark / unmark Logo invoices as processed (\"SAP (Manual)\")",
       "logo_faturalari_red": "Mark / unmark Logo invoices as rejected",
       "earsiv_faturalari_goruntule": "View E-Archive / E-SMM documents",
       "earsiv_faturalari_ice_aktar": "Import / undo the E-Archive / E-SMM list from Excel",
-      "earsiv_faturalari_pdf": "View E-Archive / E-SMM PDF",
       "earsiv_faturalari_disari_aktar": "Export the E-Archive / E-SMM list to Excel",
-      "earsiv_faturalari_isle": "Mark E-Archive / E-SMM documents as processed",
+      "earsiv_faturalari_isle": "Mark / unmark E-Archive / E-SMM documents as processed (\"SAP (Manual)\")",
       "earsiv_faturalari_red": "Mark / unmark E-Archive / E-SMM documents as rejected"
     }
   },
@@ -912,14 +925,14 @@
       "istisnaKoduEntegrator": "Exemption Code (Integrator)",
       "istisnaKoduErp": "Exemption Code (ERP)",
       "sap": "SAP",
-      "sistemBekleniyor": "This will be filled once the SAP service is available.",
+      "sapManuel": "SAP (Manual)",
+      "sapIsaretlenmedi": "Not marked as processed with \"SAP (Manual)\".",
       "entegrator": "Integrator",
       "siraNo": "No.",
       "emorVkn": "eMOR VKN Exists",
       "belgeTuru": "Document Type",
       "brutTutar": "Gross / Total",
-      "stopajTutari": "Withholding",
-      "sapKaynakEkraninda": "Not marked as \"Processed\" on the {{kaynak}} screen."
+      "stopajTutari": "Withholding"
     },
     "erpSenkron": {
       "ac": "Sync with ERP",
@@ -972,7 +985,7 @@
       "alan": "Hidden"
     },
     "tumAciklama": "Incoming invoices of all sources (İzibiz, Protel, Logo, E-Archive) in one list. Sync and import are done on the source screens.",
-    "sapIslendi": "Processed",
+    "sapIslendi": "Processed (manual)",
     "sapRed": "Rejected",
     "saglayici": {
       "izibiz": "İzibiz",
@@ -996,14 +1009,14 @@
       "cekBaslik": "Invoice {{no}} — Mark as Rejected",
       "geriAlBaslik": "Invoice {{no}} — Undo Rejection",
       "aciklama": "Mark an invoice cancelled outside the integrator (notary, cancellation/objection portal…) as rejected. It drops out of quick filters and cannot be marked as processed; the action is logged.",
-      "islenmisUyari": "This invoice appears processed in eMOR. Rejecting it does not change the eMOR record; the dashboard counts it as a warning.",
       "neden": "Reason",
       "nedenZorunlu": "A reason is required.",
       "izinYok": "You are not allowed to mark invoices as rejected.",
       "geriAlSorusu": "{{eden}} marked it as rejected on {{zaman}} (reason: {{neden}}). Undo the rejection?",
       "cekildi": "Invoice {{no}} marked as rejected.",
       "geriAlindi": "Rejection of invoice {{no}} undone.",
-      "yalnizProtel": "Only Protel invoices can be marked as rejected; other sources carry rejection in their own lists."
+      "emorIslenmis": "Invoices processed in eMOR (Processed / Processed (manual)) cannot be marked as rejected.",
+      "sapIslenmis": "Invoices marked \"SAP (Manual)\" cannot be marked as rejected; remove the mark first."
     },
     "islem": {
       "gecmis": "Action history",
@@ -1167,7 +1180,7 @@
       "etiket": "{{no}} processed",
       "isaretlendi": "Invoice {{no}} was marked as processed.",
       "kaldirildi": "Invoice {{no}} was marked as not processed.",
-      "izinYok": "You are not allowed to change this mark."
+      "izinYok": "You are not allowed to use \"SAP (Manual)\"."
     },
     "kolon": {
       "erpAldi": "Hotel ERP Received",

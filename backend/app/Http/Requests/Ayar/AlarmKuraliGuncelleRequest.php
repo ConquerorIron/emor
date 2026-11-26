@@ -11,6 +11,10 @@ use Illuminate\Validation\Validator;
 /**
  * Alarm kuralı güncelleme (EFAT-13). Parametre kuralları türe göre değişir;
  * tür rotadan gelir (whereIn ile sınırlı).
+ *
+ * Alıcılar: `alicilar` (To) her istekte gelir ve aktif kuralda boş olamaz;
+ * `alicilar_cc` / `alicilar_bcc` isteğe bağlıdır — gönderilmezse kayıtlı
+ * liste korunur (servis).
  */
 final class AlarmKuraliGuncelleRequest extends FormRequest
 {
@@ -26,11 +30,16 @@ final class AlarmKuraliGuncelleRequest extends FormRequest
      */
     public function rules(): array
     {
+        // Tekrarlar reddedilmez; servis küçük harfe çevirip tekilleştirir
+        $adres = ['required', 'string', 'email', 'max:255'];
         $ortak = [
             'aktif' => ['required', 'boolean'],
             'alicilar' => ['present', 'array', 'max:20'],
-            // Tekrarlar reddedilmez; servis küçük harfe çevirip tekilleştirir
-            'alicilar.*' => ['required', 'string', 'email', 'max:255'],
+            'alicilar.*' => $adres,
+            'alicilar_cc' => ['sometimes', 'array', 'max:20'],
+            'alicilar_cc.*' => $adres,
+            'alicilar_bcc' => ['sometimes', 'array', 'max:20'],
+            'alicilar_bcc.*' => $adres,
             'parametreler' => ['required', 'array'],
         ];
 
@@ -52,6 +61,8 @@ final class AlarmKuraliGuncelleRequest extends FormRequest
                 'parametreler.saat' => ['required', 'string', self::SAAT],
                 // En az bir portal; yalnız bilinen adlar, virgülle
                 'parametreler.portallar' => ['required', 'string', 'regex:/^(logo|protel|izibiz|earsiv)(,(logo|protel|izibiz|earsiv)){0,3}$/D'],
+                // En az bir durum; yalnız AlarmKurali::ISLENDI_SECENEKLERI, virgülle
+                'parametreler.islendi_sayilanlar' => ['required', 'string', self::listeKurali(AlarmKurali::ISLENDI_SECENEKLERI)],
             ],
             default => [],
         };
@@ -66,7 +77,11 @@ final class AlarmKuraliGuncelleRequest extends FormRequest
             'parametreler.saat.regex' => __('hata.alarm_saat_bicimi'),
             'parametreler.portallar.required' => __('hata.alarm_portal_zorunlu'),
             'parametreler.portallar.regex' => __('hata.alarm_portal_zorunlu'),
+            'parametreler.islendi_sayilanlar.required' => __('hata.alarm_islendi_zorunlu'),
+            'parametreler.islendi_sayilanlar.regex' => __('hata.alarm_islendi_zorunlu'),
             'alicilar.*.email' => __('hata.alarm_alici_gecersiz'),
+            'alicilar_cc.*.email' => __('hata.alarm_alici_gecersiz'),
+            'alicilar_bcc.*.email' => __('hata.alarm_alici_gecersiz'),
         ];
     }
 
@@ -82,5 +97,17 @@ final class AlarmKuraliGuncelleRequest extends FormRequest
                 }
             },
         ];
+    }
+
+    /**
+     * Virgüllü, en az bir öğeli liste; öğeler yalnız verilen değerler.
+     *
+     * @param  list<string>  $degerler
+     */
+    private static function listeKurali(array $degerler): string
+    {
+        $secenek = '('.implode('|', array_map(fn (string $d): string => preg_quote($d, '/'), $degerler)).')';
+
+        return 'regex:/^'.$secenek.'(,'.$secenek.'){0,'.(count($degerler) - 1).'}$/D';
     }
 }

@@ -182,6 +182,10 @@ Route::prefix('v1')->group(function (): void {
                 ->whereNumber('fatura')
                 ->middleware('can:tum_faturalar.red')
                 ->name('tum_faturalar.faturalar.red');
+            Route::put('/tum-faturalar/faturalar/{fatura}/islendi', [TumFaturalarController::class, 'islendi'])
+                ->whereNumber('fatura')
+                ->middleware('can:tum_faturalar.isle')
+                ->name('tum_faturalar.faturalar.islendi');
             Route::get('/tum-faturalar/faturalar/{fatura}/gecmis', [TumFaturalarController::class, 'gecmis'])
                 ->whereNumber('fatura')
                 ->name('tum_faturalar.faturalar.gecmis');
@@ -228,6 +232,15 @@ Route::prefix('v1')->group(function (): void {
                 ->whereNumber('fatura')
                 ->middleware('can:efatura.gizle')
                 ->name('efatura.faturalar.gizle');
+            // "SAP (Manuel İşle)" ve RED yalnız eMOR'da tutulur; İzibiz'e istek gitmez
+            Route::put('/efatura/faturalar/{fatura}/islendi', [EFaturaController::class, 'islendi'])
+                ->whereNumber('fatura')
+                ->middleware('can:efatura.isle')
+                ->name('efatura.faturalar.islendi');
+            Route::put('/efatura/faturalar/{fatura}/red', [EFaturaController::class, 'red'])
+                ->whereNumber('fatura')
+                ->middleware('can:efatura.red')
+                ->name('efatura.faturalar.red');
             Route::get('/efatura/faturalar/{fatura}/gecmis', [EFaturaController::class, 'gecmis'])
                 ->whereNumber('fatura')
                 ->name('efatura.faturalar.gecmis');
@@ -284,8 +297,8 @@ Route::prefix('v1')->group(function (): void {
 
         // Statik kaynaklar (EK-07, EK-08): Logo Gelen Faturalar ve e-Arşiv / e-SMM.
         // Aynı denetleyiciler, `saglayici` varsayılanıyla: kapsam statik tanım.
-        // Senkron, XML ve PDF yok (belgenin aslı elimizde değil); RED kaynağın
-        // listesinden gelir, elle çekilmez (kullanıcı kararı 2026-11-26).
+        // Senkron, XML ve PDF yok (belgenin aslı elimizde değil). RED'e çekme ve
+        // "SAP (Manuel İşle)" yalnız eMOR'da tutulur (kullanıcı isteği 2026-11-26).
         // Veri Excel içe aktarımıyla ya da kopyala-yapıştırla gelir (EK-06).
         foreach (['logo' => 'logo_faturalari', 'earsiv' => 'earsiv_faturalari'] as $onEk => $izin) {
             Route::middleware("can:{$izin}.goruntule")->group(function () use ($onEk, $izin): void {
@@ -303,6 +316,11 @@ Route::prefix('v1')->group(function (): void {
                     ->defaults('saglayici', $onEk)
                     ->middleware("can:{$izin}.isle")
                     ->name("{$onEk}.faturalar.islendi");
+                Route::put("/{$onEk}/faturalar/{fatura}/red", [EFaturaController::class, 'red'])
+                    ->whereNumber('fatura')
+                    ->defaults('saglayici', $onEk)
+                    ->middleware("can:{$izin}.red")
+                    ->name("{$onEk}.faturalar.red");
                 Route::get("/{$onEk}/faturalar/{fatura}/gecmis", [EFaturaController::class, 'gecmis'])
                     ->whereNumber('fatura')
                     ->defaults('saglayici', $onEk)

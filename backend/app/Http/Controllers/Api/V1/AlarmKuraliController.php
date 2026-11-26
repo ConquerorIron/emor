@@ -32,7 +32,7 @@ final class AlarmKuraliController extends Controller
 
     public function update(AlarmKuraliGuncelleRequest $request, string $tur): JsonResponse
     {
-        /** @var array{aktif: bool, alicilar?: list<string>|null, parametreler: array<string, int|string>} $veri */
+        /** @var array{aktif: bool, alicilar?: list<string>|null, alicilar_cc?: list<string>, alicilar_bcc?: list<string>, parametreler: array<string, int|string>} $veri */
         $veri = $request->validated();
         $kural = $this->servis->guncelle($tur, $veri);
 
@@ -41,6 +41,8 @@ final class AlarmKuraliController extends Controller
             'tur' => $tur,
             'aktif' => $kural->aktif,
             'alici_sayisi' => count($kural->alicilar),
+            'cc_sayisi' => count($kural->alicilar_cc),
+            'bcc_sayisi' => count($kural->alicilar_bcc),
         ]);
 
         return response()->json(['data' => $this->kural($kural)]);
@@ -55,6 +57,8 @@ final class AlarmKuraliController extends Controller
             'tur' => $kural->tur,
             'aktif' => $kural->aktif,
             'alicilar' => $kural->alicilar,
+            'alicilar_cc' => $kural->alicilar_cc,
+            'alicilar_bcc' => $kural->alicilar_bcc,
             'parametreler' => [...AlarmKurali::varsayilanParametreler($kural->tur), ...$kural->parametreler],
             'updated_at' => $kural->updated_at?->toIso8601String(),
         ];

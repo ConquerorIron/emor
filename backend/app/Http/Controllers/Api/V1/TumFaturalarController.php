@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\EFatura\EFaturaIslendiRequest;
 use App\Http\Requests\EFatura\EFaturaListeRequest;
 use App\Http\Requests\EFatura\EFaturaRedRequest;
 use App\Http\Resources\EFaturaIslemiResource;
@@ -129,6 +130,17 @@ final class TumFaturalarController extends Controller
         /** @var User $kullanici */
         $kullanici = $request->user();
         $kayit = $islemler->redDegistir($this->kapsamdakiFatura($fatura), $request->boolean('red'), $request->neden(), $kullanici);
+        request()->attributes->set(EFaturaResource::EMOR_KURUMU, true);
+
+        return new EFaturaResource($kayit->load([...EFaturaResource::ILISKILER, 'entegratorBaglanti:id,saglayici']));
+    }
+
+    /** "SAP (Manuel İşle)" (kullanıcı isteği 2026-11-26) — sağlayıcı ekranlarıyla aynı kurallar. */
+    public function islendi(EFaturaIslendiRequest $request, int $fatura, EFaturaElleIslemleri $islemler): EFaturaResource
+    {
+        /** @var User $kullanici */
+        $kullanici = $request->user();
+        $kayit = $islemler->islendiDegistir($this->kapsamdakiFatura($fatura), $request->boolean('islendi'), $kullanici);
         request()->attributes->set(EFaturaResource::EMOR_KURUMU, true);
 
         return new EFaturaResource($kayit->load([...EFaturaResource::ILISKILER, 'entegratorBaglanti:id,saglayici']));

@@ -126,6 +126,42 @@ final class ProtelEkranTest extends TestCase
             ->assertStatus(502)->assertJsonPath('kod', ErpOkumaHatasi::OKUNAMADI);
     }
 
+    /**
+     * "eMOR VKN Var" kolonuna göre sıralama (kullanıcı isteği 2026-11-26):
+     * kayıtlı kurumların faturaları bir grupta; ERP okunamazsa liste yine
+     * açılır (kalıcı sıralama ekranı kilitlemez), belge tarihiyle sıralanır.
+     */
+    public function test_emor_vkn_var_kolonuna_gore_siralanir_erp_okunamazsa_tarihle_siralanir(): void
+    {
+        $this->erpKurumlari(['111 222 3333' => 'Kayıtlı A.Ş.']);
+        $protel = $this->protelTanimi();
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'DIS1', 'gonderici_vkn' => '9998887777', 'belge_tarihi' => '2026-01-20']);
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'KAYITLI', 'gonderici_vkn' => '1112223333', 'belge_tarihi' => '2026-01-05']);
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'DIS2', 'gonderici_vkn' => null, 'belge_tarihi' => '2026-01-10']);
+        $this->actingAs($this->izinli('protel_faturalari.goruntule'));
+        $sira = fn (string $yon): array => array_column(
+            $this->getJson('/api/v1/protel/gelen/faturalar?'.self::ARALIK."&sirala=emor_vkn&yon={$yon}")->assertOk()->json('data'),
+            'belge_no',
+        );
+
+        $this->assertSame(['KAYITLI', 'DIS1', 'DIS2'], $sira('desc'));
+        $this->assertSame(['DIS2', 'DIS1', 'KAYITLI'], $sira('asc'));
+    }
+
+    public function test_erp_okunamazsa_emor_vkn_siralamasi_hata_vermez_belge_tarihiyle_siralanir(): void
+    {
+        $this->erpKurumlari(null);
+        $protel = $this->protelTanimi();
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'ESKI', 'gonderici_vkn' => '1112223333', 'belge_tarihi' => '2026-01-05']);
+        EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'YENI', 'gonderici_vkn' => '9998887777', 'belge_tarihi' => '2026-01-20']);
+        $this->actingAs($this->izinli('protel_faturalari.goruntule'));
+
+        $this->assertSame(['YENI', 'ESKI'], array_column(
+            $this->getJson('/api/v1/protel/gelen/faturalar?'.self::ARALIK.'&sirala=emor_vkn&yon=desc')->assertOk()->json('data'),
+            'belge_no',
+        ));
+    }
+
     public function test_protel_listesi_yalniz_protel_tanimini_izibiz_listesi_yalniz_izibizi_gosterir(): void
     {
         $protel = $this->protelTanimi();

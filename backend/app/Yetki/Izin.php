@@ -27,6 +27,8 @@ enum Izin: string
     case TumFaturalarPdf = 'tum_faturalar.pdf';
     case TumFaturalarDisariAktar = 'tum_faturalar.disari_aktar';
     /** Gelen faturayı RED'e çekme / RED'i geri alma (EK-04) — her gelen fatura ekranının kendi izni */
+    /** "SAP (Manuel İşle)": faturayı işlendi işaretleme — yalnız eMOR'da (kullanıcı isteği 2026-11-26) */
+    case TumFaturalarIsle = 'tum_faturalar.isle';
     case TumFaturalarRed = 'tum_faturalar.red';
 
     /**
@@ -43,6 +45,8 @@ enum Izin: string
     case EfaturaDisariAktar = 'efatura.disari_aktar';
     case EfaturaSenkron = 'efatura.senkron';
     case EfaturaGizle = 'efatura.gizle';
+    case EfaturaIsle = 'efatura.isle';
+    case EfaturaRed = 'efatura.red';
 
     /**
      * Protel Gelen Faturalar — otelin posta kutusu (PRT-10). e-Fatura'dan ayrı
@@ -58,17 +62,20 @@ enum Izin: string
 
     /**
      * Statik kaynak ekranları (EK-07, EK-08): Logo Gelen Faturalar ve e-Arşiv /
-     * e-SMM Gelen Faturalar / Makbuzlar. "Güncelle"si Excel listesini içe aktarmaktır.
+     * e-SMM Gelen Faturalar / Makbuzlar. Excel içe aktarımı Roller ekranında adıyla görünen
+     * ek izindir (kullanıcı isteği 2026-11-26; önce "güncelle" sütunundaydı).
      */
     case LogoFaturalariGoruntule = 'logo_faturalari.goruntule';
     case LogoFaturalariIceAktar = 'logo_faturalari.ice_aktar';
     case LogoFaturalariDisariAktar = 'logo_faturalari.disari_aktar';
     case LogoFaturalariIsle = 'logo_faturalari.isle';
+    case LogoFaturalariRed = 'logo_faturalari.red';
 
     case EarsivFaturalariGoruntule = 'earsiv_faturalari.goruntule';
     case EarsivFaturalariIceAktar = 'earsiv_faturalari.ice_aktar';
     case EarsivFaturalariDisariAktar = 'earsiv_faturalari.disari_aktar';
     case EarsivFaturalariIsle = 'earsiv_faturalari.isle';
+    case EarsivFaturalariRed = 'earsiv_faturalari.red';
 
     case KesintiTurleriGoruntule = 'kesinti_turleri.goruntule';
     case KesintiTurleriGuncelle = 'kesinti_turleri.guncelle';
@@ -197,12 +204,12 @@ enum Izin: string
         return [
             $ekran('satinalma_talebi', self::SatinalmaTalebiGoruntule, self::SatinalmaTalebiGuncelle),
             $ekran('efatura_panosu', self::EfaturaPanosuGoruntule, null),
-            $ekran('tum_faturalar', self::TumFaturalarGoruntule, null, self::TumFaturalarPdf, self::TumFaturalarDisariAktar, self::TumFaturalarRed),
+            $ekran('tum_faturalar', self::TumFaturalarGoruntule, null, self::TumFaturalarPdf, self::TumFaturalarDisariAktar, self::TumFaturalarIsle, self::TumFaturalarRed),
             $ekran('efatura_islem_gecmisi', self::EfaturaIslemGecmisiGoruntule, null),
-            $ekran('efatura', self::EfaturaGoruntule, self::EfaturaSenkron, self::EfaturaPdf, self::EfaturaDisariAktar, self::EfaturaGizle),
+            $ekran('efatura', self::EfaturaGoruntule, self::EfaturaSenkron, self::EfaturaPdf, self::EfaturaDisariAktar, self::EfaturaGizle, self::EfaturaIsle, self::EfaturaRed),
             $ekran('protel_faturalari', self::ProtelFaturalariGoruntule, self::ProtelFaturalariSenkron, self::ProtelFaturalariPdf, self::ProtelFaturalariDisariAktar, self::ProtelFaturalariIsle, self::ProtelFaturalariRed),
-            $ekran('logo_faturalari', self::LogoFaturalariGoruntule, self::LogoFaturalariIceAktar, self::LogoFaturalariDisariAktar, self::LogoFaturalariIsle),
-            $ekran('earsiv_faturalari', self::EarsivFaturalariGoruntule, self::EarsivFaturalariIceAktar, self::EarsivFaturalariDisariAktar, self::EarsivFaturalariIsle),
+            $ekran('logo_faturalari', self::LogoFaturalariGoruntule, null, self::LogoFaturalariIceAktar, self::LogoFaturalariDisariAktar, self::LogoFaturalariIsle, self::LogoFaturalariRed),
+            $ekran('earsiv_faturalari', self::EarsivFaturalariGoruntule, null, self::EarsivFaturalariIceAktar, self::EarsivFaturalariDisariAktar, self::EarsivFaturalariIsle, self::EarsivFaturalariRed),
             // Kesinti Yönetimi grubu: menüdeki gibi önce raporlar
             $ekran('kesinti_ozeti', self::KesintiOzetiGoruntule, null),
             $ekran('pivot', self::PivotGoruntule, null),

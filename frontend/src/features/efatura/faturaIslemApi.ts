@@ -9,9 +9,6 @@ import type { EFatura, EFaturaIslemi } from './efaturaApi'
  */
 export type FaturaEkrani = 'efatura' | 'tum' | 'protel' | 'logo' | 'earsiv'
 
-/** "İşlendi" (SAP) işareti olan ekranlar */
-export type IslenebilirEkran = 'protel' | 'logo' | 'earsiv'
-
 function faturaYolu(ekran: FaturaEkrani, faturaId: number): string {
   switch (ekran) {
     case 'tum':
@@ -41,9 +38,9 @@ export async function faturaRedDegistir(
   return yanit.data.data
 }
 
-/** "İşlendi" (SAP) işareti — yalnız eMOR'da tutulur. */
+/** "SAP (Manuel İşle)" işareti — bütün gelen ekranları; yalnız eMOR'da tutulur. */
 export async function faturaIslendiDegistir(
-  ekran: IslenebilirEkran,
+  ekran: FaturaEkrani,
   faturaId: number,
   islendi: boolean,
 ): Promise<EFatura> {

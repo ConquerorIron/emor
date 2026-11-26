@@ -6,7 +6,7 @@ declare(strict_types=1);
 return [
     'evet' => 'Evet',
     'hayir' => 'Hayır',
-    'sap_islendi' => 'İşlendi',
+    'sap_islendi' => 'İşlendi (elle)',
     'sap_red' => 'Red',
     // Kopyala-yapıştırla içe aktarılan partinin adı (Yüklemeler penceresi)
     'yapistirma_partisi' => 'Kopyala-yapıştır',

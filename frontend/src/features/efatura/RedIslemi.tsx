@@ -18,8 +18,8 @@ import { IkonDugmesi } from './ListeParcalari'
 const NEDEN_AZAMI = 1000
 
 /**
- * RED'e çekme formu ya da RED'i geri alma onayı. Neden zorunlu; eMOR'da
- * işlenmiş faturada uyarı gösterilir (eMOR bilgisi ERP'nindir, değişmez).
+ * RED'e çekme formu ya da RED'i geri alma onayı. Neden zorunlu. İşlenmiş
+ * fatura için form hiç açılmaz (RedDugmesi kapalıdır).
  */
 function RedFormu({
   fatura,
@@ -77,8 +77,6 @@ function RedFormu({
     kaydet.mutate()
   }
 
-  const islenmis = fatura.emor_durumu === 'islendi' || fatura.emor_durumu === 'elle_islendi'
-
   return (
     <div className="space-y-4">
       {geriAl ? (
@@ -92,14 +90,6 @@ function RedFormu({
       ) : (
         <>
           <p className="text-sm text-slate-600 dark:text-slate-400">{t('efatura.red.aciklama')}</p>
-          {islenmis ? (
-            <p
-              role="alert"
-              className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200"
-            >
-              {t('efatura.red.islenmisUyari')}
-            </p>
-          ) : null}
           <SinirliMetinInput
             id={`red-nedeni-${fatura.id}`}
             label={t('efatura.red.neden')}
@@ -140,10 +130,9 @@ function RedFormu({
  * Satırdaki RED düğmesi (EK-04): RED değilse "RED'e Çek", yetkili
  * kullanıcının çektiği RED'de "RED'i Geri Al". Kaynakta RED olmuş faturada
  * düğme yoktur (kaynağın kararı değiştirilmez). Kapalı düğme nedenini
- * üstüne gelince söyler (İşlendi anahtarıyla aynı davranış — kullanıcı
- * isteği 2026-11-26): RED'e çekme yalnız Protel faturasında (Tüm
- * Faturalar'daki İzibiz / Logo / e-Arşiv satırı); izni olmayan kullanıcı.
- * Kuraldan önce çekilmiş bir RED her kaynakta geri alınabilir (sunucu da öyle).
+ * üstüne gelince söyler (kullanıcı isteği 2026-11-26): eMOR'da İşlendi /
+ * İşlendi (elle) ya da "SAP (Manuel İşle)" işaretli fatura RED'e çekilemez
+ * (sunucu da 409 döner); izni olmayan kullanıcı. RED'i geri almak her zaman açıktır.
  */
 export function RedDugmesi({
   fatura,
@@ -163,13 +152,15 @@ export function RedDugmesi({
 
   const geriAl = fatura.red.var
   const etiket = t(geriAl ? 'efatura.red.geriAl' : 'efatura.red.cek')
-  // Satırın sağlayıcısı yalnız birleşik listede gelir; tek kaynaklı ekran Protel'dir
-  const kapaliNedeni =
-    !geriAl && fatura.saglayici !== undefined && fatura.saglayici !== 'protel'
-      ? t('efatura.red.yalnizProtel')
-      : izinli
-        ? null
-        : t('efatura.red.izinYok')
+  const kapaliNedeni = !izinli
+    ? t('efatura.red.izinYok')
+    : geriAl
+      ? null
+      : fatura.emor_durumu === 'islendi' || fatura.emor_durumu === 'elle_islendi'
+        ? t('efatura.red.emorIslenmis')
+        : fatura.sap_islendi === true
+          ? t('efatura.red.sapIslenmis')
+          : null
   const acilabilir = kapaliNedeni === null
 
   return (

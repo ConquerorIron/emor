@@ -8,12 +8,12 @@ import { Switch } from '@/components/Switch'
 
 import type { EFatura } from './efaturaApi'
 import { faturaSatiriniGuncelle } from './faturaOnbellegi'
-import { faturaIslendiDegistir, type IslenebilirEkran } from './faturaIslemApi'
+import { faturaIslendiDegistir, type FaturaEkrani } from './faturaIslemApi'
 import { RedRozeti } from './RedRozeti'
 
 /**
- * Satırdaki "İşlendi" (SAP) anahtarı (Protel: kullanıcı isteği 2026-11-23;
- * statik kaynaklar: EK-07): tıklanınca hemen kaydedilir. İşaret yalnız eMOR'da
+ * Satırdaki "SAP (Manuel İşle)" anahtarı (Protel: 2026-11-23; statik kaynaklar:
+ * EK-07; İzibiz ve Tüm Faturalar: 2026-11-26): tıklanınca hemen kaydedilir. İşaret yalnız eMOR'da
  * tutulur; kaynağın kendisinde hiçbir şey değişmez. Satır sunucunun döndürdüğü
  * faturayla yerinde güncellenir (liste yeniden çekilmez). RED faturada anahtar
  * yerine "Red" yazar.
@@ -25,7 +25,7 @@ export function IslendiAnahtari({
 }: {
   fatura: EFatura
   izinli: boolean
-  ekran: IslenebilirEkran
+  ekran: FaturaEkrani
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()

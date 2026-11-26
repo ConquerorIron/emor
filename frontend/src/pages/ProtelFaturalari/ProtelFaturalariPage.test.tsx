@@ -174,8 +174,10 @@ describe('ProtelFaturalariPage', () => {
     const satir = (await screen.findByText('OTL2026000000001')).closest('tr') as HTMLElement
     const basliklar = screen.getAllByRole('columnheader').map((th) => th.textContent)
     expect(basliklar[0]).toBe('Sıra No')
-    expect(basliklar[2]).toBe('SAP')
-    expect(basliklar[3]).toMatch(/^eMOR/)
+    // Kolon sırası (2026-11-26): SAP (Manuel İşle) | SAP | eMOR
+    expect(basliklar[2]).toBe('SAP (Manuel İşle)')
+    expect(basliklar[3]).toMatch(/^SAP(?! \()/)
+    expect(basliklar[4]).toMatch(/^eMOR/)
     expect(satir.querySelector('td')).toHaveTextContent('1')
     expect(hucre(satir, 'eMOR')).toHaveTextContent('İşlendi (elle)')
     expect(within(satir).getByText('Muhasebeleşti')).toBeInTheDocument()

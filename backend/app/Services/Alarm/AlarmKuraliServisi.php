@@ -29,7 +29,10 @@ final class AlarmKuraliServisi
     }
 
     /**
-     * @param  array{aktif: bool, alicilar?: list<string>|null, parametreler: array<string, int|string>}  $veri
+     * CC / BCC gönderilmediyse kayıtlı liste korunur (eski istemci kopyaları
+     * sessizce silmesin); To her istekte gelir.
+     *
+     * @param  array{aktif: bool, alicilar?: list<string>|null, alicilar_cc?: list<string>, alicilar_bcc?: list<string>, parametreler: array<string, int|string>}  $veri
      */
     public function guncelle(string $tur, array $veri): AlarmKurali
     {
@@ -41,18 +44,29 @@ final class AlarmKuraliServisi
             AlarmKurali::varsayilanParametreler($tur),
         );
 
-        $alicilar = array_values(array_unique(array_map(
-            fn (string $adres): string => mb_strtolower(trim($adres)),
-            $veri['alicilar'] ?? [],
-        )));
-
         $kural->fill([
             'aktif' => $veri['aktif'],
-            'alicilar' => $alicilar,
+            'alicilar' => $this->adresler($veri['alicilar'] ?? []),
+            'alicilar_cc' => array_key_exists('alicilar_cc', $veri) ? $this->adresler($veri['alicilar_cc']) : $kural->alicilar_cc,
+            'alicilar_bcc' => array_key_exists('alicilar_bcc', $veri) ? $this->adresler($veri['alicilar_bcc']) : $kural->alicilar_bcc,
             'parametreler' => $parametreler,
         ])->save();
 
         return $kural;
+    }
+
+    /**
+     * Küçük harf, boşluksuz, tekil.
+     *
+     * @param  list<string>  $adresler
+     * @return list<string>
+     */
+    private function adresler(array $adresler): array
+    {
+        return array_values(array_unique(array_map(
+            fn (string $adres): string => mb_strtolower(trim($adres)),
+            $adresler,
+        )));
     }
 
     /**

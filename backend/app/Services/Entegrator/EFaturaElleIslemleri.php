@@ -26,9 +26,9 @@ use Illuminate\Support\Facades\Log;
 final class EFaturaElleIslemleri
 {
     /**
-     * Yalnız Protel faturası RED'e çekilir (kullanıcı kararı 2026-11-26: İzibiz,
-     * Logo ve e-Arşiv'de RED kaynağın kendi kararıdır). Geri alma her kaynakta
-     * açıktır: kuraldan önce çekilmiş bir RED kalıcı olmasın.
+     * Her kaynağın gelen faturası RED'e çekilebilir; işlenmiş fatura çekilemez
+     * (kullanıcı isteği 2026-11-26): eMOR'da İşlendi / İşlendi (elle) ya da
+     * "SAP (Manuel İşle)" işaretli. Geri alma her durumda açıktır.
      */
     public function redDegistir(EFatura $fatura, bool $red, ?string $neden, User $kullanici): EFatura
     {
@@ -36,9 +36,6 @@ final class EFaturaElleIslemleri
             $kayit = $this->kilitle($fatura);
 
             if ($red) {
-                if ($kayit->entegratorBaglanti()->value('saglayici') !== EntegratorBaglanti::SAGLAYICI_PROTEL) {
-                    throw EFaturaIslemHatasi::redYalnizProtel();
-                }
                 if ($kayit->kaynaktaReddedildi()) {
                     throw EFaturaIslemHatasi::kaynaktaReddedilmis();
                 }
@@ -47,6 +44,9 @@ final class EFaturaElleIslemleri
                 }
                 if ($kayit->sap_islendi === true) {
                     throw EFaturaIslemHatasi::islendiIsaretli();
+                }
+                if (in_array($kayit->emor_durumu?->value, EFatura::ISLENMIS_EMOR_DURUMLARI, true)) {
+                    throw EFaturaIslemHatasi::emorIslenmis();
                 }
 
                 $kayit->update([
