@@ -109,6 +109,19 @@ AcceptAnswered 4.
   PDF görüntüleme/indirme yazdırma değildir (kullanıcı kararı 2026-11-19);
   uygulama bu alanı yalnız gösterir, PDF bütün faturalarda açılır.
 
+## UBL — aynı metot, `outputType: "Ubl"` (2026-11-26, kullanıcı onayı)
+
+- Gövde PDF'teki dört alanın aynısı; yalnız `outputType` `Ubl`. Kilit
+  (`ProtelIstemcisi::SABIT_DEGERLER`) yalnız `Pdf` ve `Ubl`'a izin verir.
+- Yanıt: HTTP 200, `outputDatas[0]` = base64 **düz UBL XML** (zip değil),
+  200–260 KB, ~0,5–0,7 sn. XML saklanmaz; içindeki tutarlar, kur, vergi dairesi
+  ve vergi kalemleri yazılır (`ProtelUblServisi`, `efatura:ubl-oku --saglayici=protel`).
+- Önce/sonra ölçümü (canlı, kilit içinden `ProtelIstemcisi::post`): Kasım'ın
+  225 gelen faturasının BÜTÜN alanları; 3 faturaya (TEVKIFAT, ISTISNA, SATIS)
+  UBL isteği → **değişen fatura: 0**, yeni / kaybolan: 0.
+- Not: Protel listesinin `taxTotal`'ı tevkifatlı faturada net KDV olabilir
+  (5.633,41 ↔ UBL KDV kalemi 56.334,18); rapor KDV'yi UBL kalemlerinden alır.
+
 ## Uçtan uca kabul ölçümü (PRT-14, lokal uygulama ↔ canlı Protel)
 
 | Adım | İstek | Sonuç |

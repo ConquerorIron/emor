@@ -40,12 +40,12 @@ istek çıkaran TEK sınıf):
 |---|---|---|---|
 | Giriş | `POST /v1/Auth/AccessToken` (auth sunucusu) | `clientType`, `eMail`, `password`, `customerIdentity` | Yalnız token verir |
 | Fatura listesi | `POST /v1/Document/GetInvoiceList` | `startDate`, `endDate`, `filterDateType`, `documentDirection`, `erpRecievedStatus`, `erpStatus` | Süzgeç alanları; önce/sonra ölçümünde durum değişmedi |
-| PDF | `POST /v1/Document/GetInvoicePdf` | `uuidType`, `uuid`, `documentDirection`, `outputType` | `set*` alanları gönderilmezse durum değişmez: Protel'in yazılı teyidi + PRT-02 ölçümü; kullanıcı onayı (2026-11-19) |
+| PDF / UBL | `POST /v1/Document/GetInvoicePdf` | `uuidType`, `uuid`, `documentDirection`, `outputType` | `set*` alanları gönderilmezse durum değişmez: Protel'in yazılı teyidi + PRT-02 ölçümü; kullanıcı onayı (PDF 2026-11-19, UBL 2026-11-26 — önce/sonra ölçümü api-notlari.md) |
 
 Sabit değerler: `clientType = WebService`, `documentDirection = Incoming`
 (giden kapsam dışı), `erpRecievedStatus` / `erpStatus` = `All`,
 `filterDateType` ∈ {`DocumentDate`, `CreateDate`}, `uuidType = DocumentUUID`,
-`outputType = Pdf`.
+`outputType` ∈ {`Pdf`, `Ubl`}.
 
 **Asla çağrılmaz** (testte her biri için "istek gitmedi" sınanır):
 `SendInvoice`, `SendAppResponse*`, `SendInvoiceResponse`, `SetStatus`,

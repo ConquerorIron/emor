@@ -50,6 +50,13 @@ Schedule::command('efatura:senkron --saglayici=protel --gun=10 --tarih-turu=DELI
     ->everyMinute()
     ->withoutOverlapping(60);
 
+// Protel UBL verileri (İzibiz'deki efatura:ubl-oku ile aynı tablolar): fatura başına
+// tek istek (onaylı PDF metodu, çıktı türü Ubl), çalışma başına sınırlı; Protel'de
+// hiçbir alan değişmez (2026-11-26 önce/sonra ölçümü)
+Schedule::command('efatura:ubl-oku --saglayici=protel')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(30);
+
 Schedule::command('efatura:senkron --saglayici=protel --gun=45')
     ->dailyAt('03:30')
     ->timezone('Europe/Istanbul')

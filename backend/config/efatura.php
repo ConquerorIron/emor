@@ -43,6 +43,11 @@ return [
     'ubl_parti_boyutu' => 50,
     'ubl_azami_istek' => 6,
 
+    // Protel UBL'i (efatura:ubl-oku --saglayici=protel, 15 dk'da bir): toplu
+    // indirme yok, fatura başına bir istek (~0,6 sn). Çalışma başına azami istek;
+    // birikmiş ~2.700 fatura saatte ~160 ile bir günde okunur.
+    'protel_ubl_azami_istek' => 40,
+
     // ERP'de boş olan vergi istisna kodu entegratördekiyle doldurulsun mu
     // (TOHOM_E_FATURA'ya doğrudan UPDATE; yalnız boş koda). Varsayılan KAPALI:
     // sunucuda yazılacak liste kullanıcıya onaylatıldıktan sonra .env ile açılır.
