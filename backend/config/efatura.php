@@ -39,9 +39,11 @@ return [
 
     // UBL verileri İzibiz'den (efatura:ubl-oku, 15 dk'da bir): istek başına
     // fatura (İzibiz sınırı 100) ve çalışma başına azami istek. Birikmiş
-    // faturalar bu hızla (saatte ~1200 fatura) yavaşça okunur.
-    'ubl_parti_boyutu' => 50,
-    'ubl_azami_istek' => 6,
+    // faturalar bu hızla (saatte ~1200 fatura) yavaşça okunur. Parti 25: bütün
+    // faturaların UBL'i (ort. ~160 KB, en çok 1,5 MB) 20 sn'lik istek sınırına
+    // sığsın — 50'lik partide zaman aşımı görüldü (2026-11-26).
+    'ubl_parti_boyutu' => 25,
+    'ubl_azami_istek' => 12,
 
     // Protel UBL'i (efatura:ubl-oku --saglayici=protel, 15 dk'da bir): toplu
     // indirme yok, fatura başına bir istek (~0,6 sn). Çalışma başına azami istek;
