@@ -28,6 +28,13 @@ export interface ErpRaporTanimi<T extends RaporSatiri> {
   /** Gelen veride anlık süzme kolonları */
   projeAlani: keyof T & string
   firmaAlani: keyof T & string
+  /** projeAlani süzgecinin etiketi (i18n); verilmezse "Projeye göre filtrele" */
+  projeSuzgeciEtiketi?: string
+  /**
+   * Parametre formundaki proje kodu / firma adı seçicileri (ERP proc girdileri).
+   * ERP'ye gitmeyen raporda false: seçiciler çizilmez, seçenekler istenmez.
+   */
+  erpParametreleri?: boolean
   /** Sabit genişlikli metin kolonları (Tailwind genişlik sınıfı): tek satır, sığmayan kısım "…" */
   sabitGenislik?: Partial<Record<keyof T & string, string>>
   /** Ortalanan metin kolonları (tarihler zaten ortalı) */

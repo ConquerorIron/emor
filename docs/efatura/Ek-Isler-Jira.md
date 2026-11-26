@@ -656,3 +656,16 @@ olarak numaralanır.
     vergi dairesi, `efatura_vergi_kalemleri`'ne oran bazında KDV ve tevkifat
     kalemleri yazılır. Komut `efatura:ubl-oku` (eski `efatura:istisna-kodlari`).
     Protel için aynı okuma kilit ölçümü bekliyor (kullanıcı kararı).
+  - **Protel UBL (kullanıcı onayı):** kilit `outputType ∈ {Pdf, Ubl}`; canlı önce/sonra
+    ölçümünde değişen alan 0 (docs/protel/api-notlari.md). `efatura:ubl-oku
+    --saglayici=protel` 15 dk'da 40 fatura.
+  - **Logo:** içe aktarım KDV %0/1/8/10/18/20/Diğer tutar ve matrahları, tevkifat
+    (ilk kodu), ek vergiler, vergi hariç / iskonto / vergi dahil ve kur kolonlarını
+    da okur; dosya canlıya yeniden yüklendi (parti 4: 579 fatura, 726 kalem).
+  - **Gelen Fatura Raporu (Raporlar menüsü, `gelen_fatura_raporu.goruntule`):**
+    bütün gelen faturalar Logo Excel'inin kolonlarıyla (Hareket No ve Kesinti yok —
+    kullanıcı). ERP raporlarının ekranı / Excel'i / özet sekmeleri yeniden
+    kullanıldı; satırlar fatura + vergi kalemlerinden (`GelenFaturaRaporu`).
+    Fatura Toplamı = net + vergi kalemleri (satıcının "vergi dahil" alanı
+    tutarsız olabildiği için kullanılmaz), TRY'de kur 1, dövizde kur yoksa TL boş,
+    gizlenen fatura girmez, RED'ler ekrandaki süzgeçle çıkarılır.

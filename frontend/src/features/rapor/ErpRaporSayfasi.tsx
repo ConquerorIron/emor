@@ -190,10 +190,12 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
   // Data sekmesinde gizlenen kolonlar: tarayıcıda, rapor başına (Excel hepsini içerir)
   const kolonGorunurlugu = useKolonGorunurlugu(`rapor.${tanim.anahtar}`)
 
+  const erpParametreleri = tanim.erpParametreleri ?? true
   const erpSecenekleri = useQuery({
     queryKey: queryKeys.raporlar.secenekler(tanim.anahtar),
     queryFn: tanim.api.secenekler,
     staleTime: 5 * 60_000,
+    enabled: erpParametreleri,
   })
 
   // Son çalıştırmanın parametreleri rapor.variables'ta: Excel aynılarıyla iner
@@ -369,28 +371,32 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
           onChange={(iso) => degistir('son_tarih', iso)}
           hata={hatalar.son_tarih ? t(hatalar.son_tarih) : undefined}
         />
-        <SelectField
-          id={`${tanim.anahtar}-proje`}
-          label={t('raporlar.projeKodu')}
-          options={projeSecenekleri}
-          value={projeSecenekleri.find((s) => s.value === parametreler.proje_kodu) ?? null}
-          onChange={(secenek) => degistir('proje_kodu', secenek?.value ?? '')}
-          isClearable
-          yukleniyor={erpSecenekleri.isPending}
-          hata={secenekHatasi}
-          placeholder={t('ortak.hepsi')}
-        />
-        <SelectField
-          id={`${tanim.anahtar}-firma`}
-          label={t('raporlar.firmaAdi')}
-          options={firmaSecenekleri}
-          value={firmaSecenekleri.find((s) => s.value === parametreler.firma_adi) ?? null}
-          onChange={(secenek) => degistir('firma_adi', secenek?.value ?? '')}
-          isClearable
-          yukleniyor={erpSecenekleri.isPending}
-          hata={secenekHatasi}
-          placeholder={t('ortak.hepsi')}
-        />
+        {erpParametreleri ? (
+          <>
+            <SelectField
+              id={`${tanim.anahtar}-proje`}
+              label={t('raporlar.projeKodu')}
+              options={projeSecenekleri}
+              value={projeSecenekleri.find((s) => s.value === parametreler.proje_kodu) ?? null}
+              onChange={(secenek) => degistir('proje_kodu', secenek?.value ?? '')}
+              isClearable
+              yukleniyor={erpSecenekleri.isPending}
+              hata={secenekHatasi}
+              placeholder={t('ortak.hepsi')}
+            />
+            <SelectField
+              id={`${tanim.anahtar}-firma`}
+              label={t('raporlar.firmaAdi')}
+              options={firmaSecenekleri}
+              value={firmaSecenekleri.find((s) => s.value === parametreler.firma_adi) ?? null}
+              onChange={(secenek) => degistir('firma_adi', secenek?.value ?? '')}
+              isClearable
+              yukleniyor={erpSecenekleri.isPending}
+              hata={secenekHatasi}
+              placeholder={t('ortak.hepsi')}
+            />
+          </>
+        ) : null}
         <div className="sm:col-span-2 lg:col-span-1">
           <Button
             type="submit"
@@ -454,7 +460,7 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
             />
             <MultiSelectField
               id={`${tanim.anahtar}-suz-proje`}
-              label={t('raporlar.projeyeGoreFiltrele')}
+              label={t(tanim.projeSuzgeciEtiketi ?? 'raporlar.projeyeGoreFiltrele')}
               options={suzgecProjeleri}
               value={suzgecProjeleri.filter((s) => suzgec.projeler.includes(s.value))}
               onChange={(secilenler) =>

@@ -93,7 +93,8 @@
     "logo": "Logo",
     "logoGelenFaturalar": "Gelen Faturalar",
     "earsiv": "E-Arşiv / E-SMM",
-    "earsivGelenFaturalar": "Gelen Faturalar / Makbuzlar"
+    "earsivGelenFaturalar": "Gelen Faturalar / Makbuzlar",
+    "gelenFaturaRaporu": "Gelen Fatura Raporu"
   },
   "tasarim": {
     "baslik": "Ekran Tasarım Ayarları",
@@ -771,7 +772,8 @@
       "efatura_panosu": "e-Fatura Panosu",
       "efatura_islem_gecmisi": "e-Fatura İşlem Geçmişi",
       "logo_faturalari": "Logo Gelen Faturalar",
-      "earsiv_faturalari": "E-Arşiv / E-SMM Gelen Faturalar / Makbuzlar"
+      "earsiv_faturalari": "E-Arşiv / E-SMM Gelen Faturalar / Makbuzlar",
+      "gelen_fatura_raporu": "Gelen Fatura Raporu"
     },
     "izin": {
       "tum_faturalar_goruntule": "Tüm faturaları (bütün kaynaklar) görüntüleme",
@@ -1638,7 +1640,9 @@
       "data": "Data",
       "taseron": "Taşeron",
       "proje": "Proje",
-      "tarih": "Tarih"
+      "tarih": "Tarih",
+      "firma": "Firma",
+      "entegrator": "Entegratör"
     },
     "yil": "Yıl",
     "ay": "Ay",
@@ -1729,6 +1733,57 @@
         "net_toplam_doviz": "Net Toplam (Döviz)",
         "kayit_eden": "Kayıt Eden",
         "guncelleyen": "Güncelleyen"
+      }
+    },
+    "entegratoreGoreFiltrele": "Entegratöre göre filtrele",
+    "gelenFaturaRaporu": {
+      "baslik": "Gelen Fatura Raporu",
+      "aciklamaMetni": "Bütün kaynakların (İzibiz, Protel, Logo, E-Arşiv) gelen faturaları, Logo'nun gelen fatura Excel'inin kolonlarıyla. Oran bazında KDV, tevkifat, istisna ve kur faturanın UBL'inden (Logo'da Excel'inden) gelir; UBL'i henüz okunmamış faturada tutarlar listedeki değerlerdir, oran kolonları boştur. TL kolonları kurla hesaplanır (TRY'de kur 1; kuru olmayan dövizli faturada boş). Gizlenen faturalar rapora girmez.",
+      "aramaIpucu": "Fatura no, ünvan, VKN, vergi dairesi, istisna, tevkifat…",
+      "suzgec": {
+        "redHaric": "RED'leri çıkar"
+      },
+      "kolon": {
+        "fatura_tarihi": "Fatura Tarihi",
+        "fatura_no": "Fatura No",
+        "fatura_profili": "Fatura Profili",
+        "entegrator": "Entegratör",
+        "firma_unvani": "Firma Ünvanı",
+        "vkn": "Vergi / T.C. Kimlik No",
+        "vergi_dairesi": "Vergi Dairesi Adı",
+        "para_kodu": "Döviz Cinsi",
+        "orijinal_tutar": "Orijinal Tutar",
+        "orijinal_indirim": "Orijinal İndirim",
+        "net_tutar": "Net Tutar ORJ",
+        "orijinal_kdv": "Orijinal KDV",
+        "fatura_toplami": "Fatura Toplamı ORJ",
+        "orijinal_tevkifat": "Orijinal Tevkifat",
+        "net_kdv": "Net KDV Orijinal",
+        "kur": "KUR",
+        "tutar_tl": "Tutar TL",
+        "indirim_tl": "İndirim TL",
+        "kdv_matrahi_tl": "KDV Matrahı TL",
+        "kdv_tl": "KDV TL",
+        "fatura_toplami_tl": "Fatura Toplamı TL",
+        "tevkifat_tl": "Tevkifat TL",
+        "net_kdv_tl": "Net KDV TL",
+        "oran_0": "Oran 0",
+        "kdv_0": "KDV 0",
+        "matrah_0": "Matrah 0",
+        "oran_1": "Oran 1",
+        "kdv_1": "KDV 1",
+        "matrah_1": "Matrah 1",
+        "oran_10": "Oran 10",
+        "kdv_10": "KDV 10",
+        "matrah_10": "Matrah 10",
+        "oran_20": "Oran 20",
+        "kdv_20": "KDV 20",
+        "matrah_20": "Matrah 20",
+        "matrah_toplami": "Matrah Toplamı",
+        "istisna_kodu": "İstisna Kodu",
+        "istisna_adi": "İstisna Adı",
+        "tevkifat_kodu": "Tevkifat Kodu",
+        "tevkifat_aciklama": "Tevkifat Açıklama"
       }
     }
   },

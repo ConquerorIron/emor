@@ -399,6 +399,18 @@ export const router = createBrowserRouter([
         ],
       },
       {
+        element: <IzinAlani izin="gelen_fatura_raporu.goruntule" />,
+        children: [
+          {
+            path: 'raporlar/gelen-fatura-raporu',
+            lazy: async () => ({
+              Component: (await import('@/pages/GelenFaturaRaporu/GelenFaturaRaporuPage'))
+                .GelenFaturaRaporuPage,
+            }),
+          },
+        ],
+      },
+      {
         element: <IzinAlani izin="ekran_tasarimi.goruntule" />,
         children: [
           {

@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\ErpFirmaController;
 use App\Http\Controllers\Api\V1\ErpKesintiKontroluController;
 use App\Http\Controllers\Api\V1\ErpProjeController;
 use App\Http\Controllers\Api\V1\FirmaController;
+use App\Http\Controllers\Api\V1\GelenFaturaRaporuController;
 use App\Http\Controllers\Api\V1\GeriYuklemeController;
 use App\Http\Controllers\Api\V1\GiderYansitmaFaturalariController;
 use App\Http\Controllers\Api\V1\IsgCezaKesintisiController;
@@ -914,6 +915,17 @@ Route::prefix('v1')->group(function (): void {
                 ->name('raporlar.gider-yansitma-faturalari.excel');
             Route::get('/raporlar/gider-yansitma-faturalari/secenekler', [GiderYansitmaFaturalariController::class, 'secenekler'])
                 ->name('raporlar.gider-yansitma-faturalari.secenekler');
+        });
+        // Gelen Fatura Raporu: satırlar uygulamanın tablolarından (ERP okunmaz)
+        Route::middleware('can:gelen_fatura_raporu.goruntule')->group(function (): void {
+            Route::get('/raporlar/gelen-fatura-raporu', [GelenFaturaRaporuController::class, 'index'])
+                ->middleware('throttle:erp-rapor')
+                ->name('raporlar.gelen-fatura-raporu');
+            Route::post('/raporlar/gelen-fatura-raporu/excel', [GelenFaturaRaporuController::class, 'excel'])
+                ->middleware('throttle:erp-rapor')
+                ->name('raporlar.gelen-fatura-raporu.excel');
+            Route::get('/raporlar/gelen-fatura-raporu/secenekler', [GelenFaturaRaporuController::class, 'secenekler'])
+                ->name('raporlar.gelen-fatura-raporu.secenekler');
         });
 
         // Kesinti Yönetimi → Firmalar (taşeronlar): elle tanım + canlı ERP'den

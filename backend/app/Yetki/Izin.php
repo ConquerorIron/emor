@@ -140,6 +140,9 @@ enum Izin: string
     /** Yalnız rapor: güncelleme izni yok */
     case GiderYansitmaFaturalariGoruntule = 'gider_yansitma_faturalari.goruntule';
 
+    /** Yalnız rapor (2026-11-26): bütün gelen faturalar, Logo Excel'inin kolonlarıyla */
+    case GelenFaturaRaporuGoruntule = 'gelen_fatura_raporu.goruntule';
+
     case SqlBaglantilariGoruntule = 'sql_baglantilari.goruntule';
     case SqlBaglantilariGuncelle = 'sql_baglantilari.guncelle';
 
@@ -229,6 +232,7 @@ enum Izin: string
             $ekran('erp_kesinti_kontrolu', self::ErpKesintiKontroluGoruntule, null),
             $ekran('taseron_hakedisleri', self::TaseronHakedisleriGoruntule, null),
             $ekran('gider_yansitma_faturalari', self::GiderYansitmaFaturalariGoruntule, null),
+            $ekran('gelen_fatura_raporu', self::GelenFaturaRaporuGoruntule, null),
             // Tanımlar grubu
             $ekran('projeler', self::ProjelerGoruntule, self::ProjelerGuncelle),
             $ekran('firmalar', self::FirmalarGoruntule, self::FirmalarGuncelle),

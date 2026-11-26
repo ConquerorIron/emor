@@ -123,6 +123,11 @@ export const NAV_GRUPLARI: NavGrubu[] = [
         ad: 'giderYansitmaFaturalari',
         izin: 'gider_yansitma_faturalari.goruntule',
       },
+      {
+        to: '/raporlar/gelen-fatura-raporu',
+        ad: 'gelenFaturaRaporu',
+        izin: 'gelen_fatura_raporu.goruntule',
+      },
     ],
   },
   {

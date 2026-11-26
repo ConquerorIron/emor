@@ -93,7 +93,8 @@
     "logo": "Logo",
     "logoGelenFaturalar": "Incoming Invoices",
     "earsiv": "E-Archive / E-SMM",
-    "earsivGelenFaturalar": "Incoming Invoices / Receipts"
+    "earsivGelenFaturalar": "Incoming Invoices / Receipts",
+    "gelenFaturaRaporu": "Incoming Invoice Report"
   },
   "tasarim": {
     "baslik": "Screen Designer",
@@ -771,7 +772,8 @@
       "efatura_panosu": "e-Invoice Dashboard",
       "efatura_islem_gecmisi": "e-Invoice Action History",
       "logo_faturalari": "Logo Incoming Invoices",
-      "earsiv_faturalari": "E-Archive / E-SMM Incoming Invoices / Receipts"
+      "earsiv_faturalari": "E-Archive / E-SMM Incoming Invoices / Receipts",
+      "gelen_fatura_raporu": "Incoming Invoice Report"
     },
     "izin": {
       "tum_faturalar_goruntule": "View all invoices (all sources)",
@@ -1638,7 +1640,9 @@
       "data": "Data",
       "taseron": "Subcontractor",
       "proje": "Project",
-      "tarih": "Date"
+      "tarih": "Date",
+      "firma": "Company",
+      "entegrator": "Integrator"
     },
     "yil": "Year",
     "ay": "Month",
@@ -1729,6 +1733,57 @@
         "net_toplam_doviz": "Net Total (FX)",
         "kayit_eden": "Created By",
         "guncelleyen": "Updated By"
+      }
+    },
+    "entegratoreGoreFiltrele": "Filter by integrator",
+    "gelenFaturaRaporu": {
+      "baslik": "Incoming Invoice Report",
+      "aciklamaMetni": "Incoming invoices from every source (İzibiz, Protel, Logo, E-Archive) in the columns of Logo's incoming invoice Excel. VAT by rate, withholding, exemption and rate come from the invoice UBL (Logo: its Excel); invoices whose UBL is not read yet show list amounts and empty rate columns. TRY columns use the exchange rate (1 for TRY; empty for foreign currency without a rate). Hidden invoices are excluded.",
+      "aramaIpucu": "Invoice no, name, tax no, tax office, exemption, withholding…",
+      "suzgec": {
+        "redHaric": "Exclude rejected"
+      },
+      "kolon": {
+        "fatura_tarihi": "Invoice Date",
+        "fatura_no": "Invoice No",
+        "fatura_profili": "Invoice Profile",
+        "entegrator": "Integrator",
+        "firma_unvani": "Company Name",
+        "vkn": "Tax / ID No",
+        "vergi_dairesi": "Tax Office",
+        "para_kodu": "Currency",
+        "orijinal_tutar": "Original Amount",
+        "orijinal_indirim": "Original Discount",
+        "net_tutar": "Net Amount (Orig.)",
+        "orijinal_kdv": "Original VAT",
+        "fatura_toplami": "Invoice Total (Orig.)",
+        "orijinal_tevkifat": "Original Withholding",
+        "net_kdv": "Net VAT (Orig.)",
+        "kur": "Rate",
+        "tutar_tl": "Amount TRY",
+        "indirim_tl": "Discount TRY",
+        "kdv_matrahi_tl": "VAT Base TRY",
+        "kdv_tl": "VAT TRY",
+        "fatura_toplami_tl": "Invoice Total TRY",
+        "tevkifat_tl": "Withholding TRY",
+        "net_kdv_tl": "Net VAT TRY",
+        "oran_0": "Rate 0",
+        "kdv_0": "VAT 0",
+        "matrah_0": "Base 0",
+        "oran_1": "Rate 1",
+        "kdv_1": "VAT 1",
+        "matrah_1": "Base 1",
+        "oran_10": "Rate 10",
+        "kdv_10": "VAT 10",
+        "matrah_10": "Base 10",
+        "oran_20": "Rate 20",
+        "kdv_20": "VAT 20",
+        "matrah_20": "Base 20",
+        "matrah_toplami": "Total Base",
+        "istisna_kodu": "Exemption Code",
+        "istisna_adi": "Exemption Name",
+        "tevkifat_kodu": "Withholding Code",
+        "tevkifat_aciklama": "Withholding Description"
       }
     }
   },
