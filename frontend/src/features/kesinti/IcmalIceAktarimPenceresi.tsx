@@ -24,8 +24,8 @@ import {
 } from './icmalApi'
 import { basamak, type IcmalTanimi } from './icmalTanimi'
 import { ToplamOzeti } from './ToplamOzeti'
-import { YapistirmaTablosu } from './YapistirmaTablosu'
-import { bosSatirlar, sekmeliMetin, type YapistirmaKolonu } from './yapistirma'
+import { YapistirmaTablosu } from '@/components/YapistirmaTablosu'
+import { bosSatirlar, sekmeliMetin, type YapistirmaKolonu } from '@/utils/yapistirma'
 
 const SAYFA_BOYUTU = 50
 

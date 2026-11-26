@@ -135,28 +135,56 @@ export interface Yukleme {
   zaman: string
 }
 
-function dosyaFormu(dosya: File): FormData {
+export type BelgeTuru = 'fatura' | 'makbuz'
+
+/**
+ * İçe aktarım girdisi: Excel dosyası ya da yapıştırma tablosunun metni
+ * (başlıksız, türün standart kolon sırasıyla). İki türlü kaynakta (e-Arşiv /
+ * e-SMM) yapıştırma türüyle gider.
+ */
+export type IceAktarimGirdisi = { dosya: File } | { metin: string; belge_turu: BelgeTuru | null }
+
+/** Yapıştırma tablosunun kolonları, belge türüne göre (ilk başlık Excel'deki standart ad) */
+export interface IceAktarimKolonlari {
+  belge_turu: BelgeTuru | null
+  kolonlar: { alan: string; basliklar: string[] }[]
+}
+
+function girdiFormu(girdi: IceAktarimGirdisi): FormData {
   const form = new FormData()
-  form.append('dosya', dosya)
+  if ('dosya' in girdi) {
+    form.append('dosya', girdi.dosya)
+  } else {
+    form.append('metin', girdi.metin)
+    if (girdi.belge_turu !== null) {
+      form.append('belge_turu', girdi.belge_turu)
+    }
+  }
 
   return form
 }
 
+export async function iceAktarimKolonlari(onEk: StatikKaynak): Promise<IceAktarimKolonlari[]> {
+  const yanit = await api.get<{ data: IceAktarimKolonlari[] }>(`/api/v1/${onEk}/ice-aktar/kolonlar`)
+
+  return yanit.data.data
+}
+
 export async function iceAktarimKontrol(
   onEk: StatikKaynak,
-  dosya: File,
+  girdi: IceAktarimGirdisi,
 ): Promise<IceAktarimOnizlemesi> {
   const yanit = await api.post<{ data: IceAktarimOnizlemesi }>(
     `/api/v1/${onEk}/ice-aktar/kontrol`,
-    dosyaFormu(dosya),
+    girdiFormu(girdi),
   )
 
   return yanit.data.data
 }
 
-/** Hatasız dosya tek parti olarak yazılır; hatalıysa sunucu 422 + önizleme döner. */
-export async function iceAktar(onEk: StatikKaynak, dosya: File): Promise<Yukleme> {
-  const yanit = await api.post<{ data: Yukleme }>(`/api/v1/${onEk}/ice-aktar`, dosyaFormu(dosya))
+/** Hatasız girdi tek parti olarak yazılır; hatalıysa sunucu 422 + önizleme döner. */
+export async function iceAktar(onEk: StatikKaynak, girdi: IceAktarimGirdisi): Promise<Yukleme> {
+  const yanit = await api.post<{ data: Yukleme }>(`/api/v1/${onEk}/ice-aktar`, girdiFormu(girdi))
 
   return yanit.data.data
 }

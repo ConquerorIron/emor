@@ -604,3 +604,25 @@ olarak numaralanır.
   bulunması) yerelde canlı ERP tanımı olmadığı için yapılamadı; canlıda liste
   yüklenince eMOR kolonu sonucu gösterir. Mailin gerçek SMTP ile gönderimi denenmedi
   (testlerde içerik doğrulandı).
+- 2026-11-26 — **Canlıya yükleme ve kullanıcı geri bildirimleri (Opus).**
+  - Gerçek listeler canlıya yüklendi (kullanıcı onayı): partiler 1–3 — Logo 581,
+    e-Arşiv 245, e-SMM 21. EK-08 keşfi doğrulandı: no + VKN eşleşmesi çalışıyor
+    (e-Arşiv 115, e-SMM 5 belge eMOR'da). Logo'da 284 belge "İşlenecek" görünüyor;
+    muhtemelen Logo döneminde Logo'da işlenmiş — muhasebe teyidi bekleniyor.
+  - RED izni olmayan kullanıcı RED düğmesini kapalı görür, nedenini üstüne gelince
+    okur (İşlendi anahtarıyla aynı).
+  - **Karar değişikliği (EK-04):** RED'e çekme yalnız Protel faturasında. Tüm
+    Faturalar'da İzibiz / Logo / e-Arşiv satırının düğmesi kapalı ve nedenini söyler;
+    sunucu 409 `RED_YALNIZ_PROTEL` verir. İzibiz, Logo ve e-Arşiv ekranlarından RED
+    düğmesi, ucu ve izni (`efatura.red`, `logo_faturalari.red`,
+    `earsiv_faturalari.red`) kaldırıldı. Kuraldan önce çekilmiş RED geri alınabilir
+    (canlıda hiç yoktu).
+  - **Karar değişikliği (EK-07, EK-08):** Logo ve e-Arşiv ekranlarında PDF yok
+    (belgenin aslı ne entegratörde ne ERP arşivinde; Logo ETTN'lerinin hiçbiri
+    havuzda değil). İzinler (`logo_faturalari.pdf`, `earsiv_faturalari.pdf`) ve uçlar
+    kaldırıldı; Tüm Faturalar'da bu satırlarda PDF düğmesi yok, uç ERP'ye sormadan
+    `FATURA_BELGESI_YOK` döner. Kaldırılan izinlerin rol kayıtları migration ile silindi.
+  - **EK-06 eki:** içe aktarımda Excel'den kopyala-yapıştır (Kesinti'deki gibi).
+    Yapıştırma tablosu `components/YapistirmaTablosu`'na taşındı (ortak); kolonlar
+    `GET /{logo|earsiv}/ice-aktar/kolonlar`'dan gelir, e-Arşiv'de liste türü (fatura /
+    makbuz) seçilir. Başlıkla yapıştırılan metin adlardan eşlenir.

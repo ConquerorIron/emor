@@ -16,6 +16,7 @@ const api = vi.hoisted(() => ({
   aktar: vi.fn(),
   yuklemeler: vi.fn(),
   geriAl: vi.fn(),
+  kolonlar: vi.fn(),
 }))
 
 const toastlar = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
@@ -25,6 +26,7 @@ vi.mock('@/features/efatura/kaynakApi', () => ({
   kaynakFaturalariGetir: api.faturalar,
   kaynakPdfGetir: vi.fn(),
   kaynakExcelIndir: vi.fn(),
+  iceAktarimKolonlari: api.kolonlar,
   iceAktarimKontrol: api.kontrol,
   iceAktar: api.aktar,
   yuklemeleriGetir: api.yuklemeler,
@@ -141,7 +143,7 @@ describe('LogoFaturalariPage', () => {
     fireEvent.click(kaydet)
     fireEvent.click(kaydet)
     await waitFor(() => expect(api.aktar).toHaveBeenCalledTimes(1))
-    expect(api.aktar).toHaveBeenCalledWith('logo', dosya)
+    expect(api.aktar).toHaveBeenCalledWith('logo', { dosya })
     await waitFor(() =>
       expect(toastlar.success).toHaveBeenCalledWith(
         'Liste kaydedildi: 581 yeni, 0 güncellenen, 0 değişmeyen.',
@@ -149,6 +151,70 @@ describe('LogoFaturalariPage', () => {
     )
     // Yeni faturalar listede görünsün
     await waitFor(() => expect(api.faturalar).toHaveBeenCalledTimes(2))
+  })
+
+  it("Excel'den kopyala-yapıştır: başlıkla yapıştırılan kolonlar adlarından eşlenir, standart sırayla kontrol edilir; hatalı satır işaretlenir, Kaydet aynı metni gönderir", async () => {
+    api.kolonlar.mockResolvedValue([
+      {
+        belge_turu: null,
+        kolonlar: [
+          { alan: 'ettn', basliklar: ['ETTN'] },
+          { alan: 'belge_no', basliklar: ['Fatura No'] },
+          { alan: 'tutar', basliklar: ['Toplam Tutar'] },
+        ],
+      },
+    ])
+    api.kontrol
+      .mockResolvedValueOnce({
+        ...HATASIZ,
+        hatalar: [{ alan: 'tutar', deger: 'abc', kod: 'tutar_gecersiz', adet: 1, satirlar: [2] }],
+      })
+      .mockResolvedValueOnce({ ...HATASIZ, ozet: { ...HATASIZ.ozet, okunan: 2, yeni: 2 } })
+    api.aktar.mockResolvedValue({
+      id: 8,
+      belge_turu: null,
+      dosya_adi: 'Kopyala-yapıştır',
+      kullanici_adi: 'Ayşe',
+      yeni: 2,
+      guncellenen: 0,
+      degismeyen: 0,
+      zaman: '2026-11-26T06:00:00+00:00',
+    })
+    ciz(['logo_faturalari.goruntule', 'logo_faturalari.ice_aktar'])
+
+    fireEvent.click(await screen.findByRole('button', { name: "Excel'den İçe Aktar" }))
+    const pencere = await screen.findByRole('dialog')
+    fireEvent.click(within(pencere).getByRole('tab', { name: 'Kopyala-yapıştır' }))
+    const tablo = await within(pencere).findByRole('grid', { name: 'Yapıştırma tablosu' })
+    expect(
+      within(tablo)
+        .getAllByRole('columnheader')
+        .map((th) => th.textContent),
+    ).toEqual(['#', 'ETTN', 'Fatura No', 'Toplam Tutar'])
+
+    // Excel'in başlık satırıyla, başka sırada ve fazla kolonla kopyalanmış iki satır
+    fireEvent.paste(tablo, {
+      clipboardData: {
+        getData: () =>
+          'Fatura No\tGönderici Adı\tETTN\tToplam Tutar\r\nAYD1\tAydoğan\tE-1\t1.500,25\r\nAYD2\tMetro\tE-2\tabc\r\n',
+      },
+    })
+    const metin = 'E-1\tAYD1\t1.500,25\nE-2\tAYD2\tabc'
+    fireEvent.click(within(pencere).getByRole('button', { name: 'Kontrol Et' }))
+    await waitFor(() =>
+      expect(api.kontrol).toHaveBeenCalledWith('logo', { metin, belge_turu: null }),
+    )
+    expect(await within(pencere).findByText(/Dosyada hatalı satırlar var/)).toBeInTheDocument()
+    expect(within(tablo).getByRole('rowheader', { name: '2' })).toHaveAttribute(
+      'title',
+      expect.stringMatching(/abc/),
+    )
+    expect(within(pencere).getByRole('button', { name: 'Kaydet' })).toBeDisabled()
+
+    fireEvent.click(within(pencere).getByRole('button', { name: 'Kontrol Et' }))
+    expect(await within(pencere).findByText('2 satır hatasız okundu.')).toBeInTheDocument()
+    fireEvent.click(within(pencere).getByRole('button', { name: 'Kaydet' }))
+    await waitFor(() => expect(api.aktar).toHaveBeenCalledWith('logo', { metin, belge_turu: null }))
   })
 
   it('yükleme onayla geri alınır; elle işlenmiş fatura varsa sunucunun hatası gösterilir', async () => {

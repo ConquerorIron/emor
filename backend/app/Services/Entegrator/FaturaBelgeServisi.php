@@ -46,15 +46,17 @@ final class FaturaBelgeServisi
             return ['icerik' => $this->protelPdf($tanim, $fatura), 'kaynak' => 'entegrator'];
         }
 
+        // Statik kaynak (Logo, e-Arşiv) Excel listesinden gelir: belgenin aslı
+        // ne entegratörde ne ERP arşivinde (Logo ETTN'lerinin 0'ı havuzda,
+        // 2026-11-26 ölçümü). Ekranlarda PDF düğmesi yok (kullanıcı kararı).
+        if ($tanim->statikMi()) {
+            throw EFaturaIslemHatasi::belgeYok();
+        }
+
         $erpdeki = $this->erpden($fatura, fn (string $ettn): ?string => $this->erp->pdf($ettn));
 
         if ($erpdeki !== null && str_starts_with($erpdeki, '%PDF-')) {
             return ['icerik' => $erpdeki, 'kaynak' => 'erp'];
-        }
-
-        // Statik kaynağın (Logo, e-Arşiv) entegratörü yok: PDF yalnız eMOR arşivinden (EK-05 §4.5)
-        if ($tanim->statikMi()) {
-            throw EFaturaIslemHatasi::belgeYok();
         }
 
         $kutu = FaturaYonu::from($fatura->yon)->izibizKutusu();

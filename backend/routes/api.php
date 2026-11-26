@@ -228,10 +228,6 @@ Route::prefix('v1')->group(function (): void {
                 ->whereNumber('fatura')
                 ->middleware('can:efatura.gizle')
                 ->name('efatura.faturalar.gizle');
-            Route::put('/efatura/faturalar/{fatura}/red', [EFaturaController::class, 'red'])
-                ->whereNumber('fatura')
-                ->middleware('can:efatura.red')
-                ->name('efatura.faturalar.red');
             Route::get('/efatura/faturalar/{fatura}/gecmis', [EFaturaController::class, 'gecmis'])
                 ->whereNumber('fatura')
                 ->name('efatura.faturalar.gecmis');
@@ -288,7 +284,9 @@ Route::prefix('v1')->group(function (): void {
 
         // Statik kaynaklar (EK-07, EK-08): Logo Gelen Faturalar ve e-Arşiv / e-SMM.
         // Aynı denetleyiciler, `saglayici` varsayılanıyla: kapsam statik tanım.
-        // Senkron ve XML yok; veri Excel içe aktarımıyla gelir (EK-06).
+        // Senkron, XML ve PDF yok (belgenin aslı elimizde değil); RED kaynağın
+        // listesinden gelir, elle çekilmez (kullanıcı kararı 2026-11-26).
+        // Veri Excel içe aktarımıyla ya da kopyala-yapıştırla gelir (EK-06).
         foreach (['logo' => 'logo_faturalari', 'earsiv' => 'earsiv_faturalari'] as $onEk => $izin) {
             Route::middleware("can:{$izin}.goruntule")->group(function () use ($onEk, $izin): void {
                 Route::get("/{$onEk}/{yon}/faturalar", [EFaturaController::class, 'index'])
@@ -300,26 +298,20 @@ Route::prefix('v1')->group(function (): void {
                     ->defaults('saglayici', $onEk)
                     ->middleware(["can:{$izin}.disari_aktar", 'throttle:efatura-excel'])
                     ->name("{$onEk}.faturalar.excel");
-                Route::get("/{$onEk}/faturalar/{fatura}/pdf", [EFaturaController::class, 'pdf'])
-                    ->whereNumber('fatura')
-                    ->defaults('saglayici', $onEk)
-                    ->middleware(["can:{$izin}.pdf", 'throttle:efatura-pdf'])
-                    ->name("{$onEk}.faturalar.pdf");
                 Route::put("/{$onEk}/faturalar/{fatura}/islendi", [EFaturaController::class, 'islendi'])
                     ->whereNumber('fatura')
                     ->defaults('saglayici', $onEk)
                     ->middleware("can:{$izin}.isle")
                     ->name("{$onEk}.faturalar.islendi");
-                Route::put("/{$onEk}/faturalar/{fatura}/red", [EFaturaController::class, 'red'])
-                    ->whereNumber('fatura')
-                    ->defaults('saglayici', $onEk)
-                    ->middleware("can:{$izin}.red")
-                    ->name("{$onEk}.faturalar.red");
                 Route::get("/{$onEk}/faturalar/{fatura}/gecmis", [EFaturaController::class, 'gecmis'])
                     ->whereNumber('fatura')
                     ->defaults('saglayici', $onEk)
                     ->name("{$onEk}.faturalar.gecmis");
                 // Excel içe aktarımı (EK-06): kontrol → kaydet; partiler ve geri alma
+                Route::get("/{$onEk}/ice-aktar/kolonlar", [EFaturaIceAktarimController::class, 'kolonlar'])
+                    ->defaults('saglayici', $onEk)
+                    ->middleware("can:{$izin}.ice_aktar")
+                    ->name("{$onEk}.ice-aktar.kolonlar");
                 Route::post("/{$onEk}/ice-aktar/kontrol", [EFaturaIceAktarimController::class, 'kontrol'])
                     ->defaults('saglayici', $onEk)
                     ->middleware("can:{$izin}.ice_aktar")

@@ -28,17 +28,23 @@ final class EFaturaIceAktarimController extends Controller
         private readonly EFaturaIceAktarimi $aktarim,
     ) {}
 
-    public function kontrol(EFaturaIceAktarRequest $request): JsonResponse
+    /** Yapıştırma tablosunun kolonları, belge türüne göre (Kesinti'deki kolon ucuyla aynı rol). */
+    public function kolonlar(Request $request): JsonResponse
     {
-        return response()->json(['data' => $this->aktarim->onizle($this->tanim($request), $request->yol())]);
+        return response()->json(['data' => $this->aktarim->kolonlar($this->tanim($request))]);
     }
 
-    /** Hatalı dosya hiçbir satır yazmaz: 422 + önizleme (hangi satır, hangi neden). */
+    public function kontrol(EFaturaIceAktarRequest $request): JsonResponse
+    {
+        return response()->json(['data' => $this->aktarim->onizle($this->tanim($request), $request->girdi())]);
+    }
+
+    /** Hatalı girdi hiçbir satır yazmaz: 422 + önizleme (hangi satır, hangi neden). */
     public function kaydet(EFaturaIceAktarRequest $request): JsonResponse
     {
         /** @var User $kullanici */
         $kullanici = $request->user();
-        $sonuc = $this->aktarim->kaydet($this->tanim($request), $request->yol(), $request->dosyaAdi(), $kullanici);
+        $sonuc = $this->aktarim->kaydet($this->tanim($request), $request->girdi(), $request->dosyaAdi(), $kullanici);
 
         if (is_array($sonuc)) {
             return response()->json(['kod' => 'ICE_AKTARIM_HATALI', 'mesaj' => __('hata.ice_aktarim_hatali'), 'data' => $sonuc], 422);

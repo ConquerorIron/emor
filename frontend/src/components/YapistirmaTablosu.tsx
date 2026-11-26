@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/Button'
 import { Pagination } from '@/components/Pagination'
 
-import { baslikEslesmesi, bosSatirlar, panoyuCoz, type YapistirmaKolonu } from './yapistirma'
+import { baslikEslesmesi, bosSatirlar, panoyuCoz, type YapistirmaKolonu } from '@/utils/yapistirma'
 
 /** Gösterilen satır sayısı (2.000+ satırlık yapıştırma tek seferde çizilmez) */
 const SAYFA_BOYUTU = 100
@@ -100,7 +100,7 @@ export function YapistirmaTablosu({
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          {t('kesinti.yapistirma.satirSayisi', { sayi: doluSatir })}
+          {t('ortak.yapistirma.satirSayisi', { sayi: doluSatir })}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {toplamSayfa > 1 ? (
@@ -120,14 +120,14 @@ export function YapistirmaTablosu({
               setSayfa(1)
             }}
           >
-            {t('kesinti.yapistirma.temizle')}
+            {t('ortak.yapistirma.temizle')}
           </Button>
         </div>
       </div>
       {/* Yapıştırma tablonun herhangi bir yerine tıklanıp Ctrl+V ile yapılır */}
       <div
         role="grid"
-        aria-label={t('kesinti.yapistirma.etiket')}
+        aria-label={t('ortak.yapistirma.etiket')}
         tabIndex={0}
         onPaste={yapistir}
         className="max-h-[45vh] overflow-auto rounded-xl border border-slate-200 focus:outline-2 focus:outline-violet-500 dark:border-slate-700"
@@ -198,7 +198,7 @@ export function YapistirmaTablosu({
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-slate-500 dark:text-slate-400">{t('kesinti.yapistirma.ipucu')}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">{t('ortak.yapistirma.ipucu')}</p>
     </div>
   )
 }

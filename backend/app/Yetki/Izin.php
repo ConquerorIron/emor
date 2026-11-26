@@ -43,7 +43,6 @@ enum Izin: string
     case EfaturaDisariAktar = 'efatura.disari_aktar';
     case EfaturaSenkron = 'efatura.senkron';
     case EfaturaGizle = 'efatura.gizle';
-    case EfaturaRed = 'efatura.red';
 
     /**
      * Protel Gelen Faturalar — otelin posta kutusu (PRT-10). e-Fatura'dan ayrı
@@ -63,17 +62,13 @@ enum Izin: string
      */
     case LogoFaturalariGoruntule = 'logo_faturalari.goruntule';
     case LogoFaturalariIceAktar = 'logo_faturalari.ice_aktar';
-    case LogoFaturalariPdf = 'logo_faturalari.pdf';
     case LogoFaturalariDisariAktar = 'logo_faturalari.disari_aktar';
     case LogoFaturalariIsle = 'logo_faturalari.isle';
-    case LogoFaturalariRed = 'logo_faturalari.red';
 
     case EarsivFaturalariGoruntule = 'earsiv_faturalari.goruntule';
     case EarsivFaturalariIceAktar = 'earsiv_faturalari.ice_aktar';
-    case EarsivFaturalariPdf = 'earsiv_faturalari.pdf';
     case EarsivFaturalariDisariAktar = 'earsiv_faturalari.disari_aktar';
     case EarsivFaturalariIsle = 'earsiv_faturalari.isle';
-    case EarsivFaturalariRed = 'earsiv_faturalari.red';
 
     case KesintiTurleriGoruntule = 'kesinti_turleri.goruntule';
     case KesintiTurleriGuncelle = 'kesinti_turleri.guncelle';
@@ -204,10 +199,10 @@ enum Izin: string
             $ekran('efatura_panosu', self::EfaturaPanosuGoruntule, null),
             $ekran('tum_faturalar', self::TumFaturalarGoruntule, null, self::TumFaturalarPdf, self::TumFaturalarDisariAktar, self::TumFaturalarRed),
             $ekran('efatura_islem_gecmisi', self::EfaturaIslemGecmisiGoruntule, null),
-            $ekran('efatura', self::EfaturaGoruntule, self::EfaturaSenkron, self::EfaturaPdf, self::EfaturaDisariAktar, self::EfaturaGizle, self::EfaturaRed),
+            $ekran('efatura', self::EfaturaGoruntule, self::EfaturaSenkron, self::EfaturaPdf, self::EfaturaDisariAktar, self::EfaturaGizle),
             $ekran('protel_faturalari', self::ProtelFaturalariGoruntule, self::ProtelFaturalariSenkron, self::ProtelFaturalariPdf, self::ProtelFaturalariDisariAktar, self::ProtelFaturalariIsle, self::ProtelFaturalariRed),
-            $ekran('logo_faturalari', self::LogoFaturalariGoruntule, self::LogoFaturalariIceAktar, self::LogoFaturalariPdf, self::LogoFaturalariDisariAktar, self::LogoFaturalariIsle, self::LogoFaturalariRed),
-            $ekran('earsiv_faturalari', self::EarsivFaturalariGoruntule, self::EarsivFaturalariIceAktar, self::EarsivFaturalariPdf, self::EarsivFaturalariDisariAktar, self::EarsivFaturalariIsle, self::EarsivFaturalariRed),
+            $ekran('logo_faturalari', self::LogoFaturalariGoruntule, self::LogoFaturalariIceAktar, self::LogoFaturalariDisariAktar, self::LogoFaturalariIsle),
+            $ekran('earsiv_faturalari', self::EarsivFaturalariGoruntule, self::EarsivFaturalariIceAktar, self::EarsivFaturalariDisariAktar, self::EarsivFaturalariIsle),
             // Kesinti Yönetimi grubu: menüdeki gibi önce raporlar
             $ekran('kesinti_ozeti', self::KesintiOzetiGoruntule, null),
             $ekran('pivot', self::PivotGoruntule, null),

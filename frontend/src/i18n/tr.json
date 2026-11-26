@@ -31,7 +31,13 @@
     "kolonlar": "Kolonlar ({{gorunen}}/{{toplam}})",
     "kolonSecimi": "Gösterilecek kolonlar",
     "tumKolonlariGoster": "Tümünü göster",
-    "saltOkunur": "Bu ekranı yalnız görüntüleme yetkiniz var."
+    "saltOkunur": "Bu ekranı yalnız görüntüleme yetkiniz var.",
+    "yapistirma": {
+      "etiket": "Yapıştırma tablosu",
+      "satirSayisi": "{{sayi}} dolu satır",
+      "temizle": "Temizle",
+      "ipucu": "Excel'de satırları seçip kopyalayın, tabloya tıklayıp Ctrl+V ile yapıştırın. Başlık satırıyla kopyalarsanız kolonlar adlarından eşlenir (Excel'deki sıra önemsiz); başlıksız kopyalarsanız seçili hücreden başlayarak yerleşir. Hücreye tıklayıp düzeltebilirsiniz: Enter alt hücreye, Tab sağ hücreye geçer."
+    }
   },
   "nav": {
     "anasayfa": "Ana Sayfa",
@@ -996,7 +1002,8 @@
       "izinYok": "RED'e çekme izniniz yok.",
       "geriAlSorusu": "{{eden}}, {{zaman}} tarihinde RED'e çekmiş (neden: {{neden}}). RED geri alınsın mı?",
       "cekildi": "{{no}} nolu fatura RED'e çekildi.",
-      "geriAlindi": "{{no}} nolu faturanın RED'i geri alındı."
+      "geriAlindi": "{{no}} nolu faturanın RED'i geri alındı.",
+      "yalnizProtel": "Yalnız Protel faturaları RED'e çekilebilir; diğer kaynakların RED bilgisi kendi listesinden gelir."
     },
     "islem": {
       "gecmis": "İşlem geçmişi",
@@ -1082,7 +1089,13 @@
         "gib_durum_aciklamasi": "Zarf Yanıt Açıklaması",
         "iptal": "İptal / İtiraz Durumu",
         "iptal_tarihi": "İptal / İtiraz Tarihi"
-      }
+      },
+      "kaynak": {
+        "dosya": "Excel dosyası",
+        "metin": "Kopyala-yapıştır"
+      },
+      "belgeTuruSec": "Yapıştırılan liste",
+      "satirHatasi": "{{alan}}: {{neden}}"
     },
     "yuklemeler": {
       "dugme": "Yüklemeler",
@@ -1570,12 +1583,6 @@
         "kod_tekrar": "ERP'de aynı kod birden fazla kayıtta.",
         "kod_baska_kayitta": "Bu kod uygulamada başka bir kayıtta kullanılıyor."
       }
-    },
-    "yapistirma": {
-      "etiket": "Yapıştırma tablosu",
-      "satirSayisi": "{{sayi}} dolu satır",
-      "temizle": "Temizle",
-      "ipucu": "Excel'de satırları seçip kopyalayın, tabloya tıklayıp Ctrl+V ile yapıştırın. Başlık satırıyla kopyalarsanız kolonlar adlarından eşlenir (Excel'deki sıra önemsiz); başlıksız kopyalarsanız seçili hücreden başlayarak yerleşir. Hücreye tıklayıp düzeltebilirsiniz: Enter alt hücreye, Tab sağ hücreye geçer."
     },
     "icmaller": {
       "isgucu": "İşgücü Kesintileri",

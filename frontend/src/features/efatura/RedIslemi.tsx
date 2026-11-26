@@ -139,9 +139,11 @@ function RedFormu({
 /**
  * Satırdaki RED düğmesi (EK-04): RED değilse "RED'e Çek", yetkili
  * kullanıcının çektiği RED'de "RED'i Geri Al". Kaynakta RED olmuş faturada
- * düğme yoktur (kaynağın kararı değiştirilmez). İzni olmayan kullanıcı
- * düğmeyi kapalı görür, üstüne gelince "izniniz yok" yazar (İşlendi
- * anahtarıyla aynı davranış — kullanıcı isteği 2026-11-26).
+ * düğme yoktur (kaynağın kararı değiştirilmez). Kapalı düğme nedenini
+ * üstüne gelince söyler (İşlendi anahtarıyla aynı davranış — kullanıcı
+ * isteği 2026-11-26): RED'e çekme yalnız Protel faturasında (Tüm
+ * Faturalar'daki İzibiz / Logo / e-Arşiv satırı); izni olmayan kullanıcı.
+ * Kuraldan önce çekilmiş bir RED her kaynakta geri alınabilir (sunucu da öyle).
  */
 export function RedDugmesi({
   fatura,
@@ -161,11 +163,19 @@ export function RedDugmesi({
 
   const geriAl = fatura.red.var
   const etiket = t(geriAl ? 'efatura.red.geriAl' : 'efatura.red.cek')
+  // Satırın sağlayıcısı yalnız birleşik listede gelir; tek kaynaklı ekran Protel'dir
+  const kapaliNedeni =
+    !geriAl && fatura.saglayici !== undefined && fatura.saglayici !== 'protel'
+      ? t('efatura.red.yalnizProtel')
+      : izinli
+        ? null
+        : t('efatura.red.izinYok')
+  const acilabilir = kapaliNedeni === null
 
   return (
     <>
-      <span className="inline-flex" title={izinli ? undefined : t('efatura.red.izinYok')}>
-        <IkonDugmesi etiket={etiket} onClick={() => setAcik(true)} disabled={!izinli}>
+      <span className="inline-flex" title={kapaliNedeni ?? undefined}>
+        <IkonDugmesi etiket={etiket} onClick={() => setAcik(true)} disabled={!acilabilir}>
           <svg
             aria-hidden="true"
             viewBox="0 0 24 24"
@@ -191,7 +201,7 @@ export function RedDugmesi({
         </IkonDugmesi>
       </span>
       <Modal
-        acik={acik && izinli}
+        acik={acik && acilabilir}
         kapat={() => setAcik(false)}
         baslik={t(geriAl ? 'efatura.red.geriAlBaslik' : 'efatura.red.cekBaslik', {
           no: fatura.belge_no,

@@ -45,6 +45,7 @@ return [
     'yukleme_elle_islenmis' => 'Bu yüklemenin eklediği :adet faturada elle işlem (RED, İşlendi ya da gizleme) var; yükleme geri alınamaz.',
     'ice_aktarim_hatali' => 'Dosyada hatalı satırlar var; hiçbir satır kaydedilmedi.',
     'ice_aktarim_suruyor' => 'Bu kaynak için başka bir içe aktarım ya da geri alma sürüyor. Biraz sonra tekrar deneyin.',
+    'red_yalniz_protel' => 'Yalnız Protel faturaları RED\'e çekilebilir; İzibiz, Logo ve e-Arşiv faturalarının RED bilgisi kaynağından gelir.',
     'entegrator_erisilemedi' => 'Entegratöre ulaşılamadı. Ağ bağlantısını kontrol edip tekrar deneyin.',
     'entegrator_kimlik_hatali' => 'Entegratör kullanıcı adı veya şifresi hatalı.',
     'entegrator_giris_bekletiliyor' => 'Entegratör girişi reddedildiği için otomatik giriş :saat saat bekletiliyor (hesap kilitlenmesin diye). Şifreyi Ayarlar → Entegratör Bağlantıları\'nda güncelleyin ya da "Bağlantıyı Sına" ile yeniden deneyin.',

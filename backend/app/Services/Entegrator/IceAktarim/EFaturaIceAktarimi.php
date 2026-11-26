@@ -45,9 +45,9 @@ final class EFaturaIceAktarimi
      *
      * @return array{hata: string|null, eksik_kolonlar: list<string>, belge_turu: string|null, hatalar: list<array{alan: string, deger: string, kod: string, adet: int, satirlar: list<int>}>, ozet: array{okunan: int, yeni: int, guncellenecek: int, degismeyen: int, red: int}}
      */
-    public function onizle(EntegratorBaglanti $tanim, string $yol): array
+    public function onizle(EntegratorBaglanti $tanim, StatikListeGirdisi $girdi): array
     {
-        $sonuc = $this->incele($tanim, $yol);
+        $sonuc = $this->incele($tanim, $girdi);
         unset($sonuc['kayitlar'], $sonuc['tur']);
 
         return $sonuc;
@@ -59,10 +59,10 @@ final class EFaturaIceAktarimi
      *
      * @return EFaturaYuklemesi|array{hata: string|null, eksik_kolonlar: list<string>, belge_turu: string|null, hatalar: list<array{alan: string, deger: string, kod: string, adet: int, satirlar: list<int>}>, ozet: array{okunan: int, yeni: int, guncellenecek: int, degismeyen: int, red: int}}
      */
-    public function kaydet(EntegratorBaglanti $tanim, string $yol, string $dosyaAdi, User $kullanici): EFaturaYuklemesi|array
+    public function kaydet(EntegratorBaglanti $tanim, StatikListeGirdisi $girdi, string $dosyaAdi, User $kullanici): EFaturaYuklemesi|array
     {
-        return $this->kilitli($tanim, function () use ($tanim, $yol, $dosyaAdi, $kullanici): EFaturaYuklemesi|array {
-            $sonuc = $this->incele($tanim, $yol);
+        return $this->kilitli($tanim, function () use ($tanim, $girdi, $dosyaAdi, $kullanici): EFaturaYuklemesi|array {
+            $sonuc = $this->incele($tanim, $girdi);
 
             if ($sonuc['hata'] !== null || $sonuc['eksik_kolonlar'] !== [] || $sonuc['hatalar'] !== []) {
                 unset($sonuc['kayitlar'], $sonuc['tur']);
@@ -124,6 +124,25 @@ final class EFaturaIceAktarimi
     }
 
     /**
+     * Yapıştırma tablosunun kolonları, türe göre: tablo başlıkları ve başlıkla
+     * kopyalanınca kolonun tanındığı adlar (ilki Excel'deki standart ad).
+     * Sıra, başlıksız gönderilen metnin standart sırasıdır.
+     *
+     * @return list<array{belge_turu: string|null, kolonlar: list<array{alan: string, basliklar: list<string>}>}>
+     */
+    public function kolonlar(EntegratorBaglanti $tanim): array
+    {
+        return array_map(fn (StatikBelgeTuru $tur): array => [
+            'belge_turu' => $tur->belgeTuru(),
+            'kolonlar' => array_map(
+                fn (string $alan, array $basliklar): array => ['alan' => $alan, 'basliklar' => $basliklar],
+                array_keys($tur->kolonlar()),
+                array_values($tur->kolonlar()),
+            ),
+        ], $this->turler($tanim));
+    }
+
+    /**
      * @template T
      *
      * @param  callable(): T  $is
@@ -147,7 +166,7 @@ final class EFaturaIceAktarimi
     /**
      * @return array{hata: string|null, eksik_kolonlar: list<string>, belge_turu: string|null, hatalar: list<array{alan: string, deger: string, kod: string, adet: int, satirlar: list<int>}>, ozet: array{okunan: int, yeni: int, guncellenecek: int, degismeyen: int, red: int}, kayitlar: list<array<string, mixed>>, tur: StatikBelgeTuru|null}
      */
-    private function incele(EntegratorBaglanti $tanim, string $yol): array
+    private function incele(EntegratorBaglanti $tanim, StatikListeGirdisi $girdi): array
     {
         $bos = [
             'hata' => null, 'eksik_kolonlar' => [], 'belge_turu' => null, 'hatalar' => [],
@@ -155,7 +174,9 @@ final class EFaturaIceAktarimi
             'kayitlar' => [], 'tur' => null,
         ];
 
-        [$tur, $tablo, $eksik] = $this->oku($tanim, $yol);
+        [$tur, $tablo, $eksik] = $girdi->metin !== null
+            ? $this->metniOku($tanim, $girdi->metin, $girdi->belgeTuru)
+            : $this->oku($tanim, (string) $girdi->yol);
 
         if ($tablo['hata'] !== null) {
             return [...$bos, 'hata' => $tablo['hata']];
@@ -252,6 +273,30 @@ final class EFaturaIceAktarimi
         return $enYakin === null
             ? [null, ['satirlar' => [], 'kolonlar' => [], 'hata' => 'baslik_bulunamadi'], []]
             : [null, ['satirlar' => [], 'kolonlar' => [], 'hata' => null], $enYakin[1]];
+    }
+
+    /**
+     * Yapıştırılan metin seçilen türün kolonlarıyla okunur (tek türlü tanımda
+     * o tür). Başlık satırı da yapıştırıldıysa kolonlar adlarından tanınır;
+     * yoksa standart sıra esas alınır. Satır numaraları ekran tablosununkilerle
+     * aynıdır.
+     *
+     * @return array{0: StatikBelgeTuru|null, 1: array{satirlar: list<array{satir: int, sayfa: string|null, degerler: array<string, mixed>}>, kolonlar: list<string>, hata: string|null}, 2: list<string>}
+     */
+    private function metniOku(EntegratorBaglanti $tanim, string $metin, ?string $belgeTuru): array
+    {
+        $turler = $this->turler($tanim);
+        $tur = $turler[0];
+        foreach ($turler as $aday) {
+            if ($aday->belgeTuru() === $belgeTuru) {
+                $tur = $aday;
+            }
+        }
+
+        $tablo = IceAktarimTablosu::metin($metin, $tur->kolonlar());
+        $eksik = array_values(array_diff($tur->zorunlular(), $tablo['kolonlar']));
+
+        return $eksik === [] ? [$tur, $tablo, []] : [null, $tablo, $eksik];
     }
 
     /**

@@ -1099,6 +1099,47 @@ describe('EFaturalarPage', () => {
       expect(screen.queryByRole('button', { name: 'Entegratör Senkronla' })).not.toBeInTheDocument()
     })
 
+    it('RED yalnız Protel satırında açık; İzibiz ve Logo satırında kapalı ve nedenini söyler; Logo satırında PDF yok', async () => {
+      const LOGO_FATURASI: EFatura = {
+        ...FATURA,
+        id: 13,
+        belge_no: 'LGO2026000000003',
+        gonderici_unvan: 'Logo Tedarik A.Ş.',
+        saglayici: 'logo',
+      }
+      api.faturalar.mockResolvedValue({
+        ...BIRLESIK,
+        data: [...BIRLESIK.data, LOGO_FATURASI],
+        meta: { current_page: 1, last_page: 1, total: 3, from: 1 },
+      })
+      ciz([...IZINLER, 'tum_faturalar.red'], 'tum')
+      await screen.findByText('Otel Tedarik A.Ş.')
+      const satir = (belgeNo: string) => screen.getByText(belgeNo).closest('tr') as HTMLElement
+
+      expect(
+        within(satir('OTL2026000000002')).getByRole('button', { name: "RED'e Çek" }),
+      ).toBeEnabled()
+      for (const belgeNo of ['ABC2026000000001', 'LGO2026000000003']) {
+        const red = within(satir(belgeNo)).getByRole('button', { name: "RED'e Çek" })
+        expect(red).toBeDisabled()
+        expect(red.parentElement).toHaveAttribute(
+          'title',
+          expect.stringMatching(/^Yalnız Protel faturaları RED'e çekilebilir/),
+        )
+        fireEvent.click(red)
+      }
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(
+        within(satir('OTL2026000000002')).getByRole('button', { name: 'PDF' }),
+      ).toBeInTheDocument()
+      expect(
+        within(satir('ABC2026000000001')).getByRole('button', { name: 'PDF' }),
+      ).toBeInTheDocument()
+      expect(
+        within(satir('LGO2026000000003')).queryByRole('button', { name: 'PDF' }),
+      ).not.toBeInTheDocument()
+    })
+
     it('panodaki sayının bağlantısı listeyi aynı süzgeçle açar; uyarı süzgeci görünür ve kaldırılabilir', async () => {
       window.history.pushState(
         {},

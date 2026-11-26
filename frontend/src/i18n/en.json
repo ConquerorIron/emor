@@ -31,7 +31,13 @@
     "kolonlar": "Columns ({{gorunen}}/{{toplam}})",
     "kolonSecimi": "Visible columns",
     "tumKolonlariGoster": "Show all",
-    "saltOkunur": "You have view-only access to this screen."
+    "saltOkunur": "You have view-only access to this screen.",
+    "yapistirma": {
+      "etiket": "Paste table",
+      "satirSayisi": "{{sayi}} filled rows",
+      "temizle": "Clear",
+      "ipucu": "Select and copy rows in Excel, click the table and paste with Ctrl+V. If you copy the header row, columns are matched by name (Excel order does not matter); without it, rows are placed starting at the selected cell. Click a cell to correct it: Enter moves down, Tab moves right."
+    }
   },
   "nav": {
     "anasayfa": "Home",
@@ -996,7 +1002,8 @@
       "izinYok": "You are not allowed to mark invoices as rejected.",
       "geriAlSorusu": "{{eden}} marked it as rejected on {{zaman}} (reason: {{neden}}). Undo the rejection?",
       "cekildi": "Invoice {{no}} marked as rejected.",
-      "geriAlindi": "Rejection of invoice {{no}} undone."
+      "geriAlindi": "Rejection of invoice {{no}} undone.",
+      "yalnizProtel": "Only Protel invoices can be marked as rejected; other sources carry rejection in their own lists."
     },
     "islem": {
       "gecmis": "Action history",
@@ -1082,7 +1089,13 @@
         "gib_durum_aciklamasi": "Envelope Response Note",
         "iptal": "Cancellation / Objection",
         "iptal_tarihi": "Cancellation / Objection Date"
-      }
+      },
+      "kaynak": {
+        "dosya": "Excel file",
+        "metin": "Copy & paste"
+      },
+      "belgeTuruSec": "Pasted list",
+      "satirHatasi": "{{alan}}: {{neden}}"
     },
     "yuklemeler": {
       "dugme": "Imports",
@@ -1570,12 +1583,6 @@
         "kod_tekrar": "The same code is used by more than one ERP record.",
         "kod_baska_kayitta": "This code is used by another record in the application."
       }
-    },
-    "yapistirma": {
-      "etiket": "Paste table",
-      "satirSayisi": "{{sayi}} filled rows",
-      "temizle": "Clear",
-      "ipucu": "Select and copy rows in Excel, click the table and paste with Ctrl+V. If you copy the header row, columns are matched by name (Excel order does not matter); without it, rows are placed starting at the selected cell. Click a cell to correct it: Enter moves down, Tab moves right."
     },
     "icmaller": {
       "isgucu": "Labour Deductions",

@@ -25,12 +25,20 @@ use Illuminate\Support\Facades\Log;
  */
 final class EFaturaElleIslemleri
 {
+    /**
+     * Yalnız Protel faturası RED'e çekilir (kullanıcı kararı 2026-11-26: İzibiz,
+     * Logo ve e-Arşiv'de RED kaynağın kendi kararıdır). Geri alma her kaynakta
+     * açıktır: kuraldan önce çekilmiş bir RED kalıcı olmasın.
+     */
     public function redDegistir(EFatura $fatura, bool $red, ?string $neden, User $kullanici): EFatura
     {
         $sonuc = DB::transaction(function () use ($fatura, $red, $neden, $kullanici): EFatura {
             $kayit = $this->kilitle($fatura);
 
             if ($red) {
+                if ($kayit->entegratorBaglanti()->value('saglayici') !== EntegratorBaglanti::SAGLAYICI_PROTEL) {
+                    throw EFaturaIslemHatasi::redYalnizProtel();
+                }
                 if ($kayit->kaynaktaReddedildi()) {
                     throw EFaturaIslemHatasi::kaynaktaReddedilmis();
                 }

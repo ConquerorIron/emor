@@ -28,6 +28,14 @@ final class EFaturaIslemHatasi extends RuntimeException
     /** Aynı kaynağa başka bir içe aktarım ya da geri alma sürüyor */
     public const ICE_AKTARIM_SURUYOR = 'ICE_AKTARIM_SURUYOR';
 
+    /** RED'e çekme yalnız Protel faturasında (kullanıcı kararı 2026-11-26) */
+    public const RED_YALNIZ_PROTEL = 'RED_YALNIZ_PROTEL';
+
+    public static function redYalnizProtel(): self
+    {
+        return new self(self::RED_YALNIZ_PROTEL, __('hata.red_yalniz_protel'));
+    }
+
     private function __construct(
         public readonly string $kod,
         string $mesaj,

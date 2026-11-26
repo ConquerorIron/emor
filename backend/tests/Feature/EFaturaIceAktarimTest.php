@@ -337,17 +337,110 @@ final class EFaturaIceAktarimTest extends TestCase
         $this->assertSame(0, EFaturaYuklemesi::query()->count());
     }
 
-    /** Statik kaynağın entegratörü yok: PDF yalnız eMOR arşivinden; yoksa açık hata, dış istek yok. */
-    public function test_statik_faturanin_pdfi_yalniz_erp_arsivinden_yoksa_404(): void
+    /**
+     * Excel'den kopyala-yapıştır (Kesinti'deki gibi): ekran tablosu başlıksız,
+     * kolon ucunun verdiği standart sırayla gönderir; Türkçe biçimli sayı ve
+     * tarih okunur, satır numarası tablonunkiyle aynıdır (aradaki boş satır
+     * sayılır). Başlıkla yapıştırılan metin (Excel'in bütün kolonları) adlardan
+     * tanınır. Kontrol ve kayıt dosyayla aynı kurallardan geçer.
+     */
+    public function test_logo_listesi_excelden_yapistirilinca_ayni_kontrol_ve_kayit_akisindan_gecer(): void
+    {
+        $this->sirketTanimi();
+        $kullanici = $this->logocu();
+
+        $kolonlar = $this->actingAs($kullanici)->getJson('/api/v1/logo/ice-aktar/kolonlar')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.belge_turu', null)
+            ->assertJsonPath('data.0.kolonlar.0', ['alan' => 'ettn', 'basliklar' => ['ETTN']])
+            ->json('data.0.kolonlar');
+        $siralama = array_column($kolonlar, 'alan');
+        $satir = fn (array $degerler): string => implode("\t", array_map(fn (string $alan): string => $degerler[$alan] ?? '', $siralama));
+        $gecerli = [
+            'ettn' => 'AAAAAAAA-1111-4111-8111-000000000001', 'belge_no' => 'AYD2026000000111', 'belge_tarihi' => '04.01.2026',
+            'olusturma_zamani' => '04.01.2026 18:49:46', 'gonderici_vkn' => '1160417867', 'gonderici_unvan' => 'Aydoğan Dış Ticaret AŞ',
+            'alici_vkn' => self::SIRKET_VKN, 'senaryo' => 'TEMELFATURA', 'fatura_tipi' => 'SATIS',
+            'tutar' => '214.740,55', 'vergi_tutari' => '35.790,09', 'para_birimi' => 'TRY', 'durum' => 'Alındı',
+        ];
+        $hatali = [...$gecerli, 'ettn' => 'AAAAAAAA-1111-4111-8111-000000000002', 'belge_no' => 'MST2026000000001', 'gonderici_vkn' => '12AB'];
+        $metin = $satir($gecerli)."\n\n".$satir($hatali);
+
+        $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar/kontrol', ['metin' => $metin])
+            ->assertOk()
+            ->assertJsonPath('data.hatalar', [['alan' => 'gonderici_vkn', 'deger' => '12AB', 'kod' => 'vkn_gecersiz', 'adet' => 1, 'satirlar' => [3]]]);
+
+        $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar', ['metin' => $satir($gecerli)])
+            ->assertCreated()
+            ->assertJsonPath('data.dosya_adi', 'Kopyala-yapıştır')
+            ->assertJsonPath('data.yeni', 1);
+        $kayit = EFatura::query()->where('belge_no', 'AYD2026000000111')->sole();
+        $this->assertSame(
+            ['aaaaaaaa-1111-4111-8111-000000000001', '214740.5500', '35790.0900', '2026-01-04', '2026-01-04 15:49:46'],
+            [$kayit->belge_anahtari, $kayit->tutar, $kayit->getAttribute('vergi_tutari'), $kayit->belge_tarihi->toDateString(), $kayit->olusturma_zamani?->utc()->toDateTimeString()],
+        );
+
+        // Excel'in başlık satırıyla (fazla kolonlar dahil, başka sırada) kopyalanan metin
+        $baslikli = implode("\t", self::LOGO_BASLIKLARI)."\n".implode("\t", [
+            '05.01.2026 09:00:00', 'ZEP2026000000005', '05.01.2026', '9971965580', 'Zeplin Tur. Ltd.', self::SIRKET_VKN, 'Haliç A.Ş.',
+            'TICARIFATURA', 'ISTISNA', '0', '980,40', 'EUR', 'Alındı', '1200', 'BAŞARI İLE İŞLENDİ', 'AAAAAAAA-1111-4111-8111-000000000003', '', '', '',
+        ]);
+        $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar/kontrol', ['metin' => $baslikli])
+            ->assertOk()
+            ->assertJsonPath('data.hatalar', [])
+            ->assertJsonPath('data.ozet.okunan', 1)
+            ->assertJsonPath('data.ozet.yeni', 1);
+    }
+
+    /**
+     * e-Arşiv tanımında iki tür var: yapıştırma tablonun türüyle gelir (e-SMM
+     * makbuz kolonları). Tür yoksa, dosyayla birlikte gelirse ya da Logo'ya
+     * verilirse 422; dosya ile metin birlikte gelemez.
+     */
+    public function test_earsiv_yapistirmasi_secilen_belge_turunun_kolonlariyla_okunur_girdi_dogrulanir(): void
+    {
+        $kullanici = $this->izinli('earsiv_faturalari.goruntule', 'earsiv_faturalari.ice_aktar');
+        $this->actingAs($kullanici)->getJson('/api/v1/earsiv/ice-aktar/kolonlar')
+            ->assertOk()
+            ->assertJsonPath('data.0.belge_turu', 'fatura')
+            ->assertJsonPath('data.1.belge_turu', 'makbuz')
+            ->assertJsonPath('data.1.kolonlar.2', ['alan' => 'belge_no', 'basliklar' => ['Makbuz No']]);
+        $makbuz = implode("\t", ['28948489664', 'Serbest Meslek Sahibi', 'MSK2026000000390', '20.10.2026', '45.000,50', '9.000,10', '9.000,10', '45.000,50', 'TRY']);
+
+        $this->actingAs($kullanici)->post('/api/v1/earsiv/ice-aktar/kontrol', ['metin' => $makbuz, 'belge_turu' => 'makbuz'])
+            ->assertOk()
+            ->assertJsonPath('data.belge_turu', 'makbuz')
+            ->assertJsonPath('data.hatalar', [])
+            ->assertJsonPath('data.ozet.okunan', 1);
+
+        $this->actingAs($kullanici)->postJson('/api/v1/earsiv/ice-aktar/kontrol', ['metin' => $makbuz])
+            ->assertUnprocessable()->assertJsonValidationErrors('belge_turu', 'hatalar');
+        $this->actingAs($kullanici)->postJson('/api/v1/earsiv/ice-aktar/kontrol', ['metin' => $makbuz, 'belge_turu' => 'irsaliye'])
+            ->assertUnprocessable()->assertJsonValidationErrors('belge_turu', 'hatalar');
+        $this->actingAs($kullanici)->post('/api/v1/earsiv/ice-aktar/kontrol', ['metin' => $makbuz, 'dosya' => $this->logoDosyasi()], ['Accept' => 'application/json'])
+            ->assertUnprocessable()->assertJsonValidationErrors('dosya', 'hatalar');
+        $this->actingAs($this->logocu())->postJson('/api/v1/logo/ice-aktar/kontrol', ['metin' => $makbuz, 'belge_turu' => 'makbuz'])
+            ->assertUnprocessable()->assertJsonValidationErrors('belge_turu', 'hatalar');
+        $this->assertSame(0, EFatura::query()->count());
+    }
+
+    /**
+     * Statik kaynağın belgesi elimizde yok (kullanıcı kararı 2026-11-26): Logo
+     * ekranında PDF ucu yok; Tüm Faturalar'ın PDF ucu açık hata verir, ERP
+     * arşivine ve dışarıya istek gitmez.
+     */
+    public function test_statik_faturanin_pdfi_yok_logo_ucu_404_tum_faturalar_acik_hata(): void
     {
         $this->sirketTanimi();
         $this->actingAs($this->logocu())->post('/api/v1/logo/ice-aktar', ['dosya' => $this->logoDosyasi()])->assertCreated();
         $fatura = EFatura::query()->where('belge_no', 'AYD2026000000111')->sole();
-        $this->mock(ErpBelgeArsivi::class)->shouldReceive('pdf')->once()->with('aaaaaaaa-1111-4111-8111-000000000001')->andReturn(null);
+        $this->mock(ErpBelgeArsivi::class)->shouldNotReceive('pdf');
         Http::preventStrayRequests();
+        $yonetici = User::factory()->create(['sistem_yoneticisi' => true]);
 
-        $this->actingAs($this->izinli('logo_faturalari.goruntule', 'logo_faturalari.pdf'))
-            ->get("/api/v1/logo/faturalar/{$fatura->id}/pdf")
+        $this->actingAs($yonetici)->get("/api/v1/logo/faturalar/{$fatura->id}/pdf")->assertNotFound();
+        $this->actingAs($yonetici)
+            ->get("/api/v1/tum-faturalar/faturalar/{$fatura->id}/pdf")
             ->assertNotFound()
             ->assertJsonPath('kod', 'FATURA_BELGESI_YOK');
     }

@@ -8,15 +8,18 @@ use App\Models\EFatura;
 use App\Models\EntegratorBaglanti;
 use App\Models\Rol;
 use App\Models\User;
+use App\Services\EntegratorBaglantiServisi;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
  * Yetkili kullanıcının gelen faturayı RED'e çekmesi / RED'i geri alması (EK-04):
- * neden zorunlu, kaynakta RED ya da "İşlendi" işaretli fatura çekilemez, her
- * değişiklik işlem geçmişine yazılır, dış sisteme istek gitmez.
+ * yalnız Protel faturasında (kullanıcı kararı 2026-11-26), neden zorunlu,
+ * kaynakta RED ya da "İşlendi" işaretli fatura çekilemez, her değişiklik
+ * işlem geçmişine yazılır, dış sisteme istek gitmez.
  */
 final class EFaturaRedTest extends TestCase
 {
@@ -39,17 +42,22 @@ final class EFaturaRedTest extends TestCase
     {
         $this->travelTo('2026-11-25 09:30:00');
         Http::preventStrayRequests();
-        $tanim = EntegratorBaglanti::factory()->aktif()->create();
-        $fatura = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'emor_durumu' => 'yok', 'belge_no' => 'ABC2026000000001']);
-        $kullanici = $this->izinli('efatura.goruntule', 'efatura.red');
+        $protel = EntegratorBaglanti::factory()->protel()->aktif()->create();
+        $fatura = EFatura::factory()->protel()->create([
+            'entegrator_baglanti_id' => $protel->id,
+            'belge_tarihi' => '2026-01-15',
+            'emor_durumu' => 'yok',
+            'belge_no' => 'ABC2026000000001',
+        ]);
+        $kullanici = $this->izinli('protel_faturalari.goruntule', 'protel_faturalari.red');
         $islenecekler = fn (): array => array_column(
-            $this->actingAs($kullanici)->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK.'&sinif=islenecek')->assertOk()->json('data'),
+            $this->actingAs($kullanici)->getJson('/api/v1/protel/gelen/faturalar?'.self::ARALIK.'&sinif=islenecek')->assertOk()->json('data'),
             'id',
         );
         $this->assertSame([$fatura->id], $islenecekler());
 
         $this->actingAs($kullanici)
-            ->putJson("/api/v1/efatura/faturalar/{$fatura->id}/red", ['red' => true, 'neden' => 'Noter kanalıyla iptal edildi'])
+            ->putJson("/api/v1/protel/faturalar/{$fatura->id}/red", ['red' => true, 'neden' => 'Noter kanalıyla iptal edildi'])
             ->assertOk()
             ->assertJsonPath('data.red', [
                 'var' => true,
@@ -62,7 +70,7 @@ final class EFaturaRedTest extends TestCase
         $this->assertSame([], $islenecekler());
         $this->assertDatabaseHas('efatura_islem_gecmisi', [
             'fatura_id' => $fatura->id,
-            'saglayici' => 'izibiz',
+            'saglayici' => 'protel',
             'belge_no' => 'ABC2026000000001',
             'belge_kimligi' => $fatura->ettn,
             'islem' => 'red_cekildi',
@@ -72,7 +80,7 @@ final class EFaturaRedTest extends TestCase
         ]);
 
         $this->actingAs($kullanici)
-            ->putJson("/api/v1/efatura/faturalar/{$fatura->id}/red", ['red' => false])
+            ->putJson("/api/v1/protel/faturalar/{$fatura->id}/red", ['red' => false])
             ->assertOk()
             ->assertJsonPath('data.red.var', false)
             ->assertJsonPath('data.red.kaynak', null);
@@ -89,11 +97,10 @@ final class EFaturaRedTest extends TestCase
 
     public function test_red_e_cekerken_neden_zorunludur_422(): void
     {
-        $tanim = EntegratorBaglanti::factory()->aktif()->create();
-        $fatura = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id]);
+        $fatura = EFatura::factory()->protel()->create();
 
-        $this->actingAs($this->izinli('efatura.goruntule', 'efatura.red'))
-            ->putJson("/api/v1/efatura/faturalar/{$fatura->id}/red", ['red' => true, 'neden' => '   '])
+        $this->actingAs($this->izinli('protel_faturalari.goruntule', 'protel_faturalari.red'))
+            ->putJson("/api/v1/protel/faturalar/{$fatura->id}/red", ['red' => true, 'neden' => '   '])
             ->assertUnprocessable()
             ->assertJsonPath('hatalar.neden.0', 'RED\'e çekme nedeni yazılmalı.');
 
@@ -143,37 +150,34 @@ final class EFaturaRedTest extends TestCase
     /** Zaten RED'e çekilmiş faturada ikinci istek ilk bilgiyi korur, geçmişe ikinci kayıt yazmaz. */
     public function test_zaten_red_olan_faturada_ilk_red_bilgisi_korunur(): void
     {
-        $tanim = EntegratorBaglanti::factory()->aktif()->create();
-        $fatura = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id]);
-        $kullanici = $this->izinli('efatura.goruntule', 'efatura.red');
+        $fatura = EFatura::factory()->protel()->create();
+        $kullanici = $this->izinli('protel_faturalari.goruntule', 'protel_faturalari.red');
 
-        $this->actingAs($kullanici)->putJson("/api/v1/efatura/faturalar/{$fatura->id}/red", ['red' => true, 'neden' => 'İlk neden'])->assertOk();
-        $this->actingAs($kullanici)->putJson("/api/v1/efatura/faturalar/{$fatura->id}/red", ['red' => true, 'neden' => 'İkinci neden'])
+        $this->actingAs($kullanici)->putJson("/api/v1/protel/faturalar/{$fatura->id}/red", ['red' => true, 'neden' => 'İlk neden'])->assertOk();
+        $this->actingAs($kullanici)->putJson("/api/v1/protel/faturalar/{$fatura->id}/red", ['red' => true, 'neden' => 'İkinci neden'])
             ->assertOk()
             ->assertJsonPath('data.red.neden', 'İlk neden');
 
         $this->assertDatabaseCount('efatura_islem_gecmisi', 1);
     }
 
-    public function test_red_izni_olmayan_403_giden_ve_baska_tanimin_faturasi_404(): void
+    public function test_red_izni_olmayan_403_baska_tanimin_faturasi_404(): void
     {
-        $tanim = EntegratorBaglanti::factory()->aktif()->create();
-        $giden = EFatura::factory()->giden()->create(['entegrator_baglanti_id' => $tanim->id]);
-        $protelFaturasi = EFatura::factory()->protel()->create();
-        $gelen = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id]);
-        $yetkili = $this->izinli('efatura.goruntule', 'efatura.red');
+        $gelen = EFatura::factory()->protel()->create();
+        $izibizFaturasi = EFatura::factory()->create();
         $govde = ['red' => true, 'neden' => 'Deneme'];
 
-        $this->actingAs($this->izinli('efatura.goruntule', 'efatura.gizle'))
-            ->putJson("/api/v1/efatura/faturalar/{$gelen->id}/red", $govde)
+        $this->actingAs($this->izinli('protel_faturalari.goruntule', 'protel_faturalari.isle'))
+            ->putJson("/api/v1/protel/faturalar/{$gelen->id}/red", $govde)
             ->assertForbidden();
-        $this->actingAs($yetkili)->putJson("/api/v1/efatura/faturalar/{$giden->id}/red", $govde)->assertNotFound();
-        $this->actingAs($yetkili)->putJson("/api/v1/efatura/faturalar/{$protelFaturasi->id}/red", $govde)->assertNotFound();
+        $this->actingAs($this->izinli('protel_faturalari.goruntule', 'protel_faturalari.red'))
+            ->putJson("/api/v1/protel/faturalar/{$izibizFaturasi->id}/red", $govde)
+            ->assertNotFound();
 
         $this->assertSame(0, EFatura::query()->whereNotNull('harici_red_zamani')->count());
     }
 
-    /** Tüm Faturalar'ın kendi RED izni ve ucu: satırın sağlayıcısından bağımsız aynı kural. */
+    /** Tüm Faturalar'ın kendi RED izni ve ucu. */
     public function test_tum_faturalar_red_ucu_kendi_izniyle_calisir(): void
     {
         $protel = EntegratorBaglanti::factory()->protel()->aktif()->create();
@@ -189,5 +193,43 @@ final class EFaturaRedTest extends TestCase
             ->assertJsonPath('data.saglayici', 'protel');
 
         $this->assertDatabaseHas('efatura_islem_gecmisi', ['fatura_id' => $fatura->id, 'saglayici' => 'protel', 'islem' => 'red_cekildi']);
+    }
+
+    /**
+     * RED'e çekme yalnız Protel faturasında (kullanıcı kararı 2026-11-26):
+     * Tüm Faturalar'da İzibiz ve Logo faturası 409 alır, hiçbir şey yazılmaz;
+     * İzibiz ve Logo ekranlarında RED ucu yoktur. Kuraldan önce çekilmiş bir
+     * RED ise geri alınabilir (kalıcı kalmasın).
+     */
+    public function test_red_yalniz_protel_faturasinda_diger_kaynaklarda_409_ve_ekran_ucu_yok(): void
+    {
+        $izibizTanimi = EntegratorBaglanti::factory()->aktif()->create();
+        $izibiz = EFatura::factory()->create(['entegrator_baglanti_id' => $izibizTanimi->id]);
+        $logoTanimi = app(EntegratorBaglantiServisi::class)->statikTanim(EntegratorBaglanti::SAGLAYICI_LOGO);
+        $logo = EFatura::factory()->create([
+            'entegrator_baglanti_id' => $logoTanimi->id,
+            'kaynak_id' => null,
+            'belge_anahtari' => (string) Str::uuid(),
+        ]);
+        $eskiRed = EFatura::factory()->create(['entegrator_baglanti_id' => $izibizTanimi->id, 'harici_red_zamani' => '2026-11-25 10:00:00', 'harici_red_nedeni' => 'Eski kural']);
+        $tum = $this->izinli('tum_faturalar.goruntule', 'tum_faturalar.red');
+
+        foreach ([$izibiz, $logo] as $fatura) {
+            $this->actingAs($tum)
+                ->putJson("/api/v1/tum-faturalar/faturalar/{$fatura->id}/red", ['red' => true, 'neden' => 'Deneme'])
+                ->assertConflict()
+                ->assertJsonPath('kod', 'RED_YALNIZ_PROTEL');
+        }
+        $this->actingAs($tum)
+            ->putJson("/api/v1/tum-faturalar/faturalar/{$eskiRed->id}/red", ['red' => false])
+            ->assertOk()
+            ->assertJsonPath('data.red.var', false);
+
+        $this->assertSame(0, EFatura::query()->whereNotNull('harici_red_zamani')->count());
+        $this->assertDatabaseCount('efatura_islem_gecmisi', 1);
+
+        $yonetici = User::factory()->create(['sistem_yoneticisi' => true]);
+        $this->actingAs($yonetici)->putJson("/api/v1/efatura/faturalar/{$izibiz->id}/red", ['red' => true, 'neden' => 'Deneme'])->assertNotFound();
+        $this->actingAs($yonetici)->putJson("/api/v1/logo/faturalar/{$logo->id}/red", ['red' => true, 'neden' => 'Deneme'])->assertNotFound();
     }
 }

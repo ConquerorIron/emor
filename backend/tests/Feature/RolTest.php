@@ -82,7 +82,7 @@ final class RolTest extends TestCase
                 'ekran' => 'efatura',
                 'goruntule' => 'efatura.goruntule',
                 'guncelle' => 'efatura.senkron',
-                'ekler' => ['efatura.pdf', 'efatura.disari_aktar', 'efatura.gizle', 'efatura.red'],
+                'ekler' => ['efatura.pdf', 'efatura.disari_aktar', 'efatura.gizle'],
             ])
             // Protel Gelen Faturalar menüde e-Fatura'nın hemen altında (PRT-10)
             ->assertJsonPath('data.5', [
@@ -91,12 +91,12 @@ final class RolTest extends TestCase
                 'guncelle' => 'protel_faturalari.senkron',
                 'ekler' => ['protel_faturalari.pdf', 'protel_faturalari.disari_aktar', 'protel_faturalari.isle', 'protel_faturalari.red'],
             ])
-            // Statik kaynaklar (EK-07, EK-08): "güncelle"si içe aktarım
+            // Statik kaynaklar (EK-07, EK-08): "güncelle"si içe aktarım; PDF ve RED yok (2026-11-26)
             ->assertJsonPath('data.6', [
                 'ekran' => 'logo_faturalari',
                 'goruntule' => 'logo_faturalari.goruntule',
                 'guncelle' => 'logo_faturalari.ice_aktar',
-                'ekler' => ['logo_faturalari.pdf', 'logo_faturalari.disari_aktar', 'logo_faturalari.isle', 'logo_faturalari.red'],
+                'ekler' => ['logo_faturalari.disari_aktar', 'logo_faturalari.isle'],
             ])
             ->assertJsonPath('data.7.ekran', 'earsiv_faturalari')
             ->assertJsonPath('data.36', [

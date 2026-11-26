@@ -46,8 +46,9 @@ export type FiltreDegistir = <K extends keyof KaynakFiltresi>(
 
 /**
  * Tek kaynaklı gelen fatura ekranı: Protel (PRT-12) ve statik kaynaklar
- * (Logo, e-Arşiv / e-SMM — EK-07, EK-08). Liste, hızlı filtreler, RED,
- * İşlendi (SAP), işlem geçmişi, PDF ve Excel ortaktır; kaynağa özgü kısımlar
+ * (Logo, e-Arşiv / e-SMM — EK-07, EK-08). Liste, hızlı filtreler, İşlendi
+ * (SAP), işlem geçmişi ve Excel ortaktır; PDF ve RED'e çekme yalnız Protel'de
+ * (statik kaynağın belgesi yok, RED'i listesinden gelir); kaynağa özgü kısımlar
  * (senkron paneli, içe aktarım, özel kolon ve filtreler) sayfadan verilir.
  * Üç sayfa kopyalanmaz (Dikkat_Edilecekler K10).
  */
@@ -271,8 +272,10 @@ export function GelenFaturaEkrani({
       baslik: '',
       render: (f: EFatura) => (
         <div className="flex items-center gap-1">
-          {pdfIzni ? <PdfDugmesi onClick={() => setPdf(f)} /> : null}
-          <RedDugmesi fatura={f} ekran={onEk} izinli={redIzni} />
+          {/* Logo / e-Arşiv Excel listesinden gelir: belgesi yok, RED kaynağın
+              listesinden gelir — iki düğme de yalnız Protel'de (2026-11-26) */}
+          {onEk === 'protel' && pdfIzni ? <PdfDugmesi onClick={() => setPdf(f)} /> : null}
+          {onEk === 'protel' ? <RedDugmesi fatura={f} ekran={onEk} izinli={redIzni} /> : null}
           <GecmisDugmesi fatura={f} ekran={onEk} />
         </div>
       ),

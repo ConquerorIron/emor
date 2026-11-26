@@ -39,24 +39,23 @@ final class EFaturaIslemGecmisiTest extends TestCase
 
     public function test_gizleme_ve_red_satirin_gecmisinde_en_yeni_ustte_kullanici_adiyla_gorunur(): void
     {
-        $tanim = EntegratorBaglanti::factory()->aktif()->create();
-        $fatura = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id]);
-        $kullanici = $this->izinli('Ali Veli', 'efatura.goruntule', 'efatura.gizle', 'efatura.red');
+        $fatura = EFatura::factory()->protel()->create();
+        $kullanici = $this->izinli('Ali Veli', 'protel_faturalari.goruntule', 'protel_faturalari.isle', 'protel_faturalari.red');
 
         $this->travelTo('2026-11-25 08:00:00');
-        $this->actingAs($kullanici)->putJson("/api/v1/efatura/faturalar/{$fatura->id}/gizli", ['gizli' => true])->assertOk();
+        $this->actingAs($kullanici)->putJson("/api/v1/protel/faturalar/{$fatura->id}/islendi", ['islendi' => true])->assertOk();
         $this->travelTo('2026-11-25 08:05:00');
-        $this->actingAs($kullanici)->putJson("/api/v1/efatura/faturalar/{$fatura->id}/gizli", ['gizli' => false])->assertOk();
+        $this->actingAs($kullanici)->putJson("/api/v1/protel/faturalar/{$fatura->id}/islendi", ['islendi' => false])->assertOk();
         $this->travelTo('2026-11-25 08:10:00');
-        $this->actingAs($kullanici)->putJson("/api/v1/efatura/faturalar/{$fatura->id}/red", ['red' => true, 'neden' => 'İptal/itiraz portalı'])->assertOk();
+        $this->actingAs($kullanici)->putJson("/api/v1/protel/faturalar/{$fatura->id}/red", ['red' => true, 'neden' => 'İptal/itiraz portalı'])->assertOk();
 
-        $gecmis = $this->actingAs($kullanici)->getJson("/api/v1/efatura/faturalar/{$fatura->id}/gecmis")->assertOk()->json('data');
+        $gecmis = $this->actingAs($kullanici)->getJson("/api/v1/protel/faturalar/{$fatura->id}/gecmis")->assertOk()->json('data');
 
         $this->assertSame(
             [
                 ['red_cekildi', 'Ali Veli', 'İptal/itiraz portalı', '2026-11-25T08:10:00+00:00'],
-                ['gizleme_kaldirildi', 'Ali Veli', null, '2026-11-25T08:05:00+00:00'],
-                ['gizlendi', 'Ali Veli', null, '2026-11-25T08:00:00+00:00'],
+                ['islendi_kaldirildi', 'Ali Veli', null, '2026-11-25T08:05:00+00:00'],
+                ['islendi_isaretlendi', 'Ali Veli', null, '2026-11-25T08:00:00+00:00'],
             ],
             array_map(fn (array $k): array => [$k['islem'], $k['kullanici_adi'], $k['neden'], $k['zaman']], $gecmis),
         );
@@ -64,12 +63,11 @@ final class EFaturaIslemGecmisiTest extends TestCase
 
     public function test_gecmis_yazilamazsa_durum_degisikligi_de_geri_alinir(): void
     {
-        $tanim = EntegratorBaglanti::factory()->aktif()->create();
-        $fatura = EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id]);
+        $fatura = EFatura::factory()->protel()->create();
         EFaturaIslemi::creating(fn (): never => throw new RuntimeException('geçmiş yazılamadı'));
 
-        $this->actingAs($this->izinli('Ali Veli', 'efatura.goruntule', 'efatura.red'))
-            ->putJson("/api/v1/efatura/faturalar/{$fatura->id}/red", ['red' => true, 'neden' => 'Deneme'])
+        $this->actingAs($this->izinli('Ali Veli', 'protel_faturalari.goruntule', 'protel_faturalari.red'))
+            ->putJson("/api/v1/protel/faturalar/{$fatura->id}/red", ['red' => true, 'neden' => 'Deneme'])
             ->assertServerError();
 
         $this->assertNull($fatura->fresh()->harici_red_zamani);

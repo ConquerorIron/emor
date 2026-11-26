@@ -39,6 +39,7 @@ import {
   type Saglayici,
   senkronBaslat,
   senkronDurumuGetir,
+  statikMi,
   xmlIndir,
 } from '@/features/efatura/efaturaApi'
 import { EmorRozeti } from '@/features/efatura/EmorRozeti'
@@ -546,8 +547,12 @@ export function EFaturalarPage({
       render: (f) => (
         <div className="flex items-center gap-1">
           <DetayDugmesi onClick={() => setPencere({ tur: 'detay', fatura: f })} />
-          {pdfIzni ? <PdfDugmesi onClick={() => setPencere({ tur: 'pdf', fatura: f })} /> : null}
-          {gelen ? <RedDugmesi fatura={f} ekran={islemEkrani} izinli={redIzni} /> : null}
+          {/* Logo / e-Arşiv satırının belgesi elimizde yok: PDF düğmesi yok (2026-11-26) */}
+          {pdfIzni && !statikMi(f.saglayici) ? (
+            <PdfDugmesi onClick={() => setPencere({ tur: 'pdf', fatura: f })} />
+          ) : null}
+          {/* RED'e çekme yalnız Tüm Faturalar'da (Protel satırı); İzibiz ekranında yok (2026-11-26) */}
+          {tum && gelen ? <RedDugmesi fatura={f} ekran={islemEkrani} izinli={redIzni} /> : null}
           <GecmisDugmesi fatura={f} ekran={islemEkrani} />
           {f.gizli ? (
             <span

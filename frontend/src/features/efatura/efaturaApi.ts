@@ -15,6 +15,11 @@ export type Saglayici = 'izibiz' | 'protel' | 'logo' | 'earsiv'
 /** Pano ve Tüm Faturalar sırası (kullanıcının örneği: Logo, Portal Plus, İzibiz, E-Arşiv) */
 export const GELEN_SAGLAYICILARI: readonly Saglayici[] = ['logo', 'protel', 'izibiz', 'earsiv']
 
+/** Excel listesinden gelen kaynak mı (belgenin aslı — PDF / XML — elimizde yok) */
+export function statikMi(saglayici: Saglayici | undefined): boolean {
+  return saglayici === 'logo' || saglayici === 'earsiv'
+}
+
 /**
  * Faturanın sınıfı (sunucudaki tek tanım): işlendi = eMOR'da ya da SAP'de
  * işlendi; islenecek = RED değil, işlenmemiş; red = kaynakta ya da elle RED;

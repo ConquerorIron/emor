@@ -8,6 +8,8 @@ return [
     'hayir' => 'Hayır',
     'sap_islendi' => 'İşlendi',
     'sap_red' => 'Red',
+    // Kopyala-yapıştırla içe aktarılan partinin adı (Yüklemeler penceresi)
+    'yapistirma_partisi' => 'Kopyala-yapıştır',
 
     'ortam' => [
         'test' => 'Test',

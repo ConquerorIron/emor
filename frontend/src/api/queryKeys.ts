@@ -44,6 +44,7 @@ export const queryKeys = {
     liste: (onEk: string, parametreler: Record<string, unknown>) =>
       [onEk, 'liste', parametreler] as const,
     yuklemeler: (onEk: string) => [onEk, 'yuklemeler'] as const,
+    iceAktarimKolonlari: (onEk: string) => [onEk, 'iceAktarimKolonlari'] as const,
   },
   // e-Fatura işlem geçmişi (EK-03) ve pano (EK-09): elle işlemden sonra tazelenir
   efaturaGecmis: {
