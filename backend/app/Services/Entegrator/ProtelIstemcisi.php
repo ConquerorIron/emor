@@ -66,7 +66,9 @@ final class ProtelIstemcisi
         'erpStatus' => ['All'],
         'filterDateType' => ['DocumentDate', 'CreateDate'],
         'uuidType' => ['DocumentUUID'],
-        'outputType' => ['Pdf'],
+        // Ubl: aynı belge metodu, yalnız çıktı türü (kullanıcı onayı 2026-11-26;
+        // önce/sonra ölçümü docs/protel/api-notlari.md)
+        'outputType' => ['Pdf', 'Ubl'],
     ];
 
     /**

@@ -142,7 +142,9 @@ final class ProtelIstemcisiTest extends TestCase
             'giden yön' => [ProtelIstemcisi::YOL_FATURA_LISTESI, [...self::LISTE_GOVDESI, 'documentDirection' => 'Outgoing']],
             'ERP durumu süzgeci All değil' => [ProtelIstemcisi::YOL_FATURA_LISTESI, [...self::LISTE_GOVDESI, 'erpStatus' => 'New']],
             'ERP aldı süzgeci All değil' => [ProtelIstemcisi::YOL_FATURA_LISTESI, [...self::LISTE_GOVDESI, 'erpRecievedStatus' => 'Unreceived']],
-            'PDF çıktı türü UBL' => [ProtelIstemcisi::YOL_FATURA_PDF, [...self::PDF_GOVDESI, 'outputType' => 'Ubl']],
+            // Çıktı türünde yalnız Pdf ve Ubl (2026-11-26, kullanıcı onayı); büyük/küçük harf birebir
+            'PDF çıktı türü Html' => [ProtelIstemcisi::YOL_FATURA_PDF, [...self::PDF_GOVDESI, 'outputType' => 'Html']],
+            'PDF çıktı türü küçük harf ubl' => [ProtelIstemcisi::YOL_FATURA_PDF, [...self::PDF_GOVDESI, 'outputType' => 'ubl']],
             // Anahtar izinli olsa da değer metin ve biçiminde olmalı (PRT-F5)
             'PDF uuid içinde set alanı' => [ProtelIstemcisi::YOL_FATURA_PDF, [...self::PDF_GOVDESI, 'uuid' => ['setErpStatus' => 'Booked']]],
             'PDF uuid biçimsiz' => [ProtelIstemcisi::YOL_FATURA_PDF, [...self::PDF_GOVDESI, 'uuid' => 'c14ffe5c']],
@@ -250,6 +252,8 @@ final class ProtelIstemcisiTest extends TestCase
         $tanim = $this->tanim();
 
         app(ProtelIstemcisi::class)->post($tanim, ProtelIstemcisi::YOL_FATURA_PDF, self::PDF_GOVDESI);
+        // UBL: aynı dört alan, yalnız çıktı türü farklı (2026-11-26, kullanıcı onayı)
+        app(ProtelIstemcisi::class)->post($tanim, ProtelIstemcisi::YOL_FATURA_PDF, [...self::PDF_GOVDESI, 'outputType' => 'Ubl']);
 
         Http::assertSent(fn (Request $istek): bool => $istek->url() === self::GIRIS_URL
             && $istek->data() === [
@@ -261,7 +265,9 @@ final class ProtelIstemcisiTest extends TestCase
         Http::assertSent(fn (Request $istek): bool => $istek->url() === self::PDF_URL
             && $istek->data() === self::PDF_GOVDESI
             && $istek->hasHeader('Authorization', 'Bearer '.$this->tokenOf($istek)));
-        Http::assertSentCount(2);
+        Http::assertSent(fn (Request $istek): bool => $istek->url() === self::PDF_URL
+            && $istek->data() === [...self::PDF_GOVDESI, 'outputType' => 'Ubl']);
+        Http::assertSentCount(3);
     }
 
     /**
