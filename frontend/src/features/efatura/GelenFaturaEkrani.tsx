@@ -272,7 +272,7 @@ export function GelenFaturaEkrani({
       render: (f: EFatura) => (
         <div className="flex items-center gap-1">
           {pdfIzni ? <PdfDugmesi onClick={() => setPdf(f)} /> : null}
-          {redIzni ? <RedDugmesi fatura={f} ekran={onEk} /> : null}
+          <RedDugmesi fatura={f} ekran={onEk} izinli={redIzni} />
           <GecmisDugmesi fatura={f} ekran={onEk} />
         </div>
       ),

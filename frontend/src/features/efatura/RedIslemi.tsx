@@ -139,9 +139,19 @@ function RedFormu({
 /**
  * Satırdaki RED düğmesi (EK-04): RED değilse "RED'e Çek", yetkili
  * kullanıcının çektiği RED'de "RED'i Geri Al". Kaynakta RED olmuş faturada
- * düğme yoktur (kaynağın kararı değiştirilmez).
+ * düğme yoktur (kaynağın kararı değiştirilmez). İzni olmayan kullanıcı
+ * düğmeyi kapalı görür, üstüne gelince "izniniz yok" yazar (İşlendi
+ * anahtarıyla aynı davranış — kullanıcı isteği 2026-11-26).
  */
-export function RedDugmesi({ fatura, ekran }: { fatura: EFatura; ekran: FaturaEkrani }) {
+export function RedDugmesi({
+  fatura,
+  ekran,
+  izinli,
+}: {
+  fatura: EFatura
+  ekran: FaturaEkrani
+  izinli: boolean
+}) {
   const { t } = useTranslation()
   const [acik, setAcik] = useState(false)
 
@@ -154,32 +164,34 @@ export function RedDugmesi({ fatura, ekran }: { fatura: EFatura; ekran: FaturaEk
 
   return (
     <>
-      <IkonDugmesi etiket={etiket} onClick={() => setAcik(true)}>
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 24 24"
-          className={`size-5 ${geriAl ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={1.6}
-        >
-          {geriAl ? (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"
-            />
-          ) : (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636"
-            />
-          )}
-        </svg>
-      </IkonDugmesi>
+      <span className="inline-flex" title={izinli ? undefined : t('efatura.red.izinYok')}>
+        <IkonDugmesi etiket={etiket} onClick={() => setAcik(true)} disabled={!izinli}>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            className={`size-5 ${geriAl ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.6}
+          >
+            {geriAl ? (
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"
+              />
+            ) : (
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636"
+              />
+            )}
+          </svg>
+        </IkonDugmesi>
+      </span>
       <Modal
-        acik={acik}
+        acik={acik && izinli}
         kapat={() => setAcik(false)}
         baslik={t(geriAl ? 'efatura.red.geriAlBaslik' : 'efatura.red.cekBaslik', {
           no: fatura.belge_no,

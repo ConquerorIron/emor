@@ -180,9 +180,14 @@ describe('ProtelFaturalariPage', () => {
     expect(hucre(satir, 'eMOR')).toHaveTextContent('İşlendi (elle)')
     expect(within(satir).getByText('Muhasebeleşti')).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: /Otel ERP Durumu/ })).toBeInTheDocument()
-    // PDF ve RED izni yoksa düğmeleri yok; işlem geçmişi herkese açık
+    // PDF izni yoksa düğmesi yok; RED izni yoksa düğme kapalı durur ve nedenini
+    // söyler (İşlendi anahtarı gibi); tıklamak pencere açmaz. İşlem geçmişi herkese açık
     expect(screen.queryByRole('button', { name: 'PDF' })).not.toBeInTheDocument()
-    expect(within(satir).queryByRole('button', { name: "RED'e Çek" })).not.toBeInTheDocument()
+    const redDugmesi = within(satir).getByRole('button', { name: "RED'e Çek" })
+    expect(redDugmesi).toBeDisabled()
+    expect(redDugmesi.parentElement).toHaveAttribute('title', "RED'e çekme izniniz yok.")
+    fireEvent.click(redDugmesi)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(within(satir).getByRole('button', { name: 'İşlem geçmişi' })).toBeInTheDocument()
     expect(screen.queryByText(/Gizlenenleri de göster/)).not.toBeInTheDocument()
   })

@@ -83,18 +83,22 @@ export function IkonDugmesi({
   etiket,
   onClick,
   children,
+  disabled = false,
 }: {
   etiket: string
   onClick: () => void
   children: ReactNode
+  /** Kapalı düğmenin açıklaması (ör. izin yok) sarmalayıcı `title` ile verilir */
+  disabled?: boolean
 }) {
   return (
     <button
       type="button"
       aria-label={etiket}
-      title={etiket}
+      title={disabled ? undefined : etiket}
       onClick={onClick}
-      className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-600 dark:hover:bg-slate-800"
+      disabled={disabled}
+      className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:hover:bg-slate-800 dark:disabled:hover:bg-transparent"
     >
       {children}
     </button>

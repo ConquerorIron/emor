@@ -547,7 +547,7 @@ export function EFaturalarPage({
         <div className="flex items-center gap-1">
           <DetayDugmesi onClick={() => setPencere({ tur: 'detay', fatura: f })} />
           {pdfIzni ? <PdfDugmesi onClick={() => setPencere({ tur: 'pdf', fatura: f })} /> : null}
-          {redIzni && gelen ? <RedDugmesi fatura={f} ekran={islemEkrani} /> : null}
+          {gelen ? <RedDugmesi fatura={f} ekran={islemEkrani} izinli={redIzni} /> : null}
           <GecmisDugmesi fatura={f} ekran={islemEkrani} />
           {f.gizli ? (
             <span

@@ -993,6 +993,7 @@
       "islenmisUyari": "Bu fatura eMOR'da işlenmiş görünüyor. RED'e çekmek eMOR'daki kaydı değiştirmez; panoda uyarı olarak sayılır.",
       "neden": "Neden",
       "nedenZorunlu": "RED'e çekme nedeni yazılmalı.",
+      "izinYok": "RED'e çekme izniniz yok.",
       "geriAlSorusu": "{{eden}}, {{zaman}} tarihinde RED'e çekmiş (neden: {{neden}}). RED geri alınsın mı?",
       "cekildi": "{{no}} nolu fatura RED'e çekildi.",
       "geriAlindi": "{{no}} nolu faturanın RED'i geri alındı."

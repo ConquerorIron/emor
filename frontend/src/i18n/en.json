@@ -993,6 +993,7 @@
       "islenmisUyari": "This invoice appears processed in eMOR. Rejecting it does not change the eMOR record; the dashboard counts it as a warning.",
       "neden": "Reason",
       "nedenZorunlu": "A reason is required.",
+      "izinYok": "You are not allowed to mark invoices as rejected.",
       "geriAlSorusu": "{{eden}} marked it as rejected on {{zaman}} (reason: {{neden}}). Undo the rejection?",
       "cekildi": "Invoice {{no}} marked as rejected.",
       "geriAlindi": "Rejection of invoice {{no}} undone."
