@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -27,6 +27,7 @@ import { bugunIso, tarihGoster } from '@/utils/tarih'
 import type { RaporParametreleri, RaporSatiri } from './erpRaporApi'
 import {
   pivotla,
+  raporSiralayici,
   type ErpRaporTanimi,
   type KolonTuru,
   type PivotSatiri,
@@ -49,10 +50,13 @@ interface AnlikSuzgec {
 
 const BOS_SUZGEC: AnlikSuzgec = { arama: '', projeler: [], firmalar: [], kosullar: [] }
 
+/** Henüz sonuç yokken sabit dizi: türetilen değerlerin önbelleği her çizimde bozulmasın */
+const SONUC_YOK: never[] = []
+
 /** Sonuçtaki farklı değerler, Türkçe sırayla (ZONE 7, ZONE 10'dan önce) */
 function secenekler(degerler: string[]): SecenekOgesi[] {
   return [...new Set(degerler)]
-    .sort((a, b) => a.localeCompare(b, 'tr', { numeric: true }))
+    .sort(raporSiralayici.compare)
     .map((deger) => ({ value: deger, label: deger }))
 }
 
@@ -88,6 +92,8 @@ function hucre(tur: KolonTuru, deger: string | number | null | undefined, genisl
 /**
  * Özet (pivot) sekmesi: süzülen satırlar sekmenin gruplarına göre toplanır
  * (tarayıcıda); kolonlara göre sıralanır, toplam satırları Data ile aynı.
+ * Sayfalı (Data ile aynı sayfa boyutu): firma özeti ~1.500 grup × ~25 tutar
+ * kolonuyla tek seferde çizilince sekme geçişi kasıyordu.
  */
 function RaporPivotTablosu<T extends RaporSatiri>({
   tanim,
@@ -102,7 +108,26 @@ function RaporPivotTablosu<T extends RaporSatiri>({
 }) {
   const { t, i18n } = useTranslation()
   const { siralama, siralamaDegistir } = useKaliciSiralama(`${tanim.anahtar}Pivot.${pivot.anahtar}`)
-  const tutarlar = tanim.kolonlar.filter((kolon) => kolon.tur === 'tutar').map((k) => k.alan)
+  const [sayfa, setSayfa] = useState(1)
+  const [boyut, setBoyut] = useState(sayfaBoyutuOku)
+  const tutarlar = useMemo(
+    () => tanim.kolonlar.filter((kolon) => kolon.tur === 'tutar').map((k) => k.alan),
+    [tanim],
+  )
+  const ozetSatirlari = useMemo(
+    () => pivotla(satirlar, pivot, tanim.tarihAlani ?? '', tutarlar),
+    [satirlar, pivot, tanim.tarihAlani, tutarlar],
+  )
+  const siraliSatirlar = useMemo(
+    () => siralaUygula(ozetSatirlari, siralama),
+    [ozetSatirlari, siralama],
+  )
+  const toplamSayfa = boyut === 0 ? 1 : Math.max(1, Math.ceil(siraliSatirlar.length / boyut))
+  const gecerliSayfa = Math.min(sayfa, toplamSayfa)
+  const sayfaSatirlari =
+    boyut === 0
+      ? siraliSatirlar
+      : siraliSatirlar.slice((gecerliSayfa - 1) * boyut, gecerliSayfa * boyut)
   const ortali = new Set<string>(tanim.ortali ?? [])
   const sabitGenislik: Partial<Record<string, string>> = tanim.sabitGenislik ?? {}
 
@@ -150,16 +175,43 @@ function RaporPivotTablosu<T extends RaporSatiri>({
     })),
   ]
 
-  return (
-    <DataTable
-      kolonlar={kolonlar}
-      satirlar={siralaUygula(pivotla(satirlar, pivot, tanim.tarihAlani ?? '', tutarlar), siralama)}
-      satirAnahtari={(satir) => pivot.gruplar.map((alan) => String(satir[alan])).join('|')}
-      siralama={siralama}
-      siralamaDegistir={siralamaDegistir}
-      ustKaydirma
-      toplamSatirlari={toplamSatirlari}
+  const sayfalama = (konum: 'ust' | 'alt') => (
+    <Pagination
+      sayfa={gecerliSayfa}
+      toplamSayfa={toplamSayfa}
+      sayfaDegistir={(yeni) => {
+        setSayfa(yeni)
+        setBoyut(sayfaBoyutuOku())
+      }}
+      boyutSeciciId={`${tanim.anahtar}-${pivot.anahtar}-sayfa-boyutu-${konum}`}
     />
+  )
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          {t('raporlar.grupSayisi', { sayi: siraliSatirlar.length })}
+        </p>
+        {sayfalama('ust')}
+      </div>
+      <div className="mt-3">
+        <DataTable
+          kolonlar={kolonlar}
+          satirlar={sayfaSatirlari}
+          satirAnahtari={(satir) => pivot.gruplar.map((alan) => String(satir[alan])).join('|')}
+          siralama={siralama}
+          siralamaDegistir={(anahtar) => {
+            siralamaDegistir(anahtar)
+            setSayfa(1)
+          }}
+          ustKaydirma
+          toplamSatirlari={toplamSatirlari}
+          toplamKonumu={tanim.toplamKonumu}
+        />
+      </div>
+      <div className="mt-3">{sayfalama('alt')}</div>
+    </>
   )
 }
 
@@ -247,24 +299,42 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
   }))
   const secenekHatasi = erpSecenekleri.error ? t(apiErrorKey(erpSecenekleri.error)) : undefined
 
-  const projesi = (satir: T) => String(satir[tanim.projeAlani] ?? '')
-  const firmasi = (satir: T) => String(satir[tanim.firmaAlani] ?? '')
-  const tumSatirlar = rapor.data ?? []
-  const suzgecProjeleri = secenekler(tumSatirlar.map(projesi))
-  const suzgecFirmalari = secenekler(tumSatirlar.map(firmasi))
+  /*
+   * Türetilen değerler önbellekli: tam yıl ~12.000 satırda süzme, seçenek
+   * sıralaması ve toplamlar her çizimde (sekme tıklaması, sayfa değişimi)
+   * baştan hesaplanınca ekran kasıyordu. Satırlar yalnız sonuç ya da süzgeç
+   * değişince yeniden hesaplanır.
+   */
+  const tumSatirlar: T[] = rapor.data ?? SONUC_YOK
+  const { suzgecProjeleri, suzgecFirmalari, aramaMetinleri } = useMemo(
+    () => ({
+      suzgecProjeleri: secenekler(tumSatirlar.map((s) => String(s[tanim.projeAlani] ?? ''))),
+      suzgecFirmalari: secenekler(tumSatirlar.map((s) => String(s[tanim.firmaAlani] ?? ''))),
+      // Satır başına bir kez: aranan alanlar arama biçiminde, ayraçla birleşik
+      aramaMetinleri: tumSatirlar.map((s) =>
+        aramaBicimi(tanim.aramaAlanlari.map((alan) => String(s[alan] ?? '')).join('\u0000')),
+      ),
+    }),
+    [tumSatirlar, tanim],
+  )
   const aranan = aramaBicimi(suzgec.arama.trim())
   const kosulSuzgecleri = tanim.kosulSuzgecleri ?? []
   const acikKosullar = kosulSuzgecleri.filter((s) => suzgec.kosullar.includes(s.anahtar))
-  const satirlar = tumSatirlar.filter(
-    (satir) =>
-      (aranan === '' ||
-        tanim.aramaAlanlari.some((alan) =>
-          aramaBicimi(String(satir[alan] ?? '')).includes(aranan),
-        )) &&
-      (suzgec.projeler.length === 0 || suzgec.projeler.includes(projesi(satir))) &&
-      (suzgec.firmalar.length === 0 || suzgec.firmalar.includes(firmasi(satir))) &&
-      acikKosullar.every((s) => s.kosul(satir)),
-  )
+  const satirlar = useMemo(() => {
+    const projeler = new Set(suzgec.projeler)
+    const firmalar = new Set(suzgec.firmalar)
+    const kosullar = (tanim.kosulSuzgecleri ?? []).filter((s) =>
+      suzgec.kosullar.includes(s.anahtar),
+    )
+
+    return tumSatirlar.filter(
+      (satir, sira) =>
+        (aranan === '' || aramaMetinleri[sira].includes(aranan)) &&
+        (projeler.size === 0 || projeler.has(String(satir[tanim.projeAlani] ?? ''))) &&
+        (firmalar.size === 0 || firmalar.has(String(satir[tanim.firmaAlani] ?? ''))) &&
+        kosullar.every((s) => s.kosul(satir)),
+    )
+  }, [tumSatirlar, aramaMetinleri, aranan, suzgec, tanim])
 
   // Sayfalama tarayıcıda; 0 = "Hepsi"
   const toplamSayfa = boyut === 0 ? 1 : Math.max(1, Math.ceil(satirlar.length / boyut))
@@ -295,17 +365,20 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
     ...veriKolonlari.filter((kolon) => kolonGorunurlugu.gorunurMu(kolon.anahtar)),
   ]
 
-  const turler = new Map<string, KolonTuru>(tanim.kolonlar.map(({ alan, tur }) => [alan, tur]))
-  const toplamSatirlari: ToplamSatiri[] = tanim.toplamlar(satirlar).map((toplam) => ({
-    anahtar: toplam.anahtar,
-    etiket: t(toplam.etiket),
-    hucreler: Object.fromEntries(
-      Object.entries(toplam.degerler).map(([alan, deger]) => [
-        alan,
-        hucre(turler.get(alan) ?? 'metin', deger),
-      ]),
-    ),
-  }))
+  const toplamSatirlari: ToplamSatiri[] = useMemo(() => {
+    const turler = new Map<string, KolonTuru>(tanim.kolonlar.map(({ alan, tur }) => [alan, tur]))
+
+    return tanim.toplamlar(satirlar).map((toplam) => ({
+      anahtar: toplam.anahtar,
+      etiket: t(toplam.etiket),
+      hucreler: Object.fromEntries(
+        Object.entries(toplam.degerler).map(([alan, deger]) => [
+          alan,
+          hucre(turler.get(alan) ?? 'metin', deger),
+        ]),
+      ),
+    }))
+  }, [satirlar, tanim, t])
 
   const sayfalama = (konum: 'ust' | 'alt') => (
     <Pagination
@@ -571,6 +644,7 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
                   satirAnahtari={tanim.satirAnahtari}
                   ustKaydirma
                   toplamSatirlari={toplamSatirlari}
+                  toplamKonumu={tanim.toplamKonumu}
                 />
               </div>
               <div className="mt-3">{sayfalama('alt')}</div>

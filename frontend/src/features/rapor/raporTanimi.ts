@@ -1,6 +1,18 @@
+import type { ToplamKonumu } from '@/components/DataTable'
+
 import type { ErpRaporApi, RaporSatiri } from './erpRaporApi'
 
 export type KolonTuru = 'metin' | 'tarih' | 'tutar'
+
+/**
+ * Rapor gruplarının ve seçeneklerinin sırası: Türkçe, sayılar sayı gibi
+ * (ZONE 7, ZONE 10'dan önce). Tek nesne: localeCompare'in her çağrıda kurduğu
+ * karşılaştırıcı binlerce satırda tıklamayı kasıyordu.
+ */
+export const raporSiralayici = new Intl.Collator('tr', { numeric: true })
+
+/** Para kodları (TRY, USD…): önceki localeCompare(…, 'tr') ile aynı sıra */
+const paraSiralayici = new Intl.Collator('tr')
 
 /** Tablonun üstünde ve altında tekrarlanan toplam satırı */
 export interface RaporToplami {
@@ -43,6 +55,8 @@ export interface ErpRaporTanimi<T extends RaporSatiri> {
   ortali?: (keyof T & string)[]
   /** Toplam satırları — süzülen satırların tamamından (sayfa değil); özet sekmelerinde de */
   toplamlar: (satirlar: T[]) => RaporToplami[]
+  /** Toplam satırlarının yeri (DataTable); verilmezse başlığın altında ve tablonun sonunda */
+  toplamKonumu?: ToplamKonumu
   /** Özet (pivot) sekmeleri, Data'dan sonra — backend ErpRaporu::PIVOTLAR ile aynı; yoksa sekme şeridi çizilmez */
   pivotlar: RaporPivotu[]
   /** Pivotlardaki Yıl / Ay'ın türediği tarih kolonu (YYYY-MM-DD); Yıl / Ay pivotu olmayan raporda gerekmez */
@@ -114,7 +128,7 @@ export function pivotla<T extends RaporSatiri>(
       const fark =
         typeof x === 'number' && typeof y === 'number'
           ? x - y
-          : String(x).localeCompare(String(y), 'tr', { numeric: true })
+          : raporSiralayici.compare(String(x), String(y))
       if (fark !== 0) {
         return fark
       }
@@ -159,7 +173,7 @@ export function paraKodunaGoreTopla<T extends RaporSatiri>(
   }
 
   return [...gruplar.entries()]
-    .sort(([a], [b]) => a.localeCompare(b, 'tr'))
+    .sort(([a], [b]) => paraSiralayici.compare(a, b))
     .map(([para, grup]) => ({
       anahtar: `para-${para}`,
       etiket,

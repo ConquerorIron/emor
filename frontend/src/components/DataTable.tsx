@@ -39,9 +39,13 @@ interface DataTableProps<T> {
    * olmayan kolon boş kalır, etiket ilk kolona yazılır.
    */
   toplamSatirlari?: ToplamSatiri[]
+  /** 'alt': toplamlar yalnız tablonun sonunda (başlığın altında tekrarlanmaz) */
+  toplamKonumu?: ToplamKonumu
   /** Yazı boyutu: 'kucuk' bir boy küçük (çok kolonlu tanım listeleri) */
   yaziBoyutu?: 'normal' | 'kucuk'
 }
+
+export type ToplamKonumu = 'ust-alt' | 'alt'
 
 export interface ToplamSatiri {
   anahtar: string
@@ -111,6 +115,7 @@ export function DataTable<T>({
   ustKaydirma = false,
   satirSinifi,
   toplamSatirlari = [],
+  toplamKonumu = 'ust-alt',
   yaziBoyutu = 'normal',
 }: DataTableProps<T>) {
   const { t } = useTranslation()
@@ -270,7 +275,7 @@ export function DataTable<T>({
                 )
               })}
             </tr>
-            {toplamlariCiz('ust')}
+            {toplamKonumu === 'ust-alt' ? toplamlariCiz('ust') : null}
           </thead>
           <tbody className="bg-white dark:bg-slate-900">
             {yukleniyor ? (

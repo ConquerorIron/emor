@@ -71,6 +71,8 @@ final class GelenFaturaRaporuTest extends TestCase
         $this->kalemler($tevkifatli, [
             ['vergi', '0015', '10.0000', '400.00', '40.00'],
             ['vergi', '0015', '20.0000', '600.00', '120.00'],
+            // KDV dışı vergi (ÖİV): fatura toplamına girer, KDV'ye ve KDV matrahına girmez
+            ['vergi', '4080', '1.0000', '1000.00', '10.00'],
             ['tevkifat', '607', '90.0000', '120.00', '108.00', null, 'ÖZEL GÜVENLİK'],
         ]);
         // Dövizli, kuru olan istisna faturası
@@ -100,14 +102,14 @@ final class GelenFaturaRaporuTest extends TestCase
             'fatura_tarihi' => '2026-11-20', 'fatura_profili' => 'TICARIFATURA', 'entegrator' => 'İzibiz', 'firma_unvani' => 'Güvenlik A.Ş.',
             'vkn' => '1112223333', 'vergi_dairesi' => 'Beyoğlu', 'para_kodu' => 'TRY',
             'orijinal_tutar' => 1050.0, 'orijinal_indirim' => 50.0, 'net_tutar' => 1000.0, 'orijinal_kdv' => 160.0,
-            'fatura_toplami' => 1160.0, 'orijinal_tevkifat' => 108.0, 'net_kdv' => 52.0, 'kur' => '1',
-            'tutar_tl' => 1050.0, 'kdv_matrahi_tl' => 1000.0, 'kdv_tl' => 160.0, 'fatura_toplami_tl' => 1160.0, 'tevkifat_tl' => 108.0, 'net_kdv_tl' => 52.0,
-            'oran_0' => '', 'kdv_0' => 0.0, 'oran_10' => '%10', 'kdv_10' => 40.0, 'matrah_10' => 400.0, 'oran_20' => '%20', 'kdv_20' => 120.0, 'matrah_20' => 600.0,
+            'fatura_toplami' => 1170.0, 'orijinal_tevkifat' => 108.0, 'net_kdv' => 52.0, 'kur' => '1',
+            'tutar_tl' => 1050.0, 'kdv_matrahi_tl' => 1000.0, 'kdv_tl' => 160.0, 'fatura_toplami_tl' => 1170.0, 'tevkifat_tl' => 108.0, 'net_kdv_tl' => 52.0,
+            'oran_0' => '', 'kdv_0' => 0.0, 'oran_1' => '', 'kdv_1' => 0.0, 'oran_10' => '%10', 'kdv_10' => 40.0, 'matrah_10' => 400.0, 'oran_20' => '%20', 'kdv_20' => 120.0, 'matrah_20' => 600.0,
             'matrah_toplami' => 1000.0, 'tevkifat_kodu' => '607', 'tevkifat_aciklama' => 'ÖZEL GÜVENLİK', 'red' => 'hayir',
         ], array_intersect_key($satirlar['IZB1'], array_flip([
             'fatura_tarihi', 'fatura_profili', 'entegrator', 'firma_unvani', 'vkn', 'vergi_dairesi', 'para_kodu', 'orijinal_tutar', 'orijinal_indirim',
             'net_tutar', 'orijinal_kdv', 'fatura_toplami', 'orijinal_tevkifat', 'net_kdv', 'kur', 'tutar_tl', 'kdv_matrahi_tl', 'kdv_tl',
-            'fatura_toplami_tl', 'tevkifat_tl', 'net_kdv_tl', 'oran_0', 'kdv_0', 'oran_10', 'kdv_10', 'matrah_10', 'oran_20', 'kdv_20', 'matrah_20',
+            'fatura_toplami_tl', 'tevkifat_tl', 'net_kdv_tl', 'oran_0', 'kdv_0', 'oran_1', 'kdv_1', 'oran_10', 'kdv_10', 'matrah_10', 'oran_20', 'kdv_20', 'matrah_20',
             'matrah_toplami', 'tevkifat_kodu', 'tevkifat_aciklama', 'red',
         ])));
 

@@ -85,7 +85,16 @@ final class EFatura extends Model
     /** Kaynakta RED ya da yetkili kullanıcının RED'e çektiği fatura: "İşlendi" işaretlenemez */
     public function reddedildi(): bool
     {
-        return $this->kaynaktaReddedildi() || $this->harici_red_zamani !== null;
+        return self::redDurumu($this->getAttribute('durum'), $this->harici_red_zamani);
+    }
+
+    /**
+     * reddedildi()'nin kuralı, model kurmadan okunan satırlar için (raporlar).
+     * Liste süzgeci aynı kuralın SQL hâlidir: reddedilen() kapsamı.
+     */
+    public static function redDurumu(mixed $durum, mixed $hariciRedZamani): bool
+    {
+        return in_array($durum, self::KAYNAK_RED_DURUMLARI, true) || $hariciRedZamani !== null;
     }
 
     /**

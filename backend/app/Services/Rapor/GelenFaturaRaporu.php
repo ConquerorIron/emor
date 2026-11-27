@@ -10,7 +10,8 @@ use App\Models\EntegratorBaglanti;
 use App\Services\Entegrator\FaturaYonu;
 use App\Services\EntegratorBaglantiServisi;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Raporlar → Gelen Fatura Raporu (kullanıcı isteği 2026-11-26): bütün gelen
@@ -92,6 +93,12 @@ final class GelenFaturaRaporu extends ErpRaporu
 
     private const KDV_KODU = '0015';
 
+    private const FATURA_KOLONLARI = [
+        'id', 'entegrator_baglanti_id', 'belge_tarihi', 'belge_no', 'senaryo', 'gonderici_unvan', 'gonderici_ad_soyad',
+        'gonderici_vkn', 'satici_vergi_dairesi', 'para_birimi', 'tutar', 'vergi_tutari', 'satir_toplami',
+        'indirim_tutari', 'vergi_haric_tutar', 'kur', 'durum', 'harici_red_zamani', 'izibiz_istisna_kodu', 'vergi_istisna_kodu',
+    ];
+
     public function __construct(
         ErpRaporKaynagi $kaynak,
         private readonly EntegratorBaglantiServisi $baglantilar,
@@ -107,27 +114,27 @@ final class GelenFaturaRaporu extends ErpRaporu
      */
     public function satirlar(int $erpKullaniciId, array $parametreler): array
     {
-        $tanimlar = collect($this->baglantilar->gelenTanimlari())->keyBy('id');
+        /** @var array<int, string> $entegratorler bağlantı kimliği => sağlayıcının adı */
+        $entegratorler = collect($this->baglantilar->gelenTanimlari())
+            ->mapWithKeys(fn (EntegratorBaglanti $tanim): array => [$tanim->id => __('efatura.saglayici.'.$tanim->saglayici)])
+            ->all();
 
-        $faturalar = EFatura::query()
-            ->whereIn('entegrator_baglanti_id', $tanimlar->keys()->all())
+        $sorgu = EFatura::query()
+            ->whereIn('entegrator_baglanti_id', array_keys($entegratorler))
             ->where('yon', FaturaYonu::Gelen->value)
             ->whereNull('gizlenme_zamani')
             ->where('belge_tarihi', '>=', $parametreler['ilk_tarih'])
             // Ertesi günden küçük: SQLite tarihi saatle saklar (T6)
             ->where('belge_tarihi', '<', CarbonImmutable::parse($parametreler['son_tarih'])->addDay()->toDateString())
-            ->when($parametreler['firma_adi'] !== null, fn ($q) => $q->whereLike('gonderici_unvan', '%'.$parametreler['firma_adi'].'%'))
-            ->get([
-                'id', 'entegrator_baglanti_id', 'belge_tarihi', 'belge_no', 'senaryo', 'gonderici_unvan', 'gonderici_ad_soyad',
-                'gonderici_vkn', 'satici_vergi_dairesi', 'para_birimi', 'tutar', 'vergi_tutari', 'satir_toplami',
-                'indirim_tutari', 'vergi_haric_tutar', 'kur', 'durum', 'harici_red_zamani', 'izibiz_istisna_kodu', 'vergi_istisna_kodu',
-            ]);
+            ->when($parametreler['firma_adi'] !== null, fn ($q) => $q->whereLike('gonderici_unvan', '%'.$parametreler['firma_adi'].'%'));
 
-        $kalemler = $this->kalemler($faturalar->modelKeys());
+        $kalemler = $this->kalemler($sorgu);
 
-        $satirlar = $faturalar
-            ->map(fn (EFatura $f): array => $this->hesapla($f, $kalemler->get($f->id, collect()), $tanimlar->get($f->entegrator_baglanti_id)))
-            ->all();
+        // Model kurulmaz (tam yılda ~12.000 fatura): düz satırlar, yalnız gereken kolonlar
+        $satirlar = [];
+        foreach ($sorgu->toBase()->get(self::FATURA_KOLONLARI) as $fatura) {
+            $satirlar[] = $this->hesapla($fatura, $kalemler[(int) $fatura->id] ?? [], $entegratorler[(int) $fatura->entegrator_baglanti_id] ?? '');
+        }
         usort($satirlar, $this->karsilastir(...));
 
         return $satirlar;
@@ -162,49 +169,104 @@ final class GelenFaturaRaporu extends ErpRaporu
     }
 
     /**
-     * @param  list<int>  $faturaIdleri
-     * @return Collection<int, Collection<int, EFaturaVergiKalemi>>
+     * Raporun faturalarının vergi kalemleri tek sorguda (alt sorgu), sırasıyla.
+     *
+     * @param  Builder<EFatura>  $faturalar
+     * @return array<int, list<object{efatura_id: int, tur: string, vergi_kodu: string|null, vergi_adi: string|null, oran: string|null, matrah: string|null, tutar: string|null, istisna_kodu: string|null, istisna_adi: string|null}>>
      */
-    private function kalemler(array $faturaIdleri): Collection
+    private function kalemler(Builder $faturalar): array
     {
-        $sonuc = collect();
-        foreach (array_chunk($faturaIdleri, 1000) as $parca) {
-            $sonuc = $sonuc->concat(EFaturaVergiKalemi::query()->whereIn('efatura_id', $parca)->orderBy('sira')->get());
+        $gruplu = [];
+        $kalemler = DB::table('efatura_vergi_kalemleri')
+            ->whereIn('efatura_id', (clone $faturalar)->select('id'))
+            ->orderBy('efatura_id')
+            ->orderBy('sira')
+            ->get(['efatura_id', 'tur', 'vergi_kodu', 'vergi_adi', 'oran', 'matrah', 'tutar', 'istisna_kodu', 'istisna_adi']);
+
+        foreach ($kalemler as $kalem) {
+            $gruplu[(int) $kalem->efatura_id][] = $kalem;
         }
 
-        return $sonuc->groupBy('efatura_id');
+        return $gruplu;
+    }
+
+    /** Raporun oran kolonlarından biriyse onun anahtarı ("20"), değilse null */
+    private function oranAnahtari(mixed $oran): ?string
+    {
+        if ($oran === null || ! is_numeric($oran)) {
+            return null;
+        }
+
+        foreach (self::ORANLAR as $aday) {
+            if (bccomp((string) $oran, $aday, 4) === 0) {
+                return $aday;
+            }
+        }
+
+        return null;
     }
 
     /**
-     * @param  Collection<int, EFaturaVergiKalemi>  $kalemler
+     * @param  object  $f  efatura_faturalari satırı (FATURA_KOLONLARI)
+     * @param  list<object>  $kalemler
      * @return array<string, int|string|float|null>
      */
-    private function hesapla(EFatura $f, Collection $kalemler, ?EntegratorBaglanti $tanim): array
+    private function hesapla(object $f, array $kalemler, string $entegrator): array
     {
-        $kdvKalemleri = $kalemler->filter(fn (EFaturaVergiKalemi $k): bool => $k->tur === EFaturaVergiKalemi::TUR_VERGI && $k->vergi_kodu === self::KDV_KODU);
-        $digerVergiler = $kalemler->filter(fn (EFaturaVergiKalemi $k): bool => $k->tur === EFaturaVergiKalemi::TUR_VERGI && $k->vergi_kodu !== self::KDV_KODU);
-        $tevkifatlar = $kalemler->filter(fn (EFaturaVergiKalemi $k): bool => $k->tur === EFaturaVergiKalemi::TUR_TEVKIFAT);
-        $topla = fn (Collection $liste, string $alan): float => (float) $liste->sum(fn (EFaturaVergiKalemi $k): float => (float) $k->{$alan});
-        $kalemliMi = $kalemler->isNotEmpty();
+        $kalemliMi = $kalemler !== [];
+        $kdvKalemi = 0.0;
+        $digerVergi = 0.0;
+        $tevkifat = 0.0;
+        $kdvMatrahi = 0.0;
+        $istisna = null;
+        $ilkTevkifat = null;
+        /** @var array<string, array{kdv: float, matrah: float, var: bool}> $oranlar */
+        $oranlar = array_fill_keys(self::ORANLAR, ['kdv' => 0.0, 'matrah' => 0.0, 'var' => false]);
 
-        $kdv = $kalemliMi ? $topla($kdvKalemleri, 'tutar') : (float) ($f->getAttribute('vergi_tutari') ?? 0);
-        $tevkifat = $topla($tevkifatlar, 'tutar');
+        foreach ($kalemler as $k) {
+            $tutar = (float) $k->tutar;
+
+            if ($k->tur === EFaturaVergiKalemi::TUR_TEVKIFAT) {
+                $tevkifat += $tutar;
+                $ilkTevkifat ??= $k;
+
+                continue;
+            }
+            if ($k->vergi_kodu !== self::KDV_KODU) {
+                $digerVergi += $tutar;
+
+                continue;
+            }
+
+            $kdvKalemi += $tutar;
+            $kdvMatrahi += (float) $k->matrah;
+            if ($istisna === null && $k->istisna_kodu !== null) {
+                $istisna = $k;
+            }
+            $oran = $this->oranAnahtari($k->oran);
+            if ($oran !== null) {
+                $oranlar[$oran]['kdv'] += $tutar;
+                $oranlar[$oran]['matrah'] += (float) $k->matrah;
+                $oranlar[$oran]['var'] = true;
+            }
+        }
+
+        $kdv = $kalemliMi ? $kdvKalemi : (float) ($f->vergi_tutari ?? 0);
         $net = $f->vergi_haric_tutar !== null ? (float) $f->vergi_haric_tutar : (float) $f->tutar - $kdv;
         $indirim = (float) ($f->indirim_tutari ?? 0);
         $orijinal = $f->satir_toplami !== null ? (float) $f->satir_toplami : $net + $indirim;
-        $faturaToplami = $kalemliMi ? $net + $kdv + $topla($digerVergiler, 'tutar') : (float) $f->tutar;
+        $faturaToplami = $kalemliMi ? $net + $kdv + $digerVergi : (float) $f->tutar;
         $kur = $f->para_birimi === 'TRY' ? 1.0 : ($f->kur !== null ? (float) $f->kur : null);
         $tl = fn (float $deger): ?float => $kur === null ? null : $this->tutar($deger * $kur);
-        $istisna = $kdvKalemleri->first(fn (EFaturaVergiKalemi $k): bool => $k->istisna_kodu !== null);
-        $ilkTevkifat = $tevkifatlar->first();
 
         $satir = [
-            'id' => $f->id,
-            'fatura_tarihi' => $f->belge_tarihi?->toDateString(),
+            'id' => (int) $f->id,
+            // PostgreSQL 'Y-m-d', SQLite saatli saklar
+            'fatura_tarihi' => substr((string) $f->belge_tarihi, 0, 10),
             'fatura_no' => (string) $f->belge_no,
             'fatura_profili' => $this->metin($f->senaryo),
-            'entegrator' => $tanim === null ? '' : __('efatura.saglayici.'.$tanim->saglayici),
-            'firma_unvani' => $this->metin($f->gonderici_unvan ?? $f->getAttribute('gonderici_ad_soyad')),
+            'entegrator' => $entegrator,
+            'firma_unvani' => $this->metin($f->gonderici_unvan ?? $f->gonderici_ad_soyad),
             'vkn' => $this->metin($f->gonderici_vkn),
             'vergi_dairesi' => $this->metin($f->satici_vergi_dairesi),
             'para_kodu' => (string) $f->para_birimi,
@@ -223,19 +285,18 @@ final class GelenFaturaRaporu extends ErpRaporu
             'fatura_toplami_tl' => $tl($faturaToplami),
             'tevkifat_tl' => $tl($tevkifat),
             'net_kdv_tl' => $tl($kdv - $tevkifat),
-            'matrah_toplami' => $this->tutar($kalemliMi ? $topla($kdvKalemleri, 'matrah') : $net),
-            'istisna_kodu' => $this->metin($istisna?->istisna_kodu ?? $f->getAttribute('izibiz_istisna_kodu') ?? $f->getAttribute('vergi_istisna_kodu')),
+            'matrah_toplami' => $this->tutar($kalemliMi ? $kdvMatrahi : $net),
+            'istisna_kodu' => $this->metin($istisna?->istisna_kodu ?? $f->izibiz_istisna_kodu ?? $f->vergi_istisna_kodu),
             'istisna_adi' => $this->metin($istisna?->istisna_adi),
             'tevkifat_kodu' => $this->metin($ilkTevkifat?->vergi_kodu),
             'tevkifat_aciklama' => $this->metin($ilkTevkifat?->vergi_adi),
-            self::RED_ALANI => $f->reddedildi() ? 'evet' : 'hayir',
+            self::RED_ALANI => EFatura::redDurumu($f->durum, $f->harici_red_zamani) ? 'evet' : 'hayir',
         ];
 
-        foreach (self::ORANLAR as $oran) {
-            $oranKalemleri = $kdvKalemleri->filter(fn (EFaturaVergiKalemi $k): bool => $k->oran !== null && bccomp((string) $k->oran, $oran, 4) === 0);
-            $satir["kdv_{$oran}"] = $kalemliMi ? $this->tutar($topla($oranKalemleri, 'tutar')) : null;
-            $satir["matrah_{$oran}"] = $kalemliMi ? $this->tutar($topla($oranKalemleri, 'matrah')) : null;
-            $satir["oran_{$oran}"] = $oranKalemleri->isEmpty() ? '' : "%{$oran}";
+        foreach ($oranlar as $oran => $toplam) {
+            $satir["kdv_{$oran}"] = $kalemliMi ? $this->tutar($toplam['kdv']) : null;
+            $satir["matrah_{$oran}"] = $kalemliMi ? $this->tutar($toplam['matrah']) : null;
+            $satir["oran_{$oran}"] = $toplam['var'] ? "%{$oran}" : '';
         }
 
         return $satir;

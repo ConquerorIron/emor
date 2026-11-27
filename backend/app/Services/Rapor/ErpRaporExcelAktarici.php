@@ -26,6 +26,9 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
  */
 final class ErpRaporExcelAktarici
 {
+    /** Kolon genişliği üst sınırı (karakter) */
+    private const AZAMI_GENISLIK = 60;
+
     /**
      * @param  list<array<string, int|string|float|null>>  $satirlar  ekranda süzülen satırlar, ekrandaki sırayla
      * @return string oluşturulan geçici dosyanın yolu (çağıran siler)
@@ -106,15 +109,21 @@ final class ErpRaporExcelAktarici
      */
     private function tabloYaz(Worksheet $sayfa, array $kolonlar, array $satirlar, array $toplamlar): void
     {
+        // Kolon genişliği yazarken ölçülür: setAutoSize kaydederken bütün hücreleri
+        // yazı tipi ölçüsüyle yeniden tarar (tam yıl ~500.000 hücre)
+        $genislikler = [];
         foreach ($kolonlar as $i => $kolon) {
             $sayfa->setCellValueExplicit([$i + 1, 1], $kolon['baslik'], DataType::TYPE_STRING);
+            $genislikler[$i] = mb_strlen($kolon['baslik']);
         }
 
         $satir = 2;
 
         foreach ($satirlar as $degerler) {
             foreach ($kolonlar as $i => $kolon) {
-                $this->hucreYaz($sayfa, $i + 1, $satir, $kolon['tur'], $degerler[$kolon['alan']] ?? null);
+                $deger = $degerler[$kolon['alan']] ?? null;
+                $this->hucreYaz($sayfa, $i + 1, $satir, $kolon['tur'], $deger);
+                $genislikler[$i] = max($genislikler[$i], $this->gorunenUzunluk($kolon['tur'], $deger));
             }
             $satir++;
         }
@@ -123,8 +132,11 @@ final class ErpRaporExcelAktarici
 
         foreach ($toplamlar as $toplam) {
             $sayfa->setCellValueExplicit([1, $satir], $toplam['etiket'], DataType::TYPE_STRING);
+            $genislikler[0] = max($genislikler[0], mb_strlen($toplam['etiket']));
             foreach (array_slice($kolonlar, 1, preserve_keys: true) as $i => $kolon) {
-                $this->hucreYaz($sayfa, $i + 1, $satir, $kolon['tur'], $toplam['degerler'][$kolon['alan']] ?? null);
+                $deger = $toplam['degerler'][$kolon['alan']] ?? null;
+                $this->hucreYaz($sayfa, $i + 1, $satir, $kolon['tur'], $deger);
+                $genislikler[$i] = max($genislikler[$i], $this->gorunenUzunluk($kolon['tur'], $deger));
             }
             $sayfa->getStyle([1, $satir, count($kolonlar), $satir])->getFont()->setBold(true);
             $satir++;
@@ -144,14 +156,30 @@ final class ErpRaporExcelAktarici
             if ($bicim !== null) {
                 $sayfa->getStyle("{$harf}2:{$harf}{$sonSatir}")->getNumberFormat()->setFormatCode($bicim);
             }
-            // Veri ne kadar genişse kolon o kadar
-            $sayfa->getColumnDimension($harf)->setAutoSize(true);
+            // Veri ne kadar genişse kolon o kadar (çok uzun ünvanda sınırlı)
+            $sayfa->getColumnDimension($harf)->setWidth(min($genislikler[$i] + 2, self::AZAMI_GENISLIK));
         }
 
         $sonKolon = Coordinate::stringFromColumnIndex(count($kolonlar));
         $sayfa->getStyle("A1:{$sonKolon}1")->getFont()->setBold(true);
         $sayfa->freezePane('A2');
         $sayfa->setAutoFilter("A1:{$sonKolon}{$sonVeriSatiri}");
+    }
+
+    /** Hücrenin Excel'de görünen karakter sayısı (kolon genişliği için) */
+    private function gorunenUzunluk(string $tur, mixed $deger): int
+    {
+        if ($deger === null || $deger === '') {
+            return 0;
+        }
+
+        return match ($tur) {
+            'tarih' => 10,
+            'tutar' => strlen(number_format((float) $deger, 2)),
+            // En uzun ay adı ("Ağustos")
+            'ay' => 7,
+            default => mb_strlen((string) $deger),
+        };
     }
 
     private function hucreYaz(Worksheet $sayfa, int $sutun, int $satir, string $tur, mixed $deger): void

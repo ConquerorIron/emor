@@ -75,6 +75,8 @@ const GELEN_FATURA_RAPORU: ErpRaporTanimi<GelenFaturaSatiri> = {
   firmaAlani: 'firma_unvani',
   erpParametreleri: false,
   hazirlaniyorMetni: 'raporlar.gelenFaturaRaporu.hazirlaniyor',
+  // Toplamlar yalnız tablonun sonunda (kullanıcı isteği 2026-11-27)
+  toplamKonumu: 'alt',
   sabitGenislik: { firma_unvani: 'w-112', istisna_adi: 'w-64', tevkifat_aciklama: 'w-64' },
   ortali: ['fatura_no', 'para_kodu', 'kur', 'oran_0', 'oran_1', 'oran_10', 'oran_20'],
   toplamlar: (satirlar) =>

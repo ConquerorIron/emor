@@ -1634,6 +1634,7 @@
     "firmayaGoreFiltrele": "Filter by company",
     "kayitSayisi": "{{sayi}} records",
     "suzulmusKayitSayisi": "{{sayi}} of {{toplam}} records",
+    "grupSayisi": "{{sayi}} rows",
     "siraNo": "No",
     "genelToplamTl": "Grand Total (TRY)",
     "sekmeler": "Views",

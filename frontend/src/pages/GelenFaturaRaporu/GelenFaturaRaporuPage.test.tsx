@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import '@/i18n/i18n'
@@ -102,5 +102,28 @@ describe('GelenFaturaRaporuPage', () => {
     fireEvent.click(screen.getByRole('button', { name: "Excel'e Aktar" }))
     await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
     expect(api.excel.mock.calls[0][0]).toMatchObject({ anahtarlar: ['3', '1'] })
+  })
+
+  it('toplamlar yalnız tablonun sonunda; firma özeti sayfalı çizilir', async () => {
+    api.rapor.mockResolvedValue(
+      Array.from({ length: 60 }, (_, i) => ({
+        ...satir(i + 1, 'İzibiz', 'hayir'),
+        firma_unvani: `Firma ${i + 1}`,
+      })),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
+    expect(await screen.findByText('60 kayıt')).toBeInTheDocument()
+
+    const [baslik, , son] = screen.getAllByRole('rowgroup')
+    expect(baslik).not.toHaveTextContent('Genel Toplam (TL)')
+    expect(son).toHaveTextContent('Genel Toplam (TL)')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Firma' }))
+    expect(await screen.findByText('60 satır')).toBeInTheDocument()
+    const [ozetBasligi, ozetGovdesi, ozetSonu] = screen.getAllByRole('rowgroup')
+    // Varsayılan sayfa boyutu 50: 60 firmanın ilk 50'si
+    expect(within(ozetGovdesi).getAllByRole('row')).toHaveLength(50)
+    expect(ozetBasligi).not.toHaveTextContent('Genel Toplam (TL)')
+    expect(ozetSonu).toHaveTextContent('Genel Toplam (TL)')
   })
 })

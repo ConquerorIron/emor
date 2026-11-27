@@ -1634,6 +1634,7 @@
     "firmayaGoreFiltrele": "Firmaya göre filtrele",
     "kayitSayisi": "{{sayi}} kayıt",
     "suzulmusKayitSayisi": "{{toplam}} kayıttan {{sayi}} kayıt",
+    "grupSayisi": "{{sayi}} satır",
     "siraNo": "Sıra No",
     "genelToplamTl": "Genel Toplam (TL)",
     "sekmeler": "Görünümler",

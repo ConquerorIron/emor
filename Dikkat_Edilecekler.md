@@ -362,6 +362,16 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   ilerlesin ve hedefin aralığı kısa olsun.
   *(DataTable üst kaydırma çubuğu: sağa kayarken tablo geri çekilip titriyordu.)*
 
+- **F6 — Tarayıcıda süzülen büyük sonuçta türetilen veri her çizimde
+  hesaplanmasın.** Süzme, seçenek listesi, toplam ve özet `useMemo` ile
+  yalnız kaynağı değişince hesaplanır; sıralamada `localeCompare(…, 'tr')`
+  yerine modül düzeyinde tek `Intl.Collator` (her çağrıda yeniden kurulur);
+  yüzlerce satırlık özet tablosu da sayfalanır. Sınırı gerçek boyutta ölç:
+  canlı tam yıl satır ve grup sayısıyla (12.000 satır, 1.442 firma grubu).
+  *(Gelen Fatura Raporu 2026-11-27: Firma / Entegratör / Tarih sekmelerine
+  her tıklama 12.000 satırı yeniden süzüp sıralıyor, firma özeti tek seferde
+  ~39.000 hücre çiziyordu.)*
+
 - **F5 — İş başlatan düğmeyi bekleme durumuyla da kilitle; `isPending` tek
   başına yetmez.** İstek kimliği dönene kadar düğme açık kalırsa aynı iş iki kez
   bırakılır; TanStack'in bekleme durumu da bir sonraki çizimde gelir, iki hızlı

@@ -30,6 +30,9 @@ export function useRaporSiralama(varsayilan: RaporSiralamasi | null = null) {
  * iç içe değer…) `degerler` ile özel okuyucu verilir. Sayılar sayısal,
  * metinler Türkçe harf sırasıyla karşılaştırılır.
  */
+/** localeCompare(…, 'tr') ile aynı sıra; tek nesne (her karşılaştırmada kurulmaz) */
+const METIN_SIRASI = new Intl.Collator('tr')
+
 export function siralaUygula<T>(
   satirlar: T[],
   siralama: RaporSiralamasi | null,
@@ -50,7 +53,7 @@ export function siralaUygula<T>(
     const fark =
       typeof x === 'number' && typeof y === 'number'
         ? x - y
-        : String(x ?? '').localeCompare(String(y ?? ''), 'tr')
+        : METIN_SIRASI.compare(String(x ?? ''), String(y ?? ''))
 
     return siralama.yon === 'asc' ? fark : -fark
   })
