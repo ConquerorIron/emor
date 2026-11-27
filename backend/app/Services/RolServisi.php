@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Rol;
+use App\Models\User;
 use App\Yetki\Izin;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -20,7 +22,7 @@ final class RolServisi
      */
     public function listele(): array
     {
-        $roller = Rol::query()->withCount('kullanicilar')->orderBy('ad')->get();
+        $roller = Rol::query()->with(self::kullaniciAdlari())->orderBy('ad')->get();
 
         $izinler = [];
         foreach (DB::table('rol_izinleri')->whereIn('rol_id', $roller->modelKeys())->orderBy('izin')->get() as $satir) {
@@ -28,6 +30,18 @@ final class RolServisi
         }
 
         return [$roller, $izinler];
+    }
+
+    /**
+     * Rol listesinde gösterilen kullanıcılar (yalnız ad), ada göre sıralı.
+     *
+     * @return array{kullanicilar: \Closure(BelongsToMany<User, Rol>): void}
+     */
+    public static function kullaniciAdlari(): array
+    {
+        return ['kullanicilar' => function (BelongsToMany $sorgu): void {
+            $sorgu->select(['users.id', 'users.ad'])->orderBy('users.ad');
+        }];
     }
 
     /**

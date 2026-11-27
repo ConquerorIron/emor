@@ -26,7 +26,6 @@ import {
 import { useIzin } from '@/hooks/useIzin'
 
 import { IzinMatrisi } from './IzinMatrisi'
-import { rolOzeti } from './izinKurallari'
 
 const rolSemasi = z.object({
   ad: z
@@ -186,22 +185,15 @@ export function RollerPage() {
   const tumKolonlar: DataTableKolonu<Rol>[] = [
     { anahtar: 'ad', baslik: t('ayarlar.roller.ad'), render: (rol) => <strong>{rol.ad}</strong> },
     {
-      anahtar: 'izinler',
-      baslik: t('ayarlar.roller.izinler'),
-      render: (rol) => {
-        // Ekran başına tek satır: "SQL Bağlantıları: Güncelle"
-        const ozet = rolOzeti(rol.izinler, izinKatalogu.data ?? [], t)
-
-        return ozet.length === 0 ? (
-          <span className="text-slate-400">{t('ayarlar.roller.izinYok')}</span>
+      // İzinler satırı çok uzatıyordu (kullanıcı isteği 2026-11-27); izinler Düzenle'de görünür
+      anahtar: 'kullanicilar',
+      baslik: t('ayarlar.roller.kullanicilar'),
+      render: (rol) =>
+        rol.kullanicilar.length === 0 ? (
+          <span className="text-slate-400">{t('ayarlar.roller.kullaniciYok')}</span>
         ) : (
-          <ul className="space-y-0.5">
-            {ozet.map((satir) => (
-              <li key={satir}>{satir}</li>
-            ))}
-          </ul>
-        )
-      },
+          rol.kullanicilar.join(', ')
+        ),
     },
     {
       anahtar: 'kullanici_sayisi',

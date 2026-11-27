@@ -1,4 +1,4 @@
-import { izinEtiketAnahtari, type EkranIzni } from '@/features/ayarlar/yetkiApi'
+import type { EkranIzni } from '@/features/ayarlar/yetkiApi'
 import type { NavGrubu } from '@/layouts/navGruplari'
 
 /** Matristeki katlanır bölüm: bir menü grubunun ekranları */
@@ -87,31 +87,4 @@ export function izinDegistir(
   }
 
   return katalog.flatMap(ekranKodlari).filter((kod) => yeni.has(kod))
-}
-
-/**
- * Rol listesindeki özet: izni olan her ekran için bir satır, ör.
- * "SQL Bağlantıları: Güncelle" ya da "e-Faturalar: Görüntüle (e-Fatura PDF/XML görüntüleme)".
- */
-export function rolOzeti(
-  izinler: string[],
-  katalog: EkranIzni[],
-  t: (anahtar: string) => string,
-): string[] {
-  const secili = new Set(izinler)
-
-  return katalog.flatMap((ekran) => {
-    if (!secili.has(ekran.goruntule)) {
-      return []
-    }
-    const duzey =
-      ekran.guncelle !== null && secili.has(ekran.guncelle)
-        ? t('yetki.guncelle')
-        : t('yetki.goruntule')
-    const ekler = ekran.ekler.filter((ek) => secili.has(ek)).map((ek) => t(izinEtiketAnahtari(ek)))
-
-    return [
-      `${t(`yetki.ekran.${ekran.ekran}`)}: ${duzey}${ekler.length > 0 ? ` (${ekler.join(', ')})` : ''}`,
-    ]
-  })
 }

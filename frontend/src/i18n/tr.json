@@ -432,8 +432,9 @@
       "ad": "Rol Adı",
       "aciklama": "Açıklama",
       "izinler": "İzinler",
-      "izinYok": "İzin yok",
-      "kullaniciSayisi": "Kullanıcı",
+      "kullanicilar": "Kullanıcılar",
+      "kullaniciYok": "Kullanıcı yok",
+      "kullaniciSayisi": "Kullanıcı Sayısı",
       "kaydedildi": "Rol kaydedildi.",
       "silindi": "Rol silindi.",
       "silOnayBaslik": "Rol silinsin mi?",
@@ -1738,7 +1739,8 @@
     "entegratoreGoreFiltrele": "Entegratöre göre filtrele",
     "gelenFaturaRaporu": {
       "baslik": "Gelen Fatura Raporu",
-      "aciklamaMetni": "Bütün kaynakların (İzibiz, Protel, Logo, E-Arşiv) gelen faturaları, Logo'nun gelen fatura Excel'inin kolonlarıyla. Oran bazında KDV, tevkifat, istisna ve kur faturanın UBL'inden (Logo'da Excel'inden) gelir; UBL'i henüz okunmamış faturada tutarlar listedeki değerlerdir, oran kolonları boştur. TL kolonları kurla hesaplanır (TRY'de kur 1; kuru olmayan dövizli faturada boş). Gizlenen faturalar rapora girmez.",
+      "aciklamaMetni": "Bütün kaynakların (İzibiz, Protel, Logo, E-Arşiv) gelen faturaları, Logo'nun gelen fatura Excel'inin kolonlarıyla. Oran bazında KDV, tevkifat, istisna ve kur faturanın UBL'inden (Logo'da Excel'inden) gelir; UBL'i henüz okunmamış faturada tutarlar listedeki değerlerdir, oran kolonları boştur. TL kolonları kurla hesaplanır (TRY'de kur 1; kuru olmayan dövizli faturada boş). Gizlenen faturalar rapora girmez. Rapor ERP'den veri okumaz: faturalar entegratörlerden ve yüklenen dosyalardan uygulamaya alınmış kayıtlardır.",
+      "hazirlaniyor": "Rapor hazırlanıyor…",
       "aramaIpucu": "Fatura no, ünvan, VKN, vergi dairesi, istisna, tevkifat…",
       "suzgec": {
         "redHaric": "RED'leri çıkar"

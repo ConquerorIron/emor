@@ -130,6 +130,7 @@ final class RolTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.ad', 'Muhasebe')
             ->assertJsonPath('data.izinler', ['efatura.goruntule', 'efatura.pdf'])
+            ->assertJsonPath('data.kullanicilar', [])
             ->assertJsonPath('data.kullanici_sayisi', 0);
 
         $this->assertSame(2, DB::table('rol_izinleri')->count());
@@ -212,15 +213,21 @@ final class RolTest extends TestCase
         $this->assertSame([], $kullanici->roller()->pluck('roller.id')->all());
     }
 
-    public function test_liste_rol_basina_kullanici_sayisini_doner(): void
+    public function test_liste_rol_basina_kullanici_adlarini_sirali_ve_sayisini_doner(): void
     {
         $this->yonetici();
         $rol = Rol::query()->create(['ad' => 'Muhasebe']);
-        User::factory()->count(2)->create()->each(fn (User $u) => $u->roller()->attach($rol));
+        Rol::query()->create(['ad' => 'Satinalma']);
+        foreach (['Zeynep Kaya', 'Ali Veli'] as $ad) {
+            User::factory()->create(['ad' => $ad])->roller()->attach($rol);
+        }
 
         $this->getJson('/api/v1/ayarlar/roller')
             ->assertOk()
             ->assertJsonPath('data.0.ad', 'Muhasebe')
-            ->assertJsonPath('data.0.kullanici_sayisi', 2);
+            ->assertJsonPath('data.0.kullanicilar', ['Ali Veli', 'Zeynep Kaya'])
+            ->assertJsonPath('data.0.kullanici_sayisi', 2)
+            ->assertJsonPath('data.1.kullanicilar', [])
+            ->assertJsonPath('data.1.kullanici_sayisi', 0);
     }
 }

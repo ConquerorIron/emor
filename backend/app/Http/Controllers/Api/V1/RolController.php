@@ -49,7 +49,7 @@ final class RolController extends Controller
         $rol = $this->servis->kaydet(null, $veri);
         $this->kaydiYaz('Rol oluşturuldu', $request, $rol);
 
-        return response()->json(['data' => $this->rolVerisi($rol->loadCount('kullanicilar'), $rol->izinler())], 201);
+        return response()->json(['data' => $this->rolVerisi($rol->load(RolServisi::kullaniciAdlari()), $rol->izinler())], 201);
     }
 
     public function update(RolKaydetRequest $request, Rol $rol): JsonResponse
@@ -59,7 +59,7 @@ final class RolController extends Controller
         $rol = $this->servis->kaydet($rol, $veri);
         $this->kaydiYaz('Rol güncellendi', $request, $rol);
 
-        return response()->json(['data' => $this->rolVerisi($rol->loadCount('kullanicilar'), $rol->izinler())]);
+        return response()->json(['data' => $this->rolVerisi($rol->load(RolServisi::kullaniciAdlari()), $rol->izinler())]);
     }
 
     public function destroy(Request $request, Rol $rol): Response
@@ -86,7 +86,8 @@ final class RolController extends Controller
             'ad' => $rol->ad,
             'aciklama' => $rol->aciklama,
             'izinler' => $izinler,
-            'kullanici_sayisi' => (int) ($rol->kullanicilar_count ?? 0),
+            'kullanicilar' => $rol->kullanicilar->pluck('ad')->all(),
+            'kullanici_sayisi' => $rol->kullanicilar->count(),
         ];
     }
 

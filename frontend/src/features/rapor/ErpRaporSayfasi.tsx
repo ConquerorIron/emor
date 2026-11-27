@@ -432,7 +432,7 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
             aria-hidden="true"
             className="size-5 animate-spin rounded-full border-2 border-current border-t-transparent"
           />
-          {t('raporlar.hazirlaniyor')}
+          {t(tanim.hazirlaniyorMetni ?? 'raporlar.hazirlaniyor')}
         </div>
       ) : rapor.isError ? (
         <div className="mt-4">

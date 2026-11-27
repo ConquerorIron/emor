@@ -28,6 +28,7 @@ const MUHASEBE: Rol = {
   ad: 'Muhasebe',
   aciklama: null,
   izinler: ['efatura.goruntule', 'efatura.pdf'],
+  kullanicilar: ['Ali Veli', 'Ayşe Yılmaz', 'Zeynep Kaya'],
   kullanici_sayisi: 3,
 }
 
@@ -72,16 +73,19 @@ describe('RollerPage', () => {
     vi.clearAllMocks()
   })
 
-  it('rolün izinlerini ekran başına özetler ve kullanıcı sayısını gösterir', async () => {
+  it('listede izinler yerine rolün kullanıcılarını ve sayısını gösterir', async () => {
+    api.roller.mockResolvedValue([
+      MUHASEBE,
+      { ...MUHASEBE, id: 8, ad: 'Denetim', kullanicilar: [], kullanici_sayisi: 0 },
+    ])
     ciz()
 
     expect(await screen.findByText('Muhasebe')).toBeInTheDocument()
-    expect(
-      await screen.findByText(
-        'İzibiz e-Faturaları (Gelen/Giden): Görüntüle (e-Fatura PDF/XML görüntüleme)',
-      ),
-    ).toBeInTheDocument()
+    expect(screen.getByText('Ali Veli, Ayşe Yılmaz, Zeynep Kaya')).toBeInTheDocument()
+    expect(screen.getByText('Kullanıcı yok')).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: 'İzinler' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/PDF\/XML görüntüleme/)).not.toBeInTheDocument()
   })
 
   it('güncelleme açılınca görüntüleme de açılır ve ikisi birlikte kaydedilir', async () => {

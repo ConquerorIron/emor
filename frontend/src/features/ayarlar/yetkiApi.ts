@@ -5,6 +5,8 @@ export interface Rol {
   ad: string
   aciklama: string | null
   izinler: string[]
+  /** Role atanmış kullanıcıların adları, ada göre sıralı */
+  kullanicilar: string[]
   kullanici_sayisi: number
 }
 

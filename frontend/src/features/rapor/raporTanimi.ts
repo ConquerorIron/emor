@@ -35,6 +35,8 @@ export interface ErpRaporTanimi<T extends RaporSatiri> {
    * ERP'ye gitmeyen raporda false: seçiciler çizilmez, seçenekler istenmez.
    */
   erpParametreleri?: boolean
+  /** Rapor beklenirken gösterilen metin (i18n); verilmezse "Rapor ERP'den okunuyor…" */
+  hazirlaniyorMetni?: string
   /** Sabit genişlikli metin kolonları (Tailwind genişlik sınıfı): tek satır, sığmayan kısım "…" */
   sabitGenislik?: Partial<Record<keyof T & string, string>>
   /** Ortalanan metin kolonları (tarihler zaten ortalı) */

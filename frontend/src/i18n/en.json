@@ -432,8 +432,9 @@
       "ad": "Role Name",
       "aciklama": "Description",
       "izinler": "Permissions",
-      "izinYok": "No permissions",
-      "kullaniciSayisi": "Users",
+      "kullanicilar": "Users",
+      "kullaniciYok": "No users",
+      "kullaniciSayisi": "User Count",
       "kaydedildi": "Role saved.",
       "silindi": "Role deleted.",
       "silOnayBaslik": "Delete role?",
@@ -1738,7 +1739,8 @@
     "entegratoreGoreFiltrele": "Filter by integrator",
     "gelenFaturaRaporu": {
       "baslik": "Incoming Invoice Report",
-      "aciklamaMetni": "Incoming invoices from every source (İzibiz, Protel, Logo, E-Archive) in the columns of Logo's incoming invoice Excel. VAT by rate, withholding, exemption and rate come from the invoice UBL (Logo: its Excel); invoices whose UBL is not read yet show list amounts and empty rate columns. TRY columns use the exchange rate (1 for TRY; empty for foreign currency without a rate). Hidden invoices are excluded.",
+      "aciklamaMetni": "Incoming invoices from every source (İzibiz, Protel, Logo, E-Archive) in the columns of Logo's incoming invoice Excel. VAT by rate, withholding, exemption and rate come from the invoice UBL (Logo: its Excel); invoices whose UBL is not read yet show list amounts and empty rate columns. TRY columns use the exchange rate (1 for TRY; empty for foreign currency without a rate). Hidden invoices are excluded. The report reads nothing from the ERP: invoices are records imported into the application from the integrators and uploaded files.",
+      "hazirlaniyor": "Preparing the report…",
       "aramaIpucu": "Invoice no, name, tax no, tax office, exemption, withholding…",
       "suzgec": {
         "redHaric": "Exclude rejected"

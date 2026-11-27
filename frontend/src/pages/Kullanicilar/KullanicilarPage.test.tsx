@@ -88,8 +88,15 @@ describe('KullanicilarPage', () => {
       erpOkunamadi: false,
     })
     api.roller.mockResolvedValue([
-      { id: 7, ad: 'Muhasebe', aciklama: null, izinler: [], kullanici_sayisi: 1 },
-      { id: 8, ad: 'Denetim', aciklama: null, izinler: [], kullanici_sayisi: 0 },
+      {
+        id: 7,
+        ad: 'Muhasebe',
+        aciklama: null,
+        izinler: [],
+        kullanicilar: ['Ali Veli'],
+        kullanici_sayisi: 1,
+      },
+      { id: 8, ad: 'Denetim', aciklama: null, izinler: [], kullanicilar: [], kullanici_sayisi: 0 },
     ])
   })
 
