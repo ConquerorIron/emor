@@ -69,7 +69,9 @@ describe('ErpKesintiKontroluPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
     expect(await screen.findByText('4 kayıt')).toBeInTheDocument()
 
-    expect(screen.getAllByRole('columnheader').map((baslik) => baslik.textContent)).toEqual([
+    expect(
+      screen.getAllByRole('columnheader').map((baslik) => baslik.textContent.replace(/[▲▼↕]/g, '')),
+    ).toEqual([
       'Sıra No',
       'Taşeron',
       'Proje',

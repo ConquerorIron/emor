@@ -402,7 +402,8 @@ final class SaklamaPolitikasi
     }
 
     /**
-     * Hesaplanan kararları uygular. Erişilemeyen hedef atlanır, diğerleri
+     * Hesaplanan kararları uygular; karar yoksa depoya (yedek klasörü, işaret)
+     * hiç dokunmaz. Karar varsa önce depo doğrulanır. Erişilemeyen hedef atlanır, diğerleri
      * sürer; bir kararın beklenmeyen hatası da yalnız o grubu keser (YF-35). Her silme denetim kaydına ve olay günlüğüne nedeniyle yazılır.
      * Uzak silmeler önce uygulanır; plan yedeğinin yerel dosyası, ardından
      * fiilen kalan uzak kopyalardan hiçbiri kurtarmaya hazır değilse silinmez
@@ -414,6 +415,16 @@ final class SaklamaPolitikasi
      */
     public function uygula(?int $kullaniciId = null): array
     {
+        $hesap = $this->hesapla();
+        $sonuc = ['bag' => 0, 'dosya' => 0, 'atlanan_hedefler' => [], 'bilgi' => [], 'kararlar' => []];
+
+        // Uygulanacak karar yoksa depoya dokunulmaz: hiç yedek alınmamış kurulumda
+        // yedek klasörü henüz yoktur (ilk yedek açar); işaret yazımı orada düşüp
+        // her gece temizliği başarısız gösteriyordu (canlı 2026-11-22…27)
+        if ($hesap['silinecek'] === [] && $hesap['engellenen'] === []) {
+            return $sonuc;
+        }
+
         // Bağlanmamış diskte yerel dosyalar "yok" görünür (yedek katalogdan düşerdi)
         // ve her karar imzalı olay günlüğünü yedek klasörüne yazar (kök diske düşerdi):
         // depo doğrulanmadan hiçbir karar uygulanmaz (BY-011-R3, G1)
@@ -424,9 +435,6 @@ final class SaklamaPolitikasi
 
             throw $hata;
         }
-
-        $hesap = $this->hesapla();
-        $sonuc = ['bag' => 0, 'dosya' => 0, 'atlanan_hedefler' => [], 'bilgi' => [], 'kararlar' => []];
 
         // Aynı fiziksel depoyu gösteren hedeflerin ortak dosyası silinmez; her turda görünür hata (BY-010-R7)
         foreach ($hesap['engellenen'] as ['karar' => $karar, 'hedefler' => $hedefler]) {

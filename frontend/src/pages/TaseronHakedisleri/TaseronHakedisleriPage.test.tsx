@@ -99,7 +99,9 @@ describe('TaseronHakedisleriPage', () => {
 
     expect(await screen.findByText('ZONE 7')).toBeInTheDocument()
     expect(api.rapor.mock.calls[0][0]).toEqual(VARSAYILAN)
-    expect(screen.getAllByRole('columnheader').map((baslik) => baslik.textContent)).toEqual([
+    expect(
+      screen.getAllByRole('columnheader').map((baslik) => baslik.textContent.replace(/[▲▼↕]/g, '')),
+    ).toEqual([
       'Sıra No',
       'Firma Adı',
       'Proje Adı',

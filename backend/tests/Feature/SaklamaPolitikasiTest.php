@@ -20,6 +20,7 @@ use App\Services\Yedekleme\KopyaDurumu;
 use App\Services\Yedekleme\ManifestDeposu;
 use App\Services\Yedekleme\SaklamaPolitikasi;
 use App\Services\Yedekleme\SilmeKarari;
+use App\Services\Yedekleme\YedekDeposu;
 use App\Services\Yedekleme\YedekDurumu;
 use App\Services\Yedekleme\YedekKaynagi;
 use Carbon\CarbonImmutable;
@@ -892,6 +893,24 @@ final class SaklamaPolitikasiTest extends TestCase
             $this->assertFileExists($klasor.'/'.$yedek->dosya_adi);
         }
         $this->assertSame(KopyaDurumu::Tamam, $anaKopya->refresh()->durum);
+    }
+
+    /**
+     * Canlı 2026-11-22…27: hiç yedek alınmamış kurulumda yedek klasörü yoktur
+     * (ilk yedek açar). Silinecek bir şey yokken temizlik depoya dokunmaz,
+     * klasörü açmaz ve başarılı biter (önce işaret yazımında her gece düşüyordu).
+     */
+    public function test_hic_yedek_yokken_klasor_acilmamissa_temizlik_basarili_biter_ve_depoya_dokunmaz(): void
+    {
+        $klasor = config('yedekleme.klasor');
+        unlink($klasor.'/'.YedekDeposu::ISARET);
+        rmdir($klasor);
+        config(['yedekleme.aktif' => true]);
+
+        $this->artisan('yedek:temizle')->assertSuccessful();
+
+        $this->assertDirectoryDoesNotExist($klasor);
+        $this->assertSame(0, YedekIslemKaydi::query()->where('islem', 'saklama_sil')->count());
     }
 
     /** F7: hiçbir kopyası kalmayan yedek `silindi`. */

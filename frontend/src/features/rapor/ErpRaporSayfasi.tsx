@@ -336,17 +336,41 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
     )
   }, [tumSatirlar, aramaMetinleri, aranan, suzgec, tanim])
 
+  // Data sekmesinde her kolon başlığa basınca sıralanır (rapor başına hatırlanır);
+  // sıralama yokken backend'in varsayılan sırası. Excel ekrandaki sırayla iner.
+  const { siralama, siralamaDegistir } = useKaliciSiralama(`${tanim.anahtar}Data`)
+  const tutarDegerleri = useMemo(
+    () =>
+      Object.fromEntries(
+        tanim.kolonlar
+          .filter((kolon) => kolon.tur === 'tutar')
+          // Boş tutar (kursuz TL) sayı gibi sıralansın: en küçük
+          .map(({ alan }) => [
+            alan,
+            (satir: T) =>
+              satir[alan] === null || satir[alan] === undefined ? -Infinity : Number(satir[alan]),
+          ]),
+      ),
+    [tanim],
+  )
+  const siraliSatirlar = useMemo(
+    () => siralaUygula(satirlar, siralama, tutarDegerleri),
+    [satirlar, siralama, tutarDegerleri],
+  )
+
   // Sayfalama tarayıcıda; 0 = "Hepsi"
   const toplamSayfa = boyut === 0 ? 1 : Math.max(1, Math.ceil(satirlar.length / boyut))
   const gecerliSayfa = Math.min(sayfa, toplamSayfa)
   const ilkIndeks = boyut === 0 ? 0 : (gecerliSayfa - 1) * boyut
-  const sayfaSatirlari = boyut === 0 ? satirlar : satirlar.slice(ilkIndeks, ilkIndeks + boyut)
+  const sayfaSatirlari =
+    boyut === 0 ? siraliSatirlar : siraliSatirlar.slice(ilkIndeks, ilkIndeks + boyut)
 
   const kolonBasligi = (alan: string) => t(`raporlar.${tanim.anahtar}.kolon.${alan}`)
   const ortali = new Set<string>(tanim.ortali ?? [])
   const veriKolonlari = tanim.kolonlar.map(({ alan, tur }): DataTableKolonu<T> => ({
     anahtar: alan,
     baslik: kolonBasligi(alan),
+    siralamaAnahtari: alan,
     hizala: hizasi(tur, ortali.has(alan)),
     render: (satir) => hucre(tur, satir[alan], tanim.sabitGenislik?.[alan]),
   }))
@@ -411,7 +435,7 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
             if (rapor.variables) {
               excel.mutate({
                 parametreler: rapor.variables,
-                anahtarlar: satirlar.map(tanim.satirAnahtari),
+                anahtarlar: siraliSatirlar.map(tanim.satirAnahtari),
               })
             }
           }}
@@ -642,6 +666,11 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
                   kolonlar={kolonlar}
                   satirlar={sayfaSatirlari}
                   satirAnahtari={tanim.satirAnahtari}
+                  siralama={siralama}
+                  siralamaDegistir={(anahtar) => {
+                    siralamaDegistir(anahtar)
+                    setSayfa(1)
+                  }}
                   ustKaydirma
                   toplamSatirlari={toplamSatirlari}
                   toplamKonumu={tanim.toplamKonumu}

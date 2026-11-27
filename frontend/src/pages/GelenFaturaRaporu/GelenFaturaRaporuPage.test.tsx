@@ -61,6 +61,8 @@ describe('GelenFaturaRaporuPage', () => {
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()
+    // Kolon sıralaması tarayıcıda hatırlanır: testler birbirini etkilemesin
+    localStorage.clear()
   })
 
   it('ERP parametre seçicileri yok, seçenekler istenmez; Logo kolonları sırasıyla, Hareket No ve Kesinti yok', async () => {
@@ -73,7 +75,10 @@ describe('GelenFaturaRaporuPage', () => {
     expect(await screen.findByText('3 kayıt')).toBeInTheDocument()
     expect(api.rapor.mock.calls[0][0]).toMatchObject({ proje_kodu: '', firma_adi: '' })
 
-    const basliklar = screen.getAllByRole('columnheader').map((baslik) => baslik.textContent)
+    // Sıralanabilir başlıktaki ok (↕ ▲ ▼) başlık adının parçası değil
+    const basliklar = screen
+      .getAllByRole('columnheader')
+      .map((baslik) => baslik.textContent?.replace(/[↕▲▼]/g, '').trim())
     expect(basliklar.slice(0, 9)).toEqual([
       'Sıra No',
       'Fatura Tarihi',
@@ -102,6 +107,29 @@ describe('GelenFaturaRaporuPage', () => {
     fireEvent.click(screen.getByRole('button', { name: "Excel'e Aktar" }))
     await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
     expect(api.excel.mock.calls[0][0]).toMatchObject({ anahtarlar: ['3', '1'] })
+  })
+
+  it('her kolon başlığa basınca sıralanır; Excel ekrandaki sırayla iner', async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
+    expect(await screen.findByText('3 kayıt')).toBeInTheDocument()
+
+    const tablo = screen.getAllByRole('rowgroup')[1]
+    const faturaNolari = () =>
+      within(tablo)
+        .getAllByRole('row')
+        .map((satir) => within(satir).getAllByRole('cell')[2].textContent)
+    expect(faturaNolari()).toEqual(['FTR3', 'FTR2', 'FTR1'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fatura No' }))
+    expect(faturaNolari()).toEqual(['FTR1', 'FTR2', 'FTR3'])
+    fireEvent.click(screen.getByRole('button', { name: 'Entegratör' }))
+    expect(faturaNolari()).toEqual(['FTR3', 'FTR1', 'FTR2'])
+    // Tutar kolonları da başlıktan sıralanır
+    expect(screen.getByRole('button', { name: 'Matrah 20' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: "Excel'e Aktar" }))
+    await waitFor(() => expect(api.excel).toHaveBeenCalledTimes(1))
+    expect(api.excel.mock.calls[0][0]).toMatchObject({ anahtarlar: ['3', '1', '2'] })
   })
 
   it('toplamlar yalnız tablonun sonunda; firma özeti sayfalı çizilir', async () => {

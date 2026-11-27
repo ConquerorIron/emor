@@ -78,7 +78,9 @@ describe('GiderYansitmaFaturalariPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Raporu Çalıştır' }))
     expect(await screen.findByText('3 kayıt')).toBeInTheDocument()
 
-    expect(screen.getAllByRole('columnheader').map((baslik) => baslik.textContent)).toEqual([
+    expect(
+      screen.getAllByRole('columnheader').map((baslik) => baslik.textContent.replace(/[▲▼↕]/g, '')),
+    ).toEqual([
       'Sıra No',
       'Tarih',
       'Fatura No',
