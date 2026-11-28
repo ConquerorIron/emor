@@ -39,7 +39,7 @@ final class EFaturaIslemGecmisiTest extends TestCase
 
     public function test_gizleme_ve_red_satirin_gecmisinde_en_yeni_ustte_kullanici_adiyla_gorunur(): void
     {
-        $fatura = EFatura::factory()->protel()->create();
+        $fatura = EFatura::factory()->protel()->create(['emor_durumu' => 'yok']);
         $kullanici = $this->izinli('Ali Veli', 'protel_faturalari.goruntule', 'protel_faturalari.isle', 'protel_faturalari.red');
 
         $this->travelTo('2026-11-25 08:00:00');
@@ -63,7 +63,7 @@ final class EFaturaIslemGecmisiTest extends TestCase
 
     public function test_gecmis_yazilamazsa_durum_degisikligi_de_geri_alinir(): void
     {
-        $fatura = EFatura::factory()->protel()->create();
+        $fatura = EFatura::factory()->protel()->create(['emor_durumu' => 'yok']);
         EFaturaIslemi::creating(fn (): never => throw new RuntimeException('geçmiş yazılamadı'));
 
         $this->actingAs($this->izinli('Ali Veli', 'protel_faturalari.goruntule', 'protel_faturalari.red'))
@@ -93,9 +93,14 @@ final class EFaturaIslemGecmisiTest extends TestCase
         $this->assertDatabaseHas('efatura_islem_gecmisi', ['id' => $kayit->id, 'kullanici_adi' => 'Ali Veli']);
     }
 
-    public function test_fatura_silinse_de_gecmis_belge_kimligiyle_okunur(): void
+    /**
+     * Kayıt, kimlik ve ortam kopyasını taşır: fatura silinse de belge no, sağlayıcı
+     * ve ORTAM okunur (test ve canlı tanımın işlemleri ayırt edilir — inceleme A-9).
+     * Belge kimliği kayıtta kalır ama API'den dönmez (ekran kullanmıyor — A-8).
+     */
+    public function test_fatura_silinse_de_gecmis_belge_no_saglayici_ve_ortamla_okunur(): void
     {
-        $protel = EntegratorBaglanti::factory()->protel()->aktif()->create();
+        $protel = EntegratorBaglanti::factory()->protel()->aktif()->create(['ortam' => EntegratorBaglanti::ORTAM_TEST]);
         $fatura = EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id, 'belge_no' => 'OTL2026000000009']);
         $kullanici = $this->izinli('Ali Veli', 'protel_faturalari.goruntule', 'protel_faturalari.isle', 'efatura_islem_gecmisi.goruntule');
         $this->travelTo('2026-11-25 08:00:00');
@@ -107,9 +112,33 @@ final class EFaturaIslemGecmisiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.fatura_id', null)
             ->assertJsonPath('data.0.belge_no', 'OTL2026000000009')
-            ->assertJsonPath('data.0.belge_kimligi', $fatura->ettn)
             ->assertJsonPath('data.0.saglayici', 'protel')
-            ->assertJsonPath('data.0.islem', 'islendi_isaretlendi');
+            ->assertJsonPath('data.0.ortam', 'test')
+            ->assertJsonPath('data.0.islem', 'islendi_isaretlendi')
+            ->assertJsonMissingPath('data.0.belge_kimligi');
+        $this->assertDatabaseHas('efatura_islem_gecmisi', ['belge_no' => 'OTL2026000000009', 'belge_kimligi' => $fatura->ettn, 'ortam' => 'test']);
+    }
+
+    /**
+     * e-Arşiv / e-SMM belgesinin anahtarı göndericinin VKN / TCKN'sini taşır:
+     * geçmişe yalnız tür + belge no yazılır, kimlik no ne yanıtta görünür ne
+     * aramayla bulunur (inceleme B-12 / A-8; kullanıcı kararı 2026-11-27).
+     */
+    public function test_earsiv_belgesinin_kimlik_nosu_gecmise_yazilmaz_aramayla_bulunmaz(): void
+    {
+        $makbuz = EFatura::factory()->earsiv('makbuz')->create(['gonderici_vkn' => '28948489664', 'belge_no' => 'MSK2026000000390']);
+        $kullanici = $this->izinli('Ali Veli', 'earsiv_faturalari.goruntule', 'earsiv_faturalari.isle', 'efatura_islem_gecmisi.goruntule');
+        $this->travelTo('2026-11-25 08:00:00');
+        $this->actingAs($kullanici)->putJson("/api/v1/earsiv/faturalar/{$makbuz->id}/islendi", ['islendi' => true])->assertOk();
+
+        $this->assertDatabaseHas('efatura_islem_gecmisi', ['fatura_id' => $makbuz->id, 'belge_kimligi' => 'makbuz|MSK2026000000390']);
+        $this->actingAs($kullanici)->getJson('/api/v1/efatura/islem-gecmisi?'.self::ARALIK)
+            ->assertOk()
+            ->assertJsonPath('data.0.belge_no', 'MSK2026000000390')
+            ->assertDontSee('28948489664');
+        $this->actingAs($kullanici)->getJson('/api/v1/efatura/islem-gecmisi?'.self::ARALIK.'&ara=28948489664')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
     }
 
     /**
@@ -140,6 +169,17 @@ final class EFaturaIslemGecmisiTest extends TestCase
         $this->assertSame([$kasimSonu], $idler(self::ARALIK.'&ara=noter'));
         $this->actingAs($yetkili)->getJson('/api/v1/efatura/islem-gecmisi?'.self::ARALIK)
             ->assertJsonPath('secenekler.kullanicilar', [['id' => $ali->id, 'ad' => 'Ali Veli'], ['id' => $ayse->id, 'ad' => 'Ayşe Kaya']]);
+    }
+
+    /** Taşan sayfa numarası (offset hesabı int'e sığmaz) 500 değil doğrulama hatası (inceleme A-5). */
+    public function test_asiri_buyuk_sayfa_numarasi_422(): void
+    {
+        EFaturaIslemi::query()->create(['saglayici' => 'izibiz', 'islem' => 'gizlendi', 'kullanici_adi' => 'Ali Veli', 'created_at' => '2026-11-10 09:00:00']);
+
+        $this->actingAs($this->izinli('Yönetici', 'efatura_islem_gecmisi.goruntule'))
+            ->getJson('/api/v1/efatura/islem-gecmisi?'.self::ARALIK.'&page=9223372036854775807')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('page', 'hatalar');
     }
 
     public function test_islem_gecmisi_ekrani_izinsiz_kullaniciya_403(): void

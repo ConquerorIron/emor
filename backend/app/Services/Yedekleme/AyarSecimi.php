@@ -344,14 +344,20 @@ final class AyarSecimi
             $this->siraNumarasiniIlerlet('yedek_planlari');
         }
 
-        $this->fazlalariKaldir('yedek_planlari', array_column($planlar, 'id'), fn (int $id): bool => DB::table('yedek_kopya_planlari')->where('yedek_plani_id', $id)->exists());
+        // Yalnız yedeği tutan kopyanın bağı planı tutar; diğerleri silmeden önce kalkar (G1-2)
+        $this->fazlalariKaldir('yedek_planlari', array_column($planlar, 'id'), function (int $id): bool {
+            KopyaPlanBaglari::tutmayanlariKaldir($id);
+
+            return KopyaPlanBaglari::tutanlar()->where('yedek_kopya_planlari.yedek_plani_id', $id)->exists();
+        });
 
         return $uyarilar;
     }
 
     /**
-     * Planın hedef bağları ve saklama kuralları dosyadaki gibi. Kopya bağı
-     * olan kural silinemez (RESTRICT): kalır, uyarı döner.
+     * Planın hedef bağları ve saklama kuralları dosyadaki gibi. Yedeği tutan
+     * kopyanın bağı olan kural silinemez (RESTRICT): kalır, uyarı döner.
+     * Başarısız / bekleyen kopyanın bağı önce kaldırılır (KopyaPlanBaglari; G1-2).
      *
      * @param  list<array<string, mixed>>  $istenen
      * @return list<string>
@@ -377,7 +383,8 @@ final class AyarSecimi
 
         $uyarilar = [];
         foreach (array_diff($mevcut, array_keys($istenenler)) as $hedefId) {
-            if (DB::table('yedek_kopya_planlari')->where('yedek_plani_id', $plan->id)->where('yedek_hedefi_id', $hedefId)->exists()) {
+            KopyaPlanBaglari::tutmayanlariKaldir($plan->id, [$hedefId]);
+            if (KopyaPlanBaglari::tutanlar()->where('yedek_kopya_planlari.yedek_plani_id', $plan->id)->where('yedek_kopya_planlari.yedek_hedefi_id', $hedefId)->exists()) {
                 $uyarilar[] = "Plan \"{$plan->ad}\": bugün kaldırılmış hedef bağı (#{$hedefId}) kopyaları tuttuğu için silinemedi; ekrandan inceleyin.";
 
                 continue;

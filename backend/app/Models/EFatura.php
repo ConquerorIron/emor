@@ -42,11 +42,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property CarbonImmutable|null $harici_red_zamani Yetkili kullanıcının RED'e çektiği an (EK-04)
  * @property int|null $harici_red_eden_id
  * @property string|null $harici_red_nedeni
- * @property int|null $yukleme_id Satırı ekleyen içe aktarım partisi (EK-06)
- * @property string|null $erp_durumu Protel `erpStatus` (İzibiz'de null)
+ * @property int|null $yukleme_id Satırı ekleyen içe aktarım partisi (EK-06) * @property string|null $erp_durumu Protel `erpStatus` (İzibiz'de null)
  * @property bool|null $yazdirildi Protel `isPrinted` (İzibiz'de null)
  * @property bool|null $otel_erp_okundu Protel `isErpRecieved` — otelin ERP'si aldı mı (İzibiz'de null; eMOR okuması `erp_okundu`)
- * @property bool|null $sap_islendi SAP'ye işlendi mi. Protel ve statik kaynaklarda ekrandaki "İşlendi" anahtarı yazar (true / NULL; reddedilmiş faturada yazılmaz ve gösterimde "Red" önce gelir); İzibiz için kaynak uç bekleniyor
+ * @property bool|null $sap_islendi SAP'ye işlendi mi. Her kaynakta (İzibiz, Protel, statik) ekrandaki "İşlendi" anahtarı elle yazar (true / NULL; reddedilmiş faturada yazılmaz ve gösterimde "Red" önce gelir); kaynaktan okunmaz
  */
 final class EFatura extends Model
 {
@@ -95,6 +94,21 @@ final class EFatura extends Model
     public static function redDurumu(mixed $durum, mixed $hariciRedZamani): bool
     {
         return in_array($durum, self::KAYNAK_RED_DURUMLARI, true) || $hariciRedZamani !== null;
+    }
+
+    /**
+     * Belge tarihi iki uç dahil aralıkta (Y-m-d). Üst sınır "ertesi günden
+     * küçük": SQLite tarihi saatle saklar (`2026-12-31 00:00:00`),
+     * `<= '2026-12-31'` o günü dışarıda bırakırdı (Dikkat T6). Liste, pano ve
+     * rapor bu tek koşulu kullanır.
+     *
+     * @param  Builder<self>  $sorgu
+     */
+    #[Scope]
+    protected function belgeTarihiAraliginda(Builder $sorgu, string $baslangic, string $bitis): void
+    {
+        $sorgu->where('belge_tarihi', '>=', $baslangic)
+            ->where('belge_tarihi', '<', CarbonImmutable::parse($bitis)->addDay()->toDateString());
     }
 
     /**

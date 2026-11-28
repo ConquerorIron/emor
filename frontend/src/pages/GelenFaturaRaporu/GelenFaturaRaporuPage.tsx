@@ -1,5 +1,6 @@
 import { ErpRaporSayfasi } from '@/features/rapor/ErpRaporSayfasi'
 import { paraKodunaGoreTopla, topla, type ErpRaporTanimi } from '@/features/rapor/raporTanimi'
+import { bugunIso } from '@/utils/tarih'
 
 import {
   ORIJINAL_TUTARLAR,
@@ -18,7 +19,8 @@ const tutar = (alan: (typeof ORIJINAL_TUTARLAR)[number] | (typeof TL_TUTARLAR)[n
  * faturalar Logo'nun gelen fatura Excel'inin kolonlarıyla (Hareket No ve
  * Kesinti yok). Satırlar ERP'den değil uygulamanın tablolarından: proje / firma
  * parametre seçicileri yok, "proje" süzgeci entegratördür. Toplamlar: TL genel
- * toplamı + döviz cinsine göre orijinal tutarlar.
+ * toplamı (kuru olmayan dövizli faturalar hariç, sayısı etikette) + döviz
+ * cinsine göre orijinal tutarlar.
  */
 const GELEN_FATURA_RAPORU: ErpRaporTanimi<GelenFaturaSatiri> = {
   anahtar: 'gelenFaturaRaporu',
@@ -79,17 +81,28 @@ const GELEN_FATURA_RAPORU: ErpRaporTanimi<GelenFaturaSatiri> = {
   toplamKonumu: 'alt',
   sabitGenislik: { firma_unvani: 'w-112', istisna_adi: 'w-64', tevkifat_aciklama: 'w-64' },
   ortali: ['fatura_no', 'para_kodu', 'kur', 'oran_0', 'oran_1', 'oran_10', 'oran_20'],
-  toplamlar: (satirlar) =>
-    satirlar.length === 0
-      ? []
-      : [
-          {
-            anahtar: 'genel-tl',
-            etiket: 'raporlar.genelToplamTl',
-            degerler: topla(satirlar, TL_TUTARLAR),
-          },
-          ...paraKodunaGoreTopla(satirlar, ORIJINAL_TUTARLAR),
-        ],
+  toplamlar: (satirlar) => {
+    if (satirlar.length === 0) {
+      return []
+    }
+    // Kuru olmayan dövizli fatura TL toplamına giremez: etiket kaçının dışarıda kaldığını söyler (backend ile aynı)
+    const kursuz = satirlar.filter((satir) => satir.tutar_tl === null).length
+
+    return [
+      {
+        anahtar: 'genel-tl',
+        etiket: kursuz === 0 ? 'raporlar.genelToplamTl' : 'raporlar.genelToplamTlKursuz',
+        etiketParametreleri: { sayi: kursuz },
+        degerler: topla(satirlar, TL_TUTARLAR),
+      },
+      ...paraKodunaGoreTopla(satirlar, ORIJINAL_TUTARLAR),
+    ]
+  },
+  // Backend GelenFaturaRaporu::BOS_YAYILAN_TUTARLAR: kursuz faturanın grubunda TL boş
+  bosYayilanTutarlar: TL_TUTARLAR,
+  sayiGibiSiralanan: ['kur'],
+  // Aralık en çok 366 gün (backend GelenFaturaRaporuRequest): açılışta yılın başından
+  varsayilanIlkTarih: () => `${bugunIso().slice(0, 4)}-01-01`,
   // Backend GelenFaturaRaporu::PIVOTLAR ile aynı
   pivotlar: [
     { anahtar: 'firma', gruplar: ['firma_unvani', 'para_kodu'] },

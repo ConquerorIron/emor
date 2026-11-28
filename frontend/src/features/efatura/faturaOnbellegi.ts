@@ -14,11 +14,32 @@ const LISTE_ANAHTARLARI = [
 ] as const
 
 /**
- * Satırı sunucunun döndürdüğü faturayla yerinde günceller (liste yeniden
- * çekilmez). Pano ve geçmiş tazelenir. Sınıfı değiştirmeyen işlemler için
- * ("İşlendi" anahtarı, gizleme).
+ * Faturanın sınıfını, sayılarını ya da görünürlüğünü değiştiren işlemden
+ * (RED, "SAP (Manuel İşle)", gizleme, eMOR eşleştirmesi, içe aktarım) sonra
+ * bütün listeler, pano ve işlem geçmişi yeniden çekilir: süzülmüş listede
+ * (ör. "ERP İşlenmeyenler") satır artık yer almayabilir, sayfalar kayar;
+ * özet ve Excel sunucuyla aynı kalmalı (F1). Etkin listeler hemen yeniden
+ * istenir; dönen söz hepsi bitince çözülür.
  */
-export function faturaSatiriniGuncelle(queryClient: QueryClient, guncel: EFatura): void {
+export function faturaListeleriniTazele(queryClient: QueryClient): Promise<unknown> {
+  return Promise.all([
+    ...LISTE_ANAHTARLARI.map((anahtar) => queryClient.invalidateQueries({ queryKey: anahtar })),
+    queryClient.invalidateQueries({ queryKey: queryKeys.efaturaGecmis.hepsi }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.efaturaPano.hepsi }),
+  ])
+}
+
+/**
+ * "SAP (Manuel İşle)" gibi tek faturayı değiştiren işlem: satır sunucunun
+ * döndürdüğü faturayla hemen yerinde güncellenir (anında geri bildirim),
+ * ardından listeler de yeniden çekilir — işaret faturanın sınıfını
+ * (işlenecek → işlendi) değiştirir; süzülmüş listede satır yeni veriyle
+ * düşebilir (RED ile aynı davranış; kullanıcı kararı F-1, 2026-11-27).
+ */
+export function faturaSatiriniGuncelle(
+  queryClient: QueryClient,
+  guncel: EFatura,
+): Promise<unknown> {
   for (const anahtar of LISTE_ANAHTARLARI) {
     queryClient.setQueriesData<EFaturaListesi>({ queryKey: anahtar }, (eski) =>
       eski?.data === undefined
@@ -26,18 +47,6 @@ export function faturaSatiriniGuncelle(queryClient: QueryClient, guncel: EFatura
         : { ...eski, data: eski.data.map((f) => (f.id === guncel.id ? { ...f, ...guncel } : f)) },
     )
   }
-  void queryClient.invalidateQueries({ queryKey: queryKeys.efaturaGecmis.hepsi })
-  void queryClient.invalidateQueries({ queryKey: queryKeys.efaturaPano.hepsi })
-}
 
-/**
- * RED gibi faturanın sınıfını değiştiren işlemden sonra listeler yeniden
- * çekilir: süzülmüş listede (ör. "ERP İşlenmeyenler") satır artık yer almayabilir.
- */
-export function faturaListeleriniTazele(queryClient: QueryClient): void {
-  for (const anahtar of LISTE_ANAHTARLARI) {
-    void queryClient.invalidateQueries({ queryKey: anahtar })
-  }
-  void queryClient.invalidateQueries({ queryKey: queryKeys.efaturaGecmis.hepsi })
-  void queryClient.invalidateQueries({ queryKey: queryKeys.efaturaPano.hepsi })
+  return faturaListeleriniTazele(queryClient)
 }

@@ -83,7 +83,7 @@ final class EFaturaResource extends JsonResource
             'erp_durumu' => $this->getAttribute('erp_durumu'),
             'yazdirildi' => $this->getAttribute('yazdirildi'),
             'otel_erp_okundu' => $this->getAttribute('otel_erp_okundu'),
-            // SAP'ye işlendi mi: Protel / statik kaynakta elle işaret, İzibiz'de kaynak uç bekleniyor
+            // SAP'ye işlendi mi: her kaynakta ekrandaki "SAP (Manuel İşle)" elle işareti (true / null)
             'sap_islendi' => $this->getAttribute('sap_islendi'),
             // RED (EK-01, EK-04): kaynakta reddedilmiş ya da yetkili kullanıcının RED'e
             // çektiği fatura — "İşlendi" yerine "Red", hızlı filtrelerde görünmez

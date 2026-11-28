@@ -104,11 +104,12 @@ describe('AlarmKurallariPage', () => {
     vi.clearAllMocks()
   })
 
-  it('üç kuralı ve atlanan bildirimin nedenini gösterir', async () => {
+  it('dört kuralı ve atlanan bildirimin nedenini gösterir', async () => {
     ciz()
 
     expect(await screen.findByRole('form', { name: 'Senkron arızası' })).toBeInTheDocument()
     expect(kart('Günlük yeni fatura özeti')).toBeInTheDocument()
+    expect(kart('İşlenmemiş fatura hatırlatması')).toBeInTheDocument()
     expect(
       within(kart('ERP okumadı uyarısı')).getByLabelText('Alıcılar (virgülle ayırın)'),
     ).toHaveValue('muhasebe@ornek.test')
@@ -148,25 +149,25 @@ describe('AlarmKurallariPage', () => {
     const kural = await screen.findByRole('form', { name: 'İşlenmemiş fatura hatırlatması' })
     // Hatırlatmanın günü entegratöre alınma zamanından sayılır (ERP uyarısının etiketi değil)
     expect(within(kural).getByLabelText('Alınma zamanından bu yana gün')).toHaveValue(3)
-    expect(within(kural).getByRole('checkbox', { name: 'Logo' })).toBeChecked()
-    expect(within(kural).getByRole('checkbox', { name: 'İzibiz' })).not.toBeChecked()
-    expect(within(kural).getByRole('checkbox', { name: 'eMOR: İşlendi (elle)' })).toBeChecked()
-    expect(within(kural).getByRole('checkbox', { name: 'eMOR: Havuzda' })).not.toBeChecked()
+    expect(within(kural).getByRole('switch', { name: 'Logo' })).toBeChecked()
+    expect(within(kural).getByRole('switch', { name: 'İzibiz' })).not.toBeChecked()
+    expect(within(kural).getByRole('switch', { name: 'eMOR: İşlendi (elle)' })).toBeChecked()
+    expect(within(kural).getByRole('switch', { name: 'eMOR: Havuzda' })).not.toBeChecked()
 
-    fireEvent.click(within(kural).getByRole('checkbox', { name: 'Logo' }))
-    fireEvent.click(within(kural).getByRole('checkbox', { name: 'Portal Plus (Protel)' }))
+    fireEvent.click(within(kural).getByRole('switch', { name: 'Logo' }))
+    fireEvent.click(within(kural).getByRole('switch', { name: 'Portal Plus (Protel)' }))
     for (const durum of ['eMOR: İşlendi', 'eMOR: İşlendi (elle)', 'SAP: İşlendi (elle)']) {
-      fireEvent.click(within(kural).getByRole('checkbox', { name: durum }))
+      fireEvent.click(within(kural).getByRole('switch', { name: durum }))
     }
     fireEvent.click(within(kural).getByRole('button', { name: 'Kaydet' }))
     expect(await within(kural).findByText('En az bir portal seçin.')).toBeInTheDocument()
     expect(within(kural).getByText('İşlendi sayılacak en az bir durum seçin.')).toBeInTheDocument()
     expect(api.kaydet).not.toHaveBeenCalled()
 
-    fireEvent.click(within(kural).getByRole('checkbox', { name: 'E-Arşiv / E-SMM' }))
-    fireEvent.click(within(kural).getByRole('checkbox', { name: 'İzibiz' }))
-    fireEvent.click(within(kural).getByRole('checkbox', { name: 'SAP: İşlendi (elle)' }))
-    fireEvent.click(within(kural).getByRole('checkbox', { name: 'eMOR: Havuzda' }))
+    fireEvent.click(within(kural).getByRole('switch', { name: 'E-Arşiv / E-SMM' }))
+    fireEvent.click(within(kural).getByRole('switch', { name: 'İzibiz' }))
+    fireEvent.click(within(kural).getByRole('switch', { name: 'SAP: İşlendi (elle)' }))
+    fireEvent.click(within(kural).getByRole('switch', { name: 'eMOR: Havuzda' }))
     fireEvent.change(within(kural).getByLabelText('Kaç günde bir gönderilsin'), {
       target: { value: '4' },
     })

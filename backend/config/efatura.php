@@ -25,6 +25,12 @@ return [
     'excel_azami_satir' => 20000,
     'excel_bellek_siniri' => '512M',
 
+    // Statik kaynak içe aktarımında (Logo, e-Arşiv / e-SMM) dosya ya da
+    // yapıştırma başına azami belge satırı (boş satırlar sayılmaz); aşan liste
+    // yazılmaz, önizleme `cok_fazla_satir` döner (inceleme A-3). Değer kullanıcı
+    // kararına bağlı; canlı listeler parti başına birkaç bin satır.
+    'ice_aktarim_azami_satir' => 20000,
+
     // Bugünü kapsayan son TAM senkron bundan eskiyse ekran "güncel değil"
     // uyarısı gösterir (zamanlanmış senkron 15 dakikada bir).
     'guncellik_dakika' => 60,
@@ -51,7 +57,11 @@ return [
     'protel_ubl_azami_istek' => 40,
 
     // ERP'de boş olan vergi istisna kodu entegratördekiyle doldurulsun mu
-    // (TOHOM_E_FATURA'ya doğrudan UPDATE; yalnız boş koda). Varsayılan KAPALI:
-    // sunucuda yazılacak liste kullanıcıya onaylatıldıktan sonra .env ile açılır.
+    // (TOHOM_E_FATURA'ya doğrudan UPDATE; yalnız boş koda). Varsayılan KAPALI.
+    // Kapsam onaylanan listeyle aynı: yalnız istisna tipli (ISTISNA /
+    // IHRACKAYITLI / OZELMATRAH) ya da vergisiz gelen faturalar
+    // (ErpIstisnaKoduAktarimi). UBL okuması 2026-11-26'dan beri bütün faturaları
+    // okuduğu için vergili faturanın kısmi istisna kodu da gelir; o kod yazılmaz
+    // — kapsamı genişletmek kullanıcı kararıdır (inceleme 2026-11-27, C-1).
     'erp_istisna_kodu_yaz' => AcKapa::cevir(env('EFATURA_ERP_ISTISNA_YAZ'), false),
 ];

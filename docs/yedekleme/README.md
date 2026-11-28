@@ -156,14 +156,30 @@ sunucu yöneticisi yetkisi ister ve bu dokümanın kapsamı dışındadır.
     (`.json`) yerinde kalır** ve kopyaların kimliği / durumu olay günlüğünde
     durur (`kopya` olayları). Dizin yeniden kurulurken (BY-011) uzak kopyası
     olan yedek bu ikisinden bulunur (kullanıcı kararı F7).
-  - Uzak kopyası başarısız ya da beklemede olan yedeğin yerel dosyası
-    silinmez: yeniden denemenin kaynağıdır.
+  - Uzak kopyası beklemede ya da yeniden denenecek (başarısız) olan yedeğin
+    yerel dosyası silinmez: yeniden denemenin kaynağıdır. Bir daha
+    denenmeyecek başarısız kopya (geçici hatada deneme hakkı bitti, hedef
+    pasif ya da hiçbir etkin plana bağlı değil) dosyayı tutmaz; kalıcı hatalı
+    kopya hedef düzeltilince yeniden denendiği için tutar (inceleme 2026-11-27
+    G1-3).
   - Planlı yedeğin yerel dosyası (§4.2: planlarında yerel disk yok) yalnız
     saklamada silinir (BY-010-R1): planın bütün hedeflerine kopya kaydı
     kopyalamadan önce açılır ve hepsi doğrulanmış olmalıdır; sabit ve
     kullanımdaki yedeğin dosyası kalır. "Son başarılı", "doğrulanmış en
     yeni" ve en az sayı yedeğin kendisini korur; yedek uzak hedefte durduğu
-    için onun grubunda uygulanır.
+    için onun grubunda uygulanır. Süreç arşivden sonra, kopya kayıtları
+    açılmadan kesildiyse yerel dosya tek arşivdir: yedeğin kayıtlı plan /
+    hedef çiftlerinden (`yedekler.plan_hedefleri`) biri bugün de etkin bir
+    bağsa ve o hedefte kopya kaydı yoksa dosya kalır (`kopya_bekliyor`);
+    sonraki plan çalışması onu kopyalar. Koruyan (saklama) ile kopyalayan
+    (plan çalışması) aynı seçimi kullanır (`EksikKopyaAdaylari`): arşivi,
+    manifesti ve içeriği (boyut + SHA-256) doğrulanmış adaylardan plan +
+    hedef başına en yeni 3. Aynı hedefi paylaşan başka planın yedekleri bu
+    pencereden yer almaz. Kayıt açılırken yedeği o hedefe gönderen bütün
+    bağlı planların saklama bağı yazılır, yalnız o an çalışanınki değil
+    (F6). Bağ
+    kalkınca (hedef plandan çıktı, plan ya da hedef pasif) dosya elle yedek
+    kuralına döner (inceleme 2026-11-27, Codex G1-6-R4, R5).
   - **"Tamam" ile "kurtarmaya hazır" ayrıdır (BY-010-R2, BY-024-R3).** Uzak
     kopyanın `tamam` olması yalnız aktarımın (geri okuyup özetle) doğrulandığını
     söyler. Şifreli (sunucu dışı) kopya, o hedefe yedeğin imzalı manifestini
@@ -381,7 +397,15 @@ yönetici komutuyla içeri alınır (YDK-09). Tarayıcıdan yedek yükleme yok
     chroot'u farklı iki hesabın aynı klasörü. Bunlarda aynı depoyu iki hedef
     olarak tanımlamamak kullanıcı sorumluluğundadır.
 - Kopyalama yedekten sonra ayrı adımdır; başarısız olursa yedek yine geçerlidir,
-  kopya yeniden denenir ve uyarı üretilir.
+  kopya yeniden denenir ve uyarı üretilir. Yeniden deneme hedef sonraki bir
+  planlı çalışmada ulaşılabilir olunca yapılır (hedef başına en çok 3 eski
+  yedek; geçici hatada kopya başına en çok `kopya_deneme × 3` deneme; kalıcı
+  hatayla — kimlik, yapılandırma, aynı depo — düşen kopya hedef tanımı
+  değişene kadar denenmez). Kopya, yedeği ALAN planlara bağlıdır (bağ kayıt
+  açılırken yazılır): yeniden denemeyi başka bir planın çalışması yapsa da o
+  planın saklama kuralı uygulanmaz. Kopya kaydı hiç açılamamış plan yedeği
+  (süreç kopyalardan önce öldü) aynı planın sonraki çalışmasında kopyalanır
+  (G1-2, G1-6, G1-9).
 - Listede her yedek için "sunucu dışı kopya: var / yok / başarısız" görünür.
 - "Bağlantıyı Sına" yalnız bağlanmayı değil **yaz – oku – doğrula – sil**
   döngüsünü sınar: hedefin gerçekten yedek saklayabildiği kanıtlanır.
@@ -780,7 +804,7 @@ yöneticiye gösterilir ve hangisinin geçerli olacağı sorulur (§6.4).
 | `yedekler` | manifestin dizini: kimlik, dosya adı, kaynak, boyut, özet, durum, doğrulama durumu, sabit, not |
 | `yedekler` (ek) | `yerel_silinme_zamani`: yedek klasöründeki dosya silindi ama uzak kopya duruyor olabilir; durum değişmez |
 | `yedek_kopyalari` | bir yedeğin bir hedefteki TEK fiziksel kopyası (yedek + hedef tekil): durum, şifreli kopyanın özeti, hata, silinme zamanı |
-| `yedek_kopya_planlari` | kopyayı tutan planlar; aynı hedefi paylaşan planlar tek kopyaya bağlanır, her plan kendi bağını kaldırır, dosya bağ kalmayınca silinir. Bağ planın o hedefteki saklama kuralına (`yedek_plan_hedefleri`) bileşik anahtarla bağlıdır: hedefi kullanmayan plan bağlanamaz, bağ varken kural silinemez |
+| `yedek_kopya_planlari` | kopyayı tutan planlar; aynı hedefi paylaşan planlar tek kopyaya bağlanır, her plan kendi bağını kaldırır, dosya bağ kalmayınca silinir. Bağ planın o hedefteki saklama kuralına (`yedek_plan_hedefleri`) bileşik anahtarla bağlıdır: hedefi kullanmayan plan bağlanamaz, bağ varken kural silinemez. Planlı yedekte bağ kopya kaydı açılırken (`bekliyor`) yazılır, başarısız kopyada da durur (G1-2): saklama yalnız `tamam` kopyanın bağına bakar; plan ya da planın hedefi böyle bir kopya varken de silinemez (409) |
 | `yedek_hedefleri` | hedef tanımları: tür (yerel / FTP / FTPS / SFTP / Google Drive / …), bağlantı bilgileri (şifre `encrypted` cast) |
 | `geri_yuklemeler` | hangi yedek, tür (kopya/üstüne), hedef ad, isteyen, durum, adımlar, hata |
 | `yedek_islem_kayitlari` | denetim: kim, ne, ne zaman, sonuç |

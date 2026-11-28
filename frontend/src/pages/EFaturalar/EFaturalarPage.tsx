@@ -160,12 +160,13 @@ function IstisnaKodu({ deger, farkli }: { deger: string | null; farkli: boolean 
 type AcikPencere = { tur: 'detay' | 'pdf'; fatura: EFatura } | null
 
 /**
- * İzibiz gelen / giden faturalar; `kapsam="tum"` ise İzibiz + Protel gelen
- * faturaların birleşik listesi (Tüm Faturalar — kullanıcı isteği 2026-11-20).
- * Birleşik listede ekran aynıdır; farkları: kendi izinleri, "ERP Okudu" →
- * "eMOR Okudu", Entegratör kolonu ve filtresi, SAP kolonu (Protel ekranındaki
- * "İşlendi" anahtarından; İzibiz için uç bekleniyor), senkron ve gizleme yok (sağlayıcı ekranlarında); onun yerine
- * güncel olmayan posta kutusu uyarısı.
+ * İzibiz gelen / giden faturalar; `kapsam="tum"` ise bütün gelen kaynakların
+ * (İzibiz, Protel, Logo, e-Arşiv / e-SMM) birleşik listesi (Tüm Faturalar —
+ * kullanıcı isteği 2026-11-20). Birleşik listede ekran aynıdır; farkları: kendi
+ * izinleri ve ucu (RED, "SAP (Manuel İşle)", geçmiş `tum` ekranıyla), "ERP
+ * Okudu" → "eMOR Okudu", Entegratör kolonu ve filtresi, senkron ve gizleme yok
+ * (sağlayıcı ekranlarında); onun yerine güncel olmayan posta kutusu uyarısı.
+ * "SAP (Manuel İşle)" anahtarı ve SAP kolonu iki kapsamda da vardır.
  */
 export function EFaturalarPage({
   yon,

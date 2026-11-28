@@ -145,6 +145,21 @@ final class EFaturaEkranTest extends TestCase
             ->assertJsonPath('kapsam.ortam', 'test');
     }
 
+    /** Gün sınırı `< ertesi gün` (T6): SQLite tarihi saatle saklar, bitiş günü yine listede ve seçeneklerde */
+    public function test_bitis_gunundeki_fatura_liste_ve_seceneklerde_yer_alir(): void
+    {
+        $tanim = $this->aktifTanim();
+        $sonGun = $this->fatura($tanim, ['belge_tarihi' => '2026-01-31', 'para_birimi' => 'EUR']);
+        $this->fatura($tanim, ['belge_tarihi' => '2026-02-01', 'para_birimi' => 'USD']);
+
+        $this->actingAs($this->izinli('efatura.goruntule'))
+            ->getJson('/api/v1/efatura/gelen/faturalar?'.self::ARALIK)
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $sonGun->id)
+            ->assertJsonPath('secenekler.para_birimleri', ['EUR']);
+    }
+
     public function test_ozet_para_birimi_bazinda_toplar_ve_filtreyle_ayni_kapsami_kullanir(): void
     {
         $tanim = $this->aktifTanim();

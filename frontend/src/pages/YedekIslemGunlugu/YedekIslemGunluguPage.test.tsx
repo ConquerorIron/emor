@@ -107,4 +107,39 @@ describe('YedekIslemGunluguPage', () => {
     expect(eksik(tr.yedekleme.gunluk.islem)).toEqual([])
     expect(eksik(en.yedekleme.gunluk.islem)).toEqual([])
   })
+
+  it('çevirisi olan (arka ucun yazdığı) her işlem süzgeçte de seçilebilir (G2-4)', () => {
+    // Arka uç bugün bu adlarla denetim kaydı yazmıyor (istekler `istek` adıyla
+    // yazılır); yalnız çeviri anahtarı olarak duruyorlar
+    const yazilmayan = ['yedek', 'tara', 'dogrula', 'plan_calistir', 'kopya_geri_yukle']
+    const bilinen: readonly string[] = [...BILINEN_ISLEMLER, ...yazilmayan]
+
+    expect(
+      Object.keys(tr.yedekleme.gunluk.islem).filter((islem) => !bilinen.includes(islem)),
+    ).toEqual([])
+  })
+
+  it('çalıştırıcının her istek türünün iki dilde çevirisi var (G2-4)', () => {
+    // IstekKutusu::TURLER (backend) ile aynı liste
+    const turler = [
+      'yedek_al',
+      'dogrula',
+      'sabitle',
+      'sabit_coz',
+      'aciklama',
+      'sil',
+      'tara',
+      'plan_calistir',
+      'kopya_geri_yukle',
+      'kopya_sil',
+      'ustune_geri_yukle',
+      'onayla',
+      'geri_don',
+    ]
+    const eksik = (ceviriler: Record<string, unknown>) =>
+      turler.filter((tur) => typeof ceviriler[tur] !== 'string')
+
+    expect(eksik(tr.yedekleme.istek.tur)).toEqual([])
+    expect(eksik(en.yedekleme.istek.tur)).toEqual([])
+  })
 })

@@ -252,7 +252,8 @@ sudo ls -A /var/lib/emor-yedek/istekler/bekleyen /var/lib/emor-yedek/istekler/is
 #    "bilinmiyor" sayılır: kuyruk ve zamanlayıcı HİÇBİR iş çalıştırmaz (e-Fatura,
 #    alarm mailleri dahil), deploy.sh yayın korumasında durur.
 #    .env: YEDEKLEME_AKTIF=false (ya da YEDEKLEME_* servis satırlarını silip geçiş yollarına dön)
-php artisan config:cache && php artisan queue:restart
+#    umask 022: önbellek dosyası web'e yazılabilir açılmasın (isletim.md §3)
+( umask 022 && php artisan config:cache ) && php artisan queue:restart
 
 # 2. Servis (o anki iş biter: KillMode=mixed, en çok TimeoutStopSec)
 sudo systemctl disable --now emor-yedek

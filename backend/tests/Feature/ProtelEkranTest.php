@@ -245,7 +245,7 @@ final class ProtelEkranTest extends TestCase
         Http::assertNothingSent();
     }
 
-    /** Portalda reddedilen fatura İşlendi'ye çevrilemez; listede `protel_red` ile "Red" görünür. */
+    /** Portalda reddedilen fatura İşlendi'ye çevrilemez; listede `red.var` / `red.kaynak` ile "Red" görünür. */
     public function test_portalda_reddedilen_fatura_islendi_isaretlenemez_listede_red_doner(): void
     {
         Http::preventStrayRequests();

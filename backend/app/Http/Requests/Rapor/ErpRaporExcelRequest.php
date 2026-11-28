@@ -9,7 +9,7 @@ namespace App\Http\Requests\Rapor;
  * satırların anahtarları (ErpRaporu::ANAHTAR), ekrandaki sırayla (gövdede,
  * POST — Firmalar Excel'i gibi). Excel ekranla aynı satırları içerir.
  */
-final class ErpRaporExcelRequest extends ErpRaporRequest
+class ErpRaporExcelRequest extends ErpRaporRequest
 {
     /**
      * @return array<string, list<string>>
@@ -18,7 +18,8 @@ final class ErpRaporExcelRequest extends ErpRaporRequest
     {
         return [
             ...parent::rules(),
-            // Canlıda tüm tarihler birkaç yüz satır; üst sınır kötüye kullanıma karşı
+            // Üst sınır kötüye kullanıma karşı: ERP raporlarında tüm tarihler birkaç
+            // yüz satır; Gelen Fatura Raporu'nun 366 günü canlıda ~12.000 fatura (2026-11)
             'anahtarlar' => ['present', 'array', 'max:20000'],
             'anahtarlar.*' => ['string', 'max:100'],
         ];

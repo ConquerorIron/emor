@@ -133,6 +133,38 @@ final class EFaturaPanosuTest extends TestCase
         ], $sayfa->rangeToArray('A1:E4', null, false, false));
     }
 
+    /** Gün sınırı `< ertesi gün` (T6): SQLite tarihi saatle saklar, bitiş günü yine sayılır */
+    public function test_araligin_son_gunundeki_fatura_panoya_ve_ayni_suzgecli_listeye_girer(): void
+    {
+        $izibiz = EntegratorBaglanti::factory()->canli()->aktif()->create();
+        EFatura::factory()->create(['entegrator_baglanti_id' => $izibiz->id, 'belge_tarihi' => '2026-12-31', 'emor_durumu' => 'yok']);
+        EFatura::factory()->create(['entegrator_baglanti_id' => $izibiz->id, 'belge_tarihi' => '2027-01-01', 'emor_durumu' => 'yok']);
+        $kullanici = $this->izinli('efatura_panosu.goruntule', 'tum_faturalar.goruntule');
+
+        $this->actingAs($kullanici)->getJson('/api/v1/efatura/pano?'.self::ARALIK)
+            ->assertOk()
+            ->assertJsonPath('data.toplam.gelen', 1)
+            ->assertJsonPath('data.toplam.islenecek', 1);
+        $this->actingAs($kullanici)->getJson('/api/v1/tum-faturalar/faturalar?'.self::ARALIK.'&entegrator=izibiz&sinif=islenecek')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1);
+    }
+
+    /** Şahıs göndericinin ünvanı boş: adı ad soyaddan (rapordaki kuralla aynı) */
+    public function test_firma_dokumu_unvani_bos_gondericide_ad_soyadi_gosterir(): void
+    {
+        $izibiz = EntegratorBaglanti::factory()->canli()->aktif()->create();
+        EFatura::factory()->create([
+            'entegrator_baglanti_id' => $izibiz->id, 'belge_tarihi' => '2026-01-10', 'emor_durumu' => 'yok',
+            'gonderici_vkn' => '12345678901', 'gonderici_unvan' => null, 'gonderici_ad_soyad' => 'Ali Veli', 'tutar' => '10.00',
+        ]);
+
+        $this->actingAs($this->izinli('efatura_panosu.goruntule'))
+            ->getJson('/api/v1/efatura/pano/firmalar?'.self::ARALIK.'&sinif=islenecek')
+            ->assertOk()
+            ->assertJsonPath('data', [['vkn' => '12345678901', 'unvan' => 'Ali Veli', 'para_birimi' => 'TRY', 'adet' => 1, 'tutar' => '10.00']]);
+    }
+
     public function test_pano_izni_olmayan_kullaniciya_403(): void
     {
         $this->actingAs($this->izinli('tum_faturalar.goruntule'))

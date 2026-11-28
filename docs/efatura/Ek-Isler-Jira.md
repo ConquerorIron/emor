@@ -656,6 +656,17 @@ olarak numaralanır.
     vergi dairesi, `efatura_vergi_kalemleri`'ne oran bazında KDV ve tevkifat
     kalemleri yazılır. Komut `efatura:ubl-oku` (eski `efatura:istisna-kodlari`).
     Protel için aynı okuma kilit ölçümü bekliyor (kullanıcı kararı).
+    **Yan etki (inceleme 2026-11-27, C-1):** okuma bütün faturalara genişleyince
+    `izibiz_istisna_kodu` vergili faturanın kısmi istisna kodunu da taşıdı ve
+    `efatura:emor` bunu ERP'ye yazdı (26 Kasım'da 55 vergili fatura, ERP'de
+    kalıyor). ERP'ye yazım eski onaylı kapsama döndü (istisna tipli ya da
+    vergisiz fatura); genişletmek kullanıcı kararına bağlı.
+    **Hata sınıflaması (C-2…C-5):** faturaya özgü yalnız İzibiz 400 + `10008`
+    (parti bölünür) ve Protel 404 / okunamayan belge; giriş hatası döngüden önce
+    alınır; hiç okuma olmadan art arda üç okunamayan fatura turu keser
+    (işaretlenmez); erişim hatası faturayı sayaçsız bir gün erteler; üçüncü
+    başarısızlıkta fatura günlüğe yazılıp bırakılır, `efatura:ubl-oku
+    --yeniden-dene` sayacı sıfırlar.
   - **Protel UBL (kullanıcı onayı):** kilit `outputType ∈ {Pdf, Ubl}`; canlı önce/sonra
     ölçümünde değişen alan 0 (docs/protel/api-notlari.md). `efatura:ubl-oku
     --saglayici=protel` 15 dk'da 40 fatura.
@@ -666,6 +677,13 @@ olarak numaralanır.
     bütün gelen faturalar Logo Excel'inin kolonlarıyla (Hareket No ve Kesinti yok —
     kullanıcı). ERP raporlarının ekranı / Excel'i / özet sekmeleri yeniden
     kullanıldı; satırlar fatura + vergi kalemlerinden (`GelenFaturaRaporu`).
-    Fatura Toplamı = net + vergi kalemleri (satıcının "vergi dahil" alanı
-    tutarsız olabildiği için kullanılmaz), TRY'de kur 1, dövizde kur yoksa TL boş,
-    gizlenen fatura girmez, RED'ler ekrandaki süzgeçle çıkarılır.
+    Fatura Toplamı (inceleme 2026-11-27, D-2): stopaj (0003, 0011) toplama
+    girmez; toplam "üçünden ikisi" kuralıyla seçilir — kalem hesabı (net + KDV +
+    stopaj dışı vergiler), ödenecekten geri hesap (ödenecek + tevkifat + stopaj)
+    ve satıcının "vergi dahil" alanından uyuşan ikisi (canlıda 11.139 faturada
+    en az ikisi hep uyuşuyor; satıcının alanı 37'sinde yanlış). Vergi hariç
+    tutar yoksa ilk ikisi aynı kaynaktır: satıcının alanı varsa o esas alınır
+    (avanslı fatura). e-SMM / e-Arşiv'de
+    net = brüt tutar (D-1). TRY'de kur 1, dövizde kur yoksa TL boş ve genel TL
+    toplamının etiketi kaç faturanın hariç kaldığını söyler (D-3); rapor aralığı
+    en çok 366 gün (D-4); gizlenen fatura girmez, RED'ler ekrandaki süzgeçle çıkarılır.

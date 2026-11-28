@@ -3,14 +3,15 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { apiErrorKey } from '@/api/errors'
-import { queryKeys } from '@/api/queryKeys'
 import { Button } from '@/components/Button'
 import { type EFatura, gizliligiDegistir } from '@/features/efatura/efaturaApi'
+import { faturaListeleriniTazele } from '@/features/efatura/faturaOnbellegi'
 
 /**
  * Detay penceresinde faturayı gizler ya da listeye geri alır (kullanıcı isteği
  * 2026-09-24). Fatura silinmez; yalnız bu uygulamanın listesinde gizlenir.
- * Sunucunun döndürdüğü güncel fatura pencereye geri verilir.
+ * Sunucunun döndürdüğü güncel fatura pencereye geri verilir. Gizleme pano
+ * sayılarını, işlem geçmişini ve Tüm Faturalar'ı da etkiler: hepsi tazelenir (F-9).
  */
 export function GizlemeDugmesi({
   fatura,
@@ -26,7 +27,7 @@ export function GizlemeDugmesi({
     mutationFn: () => gizliligiDegistir(fatura.id, !fatura.gizli),
     onSuccess: (guncel) => {
       toast.success(t(guncel.gizli ? 'efatura.gizleme.gizlendi' : 'efatura.gizleme.geriAlindi'))
-      void queryClient.invalidateQueries({ queryKey: queryKeys.efatura.yonListeleri(fatura.yon) })
+      void faturaListeleriniTazele(queryClient)
       degisti(guncel)
     },
     onError: (error) => toast.error(t(apiErrorKey(error))),

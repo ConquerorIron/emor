@@ -34,6 +34,7 @@ use App\Services\Yedekleme\SahipsizYedekler;
 use App\Services\Yedekleme\SaklamaPolitikasi;
 use App\Services\Yedekleme\YedekAlici;
 use App\Services\Yedekleme\YedekDurumu;
+use App\Services\Yedekleme\YedekIsaretleyici;
 use App\Services\Yedekleme\YedekKaynagi;
 use App\Services\Yedekleme\YedekKopyalayici;
 use App\Services\Yedekleme\YedekOlayi;
@@ -136,6 +137,35 @@ final class DizinKurucuTest extends TestCase
         $kayit = Yedek::query()->sole();
         $this->assertSame([$guvenilmeyenId, $yedek->kimlik, true], [$kayit->id, $kayit->kimlik, $kayit->imzali]);
         $this->assertTrue($kayit->geriYuklenebilirMi());
+    }
+
+    /**
+     * G1-10 (G21): güvenilmeyen kayıtken yapılan sabitleme ve not, manifest
+     * gelince kayıt devralınırken (ve dizin sonradan sıfırdan kurulunca)
+     * kaybolmaz: saklama "bunu silme" denen yedeği silemez.
+     */
+    public function test_guvenilmeyen_kayitken_yapilan_sabitleme_ve_not_manifest_gelince_korunur(): void
+    {
+        $yedek = $this->gercekYedek();
+        $json = ManifestDeposu::jsonYolu(config('yedekleme.klasor').'/'.$yedek->dosya_adi);
+        $this->dizinleriBosalt();
+        rename($json, $json.'.bekle');
+        $this->tara();
+        $guvenilmeyen = Yedek::query()->sole();
+        app(YedekIsaretleyici::class)->sabitle($guvenilmeyen, true, null);
+        app(YedekIsaretleyici::class)->aciklamaYaz($guvenilmeyen, 'Kurtarma: bunu silme', null);
+
+        rename($json.'.bekle', $json);
+        $this->tara();
+
+        $kayit = Yedek::query()->sole();
+        $this->assertSame([true, true, 'Kurtarma: bunu silme'], [$kayit->imzali, $kayit->sabit, $kayit->aciklama]);
+
+        $this->dizinleriBosalt();
+        $this->tara();
+
+        $kayit = Yedek::query()->sole();
+        $this->assertSame([true, 'Kurtarma: bunu silme'], [$kayit->sabit, $kayit->aciklama]);
     }
 
     /**

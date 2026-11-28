@@ -277,9 +277,13 @@ final class GeriYuklemeVeritabani
      * Boş disk ön denetimi (üstüne ve farklı ada geri yükleme; BY-028, YF-43):
      * yedek klasörünün diskinde yeni veritabanı (≈ canlı kadar) + iki yedek
      * dosyası (öncesi yedek ya da indirilen geçici kopya) kadar yer aranır.
-     * PostgreSQL veri klasörünün diskini uygulama ölçemez (yetki yok); aynı
-     * diskte olduğu varsayılır, yetmezse pg_restore düşer ve geri sarılır.
-     * parolaylaCalis() içinde çağrılır.
+     * Yeni veritabanı aslında PostgreSQL'in veri klasörünün diskine açılır;
+     * denetim onunla yedek klasörünün AYNI diskte olduğunu varsayar. Yedek
+     * klasörü ayrı bir diske bağlıysa (YedekDeposu işareti bunun içindir)
+     * denetim veri diskini korumaz — yalnız 3 bekleyen kopya sınırı kalır,
+     * yetmezse pg_restore düşer ve geri sarılır — ve yedek diskinde canlı
+     * kadar fazladan yer isteyerek gereksiz DISK_YETERSIZ verebilir (G2-5;
+     * isletim.md §7). parolaylaCalis() içinde çağrılır.
      *
      * @throws GeriYuklemeHatasi DISK_YETERSIZ
      */

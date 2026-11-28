@@ -68,11 +68,12 @@ final class EntegratorBaglantiServisi
      * Statik kaynağın (EK-05) tanımı; ilk istenişte oluşturulur. Bağlantı
      * alanları (kullanıcı, şifre, VKN) kullanılmaz ve boş kalır: statik tanım
      * hiçbir dış sisteme istek çıkarmaz. Ortamdan bağımsızdır (`canli` satırı).
-     * Eşzamanlı ilk istekte tekil indeks çakışması mevcut satırı döndürür.
+     * Önce okunur (var olan satıra yazma denenmez); eşzamanlı ilk istekte
+     * tekil indeks çakışması mevcut satırı döndürür (firstOrCreate → createOrFirst).
      */
     public function statikTanim(string $saglayici): EntegratorBaglanti
     {
-        return EntegratorBaglanti::query()->createOrFirst(
+        return EntegratorBaglanti::query()->firstOrCreate(
             ['saglayici' => $saglayici, 'ortam' => EntegratorBaglanti::ORTAM_CANLI],
             ['kullanici_adi' => '', 'sifre' => '', 'vkn' => '', 'aktif' => true],
         );

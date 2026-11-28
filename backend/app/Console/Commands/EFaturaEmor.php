@@ -17,7 +17,8 @@ use Throwable;
  * eMOR kolonunu tazeler: gelen ve giden e-faturaların aktif ERP ortamında
  * karşılığı var mı (EmorIslenmeServisi). Bir yön okunamazsa diğeri yine
  * tazelenir; komut başarısız döner. ERP'ye tek yazım: boş vergi istisna kodu
- * entegratördekiyle doldurulur (ErpIstisnaKoduAktarimi, kullanıcı kararı 2026-09-24).
+ * entegratördekiyle doldurulur — yalnız istisna tipli ya da vergisiz faturada
+ * (ErpIstisnaKoduAktarimi, kullanıcı kararı 2026-09-24).
  */
 #[Signature('efatura:emor')]
 #[Description('e-Faturaların ERP\'de karşılığı olup olmadığını (eMOR) tazeler')]

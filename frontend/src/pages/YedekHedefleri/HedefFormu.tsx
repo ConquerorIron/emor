@@ -292,6 +292,9 @@ export function HedefFormu({
         ...(hedef === null ? {} : { id: hedef.id }),
         tur: tanim.tur,
         alanlar: alanlariGovdeye(tanim, getValues('alanlar'), silinecekSirlar),
+        // Kaydedilecek yapılandırma sınanır: silinmek üzere işaretlenen kayıtlı
+        // sır (ör. anahtara geçerken parola) sınamada da kullanılmaz (G2-1)
+        ...(silinecekSirlar.length > 0 ? { silinecek_sirlar: silinecekSirlar } : {}),
       }),
     onSuccess: (sonuc, surum) => {
       // Kayıtlı hedefin kendisi sınandı (SFTP sunucu anahtarı ona yazıldı):

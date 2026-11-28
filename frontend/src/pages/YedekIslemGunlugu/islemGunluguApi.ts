@@ -34,6 +34,7 @@ export const BILINEN_ISLEMLER = [
   'hedef_sunucu_anahtari_sifirla',
   'hedef_google_baglan',
   'hedef_google_kes',
+  'hedef_google_iptal',
   'hedef_google_klasor',
   'hedef_google_secici',
   'plan_ekle',

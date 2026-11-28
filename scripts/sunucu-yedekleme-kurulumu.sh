@@ -510,8 +510,10 @@ elif [[ ! -d "$YEDEK_KOKU/yedekler" ]] || (( ! KULLANICI_VAR )); then
   if [[ "$KIP" == denetle ]]; then eksik "depo işareti (yedekler/ klasörü yok)"; fi
 elif tur_denetle "$DEPO_ISARETI" f; then
   if [[ -f "$DEPO_ISARETI" ]]; then
-    # Sondaki "x": komut ikamesi sondaki satır sonlarını silmesin (biçim birebir denetlenir)
-    depo_icerigi="$(runuser -u "$YEDEK_KULLANICI" -- head -c 200 -- "$DEPO_ISARETI" 2>/dev/null; printf x)"
+    # Sondaki "x": komut ikamesi sondaki satır sonlarını silmesin (biçim birebir denetlenir).
+    # Okunamayan işaret bilerek tolere edilir (aşağıda "biçimi tanınmıyor"): `|| true`
+    # olmazsa -E ile ikameye geçen ERR tuzağı "beklenmeyen hata" yazardı (G2-7)
+    depo_icerigi="$(runuser -u "$YEDEK_KULLANICI" -- head -c 200 -- "$DEPO_ISARETI" 2>/dev/null || true; printf x)"
     depo_icerigi="${depo_icerigi%x}"
     if [[ "$depo_icerigi" =~ $DEPO_BICIMI ]]; then
       tamam "depo işareti: $DEPO_ISARETI"

@@ -306,12 +306,32 @@ final class YedekPlaniApiTest extends TestCase
         $plan = $this->calismisPlan('Gece', [$iyi, $bozuk], null);
         app(PlanliYedek::class)->calistir(YedekPlani::query()->whereKey($plan->id)->get(), $this->kilitAl());
 
-        // Başarısız kopyanın plan bağı yok: hedef plandan çıkarılabilir (F6 engeli yalnız bağlı kopyada)
+        // Başarısız kopyanın plan bağı (G1-2) kuralı tutmaz: hedef plandan çıkarılabilir (F6 engeli yalnız yedeği tutan kopyada)
         $yanit = $this->putJson(self::K.'/'.$plan->id, $this->govde('Gece', 'gunluk', '02:00', [], [['hedef_id' => $iyi->id, 'sakla_son_adet' => 3]]))->assertOk();
 
         $this->assertSame([$iyi->id], array_column($yanit->json('data.hedefler'), 'hedef_id'));
         $this->assertSame('hedef_basarisiz', $yanit->json('data.son_sonuc.durum'));
         $this->assertSame([[$bozuk->id, 'Bozuk']], array_map(fn (array $h): array => [$h['hedef_id'], $h['ad']], $yanit->json('data.son_sonuc.basarisiz_hedefler')));
+    }
+
+    /**
+     * G1-2: planlı yedeğin kopyası planına kayıt açılırken bağlanır; yalnız
+     * başarısız kopyası olan plan yine silinebilir (bağ bir şey tutmuyor).
+     */
+    public function test_yalniz_basarisiz_kopyasi_olan_plan_silinir(): void
+    {
+        $this->sahtePgAraclari();
+        Sleep::fake();
+        $bozuk = YedekHedefi::factory()->create(['ad' => 'Bozuk', 'baglanti' => ['klasor' => '/proc/yedek-yazilamaz']]);
+        $plan = $this->calismisPlan('Gece', [$bozuk], null);
+        app(PlanliYedek::class)->calistir(YedekPlani::query()->whereKey($plan->id)->get(), $this->kilitAl());
+        $kopya = YedekKopyasi::query()->sole();
+        $this->assertSame(KopyaDurumu::Basarisiz, $kopya->durum);
+
+        $this->deleteJson(self::K.'/'.$plan->id)->assertNoContent();
+
+        $this->assertModelMissing($plan);
+        $this->assertModelExists($kopya);
     }
 
     public function test_plan_listesi_sorgu_sayisi_plan_sayisindan_bagimsizdir_degerler_degismez(): void

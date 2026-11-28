@@ -16,6 +16,7 @@ use App\Services\Kesinti\IceAktarimTablosu;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
  * Statik kaynakların Excel içe aktarımı (EK-06; docs/efatura §4.4): dosya →
@@ -23,9 +24,13 @@ use Illuminate\Support\Facades\DB;
  * → tek parti. Okuyucu Kesinti modülünün ortak okuyucusudur (IceAktarimTablosu).
  *
  * - Yeniden yükleme güvenlidir: anahtar eşleşirse dosyanın alanları
- *   güncellenir; elle verilen bilgiler (harici RED, İşlendi, gizleme) korunur.
+ *   güncellenir; elle verilen bilgiler (harici RED, İşlendi, gizleme) korunur,
+ *   dosyada boş gelen isteğe bağlı rapor alanı mevcut değeri silmez.
  *   Dosyada artık bulunmayan satır silinmez (aylık liste yalnız o ayı taşıyabilir).
- * - Tek hata bile varsa hiçbir satır yazılmaz.
+ *   Eşleşen her satırın `son_gorulme`'si (değişmeyen dahil) partinin anıdır:
+ *   eski partinin geri alınması buna bakar (geriAl).
+ * - Tek hata bile varsa hiçbir satır yazılmaz; satır sayısı sınırlıdır
+ *   (`efatura.ice_aktarim_azami_satir`).
  * - Aynı kaynağa iki içe aktarım / geri alma aynı anda çalışmaz (kilit); kayıt
  *   anındaki durum kilit altında yeniden okunur (G18).
  */
@@ -77,9 +82,20 @@ final class EFaturaIceAktarimi
 
     /**
      * Partiyi geri alır: EKLEDİĞİ faturalar silinir, güncellediği satırlar eski
-     * hâline dönmez. Eklediği faturalardan birinde elle işlem varsa (RED,
-     * İşlendi, gizleme) hiçbir şey silinmez (409). Satırlar kilitlenir: aynı
-     * anda RED'e çekilen fatura silinip işlem kaybolmaz.
+     * hâline dönmez. Hiçbir şey silinmeyen (409) durumlar:
+     *
+     * - eklediği faturalardan birinde elle işlem var (RED, İşlendi, gizleme);
+     * - eklediği faturalardan birine hâlâ duran BAŞKA bir parti dokundu
+     *   (güncelledi ya da değişmeyen olarak eşleştirdi; bağlar
+     *   `efatura_yukleme_faturalari`'nda) — silinen satır daha yeni bir
+     *   yüklemenin verisini taşırdı (inceleme B-4). Zaman karşılaştırması aynı
+     *   saniyedeki iki yüklemeyi, tek "son dokunan" alanı aradaki partiyi
+     *   kaybediyordu (Codex B-4-R1, R2). Bağ tablosundan önceki satırda dokunan
+     *   bilinmez: aynı kaynakta duran sonraki parti varsa engellenir. Dokunan
+     *   partilerin hepsi geri alınınca bu parti de geri alınabilir.
+     *
+     * Parti ve satırları kilit altında yeniden okunur (G18): aynı partinin ikinci
+     * geri alma isteği 404 alır; aynı anda RED'e çekilen fatura silinip işlem kaybolmaz.
      */
     public function geriAl(EFaturaYuklemesi $parti, User $kullanici): void
     {
@@ -87,6 +103,7 @@ final class EFaturaIceAktarimi
 
         $this->kilitli($tanim, function () use ($parti, $tanim, $kullanici): void {
             DB::transaction(function () use ($parti, $tanim, $kullanici): void {
+                $parti = EFaturaYuklemesi::query()->lockForUpdate()->find($parti->id) ?? throw new NotFoundHttpException;
                 $satirlar = EFatura::query()
                     ->where('yukleme_id', $parti->id)
                     ->lockForUpdate()
@@ -95,6 +112,34 @@ final class EFaturaIceAktarimi
 
                 if ($elleIslenen > 0) {
                     throw EFaturaIslemHatasi::yuklemeElleIslenmis($elleIslenen);
+                }
+
+                // Faturalara dokunan partiler (bağlar cascade ile yalnız duran partileri tutar)
+                /** @var array<int, list<int>> $dokunanlar fatura => parti kimlikleri */
+                $dokunanlar = [];
+                foreach ($satirlar->pluck('id')->chunk(1000) as $parca) {
+                    DB::table('efatura_yukleme_faturalari')->whereIn('efatura_id', $parca->all())
+                        ->get(['efatura_id', 'yukleme_id'])
+                        ->each(function (object $bag) use (&$dokunanlar): void {
+                            $dokunanlar[(int) $bag->efatura_id][] = (int) $bag->yukleme_id;
+                        });
+                }
+                // Bağ tablosundan önceki satırda dokunan bilinmez (D6): aynı kaynakta
+                // duran sonraki parti varsa engellenir (kilit altında: içe aktarım `kilitli` ile sıralı)
+                $sonrakiPartiVar = EFaturaYuklemesi::query()
+                    ->where('entegrator_baglanti_id', $tanim->id)
+                    ->where('id', '>', $parti->id)
+                    ->exists();
+                $yenidenYuklenen = $satirlar->filter(function (EFatura $f) use ($parti, $dokunanlar, $sonrakiPartiVar): bool {
+                    $partiler = $dokunanlar[$f->id] ?? [];
+
+                    return $partiler === []
+                        ? $sonrakiPartiVar
+                        : array_diff($partiler, [$parti->id]) !== [];
+                })->count();
+
+                if ($yenidenYuklenen > 0) {
+                    throw EFaturaIslemHatasi::yuklemeSonrakiYuklemede($yenidenYuklenen);
                 }
 
                 $this->islemler->gecmiseYaz(null, EFaturaIslemTuru::IceAktarimGeriAlindi, $kullanici, ayrinti: [
@@ -187,6 +232,15 @@ final class EFaturaIceAktarimi
         }
         if ($tablo['satirlar'] === []) {
             return [...$bos, 'belge_turu' => $tur->belgeTuru(), 'hata' => 'satir_yok'];
+        }
+        if (count($tablo['satirlar']) > $this->azamiSatir()) {
+            return [
+                ...$bos,
+                'belge_turu' => $tur->belgeTuru(),
+                'hata' => 'cok_fazla_satir',
+                'ozet' => [...$bos['ozet'], 'okunan' => count($tablo['satirlar'])],
+                'azami_satir' => $this->azamiSatir(),
+            ];
         }
 
         $sirketVknleri = EntegratorBaglanti::query()
@@ -322,13 +376,28 @@ final class EFaturaIceAktarimi
     }
 
     /**
+     * Satır üst sınırı (G9: yalnız pozitif tam sayı; geçersiz ayar açık hatayla durur).
+     */
+    private function azamiSatir(): int
+    {
+        $sinir = config('efatura.ice_aktarim_azami_satir');
+
+        if (! is_int($sinir) || $sinir < 1) {
+            throw new \LogicException('efatura.ice_aktarim_azami_satir pozitif bir tam sayı olmalı.');
+        }
+
+        return $sinir;
+    }
+
+    /**
      * Eloquent'in kirli denetimi cast'leri hesaba katar (decimal:4, tarih).
+     * Kayıtla aynı alanlar (StatikBelgeTuru::guncellemeAlanlari).
      *
      * @param  array<string, mixed>  $kayit
      */
     private function degisirMi(EFatura $fatura, array $kayit): bool
     {
-        return (clone $fatura)->fill(array_intersect_key($kayit, array_flip(StatikBelgeTuru::KAYNAK_ALANLARI)))->isDirty();
+        return (clone $fatura)->fill(StatikBelgeTuru::guncellemeAlanlari($kayit))->isDirty();
     }
 
     /**
@@ -350,6 +419,10 @@ final class EFaturaIceAktarimi
 
         $mevcut = $this->mevcutlar($tanim, array_column($kayitlar, 'belge_anahtari'));
         $yeniler = [];
+        /** @var list<int> $degismeyenler */
+        $degismeyenler = [];
+        /** @var list<int> $guncellenenler */
+        $guncellenenler = [];
         $sayac = ['yeni' => 0, 'guncellenen' => 0, 'degismeyen' => 0];
         /** @var array<string, list<array<string, mixed>>> $kalemler belge anahtarı => kalemler */
         $kalemler = [];
@@ -379,18 +452,38 @@ final class EFaturaIceAktarimi
                 continue;
             }
 
-            $fatura->fill(array_intersect_key($kayit, array_flip(StatikBelgeTuru::KAYNAK_ALANLARI)));
+            $fatura->fill(StatikBelgeTuru::guncellemeAlanlari($kayit));
             if ($fatura->isDirty()) {
                 $fatura->son_gorulme = $simdi;
                 $fatura->save();
+                $guncellenenler[] = $fatura->id;
                 $sayac['guncellenen']++;
             } else {
+                $degismeyenler[] = $fatura->id;
                 $sayac['degismeyen']++;
             }
         }
 
         foreach (array_chunk($yeniler, self::YAZMA_PARTISI) as $parca) {
             EFatura::query()->insert($parca);
+        }
+
+        foreach (array_chunk($degismeyenler, 1000) as $parca) {
+            EFatura::query()->whereKey($parca)->update(['son_gorulme' => $simdi]);
+        }
+
+        // Bu partinin dokunduğu her fatura (eklenen, güncellenen, değişmeyen olarak
+        // eşleşen) bağ tablosuna: eski partisi geri alınırken bu partinin
+        // dayandığı bilinir (geriAl, B-4)
+        $dokunulanlar = [
+            ...$guncellenenler,
+            ...$degismeyenler,
+            ...EFatura::query()->where('yukleme_id', $parti->id)->pluck('id')->map(fn ($id): int => (int) $id)->all(),
+        ];
+        foreach (array_chunk($dokunulanlar, self::YAZMA_PARTISI) as $parca) {
+            DB::table('efatura_yukleme_faturalari')->insertOrIgnore(
+                array_map(fn (int $id): array => ['yukleme_id' => $parti->id, 'efatura_id' => $id], $parca),
+            );
         }
 
         $this->kalemleriYaz($tanim, $kalemler);

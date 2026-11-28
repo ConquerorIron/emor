@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Models\EntegratorBaglanti;
+use App\Services\Entegrator\EFaturaUblKaydi;
 use App\Services\Entegrator\EntegratorHatasi;
 use App\Services\Entegrator\IzibizUblServisi;
 use App\Services\Entegrator\ProtelUblServisi;
@@ -19,12 +20,14 @@ use Illuminate\Support\Facades\Log;
  * kur, vergi dairesi, vergi kalemleri, istisna kodu) yazar: İzibiz toplu
  * indirmeyle (IzibizUblServisi), Protel fatura başına (ProtelUblServisi).
  * Her çalışmada sınırlı sayıda istek (config/efatura.php); her fatura bir kez okunur.
+ * Üç denemede okunamayan fatura bırakılır (günlüğe yazılır); `--yeniden-dene`
+ * aktif tanımın okunmamış gelen faturalarında sayacı sıfırlayıp yeniden okur.
  */
-#[Signature('efatura:ubl-oku {--saglayici=izibiz : izibiz | protel}')]
+#[Signature('efatura:ubl-oku {--saglayici=izibiz : izibiz | protel} {--yeniden-dene : Bırakılan ve ertelenen faturaların sayacını sıfırlayıp yeniden dener}')]
 #[Description('Gelen e-Faturaların UBL\'ini entegratörden okuyup vergi kalemlerini ve tutarlarını yazar')]
 final class EFaturaUblOku extends Command
 {
-    public function handle(IzibizUblServisi $izibiz, ProtelUblServisi $protel, EntegratorBaglantiServisi $baglantilar): int
+    public function handle(IzibizUblServisi $izibiz, ProtelUblServisi $protel, EntegratorBaglantiServisi $baglantilar, EFaturaUblKaydi $kayit): int
     {
         $saglayici = (string) $this->option('saglayici');
         if (! in_array($saglayici, [EntegratorBaglanti::SAGLAYICI_IZIBIZ, EntegratorBaglanti::SAGLAYICI_PROTEL], true)) {
@@ -46,6 +49,10 @@ final class EFaturaUblOku extends Command
             $this->warn('Aktif entegratör ortamı yok; atlandı.');
 
             return self::SUCCESS;
+        }
+
+        if ($this->option('yeniden-dene')) {
+            $this->line(sprintf('UBL [%s] %s: %d faturanın okuma sayacı sıfırlandı', $tanim->ortam, $protelMi ? 'Protel' : 'İzibiz', $kayit->sayaclariSifirla($tanim)));
         }
 
         try {

@@ -84,7 +84,7 @@ Komutlar admin olarak, `/var/www/emor/backend`'de; "servis olarak" = §1'deki
    `sudo systemctl restart php8.5-fpm emor-queue` (kısa kesinti; haber verilerek).
 3. `.env`: §1'deki servis anahtarları (`YEDEKLEME_CALISTIRICI=servis`, yollar,
    `YEDEKLEME_ROL`, `YEDEKLEME_SINAMA`) ve `YEDEKLEME_AKTIF=true`;
-   `php artisan optimize`.
+   `( umask 022 && php artisan optimize )` (§3 "Yayın ve uygulama önbelleği").
 4. İmza anahtarı — `.env`'den SONRA (önce çalışırsa anahtar web'in yazabildiği
    `storage/app/yedek-imza.key`'e üretilir): servis olarak
    `php artisan yedek:imza-anahtari`. `sudo ../scripts/sunucu-yedekleme-kurulumu.sh --denetle`
@@ -109,7 +109,11 @@ Y=/var/lib/emor-yedek
 # 1. Süren iş yok, sonra modülü kapat
 sudo ls -A $S/yedek-istekler/bekleyen $S/yedek-istekler/isleniyor   # boş olana kadar bekle
 #    .env: YEDEKLEME_AKTIF=false
-php artisan config:cache && php artisan queue:restart
+( umask 022 && php artisan config:cache ) && php artisan queue:restart
+#    Geçiş kipinde planlı yedek istek dosyası olmadan, zamanlayıcının içinde
+#    işlem kilidi altında çalışır: modül kapandıktan SONRA kilit boşalana kadar
+#    yinele (süren yedek / kopya 4. adımdaki kopyalamayla yarışmasın)
+sudo -u www-data flock -n $S/yedek-durum/kilit true && echo "süren iş yok"
 
 # 2. Kurulum betiği (denetle / kur / kur / denetle — sunucu-kurulumu.md §3);
 #    denetimde yalnız "[BİLGİ] imza anahtarı henüz yok" kalmalı. Sonra:
@@ -121,6 +125,11 @@ A=$S/yedek-imza.key
 [ -f "$A" ] && [ ! -L "$A" ] && echo "düz dosya: tamam"
 sudo -u "$(stat -c %U "$A")" cat "$A" | sudo -u emor-yedek sh -c 'umask 077; set -C; cat > /var/lib/emor-yedek/gizli/imza.anahtar'
 sudo -u "$(stat -c %U "$A")" sha256sum "$A"; sudo -u emor-yedek sha256sum $Y/gizli/imza.anahtar   # özetler AYNI olmalı
+#    Özetler farklıysa (soldaki `cat` okuyamadıysa sağdaki yine BOŞ bir 0600
+#    dosya bırakır ve boru hattı 0 döner): boş / yanlış kopyayı kaldırıp
+#    nedeni (okuma izni, sahip) giderin ve adımı yineleyin — `set -C` var olan
+#    dosyanın üstüne yazmaz:
+#    sudo -u emor-yedek rm /var/lib/emor-yedek/gizli/imza.anahtar
 
 # 4. Yedekler ve durum dosyaları (servis hesabı web grubundan okur).
 #    Depo işareti ve çalışma klasörü kopyalanmaz (kurulum yeni yerde kendi işaretini açtı);
@@ -143,7 +152,7 @@ istekler taşınmaz (24 saatten eskisi zaten işlenmez); kullanıcı yeniden ist
 
 5. `.env`: §1'deki servis anahtarları (yollar, `YEDEKLEME_CALISTIRICI=servis`,
    `YEDEKLEME_ROL`, `YEDEKLEME_SINAMA`); `YEDEKLEME_AKTIF` hâlâ `false`.
-   `php artisan optimize`.
+   `( umask 022 && php artisan optimize )`.
 6. Doğrulama — servis olarak:
    `php artisan yedek:tara` → "Tarama: N imzalı, 0 güvenilmeyen …, 0 dosyası
    yok" (N = kopyalanan yedek sayısı). `0 güvenilmeyen` değilse ya da dosyası
@@ -151,7 +160,7 @@ istekler taşınmaz (24 saatten eskisi zaten işlenmez); kullanıcı yeniden ist
    dokunmayın, `.env`'i geri alın. `php artisan yedek:acil durum` → "Üstüne
    geri yükleme işlemi yok."
 7. Modülü aç, servisi aç: `.env`: `YEDEKLEME_AKTIF=true`;
-   `php artisan config:cache && php artisan queue:restart`;
+   `( umask 022 && php artisan config:cache ) && php artisan queue:restart`;
    `sudo systemctl enable --now emor-yedek` (servis `.env`'i açılışta okur).
 8. Ancak 6. adım doğrulandıktan sonra eski kopyalar silinir (önce anahtarın
    ayrı saklanan kopyasının güncel olduğu görülür — kurtarma.md §2):
@@ -206,7 +215,9 @@ istekler taşınmaz (24 saatten eskisi zaten işlenmez); kullanıcı yeniden ist
   (`durum/yayin.kilit`) alır ve betik bitene kadar tutar; kilit altında açık
   üstüne geri yükleme varsa (ya da durum okunamazsa) yedekli de `--no-backup`
   da yayın bakım modu, kod çekme, migration ve `artisan up` olmadan DURUR.
-  Kilit 60 sn'de boşalmazsa (başka yayın ya da başlayan geri yükleme; süre
+  Kilit 15 dakikada boşalmazsa (başka yayın, başlayan geri yükleme ya da
+  servis kipinde sürmekte olan planlı yedek / istek — çalıştırıcı normal
+  işleri yayın kilidini tutarak yürütür, G1-8; süre
   `EMOR_YAYIN_KILIT_BEKLEME`) yine durur. Sonra yedeği `yedek:yayin-oncesi`
   ile alır. Uygulama zaten bakım modundaysa yayın `down` / `up` çağırmaz
   (yalnız kendi açtığını kapatır). Yayın sürerken üstüne geri yükleme
@@ -222,14 +233,30 @@ istekler taşınmaz (24 saatten eskisi zaten işlenmez); kullanıcı yeniden ist
   döngüsü her boş turun başında damgaya bakar, değiştiyse çıkar; systemd yeni
   kodla başlatır (iş sürüyorsa iş bitince). Damga yalnız başarılı yayında
   yazılır: kod çekildikten sonra yarıda kalan bir yayından sonra
-  `sudo systemctl restart emor-yedek`.
+  `sudo systemctl restart emor-yedek`. Damga yayının SONUNDA yazıldığı için
+  yayın boyunca (kod çekme → migration) döngü her turda yayın kilidini
+  beklemeden dener; alamazsa o turda yalnız yayın öncesi yedek isteğini işler,
+  başka istek, planlı yedek, temizlik yayından sonraya kalır (G1-8).
 - **Yayın ve uygulama önbelleği (YF-03):** `deploy.sh` ilk `php` çağrısından
   önce `backend/bootstrap/cache`'i web'e yazılamaz yapar ve içindeki bütün
   `*.php`'yi siler (web'in yazmış olabileceği dosya admin olarak yüklenmez);
-  önbellekler yayının sonunda `optimize` ile yeniden üretilir. Klasörün sahibi
-  yayın kullanıcısı (`admin`) olmalı, değilse yayın durur
+  önbellekler yayının sonunda `optimize` ile yeniden üretilir. Silme ile ilk
+  `php` çağrısı arasındaki kısa aralıkta (bakım modundan önce) web 500 verebilir.
+  Yayın kod çekmeden durursa (kilit meşgul, açık geri yükleme, yedek
+  başarısız) önbellek çıkış tuzağında geri kurulur; kod çekildikten sonra
+  yarıda kalan yayında elle `( umask 022 && php backend/artisan optimize )`.
+  Klasörün sahibi yayın kullanıcısı (`admin`) olmalı, değilse yayın durur
   (`sudo chown admin backend/bootstrap/cache`, bir kez). Yayın boyunca admin'in
   artisan çağrıları derlenmiş görünümleri özel bir geçici klasörde tutar.
+  - **Admin olarak önbellek yazan her elle komut `umask 022` ile** (G2-2):
+    `( umask 022 && php artisan config:cache )`, `… optimize )`, `… route:cache )`.
+    admin kabuğunun umask'ı 002 ise dosya `0664` açılır, web onu değiştirir ve
+    admin'in sonraki artisan çağrısı onu yükler (kural yalnız `deploy.sh`
+    çalışırken zorlanır).
+  - **`optimize:clear` / `clear-compiled` tek başına çalıştırılmaz** (G1-4):
+    `packages.php` / `services.php`'yi siler, web onları yeniden yazamaz (klasör
+    web'e kapalı) ve site admin bir artisan komutu daha çalıştırana kadar 500
+    verir. Hemen ardından `( umask 022 && php artisan optimize )`.
 - **Yayından önce modülü kapat, sonra aç** (bugünkü uygulama; plan tanımlama,
   otomatik yedek ya da geri yükleme başlatılmaz): önce açık işlem yoktur
   (`yedek:acil durum`, servis kipinde servis olarak), sonra
@@ -241,7 +268,7 @@ istekler taşınmaz (24 saatten eskisi zaten işlenmez); kullanıcı yeniden ist
                                # /var/backups/emor/<vt>_predeploy_<zaman>.dump (imzasız)
   cd backend
   # .env: YEDEKLEME_AKTIF=true
-  php artisan config:cache && php artisan queue:restart
+  ( umask 022 && php artisan config:cache ) && php artisan queue:restart
   sudo systemctl restart emor-yedek   # yalnız servis kipinde: servis .env'i açılışta okur
   ```
   Bu yolla alınan imzasız yedekler sonradan `yedek:eski-yedekleri-al` ile içeri
@@ -339,7 +366,7 @@ servis php artisan yedek:acil geri-don
 | "Çalıştırıcı isteği üstlenmedi" (deploy) | servis kipinde yayın öncesi yedek isteği 90 sn kuyrukta kaldı (servis durmuş ya da başka iş sürüyor); istek geri çekildi | `systemctl status emor-yedek`; iş sürüyorsa bitince yayını yinele |
 | "isteği zamanında işlenmedi" (deploy) | servis kipinde çalıştırıcı üstlendiği yedeği 30 dk'da bitirmedi | `systemctl status emor-yedek`, `gunluk/yedekleme-*.log` |
 | "bootstrap/cache'in sahibi …" (deploy) | uygulama önbellek klasörü yayın kullanıcısının değil (YF-03) | `sudo chown admin backend/bootstrap/cache`, yayını yinele |
-| `HEDEF_KIMLIK_HATALI` / `HEDEF_SERTIFIKA_HATASI` | uzak hedef reddetti | yeniden denenmez (D8); hedefi düzelt, "Sına" |
+| `HEDEF_KIMLIK_HATALI` / `HEDEF_SERTIFIKA_HATASI` | uzak hedef reddetti | yeniden denenmez (D8); hedefi düzelt, "Sına". Hedef kaydedilince planlı çalışma bu hatayla düşmüş eski kopyaları da yeniden dener (G1-9) |
 | `HEDEF_SUNUCU_PARMAK_IZI_DEGISTI` | SFTP sunucu anahtarı değişti | sunucu gerçekten değiştiyse "parmak izini sıfırla" + "Sına"; değilse saldırı şüphesi |
 | `HEDEF_YENIDEN_BAGLAN` | Google izni kaldırılmış | Hedefler → "Google ile bağlan" |
 | `HEDEF_KOTA_DOLU` | uzak hedef dolu | yer aç; saklama kuralı |
@@ -349,6 +376,7 @@ servis php artisan yedek:acil geri-don
 | İşlem Günlüğü'nde `kurtarma_paketi` başarısız | kurtarma paketinin yeni sürümü yarıda kaldı; yazılan dosyaları silindi, önceki tamam sürüm yetkili kaldı; uzak yaşam sinyali gitmedi. Kopya "tamam" ama **kurtarmaya hazır değil** (ekranda "kurtarma paketi bekleniyor"): yerel arşiv silinmez | hata mesajındaki koda göre hedefi / günlük dosyasını düzelt; sonraki sunucu dışı kopyada yeniden gönderilir, başarılı paket bekleyen kopyaları da hazır yapar (kurtarma.md §1) |
 | `YEDEK_DEPO_ISARETI_YOK` | yedek klasöründe depo işareti (`.emor-yedek-deposu`) yok ve katalogdaki yedeklerin hiçbirinin imzalı manifesti orada değil: yedek diski bağlı değil (boş bağlama noktası) ya da klasör yanlış | yedek alınmadı, tarama dizine dokunmadı. Diski bağla (`mount`, `findmnt <klasör>`); disk bağlı ve klasör doğruysa kurulum betiğini çalıştır (işareti açar; sunucu-kurulumu.md §2 "Depo işareti") |
 | `HEDEF_SILME_YETKISI_YOK` | hedef silmeye izin vermiyor (S3 kilidi) | hata değil; hedefin kendi kuralı temizler |
+| `GERI_YUKLEME_DISK_YETERSIZ` | yedek klasörünün diskinde canlı veritabanı + iki yedek kadar boş yer yok | yer aç. Denetim yedek klasörünün diskini ölçer ve PostgreSQL veri klasörünün aynı diskte olduğunu varsayar: yedek klasörü ayrı diske bağlıysa veri diskini korumaz (orada yer yoksa pg_restore düşer, geri sarılır; `df /var/lib/postgresql` ile elle bakın) ve yedek diskinde gereğinden fazla yer isteyebilir (G2-5) |
 | `GERI_YUKLEME_SEMA_UYUMSUZ` | yedekte olup kodda olmayan migration | doğru kod sürümünü yayınla |
 | `GERI_YUKLEME_KARSILASTIRMA_TUTMADI` | satır sayısı / migration listesi tutmadı | yedek "doğrulama başarısız"; başka yedek |
 | `GERI_YUKLEME_ADLAR_TUTARSIZ` | yer değiştirmede adlar beklenmedik | dokunulmaz; elle bakılır (`\l`) |

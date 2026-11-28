@@ -48,7 +48,7 @@ final class EFaturaSorgusu
         $sorgu = EFatura::query()
             ->whereIn('entegrator_baglanti_id', $this->tanimIdleri($tanimlar))
             ->where('yon', $yon->value)
-            ->whereBetween('belge_tarihi', [$filtre['baslangic'], $filtre['bitis']])
+            ->belgeTarihiAraliginda($filtre['baslangic'], $filtre['bitis'])
             // Gizlenen (bize ait olmayan) faturalar istenmedikçe gelmez; özet ve Excel de.
             // 'yalniz': yalnız gizlenenler (pano)
             ->when(($filtre['gizlenenler'] ?? null) === null, fn (Builder $q) => $q->whereNull('gizlenme_zamani'))
@@ -276,7 +276,7 @@ final class EFaturaSorgusu
         $taban = EFatura::query()
             ->whereIn('entegrator_baglanti_id', $this->tanimIdleri($tanimlar))
             ->where('yon', $yon->value)
-            ->whereBetween('belge_tarihi', [$baslangic, $bitis]);
+            ->belgeTarihiAraliginda($baslangic, $bitis);
 
         /** @var list<object{durum: string, aciklama: string|null}> $durumSatirlari */
         $durumSatirlari = $taban->clone()

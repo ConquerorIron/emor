@@ -26,6 +26,11 @@ use Throwable;
  *   üstüne geri yükleme varsa başlamaz.
  * - Kaçırılan çalışma bir kez telafi edilir: sıradaki an şimdiden hesaplanır.
  * - Bakım modunda da çalışır (routes/console.php `evenInMaintenanceMode`).
+ * - Planlar okunamazsa (veritabanı erişilemiyor) FAILURE ve bildirim (G2-3).
+ *   Bilinen sınır: geçiş kipinde zamanlayıcının `withoutOverlapping` mutex'i
+ *   veritabanı önbelleğinde olduğu için veritabanı yokken `schedule:run` bu
+ *   komutu hiç başlatmaz; o durumu dış sessizlik izleyicisi (yaşam sinyali)
+ *   yakalar. Servis kipinde döngü komutu doğrudan çağırır, bildirim gider.
  */
 #[Signature('yedek:zamanla')]
 #[Description('Vadesi gelen yedek planlarını çalıştırır')]
@@ -37,7 +42,21 @@ final class YedekZamanla extends Command
             return self::SUCCESS;
         }
 
-        if ($this->vadesiGelenler($takvim, CarbonImmutable::now())->isEmpty()) {
+        // Planlar okunamıyorsa (PostgreSQL erişilemiyor) bu "vadesi gelen yok"
+        // değildir (D6): hata ile çıkılır ve bildirilir (G2-3). Mail ayarı o zaman
+        // dosya kopyasından okunur; yineleme sınırı dosyada (saatte bir mail)
+        try {
+            $vadesiGelenler = $this->vadesiGelenler($takvim, CarbonImmutable::now());
+        } catch (Throwable $hata) {
+            report($hata);
+            Log::channel('yedekleme')->error('Yedek planları okunamadı; planlı yedek alınmadı', ['hata' => $hata::class]);
+            $this->error('Yedek planları okunamadı: '.$hata::class);
+            $bildirimci->bildir('yedek_basarisiz', [__('yedekleme.mail.planlar_okunamadi').': '.$hata::class], 'zamanlayici:veritabani');
+
+            return self::FAILURE;
+        }
+
+        if ($vadesiGelenler->isEmpty()) {
             return self::SUCCESS;
         }
 

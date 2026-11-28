@@ -7,8 +7,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Faturanın UBL'inden okunan belge düzeyi vergi kalemi (KDV oranı, tevkifat…).
- * Yalnız UBL okuması yazar (EFaturaUblKaydi); fatura silinince kalemleri de gider.
+ * Faturanın belge düzeyi vergi kalemi (KDV oranı, tevkifat…). İki yazan var:
+ * entegratör faturalarında UBL okuması (EFaturaUblKaydi), Logo listesinde içe
+ * aktarım (IceAktarim\EFaturaIceAktarimi — kalemler statik tanımın faturalarına
+ * yazılır, UBL kalemleriyle çakışmaz). Fatura silinince kalemleri de gider.
  */
 final class EFaturaVergiKalemi extends Model
 {

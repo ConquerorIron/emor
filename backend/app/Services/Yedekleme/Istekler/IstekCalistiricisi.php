@@ -36,6 +36,10 @@ use Throwable;
  * 4. Süresi dolan geri yükleme kopyaları ve yarıda kalmış geri yüklemelerin
  *    artıkları silinir (kilit boşsa; doluysa bir sonraki tur).
  *
+ * Yayın sürerken (servis döngüsü yayın kilidini alamadı — G1-8) tur yalnız
+ * yayın öncesi yedek isteğini işler: yeni kod diske inip migration çalışırken
+ * bellekteki eski kodla iş başlamaz.
+ *
  * İsteklerden önce, yarıda kalmış bir üstüne geri yükleme (süreç öldü)
  * sürdürülür ya da geri sarılır (UstuneGeriYukleyici::yaridaKalaniIsle;
  * README §6.4). Kalıcı hatada her 2 saniyede denenmesin diye en çok
@@ -86,9 +90,10 @@ final class IstekCalistiricisi
     ) {}
 
     /**
+     * @param  bool  $yalnizYayinOncesi  Yayın sürüyor (G1-8): yalnız yayın öncesi yedek isteği işlenir; diğer istekler kuyrukta kalır, yarıda kalan geri yükleme sürdürülmez, kopya temizliği yapılmaz
      * @return int İşlenen istek sayısı; başka çalıştırıcı çalışıyorsa 0
      */
-    public function tur(): int
+    public function tur(bool $yalnizYayinOncesi = false): int
     {
         $calistiriciKilidi = new YedekKilidi($this->yapilandirma->durumKlasoru().'/calistirici', $this->yapilandirma->kaliciKok());
         if (! $calistiriciKilidi->al()) {
@@ -98,13 +103,19 @@ final class IstekCalistiricisi
         try {
             $this->yaridaKalanIstekleriSonuclandir();
 
-            $this->yaridaKalanGeriYuklemeyiSurdur();
+            if (! $yalnizYayinOncesi) {
+                $this->yaridaKalanGeriYuklemeyiSurdur();
+            }
             $this->kutu->eskiSonuclariSil(self::SONUC_SAKLAMA_GUN);
 
             $sayi = 0;
             foreach ($this->kutu->bekleyenler() as $yol) {
                 if ($sayi >= self::TUR_BASINA_EN_COK) {
                     break;
+                }
+
+                if ($yalnizYayinOncesi && ! $this->yayinOncesiYedekMi($yol)) {
+                    continue;
                 }
 
                 $ustlenilen = $this->kutu->talepEt($yol);
@@ -114,12 +125,32 @@ final class IstekCalistiricisi
                 }
             }
 
-            $this->kopyalariTemizle();
+            if (! $yalnizYayinOncesi) {
+                $this->kopyalariTemizle();
+            }
 
             return $sayi;
         } finally {
             $calistiriciKilidi->birak();
         }
+    }
+
+    /**
+     * Bekleyen istek yayın öncesi yedek mi (üstlenmeden, yerinde okunur).
+     * Okunamayan / geçersiz istek değil sayılır: yayın bitince normal turda
+     * reddedilir. Okuma ile üstlenme arasında dosyayı değiştiren (ele
+     * geçirilmiş) web en çok bir isteği yayın sırasında işletebilir; yetki ve
+     * gönderen denetimi işlerken yine yapılır (gondereniDenetle).
+     */
+    private function yayinOncesiYedekMi(string $yol): bool
+    {
+        try {
+            $istek = $this->kutu->oku($yol);
+        } catch (Throwable) {
+            return false;
+        }
+
+        return $istek->tur === 'yedek_al' && $istek->metin('kaynak') === YedekKaynagi::YayinOncesi->value;
     }
 
     private function isle(string $yol): void

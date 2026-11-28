@@ -32,7 +32,7 @@ final class EFaturaIslemGecmisiRequest extends FormRequest
             'islem' => ['nullable', Rule::enum(EFaturaIslemTuru::class)],
             'saglayici' => ['nullable', Rule::in(EntegratorBaglanti::GELEN_SAGLAYICILARI)],
             'ara' => ['nullable', 'string', 'max:100'],
-            'page' => ['nullable', 'integer', 'min:1'],
+            'page' => ['nullable', 'integer', 'min:1', 'max:1000000'],
             // Ortak sayfa boyutu tercihi (frontend utils/sayfaBoyutu.ts); 0 = "Hepsi"
             'sayfa_boyutu' => ['nullable', 'integer', Rule::in([0, 25, 50, 100, 200])],
         ];

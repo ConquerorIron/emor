@@ -18,7 +18,7 @@ use DOMXPath;
  * kullanılmaz: tevkifatlı faturada kimi satıcı net KDV'yi, kimi brüt KDV'yi
  * yazıyor (canlı ölçüm 2026-11-26) — vergiler kalem kalem tutulur.
  *
- * Okunamayan belge null döner: XML değil, DOCTYPE'lı (dış varlık taşıyabilir),
+ * Okunamayan belge null döner: boş, XML değil, DOCTYPE'lı (dış varlık taşıyabilir),
  * ETTN'siz ya da bir tutarı geçersiz / kolon sınırını aşan (yarım veri yazılmaz).
  */
 final class UblOkuyucu
@@ -44,6 +44,11 @@ final class UblOkuyucu
 
     public function oku(string $xml): ?UblVerisi
     {
+        // Boş metinde loadXML istisna fırlatır (PHP 8 ValueError); sözleşme null
+        if (trim($xml) === '') {
+            return null;
+        }
+
         $belge = new DOMDocument;
         // Ağ erişimi kapalı, dış varlık yüklenmez (XXE); DOCTYPE'lı belge reddedilir
         if (! @$belge->loadXML($xml, LIBXML_NONET | LIBXML_NOBLANKS) || $belge->doctype !== null) {
@@ -119,7 +124,10 @@ final class UblOkuyucu
 
     /**
      * Dövizli faturanın kuru (belge para birimi → TRY). TRY faturada alan ya
-     * yoktur ya da `0.000000` gelir: null. Geçersiz değer false.
+     * yoktur ya da `0.000000` gelir: null. Kaynak para birimi belgeninkinden ya
+     * da hedef TRY'den farklıysa (ters yönlü kur) null — yanlış kurla çarpılmış
+     * TL tutarından boş tutar iyidir; alanlar yoksa kur kabul edilir (C-7).
+     * Geçersiz değer false.
      */
     private function kur(DOMXPath $xpath): string|false|null
     {
@@ -129,11 +137,21 @@ final class UblOkuyucu
             return $kur;
         }
 
+        $belgeParaBirimi = $this->metin($xpath, '/*/cbc:DocumentCurrencyCode');
+        $kaynak = $this->metin($xpath, '/*/cac:PricingExchangeRate/cbc:SourceCurrencyCode');
+        $hedef = $this->metin($xpath, '/*/cac:PricingExchangeRate/cbc:TargetCurrencyCode');
+
+        if (($hedef !== null && strtoupper($hedef) !== 'TRY')
+            || ($kaynak !== null && $belgeParaBirimi !== null && strtoupper($kaynak) !== strtoupper($belgeParaBirimi))) {
+            return null;
+        }
+
         return bccomp($kur, '0', 6) > 0 ? $kur : null;
     }
 
     /**
      * Belgedeki bütün istisna kodları (satır düzeyindekiler dahil), virgülle.
+     * Kolona sığmayan liste son TAM koddan kesilir; kod ortasından bölünmez.
      */
     private function istisnaKodlari(DOMXPath $xpath): ?string
     {
@@ -145,7 +163,16 @@ final class UblOkuyucu
             }
         }
 
-        return $kodlar === [] ? null : mb_substr(implode(',', array_keys($kodlar)), 0, self::ISTISNA_KODLARI_UZUNLUGU);
+        $metin = null;
+        foreach (array_keys($kodlar) as $kod) {
+            $aday = $metin === null ? (string) $kod : $metin.','.$kod;
+            if (mb_strlen($aday) > self::ISTISNA_KODLARI_UZUNLUGU) {
+                break;
+            }
+            $metin = $aday;
+        }
+
+        return $metin;
     }
 
     private function metin(DOMXPath $xpath, string $yol, ?DOMNode $baglam = null): ?string

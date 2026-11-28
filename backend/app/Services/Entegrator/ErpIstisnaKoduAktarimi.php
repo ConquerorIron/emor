@@ -7,20 +7,31 @@ namespace App\Services\Entegrator;
 use App\Models\EFatura;
 use App\Services\EntegratorBaglantiServisi;
 use App\Services\ErpIstisnaKoduYazici;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Entegratördeki (UBL) vergi istisna kodu ERP'de boşsa ERP'ye yazılır
  * (kullanıcı kararı 2026-09-24: entegratördeki bilgi esas; ERP'deki bazen eksik).
  *
- * Aday: aktif hesabın gelen faturası, entegratörde kod var, ERP'deki kodu boş
- * ve fatura ERP havuzunda (TOHOM_E_FATURA'da satırı var — aynı çalışmada eMOR'un
+ * Aday: aktif hesabın gelen faturası, istisna olabilecek fatura (tipi
+ * ISTISNA_TIPLERI'nden ya da vergisi sıfır), entegratörde kod var, ERP'deki kodu
+ * boş ve fatura ERP havuzunda (TOHOM_E_FATURA'da satırı var — aynı çalışmada eMOR'un
  * okuduğu havuzdan; elle işlenip havuzdan silinmiş faturaya UPDATE atılmaz). Birden çok
  * kod virgülle olduğu gibi yazılır (kullanıcı kararı; alan nchar(50) — daha uzunu
  * atlanır). Dolu ERP koduna asla dokunulmaz (koşul UPDATE'in içinde). Her yazım loglanır.
+ *
+ * Kapsam: UBL okuması 2026-11-26'dan beri BÜTÜN gelen faturaları okuyor; vergili
+ * faturanın tek satırındaki kısmi istisna kodu (ör. 351) da `izibiz_istisna_kodu`'na
+ * düşüyor. ERP'ye yazım, onaylanan eski kapsamla sınırlıdır (c59992b
+ * IzibizIstisnaKoduServisi::adaylar) — kısmi istisnanın da yazılıp yazılmayacağı
+ * kullanıcı kararını bekliyor (inceleme 2026-11-27, C-1).
  */
 final class ErpIstisnaKoduAktarimi
 {
+    /** İstisna olabilecek fatura tipleri: bunlar ya da vergisi sıfır olan fatura ERP'ye yazılır */
+    private const ISTISNA_TIPLERI = ['ISTISNA', 'IHRACKAYITLI', 'OZELMATRAH'];
+
     private const ERP_KOD_UZUNLUGU = 50;
 
     public function __construct(
@@ -43,6 +54,7 @@ final class ErpIstisnaKoduAktarimi
         $adaylar = EFatura::query()
             ->where('entegrator_baglanti_id', $tanim->id)
             ->where('yon', FaturaYonu::Gelen->value)
+            ->where(fn (Builder $q) => $q->whereIn('fatura_tipi', self::ISTISNA_TIPLERI)->orWhere('vergi_tutari', 0))
             ->whereNotNull('izibiz_istisna_kodu')
             ->whereNull('vergi_istisna_kodu')
             ->whereIn('emor_durumu', [EmorDurumu::Havuzda->value, EmorDurumu::Islendi->value, EmorDurumu::ElleIslendi->value])

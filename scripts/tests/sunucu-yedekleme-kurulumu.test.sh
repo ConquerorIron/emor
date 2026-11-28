@@ -344,6 +344,12 @@ calistir "bozuk işaret: denetim eksik" 1 --denetle
 bekle "denetim biçimi söyledi" grep -q "depo işaretinin biçimi tanınmıyor" "$D/son.txt"
 calistir "bozuk işaret: kurulum elle bakılacak der" 1
 bekle "kurulum bozuk işarete dokunmadı" bash -c "[[ \$(cat $ISARET) == bozuk ]]"
+# G2-7: okunamayan işaret bilerek tolere edilir; "beklenmeyen hata" yazılmaz
+chmod 000 $ISARET
+calistir "okunamayan işaret: denetim eksik" 1 --denetle
+bekle "okunamayan işaret: biçimi tanınmıyor denir" grep -q "depo işaretinin biçimi tanınmıyor" "$D/son.txt"
+bekle "okunamayan işaret: beklenmeyen hata satırı yok" bash -c "! grep -q 'beklenmeyen hata' $D/son.txt"
+chmod 640 $ISARET
 runuser -u emor-yedek-deneme -- rm -f $ISARET
 calistir "işaretsiz yedekler/: denetim eksik" 1 --denetle
 bekle "denetim işareti açmadı" test ! -e $ISARET

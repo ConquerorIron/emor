@@ -9,6 +9,7 @@ use App\Services\Yedekleme\AtomikDosya;
 use App\Services\Yedekleme\AyarKopyasi;
 use App\Services\Yedekleme\Istekler\IstekCalistiricisi;
 use App\Services\Yedekleme\KaliciKlasor;
+use App\Services\Yedekleme\YayinKilidiSahibi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Attributes\Description;
@@ -30,6 +31,12 @@ use Throwable;
  *   açılıştakiyle karşılaştırır, değiştiyse çıkar (YF-24). Bellekteki eski
  *   sınıflar yeni şemaya, diskteki yeni sınıflarla karışarak çalışmaz. Damga
  *   yoksa ya da okunamıyorsa etkisizdir; içeriği yalnız karşılaştırılır.
+ *   Damga yayının SONUNDA yazıldığı için kod çekme → migration aralığı ayrıca
+ *   kapatılır (G1-8): servis kipinde döngü her turda yayın kilidini beklemeden
+ *   dener; alırsa turun normal işlerini kilidi TUTARAK yürütür (Codex
+ *   G1-8-R1), alamazsa (yayın sürüyor) o turda yalnız yayın öncesi yedek
+ *   isteğini işler — başka istek, planlı yedek, temizlik ve ayar kopyası
+ *   yayından sonra.
  *   Servis kipinde
  *   (`calistirici = servis`) planlı yedek (`yedek:zamanla`, dakikada bir) ve
  *   günlük temizlik (`yedek:temizle`) de bu döngüde yürür (BY-009-R1).
@@ -69,6 +76,8 @@ final class YedekCalistir extends Command
     /** Bu süreçte temizliğin denendiği (ya da yapılmış bulunduğu) vade */
     private ?CarbonImmutable $sonTemizlikVadesi = null;
 
+    private bool $yayinKilidiHatasiRaporlandi = false;
+
     public function handle(YedeklemeYapilandirmasi $yapilandirma, IstekCalistiricisi $calistirici): int
     {
         if ($this->option('tek-tur')) {
@@ -92,19 +101,18 @@ final class YedekCalistir extends Command
         $ilkDamga = $this->yayinDamgasi($damgaYolu);
 
         for ($tur = 0; $tur < (int) $enCok && ! $this->durdur; $tur++) {
-            $damga = $this->yayinDamgasi($damgaYolu);
-            if ($damga !== null && $damga !== $ilkDamga) {
+            if ($this->yeniYayinVar($damgaYolu, $ilkDamga)) {
                 $this->line('Yeni yayın görüldü; çalıştırıcı yeni kodla başlamak için çıkıyor.');
 
                 break;
             }
 
-            if ($yapilandirma->aktif()) {
+            if ($yapilandirma->aktif() && ! $yapilandirma->servisCalistiricisi()) {
                 $this->tur($calistirici);
+            } elseif ($yapilandirma->aktif() && ! $this->servisTuru($yapilandirma, $calistirici, fn (): bool => $this->yeniYayinVar($damgaYolu, $ilkDamga))) {
+                $this->line('Yeni yayın görüldü; çalıştırıcı yeni kodla başlamak için çıkıyor.');
 
-                if ($yapilandirma->servisCalistiricisi()) {
-                    $this->zamanlanmisIsler($yapilandirma);
-                }
+                break;
             }
 
             if (! $this->durdur) {
@@ -113,6 +121,77 @@ final class YedekCalistir extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Servis kipinde bir tur (G1-8): yayın kilidi beklemeden denenir.
+     *
+     * - Alınırsa normal işler (istekler, planlı yedek, temizlik, ayar kopyası)
+     *   kilit TUTULARAK yürür ve tur sonunda bırakılır: denetimle işin başlaması
+     *   arasında yayın başlayamaz (Codex G1-8-R1; önceki hâl kilidi alıp hemen
+     *   bırakıyordu). Yayın en çok bir turun işi kadar bekler (deploy.sh
+     *   `EMOR_YAYIN_KILIT_BEKLEME`); turlar arasında kilit boştadır.
+     * - Alınamazsa (yayın sürüyor) yalnız yayının istediği yayın öncesi yedek
+     *   işlenir.
+     * - Kilit alındıktan sonra yayın damgası yeniden okunur: yayın, turun
+     *   başındaki okumadan sonra damgayı yazıp kilidi bırakmışsa bu süreç eski
+     *   koddur; normal işe başlamadan kilidi bırakır ve false döner (servis
+     *   çıkar, systemd yeni kodla başlatır — Codex G1-8-R2).
+     * - Kilit dosyası açılamıyorsa (kurulum eksik) yayın sürüyor SAYILMAZ: bu
+     *   durumda yayın da kilidi alamaz ve durur (deploy.sh 0. adım); döngüyü
+     *   durdurmak yalnız yedekleri keserdi. Hata bu süreçte bir kez raporlanır.
+     *
+     * @param  callable(): bool  $yeniYayinVar
+     * @return bool false: yeni yayın görüldü, döngüden çıkılmalı
+     */
+    private function servisTuru(YedeklemeYapilandirmasi $yapilandirma, IstekCalistiricisi $calistirici, callable $yeniYayinVar): bool
+    {
+        $kilit = null;
+        try {
+            $kilit = $yapilandirma->yayinKilidi();
+            if (! $kilit->al()) {
+                $this->tur($calistirici, yayinSuruyor: true);
+
+                return true;
+            }
+        } catch (Throwable $hata) {
+            $kilit = null;
+            if (! $this->yayinKilidiHatasiRaporlandi) {
+                $this->yayinKilidiHatasiRaporlandi = true;
+                report($hata);
+                Log::channel('yedekleme')->warning('Yayın kilidi denetlenemedi; çalıştırıcı yayını beklemeden sürüyor', ['hata' => $hata::class]);
+            }
+        }
+
+        if ($yeniYayinVar()) {
+            $kilit?->birak();
+
+            return false;
+        }
+
+        $sahip = app(YayinKilidiSahibi::class);
+        if ($kilit !== null) {
+            $sahip->tut($kilit);
+        }
+
+        try {
+            $this->tur($calistirici);
+            $this->zamanlanmisIsler($yapilandirma);
+        } finally {
+            if ($kilit !== null) {
+                $sahip->birak();
+            }
+        }
+
+        return true;
+    }
+
+    /** Yayın damgası açılıştakinden farklı mı (damga yoksa ya da okunamıyorsa hayır) */
+    private function yeniYayinVar(string $damgaYolu, ?string $ilkDamga): bool
+    {
+        $damga = $this->yayinDamgasi($damgaYolu);
+
+        return $damga !== null && $damga !== $ilkDamga;
     }
 
     /** Yayın damgasının içeriği (en çok 256 bayt); yol boşsa, dosya yoksa ya da okunamıyorsa null */
@@ -247,15 +326,18 @@ final class YedekCalistir extends Command
      * Turun hatası döngüyü öldürmez (bir sonraki tur yeniden dener); tek
      * turda çıkış kodu hatadır.
      */
-    private function tur(IstekCalistiricisi $calistirici): int
+    private function tur(IstekCalistiricisi $calistirici, bool $yayinSuruyor = false): int
     {
         try {
-            $sayi = $calistirici->tur();
+            $sayi = $calistirici->tur($yayinSuruyor);
             if ($sayi > 0) {
                 $this->line("{$sayi} yedekleme isteği işlendi.");
             }
 
-            $this->ayarKopyasiniTazele();
+            // Yayın sürerken şema değişiyor olabilir: ayar kopyası yayından sonra (G1-8)
+            if (! $yayinSuruyor) {
+                $this->ayarKopyasiniTazele();
+            }
 
             return self::SUCCESS;
         } catch (Throwable $hata) {

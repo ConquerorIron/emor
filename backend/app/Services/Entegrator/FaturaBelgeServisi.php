@@ -119,9 +119,10 @@ final class FaturaBelgeServisi
      */
     private function erpden(EFatura $fatura, Closure $oku): ?string
     {
-        // ERP havuzu yalnız gelen faturaları ETTN ile tutar: giden ve ETTN'siz
-        // (e-Arşiv / e-SMM listesi) belge için sorgu atılmaz
-        if ($fatura->yon !== FaturaYonu::Gelen->value || $fatura->ettn === null) {
+        // ERP havuzu yalnız gelen faturaları ETTN ile tutar: giden için sorgu
+        // atılmaz. ETTN'siz belge (statik e-Arşiv / e-SMM) buraya gelmez: pdf() /
+        // xml() statik tanımda baştan döner; İzibiz satırının ETTN'i hep doludur
+        if ($fatura->yon !== FaturaYonu::Gelen->value) {
             return null;
         }
 

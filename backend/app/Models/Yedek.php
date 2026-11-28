@@ -40,6 +40,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $hata_mesaji
  * @property CarbonImmutable|null $yerel_silinme_zamani
  * @property CarbonImmutable|null $silinme_zamani
+ * @property list<array{plan: int, hedef: int}>|null $plan_hedefleri Plan yedeğinin alındığı anda kopyalanacağı plan / hedef çiftleri (G1-6-R2); eski yedeklerde boş
  */
 final class Yedek extends Model
 {
@@ -97,6 +98,7 @@ final class Yedek extends Model
             'sabit' => 'boolean',
             'yerel_silinme_zamani' => 'immutable_datetime',
             'silinme_zamani' => 'immutable_datetime',
+            'plan_hedefleri' => 'array',
         ];
     }
 }

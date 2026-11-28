@@ -17,7 +17,8 @@ use Tests\TestCase;
 
 /**
  * Entegratördeki istisna kodu ERP'de boşsa TOHOM_E_FATURA'ya yazılır (kullanıcı
- * kararı 2026-09-24); çok kodlu virgülle yazılır; dolu koda ve havuzda olmayana dokunulmaz.
+ * kararı 2026-09-24); çok kodlu virgülle yazılır; dolu koda ve havuzda olmayana
+ * dokunulmaz; yalnız istisna tipli ya da vergisiz faturalar (onaylı kapsam — C-1).
  */
 final class ErpIstisnaKoduAktarimiTest extends TestCase
 {
@@ -101,11 +102,35 @@ final class ErpIstisnaKoduAktarimiTest extends TestCase
     }
 
     /**
+     * Varsayılan: istisna tipli fatura (aktarım kapsamında — C-1).
+     *
      * @param  array<string, mixed>  $alanlar
      */
     private function fatura(EntegratorBaglanti $tanim, string $ettn, array $alanlar = []): EFatura
     {
-        return EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => $ettn, ...$alanlar]);
+        return EFatura::factory()->create(['entegrator_baglanti_id' => $tanim->id, 'ettn' => $ettn, 'fatura_tipi' => 'ISTISNA', ...$alanlar]);
+    }
+
+    public function test_yalniz_istisna_tipli_ya_da_vergisiz_faturanin_kodu_erpye_yazilir_vergili_satis_faturasininki_yazilmaz(): void
+    {
+        $tanim = EntegratorBaglanti::factory()->aktif()->create();
+        // Vergili SATIS faturasının tek satırındaki istisna (kısmi istisna): onaylı kapsamın dışında
+        $vergiliSatis = $this->fatura($tanim, 'aaaaaaaa-0000-0000-0000-000000000001', ['fatura_tipi' => 'SATIS', 'vergi_tutari' => '56.83', 'izibiz_istisna_kodu' => '305']);
+        $vergiliTevkifat = $this->fatura($tanim, 'aaaaaaaa-0000-0000-0000-000000000002', ['fatura_tipi' => 'TEVKIFAT', 'vergi_tutari' => '120.00', 'izibiz_istisna_kodu' => '351']);
+        $ihracKayitli = $this->fatura($tanim, 'aaaaaaaa-0000-0000-0000-000000000003', ['fatura_tipi' => 'IHRACKAYITLI', 'vergi_tutari' => '18.00', 'izibiz_istisna_kodu' => '701']);
+        $vergisizSatis = $this->fatura($tanim, 'aaaaaaaa-0000-0000-0000-000000000004', ['fatura_tipi' => 'SATIS', 'vergi_tutari' => '0', 'izibiz_istisna_kodu' => '350']);
+        $this->erp(array_fill_keys([$vergiliSatis->ettn, $vergiliTevkifat->ettn, $ihracKayitli->ettn, $vergisizSatis->ettn], null));
+
+        $this->artisan('efatura:emor')
+            ->expectsOutput('İstisna kodu ERP\'ye: 2 yazıldı, 0 uzun olduğu için atlandı, 0 yazılmadı')
+            ->assertSuccessful();
+
+        $this->assertSame([
+            ['aaaaaaaa-0000-0000-0000-000000000003', '701'],
+            ['aaaaaaaa-0000-0000-0000-000000000004', '350'],
+        ], $this->yazilanlar);
+        $this->assertNull($vergiliSatis->fresh()->vergi_istisna_kodu);
+        $this->assertNull($vergiliTevkifat->fresh()->vergi_istisna_kodu);
     }
 
     public function test_erpde_bos_olan_kod_entegratordekiyle_doldurulur_dolu_ve_havuzda_olmayana_dokunulmaz(): void

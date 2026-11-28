@@ -24,6 +24,7 @@ use App\Services\Yedekleme\Istekler\IstekCalistiricisi;
 use App\Services\Yedekleme\KopyaDurumu;
 use App\Services\Yedekleme\ManifestDeposu;
 use App\Services\Yedekleme\OlayGunlugu;
+use App\Services\Yedekleme\YayinKilidiSahibi;
 use App\Services\Yedekleme\YedekAlici;
 use App\Services\Yedekleme\YedekDurumu;
 use App\Services\Yedekleme\YedekKaynagi;
@@ -34,9 +35,11 @@ use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Console\Kernel as ConsoleKernel;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
@@ -44,6 +47,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 use Tests\Yedekleme\BellekHedefi;
 use Tests\Yedekleme\SahtePostgres;
+use Tests\Yedekleme\SiraliDamgaAkisi;
 use Tests\Yedekleme\YedeklemeOrtami;
 
 /**
@@ -897,6 +901,98 @@ final class YedekCalistiriciTest extends TestCase
         $kilit->birak();
 
         $this->assertSame(0, substr_count($this->servisDongusu(), 'Temizlik:'));
+    }
+
+    /**
+     * G1-8 (P3): yayın (deploy.sh) kod çekip migration çalıştırırken yayın
+     * kilidini tutar. Servis döngüsü o sırada eski kodla yeni iş başlatmaz:
+     * yalnız yayının kendi istediği yayın öncesi yedeği işler; kuyruktaki
+     * istekler ve vadesi gelen plan yayın bitince işlenir.
+     */
+    public function test_yayin_kilidi_tutulurken_servis_dongusu_yalniz_yayin_oncesi_yedegi_isler(): void
+    {
+        config(['yedekleme.calistirici' => 'servis']);
+        $this->yayinKullanicisiOl();
+        Sleep::fake();
+        $plan = YedekPlani::factory()->create();
+        $plan->forceFill(['sonraki_calisma' => CarbonImmutable::now()->subSeconds(30)])->save();
+        $tara = $this->kutu()->yaz('tara', [], $this->yonetici->id);
+        $yayin = $this->kutu()->yaz('yedek_al', ['kaynak' => 'yayin_oncesi', 'aciklama' => null], null);
+        $yayinKilidi = app(YedeklemeYapilandirmasi::class)->yayinKilidi();
+        $this->assertTrue($yayinKilidi->al());
+
+        $this->servisDongusu();
+
+        $this->assertSame('tamam', $this->sonuc($yayin)['durum']);
+        $this->assertSame('kuyrukta', $this->sonuc($tara)['durum']);
+        $this->assertSame(0, Yedek::query()->where('kaynak', YedekKaynagi::Plan->value)->count());
+
+        $yayinKilidi->birak();
+        $this->servisDongusu();
+
+        $this->assertNotSame('kuyrukta', $this->sonuc($tara)['durum']);
+        $this->assertSame(1, Yedek::query()->where('kaynak', YedekKaynagi::Plan->value)->count());
+    }
+
+    /**
+     * Codex G1-8-R1: servis döngüsü yayın kilidini denetleyip bırakıyordu; yayın
+     * kilidi tam o aralıkta (ilk plan sorgusundan önce) alırsa planlı yedek yine
+     * başlıyordu. Artık normal işler kilidi tutarak yürür: plan sorgusu anında
+     * yayın (ayrı tutamaç) kilidi alamaz, tur bitince alabilir.
+     */
+    public function test_servis_turu_normal_isler_surerken_yayin_kilidini_tutar_yayin_araya_giremez(): void
+    {
+        config(['yedekleme.calistirici' => 'servis']);
+        Sleep::fake();
+        $plan = YedekPlani::factory()->create();
+        $plan->forceFill(['sonraki_calisma' => CarbonImmutable::now()->subSeconds(30)])->save();
+        $yayinAldi = null;
+        DB::listen(function (QueryExecuted $sorgu) use (&$yayinAldi): void {
+            if ($yayinAldi === null && str_contains($sorgu->sql, 'yedek_planlari')) {
+                $yayin = app(YedeklemeYapilandirmasi::class)->yayinKilidi();
+                $yayinAldi = $yayin->al();
+                $yayin->birak();
+            }
+        });
+
+        $this->servisDongusu();
+
+        $this->assertFalse($yayinAldi, 'Plan sorgusu sırasında yayın kilidi boştaydı');
+        $this->assertSame(1, Yedek::query()->where('kaynak', YedekKaynagi::Plan->value)->count());
+        $this->assertFalse(app(YayinKilidiSahibi::class)->tutuluyorMu());
+        $sonra = app(YedeklemeYapilandirmasi::class)->yayinKilidi();
+        $this->assertTrue($sonra->al(), 'Tur bitince yayın kilidi bırakılmalı');
+        $sonra->birak();
+    }
+
+    /**
+     * Codex G1-8-R2: servis turun başında damgayı okuduktan sonra yayın yeni
+     * damgayı yazıp kilidi bırakırsa servis eski kodla bir tur daha
+     * çalışıyordu. Kilit alındıktan sonra damga yeniden okunur: değiştiyse
+     * normal işe (planlı yedek) başlamadan çıkılır, kilit bırakılır.
+     */
+    public function test_kilit_alindiktan_sonra_damga_degistiyse_servis_ise_baslamadan_cikar(): void
+    {
+        config(['yedekleme.calistirici' => 'servis']);
+        Sleep::fake();
+        $plan = YedekPlani::factory()->create();
+        $plan->forceFill(['sonraki_calisma' => CarbonImmutable::now()->subSeconds(30)])->save();
+        // Okumalar: açılış, turun başı (eski) → kilit alındıktan sonra (yeni)
+        config(['yedekleme.yayin_damgasi' => SiraliDamgaAkisi::kur("eski\n", "eski\n", "yeni\n")]);
+
+        try {
+            $cikti = $this->servisDongusu();
+        } finally {
+            SiraliDamgaAkisi::kaldir();
+        }
+
+        $this->assertStringContainsString('Yeni yayın görüldü', $cikti);
+        $this->assertSame(3, SiraliDamgaAkisi::$okuma);
+        $this->assertSame(0, Yedek::query()->where('kaynak', YedekKaynagi::Plan->value)->count(), 'Planlı yedek başlamamalı');
+        Sleep::assertSleptTimes(0);
+        $yayin = app(YedeklemeYapilandirmasi::class)->yayinKilidi();
+        $this->assertTrue($yayin->al());
+        $yayin->birak();
     }
 
     public function test_yayin_oncesi_yedek_servis_kipinde_calistiriciyla_uctan_uca_alinir(): void

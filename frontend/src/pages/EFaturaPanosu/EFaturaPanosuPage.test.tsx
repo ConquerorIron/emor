@@ -1,3 +1,4 @@
+import { onlineManager } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -91,6 +92,7 @@ describe('EFaturaPanosuPage', () => {
     cleanup()
     vi.clearAllMocks()
     vi.useRealTimers()
+    onlineManager.setOnline(true)
   })
 
   it('yıl başından bugüne sayıları ister; her sayı Tüm Faturalar’ı aynı süzgeçle açar', async () => {
@@ -150,6 +152,27 @@ describe('EFaturaPanosuPage', () => {
     ciz(['efatura_panosu.goruntule'])
     await screen.findByRole('heading', { name: 'Fatura Dağılımı' })
     expect(screen.queryAllByRole('link')).toHaveLength(0)
+  })
+
+  it('bağlantı yokken yeni aralık beklerken eski sayılar bağlantısız ve firma Excel’i kapalıdır (F1)', async () => {
+    ciz(['efatura_panosu.goruntule', 'tum_faturalar.goruntule'])
+    expect(await screen.findByText('Aydoğan Dış Ticaret')).toBeInTheDocument()
+    expect(screen.getAllByRole('link').length).toBeGreaterThan(0)
+    const excel = screen.getByRole('button', { name: 'Excel' })
+    expect(excel).toBeEnabled()
+
+    onlineManager.setOnline(false)
+    fireEvent.change(screen.getByLabelText('Başlangıç'), { target: { value: '01.02.2026' } })
+
+    // İstekler beklemeye alınır; eski aralığın sayıları ve firmaları ekranda kalır
+    await waitFor(() => expect(excel).toBeDisabled())
+    expect(screen.getByText('Aydoğan Dış Ticaret')).toBeInTheDocument()
+    const dagilim = screen
+      .getByRole('heading', { name: 'Fatura Dağılımı' })
+      .closest('section') as HTMLElement
+    expect(within(dagilim).getAllByText('3.184')).toHaveLength(2)
+    expect(screen.queryAllByRole('link')).toHaveLength(0)
+    expect(api.pano).toHaveBeenCalledTimes(1)
   })
 
   it('firma dökümü portal ve durum süzgeciyle istenir, Excel aynı süzgeçle iner', async () => {

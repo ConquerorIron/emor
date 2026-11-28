@@ -5,6 +5,7 @@
     "kaydet": "Kaydet",
     "kaydediliyor": "Kaydediliyor…",
     "yukleniyor": "Yükleniyor…",
+    "dosyaCokBuyuk": "Seçilen dosya {{boyut}} MB; en çok {{sinir}} MB yüklenebilir. Dosyayı bölüp parça parça yükleyin.",
     "iptal": "İptal",
     "tekrarDene": "Tekrar Dene",
     "menuyuAc": "Menüyü genişlet",
@@ -720,8 +721,10 @@
     "FATURA_KAYNAKTA_REDDEDILMIS": "Bu fatura kaynağında zaten reddedilmiş; ayrıca RED'e çekilmez.",
     "FATURA_ISLENDI_ISARETLI": "Bu fatura SAP'de elle işlendi; RED'e çekmeden önce \"SAP (Manuel İşle)\" işaretini kaldırın.",
     "FATURA_EMOR_ISLENMIS": "Bu fatura eMOR'da işlenmiş; RED'e çekilemez.",
+    "FATURA_EMOR_BILINMIYOR": "Bu faturanın eMOR durumu henüz okunmadı; birkaç dakika sonra tekrar deneyin.",
     "FATURA_BELGESI_YOK": "Bu faturanın aslı eMOR arşivinde yok; PDF gösterilemiyor.",
     "YUKLEME_ELLE_ISLENMIS": "Bu yüklemenin eklediği faturalardan bazılarında elle işlem (RED, İşlendi ya da gizleme) var; yükleme geri alınamaz.",
+    "YUKLEME_SONRAKI_YUKLEMEDE": "Bu yüklemenin eklediği faturaların bir kısmı sonraki bir yüklemeyle yeniden yüklendi; önce sonraki yüklemeleri geri alın.",
     "ICE_AKTARIM_SURUYOR": "Bu kaynak için başka bir içe aktarım ya da geri alma sürüyor. Biraz sonra tekrar deneyin."
   },
   "yetki": {
@@ -1068,7 +1071,8 @@
       "dosyaHatasi": {
         "dosya_okunamadi": "Dosya okunamadı. Excel (.xlsx) dosyası olduğundan emin olun.",
         "baslik_bulunamadi": "Dosyada bu ekranın listesine ait başlık satırı bulunamadı.",
-        "satir_yok": "Başlık satırının altında belge yok."
+        "satir_yok": "Başlık satırının altında belge yok.",
+        "cok_fazla_satir": "Listede {{okunan}} satır var; bir seferde en çok {{sinir}} satır yüklenebilir. Listeyi {{sinir}} satırlık parçalara bölüp ayrı ayrı yükleyin."
       },
       "hataKodu": {
         "zorunlu": "Boş olamaz",
@@ -1637,6 +1641,7 @@
     "grupSayisi": "{{sayi}} satır",
     "siraNo": "Sıra No",
     "genelToplamTl": "Genel Toplam (TL)",
+    "genelToplamTlKursuz": "Genel Toplam (TL) — kuru olmayan {{sayi}} fatura hariç",
     "sekmeler": "Görünümler",
     "pivot": {
       "data": "Data",
@@ -1830,7 +1835,9 @@
         "plan_calistir": "Planı çalıştırma",
         "kopya_geri_yukle": "Farklı adla geri yükleme",
         "kopya_sil": "Kopya silme",
-        "ustune_geri_yukle": "Üstüne geri yükleme"
+        "ustune_geri_yukle": "Üstüne geri yükleme",
+        "onayla": "Üstüne geri yüklemeyi onaylama",
+        "geri_don": "Üstüne geri yüklemeden geri dönme"
       },
       "durum": {
         "kuyrukta": "kuyrukta",

@@ -20,14 +20,15 @@ use RuntimeException;
  * (yazımı ne olursa olsun) tek hedefin deposudur: aynı yeri gösteren ikinci
  * hedef kaydedilmez (HedefKonumu::ayniDepoMu; BY-010-R7).
  *
- * Kopya burada şifresiz durur (sunucu dışı değil): klasör uygulama ağacında
- * (`public/`, `storage/app/public` web'den sunulur) ya da çekirdeğin sanal
- * dosya sistemlerinde olamaz — kayıtta 422, eskiden kaydedilmiş hedefte
- * yazmadan önce YAPILANDIRMA (YF-07; yasakKlasorMu).
+ * Kopya burada şifresiz durur (sunucu dışı değil): klasör uygulamanın
+ * deposunda (nginx'in kökü `frontend/dist`, Laravel'in `public/` ve
+ * `storage/app/public` web'den sunulur) ya da çekirdeğin sanal dosya
+ * sistemlerinde olamaz — kayıtta 422, eskiden kaydedilmiş hedefte yazmadan
+ * önce YAPILANDIRMA (YF-07, G1-1; yasakKlasorMu).
  */
 final class YerelDiskBaglayicisi implements DosyaSistemiHedefi
 {
-    /** Yedek klasörü dışında hedef olamayan kökler (uygulama ağacı ayrıca: base_path) */
+    /** Yedek klasörü dışında hedef olamayan kökler (uygulama deposu ayrıca: dirname(base_path())) */
     private const SISTEM_KOKLERI = ['/proc', '/sys', '/dev', '/run'];
 
     public function __construct(
@@ -50,9 +51,10 @@ final class YerelDiskBaglayicisi implements DosyaSistemiHedefi
     }
 
     /**
-     * Klasör hedef olamayacak bir yerde mi (YF-07): uygulama ağacı
-     * (`base_path()`; `public/` ve web'den sunulan `storage/app/public` dahil)
-     * ya da `/proc`, `/sys`, `/dev`, `/run`. Yapılandırılmış yedek klasörü ve
+     * Klasör hedef olamayacak bir yerde mi (YF-07): uygulamanın deposu
+     * (`dirname(base_path())`: nginx'in sunduğu `frontend/dist`, `backend/public`,
+     * `backend/storage/app/public`, `scripts/`, `.git` dahil — G1-1) ya da
+     * `/proc`, `/sys`, `/dev`, `/run`. Yapılandırılmış yedek klasörü ve
      * altı serbesttir (geçiş döneminde `storage/app/yedekler`). `/tmp`
      * yasak değildir: Yerel hedef zaten sunucu dışı sayılmaz.
      *
@@ -68,7 +70,7 @@ final class YerelDiskBaglayicisi implements DosyaSistemiHedefi
             return false;
         }
 
-        foreach ([base_path(), ...self::SISTEM_KOKLERI] as $kok) {
+        foreach ([dirname(base_path()), ...self::SISTEM_KOKLERI] as $kok) {
             if (self::altindaMi($gercek, self::gercekYol($kok))) {
                 return true;
             }
@@ -259,7 +261,7 @@ final class YerelDiskBaglayicisi implements DosyaSistemiHedefi
         $klasor = $this->klasor();
 
         if (self::yasakKlasorMu($klasor, $this->yapilandirma)) {
-            throw new HedefHatasi(HedefHatasi::YAPILANDIRMA, "Hedef klasörü uygulama ağacında ya da bir sistem klasöründe; şifresiz kopya buraya yazılmaz: {$klasor}");
+            throw new HedefHatasi(HedefHatasi::YAPILANDIRMA, "Hedef klasörü uygulamanın deposunda ya da bir sistem klasöründe; şifresiz kopya buraya yazılmaz: {$klasor}");
         }
 
         return $klasor;

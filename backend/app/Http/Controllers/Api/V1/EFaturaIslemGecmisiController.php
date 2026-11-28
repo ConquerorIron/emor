@@ -32,7 +32,8 @@ final class EFaturaIslemGecmisiController extends Controller
             ->when($request->validated('saglayici') !== null, fn (Builder $q) => $q->where('saglayici', $request->validated('saglayici')))
             ->when(trim((string) $request->validated('ara')) !== '', function (Builder $q) use ($request): void {
                 $desen = '%'.trim((string) $request->validated('ara')).'%';
-                $q->where(fn (Builder $q) => $q->whereLike('belge_no', $desen)->orWhereLike('belge_kimligi', $desen)->orWhereLike('neden', $desen));
+                // Belge kimliğinde aranmaz: eski e-Arşiv / e-SMM kayıtlarında kimlik no var (inceleme B-12)
+                $q->where(fn (Builder $q) => $q->whereLike('belge_no', $desen)->orWhereLike('neden', $desen));
             });
 
         $sayfa = $sorgu->clone()->orderByDesc('created_at')->orderByDesc('id')->paginate($request->sayfaBoyutu());

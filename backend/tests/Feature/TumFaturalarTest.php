@@ -183,7 +183,23 @@ final class TumFaturalarTest extends TestCase
             'PDF izni olmadan PDF' => ['/api/v1/tum-faturalar/faturalar/1/pdf', ['tum_faturalar.goruntule', 'efatura.pdf', 'protel_faturalari.pdf']],
             'PDF izni olmadan XML' => ['/api/v1/tum-faturalar/faturalar/1/xml', ['tum_faturalar.goruntule', 'efatura.pdf']],
             'Excel izni olmadan Excel' => ['/api/v1/tum-faturalar/faturalar/excel?'.self::ARALIK, ['tum_faturalar.goruntule', 'efatura.disari_aktar']],
+            'sağlayıcı izinleriyle geçmiş' => ['/api/v1/tum-faturalar/faturalar/1/gecmis', ['efatura.goruntule', 'protel_faturalari.goruntule', 'efatura_islem_gecmisi.goruntule']],
         ];
+    }
+
+    /** Satır geçmişi aktif tanımlarla sınırlı: pasif tanımın faturasının geçmişi 404 (inceleme A-1). */
+    public function test_gecmis_aktif_tanimin_faturasinda_doner_pasif_tanimin_faturasinda_404(): void
+    {
+        [, $protel] = $this->tanimlar();
+        $fatura = EFatura::factory()->protel()->create(['entegrator_baglanti_id' => $protel->id]);
+        $pasif = EFatura::factory()->create(['entegrator_baglanti_id' => EntegratorBaglanti::factory()->create()->id]);
+        $kullanici = $this->izinli('tum_faturalar.goruntule', 'tum_faturalar.isle');
+        $this->actingAs($kullanici)->putJson("/api/v1/tum-faturalar/faturalar/{$fatura->id}/islendi", ['islendi' => true])->assertOk();
+
+        $this->actingAs($kullanici)->getJson("/api/v1/tum-faturalar/faturalar/{$fatura->id}/gecmis")
+            ->assertOk()
+            ->assertJsonPath('data.0.islem', 'islendi_isaretlendi');
+        $this->actingAs($kullanici)->getJson("/api/v1/tum-faturalar/faturalar/{$pasif->id}/gecmis")->assertNotFound();
     }
 
     /**

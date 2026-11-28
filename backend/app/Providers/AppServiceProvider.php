@@ -23,6 +23,7 @@ use App\Services\Yedekleme\AcikGeriYuklemeKorumasi;
 use App\Services\Yedekleme\Hedefler\HedefKatalogu;
 use App\Services\Yedekleme\KaynakVeritabani;
 use App\Services\Yedekleme\PostgresKaynakVeritabani;
+use App\Services\Yedekleme\YayinKilidiSahibi;
 use App\Services\Yedekleme\YedekImzasi;
 use App\Yetki\Izin;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -75,6 +76,8 @@ class AppServiceProvider extends ServiceProvider
         // Bir istek / komut boyunca tek imza nesnesi (anahtar bir kez okunur)
         $this->app->scoped(YedekImzasi::class);
         $this->app->singleton(HedefKatalogu::class);
+        // Servis döngüsünün tuttuğu yayın kilidi süreç boyunca tek (G1-8-R1)
+        $this->app->singleton(YayinKilidiSahibi::class);
 
         // TCPDF (kesinti ekstresi) hatada varsayılan olarak die() çağırır: istek
         // 200 ile yarım kalırdı. Kütüphane yüklenmeden önce istisnaya çevrilir;
@@ -144,6 +147,12 @@ class AppServiceProvider extends ServiceProvider
         // Excel çıktısı bellekte üretilir (en fazla config('efatura.excel_azami_satir') satır)
         RateLimiter::for('efatura-excel', function (Request $request): Limit {
             return Limit::perMinute(5)->by($request->user()?->id ?? $request->ip());
+        });
+
+        // Statik kaynak içe aktarımı (Logo, e-Arşiv): kontrol + kayıt, Excel okuma
+        // pahalı — Kesinti içe aktarımıyla aynı sınır, ayrı sayaç (inceleme A-3)
+        RateLimiter::for('efatura-ice-aktarim', function (Request $request): Limit {
+            return Limit::perMinute(20)->by($request->user()?->id ?? $request->ip());
         });
 
         // ERP Senkronla: her basış ERP'de tüm işlenmiş fatura ETTN'lerini okur

@@ -42,6 +42,18 @@ use Throwable;
  */
 final class YedekKopyalayici
 {
+    /**
+     * Yeniden denemeyle düzelmeyen hatalar (D8): yapılandırma / anahtar eksikliği,
+     * kimlik reddi, aynı depo… Bu kodlarla düşen deneme döngüsü kesilir; planlı
+     * yeniden deneme de hedef tanımı değişene kadar onları atlar (PlanliYedek; G1-9).
+     * gpg süre aşımı (SifrelemeHatasi, gecici) kalıcı sayılmaz: sınırlı denenir (BY-019-R1).
+     */
+    public const KALICI_HATALAR = [
+        HedefHatasi::YAPILANDIRMA, HedefHatasi::KIMLIK, HedefHatasi::YENIDEN_BAGLAN, HedefHatasi::SUNUCU_PARMAK_IZI,
+        HedefHatasi::SERTIFIKA, HedefHatasi::BAGLI_DEGIL, HedefHatasi::KOTA, HedefHatasi::AYNI_DEPO,
+        HedefHatasi::KLASOR_SECILMEDI, HedefHatasi::KLASOR_GECERSIZ,
+    ];
+
     public function __construct(
         private readonly YedeklemeYapilandirmasi $yapilandirma,
         private readonly HedefKatalogu $katalog,
@@ -117,9 +129,8 @@ final class YedekKopyalayici
             } catch (Throwable $hata) {
                 $sonHata = $hata;
 
-                // Yapılandırma / şifreleme anahtarı eksikliği yeniden denemeyle düzelmez (D8).
-                // gpg süre aşımı (SifrelemeHatasi, gecici) kalıcı sayılmaz: sınırlı denenir (BY-019-R1).
-                if ($hata instanceof HedefHatasi && in_array($hata->kod, [HedefHatasi::YAPILANDIRMA, HedefHatasi::KIMLIK, HedefHatasi::YENIDEN_BAGLAN, HedefHatasi::SUNUCU_PARMAK_IZI, HedefHatasi::SERTIFIKA, HedefHatasi::BAGLI_DEGIL, HedefHatasi::KOTA, HedefHatasi::AYNI_DEPO, HedefHatasi::KLASOR_SECILMEDI, HedefHatasi::KLASOR_GECERSIZ], true)) {
+                // Yapılandırma / şifreleme anahtarı eksikliği yeniden denemeyle düzelmez (D8)
+                if ($hata instanceof HedefHatasi && in_array($hata->kod, self::KALICI_HATALAR, true)) {
                     break;
                 }
 

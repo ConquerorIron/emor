@@ -58,6 +58,9 @@ use Throwable;
  *    aynı eşiği uygular (BY-010-R5). Aynı eşik, yerel dosya planda ana klasör
  *    hedefi olarak yazıldığında o hedefin kuralına da uygulanır
  *    (kurtarmaDayanagiYok). PlanliYedek her yedekten sonra burayı çalıştırır.
+ *    Kopya kaydı açılmadan kesilen plan yedeğinin dosyası, kayıtlı hedefi hâlâ
+ *    etkin bağlıyken kalır (`kopya_bekliyor`; seçim plan çalışmasıyla aynı:
+ *    EksikKopyaAdaylari, Codex G1-6-R4, R5).
  * 7. Hedefler kayıt kimliğiyle değil fiziksel depoyla bağımsızdır (BY-010-R7,
  *    R8): aynı depoyu gösteren iki hedefte (aynı klasör; uzakta aynı sunucu +
  *    kullanıcı + klasör ya da S3 uç noktası + kova + önek —
@@ -72,7 +75,7 @@ final class SaklamaPolitikasi
     public const BEKLENMEYEN_HATA = 'SAKLAMA_BEKLENMEYEN_HATA';
 
     /** Plan yedeğinin yerel (aktarım) dosyasını tutan korumalar — bkz. hesapla() */
-    private const YEREL_AKTARIM_KORUMALARI = ['sabit', 'kullanimda', 'uzak_kopya_dogrulanmadi', 'kurtarma_paketi_eksik'];
+    private const YEREL_AKTARIM_KORUMALARI = ['sabit', 'kullanimda', 'uzak_kopya_dogrulanmadi', 'kopya_bekliyor', 'kurtarma_paketi_eksik'];
 
     public function __construct(
         private readonly HedefKatalogu $katalog,
@@ -84,6 +87,8 @@ final class SaklamaPolitikasi
         private readonly YedekBildirimcisi $bildirimci,
         private readonly YedekDeposu $depo,
         private readonly HedefKonumu $konum,
+        private readonly YedeklemeYapilandirmasi $yapilandirma,
+        private readonly EksikKopyaAdaylari $eksikKopyalar,
     ) {}
 
     /**
@@ -146,15 +151,28 @@ final class SaklamaPolitikasi
         $engellenen = [];
         $kararlar = [];
 
-        // F7: uzak kopyası doğrulanmamış (başarısız / bekleyen / yarıda kalmış)
-        // yedeğin yerel dosyası silinmez — yeniden denemenin kaynağıdır
+        // F7: uzak kopyası doğrulanmamış (bekleyen / yarıda kalmış / yeniden
+        // denenecek başarısız) yedeğin yerel dosyası silinmez — yeniden denemenin
+        // kaynağıdır. Bir daha denenmeyecek başarısız kopya (geçici hatada deneme
+        // hakkı bitti, hedef pasif ya da hiçbir etkin plana bağlı değil) dosyayı
+        // tutmaz; yedek kopyası yokmuş gibi kurallara girer (inceleme G1-3).
+        // Kalıcı hatalı kopya (kimlik, klasör…) korur: hedef düzeltilince
+        // yeniden denenir, kaynağı yerel dosyadır
         $dogrulanmamisUzak = array_fill_keys(YedekKopyasi::query()
-            ->whereIn('durum', [KopyaDurumu::Basarisiz->value, KopyaDurumu::Bekliyor->value, KopyaDurumu::Kopyalaniyor->value])
             ->whereIn('yedek_id', $yedekler->keys())
+            ->where(fn ($q) => $q
+                ->whereIn('durum', [KopyaDurumu::Bekliyor->value, KopyaDurumu::Kopyalaniyor->value])
+                ->orWhere(fn ($b) => $b->where('durum', KopyaDurumu::Basarisiz->value)
+                    ->where('deneme', '<', $this->yapilandirma->kopyaAzamiDeneme())
+                    ->whereHas('hedef', fn ($h) => $h->where('aktif', true)
+                        ->whereHas('planlar', fn ($p) => $p->where('aktif', true)))))
             ->pluck('yedek_id')->map(fn ($id) => (int) $id)->all(), true);
         $yerelKorunan = $korunan;
         foreach (array_keys($dogrulanmamisUzak) as $id) {
             $yerelKorunan[$id][] = 'uzak_kopya_dogrulanmadi';
+        }
+        foreach (array_keys($this->kopyaKaydiBekleyenler()) as $id) {
+            $yerelKorunan[$id][] = 'kopya_bekliyor';
         }
         $rapor = $korunan;
 
@@ -351,6 +369,41 @@ final class SaklamaPolitikasi
     }
 
     /**
+     * Kopya kaydı hiç açılmamış hedefi bekleyen plan yedekleri (Codex G1-6-R4,
+     * R5): süreç arşivden sonra, kopya kayıtları yazılmadan kesildiyse yerel
+     * dosya tek arşivdir ve sonraki plan çalışmasının kopya kaynağıdır. Seçim
+     * plan çalışmasının kullandığı EksikKopyaAdaylari'dır (arşiv + manifest
+     * doğrulandıktan sonra plan + hedef başına en yeni
+     * PlanliYedek::YENIDEN_DENEME_ADET); burada bütün etkin planların etkin,
+     * desteklenen hedefleriyle sorulur. Hangi plan ne zaman çalışırsa çalışsın
+     * seçeceği yedek bu kümededir; pencerenin dışındaki yedek hiçbir zaman
+     * kopyalanmayacağı için korunmaz, süresiz birikmez.
+     *
+     * @return array<int, true>
+     */
+    private function kopyaKaydiBekleyenler(): array
+    {
+        /** @var array<int, list<YedekPlani>> $hedefPlanlari */
+        $hedefPlanlari = [];
+        foreach (YedekPlani::query()->where('aktif', true)->with('hedefler')->get() as $plan) {
+            foreach ($plan->hedefler as $hedef) {
+                if ($hedef->aktif && $this->katalog->destekleniyorMu($hedef->tur)) {
+                    $hedefPlanlari[$hedef->id][] = $plan;
+                }
+            }
+        }
+
+        $sonuc = [];
+        foreach ($hedefPlanlari as $hedefId => $planlar) {
+            foreach ($this->eksikKopyalar->sec($hedefId, collect($planlar)) as ['yedek' => $yedek]) {
+                $sonuc[$yedek->id] = true;
+            }
+        }
+
+        return $sonuc;
+    }
+
+    /**
      * Plan yedeğinin yerel dosyasını silmenin TEK eşiği (yedek klasörü grubu ve
      * ana klasör hedefinin kopyası; önizleme ve uygulama aynı yerden; BY-010-R2,
      * R4, R5). Ölçüt yedeği tutan KALAN uzak kopyalardır
@@ -404,7 +457,7 @@ final class SaklamaPolitikasi
     /**
      * Hesaplanan kararları uygular; karar yoksa depoya (yedek klasörü, işaret)
      * hiç dokunmaz. Karar varsa önce depo doğrulanır. Erişilemeyen hedef atlanır, diğerleri
-     * sürer; bir kararın beklenmeyen hatası da yalnız o grubu keser (YF-35). Her silme denetim kaydına ve olay günlüğüne nedeniyle yazılır.
+     * sürer; bir kararın beklenmeyen hatası yalnız o kararı düşürür (YF-35, G1-7). Her silme denetim kaydına ve olay günlüğüne nedeniyle yazılır.
      * Uzak silmeler önce uygulanır; plan yedeğinin yerel dosyası, ardından
      * fiilen kalan uzak kopyalardan hiçbiri kurtarmaya hazır değilse silinmez
      * (denetim kaydı `basarisiz`, kod `kurtarma_paketi_eksik`; `bilgi` satırı).
@@ -534,10 +587,14 @@ final class SaklamaPolitikasi
                     $this->denetim->kaydet('saklama_sil', IslemSonucu::Basarisiz, $yedek->id, $kullaniciId, null, [...$karar->diziye(), 'kod' => $hata->kod], $hata->getMessage());
                     break;
                 } catch (Throwable $hata) {
-                    // Beklenmeyen hata o grubu keser, sonraki grupları değil (YF-35)
+                    // Beklenmeyen hata yalnız o kararı düşürür (YF-35, G1-7): kararlar her
+                    // turda aynı sırayla üretilir; grubu kesseydi tek kalıcı hatalı dosya
+                    // o grubun bütün temizliğini süresiz durdururdu. Hedefe erişilemiyorsa
+                    // (HedefHatasi, yukarıda) grup yine kesilir
                     $sonuc['atlanan_hedefler'][] = (int) $hedefId;
                     $this->beklenmeyenHata('saklama_sil', $karar, $hata, $kullaniciId);
-                    break;
+
+                    continue;
                 }
             }
         }
@@ -577,10 +634,13 @@ final class SaklamaPolitikasi
 
         $kopya = YedekKopyasi::query()->with('hedef')->findOrFail($karar->kopyaId);
 
-        // Yedek klasörünün kendisi olan hedefin kopyası yerel dosyanın kendisidir
+        // Yedek klasörünün kendisi olan hedefin kopyası yerel dosyanın kendisidir.
+        // Sıra yedek klasörü grubuyla aynı (G1-7): önce dosya (disk doluyken yer
+        // açılır), sonra kopyanın silme olayı. Olay yazılamazsa kayıp olay
+        // sonraki taramada dosyanın yokluğuyla uzlaşır
         if ($baglayici instanceof YerelDiskBaglayicisi && $baglayici->anaKlasorMu()) {
-            $this->silmeKaydi->kaydet($kopya);
             $this->yerelSilici->sil($yedek->refresh());
+            $this->silmeKaydi->kaydet($kopya);
 
             return;
         }

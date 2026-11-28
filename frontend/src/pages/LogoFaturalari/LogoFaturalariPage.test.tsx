@@ -153,6 +153,55 @@ describe('LogoFaturalariPage', () => {
     await waitFor(() => expect(api.faturalar).toHaveBeenCalledTimes(2))
   })
 
+  it('kontrol sürerken dosya alanı ve sekmeler kilitli; o arada değişen dosya için gelen sonuç Kaydet’i açmaz', async () => {
+    let bitir: (sonuc: IceAktarimOnizlemesi) => void = () => undefined
+    api.kontrol.mockImplementationOnce(
+      () =>
+        new Promise<IceAktarimOnizlemesi>((coz) => {
+          bitir = coz
+        }),
+    )
+    ciz(['logo_faturalari.goruntule', 'logo_faturalari.ice_aktar'])
+
+    fireEvent.click(await screen.findByRole('button', { name: "Excel'den İçe Aktar" }))
+    const pencere = await screen.findByRole('dialog')
+    dosyaSec(pencere, 'a.xlsx')
+    fireEvent.click(within(pencere).getByRole('button', { name: 'Kontrol Et' }))
+    await waitFor(() => expect(api.kontrol).toHaveBeenCalledTimes(1))
+
+    expect(within(pencere).getByLabelText('Excel dosyası (.xlsx)')).toBeDisabled()
+    expect(within(pencere).getByRole('tab', { name: 'Kopyala-yapıştır' })).toBeDisabled()
+    // Kilit atlatılsa da (ör. sürükle-bırak) sonuç yalnız kontrol edilen girdiye aittir
+    dosyaSec(pencere, 'b.xlsx')
+    bitir(HATASIZ)
+
+    await waitFor(() =>
+      expect(within(pencere).getByLabelText('Excel dosyası (.xlsx)')).toBeEnabled(),
+    )
+    expect(within(pencere).queryByText('581 satır hatasız okundu.')).not.toBeInTheDocument()
+    expect(within(pencere).getByRole('button', { name: 'Kaydet' })).toBeDisabled()
+  })
+
+  it('sekme değişince seçilen dosya bırakılır: boş görünen alanın eski dosyası kontrol edilmez', async () => {
+    api.kolonlar.mockResolvedValue([
+      { belge_turu: null, kolonlar: [{ alan: 'ettn', basliklar: ['ETTN'] }] },
+    ])
+    ciz(['logo_faturalari.goruntule', 'logo_faturalari.ice_aktar'])
+
+    fireEvent.click(await screen.findByRole('button', { name: "Excel'den İçe Aktar" }))
+    const pencere = await screen.findByRole('dialog')
+    dosyaSec(pencere, 'vazgecilen.xlsx')
+    expect(within(pencere).getByRole('button', { name: 'Kontrol Et' })).toBeEnabled()
+
+    fireEvent.click(within(pencere).getByRole('tab', { name: 'Kopyala-yapıştır' }))
+    fireEvent.click(within(pencere).getByRole('tab', { name: 'Excel dosyası' }))
+
+    const kontrolEt = within(pencere).getByRole('button', { name: 'Kontrol Et' })
+    expect(kontrolEt).toBeDisabled()
+    fireEvent.click(kontrolEt)
+    expect(api.kontrol).not.toHaveBeenCalled()
+  })
+
   it("Excel'den kopyala-yapıştır: başlıkla yapıştırılan kolonlar adlarından eşlenir, standart sırayla kontrol edilir; hatalı satır işaretlenir, Kaydet aynı metni gönderir", async () => {
     api.kolonlar.mockResolvedValue([
       {
@@ -217,7 +266,7 @@ describe('LogoFaturalariPage', () => {
     await waitFor(() => expect(api.aktar).toHaveBeenCalledWith('logo', { metin, belge_turu: null }))
   })
 
-  it('yükleme onayla geri alınır; elle işlenmiş fatura varsa sunucunun hatası gösterilir', async () => {
+  it('yükleme onayla geri alınır (art arda iki onay tek istek); elle işlenmiş fatura varsa sunucunun hatası gösterilir', async () => {
     api.yuklemeler.mockResolvedValue([
       {
         id: 7,
@@ -247,11 +296,41 @@ describe('LogoFaturalariPage', () => {
     fireEvent.click(within(pencere).getByRole('button', { name: 'Geri Al' }))
     const onay = await screen.findByRole('dialog', { name: 'Yüklemeyi Geri Al' })
     expect(within(onay).getByText(/eklediği 581 belge silinecek/)).toBeInTheDocument()
-    fireEvent.click(within(onay).getByRole('button', { name: 'Geri Al' }))
+    const onayDugmesi = within(onay).getByRole('button', { name: 'Geri Al' })
+    fireEvent.click(onayDugmesi)
+    fireEvent.click(onayDugmesi)
 
     await waitFor(() => expect(api.geriAl).toHaveBeenCalledWith('logo', 7))
     await waitFor(() =>
       expect(toastlar.error).toHaveBeenCalledWith(expect.stringMatching(/geri alınamaz/)),
     )
+    expect(api.geriAl).toHaveBeenCalledTimes(1)
+  })
+
+  it('10 MB sınırını aşan dosya gönderilmez; boyut ve sınır ekranda yazar', async () => {
+    ciz(['logo_faturalari.goruntule', 'logo_faturalari.ice_aktar'])
+
+    fireEvent.click(await screen.findByRole('button', { name: "Excel'den İçe Aktar" }))
+    const pencere = await screen.findByRole('dialog')
+    const buyuk = new File(['xlsx'], 'buyuk.xlsx', {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    Object.defineProperty(buyuk, 'size', { value: 11.5 * 1024 * 1024 })
+    fireEvent.change(within(pencere).getByLabelText('Excel dosyası (.xlsx)'), {
+      target: { files: [buyuk] },
+    })
+
+    expect(within(pencere).getByRole('alert')).toHaveTextContent(
+      'Seçilen dosya 11,5 MB; en çok 10 MB yüklenebilir.',
+    )
+    const kontrolDugmesi = within(pencere).getByRole('button', { name: 'Kontrol Et' })
+    expect(kontrolDugmesi).toBeDisabled()
+    fireEvent.click(kontrolDugmesi)
+    expect(api.kontrol).not.toHaveBeenCalled()
+
+    // Sınırdaki dosya kabul edilir, uyarı kalkar
+    dosyaSec(pencere, 'normal.xlsx')
+    expect(within(pencere).queryByRole('alert')).toBeNull()
+    expect(within(pencere).getByRole('button', { name: 'Kontrol Et' })).toBeEnabled()
   })
 })

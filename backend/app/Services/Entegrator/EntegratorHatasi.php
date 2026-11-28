@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Entegrator;
 
 use RuntimeException;
+use Throwable;
 
 /**
  * Entegratör çağrısı hatası. `kod` API hata sözleşmesindeki makine okunur
@@ -29,14 +30,37 @@ final class EntegratorHatasi extends RuntimeException
     /** Protel modülü kapalı (PROTEL_AKTIF): Protel'e hiçbir istek gitmez */
     public const PROTEL_KAPALI = 'PROTEL_KAPALI';
 
+    /**
+     * UBL okuma turu kesildi: turda hiç fatura okunmadan art arda "faturaya
+     * özgü" hata geldi — sistemik sayılır, faturalar işaretlenmez (UblOkumaTuru).
+     * Yalnız konsol komutunda oluşur, API'ye çıkmaz.
+     */
+    public const UBL_TUR_KESILDI = 'ENTEGRATOR_UBL_TUR_KESILDI';
+
+    /**
+     * @param  bool  $girisHatasi  hata giriş (token) adımından geldi; isteğin
+     *                             kendisinden değil (UBL döngüsü faturaya özgü saymaz — C-3)
+     */
     private function __construct(
         public readonly string $kod,
         string $mesaj,
         public readonly int $httpDurumu,
         public readonly ?string $saglayiciKodu = null,
         public readonly ?int $saglayiciHttpDurumu = null,
+        public readonly bool $girisHatasi = false,
+        ?Throwable $onceki = null,
     ) {
-        parent::__construct($mesaj);
+        parent::__construct($mesaj, 0, $onceki);
+    }
+
+    /** Aynı hata, giriş (token) adımından geldiği işaretiyle; kod ve durumlar değişmez. */
+    public function giristen(): self
+    {
+        if ($this->girisHatasi) {
+            return $this;
+        }
+
+        return new self($this->kod, $this->getMessage(), $this->httpDurumu, $this->saglayiciKodu, $this->saglayiciHttpDurumu, true, $this);
     }
 
     public static function erisilemedi(?int $saglayiciHttpDurumu = null): self
@@ -67,6 +91,11 @@ final class EntegratorHatasi extends RuntimeException
     public static function saglayiciHatasi(string $saglayiciKodu, ?int $saglayiciHttpDurumu = null): self
     {
         return new self(self::HATA, __('hata.entegrator_hata', ['kod' => $saglayiciKodu]), 502, $saglayiciKodu, $saglayiciHttpDurumu);
+    }
+
+    public static function ublTuruKesildi(): self
+    {
+        return new self(self::UBL_TUR_KESILDI, __('hata.entegrator_ubl_tur_kesildi'), 502);
     }
 
     public static function aktifYok(): self

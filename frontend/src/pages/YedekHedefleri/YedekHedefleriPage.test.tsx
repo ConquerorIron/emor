@@ -540,7 +540,7 @@ describe('YedekHedefleriPage', () => {
     await waitFor(() => expect(api.hedefler).toHaveBeenCalledTimes(listeIstegi + 1))
   })
 
-  it('zorunlu olmayan kayıtlı sır "Kayıtlı değeri sil" ile silinir: alan kapanır, adı silinecek_sirlar ile gider; zorunlu sırda seçenek yoktur (YF-49)', async () => {
+  it('zorunlu olmayan kayıtlı sır "Kayıtlı değeri sil" ile silinir: alan kapanır, adı "Sına" ve kayıtta silinecek_sirlar ile gider; zorunlu sırda seçenek yoktur (YF-49, G2-1)', async () => {
     const sftp: HedefTuruTanimi = {
       tur: 'sftp',
       alanlar: [
@@ -596,6 +596,24 @@ describe('YedekHedefleriPage', () => {
     fireEvent.change(within(dialog).getByLabelText('Özel anahtar (SSH)'), {
       target: { value: 'ANAHTAR' },
     })
+    // "Sına" kaydedilecek yapılandırmayı sınar: silinecek parola sınamada da kullanılmaz
+    api.sina.mockResolvedValue({
+      basarili: true,
+      adimlar: [{ adim: 'baglan', basarili: true, kod: null, mesaj: null }],
+      kalan_alan: null,
+      silinme_korumasi: null,
+      kaydedildi: false,
+      sunucu_parmak_izi: null,
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Bağlantıyı Sına' }))
+    await waitFor(() =>
+      expect(api.sina).toHaveBeenCalledWith({
+        id: 7,
+        tur: 'sftp',
+        alanlar: { sunucu: 'sftp.ornek.test', ozel_anahtar: 'ANAHTAR' },
+        silinecek_sirlar: ['sifre'],
+      }),
+    )
     fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
 
     await waitFor(() =>

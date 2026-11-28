@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services\Entegrator;
 
-use App\Models\EFatura;
 use App\Models\EntegratorBaglanti;
-use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Gelen Protel faturalarının UBL'ini okur, rapor verilerini İzibiz'le aynı
@@ -19,13 +18,19 @@ use Illuminate\Support\Facades\Log;
  * fatura başına bir istek, çalışma başına `azamiIstek` (zamana yayılır); her
  * fatura bir kez okunur.
  *
- * Hata: yalnız o faturaya özgü 4xx fatura "okunamadı" işaretlenir (bir gün sonra
- * yeniden, AZAMI_HATA denemeden sonra bırakılır); erişim, kimlik ve 5xx hataları
- * bu çalışmayı durdurur — her faturada yeniden denenmez (D8).
+ * Hata: yalnız FATURAYA_OZGU_DURUMLAR'daki yanıt ve okunamayan belge faturayı
+ * "okunamadı" sayar; giriş, kimlik, erişim, 5xx ve başka her 4xx turu durdurur —
+ * her faturada yeniden denenmez (D8). Yeniden deneme ve tur kesme kararları
+ * UblOkumaTuru / EFaturaUblKaydi'de (iki sağlayıcıda ortak).
  */
 final class ProtelUblServisi
 {
-    private const AZAMI_HATA = 3;
+    /**
+     * Faturaya özgü sayılan HTTP durumları — izin listesi (C-2). Belgede
+     * (docs/protel/api-notlari.md) bilinen yalnız 404; Protel'in başka bir
+     * durumu faturaya özgü döndürdüğü ölçülürse buraya eklenir.
+     */
+    private const FATURAYA_OZGU_DURUMLAR = [404];
 
     public function __construct(
         private readonly ProtelIstemcisi $istemci,
@@ -38,21 +43,18 @@ final class ProtelUblServisi
      */
     public function tazele(EntegratorBaglanti $tanim, int $azamiIstek): array
     {
-        $sonuc = ['istek' => 0, 'okunan' => 0, 'hatali' => 0];
+        $tur = new UblOkumaTuru($this->kayit);
+        $adaylar = $this->kayit->adaylar($tanim, max(1, $azamiIstek))->get(['id', 'ettn']);
 
-        $adaylar = EFatura::query()
-            ->where('entegrator_baglanti_id', $tanim->id)
-            ->where('yon', FaturaYonu::Gelen->value)
-            ->whereNull('ubl_okundu')
-            ->where('ubl_hata', '<', self::AZAMI_HATA)
-            ->where(fn ($q) => $q->whereNull('ubl_son_deneme')
-                ->orWhere('ubl_son_deneme', '<', CarbonImmutable::now()->subDay()))
-            ->orderByDesc('id')
-            ->limit(max(1, $azamiIstek))
-            ->get(['id', 'ettn']);
+        if ($adaylar->isEmpty()) {
+            return $tur->bitir();
+        }
+
+        // Giriş hatası döngüden önce: hiçbir fatura işaretlenmeden tur kesilir (C-3)
+        $this->istemci->token($tanim);
 
         foreach ($adaylar as $fatura) {
-            $sonuc['istek']++;
+            $tur->istekYapildi();
 
             try {
                 $yanit = $this->istemci->post($tanim, ProtelIstemcisi::YOL_FATURA_PDF, [
@@ -62,15 +64,12 @@ final class ProtelUblServisi
                     'outputType' => 'Ubl',
                 ]);
             } catch (EntegratorHatasi $hata) {
-                $faturayaOzgu = $hata->kod === EntegratorHatasi::HATA
-                    && $hata->saglayiciHttpDurumu !== null
-                    && $hata->saglayiciHttpDurumu >= 400 && $hata->saglayiciHttpDurumu < 500;
-                if (! $faturayaOzgu) {
-                    throw $hata;
+                if (! $this->faturayaOzguMu($hata)) {
+                    $tur->durdur($hata, [$fatura->id]);
                 }
 
-                $this->kayit->hataliIsaretle([$fatura->id]);
-                $sonuc['hatali']++;
+                Log::warning('Protel UBL okunamadı', ['fatura_id' => $fatura->id, 'saglayici_http_durumu' => $hata->saglayiciHttpDurumu]);
+                $tur->okunamadi([$fatura->id]);
 
                 continue;
             }
@@ -80,21 +79,21 @@ final class ProtelUblServisi
             // Okunamayan ya da başka faturanın XML'i yazılmaz
             if ($veri === null || $veri->ettn !== mb_strtolower((string) $fatura->ettn)) {
                 Log::warning('Protel UBL okunamadı', ['fatura_id' => $fatura->id]);
-                $this->kayit->hataliIsaretle([$fatura->id]);
-                $sonuc['hatali']++;
+                $tur->okunamadi([$fatura->id]);
 
                 continue;
             }
 
-            $this->kayit->yaz($fatura->id, $veri);
-            $sonuc['okunan']++;
+            $tur->okundu($fatura->id, $veri);
         }
 
-        return $sonuc;
+        return $tur->bitir();
     }
 
     /**
-     * Yanıtın `outputDatas[0]`'ı base64 UBL (ölçüm: zip değil, düz XML).
+     * Yanıtın `outputDatas[0]`'ı base64 UBL (ölçüm: zip değil, düz XML; BOM'lu
+     * olabilir — libxml BOM'u kendisi tanır). Okunamayan belge null; ayrıştırma
+     * hatası (zehirli belge) turu düşürmez (C-4).
      *
      * @param  array<string, mixed>  $yanit
      */
@@ -108,7 +107,18 @@ final class ProtelUblServisi
             return null;
         }
 
-        // UTF-8 BOM'u DOMDocument'e takılmasın
-        return $this->okuyucu->oku(str_starts_with($xml, "\xEF\xBB\xBF") ? substr($xml, 3) : $xml);
+        try {
+            return $this->okuyucu->oku($xml);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    /** Yalnız izinli durum ve yalnız fatura ucunun yanıtı; giriş adımının hatası değil. */
+    private function faturayaOzguMu(EntegratorHatasi $hata): bool
+    {
+        return ! $hata->girisHatasi
+            && $hata->kod === EntegratorHatasi::HATA
+            && in_array($hata->saglayiciHttpDurumu, self::FATURAYA_OZGU_DURUMLAR, true);
     }
 }

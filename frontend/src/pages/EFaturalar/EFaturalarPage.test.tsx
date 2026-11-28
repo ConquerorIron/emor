@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import '@/i18n/i18n'
+import { queryKeys } from '@/api/queryKeys'
 import type { Kullanici } from '@/features/auth/types'
 import type { EFatura, EFaturaListesi, SenkronDurumu } from '@/features/efatura/efaturaApi'
 import { AuthContext } from '@/providers/auth-context'
@@ -21,6 +22,7 @@ const api = vi.hoisted(() => ({
   gizlilik: vi.fn(),
   erp: vi.fn(),
   islendi: vi.fn(),
+  red: vi.fn(),
 }))
 
 const toastlar = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
@@ -42,7 +44,13 @@ vi.mock('@/features/efatura/efaturaApi', async (asil) => ({
 vi.mock('@/features/efatura/faturaIslemApi', async (asil) => ({
   ...(await asil<typeof import('@/features/efatura/faturaIslemApi')>()),
   faturaIslendiDegistir: api.islendi,
+  faturaRedDegistir: api.red,
 }))
+
+/** Gizleme / eMOR eşleştirmesi pano, işlem geçmişi ve bütün listeleri etkiler (F-9) */
+function tazelenenAnahtarlar(casus: { mock: { calls: unknown[][] } }): unknown[] {
+  return casus.mock.calls.map((cagri) => (cagri[0] as { queryKey?: unknown } | undefined)?.queryKey)
+}
 
 const FATURA: EFatura = {
   id: 11,
@@ -734,6 +742,8 @@ describe('EFaturalarPage', () => {
     api.islendi.mockResolvedValue({ ...FATURA, sap_islendi: true })
     ciz(['efatura.goruntule', 'efatura.isle'])
     const satir = (await screen.findByText('Deniz Boya Ltd.')).closest('tr') as HTMLElement
+    // İşaretten sonra liste yeniden okunur (F-1): sunucu artık işaretli faturayı döner
+    api.faturalar.mockResolvedValue({ ...LISTE, data: [{ ...FATURA, sap_islendi: true }] })
 
     fireEvent.click(within(satir).getByRole('switch'))
 
@@ -836,7 +846,8 @@ describe('EFaturalarPage', () => {
     expect(toastlar.error).toHaveBeenCalledTimes(1)
   })
 
-  it('detaydan fatura gizlenir, pencere güncellenir, liste yeniden okunur; izin yoksa düğme yok', async () => {
+  it('detaydan fatura gizlenir, pencere güncellenir; liste, pano ve işlem geçmişi tazelenir', async () => {
+    const tazele = vi.spyOn(QueryClient.prototype, 'invalidateQueries')
     api.gizlilik.mockResolvedValue({
       ...FATURA,
       gizli: true,
@@ -863,6 +874,14 @@ describe('EFaturalarPage', () => {
     ).toBeInTheDocument()
     expect(within(dialog).getByText(/Deneme/)).toBeInTheDocument()
     await waitFor(() => expect(api.faturalar.mock.calls.length).toBeGreaterThan(okumaSayisi))
+    expect(tazelenenAnahtarlar(tazele)).toEqual(
+      expect.arrayContaining([
+        queryKeys.efaturaPano.hepsi,
+        queryKeys.efaturaGecmis.hepsi,
+        queryKeys.tumFaturalar.hepsi,
+      ]),
+    )
+    tazele.mockRestore()
   })
 
   it('tüm kolonlar gizliyse Excel kapalıdır', async () => {
@@ -981,7 +1000,8 @@ describe('EFaturalarPage', () => {
     expect(await screen.findByText('Gizli')).toBeInTheDocument()
   })
 
-  it('ERP Senkronla eMOR’u tazeler, sonucu bildirir ve listeyi yeniden okur', async () => {
+  it('ERP Senkronla eMOR’u tazeler, sonucu bildirir; liste, pano ve işlem geçmişi tazelenir', async () => {
+    const tazele = vi.spyOn(QueryClient.prototype, 'invalidateQueries')
     api.erp.mockResolvedValue({ islendi: 5, elle_islendi: 4, havuzda: 3, yok: 2, degisen: 1 })
     ciz(TUM_IZINLER)
     await screen.findByText('Deniz Boya Ltd.')
@@ -996,6 +1016,14 @@ describe('EFaturalarPage', () => {
     )
     expect(api.erp).toHaveBeenCalledExactlyOnceWith('gelen')
     await waitFor(() => expect(api.faturalar.mock.calls.length).toBeGreaterThan(okumaSayisi))
+    expect(tazelenenAnahtarlar(tazele)).toEqual(
+      expect.arrayContaining([
+        queryKeys.efaturaPano.hepsi,
+        queryKeys.efaturaGecmis.hepsi,
+        queryKeys.tumFaturalar.hepsi,
+      ]),
+    )
+    tazele.mockRestore()
   })
 
   it('senkron izni olmayan ERP Senkronla düğmesini görmez', async () => {
@@ -1071,7 +1099,7 @@ describe('EFaturalarPage', () => {
     expect(screen.getByRole('button', { name: 'Entegratör Senkronla' })).toBeDisabled()
   })
 
-  describe('Tüm Faturalar (İzibiz + Protel)', () => {
+  describe('Tüm Faturalar (bütün gelen kaynaklar)', () => {
     const PROTEL_FATURASI: EFatura = {
       ...FATURA,
       id: 12,
@@ -1186,6 +1214,27 @@ describe('EFaturalarPage', () => {
       expect(
         within(satir('LGO2026000000003')).queryByRole('button', { name: 'PDF' }),
       ).not.toBeInTheDocument()
+    })
+
+    it("RED ve SAP (Manuel İşle) Tüm Faturalar'ın kendi ucuyla gider (kaynağın ekranı değil)", async () => {
+      api.faturalar.mockResolvedValue(BIRLESIK)
+      api.red.mockResolvedValue({
+        ...PROTEL_FATURASI,
+        red: { var: true, kaynak: 'harici', zaman: null, eden: 'Deneme', neden: 'Noter' },
+      })
+      api.islendi.mockResolvedValue({ ...FATURA, saglayici: 'izibiz', sap_islendi: true })
+      ciz([...IZINLER, 'tum_faturalar.red', 'tum_faturalar.isle'], 'tum')
+      const protel = (await screen.findByText('Otel Tedarik A.Ş.')).closest('tr') as HTMLElement
+      const izibiz = screen.getByText('Deniz Boya Ltd.').closest('tr') as HTMLElement
+
+      fireEvent.click(within(izibiz).getByRole('switch'))
+      await waitFor(() => expect(api.islendi).toHaveBeenCalledWith('tum', 11, true))
+
+      fireEvent.click(within(protel).getByRole('button', { name: "RED'e Çek" }))
+      const pencere = await screen.findByRole('dialog')
+      fireEvent.change(within(pencere).getByLabelText('Neden'), { target: { value: 'Noter' } })
+      fireEvent.click(within(pencere).getByRole('button', { name: "RED'e Çek" }))
+      await waitFor(() => expect(api.red).toHaveBeenCalledWith('tum', 12, true, 'Noter'))
     })
 
     it('panodaki sayının bağlantısı listeyi aynı süzgeçle açar; uyarı süzgeci görünür ve kaldırılabilir', async () => {

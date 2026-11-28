@@ -29,7 +29,7 @@ abstract class IcmalIceAktarRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'dosya' => ['required_without:metin', 'prohibits:metin', 'file', 'extensions:xlsx', 'max:20480'],
+            'dosya' => ['required_without:metin', 'prohibits:metin', 'file', 'extensions:xlsx', 'max:10240'],
             // ~2.400 satırlık İşgücü yapıştırması ~500 KB
             'metin' => ['required_without:dosya', 'string', 'max:10000000'],
         ];

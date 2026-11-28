@@ -1029,8 +1029,8 @@ final class YedekHedefiApiTest extends TestCase
     }
 
     /**
-     * YF-07: Yerel kopya şifresiz yazılır; uygulama ağacı (web'den sunulan
-     * storage/app/public dahil) ve sistem klasörleri hedef olamaz. Gerçek
+     * YF-07: Yerel kopya şifresiz yazılır; uygulama deposu (web'den sunulan
+     * storage/app/public ve frontend/dist dahil) ve sistem klasörleri hedef olamaz. Gerçek
      * konuma bakılır: bağlantıyla oraya giden ve henüz olmayan alt klasör de.
      *
      * @return iterable<string, array{Closure(string): string}>
@@ -1039,6 +1039,8 @@ final class YedekHedefiApiTest extends TestCase
     {
         yield 'web\'den sunulan storage/app/public' => [fn (string $kok): string => storage_path('app/public')];
         yield 'uygulama ağacında henüz olmayan klasör' => [fn (string $kok): string => base_path('henuz-olmayan/alt')];
+        // G1-1: nginx'in kökü backend'in dışında, depo kökünde (deploy.sh)
+        yield 'depo kökünde web\'den sunulan frontend/dist' => [fn (string $kok): string => dirname(base_path()).'/frontend/dist'];
         yield 'uygulama ağacına giden bağlantının altı' => [function (string $kok): string {
             symlink(storage_path('app'), $kok.'/bag');
 

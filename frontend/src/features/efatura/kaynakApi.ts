@@ -77,15 +77,16 @@ export async function kaynakFaturalariGetir(
 }
 
 /**
- * PDF anlık okunur: Protel'de entegratörden (istek yalnız izinli alanları
- * taşır), statik kaynakta yalnız eMOR arşivinden (yoksa açık hata).
+ * PDF anlık okunur, yalnız Protel'de: entegratörden (istek yalnız izinli
+ * alanları taşır). Statik kaynakların (Logo, e-Arşiv) Excel listesinden gelen
+ * faturasının belgesi yoktur; PDF ucu ve izni de yoktur.
  */
-export async function kaynakPdfGetir(onEk: KaynakOneki, faturaId: number): Promise<FaturaPdfi> {
+export async function kaynakPdfGetir(onEk: 'protel', faturaId: number): Promise<FaturaPdfi> {
   const yanit = await api
     .get<Blob>(`/api/v1/${onEk}/faturalar/${faturaId}/pdf`, { responseType: 'blob' })
     .catch(blobHatasiniCoz)
 
-  return { pdf: yanit.data, kaynak: onEk === 'protel' ? 'entegrator' : 'erp' }
+  return { pdf: yanit.data, kaynak: 'entegrator' }
 }
 
 /** Tablonun o anki hâli (aynı filtre, sıralama, sayfa; görünen kolonlar) .xlsx olarak */
@@ -116,11 +117,13 @@ export async function kaynakExcelIndir(
 
 /** İçe aktarım önizlemesi: sayılar ve nedenine göre gruplu hatalar (satırlar yazılmaz) */
 export interface IceAktarimOnizlemesi {
-  hata: 'dosya_okunamadi' | 'baslik_bulunamadi' | 'satir_yok' | null
+  hata: 'dosya_okunamadi' | 'baslik_bulunamadi' | 'satir_yok' | 'cok_fazla_satir' | null
   eksik_kolonlar: string[]
   belge_turu: 'fatura' | 'makbuz' | null
   hatalar: { alan: string; deger: string; kod: string; adet: number; satirlar: number[] }[]
   ozet: { okunan: number; yeni: number; guncellenecek: number; degismeyen: number; red: number }
+  /** Yalnız `cok_fazla_satir` hatasında: bir seferde yüklenebilecek en çok satır */
+  azami_satir?: number
 }
 
 /** İçe aktarım partisi */

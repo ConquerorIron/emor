@@ -19,16 +19,18 @@ enum Izin: string
     case SatinalmaTalebiGuncelle = 'satinalma_talebi.guncelle';
 
     /**
-     * Tüm Faturalar — İzibiz ve Protel'e gelen faturaların birleşik listesi
-     * (kullanıcı isteği 2026-11-20). Kendi izinleri: sağlayıcı ekranlarının
-     * izni bunu açmaz. Senkron ve gizleme sağlayıcı ekranlarındadır.
+     * Tüm Faturalar — bütün kaynaklara (İzibiz, Protel, Logo, e-Arşiv / e-SMM)
+     * gelen faturaların birleşik listesi (kullanıcı isteği 2026-11-20; statik
+     * kaynaklar EK-07, EK-08). Kendi izinleri: sağlayıcı ekranlarının izni bunu
+     * açmaz. RED ve "SAP (Manuel İşle)" bu ekranda da var; senkron ve gizleme
+     * sağlayıcı ekranlarındadır.
      */
     case TumFaturalarGoruntule = 'tum_faturalar.goruntule';
     case TumFaturalarPdf = 'tum_faturalar.pdf';
     case TumFaturalarDisariAktar = 'tum_faturalar.disari_aktar';
-    /** Gelen faturayı RED'e çekme / RED'i geri alma (EK-04) — her gelen fatura ekranının kendi izni */
     /** "SAP (Manuel İşle)": faturayı işlendi işaretleme — yalnız eMOR'da (kullanıcı isteği 2026-11-26) */
     case TumFaturalarIsle = 'tum_faturalar.isle';
+    /** Gelen faturayı RED'e çekme / RED'i geri alma (EK-04) — her gelen fatura ekranının kendi izni */
     case TumFaturalarRed = 'tum_faturalar.red';
 
     /**
@@ -56,7 +58,7 @@ enum Izin: string
     case ProtelFaturalariSenkron = 'protel_faturalari.senkron';
     case ProtelFaturalariPdf = 'protel_faturalari.pdf';
     case ProtelFaturalariDisariAktar = 'protel_faturalari.disari_aktar';
-    /** Faturayı "İşlendi" işaretleme — yalnız eMOR'da tutulur (Tüm Faturalar → SAP) */
+    /** Faturayı "SAP (Manuel İşle)" işaretleme — yalnız eMOR'da tutulur, Protel'e istek gitmez */
     case ProtelFaturalariIsle = 'protel_faturalari.isle';
     case ProtelFaturalariRed = 'protel_faturalari.red';
 

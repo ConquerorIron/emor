@@ -228,8 +228,8 @@ describe('ProtelFaturalariPage', () => {
     await waitFor(() => expect(sonSinif()).toBe('red'))
   })
 
-  it('İşlendi (SAP) anahtarı tıklanınca hemen kaydeder, bildirir, satırı yerinde günceller; art arda tıklama tek istek', async () => {
-    api.faturalar.mockResolvedValue(liste([FATURA]))
+  it('İşlendi (SAP) anahtarı tıklanınca hemen kaydeder, bildirir, satırı yerinde günceller ve listeyi yeniden ister; art arda tıklama tek istek', async () => {
+    api.faturalar.mockResolvedValueOnce(liste([FATURA]))
     let bitir: (fatura: EFatura) => void = () => undefined
     api.islendi.mockImplementation(
       () =>
@@ -251,13 +251,26 @@ describe('ProtelFaturalariPage', () => {
     expect(api.islendi).toHaveBeenCalledTimes(1)
     expect(api.islendi).toHaveBeenCalledWith('protel', 21, true)
 
+    // Yeniden okunan liste bekletilir: satırın yerinde güncellendiği ondan önce görünür
+    let listeyiBitir: (yanit: EFaturaListesi) => void = () => undefined
+    api.faturalar.mockImplementationOnce(
+      () =>
+        new Promise<EFaturaListesi>((coz) => {
+          listeyiBitir = coz
+        }),
+    )
     bitir({ ...FATURA, sap_islendi: true })
     expect(
       await screen.findByText('OTL2026000000001 nolu fatura işlendi olarak güncellendi.'),
     ).toBeInTheDocument()
     await waitFor(() => expect(anahtar).toBeChecked())
-    // Satır sunucunun yanıtıyla güncellenir; liste yeniden çekilmez
-    expect(api.faturalar).toHaveBeenCalledTimes(1)
+    // SAP faturanın sınıfını değiştirir (işlenecek → işlendi): süzülmüş listede
+    // kalmayabilir, sayfalar kayar; liste, özet ve Excel sunucuyla aynı kalsın (F-1)
+    await waitFor(() => expect(api.faturalar).toHaveBeenCalledTimes(2))
+    listeyiBitir(liste([{ ...FATURA, sap_islendi: true }]))
+    await waitFor(() =>
+      expect(screen.getByRole('switch', { name: 'OTL2026000000001 işlendi' })).toBeChecked(),
+    )
   })
 
   it('işleme izni yoksa anahtar durumu gösterir ama değiştirilemez', async () => {
@@ -429,6 +442,44 @@ describe('ProtelFaturalariPage', () => {
       expect.arrayContaining(['emor', 'emor_vkn', 'belge_no', 'erp_durumu', 'yazdirildi']),
     )
     expect(kolonlar.find((k) => k.anahtar === 'erp_durumu')?.baslik).toBe('Otel ERP Durumu')
+  })
+
+  it('bütün kolonlar gizliyse Excel kapalıdır (sunucu kolonsuz isteği reddeder)', async () => {
+    localStorage.setItem(
+      'erp.kolonlar.protel-gelen',
+      JSON.stringify([
+        'sap',
+        'emor',
+        'emor_vkn',
+        'belge_no',
+        'belge_tarihi',
+        'karsi_vkn',
+        'karsi_unvan',
+        'fatura_tipi',
+        'tutar',
+        'para_birimi',
+        'vergi_tutari',
+        'olusturma_zamani',
+        'durum',
+        'zarf_durumu',
+        'yanit_aciklamasi',
+        'senaryo',
+        'ettn',
+        'otel_erp_okundu',
+        'erp_durumu',
+        'yazdirildi',
+        'irsaliye_no',
+      ]),
+    )
+    api.faturalar.mockResolvedValue(liste([FATURA]))
+    ciz(['protel_faturalari.goruntule', 'protel_faturalari.disari_aktar'])
+    // Liste geldi (satır var): kapalılık boş listeden değil kolonlardan
+    expect(await screen.findByRole('switch', { name: 'OTL2026000000001 işlendi' })).toBeVisible()
+
+    const excel = screen.getByRole('button', { name: 'Excel' })
+    expect(excel).toBeDisabled()
+    fireEvent.click(excel)
+    expect(api.excel).not.toHaveBeenCalled()
   })
 
   it('modül kapalıysa uyarı gösterir; senkron izni yoksa elle senkron düğmesi yoktur', async () => {

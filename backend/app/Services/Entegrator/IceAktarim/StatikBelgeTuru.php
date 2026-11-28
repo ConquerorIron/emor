@@ -17,9 +17,11 @@ use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelTarihi;
  * geri alma EFaturaIceAktarimi'ndedir (tek akış).
  *
  * Kurallar (docs/efatura/Ek-Isler-Jira.md §4.4):
- * - Tutarlar dosyadaki değerdir, yeniden hesaplanmaz; 4 basamağa yuvarlanır,
- *   saklama sınırı (decimal(20,4): 16 tam basamak) yuvarlamadan SONRA denetlenir (G14).
- * - Tarih ve sayı tam biçim denetiminden geçer, taşan tarih kaydırılmaz (G11).
+ * - Tutarlar dosyadaki değerdir, yeniden hesaplanmaz; float'tan geçmeden 4
+ *   basamağa (kur 6) yuvarlanır, saklama sınırı (decimal(20,4): 16 tam basamak;
+ *   kur decimal(20,6): 14) yuvarlamadan SONRA denetlenir (G14).
+ * - Tarih ve sayı tam biçim denetiminden geçer, taşan tarih kaydırılmaz,
+ *   biçimi tanınmayan sayı başka bir sayıya dönmez (G11).
  * - RED / iptal renkten değil kolondan okunur.
  */
 abstract class StatikBelgeTuru
@@ -35,6 +37,34 @@ abstract class StatikBelgeTuru
     ];
 
     /**
+     * İsteğe bağlı rapor alanları: dosyada boş gelen (kolonu olmayan eski biçimli
+     * liste, kısa yapıştırma) mevcut değeri SİLMEZ — vergi kalemleriyle aynı kural
+     * (inceleme B-2 / E-1). Önizleme ve kayıt aynı yardımcıdan geçer.
+     */
+    public const BOSKEN_KORUNAN_ALANLAR = ['indirim_tutari', 'vergi_haric_tutar', 'vergi_dahil_tutar', 'kur'];
+
+    /**
+     * Mevcut satırın güncellenecek alanları: kaynak alanları, boş gelen
+     * isteğe bağlı rapor alanları hariç. Yeni satır eklenirken kullanılmaz (toplu
+     * insert'te bütün satırların anahtar kümesi aynı kalmalı).
+     *
+     * @param  array<string, mixed>  $kayit  `donustur`'ün alanları
+     * @return array<string, mixed>
+     */
+    public static function guncellemeAlanlari(array $kayit): array
+    {
+        $alanlar = array_intersect_key($kayit, array_flip(self::KAYNAK_ALANLARI));
+
+        foreach (self::BOSKEN_KORUNAN_ALANLAR as $alan) {
+            if (array_key_exists($alan, $alanlar) && $alanlar[$alan] === null) {
+                unset($alanlar[$alan]);
+            }
+        }
+
+        return $alanlar;
+    }
+
+    /**
      * `donustur`'ün alanlarında isteğe bağlı vergi kalemleri listesi (kolon değil):
      * verilirse kayıtta faturanın kalemleri bununla baştan yazılır
      * (efatura_vergi_kalemleri; UblVerisi::$kalemler ile aynı şekil). Yalnız
@@ -44,6 +74,9 @@ abstract class StatikBelgeTuru
 
     /** decimal(20,4): en çok 16 tam basamak */
     private const TUTAR_SINIRI = '10000000000000000';
+
+    /** decimal(20,6): en çok 14 tam basamak (kur) */
+    private const KUR_SINIRI = '100000000000000';
 
     /**
      * Alan => kabul edilen başlıklar (Excel başlığı adından tanınır).
@@ -144,7 +177,31 @@ abstract class StatikBelgeTuru
      */
     protected function tutar(array $degerler, string $alan, bool $zorunlu, array &$hatalar): ?string
     {
-        $sayi = IceAktarimTablosu::sayi($degerler[$alan] ?? null);
+        return $this->ondalik($degerler, $alan, $zorunlu, $hatalar, 4, self::TUTAR_SINIRI);
+    }
+
+    /**
+     * Kur: kolonu decimal(20,6) — 6 basamak, en çok 14 tam basamak (UBL'li
+     * kaynakların UblOkuyucu::kur'uyla aynı sınır; inceleme B-7 / E-5).
+     *
+     * @param  list<array{0: string, 1: string, 2: string}>  $hatalar
+     */
+    protected function kurDegeri(array $degerler, string $alan, array &$hatalar): ?string
+    {
+        return $this->ondalik($degerler, $alan, false, $hatalar, 6, self::KUR_SINIRI);
+    }
+
+    /**
+     * Ondalık sayı, float'tan geçmeden (G14): metin tam biçim denetiminden geçer
+     * (G11 — kabul edilmeyen biçim başka bir sayıya dönmez, `tutar_gecersiz`),
+     * bcmath ile yarımı yukarı yuvarlanır; sınır yuvarlamadan SONRA denetlenir.
+     *
+     * @param  list<array{0: string, 1: string, 2: string}>  $hatalar
+     */
+    private function ondalik(array $degerler, string $alan, bool $zorunlu, array &$hatalar, int $basamak, string $sinir): ?string
+    {
+        $ham = $degerler[$alan] ?? null;
+        $sayi = $this->sayiMetni($ham);
 
         if ($sayi === null) {
             if ($zorunlu) {
@@ -154,15 +211,79 @@ abstract class StatikBelgeTuru
             return null;
         }
 
-        $metin = $sayi === false || ! is_finite($sayi) ? null : number_format(round($sayi, 4), 4, '.', '');
+        $metin = $sayi === false ? null : $this->yuvarla($sayi, $basamak);
 
-        if ($metin === null || bccomp(ltrim($metin, '-'), self::TUTAR_SINIRI, 4) >= 0) {
-            $hatalar[] = [$alan, $this->gosterim($degerler[$alan] ?? null), 'tutar_gecersiz'];
+        if ($metin === null || bccomp(ltrim($metin, '-'), $sinir, $basamak) >= 0) {
+            $hatalar[] = [$alan, $this->gosterim($ham), 'tutar_gecersiz'];
 
             return null;
         }
 
         return $metin;
+    }
+
+    /**
+     * Hücrenin sayısı ondalık metin olarak ("-1234.56"): boşsa ya da "-" ise
+     * null, sayı değilse false.
+     *
+     * - Excel sayı hücresi (double): en kısa geri dönen gösterimiyle okunur;
+     *   Excel'in sakladığından (15 anlamlı basamak) fazlası güvenilmez, ret.
+     * - Metin (kopyala-yapıştır): para simgesi (₺, TL) ve boşluklar atılır; yalnız
+     *   Türkçe biçim (`1.234,56`, `1234,56`) ya da noktalı ondalık (`1234.5`)
+     *   kabul edilir. İngilizce binlik (`1,234.56`), üslü, parantezli, harfli
+     *   değer ve binlik mi ondalık mı olduğu belirsiz `43.125` reddedilir.
+     *   Ortak okuyucu (IceAktarimTablosu::sayi) Kesinti'de aynı kalır.
+     */
+    private function sayiMetni(mixed $ham): string|false|null
+    {
+        if (is_int($ham)) {
+            return (string) $ham;
+        }
+
+        if (is_float($ham)) {
+            return is_finite($ham) ? $this->doubleMetni($ham) : false;
+        }
+
+        // Boşluklar (bölünmez dahil) ve baştaki / sondaki para simgesi atılır
+        $metin = (string) preg_replace('/[\s\p{Z}]+/u', '', (string) $ham);
+        $metin = (string) preg_replace('/^(?:₺|TL)|(?:₺|TL)\z/iu', '', $metin);
+
+        // Excel'de "-" yok / sıfır anlamında (IceAktarimTablosu::sayi ile aynı)
+        if ($metin === '' || in_array($metin, ['-', '–', '—'], true)) {
+            return null;
+        }
+
+        // Tek nokta + tam üç hane: Türkçe binlik mi, noktalı ondalık mı bilinemez
+        if (preg_match('/^-?\d{1,3}\.\d{3}\z/', $metin) === 1) {
+            return false;
+        }
+        if (preg_match('/^-?(\d{1,3}(\.\d{3})+|\d+)(,\d+)?\z/', $metin) === 1) {
+            return str_replace(',', '.', str_replace('.', '', $metin));
+        }
+
+        return preg_match('/^-?\d+\.\d+\z/', $metin) === 1 ? $metin : false;
+    }
+
+    /** Double'ın en kısa geri dönen gösterimi (var_export), üssü bcmath ile açılmış. */
+    private function doubleMetni(float $sayi): string|false
+    {
+        [$katsayi, $us] = array_pad(explode('E', strtoupper(var_export($sayi, true)), 2), 2, '0');
+
+        if (strlen(trim(str_replace(['-', '.'], '', $katsayi), '0')) > 15) {
+            return false;
+        }
+
+        return $us === '0' ? $katsayi : bcmul($katsayi, bcpow('10', (string) (int) $us, 30), 30);
+    }
+
+    /** Yarımı sıfırdan uzağa yuvarlar (bcadd kırpar); "-0.0000" üretmez. */
+    private function yuvarla(string $sayi, int $basamak): string
+    {
+        $eksi = str_starts_with($sayi, '-');
+        $yarim = ($eksi ? '-' : '').'0.'.str_repeat('0', $basamak).'5';
+        $sonuc = bcadd($sayi, $yarim, $basamak);
+
+        return bccomp($sonuc, '0', $basamak) === 0 ? bcadd('0', '0', $basamak) : $sonuc;
     }
 
     /**

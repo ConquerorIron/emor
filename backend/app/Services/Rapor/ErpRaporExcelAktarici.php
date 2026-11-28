@@ -11,6 +11,7 @@ use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelTarihi;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * ERP raporlarının Excel (.xlsx) çıktısı, ekranın sekmeleri gibi:
@@ -30,10 +31,26 @@ final class ErpRaporExcelAktarici
     private const AZAMI_GENISLIK = 60;
 
     /**
+     * Excel'in indirme yanıtı; geçici dosya gönderildikten sonra silinir
+     * (ERP raporları ve Gelen Fatura Raporu denetleyicileri aynı yanıtı verir).
+     *
+     * @param  list<array<string, int|string|float|null>>  $satirlar  ekranda süzülen satırlar, ekrandaki sırayla
+     */
+    public function indir(ErpRaporu $rapor, array $satirlar): BinaryFileResponse
+    {
+        return response()
+            ->download($this->olustur($rapor, $satirlar), $rapor::DOSYA_ADI, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Cache-Control' => 'private, no-store',
+            ])
+            ->deleteFileAfterSend();
+    }
+
+    /**
      * @param  list<array<string, int|string|float|null>>  $satirlar  ekranda süzülen satırlar, ekrandaki sırayla
      * @return string oluşturulan geçici dosyanın yolu (çağıran siler)
      */
-    public function olustur(ErpRaporu $rapor, array $satirlar): string
+    private function olustur(ErpRaporu $rapor, array $satirlar): string
     {
         $basliklar = __('rapor.'.$rapor::DIL.'.kolonlar');
         $baslik = __('rapor.'.$rapor::DIL.'.baslik');

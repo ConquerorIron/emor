@@ -217,10 +217,10 @@ final class EFaturaSenkronTest extends TestCase
         $this->travelTo('2026-09-23 11:24:41');
         $tanim = EntegratorBaglanti::factory()->create();
         $this->sahteIzibiz([$this->kayit(1, ['accountingCustomer' => ['identifier' => '9876543210', 'name' => 'Gizli Alıcı Unvanı']])]);
-        // Yazma hatası üret (PostgreSQL'de ör. kolon uzunluğu aşımı). Bağımlı tablo
-        // (işlem geçmişi) önce düşer: PostgreSQL bağımlısı olan tabloyu düşürmez (T14)
-        Schema::drop('efatura_islem_gecmisi');
-        Schema::drop('efatura_faturalari');
+        // Yazma hatası üret (PostgreSQL'de ör. kolon uzunluğu aşımı). Bağımlı tablolar
+        // önce düşer: PostgreSQL bağımlısı olan tabloyu düşürmez (T14). Bağımlılar
+        // elle sayılmaz, şemadan bulunur — yeni çocuk tablo kancayı bozmasın
+        $this->bagimlilariylaDusur('efatura_faturalari');
 
         try {
             $this->servis()->senkronEt($tanim, FaturaYonu::Gelen, $this->gun('2026-01-01'), $this->gun('2026-01-31'), 'manuel');
@@ -235,6 +235,21 @@ final class EFaturaSenkronTest extends TestCase
         $this->assertSame('YAZMA_HATASI', $calisma->hata_kodu);
         $this->assertStringNotContainsString('Gizli Alıcı Unvanı', (string) $calisma->hata_mesaji);
         $this->assertNotNull($calisma->bitti);
+    }
+
+    /** Tabloyu, ona yabancı anahtarla bağlanan tablolardan (özyinelemeli) sonra düşürür. */
+    private function bagimlilariylaDusur(string $tablo): void
+    {
+        foreach (Schema::getTableListing(schemaQualified: false) as $aday) {
+            if ($aday === $tablo || ! Schema::hasTable($aday)) {
+                continue;
+            }
+            if (in_array($tablo, array_column(Schema::getForeignKeys($aday), 'foreign_table'), true)) {
+                $this->bagimlilariylaDusur($aday);
+            }
+        }
+
+        Schema::drop($tablo);
     }
 
     public function test_eksik_okumada_okunan_kayitlar_yazilir_calisma_eksik_isaretlenir(): void

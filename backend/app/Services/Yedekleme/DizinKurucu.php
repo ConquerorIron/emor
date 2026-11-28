@@ -107,7 +107,10 @@ final class DizinKurucu
         // Günlük bir kez okunur; olaylar ve güncel durumlar aynı listeden (BY-011-R2)
         $okunan = $this->olaylar->oku();
         $sayac['gecersiz_olay'] = $okunan['gecersiz'];
-        $durumlar = OlayGunlugu::durumlaraAyir($okunan['olaylar']);
+        $olayGruplari = [];
+        foreach ($okunan['olaylar'] as $olay) {
+            $olayGruplari[$olay->yedekKimligi][] = $olay;
+        }
         $gorulenAdlar = [];
 
         // Hedefler, kullanıcılar ve plan-hedef ilişkileri bir kez okunur: manifest ve
@@ -128,7 +131,7 @@ final class DizinKurucu
                 }
 
                 $manifest = $sonuc->manifest;
-                $yeni = $this->manifesttenKur($manifest, $durumlar[$manifest->kimlik] ?? GuncelDurum::hesapla([]), $klasor, $sayac, $onbellek);
+                $yeni = $this->manifesttenKur($manifest, $this->manifestDurumu($manifest, $olayGruplari), $klasor, $sayac, $onbellek);
                 $sayac['guvenilir']++;
                 $sayac['eklenen'] += $yeni ? 1 : 0;
                 $gorulenAdlar[$manifest->dosyaAdi] = true;
@@ -181,6 +184,26 @@ final class DizinKurucu
     }
 
     /**
+     * Manifestli yedeğin güncel durumu: manifest kimliğinin olayları ve dosya
+     * güvenilmeyen kayıtken (deterministik kimlikle) yazılmış sabitleme / not
+     * olayları, zaman sırasıyla (G1-10, G21). Felaket kurtarmada döküm anahtardan
+     * önce taranıp sabitlenirse, anahtar gelince kayıt imzalı olurken (ya da
+     * dizin sıfırdan kurulurken) "bunu silme" işareti kaybolmaz. Diğer olay
+     * türleri (kopya, silme) güvenilmeyen kimlikten alınmaz.
+     *
+     * @param  array<string, list<YedekOlayi>>  $olayGruplari  yedek kimliği → olaylar
+     */
+    private function manifestDurumu(YedekManifesti $m, array $olayGruplari): GuncelDurum
+    {
+        $isaretler = array_filter(
+            $olayGruplari[self::dosyaKimligi($m->dosyaAdi)] ?? [],
+            fn (YedekOlayi $o): bool => in_array($o->tur, [OlayTuru::Sabitlendi, OlayTuru::SabitCozuldu, OlayTuru::Aciklama], true),
+        );
+
+        return GuncelDurum::hesapla([...$olayGruplari[$m->kimlik] ?? [], ...$isaretler]);
+    }
+
+    /**
      * @param  array<string, int>  $sayac
      * @param  array{hedefler: array<int, YedekHedefi>, adlar: array<string, YedekHedefi>, kullanicilar: array<int, true>, plan_hedefleri: array<int, list<int>>}  $onbellek
      * @return bool Yeni kayıt mı açıldı
@@ -190,7 +213,8 @@ final class DizinKurucu
         return DB::transaction(function () use ($m, $durum, $klasor, &$sayac, $onbellek): bool {
             // Manifest önceki taramada güvenilmezdi (anahtar yoktu, `.json` sonradan
             // geldi): dosya o zaman deterministik kimlikle güvenilmeyen kaydı aldı.
-            // O kayıt devralınır (id ve bağları korunur); yoksa aynı dosya adı
+            // O kayıt devralınır (id ve bağları korunur; o sırada yapılan sabitleme /
+            // not $durum'dadır — manifestDurumu, G1-10); yoksa aynı dosya adı
             // tekil indekse çarpar, yedek hep güvenilmeyen kalırdı (G21, YF-18)
             $yedek = Yedek::query()->where('kimlik', $m->kimlik)->first()
                 ?? Yedek::query()->where('dosya_adi', $m->dosyaAdi)->where('imzali', false)

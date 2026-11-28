@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -26,6 +26,7 @@ import { basamak, type IcmalTanimi } from './icmalTanimi'
 import { ToplamOzeti } from './ToplamOzeti'
 import { YapistirmaTablosu } from '@/components/YapistirmaTablosu'
 import { bosSatirlar, sekmeliMetin, type YapistirmaKolonu } from '@/utils/yapistirma'
+import { AZAMI_YUKLEME_MB, sinirAsanBoyut } from '@/utils/yukleme'
 
 const SAYFA_BOYUTU = 50
 
@@ -39,6 +40,11 @@ function satirHatalari(t: TFunction, satir: OnizlemeSatiri): string[] {
 
     return `${t(`kesinti.alan.${alan}`)}: ${t(`kesinti.icmal.iceAktarim.hataKodu.${kod}`)}${deger === '' ? '' : ` (${deger})`}`
   })
+}
+
+/** Kontrol edilen girdi ekrandakiyle aynı mı: dosyada aynı seçim (nesne kimliği), metinde aynı metin */
+function ayniGirdi(a: IceAktarimGirdisi, b: IceAktarimGirdisi): boolean {
+  return 'dosya' in a ? 'dosya' in b && a.dosya === b.dosya : 'metin' in b && a.metin === b.metin
 }
 
 /** Kontrol sonucu: dosya hatası, eksik kolonlar, hata özeti, toplamlar, satır satır hatalar */
@@ -225,10 +231,17 @@ function AktarimIcerigi<T extends IcmalSatiri>({
   const queryClient = useQueryClient()
   const [kaynak, setKaynak] = useState<'dosya' | 'metin'>('dosya')
   const [dosya, setDosya] = useState<File | null>(null)
+  // Sınırı aşan seçilen dosyanın boyutu (MB): dosya gönderilmez, neden ekranda yazar
+  const [buyukDosya, setBuyukDosya] = useState<string | null>(null)
   // Yapıştırma tablosunun hücreleri; kolonlar gelene kadar boş tablo
   const [hucreler, setHucreler] = useState<string[][] | null>(null)
-  // Girdi değişince önceki önizleme geçersizdir
-  const [onizleme, setOnizleme] = useState<IceAktarimOnizlemesi | null>(null)
+  // Son kontrolün (ya da reddedilen kaydın) sonucu, kontrol edilen girdiyle birlikte
+  const [kontrolSonucu, setKontrolSonucu] = useState<{
+    girdi: IceAktarimGirdisi
+    sonuc: IceAktarimOnizlemesi
+  } | null>(null)
+  // Bekleme durumu bir sonraki çizimde gelir: art arda iki tıklama tek parti (F5)
+  const suruyor = useRef(false)
 
   // Tablo başlıkları ve kabul edilen başlık adları backend'in kolon tanımından
   const kolonSorgusu = useQuery({
@@ -245,6 +258,12 @@ function AktarimIcerigi<T extends IcmalSatiri>({
 
   const girdi: IceAktarimGirdisi | null =
     kaynak === 'dosya' ? (dosya ? { dosya } : null) : metin.trim() !== '' ? { metin } : null
+  // Önizleme yalnız ekrandaki girdi için geçerlidir: girdi değişince (ya da o
+  // arada gelen yanıt başka bir girdiye aitse) Kaydet yeniden kontrol ister
+  const onizleme =
+    kontrolSonucu !== null && girdi !== null && ayniGirdi(kontrolSonucu.girdi, girdi)
+      ? kontrolSonucu.sonuc
+      : null
   // Kontrol satır numaraları tablonunkilerle aynı (başlıksız, standart sırayla gönderilir):
   // hatalı satır tabloda işaretlenir, nedeni satır numarasının üzerinde görünür
   const hataliSatirlar = new Map(
@@ -255,7 +274,7 @@ function AktarimIcerigi<T extends IcmalSatiri>({
 
   const onizle = useMutation({
     mutationFn: (secilen: IceAktarimGirdisi) => tanim.api.onizle(secilen),
-    onSuccess: setOnizleme,
+    onSuccess: (sonuc, secilen) => setKontrolSonucu({ girdi: secilen, sonuc }),
     onError: (error: unknown) => toast.error(t(apiErrorKey(error))),
   })
 
@@ -273,12 +292,27 @@ function AktarimIcerigi<T extends IcmalSatiri>({
       toast.success(t('kesinti.icmal.iceAktarim.kaydedildi', { sayi: yukleme.satir_sayisi }))
       kapat()
     },
-    onError: (error: unknown) => {
+    onError: (error: unknown, secilen) => {
       // Kontrol ile kayıt arasında tanımlar değiştiyse sunucunun reddettiği hatalar gösterilir
-      setOnizleme(reddedilenAktarim(error))
+      const sonuc = reddedilenAktarim(error)
+      setKontrolSonucu(sonuc === null ? null : { girdi: secilen, sonuc })
       toast.error(t(apiErrorKey(error)))
     },
+    onSettled: () => {
+      suruyor.current = false
+    },
   })
+
+  // Kontrol / kayıt sürerken girdi değiştirilemez (dosya, sekme, tablo — F3)
+  const kilitli = onizle.isPending || kaydet.isPending
+  // İki kayıt düğmesi (Kontrol Et & Aktar, Kaydet) aynı kilidi paylaşır
+  const kaydiBaslat = () => {
+    if (girdi === null || suruyor.current) {
+      return
+    }
+    suruyor.current = true
+    kaydet.mutate(girdi)
+  }
 
   // Kaydet yalnız tüm satırlar kontrolden geçince açılır (kullanıcı kararı 2026-10-30)
   const kaydedilebilir =
@@ -294,11 +328,15 @@ function AktarimIcerigi<T extends IcmalSatiri>({
       type="button"
       role="tab"
       aria-selected={kaynak === deger}
+      disabled={kilitli}
       onClick={() => {
+        // Dosya alanı yalnız kendi sekmesinde çizilir; dönüşte boş kurulur:
+        // görünmeyen eski dosya seçili kalmasın
         setKaynak(deger)
-        setOnizleme(null)
+        setDosya(null)
+        setBuyukDosya(null)
       }}
-      className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm font-semibold ${
+      className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
         kaynak === deger
           ? 'bg-violet-600 text-white'
           : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
@@ -327,12 +365,20 @@ function AktarimIcerigi<T extends IcmalSatiri>({
             id={`${tanim.anahtar}-dosya`}
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            disabled={kilitli}
             onChange={(olay) => {
-              setDosya(olay.target.files?.[0] ?? null)
-              setOnizleme(null)
+              const secilen = olay.target.files?.[0] ?? null
+              const boyut = sinirAsanBoyut(secilen)
+              setBuyukDosya(boyut)
+              setDosya(boyut === null ? secilen : null)
             }}
-            className="mt-1 block w-full text-sm file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-semibold dark:file:bg-slate-800"
+            className="mt-1 block w-full text-sm file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-semibold disabled:cursor-not-allowed disabled:opacity-60 dark:file:bg-slate-800"
           />
+          {buyukDosya !== null ? (
+            <p role="alert" className={`mt-2 ${HATA_KUTUSU}`}>
+              {t('ortak.dosyaCokBuyuk', { boyut: buyukDosya, sinir: AZAMI_YUKLEME_MB })}
+            </p>
+          ) : null}
         </div>
       ) : kolonSorgusu.error ? (
         <ErrorState
@@ -345,11 +391,9 @@ function AktarimIcerigi<T extends IcmalSatiri>({
         <YapistirmaTablosu
           kolonlar={kolonlar}
           satirlar={tablo}
-          degistir={(yeni) => {
-            setHucreler(yeni)
-            setOnizleme(null)
-          }}
+          degistir={setHucreler}
           hataliSatirlar={hataliSatirlar}
+          kilitli={kilitli}
         />
       )}
 
@@ -374,11 +418,7 @@ function AktarimIcerigi<T extends IcmalSatiri>({
           variant="mor"
           disabled={girdi === null || onizle.isPending}
           yukleniyor={kaydet.isPending}
-          onClick={() => {
-            if (girdi !== null) {
-              kaydet.mutate(girdi)
-            }
-          }}
+          onClick={kaydiBaslat}
         >
           {t('kesinti.icmal.iceAktarim.kontrolVeAktar')}
         </Button>
@@ -392,13 +432,9 @@ function AktarimIcerigi<T extends IcmalSatiri>({
         </Button>
         <Button
           type="button"
-          disabled={!kaydedilebilir}
+          disabled={!kaydedilebilir || onizle.isPending}
           yukleniyor={kaydet.isPending}
-          onClick={() => {
-            if (girdi !== null) {
-              kaydet.mutate(girdi)
-            }
-          }}
+          onClick={kaydiBaslat}
         >
           {onizleme === null
             ? t('ortak.kaydet')

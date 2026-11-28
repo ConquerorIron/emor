@@ -40,7 +40,7 @@ final class EFaturaPanosu
         $taban = fn (): Builder => EFatura::query()
             ->whereIn('entegrator_baglanti_id', array_keys($saglayicilar))
             ->where('yon', FaturaYonu::Gelen->value)
-            ->whereBetween('belge_tarihi', [$baslangic, $bitis]);
+            ->belgeTarihiAraliginda($baslangic, $bitis);
         $gorunur = fn (): Builder => $taban()->whereNull('gizlenme_zamani');
 
         $sayilar = [
@@ -73,6 +73,8 @@ final class EFaturaPanosu
     /**
      * Gönderen firma bazlı döküm (EK-09): aynı süzgeçle, firma + para birimi
      * başına adet ve tutar; en çok fatura üstte. Farklı para birimleri toplanmaz.
+     * Ad, şahıs göndericide ünvan boş olduğu için ad soyaddan (Gelen Fatura
+     * Raporu'nun Firma Ünvanı kuralı).
      *
      * @param  Builder<EFatura>  $sorgu  EFaturaSorgusu ile süzülmüş
      * @return list<array{vkn: string|null, unvan: string|null, para_birimi: string, adet: int, tutar: string}>
@@ -83,7 +85,7 @@ final class EFaturaPanosu
         $satirlar = $sorgu->clone()
             ->reorder()
             ->toBase()
-            ->selectRaw('gonderici_vkn, max(gonderici_unvan) as unvan, para_birimi, count(*) as adet, round(sum(tutar), 2) as tutar')
+            ->selectRaw('gonderici_vkn, max(coalesce(gonderici_unvan, gonderici_ad_soyad)) as unvan, para_birimi, count(*) as adet, round(sum(tutar), 2) as tutar')
             ->groupBy('gonderici_vkn', 'para_birimi')
             ->orderByDesc('adet')
             ->orderBy('gonderici_vkn')

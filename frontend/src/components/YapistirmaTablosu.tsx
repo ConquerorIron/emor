@@ -20,12 +20,18 @@ export function YapistirmaTablosu({
   satirlar,
   degistir,
   hataliSatirlar,
+  kilitli = false,
 }: {
   kolonlar: YapistirmaKolonu[]
   satirlar: string[][]
   degistir: (satirlar: string[][]) => void
   /** Kontrolde hatalı çıkan satırlar: satır numarası (1'den) → hata nedenleri */
   hataliSatirlar: ReadonlyMap<number, string>
+  /**
+   * Kontrol / kayıt sürerken salt okunur: yapıştırma, düzenleme ve temizleme
+   * yapılmaz (gelen sonuç başka bir girdiye ait olmasın — Dikkat F3)
+   */
+  kilitli?: boolean
 }) {
   const { t } = useTranslation()
   // Seçili hücre: [satır, kolon] (0'dan); yapıştırma buradan başlar
@@ -42,6 +48,12 @@ export function YapistirmaTablosu({
   }
 
   const yapistir = (olay: React.ClipboardEvent<HTMLDivElement>) => {
+    if (kilitli) {
+      olay.preventDefault()
+
+      return
+    }
+
     const pano = panoyuCoz(olay.clipboardData.getData('text/plain'))
 
     // Tek hücrelik yapıştırma düzenlenen hücreye normal yazılır
@@ -114,6 +126,7 @@ export function YapistirmaTablosu({
           <Button
             type="button"
             variant="secondary"
+            disabled={kilitli}
             onClick={() => {
               degistir(bosSatirlar(kolonlar.length))
               setSecili(null)
@@ -128,6 +141,7 @@ export function YapistirmaTablosu({
       <div
         role="grid"
         aria-label={t('ortak.yapistirma.etiket')}
+        aria-readonly={kilitli}
         tabIndex={0}
         onPaste={yapistir}
         className="max-h-[45vh] overflow-auto rounded-xl border border-slate-200 focus:outline-2 focus:outline-violet-500 dark:border-slate-700"
@@ -180,6 +194,7 @@ export function YapistirmaTablosu({
                             autoFocus
                             aria-label={`${kolon.etiket} ${satirNo + 1}`}
                             value={satir[kolonNo] ?? ''}
+                            readOnly={kilitli}
                             onChange={(olay) =>
                               hucreyiDegistir(satirNo, kolonNo, olay.target.value)
                             }

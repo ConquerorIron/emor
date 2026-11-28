@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Symfony\Component\Mime\Email;
 use Tests\TestCase;
 
 /** e-Fatura alarmları (EFAT-13): değerlendirme, tekrar etmeme, gönderim, yönetim ucu. */
@@ -97,6 +98,29 @@ final class AlarmTest extends TestCase
     private function gonder(AlarmBildirimi $bildirim): void
     {
         (new AlarmBildirimiGonder($bildirim->id))->handle(app(MailAyarServisi::class));
+    }
+
+    /**
+     * Yönlendirmede mailable'a eklenen başlıklar: Mail::fake() Symfony mesajını
+     * kurmadığı için geri çağrılar boş bir mesaja uygulanıp okunur.
+     *
+     * @return array<string, string> başlık adı => değer (yalnız X-Emor-Asil-*)
+     */
+    private function asilAliciBasliklari(AlarmMaili $mail): array
+    {
+        $mesaj = new Email;
+        foreach ($mail->callbacks as $geriCagri) {
+            $geriCagri($mesaj);
+        }
+
+        $basliklar = [];
+        foreach ($mesaj->getHeaders()->all() as $baslik) {
+            if (str_starts_with($baslik->getName(), 'X-Emor-Asil-')) {
+                $basliklar[$baslik->getName()] = $baslik->getBodyAsString();
+            }
+        }
+
+        return $basliklar;
     }
 
     // --- Senkron arızası -------------------------------------------------------
@@ -395,7 +419,9 @@ final class AlarmTest extends TestCase
 
         Mail::assertSent(AlarmMaili::class, fn (AlarmMaili $mail): bool => $mail->hasTo('test-kutusu@ornek.test')
             && ! $mail->hasTo('muhasebe@ornek.test')
-            && $mail->hasSubject('[TEST] eMOR ERP — Gelen e-Fatura senkronu çalışmıyor'));
+            && $mail->hasSubject('[TEST] eMOR ERP — Gelen e-Fatura senkronu çalışmıyor')
+            // Asıl alıcı başlıkta; boş CC / BCC başlığı hiç yazılmaz
+            && $this->asilAliciBasliklari($mail) === ['X-Emor-Asil-Alicilar' => 'muhasebe@ornek.test']);
         $bildirim->refresh();
         $this->assertSame(AlarmBildirimi::GONDERILDI, $bildirim->durum);
         $this->assertSame(1, $bildirim->deneme);
@@ -787,7 +813,13 @@ final class AlarmTest extends TestCase
 
         Mail::assertSent(AlarmMaili::class, fn (AlarmMaili $mail): bool => $mail->hasTo('test-kutusu@ornek.test')
             && $mail->cc === [] && $mail->bcc === []
-            && ! $mail->hasTo('muhasebe@ornek.test'));
+            && ! $mail->hasTo('muhasebe@ornek.test')
+            // Asıl alıcılar kendi başlıklarında (kopya ve gizli kopya karışmaz)
+            && $this->asilAliciBasliklari($mail) === [
+                'X-Emor-Asil-Alicilar' => 'muhasebe@ornek.test',
+                'X-Emor-Asil-Cc' => 'mudur@ornek.test',
+                'X-Emor-Asil-Bcc' => 'arsiv@ornek.test',
+            ]);
     }
 
     public function test_kural_kopya_gizli_alicilar_ve_islendi_secenekleriyle_kaydedilir_gonderilmeyen_kopya_korunur(): void

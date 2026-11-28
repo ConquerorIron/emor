@@ -277,6 +277,12 @@ export function EFaturaPanosuPage() {
     placeholderData: keepPreviousData,
   })
 
+  // Yeni aralığın sonucu beklenirken (yenileniyor ya da bağlantı yok) ekrandaki
+  // sayılar eski aralığındır; bağlantılar ise yeni aralıkla açılırdı: bağlantısız (F-8)
+  const sayilarBaglanir = listeIzni && !pano.isPlaceholderData
+  // Görülen ile inen aynı olsun: yenilenirken, beklemedeyken ve eski veri gösterilirken kapalı (F1)
+  const firmalarYenileniyor = firmalar.isFetching || firmalar.isPaused || firmalar.isPlaceholderData
+
   const baglanti = (ekler: Record<string, string>, araliktan = aralik) => ({
     baslangic: araliktan.baslangic,
     bitis: araliktan.bitis,
@@ -383,7 +389,7 @@ export function EFaturaPanosuPage() {
                     render: (p: (typeof veri.portallar)[number]) => (
                       <SayiBaglantisi
                         deger={p[sayi]}
-                        baglanabilir={listeIzni}
+                        baglanabilir={sayilarBaglanir}
                         vurgulu={sayi === 'islenecek'}
                         parametreler={baglanti({
                           entegrator: p.saglayici,
@@ -420,7 +426,7 @@ export function EFaturaPanosuPage() {
                         {p.gizlenen > 0 ? (
                           <SayiBaglantisi
                             deger={p.gizlenen}
-                            baglanabilir={listeIzni}
+                            baglanabilir={sayilarBaglanir}
                             parametreler={baglanti({
                               entegrator: p.saglayici,
                               gizlenenler: 'yalniz',
@@ -432,7 +438,7 @@ export function EFaturaPanosuPage() {
                           <span className="ml-2 text-amber-700 dark:text-amber-300">
                             <SayiBaglantisi
                               deger={p.red_islenmis}
-                              baglanabilir={listeIzni}
+                              baglanabilir={sayilarBaglanir}
                               parametreler={baglanti({
                                 entegrator: p.saglayici,
                                 sinif: 'red_islenmis',
@@ -499,7 +505,7 @@ export function EFaturaPanosuPage() {
                     render: (p: (typeof veri.aylik)[number]) => (
                       <SayiBaglantisi
                         deger={p.aylar[ay] ?? 0}
-                        baglanabilir={listeIzni}
+                        baglanabilir={sayilarBaglanir}
                         parametreler={baglanti(
                           { entegrator: p.saglayici, sinif: 'islenecek' },
                           ayAraligi(ay, aralik.baslangic, aralik.bitis),
@@ -559,7 +565,7 @@ export function EFaturaPanosuPage() {
                   variant="yesil"
                   onClick={() => void excelAl()}
                   yukleniyor={excelSuruyor}
-                  disabled={firmalar.isFetching || (firmalar.data?.length ?? 0) === 0}
+                  disabled={firmalarYenileniyor || (firmalar.data?.length ?? 0) === 0}
                 >
                   {t('efatura.excel')}
                 </Button>

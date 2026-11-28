@@ -15,8 +15,8 @@ import { RedRozeti } from './RedRozeti'
  * Satırdaki "SAP (Manuel İşle)" anahtarı (Protel: 2026-11-23; statik kaynaklar:
  * EK-07; İzibiz ve Tüm Faturalar: 2026-11-26): tıklanınca hemen kaydedilir. İşaret yalnız eMOR'da
  * tutulur; kaynağın kendisinde hiçbir şey değişmez. Satır sunucunun döndürdüğü
- * faturayla yerinde güncellenir (liste yeniden çekilmez). RED faturada anahtar
- * yerine "Red" yazar.
+ * faturayla hemen yerinde güncellenir, ardından listeler yeniden çekilir (işaret
+ * faturanın sınıfını değiştirir; F-1). RED faturada anahtar yerine "Red" yazar.
  */
 export function IslendiAnahtari({
   fatura,
@@ -35,7 +35,7 @@ export function IslendiAnahtari({
   const degistir = useMutation({
     mutationFn: (islendi: boolean) => faturaIslendiDegistir(ekran, fatura.id, islendi),
     onSuccess: (guncel) => {
-      faturaSatiriniGuncelle(queryClient, guncel)
+      void faturaSatiriniGuncelle(queryClient, guncel)
       toast.success(
         t(
           guncel.sap_islendi === true ? 'protel.islendi.isaretlendi' : 'protel.islendi.kaldirildi',

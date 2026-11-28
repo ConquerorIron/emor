@@ -18,8 +18,9 @@ use LogicException;
  * @property int|null $fatura_id
  * @property int|null $yukleme_id
  * @property string $saglayici
+ * @property string|null $ortam Tanımın kayıt anındaki ortamı (test / canli); eski kayıtlarda null
  * @property string|null $belge_no
- * @property string|null $belge_kimligi
+ * @property string|null $belge_kimligi ETTN ya da belge anahtarı; e-Arşiv / e-SMM'de `tür|no` (kimlik no yazılmaz — eski kayıtlar hariç)
  * @property EFaturaIslemTuru $islem
  * @property string|null $onceki
  * @property string|null $yeni

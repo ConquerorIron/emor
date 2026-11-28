@@ -110,9 +110,13 @@ metin** (`"5.155.262,20"` — binlik `.`, ondalık `,`; float'a çevrilmez),
   ve `portal-read-flag` — mevcut ERP entegrasyonu yeni gelen faturaları
   `erpReadFlag` ile izliyor (teyit edildi); bu modül bu bayraklara dokunmaz. İstemci veri için yalnız GET yapar (`IzibizIstemcisi::getJson`); tek POST token alımıdır. Kabul/red,
   gönderme kullanılmaz. Tek istisna `POST .../download/ubl` (toplu UBL indirme):
-  istisna kodu için ve ERP havuzunda olmayan faturanın XML'i için kullanılır;
-  okundu bayraklarını değiştirmediği test hesabında ölçüldü (2026-09-24,
-  `IzibizIstemcisi::ublIndir`).
+  2026-11-26'dan beri BÜTÜN gelen faturaların UBL'i (rapor verileri: vergi
+  kalemleri, tutarlar, kur, istisna kodu) bununla, ERP kopyasına bakılmadan
+  okunur (`efatura:ubl-oku`, partide 25 fatura, tur başına 12 istek); ayrıca
+  ERP havuzunda olmayan faturanın XML'i için. Okundu bayraklarını
+  değiştirmediği test hesabında ölçüldü (2026-09-24, `IzibizIstemcisi::ublIndir`).
+  Parti yalnız HTTP 400 + kod `10008` ile reddedilirse bölünür; başka her hata
+  turu durdurur (`IzibizUblServisi`).
 - **Kod kilidi — izin listesi (2026-11-18, kullanıcı kararı):**
   `IzibizIstemcisi::IZINLI_UCLAR` yalnız şu dört uca istek çıkmasına izin
   verir: `POST /v1/auth/token`, `GET /v1/einvoices/{inbox|outbox}`,
@@ -177,7 +181,13 @@ v2: 16 uç. Bizim için anlamlı olanlar:
   tekil uç `GET /v1/einvoices/inbox/{id}/preview/ubl`; belgede ayrıca toplu
   `POST /v1/einvoices/inbox/download/{format}` (gövdede id listesi) var — gövde
   ve yanıt biçimi ile okundu bayraklarına etkisi belgelenmemiş. Kullanıcı kararı:
-  fatura başına istek yok; kod ERP'den (`TOHOM_E_FATURA.VERGI_ISTISNA_KODU`).
+  fatura başına istek yok. Kod iki kaynaktan gösterilir: ERP'deki
+  (`TOHOM_E_FATURA.VERGI_ISTISNA_KODU`) ve toplu UBL indirmeden okunan
+  (`izibiz_istisna_kodu`, bütün gelen faturalar). ERP'de boş olan kod
+  entegratördekiyle doldurulur (`ErpIstisnaKoduAktarimi`) — yalnız istisna tipli
+  (ISTISNA / IHRACKAYITLI / OZELMATRAH) ya da vergisiz faturada; vergili
+  faturanın kısmi istisna kodu yazılmaz (inceleme 2026-11-27 C-1, kullanıcı
+  kararı bekleniyor).
 - **Kurallar ("Dikkat edilmesi gereken hususlar"):** zamanlayıcı en az 15 dk
   (bizde 15 dk); tek çağrıda en çok 100 fatura (bizde pageSize 100); tekil durum
   sorgusu en az 4 saatte bir (bizde tekil sorgu yok, yalnız liste); okundu

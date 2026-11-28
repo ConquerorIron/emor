@@ -34,17 +34,10 @@ abstract class ErpRaporController extends Controller
 
     public function excel(ErpRaporExcelRequest $request, ErpRaporExcelAktarici $aktarici): BinaryFileResponse
     {
-        $satirlar = $this->rapor->sec(
+        return $aktarici->indir($this->rapor, $this->rapor->sec(
             $this->rapor->satirlar($this->erpKullaniciId($request), $request->parametreler()),
             $request->anahtarlar(),
-        );
-
-        return response()
-            ->download($aktarici->olustur($this->rapor, $satirlar), $this->rapor::DOSYA_ADI, [
-                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'Cache-Control' => 'private, no-store',
-            ])
-            ->deleteFileAfterSend();
+        ));
     }
 
     /** Parametre formunun proje kodu / firma adı seçenekleri */

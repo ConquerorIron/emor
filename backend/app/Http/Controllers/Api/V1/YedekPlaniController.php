@@ -11,6 +11,7 @@ use App\Models\YedekKopyasi;
 use App\Models\YedekPlani;
 use App\Services\Yedekleme\IslemSonucu;
 use App\Services\Yedekleme\KopyaDurumu;
+use App\Services\Yedekleme\KopyaPlanBaglari;
 use App\Services\Yedekleme\PlanTakvimi;
 use App\Services\Yedekleme\SaklamaPolitikasi;
 use App\Services\Yedekleme\SiklikTuru;
@@ -35,8 +36,9 @@ use Throwable;
  *
  * - Plan en az bir hedefle kaydedilir; her hedefin saklama kuralı ("son N" ve
  *   / veya "N günden eski") boş olamaz.
- * - Kopyası olan bir hedef plandan çıkarılamaz (F6): veritabanı da reddeder
- *   (bileşik anahtar); uç 409 ve bağlı kopya sayısıyla döner.
+ * - Yedeği tutan kopyası olan bir hedef plandan çıkarılamaz (F6): veritabanı
+ *   da reddeder (bileşik anahtar); uç 409 ve bağlı kopya sayısıyla döner.
+ *   Başarısız / bekleyen kopyaların bağı engel değildir (KopyaPlanBaglari; G1-2).
  * - Önizleme, değişikliği bir işlem içinde UYGULAYIP zamanlayıcının ve
  *   saklamanın kendi hesabını çalıştırır, sonra işlemi geri alır: kaydedilince
  *   aynı sonuç çıkar.
@@ -81,15 +83,19 @@ final class YedekPlaniController extends Controller
         return response()->json(['data' => $this->diziler($this->planSorgusu()->whereKey($plan->id)->get())[0]]);
     }
 
-    /** Kopyası olan plan silinmez; pasife alınır (geçmişi durur) */
+    /**
+     * Yedeği tutan kopyası olan plan silinmez; pasife alınır (geçmişi durur).
+     * Başarısız / bekleyen kopyaların bağı engel değildir, kaldırılır (G1-2).
+     */
     public function destroy(Request $request, YedekPlani $plan): JsonResponse
     {
-        $kopya = $plan->kopyalar()->count();
+        $kopya = KopyaPlanBaglari::tutanlar()->where('yedek_kopya_planlari.yedek_plani_id', $plan->id)->count();
         if ($kopya > 0) {
             return response()->json(['kod' => 'PLAN_KOPYALI', 'mesaj' => __('hata.yedek_plani_kopyali', ['adet' => $kopya]), 'kopya_sayisi' => $kopya], 409);
         }
 
         DB::transaction(function () use ($request, $plan): void {
+            KopyaPlanBaglari::tutmayanlariKaldir($plan->id);
             $plan->delete();
             $this->denetle('plan_sil', $request, $plan);
         });
@@ -225,16 +231,18 @@ final class YedekPlaniController extends Controller
     }
 
     /**
-     * F6: bu plana bağlı kopyası olan hedef plandan çıkarılırsa saklama kuralı
-     * kaybolur; reddedilir (veritabanı da reddeder — bileşik anahtar).
+     * F6: bu plana bağlı ve yedeği tutan kopyası olan hedef plandan çıkarılırsa
+     * saklama kuralı kaybolur; reddedilir (veritabanı da reddeder — bileşik
+     * anahtar). Başarısız / bekleyen kopyanın bağı engel değildir (G1-2;
+     * uygula() kaldırır): kalıcı bozulan hedef plandan çıkarılabilsin.
      *
      * @param  list<int>  $yeniHedefler
      */
     private function kopyaliHedefCikarilmasin(YedekPlani $plan, array $yeniHedefler): void
     {
-        $bagli = DB::table('yedek_kopya_planlari')
-            ->where('yedek_plani_id', $plan->id)
-            ->whereNotIn('yedek_hedefi_id', $yeniHedefler === [] ? [0] : $yeniHedefler)
+        $bagli = KopyaPlanBaglari::tutanlar()
+            ->where('yedek_kopya_planlari.yedek_plani_id', $plan->id)
+            ->whereNotIn('yedek_kopya_planlari.yedek_hedefi_id', $yeniHedefler === [] ? [0] : $yeniHedefler)
             ->join('yedek_hedefleri', 'yedek_hedefleri.id', '=', 'yedek_kopya_planlari.yedek_hedefi_id')
             ->groupBy('yedek_hedefleri.id', 'yedek_hedefleri.ad')
             ->selectRaw('yedek_hedefleri.id, yedek_hedefleri.ad, count(*) as adet')
@@ -262,6 +270,11 @@ final class YedekPlaniController extends Controller
             $plan->sonraki_calisma = $this->takvim->sonraki($plan, CarbonImmutable::now());
         }
         $plan->save();
+        // Çıkarılan hedeflerdeki başarısız / bekleyen kopyaların bağı kuralı tutmasın (G1-2)
+        $cikanlar = array_values(array_diff($plan->hedefler()->pluck('yedek_hedefleri.id')->map(fn (mixed $id): int => (int) $id)->all(), array_keys($veri['hedefler'])));
+        if ($cikanlar !== []) {
+            KopyaPlanBaglari::tutmayanlariKaldir($plan->id, $cikanlar);
+        }
         $plan->hedefler()->sync($veri['hedefler']);
 
         return $plan;
@@ -316,9 +329,9 @@ final class YedekPlaniController extends Controller
     private function diziler(Collection $planlar): array
     {
         $bagSayilari = [];
-        DB::table('yedek_kopya_planlari')->whereIn('yedek_plani_id', $planlar->modelKeys())
-            ->groupBy('yedek_plani_id', 'yedek_hedefi_id')
-            ->selectRaw('yedek_plani_id, yedek_hedefi_id, count(*) as adet')
+        KopyaPlanBaglari::tutanlar()->whereIn('yedek_kopya_planlari.yedek_plani_id', $planlar->modelKeys())
+            ->groupBy('yedek_kopya_planlari.yedek_plani_id', 'yedek_kopya_planlari.yedek_hedefi_id')
+            ->selectRaw('yedek_kopya_planlari.yedek_plani_id, yedek_kopya_planlari.yedek_hedefi_id, count(*) as adet')
             ->get()
             ->each(function (object $satir) use (&$bagSayilari): void {
                 $bagSayilari[(int) $satir->yedek_plani_id][(int) $satir->yedek_hedefi_id] = (int) $satir->adet;

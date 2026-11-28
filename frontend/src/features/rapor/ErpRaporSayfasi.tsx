@@ -3,7 +3,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { apiErrorKey } from '@/api/errors'
+import { apiErrorKey, dogrulamaMesaji } from '@/api/errors'
 import { queryKeys } from '@/api/queryKeys'
 import { ALAN_KUTUSU } from '@/components/alanStilleri'
 import { Button } from '@/components/Button'
@@ -26,7 +26,9 @@ import { bugunIso, tarihGoster } from '@/utils/tarih'
 
 import type { RaporParametreleri, RaporSatiri } from './erpRaporApi'
 import {
+  metinSayisi,
   pivotla,
+  raporSayfaBoyutu,
   raporSiralayici,
   type ErpRaporTanimi,
   type KolonTuru,
@@ -34,8 +36,13 @@ import {
   type RaporPivotu,
 } from './raporTanimi'
 
-/** Açılışta tüm geçmiş, bugüne kadar */
+/** Açılışta tüm geçmiş, bugüne kadar (raporun varsayilanIlkTarih'i yoksa) */
 const ILK_TARIH = '2000-01-01'
+
+/** Boş tutar sayı gibi sıralansın: en küçük */
+function tutarDegeri(deger: string | number | null | undefined): number {
+  return deger === null || deger === undefined ? -Infinity : Number(deger)
+}
 
 type TarihHatalari = Partial<Record<'ilk_tarih' | 'son_tarih', string>>
 
@@ -68,10 +75,18 @@ function hizasi(tur: KolonTuru, ortali: boolean): 'sol' | 'orta' | 'sag' {
   return tur === 'tarih' || ortali ? 'orta' : 'sol'
 }
 
-/** Tutar ve tarih biçimli; metin tek satır */
+/**
+ * Tutar ve tarih biçimli; metin tek satır. Boş tutar (bilinmiyor: kursuz
+ * dövizin TL'si, kalemsiz faturanın oranı) "0,00" değil soluk "—" — Excel'de de
+ * hücre boş.
+ */
 function hucre(tur: KolonTuru, deger: string | number | null | undefined, genislik?: string) {
   if (tur === 'tutar') {
-    return <span className="whitespace-nowrap tabular-nums">{tutarGoster(deger ?? 0)}</span>
+    return deger === null || deger === undefined ? (
+      <span className="text-slate-400 dark:text-slate-500">—</span>
+    ) : (
+      <span className="whitespace-nowrap tabular-nums">{tutarGoster(deger)}</span>
+    )
   }
   if (tur === 'tarih') {
     return (
@@ -92,42 +107,51 @@ function hucre(tur: KolonTuru, deger: string | number | null | undefined, genisl
 /**
  * Özet (pivot) sekmesi: süzülen satırlar sekmenin gruplarına göre toplanır
  * (tarayıcıda); kolonlara göre sıralanır, toplam satırları Data ile aynı.
- * Sayfalı (Data ile aynı sayfa boyutu): firma özeti ~1.500 grup × ~25 tutar
- * kolonuyla tek seferde çizilince sekme geçişi kasıyordu.
+ * Sayfalı (Data ile aynı sayfa boyutu, üst bileşenden): firma özeti ~1.500
+ * grup × ~25 tutar kolonuyla tek seferde çizilince sekme geçişi kasıyordu.
  */
 function RaporPivotTablosu<T extends RaporSatiri>({
   tanim,
   pivot,
   satirlar,
   toplamSatirlari,
+  boyut,
+  boyutYenile,
 }: {
   tanim: ErpRaporTanimi<T>
   pivot: RaporPivotu
   satirlar: T[]
   toplamSatirlari: ToplamSatiri[]
+  /** Etkin sayfa boyutu (raporSayfaBoyutu: "Hepsi" de sınırlı) — Data ile ortak */
+  boyut: number
+  /** Ortak sayfa boyutu tercihi değişince üst bileşen yeniden okur */
+  boyutYenile: () => void
 }) {
   const { t, i18n } = useTranslation()
   const { siralama, siralamaDegistir } = useKaliciSiralama(`${tanim.anahtar}Pivot.${pivot.anahtar}`)
   const [sayfa, setSayfa] = useState(1)
-  const [boyut, setBoyut] = useState(sayfaBoyutuOku)
   const tutarlar = useMemo(
     () => tanim.kolonlar.filter((kolon) => kolon.tur === 'tutar').map((k) => k.alan),
     [tanim],
   )
   const ozetSatirlari = useMemo(
-    () => pivotla(satirlar, pivot, tanim.tarihAlani ?? '', tutarlar),
-    [satirlar, pivot, tanim.tarihAlani, tutarlar],
+    () => pivotla(satirlar, pivot, tanim.tarihAlani ?? '', tutarlar, tanim.bosYayilanTutarlar),
+    [satirlar, pivot, tanim.tarihAlani, tutarlar, tanim.bosYayilanTutarlar],
+  )
+  const tutarDegerleri = useMemo(
+    () =>
+      Object.fromEntries(
+        tutarlar.map((alan) => [alan, (satir: PivotSatiri) => tutarDegeri(satir[alan])]),
+      ),
+    [tutarlar],
   )
   const siraliSatirlar = useMemo(
-    () => siralaUygula(ozetSatirlari, siralama),
-    [ozetSatirlari, siralama],
+    () => siralaUygula(ozetSatirlari, siralama, tutarDegerleri),
+    [ozetSatirlari, siralama, tutarDegerleri],
   )
-  const toplamSayfa = boyut === 0 ? 1 : Math.max(1, Math.ceil(siraliSatirlar.length / boyut))
+  const toplamSayfa = Math.max(1, Math.ceil(siraliSatirlar.length / boyut))
   const gecerliSayfa = Math.min(sayfa, toplamSayfa)
-  const sayfaSatirlari =
-    boyut === 0
-      ? siraliSatirlar
-      : siraliSatirlar.slice((gecerliSayfa - 1) * boyut, gecerliSayfa * boyut)
+  const sayfaSatirlari = siraliSatirlar.slice((gecerliSayfa - 1) * boyut, gecerliSayfa * boyut)
   const ortali = new Set<string>(tanim.ortali ?? [])
   const sabitGenislik: Partial<Record<string, string>> = tanim.sabitGenislik ?? {}
 
@@ -181,7 +205,7 @@ function RaporPivotTablosu<T extends RaporSatiri>({
       toplamSayfa={toplamSayfa}
       sayfaDegistir={(yeni) => {
         setSayfa(yeni)
-        setBoyut(sayfaBoyutuOku())
+        boyutYenile()
       }}
       boyutSeciciId={`${tanim.anahtar}-${pivot.anahtar}-sayfa-boyutu-${konum}`}
     />
@@ -226,7 +250,7 @@ function RaporPivotTablosu<T extends RaporSatiri>({
 export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRaporTanimi<T> }) {
   const { t } = useTranslation()
   const [parametreler, setParametreler] = useState<RaporParametreleri>(() => ({
-    ilk_tarih: ILK_TARIH,
+    ilk_tarih: tanim.varsayilanIlkTarih?.() ?? ILK_TARIH,
     son_tarih: bugunIso(),
     proje_kodu: '',
     firma_adi: '',
@@ -235,8 +259,11 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
   const [hatalar, setHatalar] = useState<TarihHatalari>({})
   const [suzgec, setSuzgec] = useState<AnlikSuzgec>(BOS_SUZGEC)
   const [sayfa, setSayfa] = useState(1)
-  // Ortak sayfa boyutu tercihi; Pagination değiştirince sayfaDegistir'de yeniden okunur
-  const [boyut, setBoyut] = useState(sayfaBoyutuOku)
+  // Ortak sayfa boyutu tercihi; Data ve özet sekmelerinin Pagination'ı değiştirince
+  // sayfaDegistir'de yeniden okunur (tek değer: iki sekme aynı boyutla dilimler)
+  const [tercih, setTercih] = useState(sayfaBoyutuOku)
+  const boyut = raporSayfaBoyutu(tercih)
+  const boyutYenile = () => setTercih(sayfaBoyutuOku())
   // 'data' ya da özet sekmesinin anahtarı
   const [sekme, setSekme] = useState('data')
   // Data sekmesinde gizlenen kolonlar: tarayıcıda, rapor başına (Excel hepsini içerir)
@@ -339,31 +366,30 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
   // Data sekmesinde her kolon başlığa basınca sıralanır (rapor başına hatırlanır);
   // sıralama yokken backend'in varsayılan sırası. Excel ekrandaki sırayla iner.
   const { siralama, siralamaDegistir } = useKaliciSiralama(`${tanim.anahtar}Data`)
-  const tutarDegerleri = useMemo(
+  // Tutarlar ve sayı metinleri (kur) sayı gibi sıralanır; boş olan en küçük
+  const sayisalDegerler = useMemo(
     () =>
-      Object.fromEntries(
-        tanim.kolonlar
+      Object.fromEntries([
+        ...tanim.kolonlar
           .filter((kolon) => kolon.tur === 'tutar')
-          // Boş tutar (kursuz TL) sayı gibi sıralansın: en küçük
-          .map(({ alan }) => [
-            alan,
-            (satir: T) =>
-              satir[alan] === null || satir[alan] === undefined ? -Infinity : Number(satir[alan]),
-          ]),
-      ),
+          .map(({ alan }) => [alan, (satir: T) => tutarDegeri(satir[alan])]),
+        ...(tanim.sayiGibiSiralanan ?? []).map((alan) => [
+          alan,
+          (satir: T) => metinSayisi(satir[alan]),
+        ]),
+      ]),
     [tanim],
   )
   const siraliSatirlar = useMemo(
-    () => siralaUygula(satirlar, siralama, tutarDegerleri),
-    [satirlar, siralama, tutarDegerleri],
+    () => siralaUygula(satirlar, siralama, sayisalDegerler),
+    [satirlar, siralama, sayisalDegerler],
   )
 
-  // Sayfalama tarayıcıda; 0 = "Hepsi"
-  const toplamSayfa = boyut === 0 ? 1 : Math.max(1, Math.ceil(satirlar.length / boyut))
+  // Sayfalama tarayıcıda; "Hepsi" de HEPSI_SINIRI'yla sayfalı
+  const toplamSayfa = Math.max(1, Math.ceil(satirlar.length / boyut))
   const gecerliSayfa = Math.min(sayfa, toplamSayfa)
-  const ilkIndeks = boyut === 0 ? 0 : (gecerliSayfa - 1) * boyut
-  const sayfaSatirlari =
-    boyut === 0 ? siraliSatirlar : siraliSatirlar.slice(ilkIndeks, ilkIndeks + boyut)
+  const ilkIndeks = (gecerliSayfa - 1) * boyut
+  const sayfaSatirlari = siraliSatirlar.slice(ilkIndeks, ilkIndeks + boyut)
 
   const kolonBasligi = (alan: string) => t(`raporlar.${tanim.anahtar}.kolon.${alan}`)
   const ortali = new Set<string>(tanim.ortali ?? [])
@@ -394,7 +420,7 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
 
     return tanim.toplamlar(satirlar).map((toplam) => ({
       anahtar: toplam.anahtar,
-      etiket: t(toplam.etiket),
+      etiket: t(toplam.etiket, toplam.etiketParametreleri),
       hucreler: Object.fromEntries(
         Object.entries(toplam.degerler).map(([alan, deger]) => [
           alan,
@@ -410,7 +436,7 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
       toplamSayfa={toplamSayfa}
       sayfaDegistir={(yeni) => {
         setSayfa(yeni)
-        setBoyut(sayfaBoyutuOku())
+        boyutYenile()
       }}
       boyutSeciciId={`${tanim.anahtar}-sayfa-boyutu-${konum}`}
     />
@@ -534,7 +560,8 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
       ) : rapor.isError ? (
         <div className="mt-4">
           <ErrorState
-            mesaj={t(apiErrorKey(rapor.error))}
+            // Doğrulama (ör. "Tarih aralığı en fazla 366 gün olabilir.") sunucunun mesajıyla
+            mesaj={dogrulamaMesaji(rapor.error) ?? t(apiErrorKey(rapor.error))}
             tekrarDene={() => {
               if (rapor.variables) {
                 rapor.mutate(rapor.variables)
@@ -638,6 +665,8 @@ export function ErpRaporSayfasi<T extends RaporSatiri>({ tanim }: { tanim: ErpRa
                 pivot={seciliPivot}
                 satirlar={satirlar}
                 toplamSatirlari={toplamSatirlari}
+                boyut={boyut}
+                boyutYenile={boyutYenile}
               />
             </div>
           ) : (

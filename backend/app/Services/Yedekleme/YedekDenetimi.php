@@ -40,7 +40,10 @@ final class YedekDenetimi
             // Çağıran bir işlemin içindeyse (ayar / hedef güncellemesi) yazım
             // kendi SAVEPOINT'inde yapılır: PostgreSQL'de hatalı ifade bütün
             // işlemi iptal eder, COMMIT sessizce ROLLBACK olurdu. Savepoint'e
-            // geri dönülünce dış işlem sağlam kalır (T6, YF-12)
+            // geri dönülünce dış işlem sağlam kalır (T6, YF-12). Tek istisna: iç içe
+            // işlemde kilitlenme (deadlock) hatasını Laravel savepoint'e dönmeden
+            // DeadlockException olarak atar; dış işlem o durumda yine geri alınır
+            // (bu INSERT için olasılığı ihmal edilebilir — G1-11)
             DB::transaction(fn () => YedekIslemKaydi::query()->create([
                 'kullanici_id' => $kullaniciId,
                 'islem' => $islem,

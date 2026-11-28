@@ -235,11 +235,22 @@ esit "optimize:clear normal görünüm yolunu kullanır" "$(ortam_alani optimize
 esit "optimize normal görünüm yolunu önbelleğe yazar" "$(ortam_alani optimize 3)" ""
 if [[ -n "$GORUNUM" && ! -e "$GORUNUM" ]]; then gecti "özel görünüm klasörü yayın sonunda silindi"; else kaldi "özel görünüm klasörü yayın sonunda silindi"; fi
 
+esit "tam yayında optimize bir kez çalışır (çıkış tuzağı yinelemez)" "$(grep -c '^backend/artisan optimize$' "$KAYIT/php.cagri")" "1"
+
 kur onbellek-yedek-basarisiz
 calistir 1 >/dev/null
 GORUNUM="$(ortam_alani yedek:yayin-oncesi 3)"
 if [[ -n "$GORUNUM" && ! -e "$GORUNUM" ]]; then gecti "yayın yarıda durunca da özel görünüm klasörü silinir"; else kaldi "yayın yarıda durunca da özel görünüm klasörü silinir ('$GORUNUM')"; fi
 icermiyor "yarıda duran yayın damga yazmaz" <(ls -A "$KOK") ".yayin-damgasi"
+# G1-4: kod çekilmeden duran yayın sildiği önbelleği geri kurar (site önbelleksiz kalmaz)
+esit "kod çekilmeden duran yayının son php çağrısı optimize" "$(tail -n1 "$KAYIT/php.cagri")" "backend/artisan optimize"
+esit "geri kurulan önbellek umask 022 ile" "$(ortam_alani optimize 2)" "0022"
+esit "geri kurulan önbellek normal görünüm yolunu yazar (silinen özel klasörü değil)" "$(ortam_alani optimize 3)" ""
+
+# Bakım modunu yayın açtıysa önbellek bakım modu kapanmadan geri kurulur
+kur onbellek-git-basarisiz
+calistir 0 >/dev/null
+esit "kod çekme düşünce: önce optimize, sonra bakım modu kapanır" "$(grep -v '^git ' "$KAYIT/php.cagri" | tail -n2 | tr '\n' '|')" "backend/artisan optimize|backend/artisan up|"
 
 kur onbellek-baskasinin
 EK_PATH="$BASKA_KULLANICI"

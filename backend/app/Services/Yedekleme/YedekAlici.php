@@ -61,6 +61,7 @@ final class YedekAlici
     /**
      * @param  YedekKilidi  $kilit  Durum klasörünün tutulan kilidi
      * @param  list<string>  $planAdlari
+     * @param  list<array{plan: int, hedef: int}>|null  $planHedefleri  Plan yedeğinin kopyalanacağı plan / hedef çiftleri; kayıtla birlikte, arşivden önce yazılır (G1-6-R3)
      * @param  array{baglanma_yetkileri: string|null}|null  $ozellikDuzeltmesi  Manifestin veritabanı özelliklerinde anlık görüntüdeki değerin yerine yazılacaklar:
      *                                                                          üstüne geri yüklemenin yazıcı bariyeri bağlanma yetkilerini daraltmışken alınan öncesi yedek ÖZGÜN yetkileri taşır (BY-028-R1)
      * @return Yedek `tamam` ya da `basarisiz` dizin kaydı
@@ -76,6 +77,7 @@ final class YedekAlici
         array $planAdlari = [],
         ?string $geriYuklemeKimligi = null,
         ?array $ozellikDuzeltmesi = null,
+        ?array $planHedefleri = null,
     ): Yedek {
         $durum = $this->yapilandirma->islemDurumu();
 
@@ -116,6 +118,9 @@ final class YedekAlici
             'durum' => YedekDurumu::Calisiyor,
             'aciklama' => $aciklama,
             'alan_kullanici_id' => $kullaniciId,
+            // Arşivden ÖNCE: süreç arşivden sonra ölse de yedeğin gideceği
+            // hedefler bilinir (Codex G1-6-R3)
+            'plan_hedefleri' => $planHedefleri,
         ]);
 
         $yaz = function (string $adim, ?array $hata = null) use ($geriYuklemeIcinde, $durum, $kilit, $islemKimligi, $zaman, $yedek, $kullaniciId): void {

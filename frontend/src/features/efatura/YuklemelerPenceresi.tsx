@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -19,6 +19,8 @@ function YuklemeListesi({ onEk, geriAlabilir }: { onEk: StatikKaynak; geriAlabil
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [silinecek, setSilinecek] = useState<Yukleme | null>(null)
+  // Bekleme durumu bir sonraki çizimde gelir: art arda iki onay tek istek (F5)
+  const suruyor = useRef(false)
 
   const yuklemeler = useQuery({
     queryKey: queryKeys.kaynak.yuklemeler(onEk),
@@ -28,7 +30,7 @@ function YuklemeListesi({ onEk, geriAlabilir }: { onEk: StatikKaynak; geriAlabil
   const geriAl = useMutation({
     mutationFn: (parti: Yukleme) => yuklemeyiGeriAl(onEk, parti.id),
     onSuccess: () => {
-      faturaListeleriniTazele(queryClient)
+      void faturaListeleriniTazele(queryClient)
       void queryClient.invalidateQueries({ queryKey: queryKeys.kaynak.yuklemeler(onEk) })
       toast.success(t('efatura.yuklemeler.geriAlindi'))
       setSilinecek(null)
@@ -36,6 +38,9 @@ function YuklemeListesi({ onEk, geriAlabilir }: { onEk: StatikKaynak; geriAlabil
     onError: (error) => {
       toast.error(t(apiErrorKey(error)))
       setSilinecek(null)
+    },
+    onSettled: () => {
+      suruyor.current = false
     },
   })
 
@@ -118,9 +123,11 @@ function YuklemeListesi({ onEk, geriAlabilir }: { onEk: StatikKaynak; geriAlabil
         onayEtiketi={t('efatura.yuklemeler.geriAl')}
         yukleniyor={geriAl.isPending}
         onayla={() => {
-          if (silinecek !== null && !geriAl.isPending) {
-            geriAl.mutate(silinecek)
+          if (silinecek === null || suruyor.current) {
+            return
           }
+          suruyor.current = true
+          geriAl.mutate(silinecek)
         }}
       />
     </>

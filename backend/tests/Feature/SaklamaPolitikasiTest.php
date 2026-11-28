@@ -184,7 +184,8 @@ final class SaklamaPolitikasiTest extends TestCase
     /**
      * YF-35: bir kararın beklenmeyen hatası (disk dolu → olay günlüğü
      * yazılamıyor) turu kesmez: sonraki yerel silme yine uygulanır ve hata
-     * denetim kaydında görünür.
+     * denetim kaydında görünür. Günlük yalnız bağ kararı sırasında bozuk: yerel
+     * silme tamamlanır, kaydı da "silindi" olur (G1-7: yarım silme başarı sayılmaz).
      */
     public function test_bag_kararinda_beklenmeyen_hata_turu_kesmez_yerel_silme_uygulanir(): void
     {
@@ -195,16 +196,49 @@ final class SaklamaPolitikasiTest extends TestCase
         }
         $elle = $this->yedek(9);
         $this->yedek(8);
-        // Olay günlüğünün yerinde klasör: her olay eklemesi hata verir
+        // Olay günlüğünün yerinde klasör: olay eklemesi hata verir. Bağ kararının
+        // hatası denetime yazılınca günlük düzelir (yalnız o karar düşer)
+        $olaylar = config('yedekleme.klasor').'/olaylar.jsonl';
+        @unlink($olaylar);
+        mkdir($olaylar);
+        YedekIslemKaydi::created(function (YedekIslemKaydi $kayit) use ($olaylar): void {
+            if ($kayit->islem === 'saklama_bag' && is_dir($olaylar)) {
+                rmdir($olaylar);
+            }
+        });
+
+        app(SaklamaPolitikasi::class)->uygula();
+
+        $this->assertFileDoesNotExist(config('yedekleme.klasor').'/'.$elle->dosya_adi);
+        $this->assertNotNull($elle->refresh()->yerel_silinme_zamani);
+        $this->assertTrue(YedekIslemKaydi::query()->where('islem', 'saklama_bag')->where('sonuc', IslemSonucu::Basarisiz->value)
+            ->get()->contains(fn (YedekIslemKaydi $k): bool => $k->ayrinti['kod'] === SaklamaPolitikasi::BEKLENMEYEN_HATA));
+    }
+
+    /**
+     * G1-7 (YF-35'in ana klasör eşi): yedek klasörünün kendisi olan Yerel
+     * hedefte de disk doluyken (olay günlüğü yazılamıyor) önce dosya silinir,
+     * yer açılır; tek kararın hatası gruptaki sonraki silmeleri kesmez.
+     */
+    public function test_ana_klasor_hedefinde_olay_gunlugu_yazilamasa_da_silinecek_dosyalar_silinir(): void
+    {
+        $ana = $this->anaYerelHedef();
+        $plan = $this->plan($ana, 1);
+        $yedekler = [];
+        foreach ([5, 3, 1] as $gun) {
+            $yedekler[$gun] = $this->yedek($gun, YedekKaynagi::Plan);
+            $this->kopya($yedekler[$gun], $ana, [$plan]);
+        }
         $olaylar = config('yedekleme.klasor').'/olaylar.jsonl';
         @unlink($olaylar);
         mkdir($olaylar);
 
         app(SaklamaPolitikasi::class)->uygula();
 
-        $this->assertFileDoesNotExist(config('yedekleme.klasor').'/'.$elle->dosya_adi);
-        $this->assertTrue(YedekIslemKaydi::query()->where('islem', 'saklama_bag')->where('sonuc', IslemSonucu::Basarisiz->value)
-            ->get()->contains(fn (YedekIslemKaydi $k): bool => $k->ayrinti['kod'] === SaklamaPolitikasi::BEKLENMEYEN_HATA));
+        $klasor = config('yedekleme.klasor');
+        $this->assertFileDoesNotExist($klasor.'/'.$yedekler[5]->dosya_adi);
+        $this->assertFileDoesNotExist($klasor.'/'.$yedekler[3]->dosya_adi);
+        $this->assertFileExists($klasor.'/'.$yedekler[1]->dosya_adi);
     }
 
     public function test_bir_hedefteki_silme_ayni_yedegin_diger_hedefteki_kopyasina_dokunmaz(): void
@@ -754,7 +788,9 @@ final class SaklamaPolitikasiTest extends TestCase
                 $this->kopya($y, $hedef, [$plan])->update(['kurtarma_hazir' => true]);
             }
         }
-        $this->kopya($eski, $this->bellekHedefi('Başarısız'), durum: KopyaDurumu::Basarisiz);
+        $basarisizHedef = $this->bellekHedefi('Başarısız');
+        YedekPlani::factory()->create()->hedefler()->attach($basarisizHedef, ['sakla_son_adet' => null, 'sakla_gun' => null]);
+        $this->kopya($eski, $basarisizHedef, durum: KopyaDurumu::Basarisiz);
         $this->assertSame($anaOnce, $ana->id < $uzak->id);
 
         $hesap = app(SaklamaPolitikasi::class)->hesapla();
@@ -836,20 +872,76 @@ final class SaklamaPolitikasiTest extends TestCase
         $this->assertFileExists(config('yedekleme.klasor').'/'.$dogrulanmis->dosya_adi);
     }
 
-    /** F7: uzak kopyası doğrulanmamış (başarısız) yedeğin yerel dosyası silinmez. */
-    public function test_uzak_kopyasi_basarisiz_yedegin_yerel_dosyasi_silinmez(): void
+    /**
+     * F7: uzak kopyası yeniden denenecek (başarısız, deneme hakkı süren, hedefi
+     * etkin bir plana bağlı) yedeğin yerel dosyası silinmez. Kalıcı hatalı
+     * kopya da korur: hedef düzeltilince yeniden denenir (G1-3).
+     *
+     * @return array<string, array{0: string|null}>
+     */
+    public static function yenidenDenenecekHatalar(): array
+    {
+        return ['geçici hata' => [null], 'kalıcı hata (kimlik)' => [HedefHatasi::KIMLIK]];
+    }
+
+    #[DataProvider('yenidenDenenecekHatalar')]
+    public function test_uzak_kopyasi_basarisiz_yedegin_yerel_dosyasi_silinmez(?string $hataKodu): void
     {
         $ana = $this->anaYerelHedef();
         $yerelPlan = $this->plan($ana, 1);
         $eski = $this->yedek(5, YedekKaynagi::Plan);
         $this->kopya($eski, $ana, [$yerelPlan]);
         $this->kopya($this->yedek(1, YedekKaynagi::Plan), $ana, [$yerelPlan]);
-        $this->kopya($eski, $this->bellekHedefi('Uzak'), durum: KopyaDurumu::Basarisiz);
+        $uzak = $this->bellekHedefi('Uzak');
+        $yerelPlan->hedefler()->attach($uzak, ['sakla_son_adet' => null, 'sakla_gun' => null]);
+        $this->kopya($eski, $uzak, durum: KopyaDurumu::Basarisiz)->forceFill(['hata_kodu' => $hataKodu])->save();
 
         app(SaklamaPolitikasi::class)->uygula();
 
         $this->assertFileExists(config('yedekleme.klasor').'/'.$eski->dosya_adi);
         $this->assertContains('uzak_kopya_dogrulanmadi', app(SaklamaPolitikasi::class)->hesapla()['korunan'][$eski->id]);
+    }
+
+    /**
+     * G1-3: bir daha denenmeyecek başarısız kopya yerel dosyayı süresiz
+     * tutmaz; yedek kopyası yokmuş gibi planın kuralına girer.
+     *
+     * @return array<string, array{0: string}>
+     */
+    public static function denenmeyecekKopyalar(): array
+    {
+        return [
+            'deneme hakkı bitti' => ['deneme_bitti'],
+            'hedef pasif' => ['hedef_pasif'],
+            'hedef hiçbir plana bağlı değil' => ['plansiz'],
+            'hedefin tek planı pasif' => ['plan_pasif'],
+        ];
+    }
+
+    #[DataProvider('denenmeyecekKopyalar')]
+    public function test_bir_daha_denenmeyecek_basarisiz_kopya_yerel_dosyayi_tutmaz(string $durum): void
+    {
+        $ana = $this->anaYerelHedef();
+        $yerelPlan = $this->plan($ana, 1);
+        $eski = $this->yedek(5, YedekKaynagi::Plan);
+        $this->kopya($eski, $ana, [$yerelPlan]);
+        $this->kopya($this->yedek(1, YedekKaynagi::Plan), $ana, [$yerelPlan]);
+        $uzak = $this->bellekHedefi('Uzak');
+        if ($durum !== 'plansiz') {
+            $uzakPlan = $durum === 'plan_pasif' ? YedekPlani::factory()->create(['aktif' => false]) : $yerelPlan;
+            $uzakPlan->hedefler()->attach($uzak, ['sakla_son_adet' => null, 'sakla_gun' => null]);
+        }
+        $basarisiz = $this->kopya($eski, $uzak, durum: KopyaDurumu::Basarisiz);
+        match ($durum) {
+            'deneme_bitti' => $basarisiz->forceFill(['deneme' => 9])->save(),
+            'hedef_pasif' => $uzak->forceFill(['aktif' => false])->save(),
+            default => null,
+        };
+
+        $this->assertNotContains('uzak_kopya_dogrulanmadi', app(SaklamaPolitikasi::class)->hesapla()['korunan'][$eski->id] ?? []);
+        app(SaklamaPolitikasi::class)->uygula();
+
+        $this->assertFileDoesNotExist(config('yedekleme.klasor').'/'.$eski->dosya_adi);
     }
 
     /**

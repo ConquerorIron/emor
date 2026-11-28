@@ -6,9 +6,9 @@ namespace App\Services\Entegrator;
 
 use App\Models\EFatura;
 use App\Models\EntegratorBaglanti;
-use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Throwable;
 use ZipArchive;
 
 /**
@@ -22,15 +22,18 @@ use ZipArchive;
  * İzibiz'i yormamak için (kullanıcı kuralı: fatura başına istek yok):
  * - toplu indirme (partide en çok 100 fatura), her çalışmada sınırlı istek;
  * - her fatura BİR kez (UBL değişmez);
- * - İzibiz sorunlu bir fatura yüzünden partiyi 10008 ile reddederse parti
- *   ikiye bölünür (istek bütçesinden düşer); tek faturada da olmazsa o fatura
- *   bir gün sonra yeniden denenir, AZAMI_HATA denemeden sonra bırakılır.
+ * - İzibiz sorunlu bir fatura yüzünden partiyi HTTP 400 + kod 10008 ile
+ *   reddederse parti ikiye bölünür (istek bütçesinden düşer); tek faturada da
+ *   olmazsa o fatura "okunamadı" sayılır. Başka her hata (başka 400, erişim,
+ *   okunamayan zip, giriş) turu durdurur — yeniden deneme ve tur kesme
+ *   kararları UblOkumaTuru / EFaturaUblKaydi'de (iki sağlayıcıda ortak).
  *
  * Yalnız OKUMA: okundu bayrakları değişmez (test hesabında ölçüldü).
  */
 final class IzibizUblServisi
 {
-    private const AZAMI_HATA = 3;
+    /** İzibiz'in "partide sorunlu fatura var" kodu: yalnız bunda parti bölünür (C-2) */
+    private const SORUNLU_FATURA_KODU = '10008';
 
     /** ZIP içindeki tek UBL için üst sınır (en büyük gerçek UBL ~1,5 MB; 2026-09-24 ölçümü) */
     private const AZAMI_UBL_BAYT = 20 * 1024 * 1024;
@@ -47,71 +50,70 @@ final class IzibizUblServisi
     public function tazele(EntegratorBaglanti $tanim, int $partiBoyutu, int $azamiIstek): array
     {
         $partiBoyutu = max(1, min($partiBoyutu, EntegratorBaglanti::ENCOK_SAYFA_BOYUTU));
-        $sonuc = ['istek' => 0, 'okunan' => 0, 'hatali' => 0];
+        $tur = new UblOkumaTuru($this->kayit);
 
         /** @var list<array{id: int, kaynak_id: int, ettn: string}> $adaylar */
-        $adaylar = EFatura::query()
-            ->where('entegrator_baglanti_id', $tanim->id)
-            ->where('yon', FaturaYonu::Gelen->value)
-            ->whereNull('ubl_okundu')
-            ->where('ubl_hata', '<', self::AZAMI_HATA)
-            ->where(fn ($q) => $q->whereNull('ubl_son_deneme')
-                ->orWhere('ubl_son_deneme', '<', CarbonImmutable::now()->subDay()))
-            ->orderByDesc('id')
-            ->limit($partiBoyutu * $azamiIstek)
+        $adaylar = $this->kayit->adaylar($tanim, $partiBoyutu * $azamiIstek)
             ->get(['id', 'kaynak_id', 'ettn'])
             ->map(fn (EFatura $f): array => ['id' => $f->id, 'kaynak_id' => $f->kaynak_id, 'ettn' => $f->ettn])
             ->all();
 
+        if ($adaylar === []) {
+            return $tur->bitir();
+        }
+
+        // Giriş hatası döngüden önce: hiçbir fatura işaretlenmeden tur kesilir (C-3)
+        $this->istemci->token($tanim);
+
         // İşlenecek partiler yığını; 10008'de ikiye bölünen parti öne eklenir
         $partiler = array_chunk($adaylar, $partiBoyutu);
 
-        while ($partiler !== [] && $sonuc['istek'] < $azamiIstek) {
+        while ($partiler !== [] && $tur->istekSayisi() < $azamiIstek) {
             $parti = array_shift($partiler);
-            $sonuc['istek']++;
+            $idler = array_column($parti, 'id');
+            $tur->istekYapildi();
 
             try {
-                $zip = $this->istemci->ublIndir($tanim, FaturaYonu::Gelen, array_column($parti, 'kaynak_id'));
+                $veriler = $this->ayikla($this->istemci->ublIndir($tanim, FaturaYonu::Gelen, array_column($parti, 'kaynak_id')));
             } catch (EntegratorHatasi $hata) {
-                // Erişim/kimlik sorunu: bu çalışma durur, bir sonraki yeniden dener
-                if ($hata->kod !== EntegratorHatasi::HATA || $hata->saglayiciHttpDurumu !== 400) {
-                    throw $hata;
+                if (! $this->sorunluFaturaMi($hata)) {
+                    $tur->durdur($hata, $idler);
                 }
 
                 if (count($parti) > 1) {
                     $yari = (int) ceil(count($parti) / 2);
                     array_unshift($partiler, array_slice($parti, 0, $yari), array_slice($parti, $yari));
                 } else {
-                    $this->kayit->hataliIsaretle(array_column($parti, 'id'));
-                    $sonuc['hatali']++;
+                    $tur->okunamadi($idler);
                 }
 
                 continue;
             }
 
-            $veriler = $this->ayikla($zip);
-
+            // Önce okunanlar: partinin başındaki eksikler okunabilen faturaları devre kesiciye takmasın
+            $eksikler = [];
             foreach ($parti as $fatura) {
                 $veri = $veriler[mb_strtolower($fatura['ettn'])] ?? null;
 
-                // Zipte gelmedi ya da okunamadı: bir gün sonra yeniden denenir
                 if ($veri === null) {
-                    $this->kayit->hataliIsaretle([$fatura['id']]);
-                    $sonuc['hatali']++;
-
-                    continue;
+                    $eksikler[] = $fatura['id'];
+                } else {
+                    $tur->okundu($fatura['id'], $veri);
                 }
+            }
 
-                $this->kayit->yaz($fatura['id'], $veri);
-                $sonuc['okunan']++;
+            // Zipte gelmedi ya da okunamadı: bir gün sonra yeniden denenir
+            if ($eksikler !== []) {
+                $tur->okunamadi($eksikler);
             }
         }
 
-        return $sonuc;
+        return $tur->bitir();
     }
 
     /**
-     * Zipteki her okunabilen UBL, küçük harf ETTN => veri.
+     * Zipteki her okunabilen UBL, küçük harf ETTN => veri. Okunamayan girdi
+     * (klasör, boş dosya, bozuk XML) atlanır; zip açılamazsa YANIT_GECERSIZ.
      *
      * @return array<string, UblVerisi>
      */
@@ -131,8 +133,7 @@ final class IzibizUblServisi
 
             $veriler = [];
             for ($i = 0; $i < $zip->numFiles; $i++) {
-                $boyut = $zip->statIndex($i)['size'] ?? 0;
-                $veri = $boyut <= self::AZAMI_UBL_BAYT ? $this->okuyucu->oku((string) $zip->getFromIndex($i)) : null;
+                $veri = $this->girdiyiOku($zip, $i);
 
                 if ($veri !== null) {
                     $veriler[$veri->ettn] = $veri;
@@ -146,5 +147,28 @@ final class IzibizUblServisi
         } finally {
             @unlink($yol);
         }
+    }
+
+    /** Tek girdinin hatası (zehirli belge) zipin geri kalanını düşürmez (C-4). */
+    private function girdiyiOku(ZipArchive $zip, int $sira): ?UblVerisi
+    {
+        if (($zip->statIndex($sira)['size'] ?? 0) > self::AZAMI_UBL_BAYT) {
+            return null;
+        }
+
+        try {
+            return $this->okuyucu->oku((string) $zip->getFromIndex($sira));
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    /** Partideki tek bir faturanın sorunu: yalnız HTTP 400 + 10008, giriş adımından değil. */
+    private function sorunluFaturaMi(EntegratorHatasi $hata): bool
+    {
+        return ! $hata->girisHatasi
+            && $hata->kod === EntegratorHatasi::HATA
+            && $hata->saglayiciHttpDurumu === 400
+            && $hata->saglayiciKodu === self::SORUNLU_FATURA_KODU;
     }
 }

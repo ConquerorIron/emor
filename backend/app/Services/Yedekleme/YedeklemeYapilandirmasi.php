@@ -142,6 +142,16 @@ final class YedeklemeYapilandirmasi
         return $this->pozitifTamSayi('kopya_deneme');
     }
 
+    /**
+     * Bir kopyanın bütün çalışmalar boyunca en çok deneme sayısı; aşan kopya
+     * bir daha denenmez. Yeniden deneme (PlanliYedek) ile saklama kuralı
+     * (SaklamaPolitikasi, G1-3) bu tek sınırı kullanır.
+     */
+    public function kopyaAzamiDeneme(): int
+    {
+        return $this->kopyaDenemeSayisi() * PlanliYedek::EN_COK_TUR;
+    }
+
     public function kopyaBeklemeGunu(): int
     {
         return $this->pozitifTamSayi('kopya_bekleme_gun');

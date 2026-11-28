@@ -10,6 +10,7 @@ use App\Models\EntegratorBaglanti;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Sleep;
 use Tests\TestCase;
 
 /**
@@ -27,8 +28,11 @@ final class ProtelUblTest extends TestCase
     /** @var list<array<string, mixed>> Protel'e giden belge istekleri */
     private array $istekler = [];
 
-    /** @var array<string, int|string> ETTN => HTTP durumu ya da 'baska' (başka faturanın XML'i) */
+    /** @var array<string, int|string> ETTN => HTTP durumu, 'baska' (başka faturanın XML'i) ya da 'bos' (boş içerik) */
     private array $sorunlar = [];
+
+    /** @var list<int> Sıradaki giriş isteklerinin HTTP durumları; bitince giriş başarılı */
+    private array $girisDurumlari = [];
 
     private function ubl(string $ettn): string
     {
@@ -52,7 +56,13 @@ final class ProtelUblTest extends TestCase
         Http::preventStrayRequests();
         Http::fake(function (Request $istek) {
             if ($istek->url() === self::GIRIS_URL) {
-                return ProtelIstemcisiTest::girisYaniti();
+                $durum = array_shift($this->girisDurumlari) ?? 200;
+
+                return match ($durum) {
+                    200 => ProtelIstemcisiTest::girisYaniti(),
+                    401 => Http::response(['result' => 'LoginFailed'], 401),
+                    default => Http::response(['status' => 'Forbidden'], $durum),
+                };
             }
             if ($istek->url() !== self::PDF_URL) {
                 return null;
@@ -64,6 +74,10 @@ final class ProtelUblTest extends TestCase
 
             if (is_int($sorun)) {
                 return Http::response(['status' => 'NotFound'], $sorun);
+            }
+
+            if ($sorun === 'bos') {
+                return Http::response(['isSuccess' => false, 'resultMessage' => 'Success', 'outputDatas' => ['']]);
             }
 
             // Protel düz XML'i base64 verir, BOM'lu olabilir (ölçüm 2026-11-26)
@@ -110,7 +124,7 @@ final class ProtelUblTest extends TestCase
         $this->assertCount(1, $this->istekler);
     }
 
-    public function test_faturaya_ozgu_4xx_ve_baska_faturanin_xmli_okunamadi_sayilir_digerleri_okunur_calisma_sinirli(): void
+    public function test_faturaya_ozgu_404_ve_baska_faturanin_xmli_okunamadi_sayilir_digerleri_okunur_calisma_sinirli(): void
     {
         config(['efatura.protel_ubl_azami_istek' => 3]);
         $tanim = EntegratorBaglanti::factory()->protel()->aktif()->create();
@@ -138,11 +152,12 @@ final class ProtelUblTest extends TestCase
         $this->assertSame(1, $bulunamayan->fresh()->ubl_hata);
     }
 
-    public function test_sunucu_hatasi_calismayi_durdurur_fatura_okunamadi_sayilmaz(): void
+    public function test_sunucu_hatasi_turu_durdurur_faturayi_sayacsiz_erteler_sonraki_tur_eski_faturayi_okur(): void
     {
+        Sleep::fake();
         $tanim = EntegratorBaglanti::factory()->protel()->aktif()->create();
         // En yeni (en büyük kimlik) ilk istenir
-        $this->fatura($tanim, 1);
+        $eski = $this->fatura($tanim, 1);
         $ilk = $this->fatura($tanim, 2);
         $this->sorunlar = [$ilk->ettn => 503];
         $this->sahteProtel();
@@ -152,7 +167,112 @@ final class ProtelUblTest extends TestCase
         // 5xx'te istemci kısa bir yeniden deneme yapar; ikinci faturaya geçilmez
         $this->assertSame([$ilk->ettn], array_values(array_unique(array_column($this->istekler, 'uuid'))));
         $this->assertSame(0, $ilk->fresh()->ubl_hata);
+        $this->assertNotNull($ilk->fresh()->ubl_son_deneme);
         $this->assertSame(0, EFatura::query()->whereNotNull('ubl_okundu')->count());
+
+        // Sorunlu fatura kuyruğun başını kilitlemez
+        $this->artisan('efatura:ubl-oku --saglayici=protel')
+            ->expectsOutput('UBL [test] Protel: 1 istek, 1 fatura okundu, 0 okunamadı')
+            ->assertSuccessful();
+        $this->assertNotNull($eski->fresh()->ubl_okundu);
+    }
+
+    public function test_404_disindaki_4xx_turu_durdurur_fatura_okunamadi_sayilmaz(): void
+    {
+        $tanim = EntegratorBaglanti::factory()->protel()->aktif()->create();
+        foreach (range(1, 5) as $no) {
+            $this->sorunlar[$this->fatura($tanim, $no)->ettn] = 403;
+        }
+        $this->sahteProtel();
+
+        $this->artisan('efatura:ubl-oku --saglayici=protel')->assertFailed();
+
+        $this->assertCount(1, $this->istekler);
+        $this->assertSame(0, (int) EFatura::query()->sum('ubl_hata'));
+    }
+
+    public function test_hic_okunmadan_art_arda_uc_404_turu_keser_hicbir_fatura_isaretlenmez(): void
+    {
+        $tanim = EntegratorBaglanti::factory()->protel()->aktif()->create();
+        foreach (range(1, 5) as $no) {
+            $this->sorunlar[$this->fatura($tanim, $no)->ettn] = 404;
+        }
+        $this->sahteProtel();
+
+        $this->artisan('efatura:ubl-oku --saglayici=protel')->assertFailed();
+
+        $this->assertCount(3, $this->istekler);
+        // Sayaç artmaz ama istenen üç fatura ertelenir: sonraki tur kalan ikisiyle sürer
+        $this->assertSame(0, (int) EFatura::query()->sum('ubl_hata'));
+        $this->assertSame(3, EFatura::query()->whereNotNull('ubl_son_deneme')->count());
+
+        $this->artisan('efatura:ubl-oku --saglayici=protel');
+        $this->assertCount(5, $this->istekler);
+    }
+
+    public function test_bos_icerikli_ubl_okunamadi_sayilir_diger_fatura_okunur(): void
+    {
+        $tanim = EntegratorBaglanti::factory()->protel()->aktif()->create();
+        $saglam = $this->fatura($tanim, 1);
+        $bos = $this->fatura($tanim, 2);
+        $this->sorunlar = [$bos->ettn => 'bos'];
+        $this->sahteProtel();
+
+        $this->artisan('efatura:ubl-oku --saglayici=protel')
+            ->expectsOutput('UBL [test] Protel: 2 istek, 1 fatura okundu, 1 okunamadı')
+            ->assertSuccessful();
+
+        $this->assertSame(1, $bos->fresh()->ubl_hata);
+        $this->assertNotNull($saglam->fresh()->ubl_okundu);
+    }
+
+    public function test_giris_reddedilirse_tek_giris_istegi_gider_fatura_istenmez_isaretlenmez(): void
+    {
+        $tanim = EntegratorBaglanti::factory()->protel()->aktif()->create();
+        foreach (range(1, 3) as $no) {
+            $this->fatura($tanim, $no);
+        }
+        $this->girisDurumlari = [403, 403, 403];
+        $this->sahteProtel();
+
+        $this->artisan('efatura:ubl-oku --saglayici=protel')->assertFailed();
+
+        $this->assertCount(1, Http::recorded(fn (Request $istek): bool => $istek->url() === self::GIRIS_URL));
+        $this->assertSame([], $this->istekler);
+        $this->assertSame(0, EFatura::query()->whereNotNull('ubl_son_deneme')->count());
+    }
+
+    public function test_kimlik_reddinde_tur_kesilir_sonraki_tur_giris_denemez(): void
+    {
+        $tanim = EntegratorBaglanti::factory()->protel()->aktif()->create();
+        $fatura = $this->fatura($tanim, 1);
+        $this->girisDurumlari = [401, 401];
+        $this->sahteProtel();
+
+        $this->artisan('efatura:ubl-oku --saglayici=protel')->assertFailed();
+        $this->artisan('efatura:ubl-oku --saglayici=protel')->assertFailed();
+
+        // Reddedilen kimlik yeniden denenmez (D8): ikinci turda Protel'e hiç istek yok
+        $this->assertCount(1, Http::recorded(fn (Request $istek): bool => $istek->url() === self::GIRIS_URL));
+        $this->assertSame([], $this->istekler);
+        $this->assertSame(0, $fatura->fresh()->ubl_hata);
+    }
+
+    public function test_dongude_token_yenilemesinin_hatasi_faturaya_ozgu_sayilmaz(): void
+    {
+        $tanim = EntegratorBaglanti::factory()->protel()->aktif()->create();
+        $eski = $this->fatura($tanim, 1);
+        $ilk = $this->fatura($tanim, 2);
+        // Fatura ucu token'ı reddeder; yenileme girişi 404 döner (fatura değil giriş sorunu)
+        $this->sorunlar = [$ilk->ettn => 401];
+        $this->girisDurumlari = [200, 404];
+        $this->sahteProtel();
+
+        $this->artisan('efatura:ubl-oku --saglayici=protel')->assertFailed();
+
+        $this->assertSame(0, $ilk->fresh()->ubl_hata);
+        $this->assertNull($ilk->fresh()->ubl_son_deneme);
+        $this->assertNull($eski->fresh()->ubl_okundu);
     }
 
     public function test_protel_modulu_kapaliyken_istek_gitmez(): void

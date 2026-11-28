@@ -13,8 +13,10 @@ WITH_SEED=0
 WITH_BACKUP=1
 WITH_DOWN=1
 BACKUP_DIR="${EMOR_BACKUP_DIR:-/var/backups/emor}"
-# Yayın kilidi başkasındaysa en çok bu kadar saniye beklenir (BY-013-R1)
-KILIT_BEKLEME="${EMOR_YAYIN_KILIT_BEKLEME:-60}"
+# Yayın kilidi başkasındaysa en çok bu kadar saniye beklenir (BY-013-R1).
+# Servis kipinde çalıştırıcı bir turun işini (planlı yedek ve kopyaları)
+# yayın kilidini tutarak yapar (G1-8): bekleme o işin süresini karşılasın.
+KILIT_BEKLEME="${EMOR_YAYIN_KILIT_BEKLEME:-900}"
 
 usage() {
   cat <<'EOF'
@@ -62,10 +64,21 @@ fi
 echo "==> Deploy başladı (branch: $BRANCH)"
 
 # Çıkışta (başarı, hata ya da öldürülme): yayının açtığı bakım modu kapanır,
-# özel görünüm klasörü silinir. Değişkenler aşağıdaki adımlarda dolar.
+# özel görünüm klasörü silinir. Yayın uygulama önbelleğini silip kod
+# değişmeden durduysa (kilit meşgul, açık geri yükleme, yedek başarısız, kod
+# çekme düştü) önbellek bakım modu kapanmadan geri kurulur (G1-4): site bir
+# sonraki yayına kadar önbelleksiz kalmaz, web packages.php / services.php'yi
+# kendisi yazamadığı için 500 vermez. Kod değiştiyse (checkout / pull'dan sonra)
+# geri kurulmaz: yarım yayının kodu önbelleğe yazılmasın. Değişkenler aşağıdaki
+# adımlarda dolar.
 BAKIM_BIZIM=0
 GORUNUM_KLASORU=""
+ONBELLEK_SILINDI=0
+KOD_DEGISTI=0
 cleanup() {
+  if [[ "$ONBELLEK_SILINDI" -eq 1 && "$KOD_DEGISTI" -eq 0 ]]; then
+    (unset VIEW_COMPILED_PATH && php backend/artisan optimize) || echo "UYARI: Uygulama önbelleği geri kurulamadı; elle: php backend/artisan optimize"
+  fi
   if [[ "$BAKIM_BIZIM" -eq 1 ]]; then
     php backend/artisan up || true
   fi
@@ -86,12 +99,17 @@ trap cleanup EXIT
 #   - klasöre grup / başkaları yazamaz, ek ACL girdisi yok (varsayılan ACL
 #     umask'ı geçersiz kılardı — G5);
 #   - içindeki bütün *.php (bağlantılar dahil) silinir: web'in daha önce
-#     yazmış olabileceği hiçbir dosya yüklenmez. Sonraki ilk php çağrısı
-#     packages.php / services.php'yi admin olarak yeniden üretir;
+#     yazmış olabileceği hiçbir dosya yüklenmez. Hemen ardından gelen ilk php
+#     çağrısı (yayın koruması) packages.php / services.php'yi admin olarak
+#     yeniden üretir; silme ile o çağrı arasına başka iş konmaz. Bu aralıkta
+#     (bir php açılışı kadar; site henüz bakım modunda değil) gelen web isteği
+#     ve zamanlayıcı bu iki dosyayı yazamadığı için 500 verir (G1-4).
 #     `optimize:clear` onları da siler, ardından `optimize` süreci açılışta
-#     yeniden üretir ve config / routes / events önbelleklerini yazar. Web
-#     çalışma zamanında bu klasöre yazmaz (yalnız silme ile sonraki çağrı
-#     arasındaki anlık boşlukta önbelleksiz açılır).
+#     yeniden üretir ve config / routes / events önbelleklerini yazar; o aralık
+#     bakım modundadır (503 index.php'de, uygulama açılmadan) — `--no-down`
+#     ile yayında orada da kısa bir 500 penceresi olur. Web çalışma zamanında
+#     bu klasöre yazmaz. Yayın kod çekmeden durursa önbellek çıkış tuzağında
+#     geri kurulur (cleanup).
 #   - umask 022: admin'in ürettiği önbellek dosyaları da grup yazılabilir olmaz.
 #     Önceki umask yalnız web ile ORTAK günlük dosyalarına yazan yayın öncesi
 #     yedek için korunur (aşağıda).
@@ -118,12 +136,14 @@ chmod g-w,o-w "$ONBELLEK"
 if command -v getfacl >/dev/null 2>&1 && [[ -n "$(getfacl -cps "$ONBELLEK" 2>/dev/null)" ]]; then
   setfacl -b "$ONBELLEK"
 fi
+GORUNUM_KLASORU="$(mktemp -d)"
+export VIEW_COMPILED_PATH="$GORUNUM_KLASORU"
+# Yarım silmede de çıkış tuzağı önbelleği geri kurar
+ONBELLEK_SILINDI=1
 if ! find "$ONBELLEK" -maxdepth 1 -name '*.php' ! -type d -delete; then
   echo "HATA: $ONBELLEK içindeki önbellek dosyaları silinemedi; yayın yapılmadı."
   exit 1
 fi
-GORUNUM_KLASORU="$(mktemp -d)"
-export VIEW_COMPILED_PATH="$GORUNUM_KLASORU"
 
 # --------- 0. Yayın koruması (BY-013-R1, BY-029-R1) ---------
 # Yedekleme modülü açıksa yayın, betik bitene kadar YAYIN KİLİDİNİ tutar
@@ -147,7 +167,7 @@ if [[ -n "$KILIT_YOLU" ]]; then
   KILIT_KODU=0
   flock -w "$KILIT_BEKLEME" -E 75 9 || KILIT_KODU=$?
   if [[ "$KILIT_KODU" -eq 75 ]]; then
-    echo "HATA: Başka bir yayın ya da üstüne geri yükleme sürüyor (yayın kilidi $KILIT_BEKLEME sn'de boşalmadı); yayın yapılmadı. Biraz sonra tekrar deneyin."
+    echo "HATA: Başka bir yayın, üstüne geri yükleme ya da yedekleme işi sürüyor (yayın kilidi $KILIT_BEKLEME sn'de boşalmadı); yayın yapılmadı. Biraz sonra tekrar deneyin."
     exit 1
   elif [[ "$KILIT_KODU" -ne 0 ]]; then
     echo "HATA: Yayın kilidi alınamadı (flock çıkış $KILIT_KODU; başka işlem tutmuyor); yayın yapılmadı."
@@ -197,6 +217,8 @@ fi
 # --------- 3. Kod güncelleme ---------
 echo "==> Kod çekiliyor (origin/$BRANCH)"
 git fetch origin "$BRANCH"
+# Buradan sonra çalışma ağacı değişebilir: yarıda kalan yayında önbellek geri kurulmaz (cleanup)
+KOD_DEGISTI=1
 git checkout "$BRANCH"
 git config core.fileMode false
 

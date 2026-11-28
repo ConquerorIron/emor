@@ -515,11 +515,73 @@ describe('IsgucuKesintileriPage', () => {
     expect(
       await within(dialog).findByText('1 satır kontrolden geçti, kaydedilmeye hazır.'),
     ).toBeInTheDocument()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet (1 satır)' }))
+    // Bekleme durumu bir sonraki çizimde gelir: art arda iki tıklama tek parti (F5)
+    const kaydet = within(dialog).getByRole('button', { name: 'Kaydet (1 satır)' })
+    fireEvent.click(kaydet)
+    fireEvent.click(kaydet)
 
     await waitFor(() =>
       expect(api.aktar).toHaveBeenCalledWith({ metin: 'İŞGÜCÜ\tHAB\tFIRAT AKYILDIZ' }),
     )
+    expect(api.aktar).toHaveBeenCalledTimes(1)
+  })
+
+  it('sekme değişince seçilen dosya bırakılır: boş görünen alanın eski dosyası gönderilmez', async () => {
+    ciz()
+
+    fireEvent.click(await screen.findByRole('button', { name: "Excel'den Aktar" }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Excel dosyası (.xlsx)'), {
+      target: { files: [new File(['xlsx'], 'vazgecilen.xlsx')] },
+    })
+    expect(within(dialog).getByRole('button', { name: 'Kontrol Et' })).toBeEnabled()
+
+    fireEvent.click(within(dialog).getByRole('tab', { name: 'Kopyala-Yapıştır' }))
+    fireEvent.click(within(dialog).getByRole('tab', { name: 'Excel Dosyası' }))
+
+    expect(within(dialog).getByRole('button', { name: 'Kontrol Et' })).toBeDisabled()
+    const aktar = within(dialog).getByRole('button', { name: 'Kontrol Et & Aktar' })
+    expect(aktar).toBeDisabled()
+    fireEvent.click(aktar)
+    expect(api.aktar).not.toHaveBeenCalled()
+  })
+
+  it('kontrol sürerken yapıştırma tablosu kilitli: Kaydet kontrol edilen girdiyi gönderir', async () => {
+    let bitir: (sonuc: IceAktarimOnizlemesi) => void = () => undefined
+    api.onizle.mockImplementationOnce(
+      () =>
+        new Promise<IceAktarimOnizlemesi>((coz) => {
+          bitir = coz
+        }),
+    )
+    api.aktar.mockResolvedValue({
+      id: 5,
+      kaynak: 'yapistirma',
+      dosya_adi: null,
+      satir_sayisi: 1,
+      yukleyen: 'Deneme',
+      olusturma_zamani: '2026-10-30T09:00:00Z',
+    })
+    ciz()
+
+    const dialog = await aktarimiAc('İŞGÜCÜ\tHAB')
+    await waitFor(() => expect(api.onizle).toHaveBeenCalledTimes(1))
+    expect(within(dialog).getByRole('tab', { name: 'Excel Dosyası' })).toBeDisabled()
+    // Kontrol beklerken yeni liste yapıştırılmaya çalışılır
+    fireEvent.paste(within(dialog).getByRole('grid', { name: 'Yapıştırma tablosu' }), {
+      clipboardData: { getData: () => 'İŞGÜCÜ\tYOK' },
+    })
+    bitir({
+      hata: null,
+      eksik_kolonlar: [],
+      satirlar: [{ satir: 1, hatali: false, satir_hatalari: [] }],
+      hatalar: [],
+      toplamlar: [],
+    })
+
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Kaydet (1 satır)' }))
+    await waitFor(() => expect(api.aktar).toHaveBeenCalledTimes(1))
+    expect(api.aktar).toHaveBeenCalledWith({ metin: 'İŞGÜCÜ\tHAB\t' })
   })
 
   it('yapıştırılan veri kontrol edilmeden kaydedilemez; elle satır eklenmez', async () => {

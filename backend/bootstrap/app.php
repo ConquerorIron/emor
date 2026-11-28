@@ -37,6 +37,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // Bakım modundan muaf TEK adres: üstüne geri yüklemenin ilerleme / onay
         // uçları (README §7.2; BY-030 — routes/api.php'deki yolla aynı kalmalı)
         $middleware->preventRequestsDuringMaintenance(except: ['api/v1/yedekleme/ustune-geri-yukleme/*']);
+
+        // Excel'den yapıştırılan tablo (e-Fatura ve Kesinti içe aktarımı) kırpılmaz:
+        // baştaki sekme boş ilk hücredir, baştaki boş satırlar satır numarasıdır
+        // (inceleme B-8). Okuyucu (IceAktarimTablosu::metin) sondaki satır sonlarını atar.
+        $middleware->trimStrings(except: ['metin']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

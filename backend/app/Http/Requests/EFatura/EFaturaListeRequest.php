@@ -55,7 +55,7 @@ final class EFaturaListeRequest extends FormRequest
             'para_birimi' => ['nullable', 'string', 'size:3'],
             'sirala' => ['nullable', Rule::in(EFaturaSorgusu::SIRALAMALAR)],
             'yon' => ['nullable', Rule::in(['asc', 'desc'])],
-            'page' => ['nullable', 'integer', 'min:1'],
+            'page' => ['nullable', 'integer', 'min:1', 'max:1000000'],
             // Excel: ekrandaki listenin ortamı; sunucudaki aktif ortam farklıysa 409 (PRT-R3).
             // Tüm Faturalar'da sağlayıcı başına ortam: `izibiz:canli,protel:canli,logo:canli,…`
             'ortam' => ['nullable', $this->routeIs('tum_faturalar.faturalar.excel')

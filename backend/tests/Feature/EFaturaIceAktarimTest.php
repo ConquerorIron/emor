@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\EFatura;
+use App\Models\EFaturaIslemi;
 use App\Models\EFaturaVergiKalemi;
 use App\Models\EFaturaYuklemesi;
 use App\Models\EntegratorBaglanti;
 use App\Models\Rol;
 use App\Models\User;
+use App\Services\Entegrator\IceAktarim\EFaturaIceAktarimi;
+use App\Services\Entegrator\IceAktarim\LogoFaturaListesi;
 use App\Services\EntegratorBaglantiServisi;
 use App\Services\ErpBelgeArsivi;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -20,6 +23,9 @@ use Illuminate\Support\Facades\Http;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelTarihi;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\TestCase;
 
 /**
@@ -295,6 +301,397 @@ final class EFaturaIceAktarimTest extends TestCase
         $this->assertNull($makbuzKaydi->durum);
     }
 
+    /**
+     * Sonraki bir yüklemenin yeniden yüklediği (güncellediği ya da değişmeyen
+     * olarak eşleştirdiği) faturası olan parti geri alınamaz: silinen satır daha
+     * yeni bir yüklemenin verisini taşır (inceleme B-4; canlıda Logo parti 1 ↔ 4).
+     * Sonraki parti geri alınınca eski parti de geri alınabilir. Aynı saniyedeki
+     * iki yükleme de ayırt edilir (Codex B-4-R1: zaman karşılaştırması 204 veriyordu).
+     *
+     * @return array<string, array{0: string}>
+     */
+    public static function ikinciYuklemeZamanlari(): array
+    {
+        return ['iki saat sonra' => ['2026-11-25 12:00:00'], 'aynı saniyede' => ['2026-11-25 10:00:00']];
+    }
+
+    #[DataProvider('ikinciYuklemeZamanlari')]
+    public function test_sonraki_yuklemenin_eslestirdigi_faturasi_olan_parti_geri_alinamaz_409(string $ikinciZaman): void
+    {
+        $this->sirketTanimi();
+        $kullanici = $this->logocu();
+        $this->travelTo('2026-11-25 10:00:00');
+        $ilk = $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar', ['dosya' => $this->logoDosyasi()])->json('data.id');
+        // Aynı liste: üç fatura da değişmeyen olarak eşleşir
+        $this->travelTo($ikinciZaman);
+        $ikinci = $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar', ['dosya' => $this->logoDosyasi()])
+            ->assertCreated()
+            ->assertJsonPath('data.degismeyen', 3)
+            ->json('data.id');
+        EFaturaVergiKalemi::query()->insert(['efatura_id' => EFatura::query()->value('id'), 'sira' => 1, 'tur' => 'vergi', 'tutar' => '1.0000']);
+
+        $this->actingAs($kullanici)->deleteJson("/api/v1/logo/yuklemeler/{$ilk}")
+            ->assertConflict()
+            ->assertJsonPath('kod', 'YUKLEME_SONRAKI_YUKLEMEDE');
+        $this->assertDatabaseCount('efatura_faturalari', 3);
+        $this->assertDatabaseCount('efatura_vergi_kalemleri', 1);
+        $this->assertDatabaseCount('efatura_yuklemeleri', 2);
+
+        $this->actingAs($kullanici)->deleteJson("/api/v1/logo/yuklemeler/{$ikinci}")->assertNoContent();
+        $this->assertDatabaseCount('efatura_faturalari', 3);
+        $this->actingAs($kullanici)->deleteJson("/api/v1/logo/yuklemeler/{$ilk}")->assertNoContent();
+        $this->assertDatabaseCount('efatura_faturalari', 0);
+    }
+
+    /**
+     * Codex B-4-R2: A faturaları ekler, B ve C aynı faturaları yeniden yükler.
+     * C geri alındıktan sonra B hâlâ durduğu için A geri alınamaz; fatura ve
+     * kalemleri yerinde kalır. B de geri alınınca A geri alınabilir.
+     */
+    public function test_aradaki_parti_durdukca_son_parti_geri_alinsa_da_ilk_parti_geri_alinamaz(): void
+    {
+        $this->sirketTanimi();
+        $kullanici = $this->logocu();
+        $a = $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar', ['dosya' => $this->logoDosyasi()])->json('data.id');
+        $b = $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar', ['dosya' => $this->logoDosyasi()])->assertJsonPath('data.degismeyen', 3)->json('data.id');
+        $c = $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar', ['dosya' => $this->logoDosyasi()])->assertJsonPath('data.degismeyen', 3)->json('data.id');
+        EFaturaVergiKalemi::query()->insert(['efatura_id' => EFatura::query()->value('id'), 'sira' => 1, 'tur' => 'vergi', 'tutar' => '1.0000']);
+
+        $this->actingAs($kullanici)->deleteJson("/api/v1/logo/yuklemeler/{$c}")->assertNoContent();
+        $this->actingAs($kullanici)->deleteJson("/api/v1/logo/yuklemeler/{$a}")
+            ->assertConflict()
+            ->assertJsonPath('kod', 'YUKLEME_SONRAKI_YUKLEMEDE');
+        $this->assertDatabaseCount('efatura_faturalari', 3);
+        $this->assertDatabaseCount('efatura_vergi_kalemleri', 1);
+
+        $this->actingAs($kullanici)->deleteJson("/api/v1/logo/yuklemeler/{$b}")->assertNoContent();
+        $this->actingAs($kullanici)->deleteJson("/api/v1/logo/yuklemeler/{$a}")->assertNoContent();
+        $this->assertDatabaseCount('efatura_faturalari', 0);
+        $this->assertDatabaseCount('efatura_yukleme_faturalari', 0);
+    }
+
+    /**
+     * Bağ tablosundan önce yazılmış satırda dokunan parti bilinmez: aynı
+     * kaynakta duran sonraki parti varsa (ilgisiz olsa da) geri alma 409 (D6,
+     * fazla engelleme yönü — D4). Bağı olan satırda ilgisiz parti engellemez.
+     */
+    public function test_dokunan_partisi_bilinmeyen_eski_satirda_sonraki_parti_varsa_geri_alma_409(): void
+    {
+        $this->sirketTanimi();
+        $kullanici = $this->logocu();
+        $ilk = $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar', ['dosya' => $this->logoDosyasi()])->json('data.id');
+        $baskaFaturalar = [];
+        foreach ([0, 1, 2] as $satir) {
+            $baskaFaturalar[$satir] = [1 => 'BSK202600000000'.$satir, 15 => 'BBBBBBBB-1111-4111-8111-00000000000'.$satir];
+        }
+        $ilgisiz = $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar', ['dosya' => $this->logoDosyasi($baskaFaturalar)])
+            ->assertCreated()
+            ->assertJsonPath('data.yeni', 3)
+            ->json('data.id');
+
+        // Bağ varken ilgisiz sonraki parti engellemez: deneme işlemde geri alınır
+        DB::beginTransaction();
+        $this->actingAs($kullanici)->deleteJson("/api/v1/logo/yuklemeler/{$ilk}")->assertNoContent();
+        DB::rollBack();
+
+        DB::table('efatura_yukleme_faturalari')->where('yukleme_id', $ilk)->delete();
+        $this->actingAs($kullanici)->deleteJson("/api/v1/logo/yuklemeler/{$ilk}")
+            ->assertConflict()
+            ->assertJsonPath('kod', 'YUKLEME_SONRAKI_YUKLEMEDE');
+        $this->assertSame(3, EFatura::query()->where('yukleme_id', $ilk)->count());
+
+        $this->actingAs($kullanici)->deleteJson("/api/v1/logo/yuklemeler/{$ilgisiz}")->assertNoContent();
+        $this->actingAs($kullanici)->deleteJson("/api/v1/logo/yuklemeler/{$ilk}")->assertNoContent();
+        $this->assertDatabaseCount('efatura_faturalari', 0);
+    }
+
+    /**
+     * Aynı partinin ikinci geri alma isteği (iki kullanıcı / çift tıklama) parti
+     * kilit altında yeniden okunduğu için 404 alır; geçmişe tek kayıt düşer (B-9).
+     */
+    public function test_ayni_parti_ikinci_kez_geri_alinamaz_bulunamadi(): void
+    {
+        $this->sirketTanimi();
+        $kullanici = $this->logocu();
+        $parti = $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar', ['dosya' => $this->logoDosyasi()])->json('data.id');
+        $birinciIstek = EFaturaYuklemesi::query()->findOrFail($parti);
+        $ikinciIstek = EFaturaYuklemesi::query()->findOrFail($parti);
+        $aktarim = app(EFaturaIceAktarimi::class);
+
+        $aktarim->geriAl($birinciIstek, $kullanici);
+        try {
+            $aktarim->geriAl($ikinciIstek, $kullanici);
+            $this->fail('İkinci geri alma reddedilmeliydi.');
+        } catch (NotFoundHttpException) {
+        }
+
+        $this->assertSame(1, EFaturaIslemi::query()->where('islem', 'ice_aktarim_geri_alindi')->count());
+        $this->assertDatabaseCount('efatura_faturalari', 0);
+    }
+
+    /**
+     * Başlıklı Logo yapıştırması (standart kolonlar + Kur); verilen alanlar değiştirilir.
+     *
+     * @param  array<string, string>  $degisen  başlık => değer
+     */
+    private function logoYapistirmasi(array $degisen = []): string
+    {
+        $satir = [
+            'ETTN' => 'AAAAAAAA-1111-4111-8111-000000000031', 'Fatura No' => 'LGO2026000000031', 'Fatura Tarihi' => '05.01.2026',
+            'Gönderici VKN' => '1160417867', 'Alıcı VKN' => self::SIRKET_VKN, 'Toplam Tutar' => '1.180,00', 'Para Birimi' => 'USD', 'Kur' => '',
+            ...$degisen,
+        ];
+
+        return implode("\t", array_keys($satir))."\n".implode("\t", $satir);
+    }
+
+    /**
+     * @return array<string, array{0: array<string, string>, 1: string, 2: string}> [değişen hücre, hatalı alan, kod]
+     */
+    public static function hataliHucreler(): array
+    {
+        return [
+            // Tam biçim (G11; inceleme B-1): kabul edilmeyen tutar sessizce başka sayıya dönmez
+            'İngilizce binlik' => [['Toplam Tutar' => '1,234.56'], 'tutar', 'tutar_gecersiz'],
+            'üslü (Excel bilimsel)' => [['Toplam Tutar' => '1,23E+11'], 'tutar', 'tutar_gecersiz'],
+            'üslü' => [['Toplam Tutar' => '1e5'], 'tutar', 'tutar_gecersiz'],
+            'parantezli eksi' => [['Toplam Tutar' => '(205,76)'], 'tutar', 'tutar_gecersiz'],
+            'harfli' => [['Toplam Tutar' => 'abc12'], 'tutar', 'tutar_gecersiz'],
+            'metin içinde sayı' => [['Toplam Tutar' => 'KDV %20'], 'tutar', 'tutar_gecersiz'],
+            'binlik mi ondalık mı belirsiz' => [['Toplam Tutar' => '43.125'], 'tutar', 'tutar_gecersiz'],
+            // Saklama sınırı decimal(20,4): 16 tam basamak, yuvarlamadan SONRA (G14)
+            'tutar sınırı' => [['Toplam Tutar' => '10000000000000000'], 'tutar', 'tutar_gecersiz'],
+            'yuvarlanınca sınırı aşan' => [['Toplam Tutar' => '9999999999999999,99995'], 'tutar', 'tutar_gecersiz'],
+            // Kur decimal(20,6): 14 tam basamak (inceleme B-7 / E-5)
+            'kur sınırı' => [['Kur' => '100000000000000'], 'kur', 'tutar_gecersiz'],
+            'taşan tarih' => [['Fatura Tarihi' => '30.02.2026'], 'belge_tarihi', 'tarih_gecersiz'],
+            'uzun belge no' => [['Fatura No' => str_repeat('A', 65)], 'belge_no', 'cok_uzun'],
+            'boş tutar' => [['Toplam Tutar' => ''], 'tutar', 'zorunlu'],
+        ];
+    }
+
+    /** @param  array<string, string>  $degisen */
+    #[DataProvider('hataliHucreler')]
+    public function test_gecersiz_hucre_nedeniyle_gosterilir_hicbir_satir_yazilmaz(array $degisen, string $alan, string $kod): void
+    {
+        $this->sirketTanimi();
+        $kullanici = $this->logocu();
+        $metin = $this->logoYapistirmasi($degisen);
+
+        $hatalar = $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar/kontrol', ['metin' => $metin])->assertOk()->json('data.hatalar');
+        $this->assertSame([[$alan, $kod]], array_map(fn (array $h): array => [$h['alan'], $h['kod']], $hatalar));
+        $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar', ['metin' => $metin])
+            ->assertUnprocessable()
+            ->assertJsonPath('kod', 'ICE_AKTARIM_HATALI');
+        $this->assertDatabaseCount('efatura_faturalari', 0);
+    }
+
+    /**
+     * @return array<string, array{0: array<string, string>, 1: string, 2: string}> [değişen hücre, kolon, saklanan]
+     */
+    public static function kabulEdilenSayilar(): array
+    {
+        return [
+            'Türkçe binlikli' => [['Toplam Tutar' => '1.234,56'], 'tutar', '1234.5600'],
+            'Türkçe binliksiz' => [['Toplam Tutar' => '1234,56'], 'tutar', '1234.5600'],
+            'noktalı ondalık' => [['Toplam Tutar' => '1234.5'], 'tutar', '1234.5000'],
+            'eksi' => [['Toplam Tutar' => '-12,30'], 'tutar', '-12.3000'],
+            'para simgeli' => [['Toplam Tutar' => '1.234,56 ₺'], 'tutar', '1234.5600'],
+            // Kur altı basamakla (kolon decimal(20,6); inceleme B-7 / E-5)
+            'kur altı basamak' => [['Kur' => '0,290412'], 'kur', '0.290412'],
+        ];
+    }
+
+    /** @param  array<string, string>  $degisen */
+    #[DataProvider('kabulEdilenSayilar')]
+    public function test_yapistirilan_sayi_kabul_edilen_bicimde_birebir_yazilir(array $degisen, string $kolon, string $beklenen): void
+    {
+        $this->sirketTanimi();
+
+        $this->actingAs($this->logocu())->post('/api/v1/logo/ice-aktar', ['metin' => $this->logoYapistirmasi($degisen)])
+            ->assertCreated();
+
+        $this->assertSame($beklenen, EFatura::query()->sole()->getAttribute($kolon));
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: int|float|string, 2: string}> [alan, hücre, okunan]
+     */
+    public static function buyukSayilar(): array
+    {
+        return [
+            // Float'tan geçmez (G14): 16 tam basamakta kuruş korunur, yuvarlama yarımı yukarı
+            'sınırdaki en büyük tutar' => ['tutar', '9999999999999999,9999', '9999999999999999.9999'],
+            '16 tam basamak kuruşlu' => ['tutar', '1234567890123456,23', '1234567890123456.2300'],
+            'yuvarlama' => ['tutar', '12345678901234,23455', '12345678901234.2346'],
+            'eksi yuvarlama' => ['tutar', '-0,00005', '-0.0001'],
+            'sıfıra yuvarlanan eksi' => ['tutar', '-0,00004', '0.0000'],
+            'kur sınırdaki en büyük' => ['kur', '99999999999999,999999', '99999999999999.999999'],
+            // Excel sayı hücresi: Excel'in sakladığı 15 anlamlı basamak birebir
+            'Excel hücresi 15 basamak' => ['tutar', 12345678901234.6, '12345678901234.6000'],
+            'Excel tam sayı hücresi' => ['tutar', 1000000000000000, '1000000000000000.0000'],
+        ];
+    }
+
+    /**
+     * Sayının değeri okuyucu katmanında (SQLite decimal'i REAL saklar, bu
+     * hassasiyeti veritabanından geri okuyarak sınamak yalnız PostgreSQL'de anlamlı — T6).
+     */
+    #[DataProvider('buyukSayilar')]
+    public function test_buyuk_sayilar_floattan_gecmeden_birebir_okunur(string $alan, int|float|string $hucre, string $beklenen): void
+    {
+        $degerler = ['ettn' => 'AAAAAAAA-1111-4111-8111-000000000031', 'belge_no' => 'LGO1', 'belge_tarihi' => '05.01.2026',
+            'gonderici_vkn' => '1160417867', 'tutar' => '1,00', 'para_birimi' => 'USD', $alan => $hucre];
+
+        [$alanlar, $hatalar] = (new LogoFaturaListesi)->donustur($degerler, []);
+
+        $this->assertSame([], $hatalar);
+        $this->assertSame($beklenen, $alanlar[$alan]);
+    }
+
+    /** Excel'in 15 anlamlı basamağını aşan double güvenilmez: tutar_gecersiz. */
+    public function test_on_bes_anlamli_basamagi_asan_excel_sayisi_reddedilir(): void
+    {
+        [, $hatalar] = (new LogoFaturaListesi)->donustur(['tutar' => 1234567890123456.5], []);
+
+        $this->assertContains(['tutar', 'tutar_gecersiz'], array_map(fn (array $h): array => [$h[0], $h[2]], $hatalar));
+    }
+
+    /** Sınırın kendisi PostgreSQL kolonunda birebir saklanır (G14: iki yanı PostgreSQL'de). */
+    public function test_sinirdaki_en_buyuk_tutar_ve_kur_postgresqlde_birebir_saklanir(): void
+    {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('SQLite decimal kolonu REAL saklar; hassasiyet yalnız PostgreSQL\'de sınanır (T6).');
+        }
+        $this->sirketTanimi();
+
+        $this->actingAs($this->logocu())
+            ->post('/api/v1/logo/ice-aktar', ['metin' => $this->logoYapistirmasi(['Toplam Tutar' => '9999999999999999,9999', 'Kur' => '99999999999999,999999'])])
+            ->assertCreated();
+
+        $fatura = EFatura::query()->sole();
+        $this->assertSame(['9999999999999999.9999', '99999999999999.999999'], [$fatura->tutar, $fatura->kur]);
+    }
+
+    /**
+     * Rapor kolonlarını taşımayan liste (eski biçim ya da kısa yapıştırma) mevcut
+     * rapor verisini silmez; önizleme bu satırı değişmeyen sayar (inceleme B-2 / E-1).
+     */
+    public function test_rapor_kolonsuz_liste_mevcut_rapor_verisini_silmez_degismeyen_sayar(): void
+    {
+        $this->sirketTanimi();
+        $kullanici = $this->logocu();
+        $tam = $this->logoYapistirmasi(['Vergi Hariç Tutar' => '1.100,00', 'İskonto Toplamı' => '50,00', 'Vergi Dahil Tutar' => '1.250,00', 'Kur' => '43,984612']);
+        $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar', ['metin' => $tam])->assertCreated();
+
+        $kisa = implode("\n", array_map(
+            fn (string $satir): string => implode("\t", array_slice(explode("\t", $satir), 0, 7)),
+            explode("\n", $this->logoYapistirmasi()),
+        ));
+        $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar/kontrol', ['metin' => $kisa])
+            ->assertJsonPath('data.ozet.degismeyen', 1)
+            ->assertJsonPath('data.ozet.guncellenecek', 0);
+        $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar', ['metin' => $kisa])->assertCreated()->assertJsonPath('data.degismeyen', 1);
+
+        $fatura = EFatura::query()->sole();
+        $this->assertSame(['1100.0000', '50.0000', '1250.0000', '43.984612'], [$fatura->vergi_haric_tutar, $fatura->indirim_tutari, $fatura->vergi_dahil_tutar, $fatura->kur]);
+    }
+
+    /**
+     * Yapıştırılan metin sunucuda kırpılmaz (inceleme B-8): ilk hücresi boş satır
+     * kaymaz, baştaki boş satırlar satır numarasını kaydırmaz.
+     */
+    public function test_yapistirmanin_bastaki_bos_hucresi_ve_bos_satirlari_korunur(): void
+    {
+        $kullanici = $this->izinli('earsiv_faturalari.goruntule', 'earsiv_faturalari.ice_aktar');
+        // Standart sıra: ünvan (boş), VKN, no, tarih, toplam, ödenecek, vergiler, para birimi
+        $unvansiz = "\t10184522250\tGIB2026000000001\t19.01.2026\t77.658,00\t93.189,60\t15.531,60\tTRY";
+        $vknHatali = "Bahtiyar Usta\t12AB\tGIB2026000000002\t19.01.2026\t1,00\t1,00\t0,00\tTRY";
+
+        $this->actingAs($kullanici)->post('/api/v1/earsiv/ice-aktar/kontrol', ['metin' => $unvansiz, 'belge_turu' => 'fatura'])
+            ->assertOk()
+            ->assertJsonPath('data.hatalar', []);
+        $this->actingAs($kullanici)->post('/api/v1/earsiv/ice-aktar/kontrol', ['metin' => "\n\n".$vknHatali, 'belge_turu' => 'fatura'])
+            ->assertOk()
+            ->assertJsonPath('data.hatalar.0.satirlar', [3]);
+    }
+
+    /**
+     * Excel'de hesaplanamayan formül (alınmayan kolonda bile) 500 değil, okunamayan
+     * dosya hatasıdır (inceleme B-13).
+     */
+    public function test_hesaplanamayan_formullu_dosya_okunamadi_doner(): void
+    {
+        $this->sirketTanimi();
+        $dosya = $this->logoDosyasi([0 => [18 => '=1+*2']]);
+
+        $this->actingAs($this->logocu())->post('/api/v1/logo/ice-aktar/kontrol', ['dosya' => $dosya])
+            ->assertOk()
+            ->assertJsonPath('data.hata', 'dosya_okunamadi');
+        $this->assertDatabaseCount('efatura_faturalari', 0);
+    }
+
+    /**
+     * Satır üst sınırı (config `efatura.ice_aktarim_azami_satir`; inceleme A-3):
+     * aşan liste okunmaz, açık hatayla döner, hiçbir satır yazılmaz.
+     */
+    public function test_satir_siniri_asilinca_cok_fazla_satir_hicbir_satir_yazilmaz(): void
+    {
+        config(['efatura.ice_aktarim_azami_satir' => 2]);
+        $this->sirketTanimi();
+        $kullanici = $this->logocu();
+        $dosya = fn (): UploadedFile => $this->logoDosyasi();
+
+        $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar/kontrol', ['dosya' => $dosya()])
+            ->assertOk()
+            ->assertJsonPath('data.hata', 'cok_fazla_satir')
+            ->assertJsonPath('data.ozet.okunan', 3)
+            ->assertJsonPath('data.azami_satir', 2);
+        $this->actingAs($kullanici)->post('/api/v1/logo/ice-aktar', ['dosya' => $dosya()])
+            ->assertUnprocessable()
+            ->assertJsonPath('data.hata', 'cok_fazla_satir');
+        $this->assertDatabaseCount('efatura_faturalari', 0);
+        $this->assertDatabaseCount('efatura_yuklemeleri', 0);
+    }
+
+    /** Excel okuma pahalı: kontrol / kayıt uçları kullanıcı başına dakikada 20 istekle sınırlı (A-3). */
+    public function test_ice_aktarim_uclari_hiz_sinirini_asinca_429(): void
+    {
+        $kullanici = $this->logocu();
+
+        for ($i = 0; $i < 20; $i++) {
+            $this->actingAs($kullanici)->postJson('/api/v1/logo/ice-aktar/kontrol', [])->assertUnprocessable();
+        }
+
+        $this->actingAs($kullanici)->postJson('/api/v1/logo/ice-aktar', [])
+            ->assertTooManyRequests()
+            ->assertJsonPath('kod', 'COK_FAZLA_ISTEK');
+    }
+
+    /**
+     * Kayıt tek işlemdir: son adım (parti geçmişi) yazılamazsa parti, faturalar
+     * ve vergi kalemleri de geri alınır (T8; inceleme B-16).
+     */
+    public function test_kayit_son_adimda_duserse_parti_faturalar_ve_kalemler_geri_alinir(): void
+    {
+        $this->sirketTanimi();
+        $kancaCalisti = false;
+        EFaturaIslemi::creating(function () use (&$kancaCalisti): never {
+            $kancaCalisti = true;
+
+            throw new RuntimeException('geçmiş yazılamadı');
+        });
+
+        $this->actingAs($this->logocu())
+            ->post('/api/v1/logo/ice-aktar', ['metin' => $this->logoYapistirmasi(['KDV %20' => '100,00', 'KDV %20 Matrah' => '500,00'])])
+            ->assertServerError();
+
+        $this->assertTrue($kancaCalisti);
+        $this->assertDatabaseCount('efatura_yuklemeleri', 0);
+        $this->assertDatabaseCount('efatura_faturalari', 0);
+        $this->assertDatabaseCount('efatura_vergi_kalemleri', 0);
+    }
+
     public function test_parti_geri_alininca_ekledigi_faturalar_silinir_elle_islenmis_varsa_409(): void
     {
         $this->sirketTanimi();
@@ -339,13 +736,6 @@ final class EFaturaIceAktarimTest extends TestCase
     }
 
     /**
-     * Excel'den kopyala-yapıştır (Kesinti'deki gibi): ekran tablosu başlıksız,
-     * kolon ucunun verdiği standart sırayla gönderir; Türkçe biçimli sayı ve
-     * tarih okunur, satır numarası tablonunkiyle aynıdır (aradaki boş satır
-     * sayılır). Başlıkla yapıştırılan metin (Excel'in bütün kolonları) adlardan
-     * tanınır. Kontrol ve kayıt dosyayla aynı kurallardan geçer.
-     */
-    /**
      * Rapor verileri (2026-11-26): Logo dosyasının oran bazında KDV / matrah,
      * tevkifat (ilk kodu), ek vergi, tutar ve kur kolonları UBL'li kaynaklarla
      * aynı tablolara yazılır; yeniden yükleme kalemleri çoğaltmaz, bu kolonları
@@ -385,6 +775,13 @@ final class EFaturaIceAktarimTest extends TestCase
         $this->assertSame($beklenen, $kalemler());
     }
 
+    /**
+     * Excel'den kopyala-yapıştır (Kesinti'deki gibi): ekran tablosu başlıksız,
+     * kolon ucunun verdiği standart sırayla gönderir; Türkçe biçimli sayı ve
+     * tarih okunur, satır numarası tablonunkiyle aynıdır (aradaki boş satır
+     * sayılır). Başlıkla yapıştırılan metin (Excel'in bütün kolonları) adlardan
+     * tanınır. Kontrol ve kayıt dosyayla aynı kurallardan geçer.
+     */
     public function test_logo_listesi_excelden_yapistirilinca_ayni_kontrol_ve_kayit_akisindan_gecer(): void
     {
         $this->sirketTanimi();

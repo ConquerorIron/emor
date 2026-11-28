@@ -38,8 +38,8 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * EK-08). Başka sağlayıcının ya da ortamın faturası listelenmez, açılmaz (404 —
  * varlığı da açık edilmez). Yetkiler rota middleware'inde (`can:efatura.*`,
  * `can:protel_faturalari.*`, `can:logo_faturalari.*`, `can:earsiv_faturalari.*`).
- * XML ve gizleme yalnız İzibiz, "İşlendi" işareti Protel ve statik kaynak
- * rotalarındadır; RED bütün gelen fatura rotalarında.
+ * XML ve gizleme yalnız İzibiz rotalarında; "İşlendi" (SAP) işareti ve RED
+ * bütün gelen fatura rotalarında (İzibiz, Protel, Logo, e-Arşiv).
  */
 final class EFaturaController extends Controller
 {
@@ -80,8 +80,8 @@ final class EFaturaController extends Controller
 
     /**
      * Fatura aslı önce ERP havuzundan, yoksa entegratörden anlık okunur
-     * (saklanmaz; Protel'de yalnız entegratörden, statik kaynakta yalnız
-     * ERP'den — FaturaBelgeServisi).
+     * (saklanmaz; Protel'de yalnız entegratörden; statik kaynakta belge yok,
+     * 404 FATURA_BELGESI_YOK — FaturaBelgeServisi).
      */
     public function pdf(Request $request, int $fatura, FaturaBelgeServisi $belgeler, EFaturaCiktisi $cikti): Response
     {

@@ -163,8 +163,12 @@ Route::prefix('v1')->group(function (): void {
                 ->name('ekranlar.surumler.geri-al');
         });
 
-        // Tüm Faturalar: İzibiz + Protel gelen faturaların birleşik listesi (kapsam
-        // sağlayıcı başına aktif tanım). Kendi izinleri; önce görüntüleme istenir
+        // e-Fatura uçlarında fatura / parti kimliği en çok 18 hane: `int` parametreye
+        // sığmayan kimlik 500 değil 404 (inceleme A-5)
+        //
+        // Tüm Faturalar: bütün kaynakların (İzibiz, Protel, Logo, e-Arşiv) GELEN
+        // faturalarının birleşik listesi (kapsam sağlayıcı başına aktif tanım, statik
+        // kaynaklar her zaman). Kendi izinleri; önce görüntüleme istenir
         Route::middleware('can:tum_faturalar.goruntule')->group(function (): void {
             Route::get('/tum-faturalar/faturalar', [TumFaturalarController::class, 'index'])
                 ->name('tum_faturalar.faturalar');
@@ -172,23 +176,23 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware(['can:tum_faturalar.disari_aktar', 'throttle:efatura-excel'])
                 ->name('tum_faturalar.faturalar.excel');
             Route::get('/tum-faturalar/faturalar/{fatura}/pdf', [TumFaturalarController::class, 'pdf'])
-                ->whereNumber('fatura')
+                ->where('fatura', '[0-9]{1,18}')
                 ->middleware(['can:tum_faturalar.pdf', 'throttle:efatura-pdf'])
                 ->name('tum_faturalar.faturalar.pdf');
             Route::get('/tum-faturalar/faturalar/{fatura}/xml', [TumFaturalarController::class, 'xml'])
-                ->whereNumber('fatura')
+                ->where('fatura', '[0-9]{1,18}')
                 ->middleware(['can:tum_faturalar.pdf', 'throttle:efatura-pdf'])
                 ->name('tum_faturalar.faturalar.xml');
             Route::put('/tum-faturalar/faturalar/{fatura}/red', [TumFaturalarController::class, 'red'])
-                ->whereNumber('fatura')
+                ->where('fatura', '[0-9]{1,18}')
                 ->middleware('can:tum_faturalar.red')
                 ->name('tum_faturalar.faturalar.red');
             Route::put('/tum-faturalar/faturalar/{fatura}/islendi', [TumFaturalarController::class, 'islendi'])
-                ->whereNumber('fatura')
+                ->where('fatura', '[0-9]{1,18}')
                 ->middleware('can:tum_faturalar.isle')
                 ->name('tum_faturalar.faturalar.islendi');
             Route::get('/tum-faturalar/faturalar/{fatura}/gecmis', [TumFaturalarController::class, 'gecmis'])
-                ->whereNumber('fatura')
+                ->where('fatura', '[0-9]{1,18}')
                 ->name('tum_faturalar.faturalar.gecmis');
         });
 
@@ -222,28 +226,28 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware(['can:efatura.disari_aktar', 'throttle:efatura-excel'])
                 ->name('efatura.faturalar.excel');
             Route::get('/efatura/faturalar/{fatura}/pdf', [EFaturaController::class, 'pdf'])
-                ->whereNumber('fatura')
+                ->where('fatura', '[0-9]{1,18}')
                 ->middleware(['can:efatura.pdf', 'throttle:efatura-pdf'])
                 ->name('efatura.faturalar.pdf');
             Route::get('/efatura/faturalar/{fatura}/xml', [EFaturaController::class, 'xml'])
-                ->whereNumber('fatura')
+                ->where('fatura', '[0-9]{1,18}')
                 ->middleware(['can:efatura.pdf', 'throttle:efatura-pdf'])
                 ->name('efatura.faturalar.xml');
             Route::put('/efatura/faturalar/{fatura}/gizli', [EFaturaController::class, 'gizle'])
-                ->whereNumber('fatura')
+                ->where('fatura', '[0-9]{1,18}')
                 ->middleware('can:efatura.gizle')
                 ->name('efatura.faturalar.gizle');
             // "SAP (Manuel İşle)" ve RED yalnız eMOR'da tutulur; İzibiz'e istek gitmez
             Route::put('/efatura/faturalar/{fatura}/islendi', [EFaturaController::class, 'islendi'])
-                ->whereNumber('fatura')
+                ->where('fatura', '[0-9]{1,18}')
                 ->middleware('can:efatura.isle')
                 ->name('efatura.faturalar.islendi');
             Route::put('/efatura/faturalar/{fatura}/red', [EFaturaController::class, 'red'])
-                ->whereNumber('fatura')
+                ->where('fatura', '[0-9]{1,18}')
                 ->middleware('can:efatura.red')
                 ->name('efatura.faturalar.red');
             Route::get('/efatura/faturalar/{fatura}/gecmis', [EFaturaController::class, 'gecmis'])
-                ->whereNumber('fatura')
+                ->where('fatura', '[0-9]{1,18}')
                 ->name('efatura.faturalar.gecmis');
             Route::post('/efatura/senkron', [EFaturaSenkronController::class, 'baslat'])
                 ->middleware('can:efatura.senkron')
@@ -271,23 +275,23 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware(['can:protel_faturalari.disari_aktar', 'throttle:efatura-excel'])
                 ->name('protel.faturalar.excel');
             Route::get('/protel/faturalar/{fatura}/pdf', [EFaturaController::class, 'pdf'])
-                ->whereNumber('fatura')
+                ->where('fatura', '[0-9]{1,18}')
                 ->defaults('saglayici', 'protel')
                 ->middleware(['can:protel_faturalari.pdf', 'throttle:efatura-pdf'])
                 ->name('protel.faturalar.pdf');
             // "İşlendi" işareti yalnız eMOR'da (sap_islendi); Protel'e istek gitmez
             Route::put('/protel/faturalar/{fatura}/islendi', [EFaturaController::class, 'islendi'])
-                ->whereNumber('fatura')
+                ->where('fatura', '[0-9]{1,18}')
                 ->defaults('saglayici', 'protel')
                 ->middleware('can:protel_faturalari.isle')
                 ->name('protel.faturalar.islendi');
             Route::put('/protel/faturalar/{fatura}/red', [EFaturaController::class, 'red'])
-                ->whereNumber('fatura')
+                ->where('fatura', '[0-9]{1,18}')
                 ->defaults('saglayici', 'protel')
                 ->middleware('can:protel_faturalari.red')
                 ->name('protel.faturalar.red');
             Route::get('/protel/faturalar/{fatura}/gecmis', [EFaturaController::class, 'gecmis'])
-                ->whereNumber('fatura')
+                ->where('fatura', '[0-9]{1,18}')
                 ->defaults('saglayici', 'protel')
                 ->name('protel.faturalar.gecmis');
             Route::post('/protel/senkron', [EFaturaSenkronController::class, 'baslat'])
@@ -313,37 +317,38 @@ Route::prefix('v1')->group(function (): void {
                     ->middleware(["can:{$izin}.disari_aktar", 'throttle:efatura-excel'])
                     ->name("{$onEk}.faturalar.excel");
                 Route::put("/{$onEk}/faturalar/{fatura}/islendi", [EFaturaController::class, 'islendi'])
-                    ->whereNumber('fatura')
+                    ->where('fatura', '[0-9]{1,18}')
                     ->defaults('saglayici', $onEk)
                     ->middleware("can:{$izin}.isle")
                     ->name("{$onEk}.faturalar.islendi");
                 Route::put("/{$onEk}/faturalar/{fatura}/red", [EFaturaController::class, 'red'])
-                    ->whereNumber('fatura')
+                    ->where('fatura', '[0-9]{1,18}')
                     ->defaults('saglayici', $onEk)
                     ->middleware("can:{$izin}.red")
                     ->name("{$onEk}.faturalar.red");
                 Route::get("/{$onEk}/faturalar/{fatura}/gecmis", [EFaturaController::class, 'gecmis'])
-                    ->whereNumber('fatura')
+                    ->where('fatura', '[0-9]{1,18}')
                     ->defaults('saglayici', $onEk)
                     ->name("{$onEk}.faturalar.gecmis");
-                // Excel içe aktarımı (EK-06): kontrol → kaydet; partiler ve geri alma
+                // Excel içe aktarımı (EK-06): kontrol → kaydet; partiler ve geri alma.
+                // Kontrol ve kayıt Excel'i okur: hız sınırlı (Kesinti içe aktarımı gibi)
                 Route::get("/{$onEk}/ice-aktar/kolonlar", [EFaturaIceAktarimController::class, 'kolonlar'])
                     ->defaults('saglayici', $onEk)
                     ->middleware("can:{$izin}.ice_aktar")
                     ->name("{$onEk}.ice-aktar.kolonlar");
                 Route::post("/{$onEk}/ice-aktar/kontrol", [EFaturaIceAktarimController::class, 'kontrol'])
                     ->defaults('saglayici', $onEk)
-                    ->middleware("can:{$izin}.ice_aktar")
+                    ->middleware(["can:{$izin}.ice_aktar", 'throttle:efatura-ice-aktarim'])
                     ->name("{$onEk}.ice-aktar.kontrol");
                 Route::post("/{$onEk}/ice-aktar", [EFaturaIceAktarimController::class, 'kaydet'])
                     ->defaults('saglayici', $onEk)
-                    ->middleware("can:{$izin}.ice_aktar")
+                    ->middleware(["can:{$izin}.ice_aktar", 'throttle:efatura-ice-aktarim'])
                     ->name("{$onEk}.ice-aktar");
                 Route::get("/{$onEk}/yuklemeler", [EFaturaIceAktarimController::class, 'index'])
                     ->defaults('saglayici', $onEk)
                     ->name("{$onEk}.yuklemeler");
                 Route::delete("/{$onEk}/yuklemeler/{yukleme}", [EFaturaIceAktarimController::class, 'geriAl'])
-                    ->whereNumber('yukleme')
+                    ->where('yukleme', '[0-9]{1,18}')
                     ->defaults('saglayici', $onEk)
                     ->middleware("can:{$izin}.ice_aktar")
                     ->name("{$onEk}.yuklemeler.geri-al");

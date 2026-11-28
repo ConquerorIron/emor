@@ -108,12 +108,13 @@ export async function hedefSil(id: number): Promise<void> {
   await api.delete(`${KOK}/${id}`)
 }
 
-/** Kaydedilmemiş form değerleriyle de sınanır; `id` verilirse boş sırlar kayıtlıya düşer */
-export async function hedefSina(govde: {
-  id?: number
-  tur: string
-  alanlar: Record<string, HedefDegeri>
-}): Promise<HedefSinamaSonucu> {
+/**
+ * Kaydedilmemiş form değerleriyle de sınanır; `id` verilirse boş sırlar kayıtlıya
+ * düşer, `silinecek_sirlar`daki kayıtlı sırlar düşmez (kayıttaki gibi)
+ */
+export async function hedefSina(
+  govde: Pick<HedefGovdesi, 'alanlar' | 'silinecek_sirlar'> & { id?: number; tur: string },
+): Promise<HedefSinamaSonucu> {
   const yanit = await api.post<{ data: HedefSinamaSonucu }>(`${KOK}/sina`, govde)
 
   return yanit.data.data

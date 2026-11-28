@@ -51,71 +51,71 @@ final class RolTest extends TestCase
         $this->assertSame(['Mevcut'], Rol::query()->pluck('ad')->all());
     }
 
-    public function test_izin_katalogu_doner(): void
+    /**
+     * Roller ekranı ekranları sol menünün sırasıyla listeler (sıra sözleşmesi
+     * tek yerde; yeni ekran eklenince yalnız bu liste değişir — inceleme A-10).
+     */
+    public function test_izin_katalogu_ekranlari_menu_sirasiyla_doner(): void
     {
         $this->yonetici();
 
-        $this->getJson('/api/v1/ayarlar/izinler')
-            ->assertOk()
-            ->assertJsonCount(39, 'data')
-            ->assertJsonPath('data.0', [
-                'ekran' => 'satinalma_talebi',
-                'goruntule' => 'satinalma_talebi.goruntule',
-                'guncelle' => 'satinalma_talebi.guncelle',
-                'ekler' => [],
-            ])
-            // e-Fatura grubu: Pano, Tüm Faturalar, İşlem Geçmişi (EK-09, EK-03); Tüm Faturalar'ın senkronu yok
-            ->assertJsonPath('data.1', [
-                'ekran' => 'efatura_panosu',
-                'goruntule' => 'efatura_panosu.goruntule',
-                'guncelle' => null,
-                'ekler' => [],
-            ])
-            ->assertJsonPath('data.2', [
-                'ekran' => 'tum_faturalar',
-                'goruntule' => 'tum_faturalar.goruntule',
-                'guncelle' => null,
-                'ekler' => ['tum_faturalar.pdf', 'tum_faturalar.disari_aktar', 'tum_faturalar.isle', 'tum_faturalar.red'],
-            ])
-            ->assertJsonPath('data.3.ekran', 'efatura_islem_gecmisi')
-            ->assertJsonPath('data.4', [
-                'ekran' => 'efatura',
-                'goruntule' => 'efatura.goruntule',
-                'guncelle' => 'efatura.senkron',
-                'ekler' => ['efatura.pdf', 'efatura.disari_aktar', 'efatura.gizle', 'efatura.isle', 'efatura.red'],
-            ])
-            // Protel Gelen Faturalar menüde e-Fatura'nın hemen altında (PRT-10)
-            ->assertJsonPath('data.5', [
-                'ekran' => 'protel_faturalari',
-                'goruntule' => 'protel_faturalari.goruntule',
-                'guncelle' => 'protel_faturalari.senkron',
-                'ekler' => ['protel_faturalari.pdf', 'protel_faturalari.disari_aktar', 'protel_faturalari.isle', 'protel_faturalari.red'],
-            ])
-            // Statik kaynaklar (EK-07, EK-08): içe aktarım adıyla görünen ek izin; PDF yok, RED var (2026-11-26)
-            ->assertJsonPath('data.6', [
-                'ekran' => 'logo_faturalari',
-                'goruntule' => 'logo_faturalari.goruntule',
-                'guncelle' => null,
-                'ekler' => ['logo_faturalari.ice_aktar', 'logo_faturalari.disari_aktar', 'logo_faturalari.isle', 'logo_faturalari.red'],
-            ])
-            ->assertJsonPath('data.7', [
-                'ekran' => 'earsiv_faturalari',
-                'goruntule' => 'earsiv_faturalari.goruntule',
-                'guncelle' => null,
-                'ekler' => ['earsiv_faturalari.ice_aktar', 'earsiv_faturalari.disari_aktar', 'earsiv_faturalari.isle', 'earsiv_faturalari.red'],
-            ])
-            ->assertJsonPath('data.37', [
-                'ekran' => 'yedekler',
-                'goruntule' => 'yedekler.goruntule',
-                'guncelle' => 'yedekler.al',
-                'ekler' => ['yedekler.sil', 'yedekler.indir', 'geri_yukleme.kopya'],
-            ])
-            ->assertJsonPath('data.38', [
-                'ekran' => 'yedek_planlari',
-                'goruntule' => 'yedek_planlari.goruntule',
-                'guncelle' => 'yedek_planlari.guncelle',
-                'ekler' => [],
-            ]);
+        $ekranlar = array_column($this->getJson('/api/v1/ayarlar/izinler')->assertOk()->json('data'), 'ekran');
+
+        $this->assertSame([
+            'satinalma_talebi',
+            // e-Fatura grubu: Pano, Tüm Faturalar, İşlem Geçmişi (EK-09, EK-03); Protel
+            // e-Fatura'nın hemen altında (PRT-10); statik kaynaklar (EK-07, EK-08)
+            'efatura_panosu', 'tum_faturalar', 'efatura_islem_gecmisi', 'efatura', 'protel_faturalari',
+            'logo_faturalari', 'earsiv_faturalari',
+            'kesinti_ozeti', 'pivot', 'tum_kesintiler', 'isgucu_kesintileri', 'kamp_kesintileri',
+            'kamp_malzeme_kesintileri', 'makina_ekipman_kesintileri', 'tutanak_kesintileri', 'yemek_kesintileri',
+            'osgb_kesintileri', 'tetkik_kesintileri', 'isg_ceza_kesintileri', 'malzeme_kesintileri',
+            'kart_basim_kesintileri',
+            'erp_kesinti_kontrolu', 'taseron_hakedisleri', 'gider_yansitma_faturalari', 'gelen_fatura_raporu',
+            'projeler', 'firmalar', 'para_birimleri', 'kesinti_turleri',
+            'sql_baglantilari', 'entegrator_baglantilari', 'mail_ayarlari', 'alarm_kurallari',
+            'kullanicilar', 'roller', 'ekran_tasarimi', 'yedekler', 'yedek_planlari',
+        ], $ekranlar);
+    }
+
+    /**
+     * Ekranın izinleri adıyla bulunur (konum numarasıyla değil): başka ekranın
+     * eklenmesi bu beklentileri kaydırmaz.
+     *
+     * @return array<string, array{array{ekran: string, goruntule: string, guncelle: string|null, ekler: list<string>}}>
+     */
+    public static function ekranIzinleri(): array
+    {
+        return [
+            'satınalma talebi' => [['ekran' => 'satinalma_talebi', 'goruntule' => 'satinalma_talebi.goruntule', 'guncelle' => 'satinalma_talebi.guncelle', 'ekler' => []]],
+            'e-Fatura panosu' => [['ekran' => 'efatura_panosu', 'goruntule' => 'efatura_panosu.goruntule', 'guncelle' => null, 'ekler' => []]],
+            // Tüm Faturalar'ın senkronu yok
+            'Tüm Faturalar' => [['ekran' => 'tum_faturalar', 'goruntule' => 'tum_faturalar.goruntule', 'guncelle' => null,
+                'ekler' => ['tum_faturalar.pdf', 'tum_faturalar.disari_aktar', 'tum_faturalar.isle', 'tum_faturalar.red']]],
+            'İzibiz e-Fatura' => [['ekran' => 'efatura', 'goruntule' => 'efatura.goruntule', 'guncelle' => 'efatura.senkron',
+                'ekler' => ['efatura.pdf', 'efatura.disari_aktar', 'efatura.gizle', 'efatura.isle', 'efatura.red']]],
+            'Protel' => [['ekran' => 'protel_faturalari', 'goruntule' => 'protel_faturalari.goruntule', 'guncelle' => 'protel_faturalari.senkron',
+                'ekler' => ['protel_faturalari.pdf', 'protel_faturalari.disari_aktar', 'protel_faturalari.isle', 'protel_faturalari.red']]],
+            // Statik kaynaklar: içe aktarım adıyla görünen ek izin; PDF yok, RED var (2026-11-26)
+            'Logo' => [['ekran' => 'logo_faturalari', 'goruntule' => 'logo_faturalari.goruntule', 'guncelle' => null,
+                'ekler' => ['logo_faturalari.ice_aktar', 'logo_faturalari.disari_aktar', 'logo_faturalari.isle', 'logo_faturalari.red']]],
+            'e-Arşiv' => [['ekran' => 'earsiv_faturalari', 'goruntule' => 'earsiv_faturalari.goruntule', 'guncelle' => null,
+                'ekler' => ['earsiv_faturalari.ice_aktar', 'earsiv_faturalari.disari_aktar', 'earsiv_faturalari.isle', 'earsiv_faturalari.red']]],
+            'yedekler' => [['ekran' => 'yedekler', 'goruntule' => 'yedekler.goruntule', 'guncelle' => 'yedekler.al',
+                'ekler' => ['yedekler.sil', 'yedekler.indir', 'geri_yukleme.kopya']]],
+            'yedek planları' => [['ekran' => 'yedek_planlari', 'goruntule' => 'yedek_planlari.goruntule', 'guncelle' => 'yedek_planlari.guncelle', 'ekler' => []]],
+        ];
+    }
+
+    /** @param  array{ekran: string, goruntule: string, guncelle: string|null, ekler: list<string>}  $beklenen */
+    #[DataProvider('ekranIzinleri')]
+    public function test_izin_katalogu_ekranin_izinlerini_doner(array $beklenen): void
+    {
+        $this->yonetici();
+
+        $ekran = collect($this->getJson('/api/v1/ayarlar/izinler')->assertOk()->json('data'))->firstWhere('ekran', $beklenen['ekran']);
+
+        $this->assertSame($beklenen, $ekran);
     }
 
     public function test_rol_izinleriyle_olusturulur(): void

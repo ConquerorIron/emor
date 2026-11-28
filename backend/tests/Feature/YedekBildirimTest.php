@@ -22,6 +22,7 @@ use App\Services\Yedekleme\YedekOzeti;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Process;
@@ -107,6 +108,30 @@ final class YedekBildirimTest extends TestCase
         $this->assertTrue($kancaCalisti);
         Mail::assertSent(YedeklemeMaili::class, fn (YedeklemeMaili $m): bool => $m->baslik === 'Yedek alınamadı'
             && str_contains(implode("\n", $m->satirlar), 'Planlı yedek çalıştırılamadı: RuntimeException'));
+    }
+
+    /**
+     * G2-3 (D6): planlar okunamıyorsa (PostgreSQL baştan erişilemiyor) bu
+     * "vadesi gelen yok" değildir: zamanlayıcı hata ile çıkar ve bildirir. Mail
+     * ayarı veritabanından okunamayınca dosya kopyasından gelir.
+     */
+    public function test_planlar_okunamazsa_zamanlayici_hata_verir_ve_mail_gonderir(): void
+    {
+        config(['yedekleme.aktif' => true]);
+        app(AyarKopyasi::class)->yaz();
+        $kancaCalisti = false;
+        DB::connection()->beforeExecuting(function (string $sorgu) use (&$kancaCalisti): void {
+            if (str_contains($sorgu, 'yedek_planlari')) {
+                $kancaCalisti = true;
+                throw new RuntimeException('veritabanına bağlanılamıyor');
+            }
+        });
+
+        $this->artisan('yedek:zamanla')->assertFailed();
+
+        $this->assertTrue($kancaCalisti);
+        Mail::assertSent(YedeklemeMaili::class, fn (YedeklemeMaili $m): bool => $m->baslik === 'Yedek alınamadı'
+            && str_contains(implode("\n", $m->satirlar), 'Yedek planları okunamadı'));
     }
 
     /** Geri yükleme sırasında mail ayarı veritabanında olmayabilir: dosya kopyasından gönderilir. */

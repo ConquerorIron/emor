@@ -11,7 +11,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Statik kaynağın (Logo, e-Arşiv / e-SMM) bir içe aktarım partisi (EK-06).
  * Parti silinince EKLEDİĞİ faturalar da silinir (cascade); güncellediği
- * faturalar eski hâline dönmez.
+ * faturalar eski hâline dönmez. Geri alma kuralları (elle işlem, sonraki
+ * partinin yeniden yüklediği fatura → 409) EFaturaIceAktarimi::geriAl'dadır.
  *
  * @property int $id
  * @property int $entegrator_baglanti_id

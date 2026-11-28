@@ -12,7 +12,10 @@ use App\Services\Yedekleme\Istekler\IstekCalistiricisi;
 use App\Services\Yedekleme\Istekler\UstuneGeriYukleIsleyicisi;
 use App\Services\Yedekleme\UstuneGeriYuklemeAdimi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
+use Illuminate\Contracts\Console\Kernel as ConsoleKernel;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Sleep;
 use Tests\TestCase;
 use Tests\Yedekleme\SahtePostgres;
 use Tests\Yedekleme\UstuneGeriYuklemeOrtami;
@@ -82,6 +85,28 @@ final class YedekYayinKorumasiTest extends TestCase
         $this->assertTrue($yayin->al());
         $yayin->birak();
         $this->artisan('yedek:yayin-korumasi', ['adim' => 'denetle'])->assertFailed();
+    }
+
+    /**
+     * Codex G1-8-R1: servis döngüsü normal işleri yayın kilidini tutarak yürütür.
+     * Döngüde işlenen üstüne geri yükleme aynı kilidi ikinci tutamaçla almaya
+     * kalkmaz (kendi sürecine takılıp YAYIN_SURUYOR almazdı); döngü bitince
+     * kilit boştur.
+     */
+    public function test_servis_dongusunde_ustune_geri_yukleme_kendi_yayin_kilidine_takilmaz(): void
+    {
+        config(['yedekleme.calistirici' => 'servis']);
+        Sleep::fake();
+        $kimlik = $this->ustuneIstegi();
+
+        app(ConsoleKernel::class)->setArtisan(null);
+        Artisan::call('yedek:calistir', ['--en-cok-tur' => 1]);
+
+        $this->assertSame('tamam', app(IstekKutusu::class)->durum($kimlik)['durum'] ?? null);
+        $this->assertSame(UstuneGeriYuklemeAdimi::OnayBekliyor->value, $this->durumOku()?->adim);
+        $yayin = app(YedeklemeYapilandirmasi::class)->yayinKilidi();
+        $this->assertTrue($yayin->al());
+        $yayin->birak();
     }
 
     public function test_koruma_komutu_modul_acikken_kilit_yolunu_verir_kapaliyken_hicbir_sey_yazmaz(): void

@@ -42,7 +42,7 @@ function RedFormu({
     mutationFn: () =>
       faturaRedDegistir(ekran, fatura.id, !geriAl, neden.trim() === '' ? null : neden.trim()),
     onSuccess: (guncel) => {
-      faturaListeleriniTazele(queryClient)
+      void faturaListeleriniTazele(queryClient)
       toast.success(
         t(guncel.red.var ? 'efatura.red.cekildi' : 'efatura.red.geriAlindi', {
           no: guncel.belge_no,

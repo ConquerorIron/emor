@@ -77,7 +77,8 @@ export function GelenFaturaEkrani({
   ekKolonlar?: DataTableKolonu<EFatura>[]
 }) {
   const { t } = useTranslation()
-  const pdfIzni = useIzin(`${izinOneki}.pdf`)
+  // PDF yalnız Protel'de (statik kaynağın belgesi ve PDF izni yok)
+  const pdfIzni = useIzin('protel_faturalari.pdf') && onEk === 'protel'
   const excelIzni = useIzin(`${izinOneki}.disari_aktar`)
   const isleIzni = useIzin(`${izinOneki}.isle`)
   const redIzni = useIzin(`${izinOneki}.red`)
@@ -283,7 +284,7 @@ export function GelenFaturaEkrani({
       render: (f: EFatura) => (
         <div className="flex items-center gap-1">
           {/* Logo / e-Arşiv Excel listesinden gelir: belgesi yok, PDF yalnız Protel'de (2026-11-26) */}
-          {onEk === 'protel' && pdfIzni ? <PdfDugmesi onClick={() => setPdf(f)} /> : null}
+          {pdfIzni ? <PdfDugmesi onClick={() => setPdf(f)} /> : null}
           <RedDugmesi fatura={f} ekran={onEk} izinli={redIzni} />
           <GecmisDugmesi fatura={f} ekran={onEk} />
         </div>
@@ -342,7 +343,13 @@ export function GelenFaturaEkrani({
               }}
               title={t('efatura.excelAciklama')}
               yukleniyor={excelSuruyor}
-              disabled={tarihHatasi !== null || yenileniyor || (liste.data?.meta.total ?? 0) === 0}
+              disabled={
+                tarihHatasi !== null ||
+                yenileniyor ||
+                (liste.data?.meta.total ?? 0) === 0 ||
+                // Bütün kolonlar gizliyse indirilecek bir şey yok; sunucu kolonsuz isteği reddeder
+                excelKolonlari.length === 0
+              }
             >
               {t('efatura.excel')}
             </Button>
@@ -537,7 +544,10 @@ export function GelenFaturaEkrani({
         boyut="devasa"
       >
         {pdf !== null ? (
-          <PdfGoruntuleyici fatura={pdf} pdfGetir={(faturaId) => kaynakPdfGetir(onEk, faturaId)} />
+          <PdfGoruntuleyici
+            fatura={pdf}
+            pdfGetir={(faturaId) => kaynakPdfGetir('protel', faturaId)}
+          />
         ) : null}
       </Modal>
     </>

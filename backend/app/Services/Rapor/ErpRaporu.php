@@ -47,6 +47,17 @@ abstract class ErpRaporu
     /** Pivotlardaki Yıl / Ay'ın türediği tarih kolonu (Y-m-d) */
     public const TARIH_ALANI = '';
 
+    /**
+     * Satırda boş (null = bilinmiyor) olunca özet grubunun toplamını da boş
+     * yapan tutar kolonları: bilinmeyen değer 0 sayılıp grubun toplamı eksik
+     * gösterilmez (ör. kuru olmayan dövizli faturanın TL'si). ERP proc'larının
+     * tutarları hep sayıdır; kural yalnız null değerde devreye girer.
+     * Frontend tanımındaki bosYayilanTutarlar ile aynı olmalı.
+     *
+     * @var list<string>
+     */
+    public const BOS_YAYILAN_TUTARLAR = [];
+
     public function __construct(
         private readonly ErpRaporKaynagi $kaynak,
     ) {}
@@ -54,15 +65,17 @@ abstract class ErpRaporu
     /**
      * Satırlar sekmenin grup kolonlarına göre toplanır: gruplar + satır
      * sayısı + tutar kolonları; gruplar soldan sağa sıralı (Türkçe, sayılar
-     * sayı gibi).
+     * sayı gibi). BOS_YAYILAN_TUTARLAR'dan biri grubun bir satırında boşsa
+     * grubun o hücresi de boş.
      *
      * @param  list<array<string, int|string|float|null>>  $satirlar  ekranda süzülen satırlar
-     * @return list<array<string, int|string|float>>
+     * @return list<array<string, int|string|float|null>>
      */
     public function pivot(array $satirlar, string $pivot): array
     {
         $gruplar = static::PIVOTLAR[$pivot];
         $tutarlar = array_keys(array_filter(static::KOLONLAR, fn (string $tur): bool => $tur === 'tutar'));
+        $bosYayilan = array_flip(static::BOS_YAYILAN_TUTARLAR);
         $sonuc = [];
 
         foreach ($satirlar as $satir) {
@@ -80,7 +93,12 @@ abstract class ErpRaporu
             $sonuc[$anahtar] ??= [...$degerler, 'satir_sayisi' => 0, ...array_fill_keys($tutarlar, 0.0)];
             $sonuc[$anahtar]['satir_sayisi']++;
             foreach ($tutarlar as $alan) {
-                $sonuc[$anahtar][$alan] += (float) $satir[$alan];
+                if ($sonuc[$anahtar][$alan] === null) {
+                    continue;
+                }
+                $sonuc[$anahtar][$alan] = $satir[$alan] === null && isset($bosYayilan[$alan])
+                    ? null
+                    : $sonuc[$anahtar][$alan] + (float) $satir[$alan];
             }
         }
 
@@ -101,7 +119,7 @@ abstract class ErpRaporu
         // Toplamadaki float artıkları temizlenir (kuruş)
         return array_map(function (array $grup) use ($tutarlar): array {
             foreach ($tutarlar as $alan) {
-                $grup[$alan] = round($grup[$alan], 2);
+                $grup[$alan] = $grup[$alan] === null ? null : round($grup[$alan], 2);
             }
 
             return $grup;

@@ -9,8 +9,11 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * İşlem geçmişi kaydı (EK-03). Kullanıcı adı, belge no ve sağlayıcı kayıt
- * anındaki kopyadır: fatura ya da kullanıcı silinse de okunur.
+ * İşlem geçmişi kaydı (EK-03). Kullanıcı adı, belge no, sağlayıcı ve ortam
+ * kayıt anındaki kopyadır: fatura ya da kullanıcı silinse de okunur. Ortam eski
+ * kayıtlarda boştur (inceleme A-9). Belge kimliği (ETTN / belge anahtarı)
+ * dönmez: ekran kullanmıyor, eski e-Arşiv / e-SMM kayıtlarında kimlik no
+ * taşıyabilir (inceleme A-8).
  *
  * @mixin EFaturaIslemi
  */
@@ -26,8 +29,8 @@ final class EFaturaIslemiResource extends JsonResource
             'fatura_id' => $this->fatura_id,
             'yukleme_id' => $this->yukleme_id,
             'saglayici' => $this->saglayici,
+            'ortam' => $this->ortam,
             'belge_no' => $this->belge_no,
-            'belge_kimligi' => $this->belge_kimligi,
             'islem' => $this->islem->value,
             'onceki' => $this->onceki,
             'yeni' => $this->yeni,

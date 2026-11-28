@@ -327,6 +327,43 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   *(Codex BY-028-R10: iki olay hedefi tek güncel hedefe düşünce yaşayan
   Drive kopyası silinmiş başka nesneyle eziliyordu.)*
 
+- **G22 — Bir kolonu ya da ilişkiyi dolduran işin kapsamını genişletirken onu
+  OKUYAN her tüketiciyi ve SAYAN her engeli tara.** `grep` kolon / tablo adı:
+  tüketicilerden biri dış sisteme yazıyorsa (ERP UPDATE) kapsam değişikliği o
+  yazımın da kapsamını değiştirir — yazımı kendi süzgeciyle sınırla ve
+  kullanıcıya sor. İlişki satırının anlamı genişliyorsa onu sayan 409'ları,
+  RESTRICT yabancı anahtarları ve liste sayaçlarını da gözden geçir.
+  *(İnceleme 2026-11-27 C-1: UBL okuması bütün faturalara genişleyince ERP'ye
+  istisna kodu yazımı da genişledi; canlıda bir günde 55 vergili faturaya kod
+  yazıldı. G1-2: başarısız kopyaya da plan bağı yazılınca plan silinemez oldu.)*
+- **G23 — Sayı için de tam biçim.** "Rakam dışını at, sonra yorumla" yaklaşımı
+  `1,234.56`, `1e5`, `(205,76)`, `abc12` gibi girdileri sessizce yanlış sayıya
+  çevirir. Kabul edilen biçimleri düzenli ifadeyle sınırla (`\z` ile), gerisini
+  reddet; iki biçimde de geçerli olan belirsiz girdiyi (`1.000`) reddet. Metin
+  yolunda float'a çevirmeden normalleştir (G14).
+  *(İnceleme 2026-11-27 B-1, B-7: yapıştırılan Logo listesinde `1,234.56`
+  1,2346 olarak yazılıyordu.)*
+- **G24 — "Kim dokundu / hangisi sonra" kararını zaman damgasıyla verme.**
+  Saniyelik damga aynı saniyedeki iki işlemde eşit kalır; `>` karşılaştırması
+  o durumda "dokunulmadı" der. Kararın dayandığı ilişkiyi kimlikle sakla
+  (son dokunan parti, son yazan iş), zamanı yalnız gösterim için kullan;
+  testte iki işlemi aynı saniyeye al.
+  *(Codex B-4-R1: aynı saniyedeki iki içe aktarımda eski parti yeni partinin
+  verisini siliyordu.)*
+  Tek "son dokunan" alanı da yetmez: dokunan geri alınınca aradakiler unutulur
+  (A ekler, B ve C yükler, C geri alınır → B'nin izi gider). Karar "başka
+  biri dokundu mu" ise her dokunuşu ayrı satırda tut (bağ tablosu, cascade);
+  testte üç işlem ve ortadakinin kaldığı sırayı kur. Aynı yanılgının zaman
+  biçimi: "eklenme anı ≤ alınma anı" aynı saniyede üyelik kanıtı değildir;
+  üyeliği işlem anında kimlikle yaz.
+  *(Codex B-4-R2, G1-6-R2.)*
+  Aynı ailede: "kilidi dene, bırak, sonra işe başla" denetimi işi korumaz
+  (G18); korunacak iş boyunca kilit tutulur. Aynı süreçte o kilidi isteyen
+  başka bir yol varsa (flock tutamaç başınadır) sahipliği ona bildir. Kilidin
+  koruduğu durumu (yayın damgası) kilidi aldıktan SONRA yeniden oku; önceki
+  okuma kilit beklerken bayatlar.
+  *(Codex G1-8-R1, R2.)*
+
 ## 2. Ön yüz
 
 - **F1 — Eski veri ekrandayken yeni parametreyle iş yapılmasın.** Önceki
@@ -378,6 +415,17 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   tıklamayı kaçırır. Eşzamanlı `useRef` bayrağı + `isPending`; testte yanıtı
   geciktir, art arda iki `fireEvent.click` → tek istek.
   *(Codex BY-015-R1.)*
+
+- **F7 — Yerinde önbellek güncellemesi yalnız süzgeçlerin ve sıralamanın
+  bakmadığı alanda.** `setQueriesData` listeyi taze sayar. Değişen alan bir
+  süzgecin ya da sınıfın parçasıysa sunucudaki sayfalar kayar: sayfa geçişinde
+  satır atlanır, özet ve Excel ekranla ayrışır. Satırı yerinde güncelle (anında
+  geri bildirim) VE listeyi geçersiz kıl. Kopya ekranları ortak bileşene
+  taşırken eski ekranlardaki geçersiz kılma çağrılarını ve düğme koşullarını
+  listele; taşımadan sonra hepsinin testi ortak bileşende koşsun (K10).
+  *(İnceleme 2026-11-27 F-1: "SAP (Manuel İşle)" sınıfı değiştirdiği hâlde
+  liste yeniden çekilmiyordu. F-7: "bütün kolonlar gizli" Excel koruması
+  taşımada düştü.)*
 
 ## 3. Testler
 
@@ -470,6 +518,13 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   PostgreSQL'de düştü.)*
   Aynı işte: bağlantı bırakma (`DB::purge`) yalnız etkilenen veritabanına
   bağlı bağlantılara uygulanır; hepsini bırakmak testi saran işlemi de koparır.
+  **Testi saran işlem kesintiyi gizleyebilir:** işlem içindeyken
+  `firstOrCreate` / `createOrFirst` kaydı kendi savepoint'inde yazar; model
+  olayından (`created`) atılan "süreç kesildi" kaydı geri alır, canlıda (dış
+  işlem yok) kayıt kalır. İki yazım arasındaki kesintiyi ilk yazım bittikten
+  SONRAKİ bir sorguda kur (`DB::listen`) ve kurgunun düzeltmesiz kodda
+  kırmızı olduğunu gör.
+  *(Codex G1-6-R7: ilk kesinti testi işlemsiz kodda da yeşildi.)*
 - **T15 — Yeniden başlatmayı taklit eden test bellekteki durumu sıfırlasın.**
   `Artisan::call` aynı komut nesnesini yeniden kullanır; komut özelliğinde
   tutulan durum (son çalışma zamanı) "süreç yeniden başladı" testini yanlış
@@ -483,6 +538,20 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   sorgu çalıştır. İkinci bağlantının satırlarını, test işlemi geri alındıktan
   sonra çalışan bir `beforeApplicationDestroyed` geri çağrısında temizle.
   *(BY-016-R3 kilit testi: temizlik test işleminin satırlarını bekleyip asıldı.)*
+
+- **T17 — Sürecin tamamını etkileyen çağrı testten sızar.** `set_time_limit`,
+  `ini_set('memory_limit')`, `date_default_timezone_set`, `setlocale` web
+  isteğinde isteğe özgüdür; testte bütün PHPUnit sürecine uygulanır ve sonraki
+  testler ilgisiz yerde düşer ("Maximum execution time"). Böyle bir ucu çağıran
+  testte `tearDown()` ile eski değeri geri yükle.
+  *(İnceleme 2026-11-27 uygulaması: Gelen Fatura Raporu'nun `set_time_limit(55)`'i
+  tam paketi öldürüyordu.)*
+- **T18 — Tablo düşüren test kancası bağımlıları elle saymasın.** T14'ün dersi
+  bir gün arayla ikinci kez kaçtı: yeni çocuk tablo eklenince `Schema::drop`
+  PostgreSQL'de yine düştü. Yardımcı, tabloya yabancı anahtarla bağlananları
+  şemadan (`Schema::getForeignKeys`) bulup önce onları düşürsün.
+  *(İnceleme 2026-11-27 E-2: `efatura_vergi_kalemleri` gelince
+  `EFaturaSenkronTest` yalnız PostgreSQL'de kırıldı.)*
 
 ## 4. Betikler ve dış komutlar
 
@@ -668,6 +737,16 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   veriyi iki farklı kimlik sırasıyla kur.
   *(Codex BY-010-R5: bir uzak silme düşünce yerel dosya yine silindi.
   BY-010-R6: yerel koruma sonraki grupların kararına sızıyordu.)*
+  **Koruyan ile kullanan aynı seçimi kullansın.** "Sonraki iş bunu kullanacak,
+  silme" korumasını, o işin seçimini kopyalayarak yazma: sınır (en yeni N),
+  doğrulama (manifest, dosya) ve kapsam (hangi planlar soruyor) ayrışır,
+  koruma kullanılacak nesneyi dışarıda bırakır. Seçimi tek yardımcıya al;
+  sınırı bütün denetimlerden SONRA say; pencereyi soranın kümesinden
+  bağımsız tanımla (plan + hedef başına), böylece kullananın seçtiği her
+  nesne koruyanın kümesinde kalır. Testte temizliği gerçek akışın arasına
+  koy: kesinti → temizlik → kullanan iş.
+  *(Codex G1-6-R4, R5: temizlik, plan çalışmasının kopyalayacağı tek arşivi
+  iki kez farklı sayımla siliyordu.)*
 - **D5 — Root, başkasının değiştirebildiği yolda bağlantı izleyerek işlem
   yapmasın.** `chown`, `chmod`, `setfacl`, `cp`, `>` hedefteki sembolik
   bağlantıyı izler; yolu yazabilen hesap root'u yönetilen alanın dışına
@@ -715,6 +794,26 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   OOM'da çalışmaz.
   *(Fable incelemesi YF-28: kopya, şifreli dosyayı ve geri okunan kopyayı
   `/tmp`'ye yazıyordu; kesilen `yedek:sifre-coz` özel anahtarı orada bırakıyordu.)*
+
+- **D12 — "Bu kayda özgü hata" sınıflaması izin listesiyle yazılır.** Her 4xx
+  kayda özgü değildir: belgelenmiş durum + sağlayıcı kodu dışındaki hata turu
+  durdurur. Giriş (token) hatası döngüden ÖNCE alınır ve hiçbir kaydı
+  işaretlemez. Turda hiç başarı yokken art arda gelen "kayda özgü" hata
+  sistemiktir: turu kes, sayacı artırma. Turu kesen her yolda işlenen kayıtları
+  **ertele** (son deneme zamanı): yoksa sıralama aynı kayıtları yeniden başa
+  getirir ve kuyruk kilitlenir. Testte kesilen turdan sonra ikinci turun
+  ilerlediğini sına.
+  *(İnceleme 2026-11-27 C-2…C-5: geçici 4xx faturayı kalıcı "okunamadı"
+  yapıyor, giriş hatasında tur başına 40 giriş deneniyor, tek sorunlu parti
+  kuyruğu kilitliyordu. Düzeltmenin ilk hâlinde devre kesici de ertelemeden
+  kesiyordu.)*
+- **D13 — "Bu partinin eklediği satırları sil" tek başına geri alma kuralı
+  değildir.** Satırı sonradan başka bir parti güncelleyebiliyorsa, eski partinin
+  geri alınması yeni partinin verisini de götürür ve yeni parti "yüklü"
+  görünmeye devam eder. Satırın son dokunulduğu parti / an izlenir ve geri alma
+  o durumda reddedilir (D4: fazla engelleme bir 409'dur, eksik engelleme veri kaybı).
+  *(İnceleme 2026-11-27 B-4: canlıda Logo'nun 581 faturası ve 726 kalemi bu
+  durumdaydı.)*
 
 ## 5. Tasarım dokümanları
 
@@ -869,3 +968,17 @@ Her maddenin sonundaki not, dersin çıktığı yeri gösterir.
   (`grep` ile okuyanı doğrula): değiştirince hiçbir şey olmayan ayar yanıltır.
   *(Fable incelemesi PRT-F11: adresler ekrana taşındı, üç yorum "ekrandan
   alınmaz" diyordu; `entegrator.protel.saat_dilimi` hiç okunmuyordu.)*
+- **K12 — Ortak tablodaki `tutar` ödenecek tutardır; ondan net ya da matrah
+  türetme.** "Vergi kalemi" toplamı artıran vergi demek değildir: stopaj
+  ödenecekten düşülür, bazı vergiler matrahın içindedir. Hesabı tek örnekle
+  değil canlıdaki kod dağılımıyla ve belgenin kendi toplam alanlarıyla
+  karşılaştırarak doğrula (T9); birbirini doğrulayan iki türetme tek alana
+  güvenmekten sağlamdır.
+  *(İnceleme 2026-11-27 D-1, D-2: Gelen Fatura Raporu stopajı Fatura
+  Toplamı'na ekliyordu (canlıda ~39,4 milyon TL fazla); e-SMM'de matrah stopaj
+  kadar eksikti.)*
+  "İki türetme" gerçekten bağımsız olmalı: biri ötekinin girdisinden
+  türüyorsa (net ödenecekten hesaplandıysa) eşitlikleri matematiksel olarak
+  kesindir, kanıt değildir. Her adayın hangi alandan geldiğini yaz; aynı
+  kaynaktan gelen adayları tek kanıt say.
+  *(Codex D-2-R1: avanslı faturada toplam ödenecek kadar çıkıyordu.)*

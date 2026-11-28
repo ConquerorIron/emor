@@ -19,8 +19,30 @@ export interface RaporToplami {
   anahtar: string
   /** i18n anahtarı; Sıra No kolonuna yazılır */
   etiket: string
+  /** Etiketin çeviri parametreleri (ör. dışarıda kalan fatura sayısı) */
+  etiketParametreleri?: Record<string, string | number>
   /** Kolon alanı → değer; olmayan kolon boş kalır */
   degerler: Record<string, string | number>
+}
+
+/**
+ * "Hepsi" (0) sayfa boyutu raporda bu kadar satırla karşılanır, sayfalama
+ * sürer: liste ekranlarında backend'in yaptığının eşleniği (tam yıl ~12.000
+ * satır × 41 kolon tek seferde çizilince sekme kasıyordu).
+ */
+const HEPSI_SINIRI = 1000
+
+/** Ortak sayfa boyutu tercihinin rapordaki karşılığı (0 = "Hepsi" → HEPSI_SINIRI) */
+export function raporSayfaBoyutu(boyut: number): number {
+  return boyut === 0 ? HEPSI_SINIRI : boyut
+}
+
+/** Türkçe biçimli sayı metni ("50,123456") → sayı; boşsa −∞ (en küçük) */
+export function metinSayisi(deger: string | number | null | undefined): number {
+  const metin = String(deger ?? '').trim()
+  const sayi = Number(metin.replace(/\./g, '').replace(',', '.'))
+
+  return metin === '' || !Number.isFinite(sayi) ? -Infinity : sayi
 }
 
 /**
@@ -63,6 +85,15 @@ export interface ErpRaporTanimi<T extends RaporSatiri> {
   tarihAlani?: keyof T & string
   /** Gelen veride switch'le açılan süzgeçler; açık olanların hepsini tutan satırlar kalır */
   kosulSuzgecleri?: KosulSuzgeci<T>[]
+  /** Parametre formundaki ilk tarih (YYYY-MM-DD, açılışta hesaplanır); verilmezse 2000-01-01 (tüm geçmiş) */
+  varsayilanIlkTarih?: () => string
+  /**
+   * Satırda boş (null = bilinmiyor) olunca özet grubunun toplamını da boş yapan
+   * tutar kolonları — backend ErpRaporu::BOS_YAYILAN_TUTARLAR ile aynı
+   */
+  bosYayilanTutarlar?: readonly (keyof T & string)[]
+  /** Değeri Türkçe biçimli sayı olan metin kolonları ("50,123456"): başlıktan sayı gibi sıralanır */
+  sayiGibiSiralanan?: (keyof T & string)[]
 }
 
 /** Switch süzgeci: açıkken yalnız koşulu tutan satırlar; etiket i18n raporlar.<rapor>.suzgec.<anahtar> */
@@ -77,21 +108,24 @@ export interface RaporPivotu {
   gruplar: string[]
 }
 
-/** Pivot satırı: gruplar + satir_sayisi + tutar kolonları */
-export type PivotSatiri = Record<string, string | number>
+/** Pivot satırı: gruplar + satir_sayisi + tutar kolonları (bilinmeyen toplam null) */
+export type PivotSatiri = Record<string, string | number | null>
 
 /**
  * Satırlar sekmenin gruplarına göre toplanır (süzülen satırlardan, tarayıcıda);
  * gruplar soldan sağa sıralı (sayılar sayı gibi, metinler Türkçe). Backend
- * ErpRaporu::pivot ile aynı hesap (Excel'in özet sayfaları).
+ * ErpRaporu::pivot ile aynı hesap (Excel'in özet sayfaları): bosYayilanlar'dan
+ * biri grubun bir satırında boşsa grubun o hücresi de boş.
  */
 export function pivotla<T extends RaporSatiri>(
   satirlar: T[],
   pivot: RaporPivotu,
   tarihAlani: string,
   tutarlar: readonly string[],
+  bosYayilanlar: readonly string[] = [],
 ): PivotSatiri[] {
   const gruplar = new Map<string, PivotSatiri>()
+  const bosYayilan = new Set(bosYayilanlar)
 
   for (const satir of satirlar) {
     const tarih = String(satir[tarihAlani] ?? '')
@@ -117,7 +151,13 @@ export function pivotla<T extends RaporSatiri>(
     }
     grup.satir_sayisi = Number(grup.satir_sayisi) + 1
     for (const alan of tutarlar) {
-      grup[alan] = Number(grup[alan]) + Number(satir[alan] ?? 0)
+      if (grup[alan] === null) {
+        continue
+      }
+      grup[alan] =
+        satir[alan] === null && bosYayilan.has(alan)
+          ? null
+          : Number(grup[alan]) + Number(satir[alan] ?? 0)
     }
   }
 

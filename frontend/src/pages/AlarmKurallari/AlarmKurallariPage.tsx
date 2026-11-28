@@ -217,8 +217,12 @@ function SayiParametresi({
   )
 }
 
-/** Çoklu seçim parametresi (portallar, işlendi sayılanlar): seçim sırası değil seçenek sırası korunur */
+/**
+ * Çoklu seçim parametresi (portallar, işlendi sayılanlar): seçenek başına bir
+ * Switch (checkbox kullanılmaz — rules.md §2); seçim sırası değil seçenek sırası korunur
+ */
 function SecimKutulari({
+  id,
   baslik,
   yardim,
   secenekler,
@@ -228,6 +232,8 @@ function SecimKutulari({
   hata,
   kilitli,
 }: {
+  /** Seçenek anahtarlarının öneki (sayfada birden çok kural kartı var) */
+  id: string
   baslik: string
   yardim?: string
   secenekler: readonly string[]
@@ -241,24 +247,23 @@ function SecimKutulari({
     <fieldset className="sm:col-span-2">
       <legend className="text-sm font-semibold text-slate-700 dark:text-slate-300">{baslik}</legend>
       {yardim ? <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{yardim}</p> : null}
-      <div className="mt-2 flex flex-wrap gap-4">
+      <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
         {secenekler.map((secenek) => (
-          <label key={secenek} className="inline-flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="size-4 rounded border-slate-300"
-              checked={secili.includes(secenek)}
-              disabled={kilitli}
-              onChange={(olay) =>
-                degistir(
-                  olay.target.checked
-                    ? secenekler.filter((s) => s === secenek || secili.includes(s))
-                    : secili.filter((s) => s !== secenek),
-                )
-              }
-            />
-            {etiket(secenek)}
-          </label>
+          <Switch
+            key={secenek}
+            id={`${id}-${secenek}`}
+            label={etiket(secenek)}
+            vurgulu={false}
+            checked={secili.includes(secenek)}
+            disabled={kilitli}
+            onChange={(acik) =>
+              degistir(
+                acik
+                  ? secenekler.filter((s) => s === secenek || secili.includes(s))
+                  : secili.filter((s) => s !== secenek),
+              )
+            }
+          />
         ))}
       </div>
       {hata ? (
@@ -368,6 +373,7 @@ function KuralKarti({ kural }: { kural: AlarmKurali }) {
                 name={alan}
                 render={({ field }) => (
                   <SecimKutulari
+                    id={`${kural.tur}-${alan}`}
                     baslik={t(`ayarlar.alarm.parametre.${alan}`)}
                     yardim={
                       alan === 'islendi_sayilanlar' ? t('ayarlar.alarm.islendiYardim') : undefined

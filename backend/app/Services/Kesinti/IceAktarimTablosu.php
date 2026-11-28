@@ -66,33 +66,40 @@ final class IceAktarimTablosu
         $okunanKolonlar = [];
         $enIyiEslesme = null;
 
-        foreach ($kitap->getWorksheetIterator() as $sayfa) {
-            $sonSatir = $sayfa->getHighestDataRow();
-            $sonKolon = $sayfa->getHighestDataColumn();
-            $ust = $sayfa->rangeToArray("A1:{$sonKolon}".min($sonSatir, self::BASLIK_ARAMA_SATIRI), null, false, false, false);
-            $baslik = self::baslikBul($ust, $kolonlar);
+        // Formül hesabı da dosya okumasıdır: PhpSpreadsheet'in hesaplayamadığı
+        // formül (önbellek değeri olmayan dış kitap başvurusu, bozuk ifade) 500
+        // değil okunamayan dosyadır (inceleme B-13; Kesinti ve e-Fatura ortak)
+        try {
+            foreach ($kitap->getWorksheetIterator() as $sayfa) {
+                $sonSatir = $sayfa->getHighestDataRow();
+                $sonKolon = $sayfa->getHighestDataColumn();
+                $ust = $sayfa->rangeToArray("A1:{$sonKolon}".min($sonSatir, self::BASLIK_ARAMA_SATIRI), null, false, false, false);
+                $baslik = self::baslikBul($ust, $kolonlar);
 
-            if ($baslik === null) {
-                continue;
+                if ($baslik === null) {
+                    continue;
+                }
+
+                [$baslikSatiri, $eslesme] = $baslik;
+
+                if (count($eslesme) > count($enIyiEslesme ?? [])) {
+                    $enIyiEslesme = $eslesme;
+                }
+
+                if (array_diff($zorunlular, array_keys($eslesme)) !== []) {
+                    continue;
+                }
+
+                $okunanKolonlar = [...$okunanKolonlar, ...array_keys($eslesme)];
+
+                if ($baslikSatiri < $sonSatir) {
+                    // Formüller hesaplanmış, biçimlendirilmemiş ham değerler (tarih = Excel seri numarası)
+                    $veri = $sayfa->rangeToArray('A'.($baslikSatiri + 1).":{$sonKolon}{$sonSatir}", null, true, false, false);
+                    $satirlar = [...$satirlar, ...self::eslestir($veri, $eslesme, $baslikSatiri + 1, $sayfa->getTitle())];
+                }
             }
-
-            [$baslikSatiri, $eslesme] = $baslik;
-
-            if (count($eslesme) > count($enIyiEslesme ?? [])) {
-                $enIyiEslesme = $eslesme;
-            }
-
-            if (array_diff($zorunlular, array_keys($eslesme)) !== []) {
-                continue;
-            }
-
-            $okunanKolonlar = [...$okunanKolonlar, ...array_keys($eslesme)];
-
-            if ($baslikSatiri < $sonSatir) {
-                // Formüller hesaplanmış, biçimlendirilmemiş ham değerler (tarih = Excel seri numarası)
-                $veri = $sayfa->rangeToArray('A'.($baslikSatiri + 1).":{$sonKolon}{$sonSatir}", null, true, false, false);
-                $satirlar = [...$satirlar, ...self::eslestir($veri, $eslesme, $baslikSatiri + 1, $sayfa->getTitle())];
-            }
+        } catch (Throwable) {
+            return ['satirlar' => [], 'kolonlar' => [], 'hata' => 'dosya_okunamadi'];
         }
 
         if ($okunanKolonlar !== []) {

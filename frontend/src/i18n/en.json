@@ -5,6 +5,7 @@
     "kaydet": "Save",
     "kaydediliyor": "Saving…",
     "yukleniyor": "Loading…",
+    "dosyaCokBuyuk": "The selected file is {{boyut}} MB; at most {{sinir}} MB can be uploaded. Split the file and upload it in parts.",
     "iptal": "Cancel",
     "tekrarDene": "Retry",
     "menuyuAc": "Expand menu",
@@ -720,8 +721,10 @@
     "FATURA_KAYNAKTA_REDDEDILMIS": "This invoice is already rejected at its source; it cannot be marked as rejected again.",
     "FATURA_ISLENDI_ISARETLI": "This invoice is marked as processed in SAP manually; remove the \"SAP (Manual)\" mark before rejecting it.",
     "FATURA_EMOR_ISLENMIS": "This invoice is processed in eMOR; it cannot be marked as rejected.",
+    "FATURA_EMOR_BILINMIYOR": "The eMOR status of this invoice has not been read yet; try again in a few minutes.",
     "FATURA_BELGESI_YOK": "The original of this invoice is not in the eMOR archive; the PDF cannot be shown.",
     "YUKLEME_ELLE_ISLENMIS": "Some invoices added by this import have manual actions (rejection, processed or hidden); the import cannot be undone.",
+    "YUKLEME_SONRAKI_YUKLEMEDE": "Some invoices added by this import were reloaded by a later import; undo the later imports first.",
     "ICE_AKTARIM_SURUYOR": "Another import or undo is running for this source. Try again shortly."
   },
   "yetki": {
@@ -1068,7 +1071,8 @@
       "dosyaHatasi": {
         "dosya_okunamadi": "The file could not be read. Make sure it is an Excel (.xlsx) file.",
         "baslik_bulunamadi": "No header row of this screen's list was found in the file.",
-        "satir_yok": "There are no documents below the header row."
+        "satir_yok": "There are no documents below the header row.",
+        "cok_fazla_satir": "The list has {{okunan}} rows; at most {{sinir}} rows can be imported at once. Split it into parts of {{sinir}} rows and import them separately."
       },
       "hataKodu": {
         "zorunlu": "Cannot be empty",
@@ -1637,6 +1641,7 @@
     "grupSayisi": "{{sayi}} rows",
     "siraNo": "No",
     "genelToplamTl": "Grand Total (TRY)",
+    "genelToplamTlKursuz": "Grand Total (TRY) — excluding {{sayi}} invoices without an exchange rate",
     "sekmeler": "Views",
     "pivot": {
       "data": "Data",
@@ -1830,7 +1835,9 @@
         "plan_calistir": "Plan run",
         "kopya_geri_yukle": "Restore as copy",
         "kopya_sil": "Copy deletion",
-        "ustune_geri_yukle": "Overwrite restore"
+        "ustune_geri_yukle": "Overwrite restore",
+        "onayla": "Overwrite restore approval",
+        "geri_don": "Overwrite restore rollback"
       },
       "durum": {
         "kuyrukta": "queued",

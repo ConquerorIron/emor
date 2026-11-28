@@ -10,6 +10,7 @@ return [
         'ekrani_ac' => 'Yedekler ekranını aç',
         'yedek_basarisiz' => 'Yedek alınamadı',
         'planli_yedek_calismadi' => 'Planlı yedek çalıştırılamadı',
+        'planlar_okunamadi' => 'Yedek planları okunamadı (veritabanına erişilemiyor olabilir); planlı yedek alınmadı',
         'kopya_basarisiz' => 'Sunucu dışı kopya başarısız',
         'dogrulama_basarisiz' => 'Yedek doğrulaması başarısız',
         'disk_esigi' => 'Yedek diski dolmak üzere',

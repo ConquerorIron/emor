@@ -8,6 +8,7 @@ use App\Services\Yedekleme\ErisimAnahtari;
 use App\Services\Yedekleme\GeriYuklemeHatasi;
 use App\Services\Yedekleme\UstuneGeriYuklemeAdimi;
 use App\Services\Yedekleme\UstuneGeriYukleyici;
+use App\Services\Yedekleme\YayinKilidiSahibi;
 use App\Services\Yedekleme\YedekKilidi;
 use App\Services\Yedekleme\YedeklemeYapilandirmasi;
 use App\Yetki\Izin;
@@ -36,6 +37,7 @@ final class UstuneGeriYukleIsleyicisi implements IstekIsleyicisi
     public function __construct(
         private readonly UstuneGeriYukleyici $ustune,
         private readonly YedeklemeYapilandirmasi $yapilandirma,
+        private readonly YayinKilidiSahibi $yayinKilidiSahibi,
     ) {}
 
     public function izin(): ?Izin
@@ -54,8 +56,10 @@ final class UstuneGeriYukleIsleyicisi implements IstekIsleyicisi
 
         $yedek = $this->yedegiBul($istek);
 
-        $yayin = $this->yapilandirma->yayinKilidi();
-        if (! $yayin->al()) {
+        // Servis döngüsü yayın kilidini bu süreçte zaten tutuyorsa (G1-8-R1)
+        // ikinci tutamaçla alınmaz: flock tutamaç başınadır, kendine takılırdı
+        $yayin = $this->yayinKilidiSahibi->tutuluyorMu() ? null : $this->yapilandirma->yayinKilidi();
+        if ($yayin !== null && ! $yayin->al()) {
             throw new IstekReddi(self::YAYIN_SURUYOR, 'Bir yayın (deploy.sh) sürüyor; üstüne geri yükleme başlatılmadı. Yayın bitince yeniden isteyin.');
         }
 
@@ -72,7 +76,7 @@ final class UstuneGeriYukleIsleyicisi implements IstekIsleyicisi
         } catch (GeriYuklemeHatasi $hata) {
             throw new IstekReddi($hata->kod, $hata->getMessage());
         } finally {
-            $yayin->birak();
+            $yayin?->birak();
         }
 
         $ek = ['islem_kimligi' => $kayit->kimlik, 'adim' => $kayit->adim];

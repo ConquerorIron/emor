@@ -292,6 +292,41 @@ final class EFaturaEmorTest extends TestCase
         $this->assertNull($pasifteki->fresh()->emor_durumu);
     }
 
+    /**
+     * Statik kaynaklar (EK-07, EK-08) İzibiz tanımı olmadan da taranır: Logo
+     * faturası ETTN ile işlendi olur; ETTN'siz e-Arşiv / e-SMM belgesi yalnız
+     * fatura no + gönderen VKN ile (aynı numara başka gönderende eşleşmez; ERP'deki
+     * VKN'nin bölünmez boşluğu eşleşmeyi bozmaz — inceleme B-14). Havuz İzibiz'indir:
+     * Logo ETTN'i havuzda olsa da "havuzda" olmaz, havuz bilgisi yazılmaz (inceleme B-5).
+     */
+    public function test_statik_kaynaklar_logo_ettn_ile_earsiv_no_ve_vkn_ile_eslesir_havuzda_olmaz(): void
+    {
+        $logoIslenmis = EFatura::factory()->logo()->create(['ettn' => self::ISLENMIS]);
+        $logoHavuzda = EFatura::factory()->logo()->create(['ettn' => 'eeb4f1a9-9bc7-4576-beb6-0000000000c1']);
+        $earsiv = EFatura::factory()->earsiv()->create(['belge_no' => 'GIB2026000000001', 'gonderici_vkn' => '10184522250']);
+        $baskaGonderen = EFatura::factory()->earsiv()->create(['belge_no' => 'GIB2026000000001', 'gonderici_vkn' => '20561220884']);
+        $makbuz = EFatura::factory()->earsiv('makbuz')->create(['belge_no' => 'MSK2026000000390', 'gonderici_vkn' => '28948489664']);
+        $this->erp([self::ISLENMIS], havuz: [
+            'eeb4f1a9-9bc7-4576-beb6-0000000000c1' => $this->havuzKaydi(istisnaKodu: '351', gb: 'urn:mail:defaultgb@x.com'),
+        ], belgeler: [
+            ['belge_no' => 'GIB2026000000001', 'vkn' => '10184522250'],
+            ['belge_no' => 'MSK2026000000390', 'vkn' => "28948489664\u{00A0}"],
+        ]);
+
+        $this->artisan('efatura:emor')
+            ->expectsOutput('eMOR gelen: işlendi 1, elle işlendi 2, havuzda 0, yok 2, değişen 5')
+            ->assertSuccessful();
+
+        $this->assertSame(EmorDurumu::Islendi, $logoIslenmis->fresh()->emor_durumu);
+        $this->assertSame(EmorDurumu::Yok, $logoHavuzda->fresh()->emor_durumu);
+        $this->assertNull($logoHavuzda->fresh()->vergi_istisna_kodu);
+        $this->assertNull($logoHavuzda->fresh()->getAttribute('erp_gonderici_etiketi'));
+        $this->assertSame(EmorDurumu::ElleIslendi, $earsiv->fresh()->emor_durumu);
+        $this->assertSame(EmorDurumu::Yok, $baskaGonderen->fresh()->emor_durumu);
+        $this->assertSame(EmorDurumu::ElleIslendi, $makbuz->fresh()->emor_durumu);
+        $this->assertSame(0, EntegratorBaglanti::query()->where('saglayici', EntegratorBaglanti::SAGLAYICI_IZIBIZ)->count());
+    }
+
     public function test_gelen_faturanin_vergi_istisna_kodu_erpden_ettn_ile_yazilir_ve_kalkinca_silinir(): void
     {
         $tanim = $this->tanim();

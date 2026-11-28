@@ -12,6 +12,7 @@ import { ErrorState } from '@/components/ErrorState'
 import { Modal } from '@/components/Modal'
 import { YapistirmaTablosu } from '@/components/YapistirmaTablosu'
 import { bosSatirlar, sekmeliMetin, type YapistirmaKolonu } from '@/utils/yapistirma'
+import { AZAMI_YUKLEME_MB, sinirAsanBoyut } from '@/utils/yukleme'
 
 import { faturaListeleriniTazele } from './faturaOnbellegi'
 import {
@@ -35,7 +36,10 @@ function OnizlemeSonucu({ sonuc }: { sonuc: IceAktarimOnizlemesi }) {
   if (sonuc.hata !== null) {
     return (
       <p role="alert" className={HATA_KUTUSU}>
-        {t(`efatura.iceAktarim.dosyaHatasi.${sonuc.hata}`)}
+        {t(`efatura.iceAktarim.dosyaHatasi.${sonuc.hata}`, {
+          okunan: sonuc.ozet.okunan.toLocaleString('tr-TR'),
+          sinir: (sonuc.azami_satir ?? 0).toLocaleString('tr-TR'),
+        })}
       </p>
     )
   }
@@ -129,6 +133,18 @@ function kaydedilebilir(sonuc: IceAktarimOnizlemesi | null): boolean {
   )
 }
 
+/**
+ * Kontrol sonucu hangi girdi için geldiyse onunla birlikte saklanır: dosyada
+ * aynı seçim (nesne kimliği), yapıştırmada aynı metin + belge türü (F-5)
+ */
+function ayniGirdi(a: IceAktarimGirdisi, b: IceAktarimGirdisi): boolean {
+  if ('dosya' in a) {
+    return 'dosya' in b && a.dosya === b.dosya
+  }
+
+  return 'metin' in b && a.metin === b.metin && a.belge_turu === b.belge_turu
+}
+
 /** Sunucunun 422 + önizleme yanıtı (dosya kontrolden sonra değiştiyse) */
 function hataliOnizleme(error: unknown): IceAktarimOnizlemesi | null {
   if (isAxiosError(error) && error.response?.status === 422) {
@@ -146,11 +162,13 @@ function SecimDugmesi({
   onClick,
   children,
   rol,
+  disabled = false,
 }: {
   secili: boolean
   onClick: () => void
   children: ReactNode
   rol: 'tab' | 'radio'
+  disabled?: boolean
 }) {
   return (
     <button
@@ -159,7 +177,8 @@ function SecimDugmesi({
       aria-selected={rol === 'tab' ? secili : undefined}
       aria-checked={rol === 'radio' ? secili : undefined}
       onClick={onClick}
-      className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm font-semibold ${
+      disabled={disabled}
+      className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
         secili
           ? 'bg-violet-600 text-white'
           : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
@@ -182,12 +201,17 @@ function AktarimIcerigi({ onEk, kapat }: { onEk: StatikKaynak; kapat: () => void
   const queryClient = useQueryClient()
   const [kaynak, setKaynak] = useState<'dosya' | 'metin'>('dosya')
   const [dosya, setDosya] = useState<File | null>(null)
+  // Sınırı aşan seçilen dosyanın boyutu (MB): dosya gönderilmez, neden ekranda yazar
+  const [buyukDosya, setBuyukDosya] = useState<string | null>(null)
   // Yapıştırma tablosunun hücreleri; kolonlar gelene kadar boş tablo
   const [hucreler, setHucreler] = useState<string[][] | null>(null)
   // İki türlü kaynakta (e-Arşiv / e-SMM) yapıştırılan listenin türü
   const [belgeTuru, setBelgeTuru] = useState<BelgeTuru | null>(null)
-  // Girdi değişince önceki kontrol geçersizdir: Kaydet yeniden kontrol ister
-  const [onizleme, setOnizleme] = useState<IceAktarimOnizlemesi | null>(null)
+  // Son kontrolün sonucu, kontrol edilen girdiyle birlikte
+  const [kontrolSonucu, setKontrolSonucu] = useState<{
+    girdi: IceAktarimGirdisi
+    sonuc: IceAktarimOnizlemesi
+  } | null>(null)
   // Bekleme durumu bir sonraki çizimde gelir: art arda iki tıklama tek istek (F5)
   const suruyor = useRef(false)
   const alanAdi = (alan: string) => t(`efatura.iceAktarim.alan.${alan}`, { defaultValue: alan })
@@ -215,6 +239,12 @@ function AktarimIcerigi({ onEk, kapat }: { onEk: StatikKaynak; kapat: () => void
       : metin.trim() !== '' && secilenTur !== undefined
         ? { metin, belge_turu: secilenTur.belge_turu }
         : null
+  // Önizleme yalnız ekrandaki girdi için geçerlidir: girdi değişince (ya da o
+  // arada gelen yanıt başka bir girdiye aitse) Kaydet yeniden kontrol ister (F-5)
+  const onizleme =
+    kontrolSonucu !== null && girdi !== null && ayniGirdi(kontrolSonucu.girdi, girdi)
+      ? kontrolSonucu.sonuc
+      : null
 
   // Kontrol yalnız örnek satır numaralarını döner (gruptan en çok 10): o satırlar işaretlenir
   const hataliSatirlar = new Map<number, string>()
@@ -231,14 +261,14 @@ function AktarimIcerigi({ onEk, kapat }: { onEk: StatikKaynak; kapat: () => void
 
   const kontrol = useMutation({
     mutationFn: (secilen: IceAktarimGirdisi) => iceAktarimKontrol(onEk, secilen),
-    onSuccess: setOnizleme,
+    onSuccess: (sonuc, secilen) => setKontrolSonucu({ girdi: secilen, sonuc }),
     onError: (error) => toast.error(t(apiErrorKey(error))),
   })
 
   const kaydet = useMutation({
     mutationFn: (secilen: IceAktarimGirdisi) => iceAktar(onEk, secilen),
     onSuccess: (parti) => {
-      faturaListeleriniTazele(queryClient)
+      void faturaListeleriniTazele(queryClient)
       void queryClient.invalidateQueries({ queryKey: queryKeys.kaynak.yuklemeler(onEk) })
       toast.success(
         t('efatura.iceAktarim.kaydedildi', {
@@ -249,10 +279,10 @@ function AktarimIcerigi({ onEk, kapat }: { onEk: StatikKaynak; kapat: () => void
       )
       kapat()
     },
-    onError: (error) => {
+    onError: (error, secilen) => {
       const sonuc = hataliOnizleme(error)
       if (sonuc !== null) {
-        setOnizleme(sonuc)
+        setKontrolSonucu({ girdi: secilen, sonuc })
       } else {
         toast.error(t(apiErrorKey(error)))
       }
@@ -261,6 +291,9 @@ function AktarimIcerigi({ onEk, kapat }: { onEk: StatikKaynak; kapat: () => void
       suruyor.current = false
     },
   })
+
+  // Kontrol / kayıt sürerken girdi değiştirilemez (dosya, sekme, tür, tablo — F3)
+  const kilitli = kontrol.isPending || kaydet.isPending
 
   return (
     <div className="space-y-4">
@@ -273,9 +306,13 @@ function AktarimIcerigi({ onEk, kapat }: { onEk: StatikKaynak; kapat: () => void
             key={deger}
             rol="tab"
             secili={kaynak === deger}
+            disabled={kilitli}
             onClick={() => {
+              // Dosya alanı yalnız kendi sekmesinde çizilir; dönüşte boş kurulur:
+              // görünmeyen eski dosya seçili kalmasın (F-6)
               setKaynak(deger)
-              setOnizleme(null)
+              setDosya(null)
+              setBuyukDosya(null)
             }}
           >
             {t(`efatura.iceAktarim.kaynak.${deger}`)}
@@ -295,13 +332,20 @@ function AktarimIcerigi({ onEk, kapat }: { onEk: StatikKaynak; kapat: () => void
             id={`${onEk}-ice-aktar-dosya`}
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            disabled={kaydet.isPending}
+            disabled={kilitli}
             onChange={(olay) => {
-              setDosya(olay.target.files?.[0] ?? null)
-              setOnizleme(null)
+              const secilen = olay.target.files?.[0] ?? null
+              const boyut = sinirAsanBoyut(secilen)
+              setBuyukDosya(boyut)
+              setDosya(boyut === null ? secilen : null)
             }}
-            className="mt-1 block w-full text-sm file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-semibold dark:file:bg-slate-800"
+            className="mt-1 block w-full text-sm file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-semibold disabled:cursor-not-allowed disabled:opacity-60 dark:file:bg-slate-800"
           />
+          {buyukDosya !== null ? (
+            <p role="alert" className={`mt-2 ${HATA_KUTUSU}`}>
+              {t('ortak.dosyaCokBuyuk', { boyut: buyukDosya, sinir: AZAMI_YUKLEME_MB })}
+            </p>
+          ) : null}
         </div>
       ) : kolonSorgusu.error ? (
         <ErrorState
@@ -326,11 +370,11 @@ function AktarimIcerigi({ onEk, kapat }: { onEk: StatikKaynak; kapat: () => void
                     key={tur.belge_turu ?? ''}
                     rol="radio"
                     secili={tur === secilenTur}
+                    disabled={kilitli}
                     onClick={() => {
-                      // Kolonlar türe göre değişir: tablo ve kontrol sıfırlanır
+                      // Kolonlar türe göre değişir: tablo (ve onunla kontrol) sıfırlanır
                       setBelgeTuru(tur.belge_turu)
                       setHucreler(null)
-                      setOnizleme(null)
                     }}
                   >
                     {t(`efatura.belgeTuru.${tur.belge_turu ?? 'fatura'}`)}
@@ -342,11 +386,9 @@ function AktarimIcerigi({ onEk, kapat }: { onEk: StatikKaynak; kapat: () => void
           <YapistirmaTablosu
             kolonlar={kolonlar}
             satirlar={tablo}
-            degistir={(yeni) => {
-              setHucreler(yeni)
-              setOnizleme(null)
-            }}
+            degistir={setHucreler}
             hataliSatirlar={hataliSatirlar}
+            kilitli={kilitli}
           />
         </div>
       )}

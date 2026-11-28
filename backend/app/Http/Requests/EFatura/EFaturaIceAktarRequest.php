@@ -33,7 +33,7 @@ final class EFaturaIceAktarRequest extends FormRequest
         $ikiTurlu = EntegratorBaglantiServisi::rotaninSaglayicisi($this) === EntegratorBaglanti::SAGLAYICI_EARSIV;
 
         return [
-            'dosya' => ['required_without:metin', 'prohibits:metin', 'file', 'extensions:xlsx', 'max:20480'],
+            'dosya' => ['required_without:metin', 'prohibits:metin', 'file', 'extensions:xlsx', 'max:10240'],
             // 5.000 satırlık Logo yapıştırması ~2 MB
             'metin' => ['required_without:dosya', 'string', 'max:10000000'],
             'belge_turu' => $ikiTurlu

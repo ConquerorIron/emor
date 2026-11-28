@@ -426,7 +426,7 @@ servis php artisan yedek:tara    # beklenen: "… imzalı, 0 güvenilmeyen …"
 
 # admin
 php artisan storage:link
-php artisan optimize
+( umask 022 && php artisan optimize )   # önbellek web'e yazılabilir açılmasın (isletim.md §3)
 ```
 
 §4.8'den geçen yedek taramada "güvenilmeyen" görünüyorsa komutlar farklı bir

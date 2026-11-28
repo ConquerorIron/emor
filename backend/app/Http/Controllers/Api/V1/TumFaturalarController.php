@@ -29,13 +29,16 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
- * Tüm Faturalar (kullanıcı isteği 2026-11-20): İzibiz ve Protel'e GELEN
- * faturaların birleşik listesi — aynı VKN'nin iki posta kutusu. Kapsam her
- * sağlayıcının AKTİF tanımıdır (biri tanımsızsa yalnız diğeri); başka ortamın
- * faturası listelenmez, PDF'i açılmaz (404).
+ * Tüm Faturalar (kullanıcı isteği 2026-11-20): bütün kaynaklara GELEN
+ * faturaların birleşik listesi — İzibiz ve Protel (aynı VKN'nin iki posta
+ * kutusu) ile statik kaynaklar Logo ve e-Arşiv / e-SMM (EK-07, EK-08). Kapsam
+ * entegratörlerde sağlayıcının AKTİF tanımıdır (biri tanımsızsa yalnız diğeri),
+ * statik kaynaklarda her zaman statik tanım (`gelenTanimlari`); başka ortamın
+ * ya da giden yönün faturası listelenmez, açılmaz (404).
  *
  * Liste, filtre, sıralama ve Excel sağlayıcı ekranlarıyla aynı sorgudan
- * (EFaturaSorgusu). Senkron ve gizleme sağlayıcı ekranlarındadır.
+ * (EFaturaSorgusu). RED ve "SAP (Manuel İşle)" bu ekranda da (kendi
+ * izinleriyle); senkron ve gizleme sağlayıcı ekranlarındadır.
  * Yetkiler rota middleware'inde (`can:tum_faturalar.*`).
  */
 final class TumFaturalarController extends Controller
@@ -105,7 +108,10 @@ final class TumFaturalarController extends Controller
         );
     }
 
-    /** Faturanın kendi sağlayıcısından (İzibiz ya da Protel) — sağlayıcı ekranıyla aynı akış. */
+    /**
+     * Faturanın kendi sağlayıcısından — sağlayıcı ekranıyla aynı akış (statik
+     * kaynakta belge yok: 404 FATURA_BELGESI_YOK, FaturaBelgeServisi).
+     */
     public function pdf(int $fatura, FaturaBelgeServisi $belgeler, EFaturaCiktisi $cikti): Response
     {
         $kayit = $this->kapsamdakiFatura($fatura);
@@ -113,7 +119,7 @@ final class TumFaturalarController extends Controller
         return $cikti->belge($kayit, $belgeler->pdf($kayit->entegratorBaglanti, $kayit), 'pdf');
     }
 
-    /** UBL XML — yalnız İzibiz faturasında (Protel'de 404, FaturaBelgeServisi). */
+    /** UBL XML — yalnız İzibiz faturasında (Protel'de ve statik kaynakta 404, FaturaBelgeServisi). */
     public function xml(int $fatura, FaturaBelgeServisi $belgeler, EFaturaCiktisi $cikti): Response
     {
         $kayit = $this->kapsamdakiFatura($fatura);
@@ -183,6 +189,8 @@ final class TumFaturalarController extends Controller
     /**
      * Rota model bağlama bilinçli kullanılmıyor: kayıt yetki denetiminden
      * SONRA ve aktif tanımlarla sınırlı aranır; başka ortamın faturası 404.
+     * Ekran yalnız GELEN faturalarındır: İzibiz tanımının giden faturası da 404
+     * (RED / SAP / PDF / XML / geçmiş — tek kaynaklı ekranların `gelenFatura`'sı gibi).
      */
     private function kapsamdakiFatura(int $fatura): EFatura
     {
@@ -191,6 +199,7 @@ final class TumFaturalarController extends Controller
         return EFatura::query()
             ->with('entegratorBaglanti')
             ->whereIn('entegrator_baglanti_id', $idler)
+            ->where('yon', FaturaYonu::Gelen->value)
             ->find($fatura) ?? throw new NotFoundHttpException;
     }
 }

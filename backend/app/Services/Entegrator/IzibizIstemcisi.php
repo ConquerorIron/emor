@@ -90,15 +90,20 @@ final class IzibizIstemcisi
     /**
      * Kayıtlı tanım için geçerli token (EntegratorTokenOnbellegi): önbellekte
      * şifreli, eşzamanlı yenileme (web + kuyruk) tek girişe indirilir,
-     * reddedilen kimlik otomatik işlerde yeniden denenmez.
+     * reddedilen kimlik otomatik işlerde yeniden denenmez. Buradan çıkan hata
+     * `girisHatasi` işaretlidir: çağıran onu isteğin hatasından ayırabilsin (C-3).
      */
     public function token(EntegratorBaglanti $tanim): string
     {
-        return $this->onbellek->token($tanim, $this->kilitSuresi(), $this->guvenlikPayi(), function () use ($tanim): array {
-            $token = $this->tokenAl($tanim);
+        try {
+            return $this->onbellek->token($tanim, $this->kilitSuresi(), $this->guvenlikPayi(), function () use ($tanim): array {
+                $token = $this->tokenAl($tanim);
 
-            return [$token->erisimToken, $token->bitis];
-        });
+                return [$token->erisimToken, $token->bitis];
+            });
+        } catch (EntegratorHatasi $hata) {
+            throw $hata->giristen();
+        }
     }
 
     /**
@@ -157,7 +162,8 @@ final class IzibizIstemcisi
      * gövde `[{id}]`); yanıttaki base64 zip'i ham bayt olarak döner. Yalnız
      * okuma: test hesabında ölçüldü, okundu bayrakları DEĞİŞMİYOR (2026-09-24).
      * Tek istekte en çok 100 fatura (İzibiz kuralı). Partide sorunlu bir fatura
-     * varsa İzibiz tüm isteği 10008 ile reddeder — çağıran bölerek dener.
+     * varsa İzibiz tüm isteği HTTP 400 + kod 10008 ile reddeder — çağıran
+     * yalnız bu durumda bölerek dener (IzibizUblServisi).
      *
      * @param  list<int>  $kaynakIdleri  İzibiz fatura kimlikleri (ETTN değil)
      */

@@ -147,15 +147,20 @@ final class ProtelIstemcisi
     /**
      * Kayıtlı tanım için geçerli token (EntegratorTokenOnbellegi): önbellekte
      * şifreli, eşzamanlı yenileme tek girişe indirilir, reddedilen kimlik
-     * yeniden denenmez.
+     * yeniden denenmez. Buradan çıkan hata `girisHatasi` işaretlidir: çağıran
+     * onu isteğin (faturanın) hatasından ayırabilsin (C-3).
      */
     public function token(EntegratorBaglanti $tanim): string
     {
-        return $this->onbellek->token($tanim, $this->kilitSuresi(), $this->guvenlikPayi(), function () use ($tanim): array {
-            $token = $this->tokenAl($tanim);
+        try {
+            return $this->onbellek->token($tanim, $this->kilitSuresi(), $this->guvenlikPayi(), function () use ($tanim): array {
+                $token = $this->tokenAl($tanim);
 
-            return [$token->erisimToken, $token->bitis];
-        });
+                return [$token->erisimToken, $token->bitis];
+            });
+        } catch (EntegratorHatasi $hata) {
+            throw $hata->giristen();
+        }
     }
 
     /**

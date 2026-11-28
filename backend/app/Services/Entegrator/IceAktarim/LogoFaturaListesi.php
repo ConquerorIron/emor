@@ -115,14 +115,16 @@ final class LogoFaturaListesi extends StatikBelgeTuru
     }
 
     /**
+     * Kur 6 basamakla (kolon decimal(20,6)); sıfır ya da eksi kur yok sayılır.
+     *
      * @param  array<string, mixed>  $degerler
      * @param  list<array{0: string, 1: string, 2: string}>  $hatalar
      */
     private function kur(array $degerler, array &$hatalar): ?string
     {
-        $kur = $this->tutar($degerler, 'kur', false, $hatalar);
+        $kur = $this->kurDegeri($degerler, 'kur', $hatalar);
 
-        return $kur !== null && bccomp($kur, '0', 4) > 0 ? $kur : null;
+        return $kur !== null && bccomp($kur, '0', 6) > 0 ? $kur : null;
     }
 
     public function zorunlular(): array
@@ -181,7 +183,8 @@ final class LogoFaturaListesi extends StatikBelgeTuru
             'yanit_aciklamasi' => $this->secimliMetin($degerler, 'yanit_aciklamasi', null, $hatalar),
             'gib_durum_kodu' => $kod !== null && preg_match('/^\d{1,9}\z/', $kod) === 1 ? (int) $kod : null,
             'gib_durum_aciklamasi' => $this->secimliMetin($degerler, 'gib_durum_aciklamasi', null, $hatalar),
-            // Tutarlar belge para biriminde; mal-hizmet toplamı (indirim öncesi) dosyada yok
+            // Tutarlar belge para biriminde; mal-hizmet toplamı (indirim öncesi) dosyada yok.
+            // Bu dört alan boş gelirse mevcut değer korunur (StatikBelgeTuru::BOSKEN_KORUNAN_ALANLAR)
             'vergi_haric_tutar' => $this->tutar($degerler, 'vergi_haric_tutar', false, $hatalar),
             'indirim_tutari' => $this->tutar($degerler, 'indirim_tutari', false, $hatalar),
             'vergi_dahil_tutar' => $this->tutar($degerler, 'vergi_dahil_tutar', false, $hatalar),

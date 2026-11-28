@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Rapor;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 /**
  * ERP raporlarının ortak parametreleri (proc girdileri: ErpRaporKaynagi).
@@ -27,6 +29,39 @@ class ErpRaporRequest extends FormRequest
             'son_tarih' => ['required', 'date_format:Y-m-d', 'after_or_equal:ilk_tarih'],
             'proje_kodu' => ['nullable', 'string', 'max:100'],
             'firma_adi' => ['nullable', 'string', 'max:500'],
+        ];
+    }
+
+    /**
+     * Tarih aralığının en çok kaç gün olabileceği; null = sınırsız. ERP
+     * raporlarını proc kendisi sınırlar; uygulamanın tablolarını okuyan rapor
+     * (Gelen Fatura Raporu) e-Fatura listeleriyle aynı sınırı koyar.
+     */
+    protected function azamiGun(): ?int
+    {
+        return null;
+    }
+
+    /**
+     * @return list<callable(Validator): void>
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                $azami = $this->azamiGun();
+                if ($azami === null || $validator->errors()->isNotEmpty()) {
+                    return;
+                }
+
+                $gun = CarbonImmutable::parse($this->string('ilk_tarih')->value())
+                    ->diffInDays(CarbonImmutable::parse($this->string('son_tarih')->value()));
+
+                // EFaturaListeRequest::after() ile aynı kural ve mesaj
+                if ($gun + 1 > $azami) {
+                    $validator->errors()->add('son_tarih', __('hata.efatura_aralik_cok_genis', ['gun' => $azami]));
+                }
+            },
         ];
     }
 

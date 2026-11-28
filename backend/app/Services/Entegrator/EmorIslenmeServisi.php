@@ -180,7 +180,7 @@ final class EmorIslenmeServisi
     {
         $kume = [];
         foreach ($belgeler as $belge) {
-            if (trim($belge['belge_no']) !== '' && trim($belge['vkn']) !== '') {
+            if (trim($belge['belge_no']) !== '' && ErpKurumVknleri::normallestir($belge['vkn']) !== '') {
                 $kume[$this->noVkn($belge['belge_no'], $belge['vkn'])] = true;
             }
         }
@@ -214,8 +214,13 @@ final class EmorIslenmeServisi
         return mb_strtolower(trim($ettn));
     }
 
+    /**
+     * VKN iki tarafta da kurum VKN'leriyle aynı normalleştirmeden geçer: ERP'deki
+     * VKN'lerde bölünmez boşluk (U+00A0) görülüyor, trim() onu atmaz (G19;
+     * inceleme B-14). e-Arşiv / e-SMM belgesinin tek eşleşme yolu budur.
+     */
     private function noVkn(string $belgeNo, string $vkn): string
     {
-        return mb_strtoupper(trim($belgeNo)).'|'.trim($vkn);
+        return mb_strtoupper(trim($belgeNo)).'|'.ErpKurumVknleri::normallestir($vkn);
     }
 }

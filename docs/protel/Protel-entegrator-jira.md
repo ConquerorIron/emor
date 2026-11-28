@@ -74,10 +74,19 @@ bu konuda soru sorulmaz (PRT-R2 bu kararla kapatıldı).
 
 ### 1.3 İstek yükü
 
-İzibiz'deki kural burada da geçerlidir: fatura başına istek atılmaz. Veri
-yalnız liste ucundan gelir; senkron ay başına tek istek atar. PDF yalnız
-kullanıcı tek bir faturayı açınca istenir (`throttle:efatura-pdf`). Günlük yük:
-artımlı her 15 dk'da ≤ 2 istek (≤ 192/gün) + gece 2 istek + token günde ~1.
+Fatura listesi senkronu ay başına tek istek atar; PDF yalnız kullanıcı tek bir
+faturayı açınca istenir (`throttle:efatura-pdf`). Senkron yükü: artımlı her
+15 dk'da ≤ 2 istek (≤ 192/gün) + gece 2 istek + token günde ~1.
+
+**İstisna — UBL okuması (kullanıcı onayı 2026-11-26):** Protel'de toplu indirme
+olmadığı için rapor verileri (vergi kalemleri, tutarlar, kur) fatura başına bir
+`GetInvoicePdf` isteğiyle (`outputType = Ubl`, aynı dört alan) okunur:
+`efatura:ubl-oku --saglayici=protel` 15 dk'da bir, tur başına en çok 40 istek
+(`config/efatura.php` `protel_ubl_azami_istek`) — en çok 3.840 istek/gün; her
+fatura bir kez okunur, birikmiş fatura bittikten sonra yük yalnız yeni gelen
+fatura kadardır. Giriş hatası, faturaya özgü olmayan her hata (yalnız 404
+faturaya özgü sayılır) ve hiç okuma olmadan art arda üç okunamayan fatura turu
+keser (`UblOkumaTuru`, D8).
 
 ### 1.4 Ortamlar
 

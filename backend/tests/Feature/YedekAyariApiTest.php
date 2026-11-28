@@ -89,14 +89,27 @@ final class YedekAyariApiTest extends TestCase
      * düşerse ayar yine kaydedilir (denetim dosyada kalır). PostgreSQL'de hata
      * savepoint'siz işlemi zehirleyip değişikliği sessizce geri alırdı; bu yüzden
      * test PostgreSQL'de de koşulmalı (SQLite hatalı ifadeden sonra işlemi sürdürür).
+     * Yayın kapısı SQLite olduğu için savepoint ayrıca işlem derinliğiyle sınanır
+     * (G1-11): denetim yazımı ayarın işleminden bir düzey içeride olmalı; sarmal
+     * kaldırılırsa SQLite'ta da kırmızı.
      */
     public function test_denetim_kaydi_veritabanina_yazilamazsa_ayar_yine_kaydedilir(): void
     {
         Schema::rename('yedek_islem_kayitlari', 'yedek_islem_kayitlari_gecici');
+        $ayarDuzeyi = null;
+        $denetimDuzeyi = null;
+        YedekAyari::saving(function () use (&$ayarDuzeyi): void {
+            $ayarDuzeyi ??= DB::transactionLevel();
+        });
+        YedekIslemKaydi::creating(function () use (&$denetimDuzeyi): void {
+            $denetimDuzeyi ??= DB::transactionLevel();
+        });
 
         $this->putJson(self::K.'/yedek-ayarlari', $this->govde(['elle_gun' => 45]))->assertOk();
 
         $this->assertSame(45, DB::table('yedek_ayarlari')->value('elle_gun'));
+        $this->assertNotNull($ayarDuzeyi);
+        $this->assertSame($ayarDuzeyi + 1, $denetimDuzeyi);
     }
 
     public function test_servis_kipinde_web_kopyayi_yazmaz_calistirici_turu_degisince_yazar(): void

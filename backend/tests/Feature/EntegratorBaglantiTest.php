@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Models\EntegratorBaglanti;
 use App\Models\SqlBaglanti;
 use App\Models\User;
+use App\Services\EntegratorBaglantiServisi;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
@@ -603,5 +604,26 @@ final class EntegratorBaglantiTest extends TestCase
                 'api_url' => 'https://apitest.izibiz.com.tr',
             ])
             ->once();
+    }
+
+    /**
+     * Statik tanım ilk istenişte oluşur; sonraki her istek mevcut satırı okur,
+     * yazma denemez (PostgreSQL'de başarısız INSERT günlüğe hata düşürür, sıra
+     * numarası tüketir — inceleme E-3).
+     */
+    public function test_statik_tanim_varken_yeniden_istenince_yazma_denenmez(): void
+    {
+        $servis = app(EntegratorBaglantiServisi::class);
+        $ilk = $servis->statikTanim(EntegratorBaglanti::SAGLAYICI_LOGO);
+        $yazmaDenemesi = 0;
+        EntegratorBaglanti::creating(function () use (&$yazmaDenemesi): void {
+            $yazmaDenemesi++;
+        });
+
+        $ikinci = $servis->statikTanim(EntegratorBaglanti::SAGLAYICI_LOGO);
+
+        $this->assertSame($ilk->id, $ikinci->id);
+        $this->assertSame(0, $yazmaDenemesi);
+        $this->assertSame(1, EntegratorBaglanti::query()->where('saglayici', EntegratorBaglanti::SAGLAYICI_LOGO)->count());
     }
 }

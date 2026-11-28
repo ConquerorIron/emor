@@ -5,6 +5,8 @@ return [
     'sira_no' => 'Sıra No',
     'toplam' => 'TOPLAM',
     'genel_toplam_tl' => 'GENEL TOPLAM (TL)',
+    // Kuru olmayan dövizli fatura TL toplamına giremez (Gelen Fatura Raporu)
+    'genel_toplam_tl_kursuz' => 'GENEL TOPLAM (TL) — kuru olmayan :adet fatura hariç',
     // Özet sayfaları (ekrandaki sekmeler; ErpRaporu::PIVOTLAR)
     'pivot' => [
         'data' => 'Data',

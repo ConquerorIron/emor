@@ -102,7 +102,7 @@ export interface EFatura {
   mail_durumu: string | null
   /** Protel `erpStatus` (New, Booked, Cancelled…) — İzibiz'de null; yalnız gösterilir */
   erp_durumu: string | null
-  /** Protel `isPrinted` — İzibiz'de null; PDF yalnız true iken açılır */
+  /** Protel `isPrinted` — İzibiz'de null; yalnız gösterilir (PDF yazdırılmamış faturada da açılır) */
   yazdirildi: boolean | null
   /** Listede gizlendi mi (bize ait değil — ör. yanlış posta kutusu); silinmez */
   gizli: boolean
@@ -111,13 +111,13 @@ export interface EFatura {
   gizleyen: string | null
   /** Protel `isErpRecieved` — otelin ERP'si aldı mı (İzibiz'de null; eMOR okuması `erp_okundu`) */
   otel_erp_okundu: boolean | null
-  /** SAP'ye işlendi mi: Protel / statik kaynakta "İşlendi" anahtarı; İzibiz için SAP ucu bekleniyor */
+  /** SAP'ye işlendi mi: bütün gelen ekranlarındaki "SAP (Manuel İşle)" anahtarı (yalnız eMOR'da tutulur) */
   sap_islendi: boolean | null
   /** RED fatura "İşlendi" işaretlenemez; SAP kolonunda "Red"; hızlı filtrelerde görünmez */
   red: FaturaRed
   /** e-Arşiv tanımında belge türü; diğer kaynaklarda null */
   belge_turu: 'fatura' | 'makbuz' | null
-  /** e-SMM makbuzu: brüt ücret ve stopaj (tutar = tahsilat); e-Arşiv faturasında brüt = toplam */
+  /** e-SMM makbuzu: brüt ücret ve stopaj (tutar = tahsilat); e-Arşiv faturasında listenin brüt tutarı (canlıda çoğunlukla vergi hariç; inceleme §5 D-1) */
   brut_tutar: string | null
   stopaj_tutari: string | null
   /**
@@ -129,14 +129,18 @@ export interface EFatura {
   saglayici?: Saglayici
 }
 
-/** İşlem geçmişi kaydı (EK-03): kullanıcı adı ve belge kimliği kayıt anındaki kopyadır */
+/**
+ * İşlem geçmişi kaydı (EK-03): kullanıcı adı ve belge numarası kayıt anındaki
+ * kopyadır. Belge kimliği (e-Arşiv / e-SMM'de TCKN içerebilir) API'den dönmez (A-8).
+ */
 export interface EFaturaIslemi {
   id: number
   fatura_id: number | null
   yukleme_id: number | null
   saglayici: Saglayici | ''
+  /** İşlemin yapıldığı ortam (A-9); alan gelmeden önceki kayıtlarda boş */
+  ortam?: string | null
   belge_no: string | null
-  belge_kimligi: string | null
   islem: EFaturaIslemTuru
   onceki: string | null
   yeni: string | null
